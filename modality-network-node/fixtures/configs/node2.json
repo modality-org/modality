@@ -1,0 +1,9 @@
+{
+  "keypair": {
+    "id": "12D3KooWQd1qMC7aC8QCRH1RhTeBPW6eWejtXMmVhopRvJ5yafdC",
+    "public_key": "CAESINv27D1KAc1/RRUiD29Lu2WaCG5/YOd0wzkAGgVpjjlz",
+    "private_key": "CAESQAx2uPA8Tc5oD0RzFiM+Bvd1rQHB+byZxEUa85Z3kfvW2/bsPUoBzX9FFSIPb0u7ZZoIbn9g53TDOQAaBWmOOXM="
+  },
+  "listen": "/ip4/0.0.0.0/tcp/10002/ws",
+  "storage": "/tmp/storage/node1"
+}

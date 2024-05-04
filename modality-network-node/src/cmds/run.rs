@@ -8,6 +8,7 @@ use futures::future::{select, Either};
 use futures::StreamExt;
 use libp2p::multiaddr::Multiaddr;
 use libp2p::swarm::SwarmEvent;
+use libp2p::PeerId;
 use std::borrow::Borrow;
 use std::time::Duration;
 
@@ -45,6 +46,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
     )
     .await?;
     // .context("Failed to read identity")?;
+    log::info!("Node keypair: {:?}", node_keypair.public());
+    let node_peer_id = PeerId::from(node_keypair.public());
 
     let mut swarm = swarm::create_swarm(node_keypair).await?;
 
@@ -58,7 +61,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
         match select(swarm.next(), &mut tick).await {
             Either::Left((event, _)) => match event.unwrap() {
                 SwarmEvent::NewListenAddr { address, .. } => {
-                    log::info!("Listening on {address:?}")
+                    let address_with_p2p = address.clone().with(libp2p::multiaddr::Protocol::P2p(node_peer_id));
+                    log::info!("Listening on {address_with_p2p:?}")
                 }
                 event => {
                     log::debug!("Other type of event: {:?}", event);

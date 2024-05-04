@@ -25,9 +25,6 @@ pub struct Behaviour {
 }
 
 pub async fn create_swarm(local_key: identity::Keypair) -> Result<Swarm<Behaviour>> {
-    let local_peer_id = PeerId::from(local_key.public());
-    log::debug!("Local peer id: {local_peer_id}");
-
     let identify_behaviour = identify::Behaviour::new(
         identify::Config::new("/ipfs/id/1.0.0".into(), local_key.public())
             .with_interval(std::time::Duration::from_secs(60)), // do this so we can get timeouts for dropped WebRTC connections
@@ -35,18 +32,18 @@ pub async fn create_swarm(local_key: identity::Keypair) -> Result<Swarm<Behaviou
 
     let ping_behaviour = ping::Behaviour::new(ping::Config::new());
 
-    let swarm = SwarmBuilder::with_new_identity() // local_key)
+    let swarm = SwarmBuilder::with_existing_identity(local_key) // local_key)
       .with_tokio()
       .with_tcp(
           Default::default(),
-          (libp2p_tls::Config::new, libp2p_noise::Config::new),
+          libp2p_noise::Config::new,
           libp2p_yamux::Config::default,
       )?
       // .with_quic()
       // .with_other_transport(|_key| DummyTransport::<(PeerId, StreamMuxerBox)>::new())?
       // .with_dns()?
       .with_websocket(
-        (libp2p_tls::Config::new, libp2p_noise::Config::new),
+        libp2p_noise::Config::new,
         libp2p_yamux::Config::default,
       )
       .await?
