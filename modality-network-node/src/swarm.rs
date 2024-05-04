@@ -7,12 +7,14 @@ use libp2p::PeerId;
 use libp2p::{swarm::NetworkBehaviour, swarm::Swarm, SwarmBuilder};
 // use libp2p::core::transport::dummy::DummyTransport;
 // use libp2p::core::muxing::StreamMuxerBox;
+use libp2p::ping;
 use libp2p_noise;
 use libp2p_yamux;
 use libp2p_tls;
 
 #[derive(NetworkBehaviour)]
 pub struct Behaviour {
+    ping: ping::Behaviour,
     identify: identify::Behaviour,
     relay: libp2p_relay::client::Behaviour,
     // gossipsub: gossipsub::Behaviour,
@@ -30,6 +32,8 @@ pub async fn create_swarm(local_key: identity::Keypair) -> Result<Swarm<Behaviou
         identify::Config::new("/ipfs/id/1.0.0".into(), local_key.public())
             .with_interval(std::time::Duration::from_secs(60)), // do this so we can get timeouts for dropped WebRTC connections
     );
+
+    let ping_behaviour = ping::Behaviour::new(ping::Config::new());
 
     let swarm = SwarmBuilder::with_new_identity() // local_key)
       .with_tokio()
@@ -53,6 +57,7 @@ pub async fn create_swarm(local_key: identity::Keypair) -> Result<Swarm<Behaviou
       .with_behaviour(|_key, relay| Behaviour {
         relay,
         identify: identify_behaviour,
+        ping: ping_behaviour,
       })?
       .with_swarm_config(|cfg| {
           // Edit cfg here.
