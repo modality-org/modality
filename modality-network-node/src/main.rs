@@ -17,7 +17,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    Run(cmds::run::Opts)
+    Run(cmds::run::Opts),
+    Ping(cmds::ping::Opts)
 }
 
 #[tokio::main]
@@ -28,6 +29,9 @@ async fn main() -> Result<()> {
     match &cli.command {
         Commands::Run(opts) => {
             cmds::run::run(opts).await?
+        }
+        Commands::Ping(opts) => {
+            cmds::ping::run(opts).await?
         }
     }
 
