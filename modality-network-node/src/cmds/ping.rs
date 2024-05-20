@@ -1,20 +1,17 @@
 use crate::config_file;
 use crate::identity_utils;
 use crate::swarm;
-use rand::Rng;
+
+// use libp2p::swarm::behaviour::ConnectionEstablished;
 use anyhow::{Context, Result};
 use clap::Parser;
-use futures::future::{select, Either};
-use futures::stream;
-use futures::StreamExt;
 use libp2p::multiaddr::Multiaddr;
-use libp2p::swarm::SwarmEvent;
-use libp2p::PeerId;
-use rand::RngCore;
 use std::borrow::Borrow;
-use std::time::Duration;
 use std::time::Instant;
-
+use futures::prelude::*;
+use libp2p::swarm::StreamProtocol;
+use libp2p::swarm::SwarmEvent;
+use rand::RngCore;
 #[derive(Debug, Parser)]
 pub struct Opts {
     #[clap(long, default_value = "./config.json")]
@@ -23,106 +20,102 @@ pub struct Opts {
     #[clap(long)]
     keypair: Option<std::path::PathBuf>,
 
-    #[clap(long, default_value = "/ip4/0.0.0.0/tcp/0/ws")]
-    listen: String,
-
     #[clap(long)]
     storage: Option<std::path::PathBuf>,
 
-    #[clap(long, default_value = "15")]
-    tick_interval: u64,
-
     #[clap(long, default_value = "1")]
     times: i32,
+
+    #[clap(long, default_value = "/ip4/0.0.0.0/tcp/0/ws")]
+    target: String,
 }
 
-// pub async fn run(arg_matches: &clap::ArgMatches) -> Result<()> {
+async fn send_random_ping(mut stream: libp2p::Stream) -> std::io::Result<()> {
+    let num_bytes = 32;
+
+    let mut bytes = vec![0; num_bytes];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    stream.write_all(&bytes).await?;
+
+    let mut buf = vec![0; num_bytes];
+    stream.read_exact(&mut buf).await?;
+
+    if bytes != buf {
+        return Err(std::io::Error::new(std::io::ErrorKind::Other, "incorrect echo"));
+    }
+    stream.close().await?;
+    Ok(())
+}
+
 pub async fn run(opts: &Opts) -> Result<()> {
-    log::info!("Config: {:?}", opts.config);
- 
-    let config =
-        config_file::read_or_create_config(&opts.config).context("Failed to read config")?;
+    let times_to_ping = *(&opts.times);
 
-    log::info!("Config: {:?}", config);
-
+    let config = config_file::read_or_create_config(&opts.config).context("Failed to read config")?;
     let config_keypair = config.keypair.unwrap();
-
     let node_keypair = identity_utils::identity_from_private_key(
       config_keypair.private_key.unwrap_or_default().borrow(),
     )
     .await?;
-    // .context("Failed to read identity")?;
-    log::info!("Node keypair: {:?}", node_keypair.public());
-    let node_peer_id = PeerId::from(node_keypair.public());
 
+    let ma = opts.target.clone().parse::<Multiaddr>().unwrap();
+
+    let Some(libp2p::multiaddr::Protocol::P2p(target_peer_id)) = ma.iter().last() else {
+        anyhow::bail!("Provided address does not end in `/p2p`");
+    };
 
     let mut swarm = swarm::create_swarm(node_keypair).await?;
+    swarm.dial(ma.clone())?;
+    let mut control = swarm.behaviour().stream.new_control();
 
-    // 1. Unpack the multiaddr and use it to open a stream to that node
-    let ma = config.listen.unwrap_or(opts.listen.clone()).parse::<Multiaddr>().unwrap();
+    loop {
+        match swarm.select_next_some().await {
+            SwarmEvent::ConnectionEstablished { peer_id, .. } => {
+                if peer_id == target_peer_id {
+                    log::info!("Connected to peer {:?}", peer_id);
+                    break;
+                }
+            } 
+            SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
+                if let Some(peer_id) = peer_id {
+                    log::error!("Failed to dial peer {:?}", peer_id);
+                    log::error!("Error: {:?}", error);
+                }
+            }
+            event => {
+               log::debug!("Other Event {:?}", event)
+            },
+        }
+    }
+    
+    let protocol = StreamProtocol::new("/ipfs/ping/1.0.0");
+
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
     let start = Instant::now();
-    swarm.dial(ma.clone()).unwrap();
+
+    for times_pinged in 0..times_to_ping {
+        let stream = match control.open_stream(target_peer_id, protocol.clone()).await {
+            Ok(stream) => stream,
+            Err(error @ libp2p_stream::OpenStreamError::UnsupportedProtocol(_)) => {
+                log::error!("UNSUPPORTED PROTOCOL {:?}", error);
+                break;
+            }
+            Err(error) => {
+                log::error!("{:?}", error);
+                continue;
+            }
+        };
+        let r = send_random_ping(stream).await;
+        if let Err(e) = r {
+            log::error!("STREAM ERROR ::: {:?}", e);
+            continue;
+        }
+        log::info!("ping #{:?}", times_pinged+1);
+    }
 
     let duration = start.elapsed();
-    let duration_seconds = duration.as_secs_f64();
-    
-    let times_to_ping = &opts.times;
-    // Create a random data payload.
-    let mut rng = rand::thread_rng();
-    let data: Vec<u8> = (0..32).map(|_| rng.gen()).collect();
+    log::info!("Time taken to ping {} times: {:?}", times_to_ping, duration);
+    log::info!("Average time taken to ping: {:?}", duration / times_to_ping as u32);
 
-
-    let start = std::time::Instant::now();
-
-    // // Send and receive data over the stream.
-    // for _ in 0..1 { // Replace 1 with the number of times you want to send the ping.
-    //     let ping = Ping(data.clone());
-
-    //     // Send the request.
-    //     let request_id = swarm.behaviour_mut().send_request(&remote_peer_id, ping);
-
-    //     // Handle swarm events.
-    //     loop {
-    //         match swarm.next().await {
-    //             Some(SwarmEvent::Behaviour(RequestResponseEvent::Message { peer, message })) => {
-    //                 if peer == remote_peer_id {
-    //                     match message {
-    //                         RequestResponseMessage::Response { request_id: resp_id, response } => {
-    //                             if resp_id == request_id {
-    //                                 let Pong(response_data) = response;
-    //                                 let byte_matches = response_data.iter().zip(data.iter()).all(|(a, b)| a == b);
-    //                                 if !byte_matches {
-    //                                     eprintln!("Wrong pong");
-    //                                     return Err("Wrong pong".into());
-    //                                 }
-    //                                 println!("Pinged successfully in {:?}", start.elapsed());
-    //                                 break;
-    //                             }
-    //                         }
-    //                         _ => {}
-    //                     }
-    //                 }
-    //             }
-    //             Some(event) => {
-    //                 println!("Unhandled event: {:?}", event);
-    //             }
-    //             None => break,
-    //         }
-    //     }
-    // }
-    // // 3. Loop the amount of times from args, and create a random 32 bytes payload
-    for _ in 0..*times_to_ping {
-        let mut rng = rand::thread_rng();
-        let payload: [u8; 32] = rng.gen();
-        log::info!("Sending ping with payload: {:?}", payload);
-
-        // let mut stream = stream.into_stream();
-
-        // stream.write_all(&payload).await?;
-        // let mut buf = vec![0u8; 32];
-        // stream.read_exact(&mut buf).await?;
-        // assert_eq!(payload, buf);
-    }
     Ok(())
-
 }

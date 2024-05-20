@@ -1,22 +1,18 @@
+use anyhow::Result;
 
-use anyhow::{Result};
-
-// use libp2p::request_response::{self, ProtocolSupport};
 use libp2p::{identify, identity};
-use libp2p::PeerId;
 use libp2p::{swarm::NetworkBehaviour, swarm::Swarm, SwarmBuilder};
-// use libp2p::core::transport::dummy::DummyTransport;
-// use libp2p::core::muxing::StreamMuxerBox;
 use libp2p::ping;
 use libp2p_noise;
+use libp2p_stream;
 use libp2p_yamux;
-use libp2p_tls;
+use std::time::Duration;
 
 #[derive(NetworkBehaviour)]
 pub struct Behaviour {
-    ping: ping::Behaviour,
-    identify: identify::Behaviour,
-    relay: libp2p_relay::client::Behaviour,
+    pub stream: libp2p_stream::Behaviour,
+    pub ping: ping::Behaviour,
+    pub identify: identify::Behaviour,
     // gossipsub: gossipsub::Behaviour,
     // kademlia: Kademlia<MemoryStore>,
     // relay: relay::Behaviour,
@@ -24,43 +20,46 @@ pub struct Behaviour {
     // connection_limits: memory_connection_limits::Behaviour,
 }
 
+#[derive(NetworkBehaviour)]
+pub struct StreamBehaviour {
+    pub stream: libp2p_stream::Behaviour,
+    pub identify: identify::Behaviour,
+    pub ping: ping::Behaviour,
+}
+
+pub async fn create_swarm_with_behaviours(
+    local_key: identity::Keypair,
+    behaviour: Behaviour,
+) -> Result<Swarm<Behaviour>> {
+    let swarm = SwarmBuilder::with_existing_identity(local_key) // local_key)
+        .with_tokio()
+        .with_tcp(
+            libp2p::tcp::Config::default(),
+            libp2p_noise::Config::new,
+            libp2p_yamux::Config::default,
+        )?
+        .with_websocket(libp2p_noise::Config::new, libp2p_yamux::Config::default)
+        .await?
+        .with_behaviour(|_key| behaviour)?
+        .with_swarm_config(|cfg| {
+            // Edit cfg here.
+            cfg.with_idle_connection_timeout(Duration::from_secs(60))
+        })
+        .build();
+    Ok(swarm)
+}
+
 pub async fn create_swarm(local_key: identity::Keypair) -> Result<Swarm<Behaviour>> {
     let identify_behaviour = identify::Behaviour::new(
         identify::Config::new("/ipfs/id/1.0.0".into(), local_key.public())
             .with_interval(std::time::Duration::from_secs(60)), // do this so we can get timeouts for dropped WebRTC connections
     );
-
     let ping_behaviour = ping::Behaviour::new(ping::Config::new());
-
-    let swarm = SwarmBuilder::with_existing_identity(local_key) // local_key)
-      .with_tokio()
-      .with_tcp(
-          Default::default(),
-          libp2p_noise::Config::new,
-          libp2p_yamux::Config::default,
-      )?
-      // .with_quic()
-      // .with_other_transport(|_key| DummyTransport::<(PeerId, StreamMuxerBox)>::new())?
-      // .with_dns()?
-      .with_websocket(
-        libp2p_noise::Config::new,
-        libp2p_yamux::Config::default,
-      )
-      .await?
-      .with_relay_client(
-          (libp2p_tls::Config::new, libp2p_noise::Config::new),
-          libp2p_yamux::Config::default,
-      )?
-      .with_behaviour(|_key, relay| Behaviour {
-        relay,
-        identify: identify_behaviour,
+    let behaviour = Behaviour {
         ping: ping_behaviour,
-      })?
-      .with_swarm_config(|cfg| {
-          // Edit cfg here.
-          cfg
-      })
-      .build();
-
-    Ok(swarm) 
+        identify: identify_behaviour,
+        stream: libp2p_stream::Behaviour::new(),
+    };
+    let swarm = create_swarm_with_behaviours(local_key, behaviour).await?;
+    Ok(swarm)
 }
