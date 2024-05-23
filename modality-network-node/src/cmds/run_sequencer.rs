@@ -31,7 +31,7 @@ pub struct Opts {
 }
 
 // pub async fn run(arg_matches: &clap::ArgMatches) -> Result<()> {
-pub async fn run(opts: &Opts) -> Result<()> {
+pub async fn run_sequencer(opts: &Opts) -> Result<()> {
     log::info!("Config: {:?}", opts.config);
  
     let config =
