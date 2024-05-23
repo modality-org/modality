@@ -2,7 +2,9 @@ use sha1::{Sha1, Digest};
 use sha2::{Sha256, Sha384, Sha512};
 use std::collections::HashMap;
 use std::error::Error;
-use std::fmt::Write;
+use num_bigint::BigUint;
+use num_bigint::ToBigUint;
+use num_traits::Num;
 
 const DEFAULT_MAX_TRIES: u128 = 100_000_000_000;
 const DEFAULT_HASH_FUNC_NAME: &str = "sha256";
@@ -21,11 +23,12 @@ lazy_static::lazy_static! {
     };
 }
 
-async fn mine(
+#[allow(dead_code)]
+pub async fn mine(
     data: &str,
     difficulty: u128,
-    max_tries: u128,
-    hash_func_name: &str,
+    max_tries: Option<u128>,
+    hash_func_name: Option<&str>,
 ) -> Result<u128, Box<dyn Error>> {
     let max_tries = max_tries.unwrap_or(DEFAULT_MAX_TRIES);
     let hash_func_name = hash_func_name.unwrap_or(DEFAULT_HASH_FUNC_NAME);
@@ -45,7 +48,8 @@ async fn mine(
     Err("maxTries reached, no nonce found".into())
 }
 
-async fn hash_with_nonce(data: &str, nonce: u128, hash_func_name: &str) -> Result<String, Box<dyn Error>> {
+#[allow(dead_code)]
+pub async fn hash_with_nonce(data: &str, nonce: u128, hash_func_name: &str) -> Result<String, Box<dyn Error>> {
     let hash = match hash_func_name {
         "sha1" => {
             let mut hasher = Sha1::new();
@@ -73,27 +77,40 @@ async fn hash_with_nonce(data: &str, nonce: u128, hash_func_name: &str) -> Resul
     Ok(hash)
 }
 
-fn difficulty_to_target_hash(
+pub fn difficulty_to_target_hash(
     difficulty: u128,
     hash_func_name: &str,
     coefficient: u128,
     exponent: u128,
     base: u128,
 ) -> String {
-    let hex_length = HASH_FUNC_HEXADECIMAL_LENGTH[hash_func_name];
-    let max_target = coefficient << (exponent * base);
-    let target_hash = (max_target / difficulty).to_string();
-    format!("{:0>width$}", target_hash, width = hex_length)
+    let _hex_length = HASH_FUNC_HEXADECIMAL_LENGTH[hash_func_name];
+    let max_target = coefficient.to_biguint().unwrap() << (exponent * base);
+    let target_bignum = max_target / difficulty;
+    target_bignum.to_str_radix(16)
 }
 
-fn is_hash_acceptable(hash: &str, difficulty: u128, hash_func_name: &str) -> bool {
+pub fn is_hash_acceptable(hash: &str, difficulty: u128, hash_func_name: &str) -> bool {
     let target_hash = difficulty_to_target_hash(difficulty, hash_func_name, DEFAULT_DIFFICULTY_COEFFICIENT, DEFAULT_DIFFICULTY_EXPONENT, DEFAULT_DIFFICULTY_BASE);
-    let target_big_int = u128::from_str_radix(&target_hash, 16).unwrap();
-    let hash_big_int = u128::from_str_radix(hash, 16).unwrap();
+    let hash_big_int = BigUint::from_str_radix(hash, 16).unwrap();
+    let target_big_int = BigUint::from_str_radix(&target_hash, 16).unwrap();
     hash_big_int < target_big_int
 }
 
-async fn validate_nonce(data: &str, nonce: u128, difficulty: u128, hash_func_name: &str) -> Result<bool, Box<dyn Error>> {
+#[allow(dead_code)]
+pub async fn validate_nonce(data: &str, nonce: u128, difficulty: u128, hash_func_name: &str) -> Result<bool, Box<dyn Error>> {
     let hash = hash_with_nonce(data, nonce, hash_func_name).await?;
     Ok(is_hash_acceptable(&hash, difficulty, hash_func_name))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn it_works() {
+        let data = String::from("hello");
+        let nonce = mine(&data, 500, None, None).await.unwrap();
+        assert_eq!(nonce, 156056);
+    }
 }
