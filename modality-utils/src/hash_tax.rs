@@ -24,7 +24,7 @@ lazy_static::lazy_static! {
 }
 
 #[allow(dead_code)]
-pub async fn mine(
+pub fn mine(
     data: &str,
     difficulty: u128,
     max_tries: Option<u128>,
@@ -38,7 +38,7 @@ pub async fn mine(
 
     while try_count < max_tries {
         try_count += 1;
-        let hash = hash_with_nonce(data, nonce, hash_func_name).await?;
+        let hash = hash_with_nonce(data, nonce, hash_func_name)?;
         if is_hash_acceptable(&hash, difficulty, hash_func_name) {
             return Ok(nonce);
         }
@@ -49,7 +49,7 @@ pub async fn mine(
 }
 
 #[allow(dead_code)]
-pub async fn hash_with_nonce(data: &str, nonce: u128, hash_func_name: &str) -> Result<String, Box<dyn Error>> {
+pub fn hash_with_nonce(data: &str, nonce: u128, hash_func_name: &str) -> Result<String, Box<dyn Error>> {
     let hash = match hash_func_name {
         "sha1" => {
             let mut hasher = Sha1::new();
@@ -98,8 +98,8 @@ pub fn is_hash_acceptable(hash: &str, difficulty: u128, hash_func_name: &str) ->
 }
 
 #[allow(dead_code)]
-pub async fn validate_nonce(data: &str, nonce: u128, difficulty: u128, hash_func_name: &str) -> Result<bool, Box<dyn Error>> {
-    let hash = hash_with_nonce(data, nonce, hash_func_name).await?;
+pub fn validate_nonce(data: &str, nonce: u128, difficulty: u128, hash_func_name: &str) -> Result<bool, Box<dyn Error>> {
+    let hash = hash_with_nonce(data, nonce, hash_func_name)?;
     Ok(is_hash_acceptable(&hash, difficulty, hash_func_name))
 }
 
@@ -107,10 +107,10 @@ pub async fn validate_nonce(data: &str, nonce: u128, difficulty: u128, hash_func
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn it_works() {
+    #[test]
+    fn it_works() {
         let data = String::from("hello");
-        let nonce = mine(&data, 500, None, None).await.unwrap();
+        let nonce = mine(&data, 500, None, None).unwrap();
         assert_eq!(nonce, 156056);
     }
 }
