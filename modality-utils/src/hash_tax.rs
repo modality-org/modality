@@ -109,8 +109,8 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let data = String::from("hello");
+        let data = String::from("data");
         let nonce = mine(&data, 500, None, None).unwrap();
-        assert_eq!(nonce, 156056);
+        assert_eq!(nonce, 2401);
     }
 }
