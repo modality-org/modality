@@ -79,7 +79,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     let request = reqres::Request {
         path: opts.path.clone().to_string(),
-        data: serde_json::json!(opts.data.clone()),
+        data: Some(serde_json::json!(opts.data.clone())),
     };
     let target_request_id = swarm
         .behaviour_mut()
@@ -96,7 +96,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 }
               )) => {
                 if target_request_id == request_id {
-                  println!("{}", serde_json::to_string_pretty(&response.data).unwrap());
+                  println!("{}", serde_json::to_string_pretty(&response).unwrap());
                   break;
                 }
               }

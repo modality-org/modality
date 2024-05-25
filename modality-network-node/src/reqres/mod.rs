@@ -1,4 +1,6 @@
+use anyhow::Result;
 use libp2p::request_response;
+mod consensus;
 
 #[allow(dead_code)]
 pub const PROTOCOL: &str = "/modality-network/reqres/0.0.1";
@@ -14,10 +16,32 @@ pub type Behaviour = request_response::json::Behaviour::<Request, Response>;
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Request {
     pub path: String,
-    pub data: serde_json::Value,
+    pub data: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Response {
-    pub data: serde_json::Value,
+    pub ok: bool,
+    pub data: Option<serde_json::Value>,
+    pub errors: Option<serde_json::Value>
+}
+
+pub async fn handle_request(req: Request) -> Result<Response> {
+    log::info!("Handling request: {:?}", req);
+    let path = req.path;
+    let data = req.data.unwrap_or_default();
+    let response = match path.as_str() {
+        "/consensus/status" => {
+            consensus::status::handler(Some(data.clone())).await?
+        }
+        _ => {
+            Response {
+                ok: false,
+                data: None,
+                errors: Some(serde_json::json!({"error": "Unknown path"}))
+            }
+        }
+    };
+    log::info!("Response: {:?}", response);
+    Ok(response)
 }

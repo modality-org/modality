@@ -1,5 +1,6 @@
 use crate::config_file;
 use crate::identity_utils;
+use crate::reqres;
 use crate::swarm;
 
 use anyhow::{Context, Result};
@@ -11,6 +12,7 @@ use libp2p::swarm::SwarmEvent;
 use libp2p::PeerId;
 use std::borrow::Borrow;
 use std::time::Duration;
+use libp2p::request_response;
 
 #[derive(Debug, Parser)]
 pub struct Opts {
@@ -64,6 +66,51 @@ pub async fn run_sequencer(opts: &Opts) -> Result<()> {
                     let address_with_p2p = address.clone().with(libp2p::multiaddr::Protocol::P2p(node_peer_id));
                     log::info!("Listening on {address_with_p2p:?}")
                 }
+                SwarmEvent::Behaviour(swarm::BehaviourEvent::Reqres(
+                    request_response::Event::Message { message, .. },
+                )) => match message {
+                    request_response::Message::Request {
+                        request,
+                        channel,
+                        .. // request, channel, ..
+                    } => {
+                        log::info!("reqres request");
+                        let res = reqres::handle_request(request).await?;
+                        swarm.behaviour_mut().reqres.send_response(channel, res).expect("failed to respond")
+                    }
+                    request_response::Message::Response {
+                        ..
+                        // request_id,
+                        // response,
+                    } => {
+                        log::info!("reqres response")
+                    }
+                },
+                SwarmEvent::Behaviour(event) => {
+                    log::info!("SwarmEvent::Behaviour event {:?}", event);
+                    match event {
+
+                        swarm::BehaviourEvent::Identify(_) => {
+                            log::info!("Identify Behaviour event");
+                        }
+                        swarm::BehaviourEvent::Ping(_) => {
+                            log::info!("Ping Behaviour event");
+                        }
+                        swarm::BehaviourEvent::Stream(_) => {
+                            log::info!("Stream Behaviour event");
+                        }
+                        swarm::BehaviourEvent::Reqres(_) => {
+                            log::info!("Reqres Behaviour event");
+                        }
+                        // _ => {
+                        //     log::info!("Other Swarm Behaviour event {:?}", event);
+                        // }
+                    }
+                }
+                // TODO NewExternalAddrCandidate
+                // TODO IncomingConnection
+                // TODO ConnectionEstablished
+                // TODO ConnectionClosed
                 event => {
                     log::debug!("Other type of event: {:?}", event);
                 }
