@@ -1,30 +1,28 @@
 use anyhow::Result;
 
 use libp2p::{identify, identity};
+use libp2p::swarm;
 use libp2p::{swarm::NetworkBehaviour, swarm::Swarm, SwarmBuilder};
 use libp2p::ping;
 use libp2p_noise;
 use libp2p_stream;
 use libp2p_yamux;
+use libp2p::request_response;
 use std::time::Duration;
+
+use crate::reqres;
 
 #[derive(NetworkBehaviour)]
 pub struct Behaviour {
     pub stream: libp2p_stream::Behaviour,
     pub ping: ping::Behaviour,
     pub identify: identify::Behaviour,
+    pub reqres: reqres::Behaviour,
     // gossipsub: gossipsub::Behaviour,
     // kademlia: Kademlia<MemoryStore>,
     // relay: relay::Behaviour,
     // request_response: request_response::Behaviour<FileExchangeCodec>,
     // connection_limits: memory_connection_limits::Behaviour,
-}
-
-#[derive(NetworkBehaviour)]
-pub struct StreamBehaviour {
-    pub stream: libp2p_stream::Behaviour,
-    pub identify: identify::Behaviour,
-    pub ping: ping::Behaviour,
 }
 
 pub async fn create_swarm_with_behaviours(
@@ -55,9 +53,16 @@ pub async fn create_swarm(local_key: identity::Keypair) -> Result<Swarm<Behaviou
             .with_interval(std::time::Duration::from_secs(60)), // do this so we can get timeouts for dropped WebRTC connections
     );
     let ping_behaviour = ping::Behaviour::new(ping::Config::new());
+    
+    let reqres_behaviour = reqres::Behaviour::new(
+        [(swarm::StreamProtocol::new(reqres::PROTOCOL), request_response::ProtocolSupport::Full)],
+        request_response::Config::default()
+    );
+
     let behaviour = Behaviour {
         ping: ping_behaviour,
         identify: identify_behaviour,
+        reqres: reqres_behaviour,
         stream: libp2p_stream::Behaviour::new(),
     };
     let swarm = create_swarm_with_behaviours(local_key, behaviour).await?;

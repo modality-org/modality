@@ -2,8 +2,9 @@ mod identity_utils;
 mod swarm;
 mod cmds;
 mod config_file;
+mod reqres;
 
-use anyhow::{Result};
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -21,7 +22,10 @@ enum Commands {
     RunSequencer(cmds::run_sequencer::Opts),
 
     #[clap(name = "ping")]
-    Ping(cmds::ping::Opts)
+    Ping(cmds::ping::Opts),
+
+    #[clap(name = "request")]
+    Request(cmds::request::Opts)
 }
 
 #[tokio::main]
@@ -35,6 +39,9 @@ async fn main() -> Result<()> {
         }
         Commands::Ping(opts) => {
             cmds::ping::run(opts).await?
+        }
+        Commands::Request(opts) => {
+            cmds::request::run(opts).await?
         }
     }
 
