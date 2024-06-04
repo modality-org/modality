@@ -3,6 +3,7 @@ mod swarm;
 mod cmds;
 mod config_file;
 mod reqres;
+mod gossip;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
