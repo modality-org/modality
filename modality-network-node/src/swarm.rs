@@ -11,6 +11,7 @@ use libp2p::request_response;
 use std::time::Duration;
 
 use crate::reqres;
+use crate::gossip;
 
 #[derive(NetworkBehaviour)]
 pub struct Behaviour {
@@ -18,7 +19,7 @@ pub struct Behaviour {
     pub ping: ping::Behaviour,
     pub identify: identify::Behaviour,
     pub reqres: reqres::Behaviour,
-    // gossipsub: gossipsub::Behaviour,
+    // pub gossip: gossip::Behaviour
     // kademlia: Kademlia<MemoryStore>,
     // relay: relay::Behaviour,
     // request_response: request_response::Behaviour<FileExchangeCodec>,
