@@ -30,7 +30,7 @@ pub async fn handler(node: &Node, message: GossipMessage) -> Result<()> {
     let obj: VertexCertificate = serde_json::from_str(&text)?;
 
     // Log the event details
-    println!("Event: {:?}", message);
+    // println!("Event: {:?}", message);
     println!("Text: {:?}", text);
     println!("Object: {:?}", obj);
 

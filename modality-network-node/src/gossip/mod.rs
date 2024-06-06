@@ -1,5 +1,5 @@
 use anyhow::Result;
-use libp2p::gossipsub::{Gossipsub, GossipsubEvent, IdentTopic, TopicHash};
+use libp2p::gossipsub;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tokio::sync::mpsc::unbounded_channel;
@@ -16,12 +16,12 @@ pub struct GossipMessage {
 }
 
 pub struct Behaviour {
-    pub gossipsub: Gossipsub,
-    pub topics: HashMap<TopicHash, UnboundedSender<GossipMessage>>,
+    pub gossipsub: gossipsub::Behaviour,
+    pub topics: HashMap<gossipsub::TopicHash, UnboundedSender<GossipMessage>>,
 }
 
 impl Behaviour {
-    pub fn new(gossipsub: Gossipsub) -> Self {
+    pub fn new(gossipsub: gossipsub::Behaviour) -> Self {
         Behaviour {
             gossipsub,
             topics: HashMap::new(),
@@ -29,7 +29,7 @@ impl Behaviour {
     }
 
     pub fn subscribe(&mut self, topic: &str) -> Result<()> {
-        let topic = IdentTopic::new(topic);
+        let topic = gossipsub::IdentTopic::new(topic);
         self.gossipsub.subscribe(&topic)?;
         let (tx, mut rx) = unbounded_channel::<GossipMessage>();
         self.topics.insert(topic.hash(), tx);
@@ -41,9 +41,9 @@ impl Behaviour {
         Ok(())
     }
 
-    pub async fn handle_event(&mut self, event: GossipsubEvent) {
+    pub async fn handle_event(&mut self, event: gossipsub::Event) {
         match event {
-            GossipsubEvent::Message {
+            gossipsub::Event::Message {
                 propagation_source: _,
                 message_id: _,
                 message,

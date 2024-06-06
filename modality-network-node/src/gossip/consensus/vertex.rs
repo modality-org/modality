@@ -31,7 +31,7 @@ pub struct ReqResService {
     // Define this service structure as needed
 }
 
-pub async fn handler(node: &Node, message: GossipMessage) -> Result<Vertex> {
+pub async fn handler(node: &Node, message: GossipMessage) -> Result<()> {
     // Check if node has storage and local_dag
     let local_dag = match &node.storage {
         Some(storage) => match &storage.local_dag {
@@ -49,5 +49,5 @@ pub async fn handler(node: &Node, message: GossipMessage) -> Result<Vertex> {
     let signed_vertex = vertex.clone(); // Placeholder for signed vertex logic
 
 
-    Ok(vertex)
+    Ok(())
 }

@@ -2,7 +2,7 @@ use crate::config_file;
 use crate::identity_utils;
 use crate::reqres;
 use crate::swarm;
-use crate::gossip::{GossipBehaviour};
+// use crate::gossip::{GossipBehaviour};
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -11,7 +11,7 @@ use futures::StreamExt;
 use libp2p::multiaddr::Multiaddr;
 use libp2p::swarm::SwarmEvent;
 use libp2p::PeerId;
-use libp2p::gossipsub::{Gossipsub, GossipsubConfig, GossipsubEvent, IdentTopic, MessageAuthenticity};
+use libp2p::gossipsub;
 use std::borrow::Borrow;
 use std::time::Duration;
 use libp2p::request_response;
@@ -59,16 +59,11 @@ pub async fn run_sequencer(opts: &Opts) -> Result<()> {
     let listen_ma = config.listen.unwrap_or(opts.listen.clone()).parse::<Multiaddr>().unwrap();
     swarm.listen_on(listen_ma.clone()).expect("");
 
-    // Initialize GossipBehaviour and subscribe to topics
-    let gossipsub_config = GossipsubConfig::default();
-    let mut gossipsub = Gossipsub::new(MessageAuthenticity::Signed(node_keypair_clone), gossipsub_config)?;
-    let mut gossip_behaviour = GossipBehaviour::new(gossipsub);
-
-    gossip_behaviour.subscribe("/consensus/vertex")?;
-    gossip_behaviour.subscribe("/consensus/vertex_certificate")?;
-
     let tick_interval: Duration = Duration::from_secs(opts.tick_interval);
     let mut tick = futures_timer::Delay::new(tick_interval);
+
+    let consensus_topic = gossipsub::IdentTopic::new("consensus");
+    swarm.behaviour_mut().gossipsub.subscribe(&consensus_topic).expect("failed to subscribe");
 
     loop {
         match select(swarm.next(), &mut tick).await {
@@ -113,7 +108,7 @@ pub async fn run_sequencer(opts: &Opts) -> Result<()> {
                         swarm::BehaviourEvent::Reqres(_) => {
                             log::info!("Reqres Behaviour event");
                         }
-                        swarm::BehaviourEvent::Gossip(_) => {
+                        swarm::BehaviourEvent::Gossipsub(_) => {
                             log::info!("Gossip Behavior event")
                         }
                     }

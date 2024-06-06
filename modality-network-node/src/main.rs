@@ -26,7 +26,10 @@ enum Commands {
     Ping(cmds::ping::Opts),
 
     #[clap(name = "request")]
-    Request(cmds::request::Opts)
+    Request(cmds::request::Opts),
+
+    // #[clap(name = "publish_gossip")]
+    // PublishGossip(cmds::publish_gossip::Opts)
 }
 
 #[tokio::main]
@@ -44,6 +47,9 @@ async fn main() -> Result<()> {
         Commands::Request(opts) => {
             cmds::request::run(opts).await?
         }
+        // Commands::PublishGossip(opts) => {
+        //     cmds::publish_gossip::run(opts).await?
+        // }
     }
 
     Ok(())

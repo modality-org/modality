@@ -7,6 +7,7 @@ use libp2p::ping;
 use libp2p_noise;
 use libp2p_stream;
 use libp2p_yamux;
+use libp2p::gossipsub;
 use libp2p::request_response;
 use std::time::Duration;
 
@@ -20,6 +21,7 @@ pub struct Behaviour {
     pub identify: identify::Behaviour,
     pub reqres: reqres::Behaviour,
     // pub gossip: gossip::Behaviour
+    pub gossipsub: gossipsub::Behaviour,
     // kademlia: Kademlia<MemoryStore>,
     // relay: relay::Behaviour,
     // request_response: request_response::Behaviour<FileExchangeCodec>,
@@ -60,11 +62,20 @@ pub async fn create_swarm(local_key: identity::Keypair) -> Result<Swarm<Behaviou
         request_response::Config::default()
     );
 
+    let gossipsub_message_auth = gossipsub::MessageAuthenticity::Signed(local_key.clone());
+    let gossipsub_config = gossipsub::ConfigBuilder::default()
+        .heartbeat_interval(Duration::from_secs(10))
+        .validation_mode(gossipsub::ValidationMode::Strict)
+        .build()
+        .map_err(|msg| std::io::Error::new(std::io::ErrorKind::Other, msg))?; // Temporary hack because `build` does not return a proper `std::error::Error`. 
+    let gossipsub_behaviour = gossipsub::Behaviour::new(gossipsub_message_auth, gossipsub_config).expect("Failed to create gossipsub behaviour");
+
     let behaviour = Behaviour {
         ping: ping_behaviour,
         identify: identify_behaviour,
         reqres: reqres_behaviour,
         stream: libp2p_stream::Behaviour::new(),
+        gossipsub: gossipsub_behaviour,
     };
     let swarm = create_swarm_with_behaviours(local_key, behaviour).await?;
     Ok(swarm)
