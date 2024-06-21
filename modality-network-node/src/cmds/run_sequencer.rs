@@ -111,6 +111,9 @@ pub async fn run_sequencer(opts: &Opts) -> Result<()> {
                         swarm::BehaviourEvent::Gossipsub(_) => {
                             log::info!("Gossip Behavior event")
                         }
+                        swarm::BehaviourEvent::Kademlia(_) => {
+                            log::info!("Kademlia Behaviour event")
+                        }
                     }
                 }
             
