@@ -1,18 +1,24 @@
 use anyhow::Result;
 
-use libp2p::{identify, identity};
+use libp2p::kad::store::MemoryStore;
+use libp2p::kad::BootstrapResult;
+use libp2p::multiaddr::Protocol;
+use libp2p::{identify, identity, Multiaddr};
 use libp2p::swarm;
-use libp2p::{swarm::NetworkBehaviour, swarm::Swarm, SwarmBuilder};
+use libp2p::{swarm::NetworkBehaviour, swarm::Swarm, SwarmBuilder, kad};
 use libp2p::ping;
+
 use libp2p_noise;
 use libp2p_stream;
 use libp2p_yamux;
 use libp2p::gossipsub;
 use libp2p::request_response;
 use std::time::Duration;
+use std::num::NonZeroUsize;
+
 
 use crate::reqres;
-use crate::gossip;
+
 
 #[derive(NetworkBehaviour)]
 pub struct Behaviour {
@@ -20,24 +26,49 @@ pub struct Behaviour {
     pub ping: ping::Behaviour,
     pub identify: identify::Behaviour,
     pub reqres: reqres::Behaviour,
-    // pub gossip: gossip::Behaviour
     pub gossipsub: gossipsub::Behaviour,
-    // kademlia: Kademlia<MemoryStore>,
-    // relay: relay::Behaviour,
-    // request_response: request_response::Behaviour<FileExchangeCodec>,
-    // connection_limits: memory_connection_limits::Behaviour,
+    pub kademlia: kad::Behaviour<kad::store::MemoryStore>,
 }
 
 pub async fn create_swarm_with_behaviours(
     local_key: identity::Keypair,
     behaviour: Behaviour,
 ) -> Result<Swarm<Behaviour>> {
+    let local_peer_id = local_key.public().to_peer_id();
+
+     // Configure Kademlia
+     let mut kademlia_config = kad::Config::default();
+     kademlia_config.set_protocol_names(["/myapp/kad/1.0.0"]);
+     kademlia_config.set_query_timeout(Duration::from_secs(5 * 60));
+     
+     let store = MemoryStore::new(local_peer_id);
+     let mut kademlia = Kademlia::with_config(local_peer_id, store, kademlia_config);
+ 
+
+    let bootstrap_peers = vec![
+        "/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
+    ];
+
+
+    for peer in bootstrap_peers {
+        if let Ok(addr) = peer.parse::<Multiaddr>() {
+            if let Some(Protocol::P2p(peer_id)) = addr.iter().last() {
+                behaviour.kademlia.add_address(&peer_id, addr.clone());
+            }
+        }
+    }
+
+    behaviour.kademlia = kademlia;
+
+
     let swarm = SwarmBuilder::with_existing_identity(local_key) // local_key)
         .with_tokio()
         .with_tcp(
             libp2p::tcp::Config::default(),
             libp2p_noise::Config::new,
             libp2p_yamux::Config::default,
+            
         )?
         .with_websocket(libp2p_noise::Config::new, libp2p_yamux::Config::default)
         .await?
@@ -47,6 +78,8 @@ pub async fn create_swarm_with_behaviours(
             cfg.with_idle_connection_timeout(Duration::from_secs(60))
         })
         .build();
+    swarm.behaviour_mut().kademlia.bootstrap()?;
+
     Ok(swarm)
 }
 
@@ -76,6 +109,7 @@ pub async fn create_swarm(local_key: identity::Keypair) -> Result<Swarm<Behaviou
         reqres: reqres_behaviour,
         stream: libp2p_stream::Behaviour::new(),
         gossipsub: gossipsub_behaviour,
+        kademlia: kad::Behaviour::new(kad::store::MemoryStore::new(local_key.public().into()), kad::Config::default()),
     };
     let swarm = create_swarm_with_behaviours(local_key, behaviour).await?;
     Ok(swarm)
