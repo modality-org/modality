@@ -72,7 +72,6 @@ mod tests {
 
     mod test_regex {
         use super::*;
-        use regex::Regex;
 
         #[test]
         fn in_object() {

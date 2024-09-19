@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0"
 lazy_static = "1.4.0"
 num-bigint = "0.4.5"
 num-traits = "0.2.19"
@@ -19,3 +20,4 @@ ed25519-dalek = "1.0"
 rand = "0.8"
 multihash = "0.18"
 regex = "1.5"
+log = "0.4.17"

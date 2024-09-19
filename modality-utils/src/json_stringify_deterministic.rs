@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use serde_json::{Value, Map, Number};
+use serde_json::{Value, Map};
 use regex::Regex;
 
 #[derive(Clone)]
@@ -60,7 +59,7 @@ pub fn stringify_deterministic(obj: &Value, opts: Option<Options>) -> String {
     let mut seen = Vec::new();
 
     fn deterministic(
-        parent: &Value,
+        _parent: &Value,
         key: &str,
         node: &Value,
         level: usize,
