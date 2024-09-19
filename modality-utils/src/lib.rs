@@ -2,4 +2,5 @@
 #[macro_use]
 extern crate lazy_static;
 
-mod hash_tax;
+pub mod hash_tax;
+pub mod json_stringify_deterministic;
