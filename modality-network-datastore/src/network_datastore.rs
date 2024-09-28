@@ -49,6 +49,11 @@ impl NetworkDatastore {
         Ok(())
     }
 
+    pub async fn delete(&self, key: &str) -> Result<()> {
+        self.db.delete(key)?;
+        Ok(())
+    }
+
     pub fn iterator(&self, prefix: &str) -> impl Iterator<Item = Result<(Box<[u8]>, Box<[u8]>)>> + '_ {
         self.db.iterator(IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward))
             .map(|result| {
