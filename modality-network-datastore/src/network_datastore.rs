@@ -1,21 +1,33 @@
 use crate::{Error, Result};
-use rocksdb::{DB, IteratorMode};
-use serde::{Serialize, Deserialize};
+use rocksdb::{DB, IteratorMode, Options};
+use serde::{Deserialize};
 use std::path::Path;
+use std::path::PathBuf;
 
 pub struct NetworkDatastore {
     db: DB,
+    #[allow(dead_code)]
+    path: PathBuf,
 }
 
 impl NetworkDatastore {
     pub fn new(path: &Path) -> Result<Self> {
         let db = DB::open_default(path)?;
-        Ok(Self { db })
+        Ok(Self { db, path: path.to_path_buf() })
     }
 
+    // "in-memory" database
     pub fn create_in_memory() -> Result<Self> {
-        let db = DB::open_default(":memory:")?;
-        Ok(Self { db })
+        let mut opts = Options::default();
+        opts.create_if_missing(true); 
+        opts.set_allow_mmap_reads(false);
+        opts.set_compression_type(rocksdb::DBCompressionType::None);
+        opts.set_use_direct_io_for_flush_and_compaction(true);
+        opts.set_use_direct_reads(true);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_path = PathBuf::from(temp_dir.path());
+        let db = DB::open(&opts, &*temp_path)?;
+        Ok(Self { db, path: temp_path })
     }
 
     pub async fn get_data_by_key(&self, key: &str) -> Result<Option<Vec<u8>>> {

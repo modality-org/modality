@@ -1,5 +1,6 @@
 use anyhow::{Result, anyhow};
 use modality_utils::keypair::Keypair;
+use modality_utils::keypair::KeypairOrPublicKey;
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,6 +141,16 @@ mod tests {
         assert!(json_data["signature"].is_string());
         let verification_result = keypair.verify_json_with_signature_key(&json_data, "signature")?;
         assert!(verification_result);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_public_multiaddress() -> Result<()> {
+        let multiaddr = "/ed25519-pub/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB";
+        let keypair = Keypair::from_public_multiaddress(multiaddr)?;
+        
+        assert_eq!(keypair.public_key_to_multiaddr_string(), multiaddr);
 
         Ok(())
     }

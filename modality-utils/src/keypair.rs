@@ -1,7 +1,6 @@
 use std::fs;
 use libp2p::identity::{ed25519, Keypair as Libp2pKeypair, PublicKey as Libp2pPublicKey};
-use multihash::{Multihash, MultihashDigest, Code};
-use base58::{FromBase58, ToBase58};
+use base58::{ToBase58, FromBase58};
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
 use anyhow::{Result, anyhow};
@@ -15,7 +14,7 @@ pub enum KeypairOrPublicKey {
 }
 
 pub struct Keypair {
-    inner: KeypairOrPublicKey,
+    pub inner: KeypairOrPublicKey,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -46,20 +45,21 @@ impl Keypair {
 
     pub fn generate() -> Result<Self> {
         let key = ed25519::Keypair::generate();
-        Ok(Self::new(KeypairOrPublicKey::Keypair(Libp2pKeypair::Ed25519(key))))
+        let libp2p_keypair = Libp2pKeypair::from(key);
+        Ok(Self::new(KeypairOrPublicKey::Keypair(libp2p_keypair)))
     }
 
-    pub async fn as_ssh_private_pem(&self, comment: &str) -> Result<String> {
+    pub async fn as_ssh_private_pem(&self, _comment: &str) -> Result<String> {
         // TODO: Implement SSH PEM conversion
         unimplemented!("SSH PEM conversion not implemented yet")
     }
 
-    pub fn as_ssh_dot_pub(&self, comment: &str) -> Result<String> {
+    pub fn as_ssh_dot_pub(&self, _comment: &str) -> Result<String> {
         // TODO: Implement SSH public key conversion
         unimplemented!("SSH public key conversion not implemented yet")
     }
 
-    pub fn from_ssh_dot_pub(public_key_str: &str, key_type: &str) -> Result<Self> {
+    pub fn from_ssh_dot_pub(_public_key_str: &str, _key_type: &str) -> Result<Self> {
         // TODO: Implement SSH public key parsing
         unimplemented!("SSH public key parsing not implemented yet")
     }
@@ -118,8 +118,25 @@ impl Keypair {
     }
 
     pub fn from_public_multiaddress(multiaddress: &str) -> Result<Self> {
-        // TODO: Implement multiaddress parsing
-        unimplemented!("Multiaddress parsing not implemented yet")
+        let re = Regex::new(r"^(.+)-pub/(.+)$").unwrap();
+        let captures = re.captures(multiaddress)
+            .ok_or_else(|| anyhow!("Invalid multiaddress format"))?;
+
+        let key_type = captures.get(1)
+            .ok_or_else(|| anyhow!("Failed to extract key type"))?
+            .as_str();
+        let peer_id_str = captures.get(2)
+            .ok_or_else(|| anyhow!("Failed to extract public key ID"))?
+            .as_str();
+    
+        // Parse the peer ID
+        let peer_id = peer_id_str.parse::<libp2p::core::PeerId>()
+            .map_err(|e| anyhow!("Failed to parse peer ID: {:?}", e))?;
+
+        let public_key = libp2p::identity::PublicKey::try_decode_protobuf(&peer_id.to_bytes())
+            .map_err(|e| anyhow!("Failed to decode public key from peer ID: {}", e))?;
+
+        Ok(Self::new(KeypairOrPublicKey::PublicKey(public_key)))
     }
 
     pub fn from_json(json: &KeypairJSON) -> Result<Self> {

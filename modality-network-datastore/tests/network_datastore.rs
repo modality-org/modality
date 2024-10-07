@@ -1,6 +1,4 @@
 use modality_network_datastore::NetworkDatastore;
-use std::path::PathBuf;
-use tokio_test;
 
 #[tokio::test]
 async fn test_network_datastore() {

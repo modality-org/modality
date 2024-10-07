@@ -1,8 +1,10 @@
-use crate::{NetworkDatastore, Error, Result};
-use crate::model::Model;
+use crate::{NetworkDatastore};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
+use anyhow::{Context, Result, anyhow};
 
+use crate::Model;
+// use crate::ModelExt;
 #[derive(Serialize, Deserialize)]
 pub struct Round {
     pub round: i64,
@@ -15,6 +17,22 @@ impl Model for Round {
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[
         ("scribes", serde_json::json!([]))
     ];
+
+    fn create_from_json(mut obj: serde_json::Value) -> Result<Self> {
+        // Apply default values for missing fields
+        for (field, default_value) in Self::FIELD_DEFAULTS {
+            if !obj.get(*field).is_some() {
+                obj[*field] = default_value.clone();
+            }
+        }
+
+        // Ensure required fields are present
+        if !obj.get("round").is_some() {
+            return Err(anyhow!("Missing required field: round"));
+        }
+
+        serde_json::from_value(obj).context("Failed to deserialize Round")
+    }
 
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
         match field {
@@ -32,8 +50,13 @@ impl Model for Round {
 }
 
 impl Round {
+    pub fn create_from_json(obj: serde_json::Value) -> Result<Self> {
+        <Self as Model>::create_from_json(obj)
+    }
+
     pub async fn find_max_id(datastore: &NetworkDatastore) -> Result<Option<i64>> {
         datastore.find_max_int_key("/consensus/round").await
+            .context("Failed to find max round")
     }
 
     pub fn add_scribe(&mut self, scribe_peer_id: String) {
@@ -43,4 +66,11 @@ impl Round {
     pub fn remove_scribe(&mut self, scribe_peer_id: &str) {
         self.scribes.retain(|s| s != scribe_peer_id);
     }
+}
+
+pub mod prelude {
+    pub use super::Round;
+    pub use crate::Model;
+    // pub use crate::ModelExt;
+    pub use crate::NetworkDatastore;
 }

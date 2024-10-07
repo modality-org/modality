@@ -1,7 +1,9 @@
 mod error;
-mod network_datastore;
-mod model;
-mod models;
+
+pub mod network_datastore;
+pub mod model;
+pub use model::Model;
+pub mod models;
 
 pub use error::Error;
 pub use network_datastore::NetworkDatastore;
