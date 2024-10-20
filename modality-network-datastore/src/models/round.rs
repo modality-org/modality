@@ -5,7 +5,7 @@ use anyhow::{Context, Result, anyhow};
 
 use crate::Model;
 // use crate::ModelExt;
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Round {
     pub round: i64,
     pub scribes: Vec<String>,

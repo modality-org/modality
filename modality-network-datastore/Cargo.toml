@@ -20,3 +20,4 @@ tempfile = "3.5"
 tempfile = "3.5"
 tokio-test = "0.4"
 tokio = { version = "1.28", features = ["full", "test-util"] }
+zip = "0.6"

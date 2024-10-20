@@ -16,6 +16,11 @@ impl NetworkDatastore {
         Ok(Self { db, path: path.to_path_buf() })
     }
 
+    pub fn create_in_directory(path: &Path) -> Result<Self> {
+        let db = DB::open_default(path)?;
+        Ok(Self { db, path: path.to_path_buf() })
+    }
+
     // "in-memory" database
     pub fn create_in_memory() -> Result<Self> {
         let mut opts = Options::default();
