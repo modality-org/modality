@@ -229,15 +229,14 @@ impl Page {
 
     pub fn validate_acks(&self) -> Result<bool> {
         for ack in self.acks.values() {
-            let keypair = Keypair::from_public_key(&ack.scribe, "ed25519")?;
+            let keypair = Keypair::from_public_key(&ack.acker, "ed25519")?;
             let facts = serde_json::json!({
                 "scribe": self.scribe,
                 "round": self.round,
-                "last_round_certs": self.last_round_certs,
-                "events": self.events,
                 "sig": self.sig,
             });
-            if !keypair.verify_json(&ack.sig, &facts)? {
+            let verified = keypair.verify_json(&ack.acker_sig, &facts)?;
+            if !verified {
                 return Ok(false);
             }
         }
@@ -247,14 +246,13 @@ impl Page {
     pub fn count_valid_acks(&self) -> Result<usize> {
         let mut valid_acks = 0;
         for ack in self.acks.values() {
-            let keypair = Keypair::from_public_key(&ack.scribe, "ed25519")?;
+            let keypair = Keypair::from_public_key(&ack.acker, "ed25519")?;
             let facts = serde_json::json!({
                 "scribe": self.scribe,
                 "round": self.round,
-                "events": self.events,
                 "sig": self.sig,
             });
-            if keypair.verify_json(&ack.sig, &facts)? {
+            if keypair.verify_json(&ack.acker_sig, &facts)? {
                 valid_acks += 1;
             }
         }

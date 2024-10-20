@@ -14,7 +14,7 @@ mod tests {
         let node1_pubkey = node1_keypair.as_public_address();
 
         let node2_keypair = Keypair::generate()?;
-        let node2_pubkey = node2_keypair.as_public_address();
+        let _node2_pubkey = node2_keypair.as_public_address();
 
         let mut b1 = Page::create_from_json(serde_json::json!({
             "scribe": node1_pubkey,
@@ -43,6 +43,8 @@ mod tests {
         b1.add_ack(ack1)?;
         let result = b1.count_valid_acks()?;
         assert_eq!(result, 1);
+        let result = b1.validate_acks()?;
+        assert!(result);
 
         // other acks
         let ack2 = b1.generate_ack(&node2_keypair)?;
