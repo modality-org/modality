@@ -1,6 +1,5 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use modality_utils::keypair::Keypair;
-use modality_utils::keypair::KeypairOrPublicKey;
 #[cfg(test)]
 mod tests {
     use super::*;

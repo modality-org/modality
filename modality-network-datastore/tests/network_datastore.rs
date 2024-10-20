@@ -45,4 +45,15 @@ async fn test_network_datastore() {
 
     let new_round = datastore.bump_current_round().await.unwrap();
     assert_eq!(new_round, 6);
+
+
+    // Test iteration within prefix
+    datastore.set_data_by_key("/consensus/round_messages/1/type/type1/scribe/scribe1", b"").await.unwrap();
+    datastore.set_data_by_key("/consensus/round_messages/1/type/type1/scribe/scribe2", b"").await.unwrap();
+    datastore.set_data_by_key("/consensus/round_messages/1/type/type1/scribe/scribe3", b"").await.unwrap();
+    datastore.set_data_by_key("/consensus/round_messages/1/type/type1a/scribe/scribe1", b"").await.unwrap();
+    datastore.set_data_by_key("/consensus/round_messages/1/type/type2/scribe/scribe1", b"").await.unwrap();
+    datastore.set_data_by_key("/consensus/round_messages/1/type/type10/scribe/scribe1", b"").await.unwrap();
+    let iterator = datastore.iterator(&"/consensus/round_messages/1/type/type1");
+    assert_eq!(iterator.count(), 3);
 }

@@ -1,10 +1,11 @@
 use std::fs;
 use libp2p::identity::{ed25519, Keypair as Libp2pKeypair, PublicKey as Libp2pPublicKey};
-use base58::{ToBase58, FromBase58};
+use base58::{ToBase58};
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
 use anyhow::{Result, anyhow};
 use regex::Regex;
+use libp2p_identity::PeerId;
 
 use crate::json_stringify_deterministic::stringify_deterministic;
 
@@ -122,15 +123,15 @@ impl Keypair {
         let captures = re.captures(multiaddress)
             .ok_or_else(|| anyhow!("Invalid multiaddress format"))?;
 
-        let key_type = captures.get(1)
-            .ok_or_else(|| anyhow!("Failed to extract key type"))?
-            .as_str();
+        // let _key_type = captures.get(1)
+        //     .ok_or_else(|| anyhow!("Failed to extract key type"))?
+        //     .as_str();
         let peer_id_str = captures.get(2)
             .ok_or_else(|| anyhow!("Failed to extract public key ID"))?
             .as_str();
     
         // Parse the peer ID
-        let peer_id = peer_id_str.parse::<libp2p::core::PeerId>()
+        let peer_id = peer_id_str.parse::<PeerId>()
             .map_err(|e| anyhow!("Failed to parse peer ID: {:?}", e))?;
 
         let public_key = libp2p::identity::PublicKey::try_decode_protobuf(&peer_id.to_bytes())

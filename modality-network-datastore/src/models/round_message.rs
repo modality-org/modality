@@ -48,14 +48,14 @@ impl RoundMessage {
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
-            let scribe = key_str.split(&format!("{}/", prefix)).nth(1).ok_or_else(|| Error::Database(format!("Invalid key format: {}", key_str)))?;
+            let scribe = key_str.split(&format!("{}/", prefix)).nth(1).ok_or_else(|| Error::Database(format!("Invalid key format: {} with prefix {}", key_str, &format!("{}/", prefix))))?;
             
             let mut keys = HashMap::new();
             keys.insert("round".to_string(), round.to_string());
             keys.insert("type".to_string(), r#type.to_string());
             keys.insert("scribe".to_string(), scribe.to_string());
 
-            if let Some(msg) = Self::find_one(datastore, keys).await? {
+            if let Some(msg) = Self::find_one(datastore, keys).await.unwrap() {
                 messages.push(msg);
             }
         }

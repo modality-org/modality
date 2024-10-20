@@ -66,11 +66,21 @@ impl NetworkDatastore {
         Ok(())
     }
 
-    pub fn iterator(&self, prefix: &str) -> impl Iterator<Item = Result<(Box<[u8]>, Box<[u8]>)>> + '_ {
+    pub fn iterator_starting(&self, prefix: &str) -> impl Iterator<Item = Result<(Box<[u8]>, Box<[u8]>)>> + '_ {
         self.db.iterator(IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward))
             .map(|result| {
                 result.map_err(|e| Error::Database(e.to_string()))
             })
+    }
+
+    pub fn iterator(&self, prefix: &str) -> impl Iterator<Item = Result<(Box<[u8]>, Box<[u8]>)>> + '_ {
+        let mut readopts = rocksdb::ReadOptions::default();
+        readopts.set_iterate_lower_bound(format!("{}/", prefix).as_bytes());
+        readopts.set_iterate_upper_bound(format!("{}0", prefix).as_bytes());
+        let iter = self.db.iterator_opt(IteratorMode::Start, readopts);
+        iter.map(|result| {
+            result.map_err(|e| Error::Database(e.to_string()))
+        })
     }
 
     pub async fn find_max_string_key(&self, prefix: &str) -> Result<Option<String>> {
