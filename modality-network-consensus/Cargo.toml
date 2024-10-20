@@ -1,0 +1,22 @@
+[package]
+name = "modality-network-consensus"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+tokio = { version = "1.28", features = ["full"] }
+async-trait = "0.1.68"
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+regex = "1.5" 
+modality-network-datastore = { path = "../modality-network-datastore" }
+modality-utils = { path = "../modality-utils" }
+uuid = { version = "1.10.0", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3.5"
+tokio-test = "0.4"
+tokio = { version = "1.28", features = ["full", "test-util"] }
+zip = "0.6"
