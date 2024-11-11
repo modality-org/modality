@@ -2,7 +2,8 @@
 resolver = "2"
 
 members = [
-  'modality-network-datastore'
+  'modality-network-consensus'
+, 'modality-network-datastore'
 , 'modality-network-node'
 , "modality-utils"]
 
