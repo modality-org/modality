@@ -36,6 +36,13 @@ pub struct Ack {
     pub seen_at_round: Option<i64>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CertSig {
+    pub scribe: String,
+    pub cert: Option<String>,  // Adjust type as needed
+    pub round: i64,
+}
+
 #[async_trait]
 impl Model for Page {
     const ID_PATH: &'static str = "/consensus/round/${round}/scribe/${scribe}";

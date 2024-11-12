@@ -3,6 +3,11 @@ use rocksdb::{DB, IteratorMode, Options};
 use serde::{Deserialize};
 use std::path::Path;
 use std::path::PathBuf;
+use std::collections::HashMap;
+use anyhow;
+
+use crate::models::page::Page;
+use crate::models::page::CertSig;
 
 pub struct NetworkDatastore {
     db: DB,
@@ -136,5 +141,34 @@ impl NetworkDatastore {
         self.get_string(key).await?
             .and_then(|s| s.parse::<i64>().ok())
             .ok_or_else(|| Error::KeyNotFound(key.to_string()))
+    }
+
+    pub async fn get_timely_certs_at_round(&self, round: i64) -> anyhow::Result<HashMap<String, Page>> {
+        let pages = Page::find_all_in_round(self, round).await?;
+        
+        Ok(pages
+            .into_iter()
+            .filter(|page| page.seen_at_round.is_none())
+            .map(|page| (page.scribe.clone(), page))
+            .collect())
+    }
+
+    pub async fn get_timely_cert_sigs_at_round(&self, round: i64) -> anyhow::Result<HashMap<String, CertSig>> {
+        let pages = Page::find_all_in_round(self, round).await?;
+        
+        Ok(pages
+            .into_iter()
+            .filter(|page| page.seen_at_round.is_none())
+            .map(|page| {
+                (
+                    page.scribe.clone(),
+                    CertSig {
+                    scribe: page.scribe,
+                    cert: page.cert,
+                    round: page.round,
+                    }
+                )
+            })
+            .collect())
     }
 }
