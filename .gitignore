@@ -14,3 +14,5 @@ Cargo.lock
 *.pdb
 
 tmp/
+
+.DS_Store
