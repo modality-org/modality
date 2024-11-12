@@ -1,0 +1,17 @@
+[package]
+name = "modality-network-devnet"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+regex = "1.5" 
+modality-utils = { path = "../modality-utils" }
+
+
+[dev-dependencies]
+tempfile = "3.5"
+tokio-test = "0.4"
+tokio = { version = "1.28", features = ["full", "test-util"] }
