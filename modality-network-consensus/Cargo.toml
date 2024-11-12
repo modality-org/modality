@@ -14,9 +14,11 @@ regex = "1.5"
 modality-network-datastore = { path = "../modality-network-datastore" }
 modality-utils = { path = "../modality-utils" }
 uuid = { version = "1.10.0", features = ["v4"] }
+async-mutex = "1.4"
 
 [dev-dependencies]
 tempfile = "3.5"
 tokio-test = "0.4"
 tokio = { version = "1.28", features = ["full", "test-util"] }
 zip = "0.6"
+modality-network-devnet = { path = "../modality-network-devnet" }
