@@ -46,9 +46,7 @@ impl Devnet {
       Keypair::from_json_string(&keypair.to_string())
   }
 
-  pub async fn get_keypairs_dict(&self, count: Option<usize>) -> Result<HashMap<String, Keypair>> {
-      let count = count.unwrap_or_else(|| KEYPAIRS.len());
-      
+  pub async fn get_keypairs_dict(count: usize) -> Result<HashMap<String, Keypair>> {
       if count > KEYPAIRS.len() {
           return Err(anyhow::anyhow!("not enough common IDs"));
       }
@@ -61,9 +59,7 @@ impl Devnet {
       Ok(result)
   }
 
-  pub fn get_peerids(&self, count: Option<usize>) -> Result<Vec<String>> {
-      let count = count.unwrap_or_else(|| KEYPAIRS.len());
-      
+  pub fn get_peerids(count: usize) -> Result<Vec<String>> {
       if count > KEYPAIRS.len() {
           return Err(anyhow::anyhow!("not enough common IDs"));
       }

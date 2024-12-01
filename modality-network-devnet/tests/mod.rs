@@ -44,15 +44,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_peerids() -> Result<()> {
-        let common = setup();
-        
-        // Test getting all peer IDs
-        let all_peers = common.get_peerids(None)?;
-        assert!(!all_peers.is_empty());
-        
         // Test getting specific number of peer IDs
         let count = 2;
-        let some_peers = common.get_peerids(Some(count))?;
+        let some_peers = Devnet::get_peerids(count)?;
         assert_eq!(some_peers.len(), count);
         
         // Ensure peer IDs are strings
@@ -101,16 +95,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_keypairs_dict() -> Result<()> {
-        let common = setup();
-        
-        // Test getting all keypairs as dictionary
-        let all_keypairs = common.get_keypairs_dict(None).await?;
-        assert!(!all_keypairs.is_empty());
-        
+    async fn test_get_keypairs_dict() -> Result<()> {        
         // Test getting specific number of keypairs
         let count = 2;
-        let some_keypairs = common.get_keypairs_dict(Some(count)).await?;
+        let some_keypairs = Devnet::get_keypairs_dict(count).await?;
         assert_eq!(some_keypairs.len(), count);
         
         // Verify the keys match the keypair IDs
@@ -120,7 +108,7 @@ mod tests {
         
         // Test requesting too many keypairs
         let too_many = KEYPAIRS.len() + 1;
-        assert!(common.get_keypairs_dict(Some(too_many)).await.is_err());
+        assert!(Devnet::get_keypairs_dict(too_many).await.is_err());
         
         Ok(())
     }
