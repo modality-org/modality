@@ -9,11 +9,14 @@ use libp2p_identity::PeerId;
 
 use crate::json_stringify_deterministic::stringify_deterministic;
 
+
+#[derive(Clone)]
 pub enum KeypairOrPublicKey {
     Keypair(Libp2pKeypair),
     PublicKey(Libp2pPublicKey),
 }
 
+#[derive(Clone)]
 pub struct Keypair {
     pub inner: KeypairOrPublicKey,
 }

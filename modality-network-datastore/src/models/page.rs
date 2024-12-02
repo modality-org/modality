@@ -10,7 +10,7 @@ use std::fmt::Debug;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Page {
     pub scribe: String,
-    pub round: i64,
+    pub round: u64,
     pub last_round_certs: HashMap<String, String>,
     pub events: Vec<serde_json::Value>,
     pub hash: Option<String>,
@@ -19,28 +19,28 @@ pub struct Page {
     pub late_acks: Vec<Ack>,
     pub cert: Option<String>,
     pub is_section_leader: Option<bool>,
-    pub section_ending_round: Option<i64>,
-    pub section_starting_round: Option<i64>,
-    pub section_page_number: Option<i64>,
-    pub page_number: Option<i64>,
-    pub seen_at_round: Option<i64>,
+    pub section_ending_round: Option<u64>,
+    pub section_starting_round: Option<u64>,
+    pub section_page_number: Option<u64>,
+    pub page_number: Option<u64>,
+    pub seen_at_round: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Ack {
     pub scribe: String,
-    pub round: i64,
+    pub round: u64,
     pub sig: String,
     pub acker: String,
     pub acker_sig: String,
-    pub seen_at_round: Option<i64>,
+    pub seen_at_round: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CertSig {
     pub scribe: String,
     pub cert: Option<String>,  // Adjust type as needed
-    pub round: i64,
+    pub round: u64,
 }
 
 #[async_trait]
@@ -92,7 +92,7 @@ impl Model for Page {
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
         match field {
             "scribe" => self.scribe = value.as_str().unwrap_or_default().to_string(),
-            "round" => self.round = value.as_i64().unwrap_or_default(),
+            "round" => self.round = value.as_u64().unwrap_or_default(),
             "last_round_certs" => {
                 self.last_round_certs = serde_json::from_value(value).unwrap_or_default()
             }
@@ -103,11 +103,11 @@ impl Model for Page {
             "late_acks" => self.late_acks = serde_json::from_value(value).unwrap_or_default(),
             "cert" => self.cert = value.as_str().map(|s| s.to_string()),
             "is_section_leader" => self.is_section_leader = value.as_bool(),
-            "section_ending_round" => self.section_ending_round = value.as_i64(),
-            "section_starting_round" => self.section_starting_round = value.as_i64(),
-            "section_page_number" => self.section_page_number = value.as_i64(),
-            "page_number" => self.page_number = value.as_i64(),
-            "seen_at_round" => self.seen_at_round = value.as_i64(),
+            "section_ending_round" => self.section_ending_round = value.as_u64(),
+            "section_starting_round" => self.section_starting_round = value.as_u64(),
+            "section_page_number" => self.section_page_number = value.as_u64(),
+            "page_number" => self.page_number = value.as_u64(),
+            "seen_at_round" => self.seen_at_round = value.as_u64(),
             _ => {}
         }
     }
@@ -125,7 +125,7 @@ impl Page {
         <Self as Model>::create_from_json(obj)
     }
     
-    pub async fn find_all_in_round(datastore: &NetworkDatastore, round: i64) -> Result<Vec<Self>> {
+    pub async fn find_all_in_round(datastore: &NetworkDatastore, round: u64) -> Result<Vec<Self>> {
         let prefix = format!("/consensus/round/{}/scribe", round);
         let mut pages = Vec::new();
 
@@ -168,7 +168,7 @@ impl Page {
         self.events.push(event);
     }
 
-    pub fn set_number(&mut self, number: i64) {
+    pub fn set_number(&mut self, number: u64) {
         self.page_number = Some(number);
     }
 
@@ -212,6 +212,25 @@ impl Page {
             acker: peer_id,
             acker_sig,
             seen_at_round: None,
+        })
+    }
+
+    pub fn generate_late_ack(&self, keypair: &Keypair, seen_at_round: u64) -> Result<Ack> {
+        let peer_id = keypair.as_public_address();
+        let facts = serde_json::json!({
+            "scribe": self.scribe,
+            "round": self.round,
+            "sig": self.sig,
+            "seen_at_round": seen_at_round,
+        });
+        let acker_sig = keypair.sign_json(&facts)?;
+        Ok(Ack {
+            scribe: self.scribe.clone(),
+            round: self.round,
+            sig: self.sig.clone().ok_or_else(|| anyhow!("Missing signature"))?,
+            acker: peer_id,
+            acker_sig,
+            seen_at_round: Some(seen_at_round),
         })
     }
 

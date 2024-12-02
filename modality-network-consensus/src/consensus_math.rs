@@ -1,5 +1,5 @@
-pub fn calculate_2f_plus_1(n: f64) -> i64 {
-  ((n * 2.0) / 3.0).floor() as i64 + 1
+pub fn calculate_2f_plus_1(n: f64) -> u64 {
+  ((n * 2.0) / 3.0).floor() as u64 + 1
 }
 
 #[cfg(test)]

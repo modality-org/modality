@@ -10,7 +10,7 @@ serde_json = "1.0"
 lazy_static = "1.4"
 regex = "1.5" 
 modality-utils = { path = "../modality-utils" }
-
+modality-network-datastore = { path = "../modality-network-datastore" }
 
 [dev-dependencies]
 tempfile = "3.5"

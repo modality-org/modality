@@ -98,7 +98,7 @@ mod tests {
     async fn test_get_keypairs_dict() -> Result<()> {        
         // Test getting specific number of keypairs
         let count = 2;
-        let some_keypairs = Devnet::get_keypairs_dict(count).await?;
+        let some_keypairs = Devnet::get_keypairs_dict(count)?;
         assert_eq!(some_keypairs.len(), count);
         
         // Verify the keys match the keypair IDs
@@ -108,7 +108,7 @@ mod tests {
         
         // Test requesting too many keypairs
         let too_many = KEYPAIRS.len() + 1;
-        assert!(Devnet::get_keypairs_dict(too_many).await.is_err());
+        assert!(Devnet::get_keypairs_dict(too_many).is_err());
         
         Ok(())
     }

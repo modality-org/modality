@@ -2,6 +2,8 @@ use anyhow::Result;
 use serde_json::{self, Value};
 use lazy_static::lazy_static;
 use std::collections::HashMap;
+use modality_network_datastore::{Model, NetworkDatastore};
+use modality_network_datastore::models::{Round, Page};
 
 use modality_utils::keypair::Keypair;
 
@@ -46,7 +48,7 @@ impl Devnet {
       Keypair::from_json_string(&keypair.to_string())
   }
 
-  pub async fn get_keypairs_dict(count: usize) -> Result<HashMap<String, Keypair>> {
+  pub fn get_keypairs_dict(count: usize) -> Result<HashMap<String, Keypair>> {
       if count > KEYPAIRS.len() {
           return Err(anyhow::anyhow!("not enough common IDs"));
       }
@@ -97,6 +99,45 @@ impl Devnet {
           
       Keypair::from_json_string(&keypair.to_string())
   }
+
+  pub async fn setup_datastore_scribes(ds: &mut NetworkDatastore, count: usize) -> Result<()> {
+    let peers_hashmap = Devnet::get_keypairs_dict(count)?;
+    ds.set_current_round(1).await?;
+    let mut round = Round::create_from_json(serde_json::json!({"round": 1}))?;
+    for (peer_id_str, _peer_id_keypair) in &peers_hashmap {
+        round.add_scribe(peer_id_str.to_string());
+    }
+    round.save(ds).await?;
+    Devnet::add_fully_connected_empty_round(ds).await?;
+    ds.set_current_round(2).await?;
+    Ok(())
+  }
+
+    pub async fn add_fully_connected_empty_round(ds: &mut NetworkDatastore) -> Result<()> {
+        let round_num = ds.get_current_round().await?;
+        let round = Round::find_one(&ds, HashMap::from([("round".into(), "1".into())])).await?.unwrap();
+        let peers_hashmap = Devnet::get_keypairs_dict(round.scribes.len())?; 
+        for peer_id_str in round.scribes.clone() {
+            if round_num > 1 {
+                // TODO find last_round_certs
+            }
+            let mut page = Page::create_from_json(serde_json::json!({
+                "scribe": peer_id_str,
+                "round": round_num,
+                "events": [],
+                // "last_round_certs"
+            }))?;
+            page.generate_sig(&peers_hashmap[&peer_id_str])?;
+            page.save(&ds).await?;
+            for acking_peer_id_str in round.scribes.clone() {
+                let ack = page.generate_ack(&peers_hashmap[&acking_peer_id_str])?;
+                page.add_ack(ack)?;
+            }
+            page.generate_cert(&peers_hashmap[&peer_id_str])?;
+            page.save(&ds).await?;
+        }
+        Ok(())
+    }
 }
 
 // Public interface

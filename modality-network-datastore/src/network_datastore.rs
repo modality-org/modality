@@ -7,7 +7,6 @@ use std::collections::HashMap;
 use anyhow;
 
 use crate::models::page::Page;
-use crate::models::page::CertSig;
 
 pub struct NetworkDatastore {
     db: DB,
@@ -39,6 +38,16 @@ impl NetworkDatastore {
         let db = DB::open(&opts, &*temp_path)?;
         Ok(Self { db, path: temp_path })
     }
+
+    pub async fn clone_to_memory(&self) -> Result<NetworkDatastore> {
+        let datastore = NetworkDatastore::create_in_memory()?;
+        let iterator = self.iterator("".into()); 
+        for result in iterator {
+            let (key, value) = result?;
+            datastore.db.put(&key, value)?;
+        } 
+        Ok(datastore)
+     }
 
     pub async fn get_data_by_key(&self, key: &str) -> Result<Option<Vec<u8>>> {
         match self.db.get(key)? {
@@ -105,14 +114,14 @@ impl NetworkDatastore {
         Ok(max_key)
     }
 
-    pub async fn find_max_int_key(&self, prefix: &str) -> Result<Option<i64>> {
-        let mut max_value: Option<i64> = None;
+    pub async fn find_max_int_key(&self, prefix: &str) -> Result<Option<u64>> {
+        let mut max_value: Option<u64> = None;
         for result in self.iterator(prefix) {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
             if key_str.starts_with(prefix) {
                 let value_str = key_str.split_at(prefix.len() + 1).1;
-                if let Ok(value) = value_str.parse::<i64>() {
+                if let Ok(value) = value_str.parse::<u64>() {
                     max_value = Some(max_value.map_or(value, |m| m.max(value)));
                 }
             }
@@ -120,30 +129,30 @@ impl NetworkDatastore {
         Ok(max_value)
     }
 
-    pub async fn bump_current_round(&self) -> Result<i64> {
+    pub async fn bump_current_round(&self) -> Result<u64> {
         let key = "/consensus/status/current_round";
         let current_round = self.get_string(key).await?
-            .and_then(|s| s.parse::<i64>().ok())
+            .and_then(|s| s.parse::<u64>().ok())
             .unwrap_or(0);
         let new_round = current_round + 1;
         self.put(key, new_round.to_string().as_bytes()).await?;
         Ok(new_round)
     }
 
-    pub async fn set_current_round(&self, round: i64) -> Result<()> {
+    pub async fn set_current_round(&self, round: u64) -> Result<()> {
         let key = "/consensus/status/current_round";
         self.put(key, round.to_string().as_bytes()).await?;
         Ok(())
     }
 
-    pub async fn get_current_round(&self) -> Result<i64> {
+    pub async fn get_current_round(&self) -> Result<u64> {
         let key = "/consensus/status/current_round";
         self.get_string(key).await?
-            .and_then(|s| s.parse::<i64>().ok())
+            .and_then(|s| s.parse::<u64>().ok())
             .ok_or_else(|| Error::KeyNotFound(key.to_string()))
     }
 
-    pub async fn get_timely_certs_at_round(&self, round: i64) -> anyhow::Result<HashMap<String, Page>> {
+    pub async fn get_timely_certs_at_round(&self, round: u64) -> anyhow::Result<HashMap<String, Page>> {
         let pages = Page::find_all_in_round(self, round).await?;
         
         Ok(pages
@@ -153,20 +162,17 @@ impl NetworkDatastore {
             .collect())
     }
 
-    pub async fn get_timely_cert_sigs_at_round(&self, round: i64) -> anyhow::Result<HashMap<String, CertSig>> {
+    pub async fn get_timely_cert_sigs_at_round(&self, round: u64) -> anyhow::Result<HashMap<String, String>> {
         let pages = Page::find_all_in_round(self, round).await?;
         
         Ok(pages
             .into_iter()
             .filter(|page| page.seen_at_round.is_none())
+            .filter(|page| page.cert.is_some())
             .map(|page| {
                 (
                     page.scribe.clone(),
-                    CertSig {
-                    scribe: page.scribe,
-                    cert: page.cert,
-                    round: page.round,
-                    }
+                    page.cert.unwrap_or_default(),
                 )
             })
             .collect())

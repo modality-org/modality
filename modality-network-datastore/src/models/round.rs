@@ -7,7 +7,7 @@ use crate::Model;
 // use crate::ModelExt;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Round {
-    pub round: i64,
+    pub round: u64,
     pub scribes: Vec<String>,
 }
 
@@ -36,7 +36,7 @@ impl Model for Round {
 
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
         match field {
-            "round" => self.round = value.as_i64().unwrap(),
+            "round" => self.round = value.as_u64().unwrap(),
             "scribes" => self.scribes = serde_json::from_value(value).unwrap(),
             _ => {},
         }
@@ -54,7 +54,7 @@ impl Round {
         <Self as Model>::create_from_json(obj)
     }
 
-    pub async fn find_max_id(datastore: &NetworkDatastore) -> Result<Option<i64>> {
+    pub async fn find_max_id(datastore: &NetworkDatastore) -> Result<Option<u64>> {
         datastore.find_max_int_key("/consensus/round").await
             .context("Failed to find max round")
     }
