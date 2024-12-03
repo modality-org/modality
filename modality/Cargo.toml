@@ -1,0 +1,16 @@
+[package]
+name = "modality"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.1.11", features = ["cargo", "derive", "env"] }
+modality-utils = { path = "../modality-utils", version = "0.1.0" }
+tokio = { version = "1.27.0", features = ["full"] }
+tokio-util = { version = "0.7", features = ["full"] }
+async-trait = "0.1.68"
+serde = "1.0.200"
+serde_json = "1.0.116"
