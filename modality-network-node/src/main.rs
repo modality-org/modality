@@ -18,8 +18,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    #[clap(name = "run_sequencer")]
-    RunSequencer(cmds::run_sequencer::Opts),
+    #[clap(name = "run")]
+    RunSequencer(cmds::run::Opts),
 
     #[clap(name = "ping")]
     Ping(cmds::ping::Opts),
@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     match &cli.command {
         Commands::RunSequencer(opts) => {
-            cmds::run_sequencer::run_sequencer(opts).await?
+            cmds::run::run(opts).await?
         }
         Commands::Ping(opts) => {
             cmds::ping::run(opts).await?

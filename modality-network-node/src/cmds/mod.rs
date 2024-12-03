@@ -1,3 +1,3 @@
-pub mod run_sequencer;
+pub mod run;
 pub mod ping;
 pub mod request;
