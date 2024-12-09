@@ -8,6 +8,7 @@ use regex::Regex;
 use libp2p_identity::PeerId;
 
 use crate::json_stringify_deterministic::stringify_deterministic;
+use crate::encrypted_text::EncryptedText;
 
 
 #[derive(Clone)]
@@ -25,7 +26,10 @@ pub struct Keypair {
 pub struct KeypairJSON {
     pub id: String,
     pub public_key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub private_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encrypted_private_key: Option<String>
 }
 
 impl KeypairJSON {
@@ -39,6 +43,10 @@ impl KeypairJSON {
 
     pub fn private_key(&self) -> Option<&str> {
         self.private_key.as_deref()
+    }
+
+    pub fn encrypted_private_key(&self) -> Option<&str> {
+        self.encrypted_private_key.as_deref()
     }
 }
 
@@ -170,6 +178,7 @@ impl Keypair {
             id: self.public_key_as_base58_identity(),
             public_key: self.public_key_as_base64_pad(),
             private_key: None,
+            encrypted_private_key: None
         })
     }
 
@@ -189,6 +198,7 @@ impl Keypair {
             id: self.public_key_as_base58_identity(),
             public_key: self.public_key_as_base64_pad(),
             private_key: self.private_key_as_base64_pad().ok(),
+            encrypted_private_key: None
         })
     }
 
@@ -199,6 +209,27 @@ impl Keypair {
 
     pub fn as_json_file(&self, path: &str) -> Result<()> {
         let json_string = self.as_json_string()?;
+        fs::write(path, json_string)?;
+        Ok(())
+    }
+
+    pub fn as_encrypted_json(&self, password: &str) -> Result<KeypairJSON> {
+        let enc_pk = EncryptedText::encrypt(&self.private_key_as_base64_pad()?, password).ok();
+        Ok(KeypairJSON {
+            id: self.public_key_as_base58_identity(),
+            public_key: self.public_key_as_base64_pad(),
+            private_key: None,
+            encrypted_private_key: enc_pk
+        })
+    }
+
+    pub fn as_encrypted_json_string(&self, password: &str) -> Result<String> {
+        let json = self.as_encrypted_json(password)?;
+        Ok(serde_json::to_string(&json)?)
+    }
+
+    pub fn as_encrypted_json_file(&self, path: &str, password: &str) -> Result<()> {
+        let json_string = self.as_encrypted_json_string(password)?;
         fs::write(path, json_string)?;
         Ok(())
     }

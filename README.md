@@ -69,11 +69,11 @@ Generates a unique ID and saves the associated private key securely.
 
 Example Output:
 ```
-✨ Successfully created a new ID!
-🔑 Private key saved to: ./12D3KooWMRAdDAzYKfvPrN1R1Cf5fPC1iSLe37yUDV5FhEWsWABB.peerid.private_keys
-📍 Public address: 12D3KooWMRAdDAzYKfvPrN1R1Cf5fPC1iSLe37yUDV5FhEWsWABB
+✨ Successfully created a new Modality ID!
+📍 Modality ID: 12D3KooWMRAdDAzYKfvPrN1R1Cf5fPC1iSLe37yUDV5FhEWsWABB
+🔑 Modality Passkey saved to: ./12D3KooWMRAdDAzYKfvPrN1R1Cf5fPC1iSLe37yUDV5FhEWsWABB.mod_passkey
 
-🚨🚨🚨  IMPORTANT: Keep your private key file secure and never share it! 🚨🚨🚨
+🚨🚨🚨  IMPORTANT: Keep your passkey file secure and never share it! 🚨🚨🚨
 ```
 
 ---
