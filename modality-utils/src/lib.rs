@@ -5,3 +5,4 @@ extern crate lazy_static;
 pub mod hash_tax;
 pub mod json_stringify_deterministic;
 pub mod keypair;
+pub mod encrypted_text;
