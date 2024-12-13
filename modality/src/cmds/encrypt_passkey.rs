@@ -8,8 +8,12 @@ use std::path::PathBuf;
 use modality_utils::keypair::Keypair;
 
 #[derive(Debug, Parser)]
+#[command(about = "Encrypt Modality passkey file in place")]
+#[command(group = clap::ArgGroup::new("source")
+    .required(true)
+    .args(&["dir", "path"]))]
 pub struct Opts {
-    /// Dir to search for passkey files. Defaults to current directory if not specified.
+    /// Dir to search for passkey files.
     #[clap(long, value_parser)]
     dir: Option<PathBuf>,
 

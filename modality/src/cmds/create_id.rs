@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use modality_utils::keypair::Keypair;
 
 #[derive(Debug, Parser)]
+#[command(about = "Create a new Modality ID and associated passkey file")]
 pub struct Opts {
     #[clap(long)]
     path: Option<PathBuf>,
