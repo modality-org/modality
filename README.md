@@ -1,7 +1,7 @@
 # Modality 🦀 + ⲙ
 
 <div align="center">
-  <img src="./docs/static/img/modality_banner.jpg" alt="Modality Banner" width="50%" />
+  <img src="https://raw.githubusercontent.com/modality-org/modality-rust/main/docs/static/img/modality_banner.jpg" alt="Modality Banner" width="50%" />
 </div>
 
 <div align="center">
@@ -94,6 +94,7 @@ Prints the current version of the CLI.
 
 - 📂 [GitHub Issues](https://github.com/modality-dev/modality-rust/issues): Report bugs or request features.
 - 💬 Join the [Modality Discourse](https://discuss.modality.org/): Connect with other users and contributors.
+- 🗣️ Join the [Modality Discord](https://discord.gg/KpYFdrfnkS): Chat and join community meetings on Discord.
 
 ---
 
