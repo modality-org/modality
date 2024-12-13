@@ -1,6 +1,6 @@
 [package]
 name = "modality"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "CLI for Modality, an evolving temporal modal logic"
 license = "MIT"
@@ -14,7 +14,7 @@ homepage = "https://www.modality.org"
 [dependencies]
 anyhow = "1.0"
 clap = { version = "4.1.11", features = ["cargo", "derive", "env"] }
-modality-utils = { path = "../modality-utils", version = "0.1.0" }
+modality-utils = { path = "../modality-utils", version = "0.1.2" }
 tokio = { version = "1.27.0", features = ["full"] }
 tokio-util = { version = "0.7", features = ["full"] }
 async-trait = "0.1.68"
