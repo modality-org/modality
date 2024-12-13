@@ -9,45 +9,52 @@ use modality_utils::keypair::Keypair;
 
 #[derive(Debug, Parser)]
 pub struct Opts {
-    /// Path to search for passkey files. Defaults to current directory if not specified.
+    /// Dir to search for passkey files. Defaults to current directory if not specified.
+    #[clap(long, value_parser)]
+    dir: Option<PathBuf>,
+
+    /// Direct path to passkey files
     #[clap(long, value_parser)]
     path: Option<PathBuf>,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
-    // Get password first
     let password = get_password().context("Failed to get password")?;
 
-    // Determine root directory
-    let root_dir = if let Some(path) = &opts.path {
-        path.clone()
+    // Find all .mod_passkey files in specified directory
+    let entries = if let Some(path) = opts.path.clone() {
+        vec![Ok(path)].into_iter()
     } else {
-        env::current_dir().context("Failed to get current directory")?
+        let root_dir = if let Some(dir) = &opts.dir {
+            dir.clone()
+        } else {
+            env::current_dir().context("Failed to get current directory")?
+        };
+        println!("\nSearching for passkey files in: {}", root_dir.display());
+        // Validate directory
+        if !root_dir.exists() {
+            return Err(anyhow::anyhow!(
+                "Directory does not exist: {}",
+                root_dir.display()
+            ));
+        }
+        if !root_dir.is_dir() {
+            return Err(anyhow::anyhow!(
+                "Path is not a directory: {}",
+                root_dir.display()
+            ));
+        }
+        // Map DirEntry to PathBuf to match the single path case
+        fs::read_dir(&root_dir)?
+            .map(|res| res.map(|entry| entry.path()))
+            .collect::<Vec<_>>()
+            .into_iter()
     };
 
-    // Validate directory
-    if !root_dir.exists() {
-        return Err(anyhow::anyhow!(
-            "Directory does not exist: {}",
-            root_dir.display()
-        ));
-    }
-    if !root_dir.is_dir() {
-        return Err(anyhow::anyhow!(
-            "Path is not a directory: {}",
-            root_dir.display()
-        ));
-    }
-
-    println!("\nSearching for passkey files in: {}", root_dir.display());
-
-    // Find all .mod_passkey files in specified directory
-    let entries = fs::read_dir(&root_dir)?;
     let mut decrypted_count = 0;
 
     for entry in entries {
-        let entry = entry?;
-        let path = entry.path();
+        let path = entry?;
 
         if let Some(ext) = path.extension() {
             if ext == "mod_passkey" {
@@ -115,34 +122,5 @@ fn get_password() -> Result<String> {
         return Err(anyhow::anyhow!("Password cannot be empty"));
     }
 
-    // Verify password against encrypted passkeys
-    let entries = fs::read_dir(".")?;
-    for entry in entries {
-        let path = entry?.path();
-        if let Some(ext) = path.extension() {
-            if ext == "mod_passkey" {
-                if let Ok(content) = fs::read_to_string(&path) {
-                    if content.contains("encrypted_private_key") {
-                        let keypair_json: modality_utils::keypair::KeypairJSON =
-                            serde_json::from_str(&content)?;
-
-                        if let Some(encrypted_key) = keypair_json.encrypted_private_key() {
-                            if modality_utils::encrypted_text::EncryptedText::decrypt(
-                                encrypted_key,
-                                &password,
-                            )
-                            .is_ok()
-                            {
-                                return Ok(password);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    Err(anyhow::anyhow!(
-        "Invalid password - could not decrypt any passkeys"
-    ))
+    Ok(password)
 }

@@ -176,8 +176,6 @@ impl Keypair {
         let json_str = fs::read_to_string(filepath)?;
         let json: KeypairJSON = serde_json::from_str(&json_str)?;
 
-        println!("keypair json: {}", json_str);
-
         if let Some(encrypted_key) = json.encrypted_private_key() {
             let decrypted_key = EncryptedText::decrypt(encrypted_key, password).ok();
             let decrypted_json = KeypairJSON {
