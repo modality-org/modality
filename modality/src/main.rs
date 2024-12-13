@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(name = "modality")]
-#[command(version = "0.1.1")]
+#[command(version = "0.1.2")]
 #[command(about = "Modality language CLI", long_about = None)]
 struct Cli {
     #[command(subcommand)]

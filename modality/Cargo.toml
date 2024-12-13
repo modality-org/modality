@@ -7,6 +7,7 @@ license = "MIT"
 documentation = "https://docs.rs/modality"
 repository = "https://github.com/modality-org/modality-rust"
 homepage = "https://www.modality.org"
+readme = "../README.md"
 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
