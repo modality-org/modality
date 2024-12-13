@@ -9,9 +9,6 @@ use modality_utils::keypair::Keypair;
 
 #[derive(Debug, Parser)]
 pub struct Opts {
-    #[clap(long)]
-    name: Option<String>,
-
     /// Path to search for passkey files. Defaults to current directory if not specified.
     #[clap(long, value_parser)]
     path: Option<PathBuf>,
