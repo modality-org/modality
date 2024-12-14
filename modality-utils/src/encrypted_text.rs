@@ -3,13 +3,6 @@ use ring::{aead, pbkdf2, rand, hkdf};
 use ring::rand::SecureRandom;
 use std::num::NonZeroU32;
 
-#[derive(Debug)]
-pub struct EncryptedData {
-    salt: Vec<u8>,
-    nonce: Vec<u8>,
-    ciphertext: Vec<u8>,
-}
-
 pub struct EncryptedText;
 
 impl EncryptedText {

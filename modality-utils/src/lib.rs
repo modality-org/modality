@@ -7,3 +7,4 @@ pub mod json_stringify_deterministic;
 pub mod keypair;
 pub mod passkey;
 pub mod encrypted_text;
+pub mod libp2p_identity_keypair;

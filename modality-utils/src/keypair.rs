@@ -1,11 +1,13 @@
 use anyhow::{anyhow, Result};
 use base58::ToBase58;
+use base64::prelude::*;
 use libp2p::identity::{ed25519, Keypair as Libp2pKeypair, PublicKey as Libp2pPublicKey};
 use libp2p_identity::PeerId;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
+use zeroize::Zeroizing;
 
 use crate::encrypted_text::EncryptedText;
 use crate::json_stringify_deterministic::stringify_deterministic;
@@ -79,6 +81,10 @@ impl Keypair {
         let mut identity_hash = vec![0x00, bytes.len() as u8];
         identity_hash.extend_from_slice(bytes);
         identity_hash.to_base58()
+    }
+
+    pub fn private_key(&self) -> String {
+        self.private_key_as_base64_pad().ok().unwrap()
     }
 
     fn public_key_bytes(&self) -> Vec<u8> {
