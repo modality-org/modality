@@ -1,6 +1,6 @@
 [package]
 name = "modality-network-node"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -37,7 +37,7 @@ libp2p = { version = "0.54.1", features = [
   "dns",
 ] }
 libp2p-identity = { version = "0.2.9", features = ["ed25519", "peerid"] }
-libp2p-webrtc = { version = "0.6.0-alpha", features = ["tokio", "pem"] }
+# libp2p-webrtc = { version = "0.6.0-alpha", features = ["tokio", "pem"] }
 libp2p-noise = "0.44.0"
 libp2p-yamux = "0.45.1"
 libp2p-tls = "0.3.0"
@@ -51,5 +51,5 @@ serde = "1.0.200"
 serde_json = "1.0.116"
 base64 = "0.22.1"
 zeroize = "1.7.0"
-libp2p-stream = "0.1.0-alpha"
+# libp2p-stream = "0.1.0-alpha"
 modality-utils = { path = "../modality-utils", version = "0.1.4" }
