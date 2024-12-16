@@ -1,61 +1,24 @@
-use crate::config_file;
-use crate::identity_utils;
 use crate::swarm;
-
 use crate::reqres;
-use anyhow::{Context, Result};
-use clap::Parser;
+use crate::node::Node;
+
+use anyhow::{Result};
 use futures::prelude::*;
 use libp2p::multiaddr::Multiaddr;
 use libp2p::swarm::SwarmEvent;
-use std::borrow::Borrow;
 use libp2p::request_response;
 
-#[derive(Debug, Parser)]
-pub struct Opts {
-    #[clap(long, default_value = "./config.json")]
-    config: std::path::PathBuf,
-
-    #[clap(long)]
-    keypair: Option<std::path::PathBuf>,
-
-    #[clap(long)]
-    storage: Option<std::path::PathBuf>,
-
-    #[clap(long, default_value = "1")]
-    times: i32,
-
-    #[clap(long, default_value = "/ip4/0.0.0.0/tcp/0/ws")]
-    target: String,
-
-    #[clap(long)]
-    path: String,
-
-    #[clap(long, default_value = "{}")]
-    data: String
-}
-
-pub async fn run(opts: &Opts) -> Result<()> {
-    let config =
-        config_file::read_or_create_config(&opts.config).context("Failed to read config")?;
-    let config_keypair = config.keypair.unwrap();
-    let node_keypair = identity_utils::identity_from_private_key(
-        config_keypair.private_key.unwrap_or_default().borrow(),
-    )
-    .await?;
-
-    let ma = opts.target.clone().parse::<Multiaddr>().unwrap();
+pub async fn run(node: &mut Node, target: String, path: String, data: String) -> Result<()> {
+    let ma = target.parse::<Multiaddr>().unwrap();
 
     let Some(libp2p::multiaddr::Protocol::P2p(target_peer_id)) = ma.iter().last() else {
-        anyhow::bail!("Provided address does not end in `/p2p`");
+        anyhow::bail!("Provided address must end in `/p2p` and include PeerID");
     };
 
-    let mut swarm = swarm::create_swarm(node_keypair).await?;
-    swarm.dial(ma.clone())?;
-    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    node.swarm.dial(ma.clone())?;
 
     loop {
-        match swarm.select_next_some().await {
+        match node.swarm.select_next_some().await {
             SwarmEvent::ConnectionEstablished { peer_id, .. } => {
                 if peer_id == target_peer_id {
                     log::debug!("Connected to peer {:?}", peer_id);
@@ -78,25 +41,25 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     let request = reqres::Request {
-        path: opts.path.clone().to_string(),
-        data: Some(serde_json::json!(opts.data.clone())),
+        path: path.clone().to_string(),
+        data: Some(serde_json::json!(data.clone())),
     };
-    let target_request_id = swarm
+    let target_request_id = node.swarm
         .behaviour_mut()
         .reqres
         .send_request(&target_peer_id, request);
 
     let _channel = loop {
         futures::select!(
-            event = swarm.select_next_some() => match event {
-              SwarmEvent::Behaviour(swarm::BehaviourEvent::Reqres(
+            event = node.swarm.select_next_some() => match event {
+              SwarmEvent::Behaviour(swarm::NodeBehaviourEvent::Reqres(
                 request_response::Event::Message {
                   message: request_response::Message::Response { response, request_id, .. },
                   ..
                 }
               )) => {
                 if target_request_id == request_id {
-                  println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                  log::debug!("response: {}", serde_json::to_string_pretty(&response).unwrap());
                   break;
                 }
               }
@@ -104,6 +67,20 @@ pub async fn run(opts: &Opts) -> Result<()> {
             }
         )
     };
+
+    let _ = node.swarm.disconnect_peer_id(target_peer_id);
+
+    loop {
+        match node.swarm.select_next_some().await {
+            SwarmEvent::ConnectionClosed { peer_id, .. } => {
+                if peer_id == target_peer_id {
+                    log::debug!("Connection closed with peer {:?}", peer_id);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
 
     Ok(())
 }

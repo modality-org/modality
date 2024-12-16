@@ -1,6 +1,7 @@
 use anyhow::Result;
 use libp2p::request_response;
 mod consensus;
+mod ping;
 
 #[allow(dead_code)]
 pub const PROTOCOL: &str = "/modality-network/reqres/0.0.1";
@@ -31,6 +32,9 @@ pub async fn handle_request(req: Request) -> Result<Response> {
     let path = req.path;
     let data = req.data.unwrap_or_default();
     let response = match path.as_str() {
+        "/ping" => {
+            ping::handler(Some(data.clone())).await?
+        },
         "/consensus/status" => {
             consensus::status::handler(Some(data.clone())).await?
         }

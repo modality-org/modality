@@ -7,7 +7,6 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
-use zeroize::Zeroizing;
 
 use crate::encrypted_text::EncryptedText;
 use crate::json_stringify_deterministic::stringify_deterministic;
@@ -107,7 +106,7 @@ impl Keypair {
     }
 
     fn uint8_array_as_base64_pad(bytes: &[u8]) -> String {
-        base64::encode(bytes)
+        BASE64_STANDARD.encode(bytes)
     }
 
     pub fn public_key_as_base64_pad(&self) -> String {
@@ -163,11 +162,11 @@ impl Keypair {
 
     pub fn from_json(json: &KeypairJSON) -> Result<Self> {
         if let Some(private_key) = &json.private_key {
-            let key_bytes = base64::decode(private_key)?;
+            let key_bytes = BASE64_STANDARD.decode(private_key)?;
             let key = Libp2pKeypair::from_protobuf_encoding(&key_bytes)?;
             Ok(Self::new(KeypairOrPublicKey::Keypair(key)))
         } else {
-            let key_bytes = base64::decode(&json.public_key)?;
+            let key_bytes = BASE64_STANDARD.decode(&json.public_key)?;
             let public_key = Libp2pPublicKey::try_decode_protobuf(&key_bytes)?;
             Ok(Self::new(KeypairOrPublicKey::PublicKey(public_key)))
         }
@@ -282,7 +281,7 @@ impl Keypair {
 
     pub fn sign_string_as_base64_pad(&self, s: &str) -> Result<String> {
         let signature = self.sign_string(s)?;
-        Ok(base64::encode(signature))
+        Ok(BASE64_STANDARD.encode(signature))
     }
 
     pub fn sign_json(&self, json: &Value) -> Result<String> {
@@ -303,7 +302,7 @@ impl Keypair {
     }
 
     pub fn verify_signature_for_bytes(&self, signature: &str, bytes: &[u8]) -> Result<bool> {
-        let signature_bytes = base64::decode(signature)?;
+        let signature_bytes = BASE64_STANDARD.decode(signature)?;
         match &self.inner {
             KeypairOrPublicKey::Keypair(k) => Ok(k.public().verify(bytes, &signature_bytes)),
             KeypairOrPublicKey::PublicKey(pk) => Ok(pk.verify(bytes, &signature_bytes)),

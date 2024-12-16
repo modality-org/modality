@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use std::path::PathBuf;
 
 use crate::keypair::Keypair;
@@ -16,5 +16,4 @@ impl Passkey {
     let keypair = Keypair::from_json_file(filepath.to_str().unwrap())?;
     Ok(Self { filepath, keypair })
   }
-
 }

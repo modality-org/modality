@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 #[derive(Parser)]
 #[command(name = "modality")]
 #[command(version = "0.1.4")]
-#[command(about = "Modality language CLI", long_about = None)]
+#[command(about = "Modality language and network CLI", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -53,8 +53,8 @@ enum NetworkCommands {
     #[command(alias = "run_node")]
     RunNode(cmds::net::run_node::Opts),
 
-    // #[clap(name = "ping")]
-    // Ping(cmds::node::ping::Opts),
+    #[clap(name = "ping")]
+    Ping(cmds::net::ping::Opts),
 
     // #[clap(name = "request")]
     // Request(cmds::node::request::Opts)
@@ -62,6 +62,8 @@ enum NetworkCommands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
     let cli = Cli::parse();
     match &cli.command {
         Commands::Id { command } => {
@@ -77,7 +79,8 @@ async fn main() -> Result<()> {
         }
         Commands::Net { command } => {
             match command {
-                NetworkCommands::RunNode(opts) => cmds::net::run_node::run(opts).await?
+                NetworkCommands::RunNode(opts) => cmds::net::run_node::run(opts).await?,
+                NetworkCommands::Ping(opts) => cmds::net::ping::run(opts).await?,
             }
         }
     }
