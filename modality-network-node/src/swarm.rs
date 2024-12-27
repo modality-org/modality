@@ -5,6 +5,8 @@ use libp2p::request_response;
 use libp2p::swarm;
 use libp2p::{identify, identity};
 use libp2p::{swarm::NetworkBehaviour, swarm::Swarm, SwarmBuilder};
+use libp2p::kad;
+use libp2p_identity::PublicKey;
 use std::time::Duration;
 
 use crate::reqres;
@@ -16,6 +18,7 @@ pub struct NodeBehaviour {
     pub identify: identify::Behaviour,
     pub reqres: reqres::Behaviour,
     // gossipsub: gossipsub::Behaviour,
+    pub kademlia: kad::Behaviour<kad::store::MemoryStore>,
 }
 
 pub type NodeSwarm = Swarm<NodeBehaviour>;
@@ -34,13 +37,27 @@ pub async fn create_swarm(local_key: identity::Keypair) -> Result<NodeSwarm> {
         request_response::Config::default()
     );
 
+
+    let peer_id = local_key.clone().public().to_peer_id();
+    let kademlia_behaviour = kad::Behaviour::new(
+        peer_id,
+        kad::store::MemoryStore::new(peer_id),
+    );
+
     let behaviour = NodeBehaviour {
         // stream: stream_behaviour,
         ping: ping_behaviour,
         identify: identify_behaviour,
         reqres: reqres_behaviour,
+        kademlia: kademlia_behaviour,
     };
-    let swarm = create_swarm_with_behaviours(local_key, behaviour).await?;
+    let mut swarm = create_swarm_with_behaviours(local_key, behaviour).await?;
+
+    swarm
+        .behaviour_mut()
+        .kademlia
+        .set_mode(Some(kad::Mode::Client));
+
     Ok(swarm)
 }
 
@@ -48,21 +65,22 @@ pub async fn create_swarm_with_behaviours(
     local_key: identity::Keypair,
     behaviour: NodeBehaviour,
 ) -> Result<NodeSwarm> {
-    let swarm0 = SwarmBuilder::with_existing_identity(local_key);
-    let swarm1 = swarm0.with_tokio();
-    let swarm2 = swarm1.with_tcp(
+    let swarm = SwarmBuilder::with_existing_identity(local_key);
+    let swarm = swarm.with_tokio();
+    let swarm = swarm.with_tcp(
         libp2p::tcp::Config::default(),
         libp2p::noise::Config::new,
         libp2p::yamux::Config::default,
     )?;
-    let swarm3 = swarm2
+    let swarm = swarm.with_dns()?;
+    let swarm = swarm
         .with_websocket(libp2p::noise::Config::new, libp2p::yamux::Config::default)
         .await?;
-    let swarm4 = swarm3
+    let swarm = swarm
         .with_behaviour(|_key| behaviour)?
         .with_swarm_config(|cfg| {
             cfg.with_idle_connection_timeout(Duration::from_secs(60))
         });
-    let swarm = swarm4.build();
+    let swarm = swarm.build();
     Ok(swarm)
 }
