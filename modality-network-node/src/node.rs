@@ -9,6 +9,7 @@ use futures::future::{select, Either};
 use libp2p::futures::StreamExt;
 use std::time::Duration;
 use libp2p::request_response;
+use modality_utils::multiaddr_list::resolve_dns_multiaddrs;
 
 pub struct Node {
     pub peerid: libp2p_identity::PeerId,
@@ -27,8 +28,9 @@ impl Node {
     pub async fn from_config(config: Config) -> Result<Node> {
         let node_keypair = config.get_libp2p_keypair().await?;
         let peerid = node_keypair.public().to_peer_id();
-        let listeners = config.listeners.unwrap();
-        let bootstrappers = exclude_multiaddresses_with_peerid(config.bootstrappers.unwrap(), peerid);
+        let listeners = config.listeners.unwrap_or_default();
+        let resolved_bootstrappers = resolve_dns_multiaddrs(config.bootstrappers.unwrap()).await?;
+        let bootstrappers = exclude_multiaddresses_with_peerid(resolved_bootstrappers, peerid);
         let swarm = crate::swarm::create_swarm(node_keypair.clone()).await?;
         let node = Self { peerid, node_keypair, listeners, bootstrappers, swarm };
         Ok(node)
@@ -38,6 +40,10 @@ impl Node {
         // node.attach_storage(config.storage_path);
         for listener in self.listeners.clone() {
             self.swarm.listen_on(listener)?;
+        }
+        for bootstrapper in self.bootstrappers.clone() {
+            log::info!("adding {bootstrapper:?}");
+            self.swarm.dial(bootstrapper)?;
         }
         Ok(())
     }

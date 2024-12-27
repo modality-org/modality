@@ -1,4 +1,5 @@
-use std::error::Error;
+use std::str::FromStr;
+use anyhow::{Result, Error};
 use regex::Regex;
 use hickory_resolver::{
     config::{ResolverConfig, ResolverOpts},
@@ -6,6 +7,7 @@ use hickory_resolver::{
 };
 use reqwest;
 use serde_json::Value;
+use libp2p::multiaddr::Multiaddr;
 
 #[derive(Debug)]
 pub struct DnsAnswer {
@@ -26,7 +28,7 @@ fn matches_peer_id_suffix(s: &str, peer_id: &str) -> bool {
     re.is_match(s)
 }
 
-async fn resolve_via_cloudflare_dns(name: &str, type_: &str) -> Result<Vec<String>, Box<dyn Error>> {
+async fn resolve_via_cloudflare_dns(name: &str, type_: &str) -> Result<Vec<String>, Error> {
     let client = reqwest::Client::new();
     let url = format!(
         "https://cloudflare-dns.com/dns-query?name={}&type={}",
@@ -53,7 +55,7 @@ async fn resolve_via_cloudflare_dns(name: &str, type_: &str) -> Result<Vec<Strin
     Ok(answers)
 }
 
-async fn resolve_via_dns(name: &str, type_: &str) -> Result<Vec<String>, Box<dyn Error>> {
+async fn resolve_via_dns(name: &str, type_: &str) -> Result<Vec<String>, Error> {
     let resolver = TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default());
 
     match type_ {
@@ -82,7 +84,7 @@ async fn resolve_via_dns(name: &str, type_: &str) -> Result<Vec<String>, Box<dyn
     }
 }
 
-pub async fn resolve_dns_entries(entries: Vec<String>) -> Result<Vec<String>, Box<dyn Error>> {
+pub async fn resolve_dns_entries(entries: Vec<String>) -> Result<Vec<String>, Error> {
     let mut results = Vec::new();
 
     for entry in entries {
@@ -129,20 +131,17 @@ pub async fn resolve_dns_entries(entries: Vec<String>) -> Result<Vec<String>, Bo
     Ok(results)
 }
 
+pub async fn resolve_dns_multiaddrs(multiaddrs: Vec<Multiaddr>) -> Result<Vec<Multiaddr>, Error> {
+    let entries: Vec<String> = multiaddrs.iter().map(|addr| addr.to_string()).collect();
+    let resolved_entries = resolve_dns_entries(entries).await?;
+    let resolved_multiaddrs = resolved_entries.into_iter().filter_map(|entry| Multiaddr::from_str(&entry).ok()).collect();
+    Ok(resolved_multiaddrs)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use tokio;
-
-    #[tokio::test]
-    async fn test_dns_resolution2() {
-        // let response = ureq::get("http://httpbin.org/get").call();
-        // println!("ureq result: {:?}", response);
-
-        let client = reqwest::Client::new();
-        let res = client.get("http://httpbin.org/get").send().await.unwrap();
-        assert!(res.status().is_success());
-    }
 
     #[tokio::test]
     async fn test_dns_resolution() { 
