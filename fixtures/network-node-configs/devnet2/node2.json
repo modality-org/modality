@@ -1,13 +1,6 @@
 {
-  "id": "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
   "passkey_path": "../../passkeys/node2.mod_passkey",
   "storage_path": "../../../tmp/storage/node2",
   "listeners": ["/ip4/0.0.0.0/tcp/10202/ws"],
-  "_bootstrappers": [
-    "/ip4/127.0.0.1/tcp/10201/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
-    "/dnsaddr/devnet3.modality.network/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
-  ],
-  "bootstrappers": [
-    "/dnsaddr/devnet3.modality.network"
-  ]
+  "bootstrappers": ["/dnsaddr/devnet2.modality.network"]
 }
