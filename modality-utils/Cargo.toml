@@ -15,7 +15,7 @@ num-bigint = "0.4.5"
 num-traits = "0.2.19"
 sha1 = "0.10.6"
 sha2 = "0.10.8"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.42.0", features = ["full"] }
 libp2p = { version = "0.54.1", features = ["ed25519", "identify"] }
 libp2p-identity = { version = "0.2.9", features = ["ed25519", "peerid"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -30,3 +30,9 @@ log = "0.4.17"
 ring = "0.17"
 rpassword = "7.0"
 zeroize = "1.7.0"
+hickory-resolver = "0.24.2"
+reqwest = { version = "0.12.10", features = ["json", "blocking", "default-tls"] } 
+
+
+[dev-dependencies]
+tokio = { version = "1.42.0", features = ["full", "test-util"] }
