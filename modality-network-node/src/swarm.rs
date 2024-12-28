@@ -53,11 +53,6 @@ pub async fn create_swarm(local_key: identity::Keypair) -> Result<NodeSwarm> {
     };
     let mut swarm = create_swarm_with_behaviours(local_key, behaviour).await?;
 
-    swarm
-        .behaviour_mut()
-        .kademlia
-        .set_mode(Some(kad::Mode::Client));
-
     Ok(swarm)
 }
 

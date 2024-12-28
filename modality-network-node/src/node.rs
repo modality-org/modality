@@ -3,6 +3,7 @@ use anyhow::Result;
 use libp2p::swarm::SwarmEvent;
 use libp2p::{Multiaddr, PeerId};
 
+use std::ops::Mul;
 use std::path::PathBuf;
 use libp2p::multiaddr::Protocol;
 use futures::future::{select, Either};
@@ -39,95 +40,34 @@ impl Node {
     pub async fn setup(&mut self) -> Result<()> {
         // node.attach_storage(config.storage_path);
         for listener in self.listeners.clone() {
-            self.swarm.listen_on(listener)?;
+            self.swarm.listen_on(listener.clone())?;
+            self.swarm.add_external_address(listener.clone());
         }
         for bootstrapper in self.bootstrappers.clone() {
-            log::info!("adding {bootstrapper:?}");
-            self.swarm.dial(bootstrapper)?;
+            if let Some(peer_id) = extract_peer_id(bootstrapper.clone()) {
+                log::info!("Adding Bootstrap Peer: {peer_id:?} {bootstrapper:?}");
+                self.swarm.add_peer_address(peer_id.clone(), bootstrapper.clone());
+                self.swarm.behaviour_mut().kademlia.add_address(&peer_id.clone(), bootstrapper.clone());
+            } else {
+                log::info!("skipping bootstrapper missing peerid: {bootstrapper:?}");
+            }
         }
         Ok(())
     }
+}
 
-    pub async fn run(&mut self) -> Result<()> {
-        let tick_interval: Duration = Duration::from_secs(15);
-        let mut tick = futures_timer::Delay::new(tick_interval);
-
-        loop {
-            match select(self.swarm.next(), &mut tick).await {
-                Either::Left((event, _)) => match event.unwrap() {
-                    SwarmEvent::NewListenAddr { address, .. } => {
-                        let address_with_p2p = address.clone().with(libp2p::multiaddr::Protocol::P2p(self.peerid));
-                        log::info!("Listening on {address_with_p2p:?}")
-                    }
-                    SwarmEvent::ConnectionEstablished { .. } => {
-                        // if peer_id == target_peer_id {
-                        //     log::debug!("Connected to peer {:?}", peer_id);
-                        //     // do we ever need to wait for correct transport upgrade event?
-                        //     // tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                        //     break;
-                        // }
-                    }
-                    SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
-                        if let Some(peer_id) = peer_id {
-                            log::error!("Failed to dial peer {:?}", peer_id);
-                            log::error!("Error: {:?}", error);
-                            anyhow::bail!("Failed to dial peer");
-                        }
-                    }
-                    SwarmEvent::Behaviour(crate::swarm::NodeBehaviourEvent::Reqres(
-                        request_response::Event::Message { message, .. },
-                    )) => match message {
-                        request_response::Message::Request {
-                            request,
-                            channel,
-                            .. // request, channel, ..
-                        } => {
-                            log::info!("reqres request");
-                            let res = crate::reqres::handle_request(request).await?;
-                            self.swarm.behaviour_mut().reqres.send_response(channel, res).expect("failed to respond")
-                        }
-                        request_response::Message::Response {
-                            ..
-                            // request_id,
-                            // response,
-                        } => {
-                            log::info!("reqres response")
-                        }
-                    },
-                    // SwarmEvent::Behaviour(event) => {
-                    //     log::info!("SwarmEvent::Behaviour event {:?}", event);
-                    //     match event {
-                    //         swarm::BehaviourEvent::Identify(_) => {
-                    //             log::info!("Identify Behaviour event");
-                    //         }
-                    //         swarm::BehaviourEvent::Ping(_) => {
-                    //             log::info!("Ping Behaviour event");
-                    //         }
-                    //         swarm::BehaviourEvent::Stream(_) => {
-                    //             log::info!("Stream Behaviour event");
-                    //         }
-                    //         swarm::BehaviourEvent::Reqres(_) => {
-                    //             log::info!("Reqres Behaviour event");
-                    //         }
-                    //         // _ => {
-                    //         //     log::info!("Other Swarm Behaviour event {:?}", event);
-                    //         // }
-                    //     }
-                    // }
-                    event => {
-                        log::info!("Other Node Event {:?}", event)
-                    },
-                },
-                Either::Right(_) => {
-                    log::debug!("tick");
-                    tick = futures_timer::Delay::new(tick_interval);
-                }
-            }
-        }
+fn extract_peer_id(multiaddr: Multiaddr) -> Option<PeerId> {
+    let protocols: Vec<libp2p::multiaddr::Protocol> = multiaddr.iter().collect();
+    let last_protocol = protocols.last()?;
+    
+    // Check if it's a p2p protocol and extract the peer ID
+    match last_protocol {
+        Protocol::P2p(peer_id) => Some(peer_id.clone()),
+        _ => None,
     }
 }
 
-pub fn exclude_multiaddresses_with_peerid(ma: Vec<Multiaddr>, peerid: PeerId) -> Vec<Multiaddr> {
+fn exclude_multiaddresses_with_peerid(ma: Vec<Multiaddr>, peerid: PeerId) -> Vec<Multiaddr> {
     ma.into_iter()
         .filter(|addr| {
             if let Some(Protocol::P2p(addr_peerid)) = addr.iter().last() {
