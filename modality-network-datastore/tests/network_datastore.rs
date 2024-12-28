@@ -38,22 +38,22 @@ async fn test_network_datastore() {
     let max_int_key = datastore.find_max_int_key("/pages").await.unwrap().unwrap();
     assert_eq!(max_int_key, 20);
 
-    // Test current round operations
-    datastore.set_current_round(5).await.unwrap();
-    let current_round = datastore.get_current_round().await.unwrap();
-    assert_eq!(current_round, 5);
+    // Test current block operations
+    datastore.set_current_block(5).await.unwrap();
+    let current_block = datastore.get_current_block().await.unwrap();
+    assert_eq!(current_block, 5);
 
-    let new_round = datastore.bump_current_round().await.unwrap();
-    assert_eq!(new_round, 6);
+    let new_block = datastore.bump_current_block().await.unwrap();
+    assert_eq!(new_block, 6);
 
 
     // Test iteration within prefix
-    datastore.set_data_by_key("/consensus/round_messages/1/type/type1/scribe/scribe1", b"").await.unwrap();
-    datastore.set_data_by_key("/consensus/round_messages/1/type/type1/scribe/scribe2", b"").await.unwrap();
-    datastore.set_data_by_key("/consensus/round_messages/1/type/type1/scribe/scribe3", b"").await.unwrap();
-    datastore.set_data_by_key("/consensus/round_messages/1/type/type1a/scribe/scribe1", b"").await.unwrap();
-    datastore.set_data_by_key("/consensus/round_messages/1/type/type2/scribe/scribe1", b"").await.unwrap();
-    datastore.set_data_by_key("/consensus/round_messages/1/type/type10/scribe/scribe1", b"").await.unwrap();
-    let iterator = datastore.iterator(&"/consensus/round_messages/1/type/type1");
+    datastore.set_data_by_key("/block_messages/1/type/type1/scribe/scribe1", b"").await.unwrap();
+    datastore.set_data_by_key("/block_messages/1/type/type1/scribe/scribe2", b"").await.unwrap();
+    datastore.set_data_by_key("/block_messages/1/type/type1/scribe/scribe3", b"").await.unwrap();
+    datastore.set_data_by_key("/block_messages/1/type/type1a/scribe/scribe1", b"").await.unwrap();
+    datastore.set_data_by_key("/block_messages/1/type/type2/scribe/scribe1", b"").await.unwrap();
+    datastore.set_data_by_key("/block_messages/1/type/type10/scribe/scribe1", b"").await.unwrap();
+    let iterator = datastore.iterator(&"/block_messages/1/type/type1");
     assert_eq!(iterator.count(), 3);
 }

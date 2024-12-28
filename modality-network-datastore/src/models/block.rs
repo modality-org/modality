@@ -6,14 +6,14 @@ use anyhow::{Context, Result, anyhow};
 use crate::Model;
 // use crate::ModelExt;
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Round {
-    pub round: u64,
+pub struct Block {
+    pub block_id: u64,
     pub scribes: Vec<String>,
 }
 
-impl Model for Round {
-    const ID_PATH: &'static str = "/consensus/round/${round}";
-    const FIELDS: &'static [&'static str] = &["round", "scribes"];
+impl Model for Block {
+    const ID_PATH: &'static str = "/block/${block_id}";
+    const FIELDS: &'static [&'static str] = &["block_id", "scribes"];
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[
         ("scribes", serde_json::json!([]))
     ];
@@ -27,16 +27,16 @@ impl Model for Round {
         }
 
         // Ensure required fields are present
-        if !obj.get("round").is_some() {
-            return Err(anyhow!("Missing required field: round"));
+        if !obj.get("block_id").is_some() {
+            return Err(anyhow!("Missing required field: block"));
         }
 
-        serde_json::from_value(obj).context("Failed to deserialize Round")
+        serde_json::from_value(obj).context("Failed to deserialize Block")
     }
 
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
         match field {
-            "round" => self.round = value.as_u64().unwrap(),
+            "block_id" => self.block_id = value.as_u64().unwrap(),
             "scribes" => self.scribes = serde_json::from_value(value).unwrap(),
             _ => {},
         }
@@ -44,19 +44,19 @@ impl Model for Round {
 
     fn get_id_keys(&self) -> HashMap<String, String> {
         let mut keys = HashMap::new();
-        keys.insert("round".to_string(), self.round.to_string());
+        keys.insert("block_id".to_string(), self.block_id.to_string());
         keys
     }
 }
 
-impl Round {
+impl Block {
     pub fn create_from_json(obj: serde_json::Value) -> Result<Self> {
         <Self as Model>::create_from_json(obj)
     }
 
     pub async fn find_max_id(datastore: &NetworkDatastore) -> Result<Option<u64>> {
-        datastore.find_max_int_key("/consensus/round").await
-            .context("Failed to find max round")
+        datastore.find_max_int_key("/block").await
+            .context("Failed to find max block")
     }
 
     pub fn add_scribe(&mut self, scribe_peer_id: String) {
@@ -69,7 +69,7 @@ impl Round {
 }
 
 pub mod prelude {
-    pub use super::Round;
+    pub use super::Block;
     pub use crate::Model;
     // pub use crate::ModelExt;
     pub use crate::NetworkDatastore;

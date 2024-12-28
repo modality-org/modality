@@ -10,8 +10,8 @@ use std::fmt::Debug;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Page {
     pub scribe: String,
-    pub round: u64,
-    pub last_round_certs: HashMap<String, String>,
+    pub block_id: u64,
+    pub last_block_certs: HashMap<String, String>,
     pub events: Vec<serde_json::Value>,
     pub hash: Option<String>,
     pub sig: Option<String>,
@@ -19,37 +19,37 @@ pub struct Page {
     pub late_acks: Vec<Ack>,
     pub cert: Option<String>,
     pub is_section_leader: Option<bool>,
-    pub section_ending_round: Option<u64>,
-    pub section_starting_round: Option<u64>,
+    pub section_ending_block_id: Option<u64>,
+    pub section_starting_block_id: Option<u64>,
     pub section_page_number: Option<u64>,
     pub page_number: Option<u64>,
-    pub seen_at_round: Option<u64>,
+    pub seen_at_block_id: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Ack {
     pub scribe: String,
-    pub round: u64,
+    pub block_id: u64,
     pub sig: String,
     pub acker: String,
     pub acker_sig: String,
-    pub seen_at_round: Option<u64>,
+    pub seen_at_block_id: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CertSig {
     pub scribe: String,
     pub cert: Option<String>,  // Adjust type as needed
-    pub round: u64,
+    pub block_id: u64,
 }
 
 #[async_trait]
 impl Model for Page {
-    const ID_PATH: &'static str = "/consensus/round/${round}/scribe/${scribe}";
+    const ID_PATH: &'static str = "/block/${block_id}/scribe/${scribe}";
     const FIELDS: &'static [&'static str] = &[
         "scribe",
-        "round",
-        "last_round_certs",
+        "block_id",
+        "last_block_certs",
         "events",
         "hash",
         "sig",
@@ -57,11 +57,11 @@ impl Model for Page {
         "late_acks",
         "cert",
         "is_section_leader",
-        "section_ending_round",
-        "section_starting_round",
+        "section_ending_block_id",
+        "section_starting_block_id",
         "section_page_number",
         "page_number",
-        "seen_at_round",
+        "seen_at_block_id",
     ];
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[
         ("events", serde_json::json!([])),
@@ -79,8 +79,8 @@ impl Model for Page {
         if !obj.get("acks").is_some() {
             obj["acks"] = serde_json::Value::Object(serde_json::Map::new());
         }
-        if !obj.get("last_round_certs").is_some() {
-            obj["last_round_certs"] = serde_json::Value::Object(serde_json::Map::new());
+        if !obj.get("last_block_certs").is_some() {
+            obj["last_block_certs"] = serde_json::Value::Object(serde_json::Map::new());
         }
         if !obj.get("events").is_some() {
             obj["events"] = serde_json::Value::Object(serde_json::Map::new());
@@ -92,9 +92,9 @@ impl Model for Page {
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
         match field {
             "scribe" => self.scribe = value.as_str().unwrap_or_default().to_string(),
-            "round" => self.round = value.as_u64().unwrap_or_default(),
-            "last_round_certs" => {
-                self.last_round_certs = serde_json::from_value(value).unwrap_or_default()
+            "block_id" => self.block_id = value.as_u64().unwrap_or_default(),
+            "last_block_certs" => {
+                self.last_block_certs = serde_json::from_value(value).unwrap_or_default()
             }
             "events" => self.events = serde_json::from_value(value).unwrap_or_default(),
             "hash" => self.hash = value.as_str().map(|s| s.to_string()),
@@ -103,18 +103,18 @@ impl Model for Page {
             "late_acks" => self.late_acks = serde_json::from_value(value).unwrap_or_default(),
             "cert" => self.cert = value.as_str().map(|s| s.to_string()),
             "is_section_leader" => self.is_section_leader = value.as_bool(),
-            "section_ending_round" => self.section_ending_round = value.as_u64(),
-            "section_starting_round" => self.section_starting_round = value.as_u64(),
+            "section_ending_block_id" => self.section_ending_block_id = value.as_u64(),
+            "section_starting_block_id" => self.section_starting_block_id = value.as_u64(),
             "section_page_number" => self.section_page_number = value.as_u64(),
             "page_number" => self.page_number = value.as_u64(),
-            "seen_at_round" => self.seen_at_round = value.as_u64(),
+            "seen_at_block_id" => self.seen_at_block_id = value.as_u64(),
             _ => {}
         }
     }
 
     fn get_id_keys(&self) -> HashMap<String, String> {
         let mut keys = HashMap::new();
-        keys.insert("round".to_string(), self.round.to_string());
+        keys.insert("block_id".to_string(), self.block_id.to_string());
         keys.insert("scribe".to_string(), self.scribe.clone());
         keys
     }
@@ -125,8 +125,8 @@ impl Page {
         <Self as Model>::create_from_json(obj)
     }
     
-    pub async fn find_all_in_round(datastore: &NetworkDatastore, round: u64) -> Result<Vec<Self>> {
-        let prefix = format!("/consensus/round/{}/scribe", round);
+    pub async fn find_all_in_block(datastore: &NetworkDatastore, block_id: u64) -> Result<Vec<Self>> {
+        let prefix = format!("/block/{}/scribe", block_id);
         let mut pages = Vec::new();
 
         let iterator = datastore.iterator(&prefix);
@@ -139,7 +139,7 @@ impl Page {
                 .ok_or_else(|| anyhow!("Invalid key format: {}", key_str))?;
 
             let mut keys = HashMap::new();
-            keys.insert("round".to_string(), round.to_string());
+            keys.insert("block_id".to_string(), block_id.to_string());
             keys.insert("scribe".to_string(), scribe.to_string());
 
             if let Some(page) = Self::find_one(datastore, keys).await? {
@@ -153,8 +153,8 @@ impl Page {
     pub fn to_draft_json_object(&self) -> serde_json::Value {
         serde_json::json!({
             "scribe": self.scribe,
-            "round": self.round,
-            "last_round_certs": self.last_round_certs,
+            "block_id": self.block_id,
+            "last_block_certs": self.last_block_certs,
             "events": self.events,
             "sig": self.sig,
         })
@@ -175,8 +175,8 @@ impl Page {
     pub fn generate_sig(&mut self, keypair: &Keypair) -> Result<String> {
         let facts = serde_json::json!({
             "scribe": self.scribe,
-            "round": self.round,
-            "last_round_certs": self.last_round_certs,
+            "block_id": self.block_id,
+            "last_block_certs": self.last_block_certs,
             "events": self.events,
         });
         self.sig = Some(keypair.sign_json(&facts)?);
@@ -187,8 +187,8 @@ impl Page {
         let keypair = Keypair::from_public_key(&self.scribe, "ed25519")?;
         let facts = serde_json::json!({
             "scribe": self.scribe,
-            "round": self.round,
-            "last_round_certs": self.last_round_certs,
+            "block_id": self.block_id,
+            "last_block_certs": self.last_block_certs,
             "events": self.events,
         });
         keypair.verify_json(
@@ -201,36 +201,36 @@ impl Page {
         let peer_id = keypair.as_public_address();
         let facts = serde_json::json!({
             "scribe": self.scribe,
-            "round": self.round,
+            "block_id": self.block_id,
             "sig": self.sig,
         });
         let acker_sig = keypair.sign_json(&facts)?;
         Ok(Ack {
             scribe: self.scribe.clone(),
-            round: self.round,
+            block_id: self.block_id,
             sig: self.sig.clone().ok_or_else(|| anyhow!("Missing signature"))?,
             acker: peer_id,
             acker_sig,
-            seen_at_round: None,
+            seen_at_block_id: None,
         })
     }
 
-    pub fn generate_late_ack(&self, keypair: &Keypair, seen_at_round: u64) -> Result<Ack> {
+    pub fn generate_late_ack(&self, keypair: &Keypair, seen_at_block_id: u64) -> Result<Ack> {
         let peer_id = keypair.as_public_address();
         let facts = serde_json::json!({
             "scribe": self.scribe,
-            "round": self.round,
+            "block_id": self.block_id,
             "sig": self.sig,
-            "seen_at_round": seen_at_round,
+            "seen_at_block_id": seen_at_block_id,
         });
         let acker_sig = keypair.sign_json(&facts)?;
         Ok(Ack {
             scribe: self.scribe.clone(),
-            round: self.round,
+            block_id: self.block_id,
             sig: self.sig.clone().ok_or_else(|| anyhow!("Missing signature"))?,
             acker: peer_id,
             acker_sig,
-            seen_at_round: Some(seen_at_round),
+            seen_at_block_id: Some(seen_at_block_id),
         })
     }
 
@@ -238,7 +238,7 @@ impl Page {
         let keypair = Keypair::from_public_key(&ack.acker, "ed25519")?;
         let facts = serde_json::json!({
             "scribe": self.scribe,
-            "round": self.round,
+            "block_id": self.block_id,
             "sig": self.sig,
         });
         keypair.verify_json(&ack.acker_sig, &facts)
@@ -258,7 +258,7 @@ impl Page {
             let keypair = Keypair::from_public_key(&ack.acker, "ed25519")?;
             let facts = serde_json::json!({
                 "scribe": self.scribe,
-                "round": self.round,
+                "block_id": self.block_id,
                 "sig": self.sig,
             });
             let verified = keypair.verify_json(&ack.acker_sig, &facts)?;
@@ -275,7 +275,7 @@ impl Page {
             let keypair = Keypair::from_public_key(&ack.acker, "ed25519")?;
             let facts = serde_json::json!({
                 "scribe": self.scribe,
-                "round": self.round,
+                "block_id": self.block_id,
                 "sig": self.sig,
             });
             if keypair.verify_json(&ack.acker_sig, &facts)? {
@@ -288,8 +288,8 @@ impl Page {
     pub fn generate_cert(&mut self, keypair: &Keypair) -> Result<String> {
         let facts = serde_json::json!({
             "scribe": self.scribe,
-            "round": self.round,
-            "last_round_certs": self.last_round_certs,
+            "block_id": self.block_id,
+            "last_block_certs": self.last_block_certs,
             "events": self.events,
             "acks": self.acks,
         });
@@ -301,8 +301,8 @@ impl Page {
         let keypair = Keypair::from_public_key(&self.scribe, "ed25519")?;
         let facts = serde_json::json!({
             "scribe": self.scribe,
-            "round": self.round,
-            "last_round_certs": self.last_round_certs,
+            "block_id": self.block_id,
+            "last_block_certs": self.last_block_certs,
             "events": self.events,
             "acks": self.acks,
         });

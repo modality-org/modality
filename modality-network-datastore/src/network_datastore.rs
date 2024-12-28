@@ -129,45 +129,45 @@ impl NetworkDatastore {
         Ok(max_value)
     }
 
-    pub async fn bump_current_round(&self) -> Result<u64> {
-        let key = "/consensus/status/current_round";
-        let current_round = self.get_string(key).await?
+    pub async fn bump_current_block(&self) -> Result<u64> {
+        let key = "/status/current_block";
+        let current_block = self.get_string(key).await?
             .and_then(|s| s.parse::<u64>().ok())
             .unwrap_or(0);
-        let new_round = current_round + 1;
-        self.put(key, new_round.to_string().as_bytes()).await?;
-        Ok(new_round)
+        let new_block = current_block + 1;
+        self.put(key, new_block.to_string().as_bytes()).await?;
+        Ok(new_block)
     }
 
-    pub async fn set_current_round(&self, round: u64) -> Result<()> {
-        let key = "/consensus/status/current_round";
-        self.put(key, round.to_string().as_bytes()).await?;
+    pub async fn set_current_block(&self, block_id: u64) -> Result<()> {
+        let key = "/status/current_block";
+        self.put(key, block_id.to_string().as_bytes()).await?;
         Ok(())
     }
 
-    pub async fn get_current_round(&self) -> Result<u64> {
-        let key = "/consensus/status/current_round";
+    pub async fn get_current_block(&self) -> Result<u64> {
+        let key = "/status/current_block";
         self.get_string(key).await?
             .and_then(|s| s.parse::<u64>().ok())
             .ok_or_else(|| Error::KeyNotFound(key.to_string()))
     }
 
-    pub async fn get_timely_certs_at_round(&self, round: u64) -> anyhow::Result<HashMap<String, Page>> {
-        let pages = Page::find_all_in_round(self, round).await?;
+    pub async fn get_timely_certs_at_block(&self, block_id: u64) -> anyhow::Result<HashMap<String, Page>> {
+        let pages = Page::find_all_in_block(self, block_id).await?;
         
         Ok(pages
             .into_iter()
-            .filter(|page| page.seen_at_round.is_none())
+            .filter(|page| page.seen_at_block_id.is_none())
             .map(|page| (page.scribe.clone(), page))
             .collect())
     }
 
-    pub async fn get_timely_cert_sigs_at_round(&self, round: u64) -> anyhow::Result<HashMap<String, String>> {
-        let pages = Page::find_all_in_round(self, round).await?;
+    pub async fn get_timely_cert_sigs_at_block(&self, block_id: u64) -> anyhow::Result<HashMap<String, String>> {
+        let pages = Page::find_all_in_block(self, block_id).await?;
         
         Ok(pages
             .into_iter()
-            .filter(|page| page.seen_at_round.is_none())
+            .filter(|page| page.seen_at_block_id.is_none())
             .filter(|page| page.cert.is_some())
             .map(|page| {
                 (

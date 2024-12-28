@@ -1,7 +1,7 @@
-pub mod round;
-pub mod round_message;
+pub mod block;
+pub mod block_message;
 pub mod page;
 
-pub use round::Round;
-pub use round_message::RoundMessage;
+pub use block::Block;
+pub use block_message::BlockMessage;
 pub use page::Page;

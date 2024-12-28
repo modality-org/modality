@@ -18,7 +18,7 @@ mod tests {
 
         let mut b1 = Page::create_from_json(serde_json::json!({
             "scribe": node1_pubkey,
-            "round": 1,
+            "block_id": 1,
             "events": []
         }))?;
 
@@ -32,7 +32,7 @@ mod tests {
 
         let mut b1empty = Page::create_from_json(serde_json::json!({
             "scribe": node1_pubkey,
-            "round": 1,
+            "block_id": 1,
             "events": []
         }))?;
         let sig1empty = b1empty.generate_sig(&node1_keypair)?;
@@ -62,9 +62,9 @@ mod tests {
         b1.save(&datastore).await?;
 
         let result = b1.get_id();
-        assert_eq!(result, format!("/consensus/round/1/scribe/{}", node1_pubkey));
+        assert_eq!(result, format!("/block/1/scribe/{}", node1_pubkey));
         let b1r = Page::find_one(&datastore, [
-            ("round".to_string(), "1".to_string()),
+            ("block_id".to_string(), "1".to_string()),
             ("scribe".to_string(), node1_pubkey.clone())
         ].into_iter().collect()).await?.unwrap();
         assert_eq!(b1r.cert, b1.cert);
