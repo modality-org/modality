@@ -51,7 +51,7 @@ pub async fn create_swarm(local_key: identity::Keypair) -> Result<NodeSwarm> {
         reqres: reqres_behaviour,
         kademlia: kademlia_behaviour,
     };
-    let mut swarm = create_swarm_with_behaviours(local_key, behaviour).await?;
+    let swarm = create_swarm_with_behaviours(local_key, behaviour).await?;
 
     Ok(swarm)
 }

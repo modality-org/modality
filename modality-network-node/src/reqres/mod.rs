@@ -2,6 +2,8 @@ use anyhow::Result;
 use libp2p::request_response;
 mod consensus;
 mod ping;
+mod data;
+use data as reqres_data;
 
 #[allow(dead_code)]
 pub const PROTOCOL: &str = "/modality-network/reqres/0.0.1";
@@ -35,6 +37,15 @@ pub async fn handle_request(req: Request) -> Result<Response> {
         "/ping" => {
             ping::handler(Some(data.clone())).await?
         },
+        "/data/block/head" => {
+            reqres_data::block::head::handler(Some(data.clone())).await?
+        }
+        "/data/block/body" => {
+            reqres_data::block::body::handler(Some(data.clone())).await?
+        }
+        "/data/block/inclusions" => {
+            reqres_data::block::inclusions::handler(Some(data.clone())).await?
+        }
         "/consensus/status" => {
             consensus::status::handler(Some(data.clone())).await?
         }
