@@ -9,7 +9,7 @@ use std::fmt::Debug;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Page {
-    pub scribe: String,
+    pub peer_id: String,
     pub block_id: u64,
     pub last_block_certs: HashMap<String, String>,
     pub events: Vec<serde_json::Value>,
@@ -28,7 +28,7 @@ pub struct Page {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Ack {
-    pub scribe: String,
+    pub peer_id: String,
     pub block_id: u64,
     pub sig: String,
     pub acker: String,
@@ -38,16 +38,16 @@ pub struct Ack {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CertSig {
-    pub scribe: String,
+    pub peer_id: String,
     pub cert: Option<String>,  // Adjust type as needed
     pub block_id: u64,
 }
 
 #[async_trait]
 impl Model for Page {
-    const ID_PATH: &'static str = "/block/${block_id}/scribe/${scribe}";
+    const ID_PATH: &'static str = "/block/${block_id}/peer/${peer_id}";
     const FIELDS: &'static [&'static str] = &[
-        "scribe",
+        "peer_id",
         "block_id",
         "last_block_certs",
         "events",
@@ -91,7 +91,7 @@ impl Model for Page {
 
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
         match field {
-            "scribe" => self.scribe = value.as_str().unwrap_or_default().to_string(),
+            "peer_id" => self.peer_id = value.as_str().unwrap_or_default().to_string(),
             "block_id" => self.block_id = value.as_u64().unwrap_or_default(),
             "last_block_certs" => {
                 self.last_block_certs = serde_json::from_value(value).unwrap_or_default()
@@ -115,7 +115,7 @@ impl Model for Page {
     fn get_id_keys(&self) -> HashMap<String, String> {
         let mut keys = HashMap::new();
         keys.insert("block_id".to_string(), self.block_id.to_string());
-        keys.insert("scribe".to_string(), self.scribe.clone());
+        keys.insert("peer_id".to_string(), self.peer_id.clone());
         keys
     }
 }
@@ -126,21 +126,21 @@ impl Page {
     }
     
     pub async fn find_all_in_block(datastore: &NetworkDatastore, block_id: u64) -> Result<Vec<Self>> {
-        let prefix = format!("/block/{}/scribe", block_id);
+        let prefix = format!("/block/{}/peer", block_id);
         let mut pages = Vec::new();
 
         let iterator = datastore.iterator(&prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
-            let scribe = key_str
+            let peer_id = key_str
                 .split(&format!("{}/", prefix))
                 .nth(1)
                 .ok_or_else(|| anyhow!("Invalid key format: {}", key_str))?;
 
             let mut keys = HashMap::new();
             keys.insert("block_id".to_string(), block_id.to_string());
-            keys.insert("scribe".to_string(), scribe.to_string());
+            keys.insert("peer_id".to_string(), peer_id.to_string());
 
             if let Some(page) = Self::find_one(datastore, keys).await? {
                 pages.push(page);
@@ -152,7 +152,7 @@ impl Page {
 
     pub fn to_draft_json_object(&self) -> serde_json::Value {
         serde_json::json!({
-            "scribe": self.scribe,
+            "peer_id": self.peer_id,
             "block_id": self.block_id,
             "last_block_certs": self.last_block_certs,
             "events": self.events,
@@ -174,7 +174,7 @@ impl Page {
 
     pub fn generate_sig(&mut self, keypair: &Keypair) -> Result<String> {
         let facts = serde_json::json!({
-            "scribe": self.scribe,
+            "peer_id": self.peer_id,
             "block_id": self.block_id,
             "last_block_certs": self.last_block_certs,
             "events": self.events,
@@ -184,9 +184,9 @@ impl Page {
     }
 
     pub fn validate_sig(&self) -> Result<bool> {
-        let keypair = Keypair::from_public_key(&self.scribe, "ed25519")?;
+        let keypair = Keypair::from_public_key(&self.peer_id, "ed25519")?;
         let facts = serde_json::json!({
-            "scribe": self.scribe,
+            "peer_id": self.peer_id,
             "block_id": self.block_id,
             "last_block_certs": self.last_block_certs,
             "events": self.events,
@@ -200,13 +200,13 @@ impl Page {
     pub fn generate_ack(&self, keypair: &Keypair) -> Result<Ack> {
         let peer_id = keypair.as_public_address();
         let facts = serde_json::json!({
-            "scribe": self.scribe,
+            "peer_id": self.peer_id,
             "block_id": self.block_id,
             "sig": self.sig,
         });
         let acker_sig = keypair.sign_json(&facts)?;
         Ok(Ack {
-            scribe: self.scribe.clone(),
+            peer_id: self.peer_id.clone(),
             block_id: self.block_id,
             sig: self.sig.clone().ok_or_else(|| anyhow!("Missing signature"))?,
             acker: peer_id,
@@ -218,14 +218,14 @@ impl Page {
     pub fn generate_late_ack(&self, keypair: &Keypair, seen_at_block_id: u64) -> Result<Ack> {
         let peer_id = keypair.as_public_address();
         let facts = serde_json::json!({
-            "scribe": self.scribe,
+            "peer_id": self.peer_id,
             "block_id": self.block_id,
             "sig": self.sig,
             "seen_at_block_id": seen_at_block_id,
         });
         let acker_sig = keypair.sign_json(&facts)?;
         Ok(Ack {
-            scribe: self.scribe.clone(),
+            peer_id: self.peer_id.clone(),
             block_id: self.block_id,
             sig: self.sig.clone().ok_or_else(|| anyhow!("Missing signature"))?,
             acker: peer_id,
@@ -237,7 +237,7 @@ impl Page {
     pub fn validate_ack(&self, ack: &Ack) -> Result<bool> {
         let keypair = Keypair::from_public_key(&ack.acker, "ed25519")?;
         let facts = serde_json::json!({
-            "scribe": self.scribe,
+            "peer_id": self.peer_id,
             "block_id": self.block_id,
             "sig": self.sig,
         });
@@ -257,7 +257,7 @@ impl Page {
         for ack in self.acks.values() {
             let keypair = Keypair::from_public_key(&ack.acker, "ed25519")?;
             let facts = serde_json::json!({
-                "scribe": self.scribe,
+                "peer_id": self.peer_id,
                 "block_id": self.block_id,
                 "sig": self.sig,
             });
@@ -274,7 +274,7 @@ impl Page {
         for ack in self.acks.values() {
             let keypair = Keypair::from_public_key(&ack.acker, "ed25519")?;
             let facts = serde_json::json!({
-                "scribe": self.scribe,
+                "peer_id": self.peer_id,
                 "block_id": self.block_id,
                 "sig": self.sig,
             });
@@ -287,7 +287,7 @@ impl Page {
 
     pub fn generate_cert(&mut self, keypair: &Keypair) -> Result<String> {
         let facts = serde_json::json!({
-            "scribe": self.scribe,
+            "peer_id": self.peer_id,
             "block_id": self.block_id,
             "last_block_certs": self.last_block_certs,
             "events": self.events,
@@ -298,9 +298,9 @@ impl Page {
     }
 
     pub fn validate_cert_sig(&self) -> Result<bool> {
-        let keypair = Keypair::from_public_key(&self.scribe, "ed25519")?;
+        let keypair = Keypair::from_public_key(&self.peer_id, "ed25519")?;
         let facts = serde_json::json!({
-            "scribe": self.scribe,
+            "peer_id": self.peer_id,
             "block_id": self.block_id,
             "last_block_certs": self.last_block_certs,
             "events": self.events,

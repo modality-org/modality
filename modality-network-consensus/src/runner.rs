@@ -6,7 +6,7 @@ use crate::communication::Communication;
 use crate::sequencing::Sequencing;
 
 use modality_network_datastore::{Model, NetworkDatastore};
-use modality_network_datastore::models::{Page, Round, RoundMessage};
+use modality_network_datastore::models::{Page, Block, BlockMessage};
 use modality_network_datastore::models::page::{Ack};
 use modality_utils::keypair::Keypair;
 
@@ -21,7 +21,7 @@ pub struct Runner {
     pub communication: Option<Arc<dyn Communication>>,
     keypair: Option<Arc<Keypair>>,
     sequencing: Arc<dyn Sequencing>,
-    latest_seen_at_round: Option<u64>,
+    latest_seen_at_block_id: Option<u64>,
     intra_round_wait_time_ms: Option<u64>,
     no_events_round_wait_time_ms: Option<u64>,
     no_events_poll_wait_time_ms: Option<u64>,
@@ -41,7 +41,7 @@ impl Runner {
             keypair,
             communication,
             sequencing,
-            latest_seen_at_round: None,
+            latest_seen_at_block_id: None,
             intra_round_wait_time_ms: None,
             no_events_round_wait_time_ms: None,
             no_events_poll_wait_time_ms: None,
@@ -58,12 +58,12 @@ impl Runner {
         )
     }
 
-    async fn get_scribes_at_round(&self, round: u64) -> Result<Vec<String>> {
-        self.sequencing.get_scribes_at_round(round).await
+    async fn get_scribes_at_block_id(&self, block_id: u64) -> Result<Vec<String>> {
+        self.sequencing.get_scribes_at_block_id(block_id).await
     }
 
-    async fn consensus_threshold_for_round(&self, round: u64) -> Result<u64> {
-        self.sequencing.consensus_threshold_for_round(round).await
+    async fn consensus_threshold_at_block_id(&self, block_id: u64) -> Result<u64> {
+        self.sequencing.consensus_threshold_at_block_id(block_id).await
     }
 
     pub async fn on_receive_draft_page(&mut self, page_data: serde_json::Value) -> Result<Option<Ack>> {
@@ -73,17 +73,17 @@ impl Runner {
             return Ok(None);
         }
 
-        let round_scribes = self.get_scribes_at_round(page.round.try_into().unwrap()).await?;
-        if !round_scribes.contains(&page.scribe) {
-            warn!("ignoring non-scribe {} at round {}", page.scribe, page.round);
+        let round_scribes = self.get_scribes_at_block_id(page.block_id.try_into().unwrap()).await?;
+        if !round_scribes.contains(&page.peer_id) {
+            warn!("ignoring non-scribe {} at block_id {}", page.peer_id, page.block_id);
             return Ok(None);
         }
 
-        let current_round = self.datastore.get_current_round().await?;
+        let current_block_id = self.datastore.get_current_block_id().await?;
 
-        if page.round > current_round {
+        if page.block_id > current_block_id {
             self.on_receive_draft_page_from_later_round(page_data).await
-        } else if page.round < current_round {
+        } else if page.block_id < current_block_id {
             self.on_receive_draft_page_from_earlier_round(page_data).await
         } else {
             self.on_receive_draft_page_from_current_round(page_data).await
@@ -94,15 +94,15 @@ impl Runner {
         &self,
         page_data: serde_json::Value,
     ) -> Result<Option<Ack>> {
-        let current_round = self.datastore.get_current_round().await?;
+        let current_block_id = self.datastore.get_current_block_id().await?;
         let page = Page::create_from_json(page_data)?;
 
         if let (Some(peerid), Some(keypair)) = (&self.peerid, &self.keypair) {
-            let ack = page.generate_late_ack(keypair, current_round)?;
+            let ack = page.generate_late_ack(keypair, current_block_id)?;
             if let Some(communication) = &self.communication {                
                 communication.send_page_late_ack(
                     &peerid.clone(),
-                    &ack.scribe.clone(),
+                    &ack.peer_id.clone(),
                     &ack.clone(),
                 ).await?;
             }
@@ -116,21 +116,21 @@ impl Runner {
         &mut self,
         page_data: serde_json::Value,
     ) -> Result<Option<Ack>> {
-        let current_round = self.datastore.get_current_round().await?;
+        let current_block_id = self.datastore.get_current_block_id().await?;
         let page = Page::create_from_json(page_data.clone())?;
 
-        let round_message = RoundMessage::create_from_json(serde_json::json!({
-            "round": page.round,
-            "scribe": page.scribe,
+        let round_message = BlockMessage::create_from_json(serde_json::json!({
+            "block_id": page.block_id,
+            "peer_id": page.peer_id,
             "type": "draft",
-            "seen_at_round": current_round,
+            "seen_at_block_id": current_block_id,
             "content": page_data
         }))?;
         round_message.save(&self.datastore).await?;
 
-        if current_round < page.round {
-            if self.latest_seen_at_round.is_none() || page.round > self.latest_seen_at_round.unwrap() {
-                self.latest_seen_at_round = Some(page.round);
+        if current_block_id < page.block_id {
+            if self.latest_seen_at_block_id.is_none() || page.block_id > self.latest_seen_at_block_id.unwrap() {
+                self.latest_seen_at_block_id = Some(page.block_id);
             }
         }
         Ok(None)
@@ -147,7 +147,7 @@ impl Runner {
             if let Some(communication) = &self.communication {
                 communication.send_page_ack(
                     &peerid.clone(),
-                    &ack.scribe.clone(),
+                    &ack.peer_id.clone(),
                     &ack.clone(),
                 ).await?;
             }
@@ -167,26 +167,26 @@ impl Runner {
         };
 
         let whoami = keypair.as_public_address();
-        if whoami != ack.scribe {
+        if whoami != ack.peer_id {
             return Ok(());
         }
 
-        let round = self.datastore.get_current_round().await?;
-        if ack.round != round {
+        let block_id = self.datastore.get_current_block_id().await?;
+        if ack.block_id != block_id {
             return Ok(());
         }
 
-        let round_scribes = self.get_scribes_at_round(ack.round).await?;
+        let round_scribes = self.get_scribes_at_block_id(ack.block_id).await?;
         if !round_scribes.contains(&ack.acker) {
-            warn!("ignoring non-scribe ack {} at round {}", ack.acker, ack.round);
+            warn!("ignoring non-scribe ack {} at block_id {}", ack.acker, ack.block_id);
             return Ok(());
         }
 
         if let Some(mut page) = Page::find_one(
             &self.datastore,
             std::collections::HashMap::from([
-                (String::from("round"), round.to_string()),
-                (String::from("scribe"), whoami.to_string()),
+                (String::from("block_id"), block_id.to_string()),
+                (String::from("peer_id"), whoami.to_string()),
             ]),
         )
         .await?
@@ -204,8 +204,8 @@ impl Runner {
             return Ok(None);
         }
 
-        let round = self.datastore.get_current_round().await?;
-        if page.round > round {
+        let block_id = self.datastore.get_current_block_id().await?;
+        if page.block_id > block_id {
             self.on_receive_certified_page_from_later_round(page_data).await
         } else {
             self.on_receive_certified_page_from_current_round(page_data).await
@@ -216,22 +216,22 @@ impl Runner {
         &mut self,
         page_data: serde_json::Value,
     ) -> Result<Option<Page>> {
-        let current_round = self.datastore.get_current_round().await?;
+        let current_block_id = self.datastore.get_current_block_id().await?;
         let page = Page::from_json_object(page_data.clone())?;
 
-        RoundMessage::from_json_object(serde_json::json!({
-            "round": page.round,
-            "scribe": page.scribe,
+        BlockMessage::from_json_object(serde_json::json!({
+            "block_id": page.block_id,
+            "peer_id": page.peer_id,
             "type": "certified",
-            "seen_at_round": current_round,
+            "seen_at_block_id": current_block_id,
             "content": page_data
         }))?
         .save(&self.datastore)
         .await?;
 
-        if current_round < page.round {
-            if self.latest_seen_at_round.is_none() || page.round > self.latest_seen_at_round.unwrap() {
-                self.latest_seen_at_round = Some(page.round);
+        if current_block_id < page.block_id {
+            if self.latest_seen_at_block_id.is_none() || page.block_id > self.latest_seen_at_block_id.unwrap() {
+                self.latest_seen_at_block_id = Some(page.block_id);
             }
         }
         Ok(None)
@@ -245,17 +245,21 @@ impl Runner {
         if !page.validate_sig()? {
             return Ok(None);
         }
-        let round = page.round;
+        let block_id = page.block_id;
 
-        let last_round_threshold = self.consensus_threshold_for_round(round - 1).await?;
-        let current_round_threshold = self.consensus_threshold_for_round(round).await?;
+        let last_block_threshold = self.consensus_threshold_at_block_id(block_id - 1).await?;
+        let current_block_threshold = self.consensus_threshold_at_block_id(block_id).await?;
+        println!("lrt {:?}", last_block_threshold);
+        println!("crt {:?}", current_block_threshold);
+        println!("{block_id:?}");
 
-        let page_last_round_cert_count = page.last_round_certs.len() as u64;
-        if round > 1 && (page_last_round_cert_count < last_round_threshold) {
+        let page_last_block_cert_count = page.last_block_certs.len() as u64;
+        println!("{page_last_block_cert_count:?}");
+        if block_id > 1 && (page_last_block_cert_count < last_block_threshold) {
             return Ok(None);
         }
 
-        let has_valid_cert = page.validate_cert(current_round_threshold as usize)?;
+        let has_valid_cert = page.validate_cert(current_block_threshold as usize)?;
         
         if !has_valid_cert {
             return Ok(None);

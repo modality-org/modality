@@ -20,7 +20,7 @@ pub trait Node: Send + Sync {
     async fn on_receive_page_ack(&self, ack_data: &Ack) -> Result<()>;
     async fn on_receive_page_late_ack(&self, ack_data: &Ack) -> Result<()>;
     async fn on_receive_certified_page(&self, page_data: &Page) -> Result<()>;
-    async fn on_fetch_scribe_round_certified_page_request(&self, scribe: &str, round: u64) -> Result<Option<Page>>;
+    async fn on_fetch_peer_block_certified_page_request(&self, peer_id: &str, block_id: u64) -> Result<Option<Page>>;
 }
 
 impl SameProcess {
@@ -86,13 +86,13 @@ impl Communication for SameProcess {
         Ok(())
     }
 
-    async fn fetch_scribe_round_certified_page(&self, from: &str, to: &str, scribe: &str, round: u64) -> Result<Option<Page>> {
+    async fn fetch_peer_block_certified_page(&self, from: &str, to: &str, peer_id: &str, block_id: u64) -> Result<Option<Page>> {
         if self.offline_nodes.contains(&from.to_string()) {
             return Ok(None);
         }
 
         if let Some(node) = self.nodes.get(to) {
-            return node.on_fetch_scribe_round_certified_page_request(scribe, round).await;
+            return node.on_fetch_peer_block_certified_page_request(peer_id, block_id).await;
         }
         Ok(None)
     }

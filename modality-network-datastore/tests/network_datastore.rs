@@ -39,8 +39,8 @@ async fn test_network_datastore() {
     assert_eq!(max_int_key, 20);
 
     // Test current block operations
-    datastore.set_current_block(5).await.unwrap();
-    let current_block = datastore.get_current_block().await.unwrap();
+    datastore.set_current_block_id(5).await.unwrap();
+    let current_block = datastore.get_current_block_id().await.unwrap();
     assert_eq!(current_block, 5);
 
     let new_block = datastore.bump_current_block().await.unwrap();
@@ -48,12 +48,12 @@ async fn test_network_datastore() {
 
 
     // Test iteration within prefix
-    datastore.set_data_by_key("/block_messages/1/type/type1/scribe/scribe1", b"").await.unwrap();
-    datastore.set_data_by_key("/block_messages/1/type/type1/scribe/scribe2", b"").await.unwrap();
-    datastore.set_data_by_key("/block_messages/1/type/type1/scribe/scribe3", b"").await.unwrap();
-    datastore.set_data_by_key("/block_messages/1/type/type1a/scribe/scribe1", b"").await.unwrap();
-    datastore.set_data_by_key("/block_messages/1/type/type2/scribe/scribe1", b"").await.unwrap();
-    datastore.set_data_by_key("/block_messages/1/type/type10/scribe/scribe1", b"").await.unwrap();
+    datastore.set_data_by_key("/block_messages/1/type/type1/peer/scribe1", b"").await.unwrap();
+    datastore.set_data_by_key("/block_messages/1/type/type1/peer/scribe2", b"").await.unwrap();
+    datastore.set_data_by_key("/block_messages/1/type/type1/peer/scribe3", b"").await.unwrap();
+    datastore.set_data_by_key("/block_messages/1/type/type1a/peer/scribe1", b"").await.unwrap();
+    datastore.set_data_by_key("/block_messages/1/type/type2/peer/scribe1", b"").await.unwrap();
+    datastore.set_data_by_key("/block_messages/1/type/type10/peer/scribe1", b"").await.unwrap();
     let iterator = datastore.iterator(&"/block_messages/1/type/type1");
     assert_eq!(iterator.count(), 3);
 }

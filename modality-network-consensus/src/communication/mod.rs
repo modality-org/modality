@@ -11,5 +11,5 @@ pub trait Communication: Send + Sync {
     async fn broadcast_certified_page(&self, from: &str, page_data: &Page) -> Result<()>;
     async fn send_page_ack(&self, from: &str, to: &str, ack_data: &Ack) -> Result<()>;
     async fn send_page_late_ack(&self, from: &str, to: &str, ack_data: &Ack) -> Result<()>;
-    async fn fetch_scribe_round_certified_page(&self, from: &str, to: &str, scribe: &str, round: u64) -> Result<Option<Page>>;
+    async fn fetch_peer_block_certified_page(&self, from: &str, to: &str, peer_id: &str, block_id: u64) -> Result<Option<Page>>;
 }

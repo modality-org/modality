@@ -17,7 +17,7 @@ mod tests {
         let _node2_pubkey = node2_keypair.as_public_address();
 
         let mut b1 = Page::create_from_json(serde_json::json!({
-            "scribe": node1_pubkey,
+            "peer_id": node1_pubkey,
             "block_id": 1,
             "events": []
         }))?;
@@ -31,7 +31,7 @@ mod tests {
         assert!(result);
 
         let mut b1empty = Page::create_from_json(serde_json::json!({
-            "scribe": node1_pubkey,
+            "peer_id": node1_pubkey,
             "block_id": 1,
             "events": []
         }))?;
@@ -62,10 +62,10 @@ mod tests {
         b1.save(&datastore).await?;
 
         let result = b1.get_id();
-        assert_eq!(result, format!("/block/1/scribe/{}", node1_pubkey));
+        assert_eq!(result, format!("/block/1/peer/{}", node1_pubkey));
         let b1r = Page::find_one(&datastore, [
             ("block_id".to_string(), "1".to_string()),
-            ("scribe".to_string(), node1_pubkey.clone())
+            ("peer_id".to_string(), node1_pubkey.clone())
         ].into_iter().collect()).await?.unwrap();
         assert_eq!(b1r.cert, b1.cert);
 

@@ -139,39 +139,39 @@ impl NetworkDatastore {
         Ok(new_block)
     }
 
-    pub async fn set_current_block(&self, block_id: u64) -> Result<()> {
+    pub async fn set_current_block_id(&self, block_id: u64) -> Result<()> {
         let key = "/status/current_block";
         self.put(key, block_id.to_string().as_bytes()).await?;
         Ok(())
     }
 
-    pub async fn get_current_block(&self) -> Result<u64> {
+    pub async fn get_current_block_id(&self) -> Result<u64> {
         let key = "/status/current_block";
         self.get_string(key).await?
             .and_then(|s| s.parse::<u64>().ok())
             .ok_or_else(|| Error::KeyNotFound(key.to_string()))
     }
 
-    pub async fn get_timely_certs_at_block(&self, block_id: u64) -> anyhow::Result<HashMap<String, Page>> {
+    pub async fn get_timely_certs_at_block_id(&self, block_id: u64) -> anyhow::Result<HashMap<String, Page>> {
         let pages = Page::find_all_in_block(self, block_id).await?;
         
         Ok(pages
             .into_iter()
             .filter(|page| page.seen_at_block_id.is_none())
-            .map(|page| (page.scribe.clone(), page))
+            .map(|page| (page.peer_id.clone(), page))
             .collect())
     }
 
-    pub async fn get_timely_cert_sigs_at_block(&self, block_id: u64) -> anyhow::Result<HashMap<String, String>> {
+    pub async fn get_timely_cert_sigs_at_block_id(&self, block_id: u64) -> anyhow::Result<HashMap<String, String>> {
         let pages = Page::find_all_in_block(self, block_id).await?;
-        
+
         Ok(pages
             .into_iter()
             .filter(|page| page.seen_at_block_id.is_none())
             .filter(|page| page.cert.is_some())
             .map(|page| {
                 (
-                    page.scribe.clone(),
+                    page.peer_id.clone(),
                     page.cert.unwrap_or_default(),
                 )
             })

@@ -44,7 +44,7 @@ mod tests {
             Ok(())
         }
 
-        async fn on_fetch_scribe_round_certified_page_request(&self, _scribe: &str, _round: u64) -> Result<Option<Page>> {
+        async fn on_fetch_peer_block_certified_page_request(&self, _peer_id: &str, _block_id: u64) -> Result<Option<Page>> {
             Ok(None)
         }
     }
@@ -57,8 +57,8 @@ mod tests {
         
         let same_process = SameProcess::new(nodes);
         let page_data = Page::create_from_json(serde_json::json!({
-            "scribe": "",
-            "round": 1,
+            "peer_id": "",
+            "block_id": 1,
             "events": []
         }))?;
         
