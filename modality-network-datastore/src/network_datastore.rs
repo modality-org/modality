@@ -152,7 +152,7 @@ impl NetworkDatastore {
             .ok_or_else(|| Error::KeyNotFound(key.to_string()))
     }
 
-    pub async fn get_timely_certs_at_block_id(&self, block_id: u64) -> anyhow::Result<HashMap<String, Page>> {
+    pub async fn get_timely_cert_pages_at_block_id(&self, block_id: u64) -> anyhow::Result<HashMap<String, Page>> {
         let pages = Page::find_all_in_block(self, block_id).await?;
         
         Ok(pages
@@ -162,7 +162,7 @@ impl NetworkDatastore {
             .collect())
     }
 
-    pub async fn get_timely_cert_sigs_at_block_id(&self, block_id: u64) -> anyhow::Result<HashMap<String, String>> {
+    pub async fn get_timely_certs_at_block_id(&self, block_id: u64) -> anyhow::Result<HashMap<String, String>> {
         let pages = Page::find_all_in_block(self, block_id).await?;
 
         Ok(pages

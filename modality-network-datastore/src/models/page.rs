@@ -1,20 +1,21 @@
 use crate::model::Model;
 use crate::NetworkDatastore;
+use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use modality_utils::keypair::Keypair;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use anyhow::{Context, Result, anyhow};
 use std::fmt::Debug;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Page {
     pub peer_id: String,
     pub block_id: u64,
-    pub last_block_certs: HashMap<String, String>,
+    pub prev_block_certs: HashMap<String, String>,
+    pub opening_sig: Option<String>,
     pub events: Vec<serde_json::Value>,
+    pub closing_sig: Option<String>,
     pub hash: Option<String>,
-    pub sig: Option<String>,
     pub acks: HashMap<String, Ack>,
     pub late_acks: Vec<Ack>,
     pub cert: Option<String>,
@@ -36,26 +37,36 @@ pub struct Ack {
     pub seen_at_block_id: Option<u64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CertSig {
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct PeerBlockHeader {
     pub peer_id: String,
-    pub cert: Option<String>,  // Adjust type as needed
     pub block_id: u64,
+    pub prev_block_certs: Vec<String>,
+    pub opening_sig: Option<String>,
+    pub cert: Option<String>,
 }
 
 #[async_trait]
 impl Model for Page {
     const ID_PATH: &'static str = "/block/${block_id}/peer/${peer_id}";
     const FIELDS: &'static [&'static str] = &[
+        // block
         "peer_id",
         "block_id",
-        "last_block_certs",
+        "prev_block_certs",
+        "opening_sig", // prevents equivocation of block header to light clients
+
+        // events
         "events",
-        "hash",
-        "sig",
-        "acks",
+        "closing_sig", // prevents equivocation of events broadcast
+
+        // acks
+        "acks",        
         "late_acks",
-        "cert",
+        "cert", // final cert needed for peers to move onto next block
+
+        // local view
+        "hash",
         "is_section_leader",
         "section_ending_block_id",
         "section_starting_block_id",
@@ -79,8 +90,8 @@ impl Model for Page {
         if !obj.get("acks").is_some() {
             obj["acks"] = serde_json::Value::Object(serde_json::Map::new());
         }
-        if !obj.get("last_block_certs").is_some() {
-            obj["last_block_certs"] = serde_json::Value::Object(serde_json::Map::new());
+        if !obj.get("prev_block_certs").is_some() {
+            obj["prev_block_certs"] = serde_json::Value::Object(serde_json::Map::new());
         }
         if !obj.get("events").is_some() {
             obj["events"] = serde_json::Value::Object(serde_json::Map::new());
@@ -93,12 +104,13 @@ impl Model for Page {
         match field {
             "peer_id" => self.peer_id = value.as_str().unwrap_or_default().to_string(),
             "block_id" => self.block_id = value.as_u64().unwrap_or_default(),
-            "last_block_certs" => {
-                self.last_block_certs = serde_json::from_value(value).unwrap_or_default()
+            "prev_block_certs" => {
+                self.prev_block_certs = serde_json::from_value(value).unwrap_or_default()
             }
+            "opening_sig" => self.opening_sig = value.as_str().map(|s| s.to_string()),
             "events" => self.events = serde_json::from_value(value).unwrap_or_default(),
             "hash" => self.hash = value.as_str().map(|s| s.to_string()),
-            "sig" => self.sig = value.as_str().map(|s| s.to_string()),
+            "closing_sig" => self.closing_sig = value.as_str().map(|s| s.to_string()),
             "acks" => self.acks = serde_json::from_value(value).unwrap_or_default(),
             "late_acks" => self.late_acks = serde_json::from_value(value).unwrap_or_default(),
             "cert" => self.cert = value.as_str().map(|s| s.to_string()),
@@ -124,8 +136,11 @@ impl Page {
     pub fn create_from_json(obj: serde_json::Value) -> Result<Self> {
         <Self as Model>::create_from_json(obj)
     }
-    
-    pub async fn find_all_in_block(datastore: &NetworkDatastore, block_id: u64) -> Result<Vec<Self>> {
+
+    pub async fn find_all_in_block(
+        datastore: &NetworkDatastore,
+        block_id: u64,
+    ) -> Result<Vec<Self>> {
         let prefix = format!("/block/{}/peer", block_id);
         let mut pages = Vec::new();
 
@@ -154,9 +169,10 @@ impl Page {
         serde_json::json!({
             "peer_id": self.peer_id,
             "block_id": self.block_id,
-            "last_block_certs": self.last_block_certs,
+            "prev_block_certs": self.prev_block_certs,
+            "opening_sig": self.opening_sig,
             "events": self.events,
-            "sig": self.sig,
+            "closing_sig": self.closing_sig,
         })
     }
 
@@ -172,29 +188,71 @@ impl Page {
         self.page_number = Some(number);
     }
 
-    pub fn generate_sig(&mut self, keypair: &Keypair) -> Result<String> {
+    pub fn generate_opening_sig(&mut self, keypair: &Keypair) -> Result<String> {
         let facts = serde_json::json!({
             "peer_id": self.peer_id,
             "block_id": self.block_id,
-            "last_block_certs": self.last_block_certs,
-            "events": self.events,
+            "prev_block_certs": self.prev_block_certs,
         });
-        self.sig = Some(keypair.sign_json(&facts)?);
-        Ok(self.sig.clone().unwrap())
+        self.opening_sig = Some(keypair.sign_json(&facts)?);
+        Ok(self.opening_sig.clone().unwrap())
     }
 
-    pub fn validate_sig(&self) -> Result<bool> {
+    pub fn generate_closing_sig(&mut self, keypair: &Keypair) -> Result<String> {
+        let facts = serde_json::json!({
+            "peer_id": self.peer_id,
+            "block_id": self.block_id,
+            "prev_block_certs": self.prev_block_certs,
+            "opening_sig": self.opening_sig,
+            "events": self.events,
+        });
+        self.closing_sig = Some(keypair.sign_json(&facts)?);
+        Ok(self.closing_sig.clone().unwrap())
+    }
+
+    pub fn generate_sigs(&mut self, keypair: &Keypair) -> Result<String> {
+        self.generate_opening_sig(keypair).unwrap();
+        self.generate_closing_sig(keypair).unwrap();
+        Ok(self.closing_sig.clone().unwrap())
+    }
+
+    pub fn validate_opening_sig(&self) -> Result<bool> {
         let keypair = Keypair::from_public_key(&self.peer_id, "ed25519")?;
         let facts = serde_json::json!({
             "peer_id": self.peer_id,
             "block_id": self.block_id,
-            "last_block_certs": self.last_block_certs,
+            "prev_block_certs": self.prev_block_certs,
+        });
+        keypair.verify_json(
+            self.opening_sig
+                .as_ref()
+                .ok_or_else(|| anyhow!("Missing signature"))?,
+            &facts,
+        )
+    }
+
+    pub fn validate_closing_sig(&self) -> Result<bool> {
+        let keypair = Keypair::from_public_key(&self.peer_id, "ed25519")?;
+        let facts = serde_json::json!({
+            "peer_id": self.peer_id,
+            "block_id": self.block_id,
+            "prev_block_certs": self.prev_block_certs,
+            "opening_sig": self.opening_sig,
             "events": self.events,
         });
         keypair.verify_json(
-            self.sig.as_ref().ok_or_else(|| anyhow!("Missing signature"))?,
+            self.closing_sig
+                .as_ref()
+                .ok_or_else(|| anyhow!("Missing signature"))?,
             &facts,
         )
+    }
+
+    pub fn validate_sigs(&self) -> Result<bool> {
+        if !self.validate_opening_sig()? {
+            return Ok(false);
+        }
+        self.validate_closing_sig()
     }
 
     pub fn generate_ack(&self, keypair: &Keypair) -> Result<Ack> {
@@ -202,13 +260,16 @@ impl Page {
         let facts = serde_json::json!({
             "peer_id": self.peer_id,
             "block_id": self.block_id,
-            "sig": self.sig,
+            "sig": self.closing_sig,
         });
         let acker_sig = keypair.sign_json(&facts)?;
         Ok(Ack {
             peer_id: self.peer_id.clone(),
             block_id: self.block_id,
-            sig: self.sig.clone().ok_or_else(|| anyhow!("Missing signature"))?,
+            sig: self
+                .closing_sig
+                .clone()
+                .ok_or_else(|| anyhow!("Missing signature"))?,
             acker: peer_id,
             acker_sig,
             seen_at_block_id: None,
@@ -220,14 +281,17 @@ impl Page {
         let facts = serde_json::json!({
             "peer_id": self.peer_id,
             "block_id": self.block_id,
-            "sig": self.sig,
+            "sig": self.closing_sig,
             "seen_at_block_id": seen_at_block_id,
         });
         let acker_sig = keypair.sign_json(&facts)?;
         Ok(Ack {
             peer_id: self.peer_id.clone(),
             block_id: self.block_id,
-            sig: self.sig.clone().ok_or_else(|| anyhow!("Missing signature"))?,
+            sig: self
+                .closing_sig
+                .clone()
+                .ok_or_else(|| anyhow!("Missing signature"))?,
             acker: peer_id,
             acker_sig,
             seen_at_block_id: Some(seen_at_block_id),
@@ -239,7 +303,7 @@ impl Page {
         let facts = serde_json::json!({
             "peer_id": self.peer_id,
             "block_id": self.block_id,
-            "sig": self.sig,
+            "sig": self.closing_sig,
         });
         keypair.verify_json(&ack.acker_sig, &facts)
     }
@@ -259,7 +323,7 @@ impl Page {
             let facts = serde_json::json!({
                 "peer_id": self.peer_id,
                 "block_id": self.block_id,
-                "sig": self.sig,
+                "sig": self.closing_sig,
             });
             let verified = keypair.verify_json(&ack.acker_sig, &facts)?;
             if !verified {
@@ -276,7 +340,7 @@ impl Page {
             let facts = serde_json::json!({
                 "peer_id": self.peer_id,
                 "block_id": self.block_id,
-                "sig": self.sig,
+                "sig": self.closing_sig,
             });
             if keypair.verify_json(&ack.acker_sig, &facts)? {
                 valid_acks += 1;
@@ -289,8 +353,10 @@ impl Page {
         let facts = serde_json::json!({
             "peer_id": self.peer_id,
             "block_id": self.block_id,
-            "last_block_certs": self.last_block_certs,
+            "prev_block_certs": self.prev_block_certs,
+            "opening_sig": self.opening_sig,
             "events": self.events,
+            "closing_sig": self.closing_sig,
             "acks": self.acks,
         });
         self.cert = Some(keypair.sign_json(&facts)?);
@@ -302,8 +368,10 @@ impl Page {
         let facts = serde_json::json!({
             "peer_id": self.peer_id,
             "block_id": self.block_id,
-            "last_block_certs": self.last_block_certs,
+            "prev_block_certs": self.prev_block_certs,
+            "opening_sig": self.opening_sig,
             "events": self.events,
+            "closing_sig": self.closing_sig,
             "acks": self.acks,
         });
         keypair.verify_json(
@@ -321,4 +389,20 @@ impl Page {
         let valid_ack_count = self.count_valid_acks()?;
         Ok(valid_ack_count >= acks_needed)
     }
+
+    pub fn generate_peer_block_header(&self) -> Result<PeerBlockHeader> {
+        let prev_block_certs: Vec<String> = self.prev_block_certs.clone().into_values().collect();
+        Ok(PeerBlockHeader {
+            peer_id: self.peer_id.clone(),
+            block_id: self.block_id,
+            prev_block_certs: prev_block_certs,
+            opening_sig: self.opening_sig.clone(),
+            cert: self.cert.clone(),
+        })
+    }
+}
+
+pub mod prelude {
+    pub use super::Page;
+    pub use crate::Model;
 }

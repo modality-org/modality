@@ -68,7 +68,7 @@ impl Runner {
 
     pub async fn on_receive_draft_page(&mut self, page_data: serde_json::Value) -> Result<Option<Ack>> {
         let page = Page::create_from_json(page_data.clone())?;
-        if !page.validate_sig()? {
+        if !page.validate_sigs()? {
             warn!("invalid sig");
             return Ok(None);
         }
@@ -200,7 +200,7 @@ impl Runner {
 
     pub async fn on_receive_certified_page(&mut self, page_data: serde_json::Value) -> Result<Option<Page>> {
         let page = Page::from_json_object(page_data.clone())?;
-        if !page.validate_sig()? {
+        if !page.validate_sigs()? {
             return Ok(None);
         }
 
@@ -242,19 +242,15 @@ impl Runner {
         page_data: serde_json::Value,
     ) -> Result<Option<Page>> {
         let page = Page::from_json_object(page_data)?;
-        if !page.validate_sig()? {
+        if !page.validate_sigs()? {
             return Ok(None);
         }
         let block_id = page.block_id;
 
         let last_block_threshold = self.consensus_threshold_at_block_id(block_id - 1).await?;
         let current_block_threshold = self.consensus_threshold_at_block_id(block_id).await?;
-        println!("lrt {:?}", last_block_threshold);
-        println!("crt {:?}", current_block_threshold);
-        println!("{block_id:?}");
 
-        let page_last_block_cert_count = page.last_block_certs.len() as u64;
-        println!("{page_last_block_cert_count:?}");
+        let page_last_block_cert_count = page.prev_block_certs.len() as u64;
         if block_id > 1 && (page_last_block_cert_count < last_block_threshold) {
             return Ok(None);
         }

@@ -54,15 +54,15 @@ mod tests {
 
         // Round 2 from perspective of scribe 1
         let block_id = 2;
-        let last_round_certs = runner1.datastore.get_timely_cert_sigs_at_block_id(block_id - 1).await?;
+        let last_round_certs = runner1.datastore.get_timely_certs_at_block_id(block_id - 1).await?;
         println!("{last_round_certs:?}");
         let mut page = Page::create_from_json(serde_json::json!({
             "peer_id": scribes[0].to_string(),
             "block_id": block_id,
             "events": [],
-            "last_block_certs": serde_json::to_value(last_round_certs)?
+            "prev_block_certs": serde_json::to_value(last_round_certs)?
         }))?;
-        page.generate_sig(&scribe_keypairs[&scribes[0]])?;
+        page.generate_sigs(&scribe_keypairs[&scribes[0]])?;
         page.save(&*runner1.datastore).await?;
 
         // // Process acks

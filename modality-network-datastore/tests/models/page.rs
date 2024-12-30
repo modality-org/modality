@@ -26,8 +26,8 @@ mod tests {
         b1.add_event(serde_json::json!({"data": "data2"}));
         assert_eq!(b1.events.len(), 2);
 
-        let sig1 = b1.generate_sig(&node1_keypair)?;
-        let result = b1.validate_sig()?;
+        let sig1 = b1.generate_sigs(&node1_keypair)?;
+        let result = b1.validate_sigs()?;
         assert!(result);
 
         let mut b1empty = Page::create_from_json(serde_json::json!({
@@ -35,7 +35,7 @@ mod tests {
             "block_id": 1,
             "events": []
         }))?;
-        let sig1empty = b1empty.generate_sig(&node1_keypair)?;
+        let sig1empty = b1empty.generate_sigs(&node1_keypair)?;
         assert_ne!(sig1, sig1empty);
 
         // ack self
