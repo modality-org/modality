@@ -1,0 +1,26 @@
+{
+  "name": "@modality-dev/network-configs",
+  "version": "0.0.0",
+  "description": "",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "rimraf ./dist && tsc && npx prettier ./dist --write",
+    "test": "NODE_OPTIONS=--experimental-vm-modules npx jest --passWithNoTests"
+  },
+  "author": "Foy Savas",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "src",
+    "src/*"
+  ],
+  "exports": {
+    ".": "./src/index.js",
+    "./*.json": "./src/*.json",
+    "./*": "./src/*.js"
+  },
+  "dependencies": {
+    "@modality-dev/utils": "workspace:^",
+    "jest": "^29.7"
+  }
+}

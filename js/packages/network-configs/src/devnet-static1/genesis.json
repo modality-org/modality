@@ -1,0 +1,108 @@
+{
+  "initial_dag": [
+    {
+      "round": 1,
+      "witness": "12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm",
+      "events": [
+        {
+          "contract_id": "12D3KooWLjnZYb3dKwLay4qzMNN79nt1bCfZ3rWVqYRMnhoKjpVa"
+        },
+        {
+          "contract_id": "12D3KooWLjnZYb3dKwLay4qzMNN79nt1bCfZ3rWVqYRMnhoKjpVa",
+          "method": "constrain",
+          "content": "alwaysMust (signed_by(\"/ed25519-pub/12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm\"))",
+          "meta": {
+            "signatures": {
+              "/ed25519-pub/12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm": "vAP0tUjQla3E85wrEde5W71ycmRywnoRs/kkzv3GOUYTFLZHZ1Abq20ByypaN/IDdPV06Fk1T0H1TgH14SDZBA=="
+            }
+          }
+        },
+        {
+          "contract_id": "12D3KooWLjnZYb3dKwLay4qzMNN79nt1bCfZ3rWVqYRMnhoKjpVa",
+          "method": "post",
+          "content": { "node_count": 1 },
+          "meta": {
+            "signatures": {
+              "/ed25519-pub/12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm": "GrfUlH+G0xX3SlSlxuiecqDNo9BlooVdZDaz4Mq27i0ZdX/N9OmqR1AIXmPokZmU0KDKuT6w2sACQwqknU7nDw=="
+            }
+          }
+        },
+        {
+          "contract_id": "12D3KooWLjnZYb3dKwLay4qzMNN79nt1bCfZ3rWVqYRMnhoKjpVa",
+          "method": "constrain",
+          "content": "alwaysMust (not content_keyIsPresent(\"node_count\"))",
+          "meta": {
+            "signatures": {
+              "/ed25519-pub/12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm": "jx7A9fxwXzbsm0JPUXJjsBEOtBMfU3mvx2aVSe5eSjB4jY+EprrldD/O7ocs8F7pc406nI3MgZzIity4546UBA=="
+            }
+          }
+        },
+        {
+          "contract_id": "12D3KooWLjnZYb3dKwLay4qzMNN79nt1bCfZ3rWVqYRMnhoKjpVa",
+          "method": "constrain",
+          "content": "alwaysMust (method_is(\"post\"))",
+          "meta": {
+            "signatures": {
+              "/ed25519-pub/12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm": "VtMq/+QeEZltULkJY+5H7N/2Ji82JBTT+mtQHDz68r6m5wnHZ/TXnvouE5+MlKMUq1Fy8+VczL5iNnKMsG+pCA=="
+            }
+          }
+        }
+      ]
+    },
+    {
+      "witness": "12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm",
+      "round": 2,
+      "timelyEdges": [
+        "/consensus/round/1/witness/12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm"
+      ]
+    },
+    {
+      "witness": "12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm",
+      "round": 3,
+      "timelyEdges": [
+        "/consensus/round/2/witness/12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm"
+      ]
+    },
+    {
+      "witness": "12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm",
+      "round": 4,
+      "timelyEdges": [
+        "/consensus/round/3/witness/12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm"
+      ]
+    },
+    {
+      "witness": "12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm",
+      "round": 5,
+      "timelyEdges": [
+        "/consensus/round/4/witness/12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm"
+      ]
+    },
+    {
+      "witness": "12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm",
+      "round": 6,
+      "timelyEdges": [
+        "/consensus/round/5/witness/12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm"
+      ]
+    },
+    {
+      "witness": "12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm",
+      "round": 7,
+      "timelyEdges": [
+        "/consensus/round/6/witness/12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm"
+      ]
+    },
+    {
+      "witness": "12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm",
+      "round": 8,
+      "timelyEdges": [
+        "/consensus/round/7/witness/12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm"
+      ]
+    }
+  ],
+  "consensus_method": {
+    "name": "DAGRider",
+    "options": { "common_coin": "RoundRobinCoin" }
+  },
+  "sequencer_contract_id": "12D3KooWLjnZYb3dKwLay4qzMNN79nt1bCfZ3rWVqYRMnhoKjpVa",
+  "validator_contract_id": null
+}
