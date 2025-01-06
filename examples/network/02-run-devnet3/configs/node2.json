@@ -1,6 +1,0 @@
-{
-  "id": "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
-  "passkey_path": "../../../../fixtures/passkeys/node2.mod_passkey",
-  "storage_path": "./tmp/storage/node2",
-  "bootstrappers": ["/dnsaddr/devnet1.modality.network"]
-}
