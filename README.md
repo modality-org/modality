@@ -61,3 +61,7 @@ The goal of [Modality Rust](https://github.com/modality-org/modality/rust) is to
 ## 🧑‍💻 Contributors
 
 <a href="https://github.com/modality-org/modality/graphs/contributors"><img src="https://contrib.rocks/image?repo=modality-org/modality" /></a>
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=modality-org/modality&type=Date)](https://star-history.com/#modality-org/modality&Date)
