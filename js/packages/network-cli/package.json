@@ -1,0 +1,37 @@
+{
+  "name": "@modality-dev/network-cli",
+  "version": "0.0.0",
+  "description": "",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "rimraf ./dist && tsc && npx prettier ./dist --write",
+    "test": "NODE_OPTIONS=--experimental-vm-modules npx jest --passWithNoTests"
+  },
+  "author": "Foy Savas",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "modality-network": "./bin/modality-network"
+  },
+  "files": [
+    "src",
+    "src/*"
+  ],
+  "exports": {
+    ".": "./src/index.js",
+    "./*": "./src/*.js"
+  },
+  "dependencies": {
+    "@modality-dev/network-configs": "workspace:^",
+    "@modality-dev/network-consensus": "workspace:^",
+    "@modality-dev/network-datastore": "workspace:^",
+    "@modality-dev/utils": "workspace:^",
+    "cli-calls": "^1.0.0",
+    "debug": "^4.3.4",
+    "jest": "^29.7",
+    "json-stringify-deterministic": "^1.0.7",
+    "lodash": "^4.17.21",
+    "uint8arrays": "^3.0.0",
+    "yargs": "^17.7.2"
+  }
+}

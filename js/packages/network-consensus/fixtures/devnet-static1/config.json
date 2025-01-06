@@ -1,0 +1,7 @@
+{
+  "initial_commit_difficult": 5000,
+  "initial_sequencers": [
+    "12D3KooWC25ZfwS4tcFxhrnZXvwqc1K1tufWKkhB8nJUWeyXgNdm"
+  ],
+  "sequencer_election_mechanism": "static"
+}

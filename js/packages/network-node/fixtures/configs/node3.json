@@ -1,0 +1,12 @@
+{
+  "keypair": {
+    "id": "12D3KooWML16xWVjXxXgUenArMBwjyq9p1ZnSAsiJRkG8BBxYWhS",
+    "public_key": "CAESIKsIKXAifmlx46Tz3DhkWdvDoQuNFQet9FIOh45NWMTF",
+    "private_key": "CAESQHwSc6cF4xuVz2pA/nAPCumciE5viG5M9YmkKKDbTx4ZqwgpcCJ+aXHjpPPcOGRZ28OhC40VB630Ug6Hjk1YxMU="
+  },
+  "listen": "/ip4/0.0.0.0/tcp/10003/ws",
+  "_storage": "/tmp/modality-fixtures/storage/node3",
+  "bootstrappers": [
+    "/ip4/127.0.0.1/tcp/10001/ws/p2p/12D3KooWPBRNBzgceXh7Z27wGoyYYz9ggwaYg2dWiwXXe8ieyFCN"
+  ]
+}
