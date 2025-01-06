@@ -1,0 +1,38 @@
+[package]
+name = "modality-utils"
+version = "0.1.5"
+edition = "2021"
+description = "Common utilities shared across Modality packages"
+license = "MIT"
+repository = "https://github.com/modality-org/modality-rust"
+homepage = "https://www.modality.org"
+documentation = "https://docs.rs/modality"
+
+[dependencies]
+anyhow = "1.0"
+lazy_static = "1.4.0"
+num-bigint = "0.4.5"
+num-traits = "0.2.19"
+sha1 = "0.10.6"
+sha2 = "0.10.8"
+tokio = { version = "1.42.0", features = ["full"] }
+libp2p = { version = "0.54.1", features = ["ed25519", "identify"] }
+libp2p-identity = { version = "0.2.9", features = ["ed25519", "peerid"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+base58 = "0.2"
+base64 = "0.21"
+ed25519-dalek = "1.0"
+rand = "0.8"
+multihash = "0.18"
+regex = "1.5"
+log = "0.4.17"
+ring = "0.17"
+rpassword = "7.0"
+zeroize = "1.7.0"
+hickory-resolver = "0.24.2"
+reqwest = { version = "0.12.10", features = ["json", "blocking", "default-tls"] } 
+
+
+[dev-dependencies]
+tokio = { version = "1.42.0", features = ["full", "test-util"] }

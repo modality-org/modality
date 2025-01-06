@@ -1,0 +1,11 @@
+[workspace]
+resolver = "2"
+
+members = [
+  'modality-network-consensus'
+, 'modality-network-datastore'
+, 'modality-network-devnet'
+, 'modality-network-node'
+, "modality-utils"
+, "modality"]
+
