@@ -1,0 +1,18 @@
+{
+  "rules": [
+    {
+      "modal_formula": "gfp(@x, []@x and [-sign] false)",
+      "root_states": [{ "system": 0, "state": "_" }]
+    }
+  ],
+  "systems": [
+    {
+      "possible_current_states": ["_"],
+      "states": {
+        "_": {
+          "arrows": [["+sign", "_"]]
+        }
+      }
+    }
+  ]
+}

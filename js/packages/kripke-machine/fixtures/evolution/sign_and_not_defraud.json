@@ -1,0 +1,30 @@
+{
+  "systems": [
+    {
+      "current_states": ["_"],
+      "states": {
+        "_": {
+          "arrows": [["+sign", "_"]]
+        }
+      }
+    },
+    {
+      "current_states": ["_"],
+      "states": {
+        "_": {
+          "arrows": [["-defraud", "_"]]
+        }
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "source": { "system": 0, "state": "_" },
+      "target": { "system": 0, "state": "_" }
+    },
+    {
+      "source": { "system": 0, "state": "_" },
+      "target": { "system": 1, "state": "_" }
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "systems": [
+    {
+      "states": {
+        "_": {
+          "arrows": [
+            ["+PARTY_A_SIGNS", "_"],
+            ["+PARTY_B_SIGNS", "_"]
+          ]
+        }
+      },
+      "possible_current_states": ["_"]
+    }
+  ],
+  "mappings": [
+    {
+      "source": { "system": 0, "state": "_" },
+      "target": { "system": 0, "state": "_" }
+    }
+  ],
+  "rules": []
+}

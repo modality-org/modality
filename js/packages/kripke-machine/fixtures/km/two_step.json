@@ -1,0 +1,16 @@
+{
+  "rules": [],
+  "systems": [
+    {
+      "possible_current_states": ["left", "right"],
+      "states": {
+        "left": {
+          "arrows": [["+right -left", "right"]]
+        },
+        "right": {
+          "arrows": [["+left -right", "left"]]
+        }
+      }
+    }
+  ]
+}

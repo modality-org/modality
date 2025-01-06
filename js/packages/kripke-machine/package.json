@@ -1,0 +1,30 @@
+{
+  "name": "@modality-dev/kripke-machine",
+  "version": "0.0.5",
+  "description": "",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "NODE_OPTIONS=--experimental-vm-modules npx jest",
+    "debug_test": "NODE_OPTIONS=--experimental-vm-modules node --inspect --inspect-brk ./node_modules/jest/bin/jest.js --runInBand -i"
+  },
+  "author": "Foy Savas",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "src",
+    "src/*"
+  ],
+  "exports": {
+    ".": "./src/index.js",
+    "./*": "./src/*.js"
+  },
+  "dependencies": {
+    "@modality-dev/synthesizer": "workspace:^",
+    "@modality-dev/utils": "workspace:^",
+    "antlr4": "^4.13.0",
+    "debug": "^4.3.4",
+    "dirname-filename-esm": "^1.1.1",
+    "jest": "^28.1.1",
+    "lodash": "^4.17.21"
+  }
+}
