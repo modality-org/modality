@@ -46,10 +46,6 @@ Whenever a commit is added, its validity against the rules is confirmed using th
 
 Sometimes the existing governing model over-constrains a contract beyond the specified rules. In such cases, the governing model may be replaced by a new commit.
 
-<!-- ## Who does the verifying?
-
-... -->
-
 ## What do rules look like?
 
 Modality rules are written in temporal logic called MTL (Modality Temporal Logic).
@@ -59,8 +55,10 @@ Here's a simple example that requires all future commits to be signed by an admi
 
 `always must include_signature_from( /config/admin.id )`
 
-## What's the Modality Network?
+## What's the Modality Network? Do I need to use it to use Modality?
 
-We're working on a specialized blockchain for verifiable contracts called the [Modality Network](./network.md).
+We're working on a specialized blockchain for verifiable contracts called the [Modality Network](/docs/network.md).
 
-You don't have to use the Modality Network to use Modality itself. However, if your application would benefit from the public posting of verifiable contracts in a decentralized environment, the Modality Network is a great fit.
+You don't have to use the Modality Network to use Modality itself.
+
+The Modality Network is an optional blockchain that may be useful if your application would benefit from the public positing of verifiable contracts in a decentralized environment.
