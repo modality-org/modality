@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+pnpm i -r
+pnpm run -r test --passWithNoTests

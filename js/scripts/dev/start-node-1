@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+node packages/network-node/src/cmds/run.js --config packages/network-node/fixtures/configs/node1.json
