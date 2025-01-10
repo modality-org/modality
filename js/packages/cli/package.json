@@ -19,9 +19,14 @@
     "./*": "./src/*.js"
   },
   "dependencies": {
+    "@modality-dev/utils": "workspace:^",
+    "cli-calls": "^1.0.0",
     "debug": "^4.3.4",
+    "fs-extra": "^11.2.0",
+    "inquirer": "^12.3.0",
     "jest": "^29.7",
     "lodash": "^4.17.21",
-    "uint8arrays": "^3.0.0"
+    "uint8arrays": "^3.0.0",
+    "yargs": "^17.7.2"
   }
 }

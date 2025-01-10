@@ -2,4 +2,4 @@
 
 DIR=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )
 
-node $DIR/../src/bin/modality-network-node.js "$@"
+node $DIR/../src/modality-js-cli.js "$@"

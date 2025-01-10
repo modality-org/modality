@@ -11,6 +11,7 @@ import { identity } from "multiformats/hashes/identity";
 import * as Digest from "multiformats/hashes/digest";
 import JSONStringifyDeterministic from "json-stringify-deterministic";
 import SSHPem from "./SSHPem.js";
+import * as EncryptedText from './EncryptedText.js';
 
 export default class Keypair {
   constructor(key) {
@@ -193,6 +194,28 @@ export default class Keypair {
 
   async asJSONFile(path) {
     const json_string = await this.asJSONString();
+    return writeFileSync(path, json_string, "utf-8");
+  }
+
+  async asEncryptedJSON(password) {
+    const id = await this.publicKeyAsBase58Identity();
+    const public_key = await this.publicKeyAsBase64Pad();
+    const private_key = await this.privateKeyAsBase64Pad();
+    const encrypted_private_key = await EncryptedText.encrypt(private_key, password);
+    return {
+      id,
+      public_key,
+      encrypted_private_key,
+    };
+  }
+
+  async asEncryptedJSONString(password) {
+    const json = await this.asEncryptedJSON(password);
+    return JSON.stringify(json);
+  }
+
+  async asEncryptedJSONFile(path, password) {
+    const json_string = await this.asJSONString(password);
     return writeFileSync(path, json_string, "utf-8");
   }
 
