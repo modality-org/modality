@@ -40,37 +40,33 @@ export async function handler({path, encrypt}) {
 export default handler;
 
 async function getPassword() {
-  try {
-    const { password } = await inquirer.prompt([
-      {
-        type: 'password',
-        name: 'password',
-        message: 'Enter password to encrypt the passfile:',
-        mask: '*'
-      }
-    ]);
-
-    if (password.length === 0) {
-      return { error: new Error('Password cannot be empty') };
+  const { password } = await inquirer.prompt([
+    {
+      type: 'password',
+      name: 'password',
+      message: 'Enter password to encrypt the passfile:',
+      mask: '*'
     }
+  ]);
 
-    const { confirm } = await inquirer.prompt([
-      {
-        type: 'password',
-        name: 'confirm',
-        message: 'Confirm password:',
-        mask: '*'
-      }
-    ]);
-
-    if (password !== confirm) {
-      return { error: new Error('Passwords do not match') };
-    }
-
-    return { value: password };
-  } catch (error) {
-    return { error };
+  if (password.length === 0) {
+    return { error: new Error('Password cannot be empty') };
   }
+
+  const { confirm } = await inquirer.prompt([
+    {
+      type: 'password',
+      name: 'confirm',
+      message: 'Confirm password:',
+      mask: '*'
+    }
+  ]);
+
+  if (password !== confirm) {
+    throw new Error('Passwords do not match');
+  }
+
+  return password;
 }
 
 import cliCalls from "cli-calls";

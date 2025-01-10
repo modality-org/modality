@@ -197,6 +197,19 @@ export default class Keypair {
     return writeFileSync(path, json_string, "utf-8");
   }
 
+  static async fromEncryptedJSON({ id, public_key, encrypted_private_key }, password) {
+    const private_key = await EncryptedText.decrypt(encrypted_private_key, password);
+    return this.fromJSON({ id, public_key, private_key });
+  }
+
+  static async fromEncryptedJSONString(str, password) {
+    return await this.fromEncryptedJSON(JSON.parse(str), password);
+  }
+
+  static async fromEncryptedJSONFile(fp, password) {
+    return await this.fromEncryptedJSONString(readFileSync(fp), password);
+  }
+
   async asEncryptedJSON(password) {
     const id = await this.publicKeyAsBase58Identity();
     const public_key = await this.publicKeyAsBase64Pad();
@@ -215,7 +228,7 @@ export default class Keypair {
   }
 
   async asEncryptedJSONFile(path, password) {
-    const json_string = await this.asJSONString(password);
+    const json_string = await this.asEncryptedJSONString(password);
     return writeFileSync(path, json_string, "utf-8");
   }
 
