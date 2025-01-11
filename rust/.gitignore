@@ -19,3 +19,4 @@ tmp/
 
 # Modality Passkeys
 *.mod_passkey
+*.mod_passfile

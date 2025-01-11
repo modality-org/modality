@@ -1,0 +1,6 @@
+{
+  "passfile_path": "../../passfiles/node1.mod_passfile",
+  "storage_path": "../../../tmp/storage/node1",
+  "listeners": ["/ip4/0.0.0.0/tcp/10301/ws"],
+  "bootstrappers": ["/dnsaddr/devnet3.modality.network"]
+}
