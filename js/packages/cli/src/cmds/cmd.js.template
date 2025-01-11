@@ -1,0 +1,18 @@
+// see yargs docs
+export const command = 'the-cmd';
+export const describe = 'Explain what it does';
+export const builder = {
+  arg1: {
+  },
+  arg2: {
+  }
+};
+
+export async function handler({arg1, arg2}) {
+}
+
+export default handler;
+
+// so we can directly test the file
+import cliCalls from "cli-calls";
+await cliCalls(import.meta, handler);
