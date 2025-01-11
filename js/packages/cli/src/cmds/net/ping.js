@@ -17,7 +17,7 @@ import { multiaddr } from "@multiformats/multiaddr";
 
 export async function handler({config, target, times = 1}) {
   const node = await Node.fromConfigFilepath(config);
-  await node.setup();
+  await node.setupAsClient();
 
   const random_hex = generateRandomHexString();
   const startTime = Date.now();

@@ -30,16 +30,31 @@ export default class Node {
     const resolved_bootstrappers = await resolveDnsEntries(config.bootstrappers || []);
     const bootstrappers = resolved_bootstrappers.filter(ma => !matchesPeerIdSuffix(ma, peerid));
 
-    const peerId = await PeerIdHelpers.createFromJSON(await keypair.asJSON());
-    const swarm = await createLibp2pNode({peerId});
 
-    const node = new Node({peerid, keypair, storage_path, listeners, bootstrappers, swarm});
+
+    const node = new Node({peerid, keypair, storage_path, listeners, bootstrappers});
 
     return node;
   }
 
-  async setup() {
+  async setup(mode = 'client') {
+    const peerId = await PeerIdHelpers.createFromJSON(await this.keypair.asJSON());
+    const addresses = mode === 'client' ? {} : { listen: this.listeners };
+    const swarm = await createLibp2pNode({
+      peerId,
+      addresses,
+      bootstrappers: this.bootstrappers,
+    });
+    this.swarm = swarm;
     await this.swarm.start();
+  }
+
+  async setupAsClient() {
+    return this.setup('client');
+  }
+
+  async setupAsServer() {
+    return this.setup('server');
   }
 
   async stop() {
