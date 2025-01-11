@@ -19,7 +19,9 @@
     "./*": "./src/*.js"
   },
   "dependencies": {
+    "@modality-dev/network-node": "workspace:^",
     "@modality-dev/utils": "workspace:^",
+    "@multiformats/multiaddr": "^12.2.1",
     "cli-calls": "^1.0.0",
     "debug": "^4.3.4",
     "fs-extra": "^11.2.0",

@@ -8,7 +8,7 @@ function removeQuotes(str) {
   return str;
 }
 
-function matchesPeerIdSuffix(str, peer_id) {
+export function matchesPeerIdSuffix(str, peer_id) {
   const re = new RegExp(`\\/p2p\\/${peer_id}$`);
   return str.match(re);
 }

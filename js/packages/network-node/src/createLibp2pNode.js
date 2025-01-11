@@ -83,6 +83,7 @@ export default async function createLibp2pNode({
       }),
       reqres: reqres(),
     },
+    start: false,
     peerId,
     ...options,
   });

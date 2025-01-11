@@ -35,9 +35,15 @@ importers:
 
   packages/cli:
     dependencies:
+      '@modality-dev/network-node':
+        specifier: workspace:^
+        version: link:../network-node
       '@modality-dev/utils':
         specifier: workspace:^
         version: link:../utils
+      '@multiformats/multiaddr':
+        specifier: ^12.2.1
+        version: 12.2.1
       cli-calls:
         specifier: ^1.0.0
         version: 1.0.0
