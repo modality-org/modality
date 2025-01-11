@@ -8,16 +8,16 @@ use std::path::PathBuf;
 use modality_utils::keypair::Keypair;
 
 #[derive(Debug, Parser)]
-#[command(about = "Decrypt Modality passkey file in place")]
+#[command(about = "Decrypt Modality passfile file in place")]
 #[command(group = clap::ArgGroup::new("source")
     .required(true)
     .args(&["dir", "path"]))]
 pub struct Opts {
-    /// Dir to search for passkey files.
+    /// Dir to search for passfile files.
     #[clap(long, value_parser)]
     dir: Option<PathBuf>,
 
-    /// Direct path to passkey files
+    /// Direct path to passfile files
     #[clap(long, value_parser)]
     path: Option<PathBuf>,
 }
@@ -25,7 +25,7 @@ pub struct Opts {
 pub async fn run(opts: &Opts) -> Result<()> {
     let password = get_password().context("Failed to get password")?;
 
-    // Find all .mod_passkey files in specified directory
+    // Find all .mod_passfile files in specified directory
     let entries = if let Some(path) = opts.path.clone() {
         vec![Ok(path)].into_iter()
     } else {
@@ -34,7 +34,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         } else {
             env::current_dir().context("Failed to get current directory")?
         };
-        println!("\nSearching for passkey files in: {}", root_dir.display());
+        println!("\nSearching for passfile files in: {}", root_dir.display());
         // Validate directory
         if !root_dir.exists() {
             return Err(anyhow::anyhow!(
@@ -61,7 +61,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let path = entry?;
 
         if let Some(ext) = path.extension() {
-            if ext == "mod_passkey" {
+            if ext == "mod_passfile" {
                 // Try to read as json to check if encrypted
                 if let Ok(content) = fs::read_to_string(&path) {
                     if content.contains("encrypted_private_key") {
@@ -108,18 +108,18 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     if decrypted_count > 0 {
         println!(
-            "\n✨ Successfully decrypted {} passkey files!",
+            "\n✨ Successfully decrypted {} passfile files!",
             decrypted_count
         );
     } else {
-        println!("\nℹ️ No encrypted passkey files found.");
+        println!("\nℹ️ No encrypted passfile files found.");
     }
 
     Ok(())
 }
 
 fn get_password() -> Result<String> {
-    eprint!("Enter password to decrypt the passkeys: ");
+    eprint!("Enter password to decrypt the passfiles: ");
 
     let password = read_password()?;
     if password.is_empty() {

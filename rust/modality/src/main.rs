@@ -21,10 +21,10 @@ enum Commands {
         command: IdCommands,
     },
 
-    #[command(about = "Passkey related commands")]
-    Passkey {
+    #[command(about = "Passfile related commands")]
+    Passfile {
         #[command(subcommand)]
-        command: PasskeyCommands,
+        command: PassfileCommands,
     },
 
 
@@ -42,10 +42,10 @@ enum IdCommands {
 }
 
 #[derive(Subcommand)]
-enum PasskeyCommands {
-    Decrypt(cmds::passkey::decrypt::Opts),
+enum PassfileCommands {
+    Decrypt(cmds::passfile::decrypt::Opts),
 
-    Encrypt(cmds::passkey::encrypt::Opts),
+    Encrypt(cmds::passfile::encrypt::Opts),
 }
 
 #[derive(Subcommand)]
@@ -71,10 +71,10 @@ async fn main() -> Result<()> {
                 IdCommands::Create(opts) => cmds::id::create::run(opts).await?,
             }
         }
-        Commands::Passkey { command } => {
+        Commands::Passfile { command } => {
             match command {
-                PasskeyCommands::Decrypt(opts) => cmds::passkey::decrypt::run(opts).await?,
-                PasskeyCommands::Encrypt(opts) => cmds::passkey::encrypt::run(opts).await?,
+                PassfileCommands::Decrypt(opts) => cmds::passfile::decrypt::run(opts).await?,
+                PassfileCommands::Encrypt(opts) => cmds::passfile::encrypt::run(opts).await?,
             }
         }
         Commands::Net { command } => {

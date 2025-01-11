@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use modality_utils::keypair::Keypair;
 
 #[derive(Debug, Parser)]
-#[command(about = "Create a new Modality ID and associated passkey file")]
+#[command(about = "Create a new Modality ID and associated passfile file")]
 pub struct Opts {
     #[clap(long)]
     path: Option<PathBuf>,
@@ -44,7 +44,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         opts.dir
             .clone()
             .unwrap_or_else(|| default_dir)
-            .join(format!("{}.mod_passkey", filename))
+            .join(format!("{}.mod_passfile", filename))
     };
 
     // Check if file already exists to prevent accidental overwrites
@@ -81,14 +81,14 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     println!("✨ Successfully created a new Modality ID!");
     println!("📍 Modality ID: {}", address);
-    println!("🔑 Modality Passkey saved to: {}", filepath.display());
-    println!("\n🚨🚨🚨  IMPORTANT: Keep your passkey file secure and never share it! 🚨🚨🚨");
+    println!("🔑 Modality Passfile saved to: {}", filepath.display());
+    println!("\n🚨🚨🚨  IMPORTANT: Keep your passfile file secure and never share it! 🚨🚨🚨");
 
     Ok(())
 }
 
 fn get_password() -> Result<String> {
-    eprint!("Enter password to encrypt the passkey: ");
+    eprint!("Enter password to encrypt the passfile: ");
 
     let password = read_password()?;
     if password.is_empty() {

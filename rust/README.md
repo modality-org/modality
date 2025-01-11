@@ -71,9 +71,9 @@ Example Output:
 ```
 ✨ Successfully created a new Modality ID!
 📍 Modality ID: 12D3KooWMRAdDAzYKfvPrN1R1Cf5fPC1iSLe37yUDV5FhEWsWABB
-🔑 Modality Passkey saved to: ./12D3KooWMRAdDAzYKfvPrN1R1Cf5fPC1iSLe37yUDV5FhEWsWABB.mod_passkey
+🔑 Modality Passfile saved to: ./12D3KooWMRAdDAzYKfvPrN1R1Cf5fPC1iSLe37yUDV5FhEWsWABB.mod_passfile
 
-🚨🚨🚨  IMPORTANT: Keep your passkey file secure and never share it! 🚨🚨🚨
+🚨🚨🚨  IMPORTANT: Keep your passfile file secure and never share it! 🚨🚨🚨
 ```
 
 ---

@@ -9,7 +9,7 @@ use libp2p::identity::Keypair;
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 pub struct Config {
     pub id: Option<String>,
-    pub passkey_path: Option<PathBuf>,
+    pub passfile_path: Option<PathBuf>,
     pub storage_path: Option<PathBuf>,
     pub listeners: Option<Vec<Multiaddr>>,
     pub bootstrappers: Option<Vec<Multiaddr>>,
@@ -24,10 +24,10 @@ impl Config {
     
         let config_dir = path.parent().unwrap();
     
-        if let Some(passkey_path_buf) = config.passkey_path {
-            let passkey_path = passkey_path_buf.as_path();
-            let abs_passkey_path = to_absolute_path(config_dir, passkey_path)?;
-            config.passkey_path = Some(abs_passkey_path);
+        if let Some(passfile_path_buf) = config.passfile_path {
+            let passfile_path = passfile_path_buf.as_path();
+            let abs_passfile_path = to_absolute_path(config_dir, passfile_path)?;
+            config.passfile_path = Some(abs_passfile_path);
         }
     
         if let Some(storage_path_buf) = config.storage_path {
@@ -40,8 +40,8 @@ impl Config {
     }
 
     pub async fn get_libp2p_keypair(&self) -> Result<Keypair>{
-        let passkey = modality_utils::passkey::Passkey::load_file(self.passkey_path.clone().unwrap(), true).await?;
-        let node_keypair = modality_utils::libp2p_identity_keypair::libp2p_identity_from_private_key(passkey.keypair.private_key().as_str()).await?;
+        let passfile = modality_utils::passfile::Passfile::load_file(self.passfile_path.clone().unwrap(), true).await?;
+        let node_keypair = modality_utils::libp2p_identity_keypair::libp2p_identity_from_private_key(passfile.keypair.private_key().as_str()).await?;
         Ok(node_keypair)
     }
 }

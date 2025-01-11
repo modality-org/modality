@@ -8,21 +8,21 @@ use std::path::PathBuf;
 use modality_utils::keypair::Keypair;
 
 #[derive(Debug, Parser)]
-#[command(about = "Encrypt Modality passkey file in place")]
+#[command(about = "Encrypt Modality passfile file in place")]
 #[command(group = clap::ArgGroup::new("source")
     .required(true)
     .args(&["dir", "path"]))]
 pub struct Opts {
-    /// Dir to search for passkey files.
+    /// Dir to search for passfile files.
     #[clap(long, value_parser)]
     dir: Option<PathBuf>,
 
-    /// Direct path to passkey files
+    /// Direct path to passfile files
     #[clap(long, value_parser)]
     path: Option<PathBuf>,
 }
 
-pub async fn encrypt_passkey_file(path: &PathBuf, password: &str) -> Result<()> {
+pub async fn encrypt_passfile_file(path: &PathBuf, password: &str) -> Result<()> {
     let keypair = Keypair::from_json_file(path.to_str().ok_or_else(|| {
         anyhow::anyhow!("Invalid file path: contains non-Unicode characters")
     })?)
@@ -51,7 +51,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Get password first
     let password = get_password().context("Failed to get password")?;
 
-    // Find all .mod_passkey files in specified directory
+    // Find all .mod_passfile files in specified directory
     let entries = if let Some(path) = opts.path.clone() {
         vec![Ok(path)].into_iter()
     } else {
@@ -60,7 +60,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         } else {
             env::current_dir().context("Failed to get current directory")?
         };
-        println!("\nSearching for passkey files in: {}", root_dir.display());
+        println!("\nSearching for passfile files in: {}", root_dir.display());
         // Validate directory
         if !root_dir.exists() {
             return Err(anyhow::anyhow!(
@@ -86,12 +86,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
     for path_result in entries {
         let path = path_result?;
         if let Some(ext) = path.extension() {
-            if ext == "mod_passkey" {
+            if ext == "mod_passfile" {
                 // Try to read as json to check if already encrypted
                 if let Ok(content) = fs::read_to_string(&path) {
                     if content.contains("private_key") {
                         // Read keypair from unencrypted file
-                        encrypt_passkey_file(&path, &password).await?;
+                        encrypt_passfile_file(&path, &password).await?;
                         println!("🔒 Encrypted {}", path.display());
                         encrypted_count += 1;
                     }
@@ -102,18 +102,18 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     if encrypted_count > 0 {
         println!(
-            "\n✨ Successfully encrypted {} passkey files!",
+            "\n✨ Successfully encrypted {} passfile files!",
             encrypted_count
         );
     } else {
-        println!("\nℹ️ No unencrypted passkey files found.");
+        println!("\nℹ️ No unencrypted passfile files found.");
     }
 
     Ok(())
 }
 
 fn get_password() -> Result<String> {
-    eprint!("Enter password to encrypt the passkeys: ");
+    eprint!("Enter password to encrypt the passfiles: ");
 
     let password = read_password()?;
     if password.is_empty() {
