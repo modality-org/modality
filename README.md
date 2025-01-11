@@ -44,15 +44,15 @@ curl --proto '=https' --tlsv1.2 -sSf https://www.modality.org/install.sh | sh
 Modality is actively developed in both JavaScript and Rust.
 
 ### JavaScript
-The goal of [Modality JavaScript](https://github.com/modality-org/modality/js) is to provide easy to use web-compatible libraries for verifiable contracts.
+The goal of [Modality JavaScript](/js) is to provide easy to use web-compatible libraries for verifiable contracts.
 
 ### Rust
-The goal of [Modality Rust](https://github.com/modality-org/modality/rust) is to provide portable system level libraries and a CLI for use with verifiable contracts.
+The goal of [Modality Rust](/rust) is to provide portable system level libraries and a CLI for use with verifiable contracts.
 
 
 ## 🌍 Community & Support
 
-- 📂 [GitHub Issues](https://github.com/modality-dev/modality/issues): Report bugs or request features.
+- 📂 [GitHub Issues](https://github.com/modality-org/modality/issues): Report bugs or request features.
 - 💬 Join the [Modality Discourse](https://discuss.modality.org/): Connect with other users and contributors.
 - 🗣️ Join the [Modality Discord](https://discord.gg/KpYFdrfnkS): Chat and join community meetings on Discord.
 
