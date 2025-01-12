@@ -19,15 +19,16 @@
   "license": "MIT",
   "type": "module",
   "dependencies": {
-    "@libp2p/crypto": "^1.0.0",
+    "@libp2p/crypto": "^5.0.1",
     "@libp2p/logger": "^2.0.0",
+    "@libp2p/peer-id": "^5.0.10",
     "@noble/ciphers": "^0.5.3",
     "debug": "^4.3.4",
     "jest": "^29.7",
     "json-stringify-deterministic": "^1.0.7",
     "lodash": "^4.17.21",
     "multiaddr": "^10.0.1",
-    "multiformats": "^9.7.0",
+    "multiformats": "^13.3.0",
     "uint8arrays": "^5.0.3"
   },
   "devDependencies": {

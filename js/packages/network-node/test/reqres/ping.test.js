@@ -26,12 +26,11 @@ describe("reqres /ping", () => {
         "/ping",
         "0123456789ABCDEF"
       );
-      console.log(r);
       expect(r.ok).toBe(true);
       expect(r.data).toBe("0123456789ABCDEF");
     } finally {
-      node1.stop();
-      node2.stop();
+      await node1.stop();
+      await node2.stop();
     }
   });
 });

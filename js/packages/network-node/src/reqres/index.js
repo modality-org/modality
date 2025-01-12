@@ -1,9 +1,6 @@
 import {
-  CodeError,
-  ERR_INVALID_MESSAGE,
-  ERR_INVALID_PARAMETERS,
-  ERR_TIMEOUT,
-  setMaxListeners,
+  InvalidParametersError,
+  TimeoutError,
 } from "@libp2p/interface";
 import { pipe } from "it-pipe";
 import all from "it-all";
@@ -11,12 +8,17 @@ import * as Uint8ArrayHelpers from "uint8arrays";
 import SafeJSON from "@modality-dev/utils/SafeJSON";
 
 import * as Ping from './ping.js'
+
+import * as Data_RoundBlockHeaders from './data/round_block_headers.js';
+
 import * as Consensus_Scribes_PageAck from "./consensus/scribes/page_ack.js";
 import * as Consensus_Status from "./consensus/status.js";
+
 import * as SubmitCommits from "./consensus/submit_commits.js";
 
 const REQRES_MODULES = [
   Ping,
+  Data_RoundBlockHeaders,
   Consensus_Scribes_PageAck,
   Consensus_Status,
   SubmitCommits
@@ -50,7 +52,14 @@ export const MAX_INBOUND_STREAMS = 2;
 export const MAX_OUTBOUND_STREAMS = 1;
 
 export class ReqResService {
+  // static dependencies = {
+  //   storage: 'storage',
+  //   datastore: 'libp2p:datastore',
+  //   connectionManager: 'libp2p:connection-manager'
+  // }
+
   constructor(components, init = {}) {
+    console.log("HERE", {components});
     this.components = components;
     this.log = components.logger.forComponent("modality-network:reqres");
     this.started = false;
@@ -70,9 +79,8 @@ export class ReqResService {
         return module.handler({ peer, path, data, ...options });
       }
     }
-    throw new CodeError(
+    throw new InvalidParametersError(
       `invalid path (${path}) must be a supported path by modality reqres`,
-      ERR_INVALID_PARAMETERS
     );
   }
 
@@ -105,7 +113,7 @@ export class ReqResService {
   }
 
   async handleMessage(data) {
-    console.log("HANDLING MESSAGE", this, data)
+    // console.log("HANDLING MESSAGE", this, data)
     this.log("incoming reqres from %p", data.connection.remotePeer);
 
     const { stream } = data;
@@ -123,6 +131,7 @@ export class ReqResService {
       req.path,
       req.data,
       {
+        components: this.components.components
         // node: this.components.node
       }
     );
@@ -159,7 +168,7 @@ export class ReqResService {
       });
 
       onAbort = () => {
-        stream?.abort(new CodeError("fetch timeout", ERR_TIMEOUT));
+        stream?.abort(new TimeoutError("fetch timeout"));
       };
 
       signal.addEventListener("abort", onAbort, { once: true });

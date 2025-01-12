@@ -1,14 +1,15 @@
 import { writeFileSync, readFileSync } from "fs";
 import {
   generateKeyPair,
-  unmarshalPublicKey,
-  unmarshalPrivateKey,
+  privateKeyFromRaw,
+  publicKeyFromRaw,
 } from "@libp2p/crypto/keys";
 import { toString as uint8ArrayToString } from "uint8arrays/to-string";
 import { fromString as uint8ArrayFromString } from "uint8arrays/from-string";
 import { base58btc } from "multiformats/bases/base58";
 import { identity } from "multiformats/hashes/identity";
 import * as Digest from "multiformats/hashes/digest";
+import { peerIdFromString } from '@libp2p/peer-id';
 import JSONStringifyDeterministic from "json-stringify-deterministic";
 import SSHPem from "./SSHPem.js";
 import * as EncryptedText from './EncryptedText.js';
@@ -24,13 +25,17 @@ export default class Keypair {
     return new Keypair(key);
   }
 
+  async asPeerId() {
+    return peerIdFromString(await this.publicKeyAsBase58Identity())
+  }
+
   // SSH keys
 
   async asSSHPrivatePem(comment = "") {
     const pem = new SSHPem();
     pem.key_type = "ed25519";
-    pem.public_key = this.key.public.bytes.subarray(4);
-    pem.private_key = this.key.bytes.subarray(4);
+    pem.public_key = this.key.publicKey.toMultihash().bytes.subarray(4);
+    pem.private_key = this.key.raw.subarray(4);
     pem.comment = comment;
     return pem.toSSHPrivatePemString();
   }
@@ -38,7 +43,7 @@ export default class Keypair {
   asSSHDotPub(comment = "") {
     const pem = new SSHPem();
     pem.key_type = "ed25519";
-    pem.public_key = this.key.public.bytes.subarray(4);
+    pem.public_key = this.key.publicKey.toMultihash().bytes.subarray(4);
     pem.comment = comment;
     return pem.toSSHDotPubString();
   }
@@ -64,15 +69,15 @@ export default class Keypair {
 
   static uint8ArrayAsBase58Identity(bytes) {
     const encoding = identity.digest(bytes);
-    return base58btc.encode(encoding.bytes).substring(1);
+    return base58btc.encode(encoding.digest).substring(1);
   }
 
   static keyAsBase58Identity(key) {
-    return this.uint8ArrayAsBase58Identity(key.bytes);
+    return this.uint8ArrayAsBase58Identity(key.toMultihash().bytes);
   }
 
   async publicKeyAsBase58Identity() {
-    return this.constructor.keyAsBase58Identity(this.key.public);
+    return this.constructor.keyAsBase58Identity(this.key.publicKey);
   }
 
   async asPublicKeyId() {
@@ -89,16 +94,23 @@ export default class Keypair {
     return uint8ArrayToString(bytes, "base64pad");
   }
 
-  static keyAsBase64Pad(bytes) {
+  static keyAsBase64Pad(raw) {
+    const bytes = new Uint8Array([
+      8,
+      1,
+      18,
+      32,
+      ...raw
+    ]); 
     return this.uint8ArrayAsBase64Pad(bytes);
   }
 
   async publicKeyAsBase64Pad() {
-    return this.constructor.keyAsBase64Pad(this.key.public.bytes);
+    return this.constructor.keyAsBase64Pad(this.key.publicKey.toMultihash().bytes);
   }
 
   async privateKeyAsBase64Pad() {
-    return this.constructor.keyAsBase64Pad(this.key.bytes);
+    return this.constructor.keyAsBase64Pad(this.key.raw);
   }
 
   // multiaddr is used in modality
@@ -126,9 +138,8 @@ export default class Keypair {
     const type = m[1];
     const public_key_id = m[2];
     const multihash = Digest.decode(base58btc.decode(`z${public_key_id}`));
-    const public_key = multihash.digest;
     const key = new Keypair({
-      public: unmarshalPublicKey(public_key),
+      publicKey: publicKeyFromRaw(multihash.digest.subarray(4))
     });
     return key;
   }
@@ -137,15 +148,13 @@ export default class Keypair {
 
   static async fromJSON({ id, public_key, private_key }) {
     if (private_key) {
-      const key = await unmarshalPrivateKey(
-        uint8ArrayFromString(private_key, "base64pad")
-      );
+      const raw = uint8ArrayFromString(private_key, "base64pad").subarray(4);
+      const key = privateKeyFromRaw(raw);
       return new Keypair(key);
     } else if (public_key) {
-      const key = await unmarshalPrivateKey(
-        uint8ArrayFromString(public_key, "base64pad")
-      );
-      return new Keypair(key);
+      const raw = uint8ArrayFromString(public_key, "base64pad").subarray(4);
+      const key = publicKeyFromRaw(raw);
+      return new Keypair({publicKey: key});
     }
   }
 
@@ -275,7 +284,7 @@ export default class Keypair {
 
   async verifySignatureForBytes(signature, bytes) {
     const signature_bytes = uint8ArrayFromString(signature, "base64pad");
-    return await this.key.public.verify(bytes, signature_bytes);
+    return await this.key.publicKey.verify(bytes, signature_bytes);
   }
 
   async verifySignatureForString(signature, str) {
