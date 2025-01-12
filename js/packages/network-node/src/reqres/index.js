@@ -59,7 +59,7 @@ export class ReqResService {
   // }
 
   constructor(components, init = {}) {
-    console.log("HERE", {components});
+    // console.log("HERE", {components});
     this.components = components;
     this.log = components.logger.forComponent("modality-network:reqres");
     this.started = false;
@@ -131,6 +131,7 @@ export class ReqResService {
       req.path,
       req.data,
       {
+        datastore: this.components.components.storage.datastore,
         components: this.components.components
         // node: this.components.node
       }

@@ -4,7 +4,7 @@ import LevelRocksDb from "level-rocksdb";
 import SafeJSON from "@modality-dev/utils/SafeJSON";
 import fs from "fs";
 
-import Page from './data/Page';
+import Page from './data/Page.js';
 
 export default class NetworkDatastore {
   constructor(datastore) {
