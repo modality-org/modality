@@ -4,7 +4,6 @@ import { createLibp2p } from "libp2p";
 import { tcp } from "@libp2p/tcp";
 import { webSockets } from "@libp2p/websockets";
 import { ping } from "@libp2p/ping";
-// import { webRTC, webRTCDirect } from '@libp2p/webrtc'
 
 // encryption
 import { noise } from "@chainsafe/libp2p-noise";
@@ -30,16 +29,17 @@ export default async function createLibp2pNode({
   enableListenViaRelay,
   bootstrappers,
   peerId,
+  privateKey,
   ...options
 } = {}) {
   const transports = [tcp(), webSockets()];
 
-  const connectionEncryption = disableEncryption ? [plaintext()] : [noise()];
+  const connectionEncrypters = disableEncryption ? [plaintext()] : [noise()];
 
   const nat = enableNAT
     ? {
-        enabled: true,
-      }
+      enabled: true,
+    }
     : {};
 
   const relay = {
@@ -66,7 +66,7 @@ export default async function createLibp2pNode({
 
   const node = await createLibp2p({
     transports,
-    connectionEncryption,
+    connectionEncrypters,
     streamMuxers: [yamux()],
     relay,
     nat,
@@ -85,6 +85,7 @@ export default async function createLibp2pNode({
     },
     start: false,
     peerId,
+    privateKey,
     ...options,
   });
 
