@@ -6,7 +6,7 @@ import createLibp2pNode from "./createLibp2pNode.js";
 import PeerIdHelpers from "./PeerIdHelpers.js";
 import NetworkDatastore from "@modality-dev/network-datastore";
 export default class Node {
-  constructor({peerid, keypair, listeners, bootstrappers, swarm}) {
+  constructor({ peerid, keypair, listeners, bootstrappers, swarm }) {
     this.peerid = peerid;
     this.keypair = keypair;
     this.listeners = listeners;
@@ -30,7 +30,7 @@ export default class Node {
     const resolved_bootstrappers = await resolveDnsEntries(config.bootstrappers || []);
     const bootstrappers = resolved_bootstrappers.filter(ma => !matchesPeerIdSuffix(ma, peerid));
 
-    const node = new Node({peerid, keypair, storage_path, listeners, bootstrappers});
+    const node = new Node({ peerid, keypair, storage_path, listeners, bootstrappers });
 
     return node;
   }
@@ -80,5 +80,17 @@ export default class Node {
 
   getListenerMultiaddress() {
     return this.swarm.getMultiaddrs()?.[0];
+  }
+
+
+  async addPeerMultiaddress(peer_id, multiaddress) {
+    return this.swarm.peerStore.save(
+      peer_id,
+      { multiaddrs: [multiaddress] }
+    );
+  }
+
+  getDatastore() {
+    return this.swarm?.services?.storage?.datastore;
   }
 }
