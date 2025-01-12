@@ -4,6 +4,7 @@ import { resolveDnsEntries, matchesPeerIdSuffix } from "@modality-dev/utils/Mult
 import path from 'path';
 import createLibp2pNode from "./createLibp2pNode.js";
 import PeerIdHelpers from "./PeerIdHelpers.js";
+import { multiaddr } from "@multiformats/multiaddr";
 
 export default class Node {
   constructor({peerid, keypair, listeners, bootstrappers, swarm}) {
@@ -63,5 +64,18 @@ export default class Node {
 
   async reqres() {
     return this.swarm(...arguments);
+  }
+
+  async getPeerId() {
+    const peerId = await PeerIdHelpers.createFromJSON(await this.keypair.asJSON());
+    return peerId;
+  }
+
+  getListenerMultiaddress() {
+    return this.swarm.getMultiaddrs()?.[0];
+    if (!this.listeners || !this.listeners.length) {
+      return null;
+    }
+    return multiaddr(`${this.listeners[0]}/p2p/${this.peerid}`);
   }
 }
