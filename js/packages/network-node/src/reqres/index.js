@@ -8,6 +8,7 @@ import * as Uint8ArrayHelpers from "uint8arrays";
 import SafeJSON from "@modality-dev/utils/SafeJSON";
 
 import * as Ping from './ping.js'
+import * as Status from './status.js'
 
 import * as Data_RoundBlockHeaders from './data/round_block_headers.js';
 
@@ -18,6 +19,7 @@ import * as SubmitCommits from "./consensus/submit_commits.js";
 
 const REQRES_MODULES = [
   Ping,
+  Status,
   Data_RoundBlockHeaders,
   Consensus_Scribes_PageAck,
   Consensus_Status,

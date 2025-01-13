@@ -94,6 +94,15 @@ export default class NetworkDatastore {
     return (await this.datastore.get(key)).toString();
   }
 
+  async getInt(key) {
+    const v = (await this.datastore.get(key))?.toString();
+    if (v) {
+      return parseInt(v);
+    } else {
+      null;
+    }
+  }
+
   async getJSON(key) {
     return SafeJSON.parse((await this.datastore.get(key)).toString());
   }
@@ -146,27 +155,32 @@ export default class NetworkDatastore {
   }
 
   async bumpCurrentRound() {
-    const current_round = await this.getDataByKey(
-      "/consensus/status/current_round"
+    const current_round = await this.getInt(
+      "/status/current_round"
     );
-    const current_round_num = parseInt(current_round) || 0;
+    const current_round_num = current_round || 0;
     return this.put(
-      "/consensus/status/current_round",
+      "/status/current_round",
       (current_round_num + 1).toString()
     );
   }
 
   async setCurrentRound(round) {
     return this.put(
-      "/consensus/status/current_round",
+      "/status/current_round",
       parseInt(round).toString()
     );
   }
 
   async getCurrentRound() {
-    return parseInt(
-      (await this.getDataByKey("/consensus/status/current_round"))?.toString()
-    );
+    return this.getInt("/status/current_round");
+  }
+
+  async getStatus() {
+    const current_round = await this.getInt("/status/current_round");
+    return {
+      current_round,
+    }
   }
 
   async findPage({round, scribe}) {

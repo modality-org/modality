@@ -93,4 +93,8 @@ export default class Node {
   getDatastore() {
     return this.swarm?.services?.storage?.datastore;
   }
+
+  sendRequest(multiaddress, path, data) {
+    return this.swarm.services.reqres.call(multiaddress, path, data);
+  }
 }
