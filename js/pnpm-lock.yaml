@@ -35,6 +35,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@modality-dev/network-datastore':
+        specifier: workspace:^
+        version: link:../network-datastore
       '@modality-dev/network-node':
         specifier: workspace:^
         version: link:../network-node

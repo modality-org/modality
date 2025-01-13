@@ -21,6 +21,7 @@
   "dependencies": {
     "@modality-dev/network-node": "workspace:^",
     "@modality-dev/utils": "workspace:^",
+    "@modality-dev/network-datastore": "workspace:^",
     "@multiformats/multiaddr": "^12.2.1",
     "cli-calls": "^1.0.0",
     "debug": "^4.3.4",
