@@ -56,7 +56,7 @@ export default class Model {
 
   static getIdFor(keys) {
     let id = this.id_path;
-    return id.replaceAll(/\${(\w+)}/g, (match, key) => keys[key] || match);
+    return id.replaceAll(/\${(\w+)}/g, (match, key) => keys[key] ?? match);
   }
 
   static getKeyNames() {
