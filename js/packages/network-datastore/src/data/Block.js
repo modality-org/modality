@@ -183,16 +183,16 @@ export default class Block extends Model {
   async addAck(ack) {
     const is_valid = await this.validateAck(ack);
     if (is_valid) {
-      this.acks[ack.acker] = ack;
+      this.acks[ack.acker] = ack.acker_sig;
       return true;
     }
   }
 
   validateAcks() {
-    for (const ack of Object.values(this.acks)) {
-      const keypair = Keypair.fromPublicKey(ack.acker);
+    for (const [acker, acker_sig] of Object.entries(this.acks)) {
+      const keypair = Keypair.fromPublicKey(acker);
       if (
-        !keypair.verifyJSON(ack.acker_sig, {
+        !keypair.verifyJSON(acker_sig, {
           round_id: this.round_id,
           peer_id: this.peer_id,
           closing_sig: this.closing_sig,
@@ -206,10 +206,10 @@ export default class Block extends Model {
 
   countValidAcks() {
     let valid_acks = 0;
-    for (const ack of Object.values(this.acks)) {
-      const keypair = Keypair.fromPublicKey(ack.acker);
+    for (const [acker, acker_sig] of Object.entries(this.acks)) {
+      const keypair = Keypair.fromPublicKey(acker);
       if (
-        keypair.verifyJSON(ack.acker_sig, {
+        keypair.verifyJSON(acker_sig, {
           peer_id: this.peer_id,
           round_id: this.round_id,
           events: this.events,

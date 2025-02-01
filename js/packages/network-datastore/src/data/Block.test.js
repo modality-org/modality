@@ -35,7 +35,7 @@ describe("Block", () => {
     // other acks
     let ack2 = await b1.generateAck(node2_keypair);
     await b1.addAck(ack2);
-    expect(b1.acks[ack2.acker]).toBe(ack2);
+    expect(b1.acks[ack2.acker]).toBe(ack2.acker_sig);
     result = await b1.validateAcks();
     expect(result).toBe(true);
     result = await b1.countValidAcks();
