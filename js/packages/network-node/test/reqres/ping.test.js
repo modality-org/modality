@@ -9,8 +9,8 @@ const FIXTURES_COMMON = `${__dirname}/../../../../fixtures-common`;
 
 describe("reqres /ping", () => {
   it("should work", async () => {
-    const node1 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node1.json`);
-    const node2 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node2.json`);
+    const node1 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node1.json`, {storage_path: null});
+    const node2 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node2.json`, {storage_path: null});
     await node1.setupAsClient();
     await node2.setupAsServer();
 

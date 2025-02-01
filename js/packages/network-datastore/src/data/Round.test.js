@@ -7,11 +7,11 @@ describe("Round", () => {
   it("should work", async () => {
     const datastore = await NetworkDatastore.createInMemory();
     let round;
-    round = Round.from({ round: 1 });
+    round = Round.from({ round_id: 1 });
     await round.save({ datastore });
-    round = Round.from({ round: 2 });
+    round = Round.from({ round_id: 2 });
     await round.save({ datastore });
-    round = Round.from({ round: 3 });
+    round = Round.from({ round_id: 3 });
     await round.save({ datastore });
     const max_round = await Round.findMaxId({ datastore });
     expect(max_round).toBe(3);

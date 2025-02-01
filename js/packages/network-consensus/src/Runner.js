@@ -457,11 +457,11 @@ export default class Runner {
     const current_round_num = await this.datastore.getCurrentRound();
     for (let i = current_round_num + 1; i < round_num; i++) {
       // TODO maybe handle jumping from earlier rounds
-      // const roundi = Round.from({ round: i });
+      // const roundi = Round.from({ round_id: i });
       // roundi.scribes = await this.getScribesAtRound(i);
       // await roundi.save({ datastore: this.datastore });
     }
-    const round = Round.from({ round: round_num });
+    const round = Round.from({ round_id: round_num });
     round.scribes = await this.getScribesAtRound(round_num);
     await round.save({ datastore: this.datastore });
     await this.datastore.setCurrentRound(round_num);
@@ -469,7 +469,7 @@ export default class Runner {
 
   async bumpCurrentRound() {
     const round_num = await this.datastore.getCurrentRound();
-    const round = Round.from({ round: round_num });
+    const round = Round.from({ round_id: round_num });
     round.scribes = await this.getScribesAtRound(round_num);
     await round.save({ datastore: this.datastore });
     await this.datastore.bumpCurrentRound();

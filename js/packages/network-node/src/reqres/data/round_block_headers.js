@@ -4,7 +4,7 @@ import RoundBlockHeader from '@modality-dev/network-datastore/data/RoundBlockHea
 
 export async function handler({ datastore, peer, data }) {
   const round_id = data.round_id;
-  if (!round_id) {
+  if (round_id == null) {
     return { ok: false, error: 'missing round_id' };
   }
   const round_block_headers_records = await RoundBlockHeader.findAllInRound({ datastore, round_id });

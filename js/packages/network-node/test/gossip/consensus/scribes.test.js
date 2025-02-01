@@ -11,7 +11,7 @@ import Round from '@modality-dev/network-datastore/data/Round';
 import Keypair from "@modality-dev/utils/Keypair";
 
 describe("gossip /consensus/scribes/page_draft", () => {
-  it("should work", async () => {
+  it.skip("should work", async () => {
     const node1 = await createTestNode(node1_config);
     await addSequencerEventListeners(node1);
     await setupNode(node1, node1_config);

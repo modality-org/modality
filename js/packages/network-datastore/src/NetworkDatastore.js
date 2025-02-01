@@ -2,9 +2,12 @@ import { LevelDatastore } from "datastore-level";
 import LevelMem from "level-mem";
 import LevelRocksDb from "level-rocksdb";
 import SafeJSON from "@modality-dev/utils/SafeJSON";
-import fs from "fs";
+import fs from "fs-extra";
 
+import Block from './data/Block.js';
 import Page from './data/Page.js';
+import Round from './data/Round.js';
+import RoundBlockHeader from "./data/RoundBlockHeader.js";
 
 export default class NetworkDatastore {
   constructor(datastore) {
@@ -29,6 +32,7 @@ export default class NetworkDatastore {
   }
 
   static async createInDirectory(path) {
+    await fs.ensureDir(path);
     const datastore = new LevelDatastore(path, {
       db: LevelRocksDb,
     });
@@ -44,6 +48,21 @@ export default class NetworkDatastore {
     const it = await this.iterator({ prefix: "" });
     for await (const [key, value] of it) {
       await datastore.put(key, value);
+    }
+  }
+
+  async loadNetworkConfig(network_config) {
+    if (network_config?.rounds) {
+      for (const [round_id,round_data] of Object.entries(network_config.rounds)) {
+        for (const block_data of Object.values(round_data)) {
+          const block = Block.from(block_data);
+          await block.save({datastore: this});
+          const rbh = RoundBlockHeader.from({...block_data});
+          await rbh.save({datastore: this});
+        }
+        const round = Round.from({round_id});
+        await round.save({datastore: this});
+      }
     }
   }
 

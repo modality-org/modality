@@ -9,8 +9,8 @@ const FIXTURES_COMMON = `${__dirname}/../../../../../fixtures-common`;
 
 describe("reqres /round_block_headers", () => {
   it("should work", async () => {
-    const node1 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node1.json`);
-    const node2 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node2.json`);
+    const node1 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node1.json`, {storage_path: null});
+    const node2 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node2.json`, {storage_path: null});
     await node1.setupAsServer();
     await node2.setupAsClient();
     await node2.addPeerMultiaddress(await node1.getPeerId(), node1.getListenerMultiaddress());

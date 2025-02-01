@@ -110,7 +110,7 @@ export default class NetworkDatastoreBuilder {
 
   async addFullyConnectedRound({ failures = 0 } = {}) {
     const round_num = ++this.round_num;
-    const round = Round.from({ round: round_num });
+    const round = Round.from({ round_id: round_num });
     round.scribes = [...this.scribes];
     await round.save({ datastore: this.datastore });
     const scribes = shuffleArray(this.scribes);
@@ -271,7 +271,7 @@ export default class NetworkDatastoreBuilder {
 
   async addPartiallyConnectedRound({ failures = 0 } = {}) {
     const round_num = ++this.round_num;
-    const round = Round.from({ round: round_num });
+    const round = Round.from({ round_id: round_num });
     round.scribes = [...this.scribes];
     await round.save({ datastore: this.datastore });
     const scribes = shuffleArray(this.scribes);

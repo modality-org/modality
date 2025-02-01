@@ -39,7 +39,7 @@ export default class DAGRider {
       // TODO make this not static
       const round_data = await Round.findOne({
         datastore: this.datastore,
-        round: 1,
+        round_id: 1,
       });
       return round_data.scribes;
     }

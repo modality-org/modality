@@ -77,7 +77,7 @@ export default async function createLibp2pNode({
         : [bootstrap({ list: bootstrappers })]),
     ],
     services: {
-      storage: storage({storage_path: options.storage_path}),
+      storage: storage({storage_path: options.storage_path, network_config: options.network_config}),
       identify: identify(),
       ping: ping(),
       pubsub: gossipsub({

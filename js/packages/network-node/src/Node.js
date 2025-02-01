@@ -6,20 +6,23 @@ import createLibp2pNode from "./createLibp2pNode.js";
 import PeerIdHelpers from "./PeerIdHelpers.js";
 import NetworkDatastore from "@modality-dev/network-datastore";
 export default class Node {
-  constructor({ peerid, keypair, listeners, bootstrappers, swarm }) {
+  constructor({ peerid, keypair, listeners, bootstrappers, swarm, storage_path, network_config }) {
     this.peerid = peerid;
     this.keypair = keypair;
     this.listeners = listeners;
     this.bootstrappers = bootstrappers;
+    this.storage_path = storage_path;
+    this.network_config = network_config;
     this.swarm = swarm;
   }
 
-  static async fromConfigFilepath(filepath) {
+  static async fromConfigFilepath(filepath, overrides = {}) {
     const config = JSONFile.readSync(filepath);
     const relative_path_base = path.resolve(path.dirname(filepath));
     config.passfile_path = path.resolve(relative_path_base, config.passfile_path);
     config.storage_path = path.resolve(relative_path_base, config.storage_path);
-    return Node.fromConfig(config);
+    config.network_config_path = config.network_config_path && path.resolve(relative_path_base, config.network_config_path);
+    return Node.fromConfig({...config, ...overrides});
   }
 
   static async fromConfig(config) {
@@ -29,9 +32,22 @@ export default class Node {
     const listeners = config.listeners || [];
     const resolved_bootstrappers = await resolveDnsEntries(config.bootstrappers || []);
     const bootstrappers = resolved_bootstrappers.filter(ma => !matchesPeerIdSuffix(ma, peerid));
+    let network_config = null;
+    if (config.network_config_path) {
+      network_config = JSONFile.readSync(config.network_config_path);
+    }
+    const node = new Node({ peerid, keypair, storage_path, listeners, bootstrappers, network_config });
 
-    const node = new Node({ peerid, keypair, storage_path, listeners, bootstrappers });
+    return node;
+  }
 
+  static async createNetworkClient(network = 'mainnet', storage_path = null) {
+    const keypair = await Keypair.generate()
+    const peerid = await keypair.asPublicAddress();
+    const resolved_bootstrappers = await resolveDnsEntries([`/dnsaddr/${network}.modality.network`]);
+    const bootstrappers = resolved_bootstrappers.filter(ma => !matchesPeerIdSuffix(ma, peerid));
+    const listeners = [];
+    const node = new Node({ peerid, keypair, listeners, bootstrappers, storage_path });
     return node;
   }
 
@@ -39,20 +55,13 @@ export default class Node {
     const peerId = await this.keypair.asPeerId(); //await PeerIdHelpers.createFromJSON(await this.keypair.asJSON());
     const privateKey = this.keypair.key;
     const addresses = mode === 'client' ? {} : { listen: this.listeners };
-    let ds;
-    if (this.storage_path) {
-      ds = await NetworkDatastore.createWith({
-        storage_type: "directory",
-        storage_path: this.storage_path,
-      });
-    } else {
-      ds = await NetworkDatastore.createInMemory();
-    }
     const swarm = await createLibp2pNode({
       peerId,
       privateKey,
       addresses,
       bootstrappers: this.bootstrappers,
+      storage_path: this.storage_path,
+      network_config: this.network_config
     });
     this.swarm = swarm;
     await this.swarm.start();

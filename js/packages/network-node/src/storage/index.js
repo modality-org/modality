@@ -15,12 +15,15 @@ class ModalityStorageService {
 
   async start() {
     if (this.config?.storage_path) {
-      this.storage = await NetworkDatastore.createWith({
+      this.datastore = await NetworkDatastore.createWith({
         storage_type: "directory",
         storage_path: this.config.storage_path,
       });
     } else {
       this.datastore = await NetworkDatastore.createInMemory();
+    }
+    if (this.config.network_config) {
+      await this.datastore.loadNetworkConfig(this.config.network_config);
     }
     // console.log('Service starting...')
   }

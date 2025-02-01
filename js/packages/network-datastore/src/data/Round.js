@@ -1,7 +1,7 @@
 import Model from "./Model.js";
 export default class Round extends Model {
-  static id_path = "/consensus/round/${round}";
-  static fields = ["round", "scribes"];
+  static id_path = "/consensus/round/${round_id}";
+  static fields = ["round_id", "scribes"];
   static field_defaults = {
     scribes: [],
   };
