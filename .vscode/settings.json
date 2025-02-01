@@ -1,0 +1,7 @@
+{
+  "jestrunner.jestCommand": "pnpm exec cross-env NODE_ENV=test NODE_OPTIONS=\"--experimental-vm-modules\" node 'node_modules/jest/bin/jest.js'",
+  "jestrunner.debugOptions": {
+    "args": ["--logHeapUsage"],
+    "runtimeArgs": ["--experimental-vm-modules", "--inspect-brk", "--expose-gc", "--no-compilation-cache"]
+  }
+}
