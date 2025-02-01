@@ -2,9 +2,11 @@ import SafeJSON from "@modality-dev/utils/SafeJSON";
 import Keypair from "@modality-dev/utils/Keypair";
 import Model from './Model.js';
 
+import * as EncodedText from '@modality-dev/utils/EncodedText';
+
 // Narwhal style vertices
 export default class Block extends Model {
-  static id_path = "/consensus/round/${round}/scribe/${scribe}";
+  static id_path = "/consensus/round/${round_id}/blocks/peer/${peer_id}/hash/${hash}";
   static fields = [
     "round_id",
     "peer_id",
@@ -12,6 +14,7 @@ export default class Block extends Model {
     "opening_sig",
     "events",
     "closing_sig",
+    "hash",
     "acks",
     "late_acks",
     "cert",
@@ -29,13 +32,13 @@ export default class Block extends Model {
     late_acks: [],
   }
 
-  static async findAllInRound({ datastore, round }) {
-    const prefix = `/consensus/round/${round}/scribe`;
+  static async findAllInRound({ datastore, round_id }) {
+    const prefix = `/consensus/round/${round_id}/blocks/peer/`;
     const it = datastore.iterator({ prefix });
     const r = [];
     for await (const [key, value] of it) {
-      const scribe = key.split(`${prefix}/`)[1];
-      const page = await this.findOne({ datastore, round, scribe });
+      const peer = key.split(`${prefix}/`)[1];
+      const page = await this.findOne({ datastore, round_id, peer });
       if (page) {
         r.push(page);
       }
@@ -82,7 +85,22 @@ export default class Block extends Model {
       opening_sig: this.opening_sig,
       events: this.events,
     });
+    await this.generateHash();
     return this.closing_sig;
+  }
+
+  async generateHash() {
+    if (!this.closing_sig) {
+      throw new Error("no hash without closing sig");
+    }
+    const hash = EncodedText.recode(this.closing_sig, 'base64pad', 'base58btc');
+    this.hash = hash;
+    return hash;
+  }
+
+  async generateSig(keypair) {
+    await this.generateOpeningSig(keypair);
+    return await this.generateClosingSig(keypair);
   }
 
   validateOpeningSig() {
@@ -231,12 +249,14 @@ export default class Block extends Model {
   }
 
   async validateCertSig() {
-    const keypair = Keypair.fromPublicKey(this.scribe);
+    const keypair = Keypair.fromPublicKey(this.peer_id);
     return keypair.verifyJSON(this.cert, {
       peer_id: this.peer_id,
       round_id: this.round_id,
       prev_round_certs: this.prev_round_certs,
+      opening_sig: this.opening_sig,
       events: this.events,
+      closing_sig: this.closing_sig,
       acks: this.acks,
     });
   }
