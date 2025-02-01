@@ -9,17 +9,12 @@
         "opening_sig": "7uQ1Dqh4l1ZmwMgEBVAzuKka19YsxCovWQaMA+nW9lWgOspl644CDaX7WpYUlHQITcAHVx+3KGmMP3XGvZmICg==",
         "events": [],
         "closing_sig": "SAqrNEc7WHixMA/HoVwCGpxKAg0kkKlxsWPpkSkfypq48192A3fENZOperw7HeFPvyyVCe5so9t3FZFp7/bmCQ==",
+        "hash": "2SYKNA8BpNmL67WJV3MgN7d2mp6YJSSyYKgyg75wYBG1MibjfPZFUWHPpzbbQbBLdHznqE7Cu73zJooUSHiaeVYU",
         "acks": {
-          "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd": {
-            "peer_id": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
-            "round_id": "0",
-            "closing_sig": "SAqrNEc7WHixMA/HoVwCGpxKAg0kkKlxsWPpkSkfypq48192A3fENZOperw7HeFPvyyVCe5so9t3FZFp7/bmCQ==",
-            "acker": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
-            "acker_sig": "DkQexYtZaWoS+uyuF1aOIHmBxkPHGHftrNnEBGlS+PRAyQsNPiJMgJRkvdoB4ut1Elktfta2M1gHvRrlfq3ECA=="
-          }
+          "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd": "DkQexYtZaWoS+uyuF1aOIHmBxkPHGHftrNnEBGlS+PRAyQsNPiJMgJRkvdoB4ut1Elktfta2M1gHvRrlfq3ECA=="
         },
         "late_acks": [],
-        "cert": "u0mxiEk0PyTTz4ePDKk3SjHhqWA7p+ltkpBnoB3YZM94eLKP1yp1n5563UjAG62KY/teniCLdhwJBQ+QPYkcDA=="
+        "cert": "E3bSKx1sDcY3QfI2YMh4hg6C+7fdo1amC49nP2Ew5oK+6xPKSdRg7C9aM6d4EFoLgEzmab9JGYzWrnSHZVC9Ag=="
       }
     }
   }
