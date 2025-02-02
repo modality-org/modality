@@ -10,8 +10,8 @@ export async function setupNetworkConsensus({
   peerid,
   keypair
 }) {
-  const election = ELECTION_METHODS[election_method].create();
-  const sequencing = SEQUENCING_METHODS[sequencing_method].create({
+  const election = await ELECTION_METHODS[election_method].create();
+  const sequencing = await SEQUENCING_METHODS[sequencing_method].create({
     datastore,
     peerid,
     keypair,

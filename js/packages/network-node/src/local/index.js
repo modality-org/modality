@@ -1,7 +1,7 @@
 import NetworkDatastore from "@modality-dev/network-datastore";
 
-class ModalityStorageService {
-  static serviceName = 'storage'
+class ModalityLocalService {
+  static serviceName = 'local'
   
   static dependencies = {
   }
@@ -34,5 +34,5 @@ class ModalityStorageService {
 }
 
 export default function (config) {
-  return (components, options) => new ModalityStorageService(config);
+  return (components, options) => new ModalityLocalService(config);
 }

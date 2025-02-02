@@ -6,7 +6,7 @@ import * as EncodedText from '@modality-dev/utils/EncodedText';
 
 // Narwhal style vertices
 export default class Block extends Model {
-  static id_path = "/consensus/round/${round_id}/blocks/peer/${peer_id}/hash/${hash}";
+  static id_path = "/consensus/round/${round_id}/blocks/peer/${peer_id}";
   static fields = [
     "round_id",
     "peer_id",
@@ -33,14 +33,14 @@ export default class Block extends Model {
   }
 
   static async findAllInRound({ datastore, round_id }) {
-    const prefix = `/consensus/round/${round_id}/blocks/peer/`;
+    const prefix = `/consensus/round/${round_id}/blocks/peer`;
     const it = datastore.iterator({ prefix });
     const r = [];
     for await (const [key, value] of it) {
-      const peer = key.split(`${prefix}/`)[1];
-      const page = await this.findOne({ datastore, round_id, peer });
-      if (page) {
-        r.push(page);
+      const peer_id = key.split(`${prefix}/`)[1];
+      const block = await this.findOne({ datastore, round_id, peer_id });
+      if (block) {
+        r.push(block);
       }
     }
     return r;
@@ -51,8 +51,9 @@ export default class Block extends Model {
       peer_id: this.peer_id,
       round_id: this.round_id,
       prev_round_certs: this.prev_round_certs,
+      opening_sig: this.opening_sig,
       events: this.events,
-      sig: this.sig,
+      closing_sig: this.closing_sig,
     };
   }
 
@@ -165,15 +166,14 @@ export default class Block extends Model {
     };
   }
 
-
   async validateAck(ack) {
     if (!ack || !ack.acker || !ack.acker_sig) {
       return false;
     }
     const keypair = Keypair.fromPublicKey(ack.acker);
     const facts = {
-      round_id: this.round_id,
       peer_id: this.peer_id,
+      round_id: this.round_id,
       closing_sig: this.closing_sig,
       acker: ack.acker
     };

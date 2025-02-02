@@ -19,7 +19,7 @@ import { bootstrap } from "@libp2p/bootstrap";
 import { identify } from "@libp2p/identify";
 import { gossipsub } from "@chainsafe/libp2p-gossipsub";
 import reqres from "./reqres/index.js";
-import storage from './storage/index.js';
+import local from './local/index.js';
 
 export default async function createLibp2pNode({
   port,
@@ -77,10 +77,14 @@ export default async function createLibp2pNode({
         : [bootstrap({ list: bootstrappers })]),
     ],
     services: {
-      storage: storage({storage_path: options.storage_path, network_config: options.network_config}),
+      local: local({
+        storage_path: options.storage_path, 
+        network_config: options.network_config
+      }),
       identify: identify(),
       ping: ping(),
       pubsub: gossipsub({
+        allowPublishToZeroTopicPeers: true,
         emitSelf: true
       }),
       reqres: reqres(),

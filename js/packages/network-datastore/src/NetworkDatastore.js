@@ -109,6 +109,15 @@ export default class NetworkDatastore {
     return this.datastore.get(key);
   }
 
+  async getKeys(prefix = "") {
+    const it = await this.iterator({ prefix });
+    const r = [];
+    for await (const [key, value] of it) {
+      r.push(key);
+    }
+    return r;
+  }
+
   async getString(key) {
     return (await this.datastore.get(key)).toString();
   }
@@ -308,25 +317,26 @@ export default class NetworkDatastore {
     return r.reverse();
   }
 
-  async getTimelyCertsAtRound(round) {
-    const pages = (
-      await Page.findAllInRound({ datastore: this, round })
+  async getTimelyCertsAtRound(round_id) {
+    const blocks = (
+      await Block.findAllInRound({ datastore: this, round_id })
     ).filter((i) => !i.seen_at_round);
-    return pages.reduce((acc, i) => {
+    return blocks.reduce((acc, i) => {
       acc[i.scribe] = i;
       return acc;
     }, {});
   }
 
-  async getTimelyCertSigsAtRound(round) {
-    const pages = (
-      await Page.findAllInRound({ datastore: this, round })
+  async getTimelyCertSigsAtRound(round_id) {
+    const r = await Block.findAllInRound({ datastore: this, round_id })
+    const blocks = (
+      await Block.findAllInRound({ datastore: this, round_id })
     ).filter((i) => !i.seen_at_round);
-    return pages.reduce((acc, i) => {
-      acc[i.scribe] = {
-        scribe: i.scribe,
+    return blocks.reduce((acc, i) => {
+      acc[i.peer_id] = {
         cert: i.cert,
-        round: i.round,
+        round_id: i.round_id,
+        peer_id: i.peer_id,
       };
       return acc;
     }, {});

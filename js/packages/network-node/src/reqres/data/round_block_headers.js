@@ -7,6 +7,7 @@ export async function handler({ datastore, peer, data }) {
   if (round_id == null) {
     return { ok: false, error: 'missing round_id' };
   }
+  await RoundBlockHeader.ensureAllInRound({datastore, round_id});
   const round_block_headers_records = await RoundBlockHeader.findAllInRound({ datastore, round_id });
   const round_block_headers = round_block_headers_records.map(i => i.toJSONObject());
   return {

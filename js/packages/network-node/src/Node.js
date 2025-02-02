@@ -2,9 +2,11 @@ import JSONFile from "@modality-dev/utils/JSONFile";
 import Keypair from "@modality-dev/utils/Keypair"
 import { resolveDnsEntries, matchesPeerIdSuffix } from "@modality-dev/utils/MultiaddrList";
 import path from 'path';
-import createLibp2pNode from "./createLibp2pNode.js";
-import PeerIdHelpers from "./PeerIdHelpers.js";
-import NetworkDatastore from "@modality-dev/network-datastore";
+import setupNodeInternals from "./setupNodeInternals.js";
+import { addSequencerEventListeners } from "./gossip/index.js";
+import { setupNetworkConsensus } from '@modality-dev/network-consensus';
+import ConsensusCommunication from "../src/lib/ConsensusCommunication.js";
+import { peerIdFromString } from '@libp2p/peer-id'
 export default class Node {
   constructor({ peerid, keypair, listeners, bootstrappers, swarm, storage_path, network_config }) {
     this.peerid = peerid;
@@ -55,7 +57,7 @@ export default class Node {
     const peerId = await this.keypair.asPeerId(); //await PeerIdHelpers.createFromJSON(await this.keypair.asJSON());
     const privateKey = this.keypair.key;
     const addresses = mode === 'client' ? {} : { listen: this.listeners };
-    const swarm = await createLibp2pNode({
+    const swarm = await setupNodeInternals({
       peerId,
       privateKey,
       addresses,
@@ -75,6 +77,10 @@ export default class Node {
     return this.setup('server');
   }
 
+  async listenForConsensusEvents() {
+    addSequencerEventListeners(this.swarm);
+  }
+
   async stop() {
     await this.swarm.stop();
   }
@@ -91,7 +97,6 @@ export default class Node {
     return this.swarm.getMultiaddrs()?.[0];
   }
 
-
   async addPeerMultiaddress(peer_id, multiaddress) {
     return this.swarm.peerStore.save(
       peer_id,
@@ -100,10 +105,40 @@ export default class Node {
   }
 
   getDatastore() {
-    return this.swarm?.services?.storage?.datastore;
+    return this.swarm?.services?.local?.datastore;
   }
 
-  sendRequest(multiaddress, path, data) {
-    return this.swarm.services.reqres.call(multiaddress, path, data);
+  sendRequest(to, path, data) {
+    return this.swarm.services.reqres.call(
+      typeof to === 'string' ? peerIdFromString(to) : to,
+      path,
+      data
+    );
+  }
+
+  handleRequest(from, path, data) {
+    return this.swarm.services.reqres.handleRequest(from, path, data, {node: this.swarm});
+  }
+
+  publishGossip(topic, data) {
+    const json_text = new TextEncoder().encode(JSON.stringify(data))
+    return this.swarm.services.pubsub.publish(topic, json_text);
+  }
+
+  async setupLocalConsensus(opts = {}) {
+    const consensus = await setupNetworkConsensus({
+      peerid: this.peerid,
+      keypair: this.keypair,
+      datastore: this.getDatastore(),
+      sequencing_method: 'StaticAuthority',
+      election_method: 'RoundRobin',
+      ...opts,
+    });
+    consensus.communication = new ConsensusCommunication({
+      node: this,
+    });
+    await this.listenForConsensusEvents();
+    this.swarm.services.local.consensus = consensus;
+    return consensus;
   }
 }

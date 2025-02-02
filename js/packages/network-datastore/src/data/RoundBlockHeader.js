@@ -1,5 +1,7 @@
 import Model from "./Model.js";
 
+import Block from './Block.js';
+
 export default class RoundBlockHeader extends Model {
   static id_path = "/round/${round_id}/block_header/${peer_id}";
   static fields = [
@@ -22,5 +24,22 @@ export default class RoundBlockHeader extends Model {
       }
     }
     return r;
+  }
+
+  static async ensureAllInRound({ datastore, round_id }) {
+    const blocks = await Block.findAllInRound({datastore, round_id})
+    for (const block of blocks) {
+      const rbh = await RoundBlockHeader.findOne({datastore, round_id, peer_id: block.peer_id});
+      if (!rbh) {
+        const rbh = RoundBlockHeader.from({
+          round_id,
+          peer_id: block.peer_id,
+          prev_round_certs: block.prev_round_certs,
+          opening_sig: block.opening_sig,
+          cert: block.cert,
+        });
+        await rbh.save({datastore});
+      }
+    }
   }
 }

@@ -48,7 +48,7 @@ describe("Block", () => {
     await b1.save({ datastore });
 
     result = b1.getId();
-    expect(result).toBe(`/consensus/round/1/blocks/peer/${node1_peerid}/hash/${b1.hash}`);
+    expect(result).toBe(`/consensus/round/1/blocks/peer/${node1_peerid}`);
     const b1r = await Block.findOne({
       datastore,
       round_id: 1,

@@ -133,7 +133,8 @@ export class ReqResService {
       req.path,
       req.data,
       {
-        datastore: this.components.components.storage.datastore,
+        local: this.components.local,
+        datastore: this.components.local.datastore,
         components: this.components.components
         // node: this.components.node
       }

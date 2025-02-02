@@ -4,32 +4,33 @@ import { TOPIC as PAGE_DRAFT_TOPIC } from "../gossip/consensus/scribes/page_draf
 import { TOPIC as PAGE_CERT_TOPIC } from "../gossip/consensus/scribes/page_cert.js";
 
 export default class ConsensusCommunication {
-  constructor({ node, sequencer }) {
+  constructor({ node }) {
     this.node = node;
-    this.sequencer = sequencer;
     return this;
   }
 
-  async callReqres( to, path, data ) {
-    if (to === this.node.peerId.toString()) {
-      return await this.node.services.reqres.handleRequest(this.node.peerId, path, data, {node: this.node});
+  async sendRequest( to, path, data ) {
+    if (to === this.node.peerid) {
+      return await this.node.handleRequest(
+        this.node.peerid,
+        path,
+        data
+      );
     } else {
-      return await this.node.services.reqres.call(
-        peerIdFromString(to),
+      return await this.node.sendRequest(
+        to,
         path,
         data,
-        {node: this.node}
       );
     }
   }
 
   async broadcastDraftPage({ from, page_data }) {
-    const json_text = new TextEncoder().encode(JSON.stringify(page_data))
-    await this.node.services.pubsub.publish(PAGE_DRAFT_TOPIC, json_text);
+    await this.node.publishGossip(PAGE_DRAFT_TOPIC, page_data);
   }
 
   async sendPageAck({ from, to, ack_data }) {
-    return await this.callReqres(
+    return await this.sendRequest(
       to,
       "/consensus/scribes/page_ack",
       ack_data
@@ -41,13 +42,12 @@ export default class ConsensusCommunication {
   }
 
   async broadcastCertifiedPage({ from, page_data }) {
-    const json_text = new TextEncoder().encode(JSON.stringify(page_data))
-    await this.node.services.pubsub.publish(PAGE_CERT_TOPIC, json_text);
+    await this.node.publishGossip(PAGE_CERT_TOPIC, page_data);
   }
 
   async fetchScribeRoundCertifiedPage({ from, to, scribe, round }) {
-    if (to === this.node.peerId.toString()) { return null; }
-    return await this.callReqres(
+    if (to === this.node.peerid) { return null; }
+    return await this.node.sendRequest(
       to,
       "/data/scribe_round_page",
       { scribe, round }
