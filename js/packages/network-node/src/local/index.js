@@ -24,6 +24,10 @@ class ModalityLocalService {
     }
     if (this.config.network_config) {
       await this.datastore.loadNetworkConfig(this.config.network_config);
+      const current_round = await this.datastore.getCurrentRound();
+      if (!current_round) {
+        await this.datastore.setCurrentRound(0);
+      }
     }
     // console.log('Service starting...')
   }

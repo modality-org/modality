@@ -119,11 +119,11 @@ export default class NetworkDatastore {
   }
 
   async getString(key) {
-    return (await this.datastore.get(key)).toString();
+    return (await this.getDataByKey(key))?.toString();
   }
 
   async getInt(key) {
-    const v = (await this.datastore.get(key))?.toString();
+    const v = (await this.getDataByKey(key))?.toString();
     if (v) {
       return parseInt(v);
     } else {
@@ -132,7 +132,7 @@ export default class NetworkDatastore {
   }
 
   async getJSON(key) {
-    return SafeJSON.parse((await this.datastore.get(key)).toString());
+    return SafeJSON.parse((await this.getDataByKey(key))?.toString());
   }
 
   put(key, value) {

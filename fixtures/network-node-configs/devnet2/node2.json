@@ -2,5 +2,6 @@
   "passfile_path": "../../passfiles/node2.mod_passfile",
   "storage_path": "../../../tmp/storage/node2",
   "listeners": ["/ip4/0.0.0.0/tcp/10202/ws"],
-  "bootstrappers": ["/dnsaddr/devnet2.modality.network"]
+  "bootstrappers": ["/dnsaddr/devnet2.modality.network"],
+  "network_config_path": "../../network-configs/devnet2/config.json"
 }
