@@ -1,6 +1,6 @@
-import StaticAuthority from "./StaticAuthority";
-import DAGRider from "./DAGRider";
-import Bullshark from "./Bullshark";
+import StaticAuthority from "./StaticAuthority.js";
+import DAGRider from "./DAGRider.js";
+import Bullshark from "./Bullshark.js";
 
 export const SEQUENCING_METHODS = {
   'StaticAuthority': StaticAuthority,

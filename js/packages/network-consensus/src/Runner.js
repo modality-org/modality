@@ -2,7 +2,8 @@ import Block from "@modality-dev/network-datastore/data/Block";
 import Round from "@modality-dev/network-datastore/data/Round";
 import RoundMessage from "@modality-dev/network-datastore/data/RoundMessage";
 import ContractCommitEvent from "@modality-dev/network-datastore/data/ContractCommitEvent";
-import ConsensusMath from "./lib/ConsensusMath";
+
+import ConsensusMath from "./lib/ConsensusMath.js";
 
 import { setTimeout, setImmediate } from "timers/promises";
 import { Mutex } from "async-mutex";

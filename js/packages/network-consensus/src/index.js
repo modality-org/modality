@@ -1,7 +1,7 @@
-import Runner from "./Runner";
+import Runner from "./Runner.js";
 
-import { SEQUENCING_METHODS } from "./sequencing";
-import { ELECTION_METHODS } from "./election";
+import { SEQUENCING_METHODS } from "./sequencing/index.js";
+import { ELECTION_METHODS } from "./election/index.js";
 
 export async function setupNetworkConsensus({
   datastore,

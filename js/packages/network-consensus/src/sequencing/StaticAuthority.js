@@ -1,4 +1,4 @@
-import ConsensusMath from "../lib/ConsensusMath";
+import ConsensusMath from "../lib/ConsensusMath.js";
 import RoundBlockHeader from "@modality-dev/network-datastore/data/RoundBlockHeader";
 export default class StaticAuthority {
   static async create({ datastore, scribes, election }) {
