@@ -5,7 +5,6 @@ import SafeJSON from "@modality-dev/utils/SafeJSON";
 import fs from "fs-extra";
 
 import Block from './data/Block.js';
-import Page from './data/Page.js';
 import Round from './data/Round.js';
 import RoundBlockHeader from "./data/RoundBlockHeader.js";
 
@@ -211,29 +210,29 @@ export default class NetworkDatastore {
     }
   }
 
-  async findPage({round, scribe}) {
-    return Page.findOne({ datastore: this, round, scribe });
+  async findBlock({round, scribe}) {
+    return Block.findOne({ datastore: this, round, scribe });
   }
 
-  async doesPageCertLinkToPage(later_page, earlier_page) {
-    if (later_page.round <= earlier_page.round) return false;
-    let round = later_page.round - 1;
+  async doesBlockCertLinkToBlock(later_block, earlier_block) {
+    if (later_block.round <= earlier_block.round) return false;
+    let round = later_block.round - 1;
     let cert_set = new Set([
-      ...Object.values(later_page.last_round_certs).map((i) => i.scribe),
+      ...Object.values(later_block.last_round_certs).map((i) => i.scribe),
     ]);
-    while (cert_set.size && round >= earlier_page.round) {
-      if (round === earlier_page.round && cert_set.has(earlier_page.scribe)) {
+    while (cert_set.size && round >= earlier_block.round) {
+      if (round === earlier_block.round && cert_set.has(earlier_block.scribe)) {
         return true;
       }
       const new_cert_set = new Set();
       for (const scribe of cert_set) {
-        let page = await Page.findOne({ datastore: this, round, scribe });
-        if (!page) {
+        let block = await Block.findOne({ datastore: this, round, scribe });
+        if (!block) {
           throw new Error(
-            `Page ${scribe} ${round} not found. You must retrieve it first.`
+            `Block ${scribe} ${round} not found. You must retrieve it first.`
           );
         }
-        for (const i_cert of Object.values(page.last_round_certs)) {
+        for (const i_cert of Object.values(block.last_round_certs)) {
           new_cert_set.add(i_cert.scribe);
         }
       }
@@ -243,29 +242,29 @@ export default class NetworkDatastore {
     return false;
   }
 
-  async findCausallyLinkedPages(last_page, after_page = null) {
+  async findCausallyLinkedBlocks(last_block, after_block = null) {
     const r = [];
-    if (!last_page) return r;
-    if (last_page === after_page) return r;
-    r.push({ round: last_page.round, scribe: last_page.scribe });
-    let page;
-    let round = last_page.round - 1;
+    if (!last_block) return r;
+    if (last_block === after_block) return r;
+    r.push({ round: last_block.round, scribe: last_block.scribe });
+    let block;
+    let round = last_block.round - 1;
 
-    // TODO prioritize pages by MIN(ack_count, 2f+1), then by leader-first-lexicographic order,
-    // recursively causally order their ack linked pages with the same prioritization strategy.
+    // TODO prioritize blocks by MIN(ack_count, 2f+1), then by leader-first-lexicographic order,
+    // recursively causally order their ack linked blocks with the same prioritization strategy.
     // with some binders, this prevents a scribe from silently self-acking as means of prioritizing a commit
 
     let cert_set = new Set([
-      ...Object.values(last_page.last_round_certs).map((i) => i.scribe),
+      ...Object.values(last_block.last_round_certs).map((i) => i.scribe),
     ]);
     while (cert_set.size && round >= 1) {
       const new_cert_set = new Set();
-      // prioritize pages lexographically ordered starting at leader scribe
+      // prioritize blocks lexographically ordered starting at leader scribe
       const certs_list_lexiordered = [...cert_set].sort();
       const certs_list_start = Math.max(
         0,
         certs_list_lexiordered.findIndex(
-          (i) => i.localeCompare(last_page.scribe) > 0
+          (i) => i.localeCompare(last_block.scribe) > 0
         )
       );
       const certs_list = [
@@ -273,26 +272,26 @@ export default class NetworkDatastore {
         ...certs_list_lexiordered.slice(0, certs_list_start),
       ];
       for (const scribe of certs_list) {
-        page = await Page.findOne({ datastore: this, round, scribe });
-        if (!page) {
+        block = await Block.findOne({ datastore: this, round, scribe });
+        if (!block) {
           throw new Error(
-            `Page ${scribe} ${round} not found. You must retrieve it first.`
+            `Block ${scribe} ${round} not found. You must retrieve it first.`
           );
         }
         let should_skip = false;
-        if (after_page) {
+        if (after_block) {
           if (
-            page.scribe === after_page.scribe &&
-            page.round === after_page.round
+            block.scribe === after_block.scribe &&
+            block.round === after_block.round
           ) {
             should_skip = true;
-          } else if (page.round < after_page.round) {
-            if (await this.doesPageCertLinkToPage(after_page, page)) {
+          } else if (block.round < after_block.round) {
+            if (await this.doesBlockCertLinkToBlock(after_block, block)) {
               // console.log(`
-              //   processing ${last_page.round}.${last_page.scribe}
-              //     skipping ${page.round}.${page.scribe}
+              //   processing ${last_block.round}.${last_block.scribe}
+              //     skipping ${block.round}.${block.scribe}
               //     because causally linked to
-              //     skipping ${after_page.round}.${after_page.scribe}
+              //     skipping ${after_block.round}.${after_block.scribe}
               //   `)
               should_skip = true;
             } else {
@@ -301,12 +300,12 @@ export default class NetworkDatastore {
           }
         }
         if (!should_skip) {
-          r.push({ round: page.round, scribe: page.scribe });
-          for (const cert of Object.values(page.last_round_certs || {})) {
+          r.push({ round: block.round, scribe: block.scribe });
+          for (const cert of Object.values(block.last_round_certs || {})) {
             new_cert_set.add(cert.scribe);
           }
         } else {
-          new_cert_set.delete(page.scribe);
+          new_cert_set.delete(block.scribe);
         }
       }
 

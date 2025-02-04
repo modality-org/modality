@@ -1,7 +1,7 @@
 import React from "react";
 import styled from "styled-components";
 import { Link } from "react-router-dom";
-import ScribePage from "./ScribePage";
+import ScribeBlock from "./ScribeBlock";
 
 import Backend from '../lib/Backend.mjs';
 
@@ -28,7 +28,7 @@ export default function RoundRow({ round: round_number }) {
         <div>{round?.sequencing_method}</div>
       </div>
       {scribes.map(scribe => (
-        <ScribePage key={scribe} round={round_number} scribe={scribe} />
+        <ScribeBlock key={scribe} round={round_number} scribe={scribe} />
       ))}
       {scribes.length === 0 && <div className="not-available">
       </div>}

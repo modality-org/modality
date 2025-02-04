@@ -1,4 +1,4 @@
-import { expect, describe, test, it } from "@jest/globals";
+import { expect, describe, test, it, afterEach } from "@jest/globals";
 
 // import createTestNode from "../../createTestNode";
 import Node from '../../src/Node.js';
@@ -8,9 +8,11 @@ const __dirname = dirname(import.meta);
 const FIXTURES_COMMON = `${__dirname}/../../../../fixtures-common`;
 
 describe("reqres /ping", () => {
+  let node1, node2;
+
   it("should work", async () => {
-    const node1 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node1.json`, {storage_path: null});
-    const node2 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node2.json`, {storage_path: null});
+    node1 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node1.json`, {storage_path: null});
+    node2 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node2.json`, {storage_path: null});
     await node1.setupAsClient();
     await node2.setupAsServer();
 
@@ -33,4 +35,9 @@ describe("reqres /ping", () => {
       await node2.stop();
     }
   });
+
+  afterEach(async () => {
+    await node1?.stop();
+    await node2?.stop();
+  })
 });

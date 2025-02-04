@@ -1,4 +1,4 @@
-export const PATH = "/data/round_block_headers";
+export const PATH = "/data/round/block_headers";
 
 import RoundBlockHeader from '@modality-dev/network-datastore/data/RoundBlockHeader';
 

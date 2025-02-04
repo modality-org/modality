@@ -1,4 +1,4 @@
-import Page from '@modality-dev/network-datastore/data/Page';
+import Block from '@modality-dev/network-datastore/data/Block';
 import Round from '@modality-dev/network-datastore/data/Round';
 import { setupSequencing } from '@modality-dev/network-consensus';
 
@@ -27,7 +27,7 @@ export default async function (req, res) {
   const leader_scribe = leader?.scribe;
   const is_section_leader = leader_scribe === scribe_id;
 
-  const page = await Page.findOne({round: round_number, scribe: scribe_id, datastore});
+  const page = await Block.findOne({round: round_number, scribe: scribe_id, datastore});
   const is_certified = Object.keys(page.acks).length >= prev_round_threshold;
 
   return res.json({

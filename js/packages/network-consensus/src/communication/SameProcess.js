@@ -4,7 +4,7 @@ export default class SameProcess {
     this.offline_nodes = [];
   }
 
-  async broadcastDraftPage({ from, page_data }) {
+  async broadcastDraftBlock({ from, block_data }) {
     if (this.offline_nodes.includes(from)) {
       return;
     }
@@ -12,11 +12,11 @@ export default class SameProcess {
       if (this.offline_nodes.includes(to_seq.peerid)) {
         continue;
       }
-      await to_seq?.onReceiveDraftPage(page_data);
+      await to_seq?.onReceiveBlockDraft(block_data);
     }
   }
 
-  async sendPageAck({ from, to, ack_data }) {
+  async sendBlockAck({ from, to, ack_data }) {
     if (this.offline_nodes.includes(from)) {
       return;
     }
@@ -24,10 +24,10 @@ export default class SameProcess {
       return;
     }
     const to_seq = this.nodes[to];
-    await to_seq?.onReceivePageAck(ack_data);
+    await to_seq?.onReceiveBlockAck(ack_data);
   }
 
-  async sendPageLateAck({ from, to, ack_data }) {
+  async sendBlockLateAck({ from, to, ack_data }) {
     if (this.offline_nodes.includes(from)) {
       return;
     }
@@ -35,10 +35,10 @@ export default class SameProcess {
       return;
     }
     const to_seq = this.nodes[to];
-    await to_seq?.onReceivePageLateAck(ack_data);
+    await to_seq?.onReceiveBlockLateAck(ack_data);
   }
 
-  async broadcastCertifiedPage({ from, page_data }) {
+  async broadcastCertifiedBlock({ from, block_data }) {
     if (this.offline_nodes.includes(from)) {
       return;
     }
@@ -46,15 +46,15 @@ export default class SameProcess {
       if (this.offline_nodes.includes(to_seq.peerid)) {
         continue;
       }
-      await to_seq?.onReceiveCertifiedPage(page_data);
+      await to_seq?.onReceiveBlockCert(block_data);
     }
   }
 
-  async fetchScribeRoundCertifiedPage({ from, to, scribe, round }) {
+  async fetchScribeRoundCertifiedBlock({ from, to, scribe, round }) {
     if (this.offline_nodes.includes(from)) {
       return;
     }
     const to_seq = this.nodes[to];
-    return to_seq?.onFetchScribeRoundCertifiedPageRequest({scribe, round});
+    return to_seq?.onFetchScribeRoundCertifiedBlockRequest({scribe, round});
   };
 }

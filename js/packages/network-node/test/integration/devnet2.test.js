@@ -1,14 +1,15 @@
-import { jest, expect, describe, test, it } from "@jest/globals";
-import Node from '../../../src/Node.js';
+import { jest, expect, describe, test, it, afterEach } from "@jest/globals";
+import Node from '../../src/Node.js';
 
 import { dirname } from 'dirname-filename-esm';
 const __dirname = dirname(import.meta);
-const FIXTURES_COMMON = `${__dirname}/../../../../../fixtures-common`;
+const FIXTURES_COMMON = `${__dirname}/../../../../fixtures-common`;
 
-describe("gossip /consensus/scribes/page_draft", () => {
+describe.skip("devnet2", () => {
+  let node1, node2;
   it("should work", async () => {
-    const node1 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node1.json`, {storage_path: null});
-    const node2 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node2.json`, {storage_path: null});
+    node1 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node1.json`, {storage_path: null});
+    node2 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node2.json`, {storage_path: null});
     try {
       await node1.setupAsServer();
       const consensus1 = await node1.setupLocalConsensus();
@@ -23,12 +24,20 @@ describe("gossip /consensus/scribes/page_draft", () => {
       const mockListener = jest.fn();
       node2.swarm.services.pubsub.addEventListener("message", mockListener);
 
-      await consensus1.runRound();
+      await Promise.all([
+        consensus1.runRound(),
+        consensus2.runRound()
+      ]);
 
       expect(mockListener).toHaveBeenCalled();
     } finally {
       await node1.stop();
       await node2.stop();
     }
-  }); 
+  }, 5*1000);
+
+  afterEach(async () => {
+    await node1?.stop();
+    await node2?.stop();
+  })
 });

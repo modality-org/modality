@@ -1,6 +1,6 @@
 import JSONStringifyDeterministic from "json-stringify-deterministic";
 
-import Page from "@modality-dev/network-datastore/data/Page";
+import Block from "@modality-dev/network-datastore/data/Block";
 import Round from "@modality-dev/network-datastore/data/Round";
 import ConsensusMath from "../lib/ConsensusMath.js";
 
@@ -101,32 +101,32 @@ export default class DAGRider {
       }),
     });
 
-    const leader = await this.datastore.findPage({ round, scribe });
+    const leader = await this.datastore.findBlock({ round, scribe });
     // console.log({ round, scribes, scribe, leader });
     if (!leader) {
       return null;
     }
 
-    // ensure that in round+3, 2/3*(scribes) of the pages link back to the leader thru certs
+    // ensure that in round+3, 2/3*(scribes) of the blocks link back to the leader thru certs
     let prev_round_scribes = new Set([leader.scribe]);
     let next_round_scribes = new Set();
     for (const i of [1, 2, 3]) {
       // TODO support changes in scribes
       for (const i_scribe of scribes) {
-        const page = await this.datastore.findPage({
+        const block = await this.datastore.findBlock({
           round: round + i,
           scribe: i_scribe,
         });
-        if (page) {
-          for (const prev_page_scribe of prev_round_scribes) {
-            const prev_page = await this.datastore.findPage({
+        if (block) {
+          for (const prev_block_scribe of prev_round_scribes) {
+            const prev_block = await this.datastore.findBlock({
               round: round + i - 1,
-              scribe: prev_page_scribe,
+              scribe: prev_block_scribe,
             });
             if (
-              page.last_round_certs[prev_page.scribe]?.cert === prev_page.cert
+              block.last_round_certs[prev_block.scribe]?.cert === prev_block.cert
             ) {
-              next_round_scribes.add(page.scribe);
+              next_round_scribes.add(block.scribe);
               continue;
             }
           }
@@ -154,21 +154,21 @@ export default class DAGRider {
         ? 0
         : 5 - start_round_props.binder_wave_round);
     while (working_round < end_round) {
-      const page = await this.findLeaderInRound(working_round);
-      r.push({ round: working_round, scribe: page.scribe });
+      const block = await this.findLeaderInRound(working_round);
+      r.push({ round: working_round, scribe: block.scribe });
       working_round = working_round + 4;
     }
     return r;
   }
 
-  async findOrderedPagesInSection(start_round, end_round) {
+  async findOrderedBlocksInSection(start_round, end_round) {
     const starting_leader = await this.findLeaderInRound(start_round);
     const ending_leader = await this.findLeaderInRound(end_round);
     // console.log({start_round, starting_leader, end_round, ending_leader});
-    return this.datastore.findCausallyLinkedPages(ending_leader, starting_leader);
+    return this.datastore.findCausallyLinkedBlocks(ending_leader, starting_leader);
   }
 
-  async findOrderedPagesUptoRound(end_round) {
+  async findOrderedBlocksUptoRound(end_round) {
     const start_round = 1;
     const round_section_leaders = [];
     for (let round = start_round; round <= end_round; round++) {
@@ -181,9 +181,9 @@ export default class DAGRider {
       return;
     }
     let prev_leader;
-    let page_number;
+    let block_number;
     if (start_round === 1) {
-      page_number = 1;
+      block_number = 1;
     }
     let r = [];
     for (const leader of round_section_leaders) {
@@ -191,16 +191,16 @@ export default class DAGRider {
         prev_leader = leader;
         continue;
       }
-      const ordered_pages = await this.findOrderedPagesInSection(
+      const ordered_blocks = await this.findOrderedBlocksInSection(
         prev_leader.round,
         leader.round
       );
-      r = [...r, ...ordered_pages];
+      r = [...r, ...ordered_blocks];
     }
     return r;
   }
 
-  async saveOrderedPageNumbers(start_round, end_round) {
+  async saveOrderedBlockNumbers(start_round, end_round) {
     const round_section_leaders = [];
     for (let round = start_round; round < end_round; round++) {
       const leader = await this.findLeaderInRound(round);
@@ -211,45 +211,45 @@ export default class DAGRider {
     if (!round_section_leaders.length) {
       return;
     }
-    const ordered_section_pages = [];
+    const ordered_section_blocks = [];
     let prev_leader;
-    let page_number;
+    let block_number;
     if (start_round === 1) {
-      page_number = 1;
+      block_number = 1;
     }
     for (const leader of round_section_leaders) {
       if (!prev_leader) {
         prev_leader = leader;
         continue;
       }
-      const ordered_pages = await this.findOrderedPagesInSection(
+      const ordered_blocks = await this.findOrderedBlocksInSection(
         prev_leader.round,
         leader.round
       );
       const section_starting_round = prev_leader.round;
       const section_ending_round = leader.round;
-      ordered_section_pages.push({
+      ordered_section_blocks.push({
         section_starting_round: prev_leader.round,
         section_ending_round: leader.round,
-        pages: ordered_pages,
+        blocks: ordered_blocks,
       });
-      let section_page_number = 1;
-      for (const ordered_page of ordered_pages) {
-        const page = await Page.findOne({
+      let section_block_number = 1;
+      for (const ordered_block of ordered_blocks) {
+        const block = await Block.findOne({
           datastore: this.datastore,
-          round: ordered_page.round,
-          scribe: ordered_page.scribe,
+          round: ordered_block.round,
+          scribe: ordered_block.scribe,
         });
-        page.section_starting_round = section_starting_round;
-        page.section_ending_round = section_ending_round;
-        page.section_page_number = section_page_number;
-        if (page_number) {
-          page.page_number = page_number;
+        block.section_starting_round = section_starting_round;
+        block.section_ending_round = section_ending_round;
+        block.section_block_number = section_block_number;
+        if (block_number) {
+          block.block_number = block_number;
         }
-        await page.save({ datastore: this.datastore });
-        section_page_number++;
-        if (page_number) {
-          page_number++;
+        await block.save({ datastore: this.datastore });
+        section_block_number++;
+        if (block_number) {
+          block_number++;
         }
       }
       prev_leader = leader;

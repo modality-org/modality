@@ -46,7 +46,7 @@ export default class Runner {
     return this.sequencing.consensusThresholdForRound(round);
   }
 
-  async onReceiveDraftPage(data) {
+  async onReceiveBlockDraft(data) {
     const block = await Block.fromJSONObject(data);
     if (!block.validateSig()) {
       console.warn("invalid sig");
@@ -64,18 +64,18 @@ export default class Runner {
     const current_round = await this.datastore.getCurrentRound();
 
     if (block.round > current_round) {
-      return this.onReceiveDraftPageFromLaterRound(data);
+      return this.onReceiveDraftBlockFromLaterRound(data);
     } else if (block.round < current_round) {
-      return this.onReceiveDraftPageFromEarlierRound(data);
+      return this.onReceiveDraftBlockFromEarlierRound(data);
     } else {
-      return this.onReceiveDraftPageFromCurrentRound(data);
+      return this.onReceiveDraftBlockFromCurrentRound(data);
     }
   }
 
-  async onReceiveDraftPageFromEarlierRound(data) {
+  async onReceiveDraftBlockFromEarlierRound(data) {
     const current_round = await this.datastore.getCurrentRound();
     const block = await Block.fromJSONObject(data);
-    // console.warn(`received draft for earlier round: round ${page.round} draft received but currently on round ${current_round}`);
+    // console.warn(`received draft for earlier round: round ${block.round} draft received but currently on round ${current_round}`);
 
     // TODO provide same late ack if asked again
 
@@ -86,7 +86,7 @@ export default class Runner {
         const prev_round_certs = await this.datastore.getTimelyCertSigsAtRound(
           current_round - 1
         );
-        await this.communication.sendPageLateAck({
+        await this.communication.sendBlockLateAck({
           from: this.peerid,
           to: ack.scribe,
           ack_data: ack,
@@ -97,14 +97,14 @@ export default class Runner {
     }
   }
 
-  async onReceiveDraftPageFromLaterRound(data) {
+  async onReceiveDraftBlockFromLaterRound(data) {
     const current_round = await this.datastore.getCurrentRound();
-    const page = await Block.fromJSONObject(data);
-    // console.warn(`received draft for later round: round ${page.round} draft received but currently on round ${current_round}`);
+    const block = await Block.fromJSONObject(data);
+    // console.warn(`received draft for later round: round ${block.round} draft received but currently on round ${current_round}`);
 
     await RoundMessage.fromJSONObject({
-      round: page.round,
-      scribe: page.scribe,
+      round: block.round,
+      scribe: block.scribe,
       type: "draft",
       seen_at_round: current_round,
       content: data,
@@ -112,7 +112,7 @@ export default class Runner {
 
     // TODO considering bumping rounds!
     // TODO req and verify acker's prev_round_certs chain
-    if (current_round < page.round) {
+    if (current_round < block.round) {
       if (
         !this.latest_seen_at_round ||
         data.round_id > this.latest_seen_at_round
@@ -123,13 +123,13 @@ export default class Runner {
     }
   }
 
-  async onReceiveDraftPageFromCurrentRound(data) {
+  async onReceiveDraftBlockFromCurrentRound(data) {
     const block = await Block.fromJSONObject(data);
 
     if (this.peerid) {
       const ack = await block.generateAck(this.keypair);
       if (this.communication) {
-        await this.communication.sendPageAck({
+        await this.communication.sendBlockAck({
           from: this.peerid,
           to: ack.acker,
           ack_data: ack,
@@ -139,7 +139,7 @@ export default class Runner {
     }
   }
 
-  async onReceivePageAck(ack) {
+  async onReceiveBlockAck(ack) {
     if (!ack) {
       return;
     }
@@ -175,11 +175,11 @@ export default class Runner {
     }
   }
 
-  async onReceivePageLateAck(ack) {
+  async onReceiveBlockLateAck(ack) {
     return;
   }
 
-  async onReceiveCertifiedPage(data) {
+  async onReceiveBlockCert(data) {
     const block = await Block.fromJSONObject(data);
     if (!block.validateSig()) {
       return null;
@@ -188,15 +188,15 @@ export default class Runner {
     const round = await this.datastore.getCurrentRound();
     if (block.round_id < round) {
       // console.log({round}, data);
-      // return this.onReceiveLateCertifiedPage(data);
+      // return this.onReceiveLateCertifiedBlock(data);
     } else if (block.round_id > round) {
-      return this.onReceiveCertifiedPageFromLaterRound(data);
+      return this.onReceiveCertifiedBlockFromLaterRound(data);
     }
 
-    return this.onReceiveCertifiedPageFromCurrentRound(data);
+    return this.onReceiveCertifiedBlockFromCurrentRound(data);
   }
 
-  async onReceiveCertifiedPageFromLaterRound(data) {
+  async onReceiveCertifiedBlockFromLaterRound(data) {
     const current_round = await this.datastore.getCurrentRound();
     const block = await Block.fromJSONObject(data);
 
@@ -221,7 +221,7 @@ export default class Runner {
     }
   }
 
-  async onReceiveCertifiedPageFromCurrentRound(data) {
+  async onReceiveCertifiedBlockFromCurrentRound(data) {
     const block = await Block.fromJSONObject(data);
     if (!block.validateSig()) {
       return null;
@@ -264,18 +264,18 @@ export default class Runner {
     }
 
     if (this.communication) {
-      for (const scribe of prev_round_scribes) {
+      for (const peer_id of prev_round_scribes) {
         const block_data =
-          await this.communication.fetchScribeRoundCertifiedPage({
+          (await this.communication.fetchScribeRoundCertifiedBlock({
             from: this.peerid,
-            to: scribe,
-            scribe,
-            round: prev_round,
-          });
+            to: peer_id,
+            round_id: round,
+            peer_id,
+          }))?.block;
         if (block_data) {
-          const page = await Block.fromJSONObject(block_data);
-          if (page.validateCert({ acks_needed: threshold })) {
-            await page.save({ datastore: this.datastore });
+          const block = await Block.fromJSONObject(block_data?.block);
+          if (block.validateCert({ acks_needed: threshold })) {
+            await block.save({ datastore: this.datastore });
           }
         }
       }
@@ -299,7 +299,7 @@ export default class Runner {
       for (const draft of existing_certs) {
         const draft_content = draft.content;
         await this.datastore.datastore.delete(draft.getId());
-        await this.onReceiveCertifiedPage(draft_content);
+        await this.onReceiveBlockCert(draft_content);
       }
       const threshold = await this.consensusThresholdForRound(round - 1);
       const cert_count = Object.keys(prev_round_certs).length;
@@ -318,6 +318,7 @@ export default class Runner {
     let round = await this.datastore.getCurrentRound();
 
     const prev_round_certs = await this.getOrFetchPrevRoundCerts(round);
+    // console.log('RUNNING round', this.peerid, {prev_round_certs});
 
     const threshold = await this.consensusThresholdForRound(round - 1);
     const cert_count = Object.keys(prev_round_certs).length;
@@ -369,9 +370,9 @@ export default class Runner {
 
     if (this.communication) {
       const block_data = await block.toDraftJSONObject();
-      await this.communication.broadcastDraftPage({
+      await this.communication.broadcastDraftBlock({
         from: this.peerid,
-        page_data: block_data,
+        block_data: block_data,
       });
     }
 
@@ -384,12 +385,13 @@ export default class Runner {
     for (const draft of existing_drafts) {
       const draft_content = draft.content;
       await this.datastore.datastore.delete(draft.getId());
-      await this.onReceiveDraftPage(draft_content);
+      await this.onReceiveBlockDraft(draft_content);
     }
 
     let keep_waiting_for_acks = this.latest_seen_at_round ? false : true;
     let keep_waiting_for_certs = true;
     while (keep_waiting_for_acks || keep_waiting_for_certs) {
+      // console.log(this.peerid, {round, keep_waiting_for_acks, keep_waiting_for_certs})
       if (this.latest_seen_at_round && this.latest_seen_at_round > round) {
         await this.jumpToRound(
           this.latest_seen_at_round,
@@ -404,12 +406,13 @@ export default class Runner {
       if (keep_waiting_for_acks) {
         await block.reload({ datastore: this.datastore });
         const valid_acks = await block.countValidAcks();
+        // console.log(this.peerid, {valid_acks});
         if (valid_acks >= current_round_threshold) {
           await block.generateCert(this.keypair);
           if (this.communication) {
-            await this.communication.broadcastCertifiedPage({
+            await this.communication.broadcastCertifiedBlock({
               from: this.peerid,
-              page_data: await block.toJSONObject(),
+              block_data: await block.toJSONObject(),
             });
           }
           keep_waiting_for_acks = false;
@@ -435,21 +438,21 @@ export default class Runner {
     await this.bumpCurrentRound();
   }
 
-  async onFetchScribeRoundCertifiedPageRequest({ round, scribe }) {
-    return this.datastore.findPage({ round, scribe });
+  async onFetchScribeRoundCertifiedBlockRequest({ round, scribe }) {
+    return this.datastore.findBlock({ round, scribe });
   }
 
   async requestRoundDataFromPeers(round) {
     const scribes = await this.getScribesAtRound(round);
     for (const scribe of scribes) {
-      const page = await this.communication.fetchScribeRoundCertifiedPage({
+      const block = await this.communication.fetchScribeRoundCertifiedBlock({
         from: this.peerid,
         to: scribe,
         scribe,
         round,
       });
-      if (page) {
-        await this.onReceiveCertifiedPage(page);
+      if (block) {
+        await this.onReceiveBlockCert(block);
       }
     }
   }

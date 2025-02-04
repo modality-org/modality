@@ -7,16 +7,16 @@ import Backend from '../lib/Backend.mjs';
 
 export const layout = "HeaderFooter";
 
-export default function ScribePage({round, scribe, showLines = true}) {
+export default function ScribeBlock({round, scribe, showLines = true}) {
 
-  const [page, setPage] = React.useState([]);
+  const [page, setBlock] = React.useState([]);
   const [lines, setLines] = React.useState([]);
   const [isHovering, setIsHovering] = React.useState(false);
 
   React.useEffect(() => {
     (async () => {
       const r = await Backend.get(`/rounds/${round}/scribes/${scribe}`);
-      setPage(r.data.page);
+      setBlock(r.data.page);
     })();
   }, [round]);
 
@@ -56,7 +56,7 @@ export default function ScribePage({round, scribe, showLines = true}) {
   return (
     <StyledDiv id={`scribe-page-round-${round}-scribe-${scribe}`} onMouseEnter={() => setIsHovering(true)} on onMouseLeave={() => setIsHovering(false)}>
       <Link to={`/rounds/${round}/scribes/${scribe}`}>
-        <div className="Page">
+        <div className="Block">
           {page?.is_section_leader && <div className="section-leader">§</div>}
           {page?.is_certified && <div className="certified">✓</div>}
           <div className="scribe-id">...{page.scribe?.substr(-6)}</div>
@@ -81,7 +81,7 @@ const StyledDiv = styled.div/*css*/ `
     font-family: courier;
     font-size: 13px;
   }
-  .Page {
+  .Block {
     border: 1px solid #ccc;
     width: 85px;
     height: 110px;

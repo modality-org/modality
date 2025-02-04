@@ -106,33 +106,33 @@ export default class Bullshark {
       }),
     });
 
-    const leader = await this.datastore.findPage({ round, scribe });
+    const leader = await this.datastore.findBlock({ round, scribe });
     if (!leader) {
       return null;
     }
 
-    // ensure that in round+3, 2/3*(scribes) of the pages ack link back to the leader
-    let prev_pages = new Set([leader.scribe]);
-    let next_pages = new Set();
+    // ensure that in round+3, 2/3*(scribes) of the blocks ack link back to the leader
+    let prev_blocks = new Set([leader.scribe]);
+    let next_blocks = new Set();
     for (const i of [1, 2, 3]) {
       for (const i_scribe of scribes) {
-        const page = await this.datastore.findPage({
+        const block = await this.datastore.findBlock({
           round: round + i,
           scribe: i_scribe,
         });
-        if (page) {
-          for (const prev_page of prev_pages) {
-            if (page.acks[prev_page]) {
-              next_pages.add(page.scribe);
+        if (block) {
+          for (const prev_block of prev_blocks) {
+            if (block.acks[prev_block]) {
+              next_blocks.add(block.scribe);
               continue;
             }
           }
         }
       }
-      prev_pages = new Set([...next_pages]);
-      next_pages = new Set();
+      prev_blocks = new Set([...next_blocks]);
+      next_blocks = new Set();
     }
-    if (prev_pages.size < Math.ceil((2 / 3) * scribes.length)) {
+    if (prev_blocks.size < Math.ceil((2 / 3) * scribes.length)) {
       return null;
     }
 
@@ -214,9 +214,9 @@ export default class Bullshark {
     return r;
   }
 
-  async findOrderedPagesInSection(start_round, end_round) {
+  async findOrderedBlocksInSection(start_round, end_round) {
     const starting_leader = await this.findFallbackLeaderInRound(start_round);
     const ending_leader = await this.findFallbackLeaderInRound(end_round);
-    return this.datastore.findCausallyLinkedPages(ending_leader, starting_leader);
+    return this.datastore.findCausallyLinkedBlocks(ending_leader, starting_leader);
   }
 }

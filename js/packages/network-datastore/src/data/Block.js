@@ -21,8 +21,8 @@ export default class Block extends Model {
     "is_section_leader",
     "section_ending_round",
     "section_starting_round",
-    "section_page_number",
-    "page_number",
+    "section_block_number",
+    "block_number",
     "seen_at_round",
   ];
   static field_defaults = {

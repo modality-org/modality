@@ -10,20 +10,22 @@ import SafeJSON from "@modality-dev/utils/SafeJSON";
 import * as Ping from './ping.js'
 import * as Status from './status.js'
 
-import * as Data_RoundBlockHeaders from './data/round_block_headers.js';
+import * as Data_Round_BlockHeaders from './data/round/block_headers.js';
+import * as Data_Block from './data/block.js';
 
-import * as Consensus_Scribes_PageAck from "./consensus/scribes/page_ack.js";
-import * as Consensus_Status from "./consensus/status.js";
+import * as Consensus_Block_Ack from "./consensus/block/ack.js";
 
-import * as SubmitCommits from "./consensus/submit_commits.js";
+// import * as Consensus_SubmitCommits from "./consensus/submit_commits.js";
 
 const REQRES_MODULES = [
   Ping,
   Status,
-  Data_RoundBlockHeaders,
-  Consensus_Scribes_PageAck,
-  Consensus_Status,
-  SubmitCommits
+
+  Data_Round_BlockHeaders,
+  Data_Block,
+
+  Consensus_Block_Ack,
+  // Consensus_SubmitCommits
 ];
 
 export function asReqResProtocol(func) {

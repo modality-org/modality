@@ -7,7 +7,7 @@ import RoundRow from "../../../components/RoundRow.jsx";
 
 export const layout = "HeaderFooter";
 
-export default function Page() {
+export default function Block() {
   const [round, setRound] = React.useState();
   const { round_number: round_number_str } = useParams();
   const round_number = parseInt(round_number_str);

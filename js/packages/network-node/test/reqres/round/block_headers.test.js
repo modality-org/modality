@@ -1,4 +1,4 @@
-import { expect, describe, test, it } from "@jest/globals";
+import { expect, describe, test, it, afterEach } from "@jest/globals";
 
 import Node from '../../../src/Node.js';
 import RoundBlockHeader from "@modality-dev/network-datastore/data/RoundBlockHeader";
@@ -7,10 +7,12 @@ import { dirname } from 'dirname-filename-esm';
 const __dirname = dirname(import.meta);
 const FIXTURES_COMMON = `${__dirname}/../../../../../fixtures-common`;
 
-describe("reqres /round_block_headers", () => {
+describe("reqres /round/block_headers", () => {
+  let node1, node2;
+
   it("should work", async () => {
-    const node1 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node1.json`, {storage_path: null});
-    const node2 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node2.json`, {storage_path: null});
+    node1 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node1.json`, {storage_path: null});
+    node2 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node2.json`, {storage_path: null});
     await node1.setupAsServer();
     await node2.setupAsClient();
     await node2.addPeerMultiaddress(await node1.getPeerId(), node1.getListenerMultiaddress());
@@ -26,7 +28,7 @@ describe("reqres /round_block_headers", () => {
     try {
       const r = await node2.swarm.services.reqres.call(
         node1.getListenerMultiaddress(),
-        "/data/round_block_headers",
+        "/data/round/block_headers",
         {round_id: 1}
       );
       expect(r.data.round_block_headers[0].round_id).toBe(1);
@@ -37,4 +39,9 @@ describe("reqres /round_block_headers", () => {
       await node2.stop();
     }
   });
+
+  afterEach(async () => {
+    await node1?.stop();
+    await node2?.stop();
+  })
 });

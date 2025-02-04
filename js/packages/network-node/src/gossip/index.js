@@ -1,9 +1,9 @@
-import * as ConsensusScribesPageDraft from "../gossip/consensus/scribes/page_draft.js";
-import * as ConsensusScribesPageCert from "../gossip/consensus/scribes/page_cert.js";
+import * as ConsensusBlockDraft from "../gossip/consensus/block/draft.js";
+import * as ConsensusBlockCert from "../gossip/consensus/block/cert.js";
 
 export const SEQUENCER_TOPIC_MODULES = [
-  ConsensusScribesPageDraft,
-  ConsensusScribesPageCert,
+  ConsensusBlockDraft,
+  ConsensusBlockCert,
 ];
 
 export async function addSequencerEventListeners(node) {

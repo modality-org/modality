@@ -1,7 +1,7 @@
 import { peerIdFromString } from '@libp2p/peer-id'
 
-import { TOPIC as PAGE_DRAFT_TOPIC } from "../gossip/consensus/scribes/page_draft.js";
-import { TOPIC as PAGE_CERT_TOPIC } from "../gossip/consensus/scribes/page_cert.js";
+import { TOPIC as PAGE_DRAFT_TOPIC } from "../gossip/consensus/block/draft.js";
+import { TOPIC as PAGE_CERT_TOPIC } from "../gossip/consensus/block/cert.js";
 
 export default class ConsensusCommunication {
   constructor({ node }) {
@@ -25,32 +25,32 @@ export default class ConsensusCommunication {
     }
   }
 
-  async broadcastDraftPage({ from, page_data }) {
-    await this.node.publishGossip(PAGE_DRAFT_TOPIC, page_data);
+  async broadcastDraftBlock({ from, block_data }) {
+    await this.node.publishGossip(PAGE_DRAFT_TOPIC, block_data);
   }
 
-  async sendPageAck({ from, to, ack_data }) {
+  async sendBlockAck({ from, to, ack_data }) {
     return await this.sendRequest(
       to,
-      "/consensus/scribes/page_ack",
+      "/consensus/block/ack",
       ack_data
     );
   }
 
-  async sendPageLateAck({ from, to, ack_data }) {
+  async sendBlockLateAck({ from, to, ack_data }) {
     // not implemented
   }
 
-  async broadcastCertifiedPage({ from, page_data }) {
-    await this.node.publishGossip(PAGE_CERT_TOPIC, page_data);
+  async broadcastCertifiedBlock({ from, block_data }) {
+    await this.node.publishGossip(PAGE_CERT_TOPIC, block_data);
   }
 
-  async fetchScribeRoundCertifiedPage({ from, to, scribe, round }) {
+  async fetchScribeRoundCertifiedBlock({ from, to, round_id, peer_id }) {
     if (to === this.node.peerid) { return null; }
     return await this.node.sendRequest(
       to,
-      "/data/scribe_round_page",
-      { scribe, round }
+      "/data/block",
+      { round_id, peer_id }
     );
   }
 }

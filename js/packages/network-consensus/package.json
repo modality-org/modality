@@ -12,7 +12,8 @@
   "type": "module",
   "files": [
     "src",
-    "src/*"
+    "src/*",
+    "!src/**/*.test.js"
   ],
   "exports": {
     ".": "./src/index.js",

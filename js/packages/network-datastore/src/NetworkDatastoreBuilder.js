@@ -1,6 +1,6 @@
 import NetworkDatastore from "./NetworkDatastore.js";
 
-import Page from "./data/Page.js";
+import Block from "./data/Block.js";
 import Round from "./data/Round.js";
 import fs from "fs";
 import Keypair from "@modality-dev/utils/Keypair";
@@ -103,8 +103,8 @@ export default class NetworkDatastoreBuilder {
     this.scribe_keypairs = scribe_keypairs;
     this.scribes = Object.keys(scribe_keypairs);
     for (let i = 0; i < initial_rounds; i++) {
-      this.datastore.setCurrentRound(i + 1);
       await this.addFullyConnectedRound();
+      this.datastore.setCurrentRound(i + 1);
     }
   }
 
@@ -122,30 +122,31 @@ export default class NetworkDatastoreBuilder {
       let last_round_certs = {};
       if (round_num > 1) {
         for (const peer_scribe of scribes) {
-          const peer_prev_page = await Page.findOne({
+          const peer_prev_block = await Block.findOne({
             datastore: this.datastore,
-            round: round_num - 1,
-            scribe: peer_scribe,
+            round_id: round_num - 1,
+            peer_id: peer_scribe,
           });
-          last_round_certs[peer_prev_page.scribe] = {
-            scribe: peer_prev_page.scribe,
-            cert: peer_prev_page.cert,
+          last_round_certs[peer_prev_block.scribe] = {
+            peer_id: peer_prev_block.scribe,
+            cert: peer_prev_block.cert,
           };
         }
       }
-      const page = Page.from({
-        scribe,
-        round: round_num,
-        last_round_certs,
+      const block = Block.from({
+        peer_id: scribe,
+        round_id: round_num,
+        prev_round_certs: last_round_certs,
         events: [],
       });
+      await block.generateSig(this.scribe_keypairs[scribe]);
       for (const peer_scribe of scribes) {
-        await page.addAck(
-          await page.generateAck(this.scribe_keypairs[peer_scribe])
+        await block.addAck(
+          await block.generateAck(this.scribe_keypairs[peer_scribe])
         );
       }
-      await page.generateCert(this.scribe_keypairs[scribe]);
-      await page.save({ datastore: this.datastore });
+      await block.generateCert(this.scribe_keypairs[scribe]);
+      await block.save({ datastore: this.datastore });
     }
     await this.datastore.bumpCurrentRound();
   }
@@ -171,21 +172,21 @@ export default class NetworkDatastoreBuilder {
           [scribe]
         );
         for (const peer_scribe of last_round_certified_scribes) {
-          const peer_prev_page = await Page.findOne({
+          const peer_prev_block = await Block.findOne({
             datastore: this.datastore,
-            round: round_num - 1,
-            scribe: peer_scribe,
+            round_id: round_num - 1,
+            peer_id: peer_scribe,
           });
-          last_round_certs[peer_prev_page.scribe] = {
-            scribe: peer_prev_page.scribe,
-            cert: peer_prev_page.cert,
+          last_round_certs[peer_prev_block.scribe] = {
+            peer_id: peer_prev_block.scribe,
+            cert: peer_prev_block.cert,
           };
         }
       }
-      const page = Page.from({
-        scribe,
-        round: round_num,
-        last_round_certs,
+      const block = Block.from({
+        peer_id: scribe,
+        round_id: round_num,
+        prev_round_certs: last_round_certs,
         events: [],
       });
       const acking_scribes = randomSetOfNIncluding(
@@ -194,75 +195,14 @@ export default class NetworkDatastoreBuilder {
         [scribe]
       );
       for (const peer_scribe of acking_scribes) {
-        await page.addAck(
-          await page.generateAck(this.scribe_keypairs[peer_scribe])
+        await block.addAck(
+          await block.generateAck(this.scribe_keypairs[peer_scribe])
         );
       }
-      await page.generateCert(this.scribe_keypairs[scribe]);
-      await page.save({ datastore: this.datastore });
+      await block.generateCert(this.scribe_keypairs[scribe]);
+      await block.save({ datastore: this.datastore });
 
-      /*
-      const page = Page.from({ scribe, round: round_num, events: [], last_round_certs });
-      await page.generateSig(this.scribe_keypairs[scribe])
-      // if (round_num > 1) {
-        // prioritize self ack
-        const acking_scribes = [
-          scribe,
-          ...shuffleArray([...scribes].filter((i) => i !== scribe)),
-        ];
-        let acks_so_far = 0;
-        for (const peer_scribe of acking_scribes) {
-          const peer_prev_page = await Page.findOne({
-            datastore: this.datastore,
-            round: round_num - 1,
-            scribe: peer_scribe,
-          });
-          if (peer_prev_page) {
-            if (acks_so_far >= consensus_threshold) {
-              this.next_round_late_acks[scribe] = [
-                ...(this.next_round_late_acks[scribe] || []),
-                {
-                  round: peer_prev_page?.round,
-                  scribe: peer_scribe,
-                },
-              ];
-            } else {
-              const ack = await page.generateAck(this.scribe_keypairs[peer_scribe]);
-              const valid = await page.addAck(ack);
-              if (!valid) {
-                acks_so_far++;
-              }
-            }
-          }
-        }
-      // }
-      await page.generateCert(this.scribe_keypairs[scribe]);
-
-      const late_acks = this.late_acks[scribe] || [];
-      for (const late_ack of late_acks) {
-        await page.addLateAck(late_ack);
-      }
-      this.late_acks[scribe] = [];
-
-      if (round_num > 1) {
-        const not_late_scribes = scribes.filter(i => !late_acks.includes(i));
-        const last_round_certs = {};
-        for (const peer_scribe of not_late_scribes) {
-          const peer_prev_page = await Page.findOne({
-            datastore: this.datastore,
-            round: round_num - 1,
-            scribe: peer_scribe,
-          });
-          last_round_certs[peer_scribe] = {
-            scribe: peer_scribe,
-            cert: peer_prev_page.cert
-          };
-        }
-        page.last_round_certs = last_round_certs;
-      }
-      */
-
-      await page.save({ datastore: this.datastore });
+      await block.save({ datastore: this.datastore });
     }
     this.late_acks = this.next_round_late_acks;
     this.next_round_late_acks = {};
@@ -282,7 +222,7 @@ export default class NetworkDatastoreBuilder {
         failures--;
         continue;
       }
-      const page = Page.from({ scribe, round: round_num, events: [] });
+      const block = Block.from({ scribe, round: round_num, events: [] });
       if (round_num > 1) {
         // prioritize self ack
         const acking_scribes = [
@@ -291,23 +231,23 @@ export default class NetworkDatastoreBuilder {
         ];
         let acks_so_far = 0;
         for (const peer_scribe of acking_scribes) {
-          const peer_prev_page = await Page.findOne({
+          const peer_prev_block = await Block.findOne({
             datastore: this.datastore,
             round: round_num - 1,
             scribe: peer_scribe,
           });
-          if (peer_prev_page) {
+          if (peer_prev_block) {
             if (acks_so_far >= consensus_threshold) {
               this.next_round_late_acks[scribe] = [
                 ...(this.next_round_late_acks[scribe] || []),
                 {
-                  round: peer_prev_page?.round,
+                  round: peer_prev_block?.round,
                   scribe: peer_scribe,
                 },
               ];
             } else {
-              await page.addAck(
-                await page.generateAck(this.scribe_keypairs[peer_scribe])
+              await block.addAck(
+                await block.generateAck(this.scribe_keypairs[peer_scribe])
               );
               acks_so_far++;
             }
@@ -316,10 +256,10 @@ export default class NetworkDatastoreBuilder {
       }
       const late_acks = this.late_acks[scribe] || [];
       for (const late_ack of late_acks) {
-        await page.addLateAck(late_ack);
+        await block.addLateAck(late_ack);
       }
       this.late_acks[scribe] = [];
-      await page.save({ datastore: this.datastore });
+      await block.save({ datastore: this.datastore });
     }
     this.late_acks = this.next_round_late_acks;
     this.next_round_late_acks = {};

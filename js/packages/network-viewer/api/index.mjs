@@ -50,7 +50,7 @@ export default async function main({port, datastore, watch}) {
       datastore: builder.datastore,
       randomness,
     });
-    await binder.saveOrderedPageNumbers(1, ROUNDS);
+    await binder.saveOrderedBlockNumbers(1, ROUNDS);
     server.datastore_builder = builder;
     server.datastore = builder.datastore;
   } else if (datastore) {

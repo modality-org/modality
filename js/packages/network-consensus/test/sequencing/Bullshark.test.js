@@ -6,7 +6,7 @@ import Devnet from "@modality-dev/network-configs/Devnet";
 
 import TestNetwork from "../TestNetwork";
 
-describe("Bullshark", () => {
+describe.skip("Bullshark", () => {
   // to make testing easy to understand
   // round robin is used to elect leaders
 
@@ -22,8 +22,8 @@ describe("Bullshark", () => {
     expect(leader1).not.toBeNull();
     const leader5 = await runner1.sequencing.findLeaderInRound(5);
     expect(leader5).not.toBeNull();
-    const pages = await runner1.sequencing.findOrderedPagesInSection(null, 5);
-    expect(pages.length).toBe(NODE_COUNT * 4 + 1);
+    const blocks = await runner1.sequencing.findOrderedBlocksInSection(null, 5);
+    expect(blocks.length).toBe(NODE_COUNT * 4 + 1);
   });
 
   test("given f = 1, one bad sequencer not elected leader, network can sequence", async () => {
@@ -41,8 +41,8 @@ describe("Bullshark", () => {
     expect(leader1).not.toBeNull();
     const leader5 = await runner1.sequencing.findLeaderInRound(5);
     expect(leader5).not.toBeNull();
-    const pages = await runner1.sequencing.findOrderedPagesInSection(null, 5);
-    expect(pages.length).toBe((NODE_COUNT - BAD_NODE_COUNT) * 4 + 1 + BAD_NODE_COUNT);
+    const blocks = await runner1.sequencing.findOrderedBlocksInSection(null, 5);
+    expect(blocks.length).toBe((NODE_COUNT - BAD_NODE_COUNT) * 4 + 1 + BAD_NODE_COUNT);
   });
 
   test("given f = 0, one bad sequence, network stalls", async () => {

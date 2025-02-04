@@ -6,14 +6,14 @@ import Backend from '../../../../../lib/Backend.mjs';
 
 export const layout = "HeaderFooter";
 
-export default function Page() {
-  const [page, setPage] = React.useState();
+export default function Block() {
+  const [page, setBlock] = React.useState();
   const { round_number, scribe_id } = useParams();
 
   React.useEffect(() => {
     (async () => {
       const r = await Backend.get(`/rounds/${round_number}/scribes/${scribe_id}`);
-      setPage(r.data.page);
+      setBlock(r.data.page);
     })();
   }, [round_number, scribe_id]);
 
@@ -29,7 +29,7 @@ export default function Page() {
     <div>
       Is Ordered: {page?.page_number ? 'true' : 'false'}
       <br />
-      Page Number: {page?.page_number}
+      Block Number: {page?.page_number}
     </div>
     <br />
     <div>

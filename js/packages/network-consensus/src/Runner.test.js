@@ -2,7 +2,7 @@ import { jest, expect, describe, test, it } from "@jest/globals";
 
 import NetworkDatastoreBuilder from "@modality-dev/network-datastore/NetworkDatastoreBuilder";
 import Devnet from "@modality-dev/network-configs/Devnet";
-import Page from "@modality-dev/network-datastore/data/Page";
+import Block from "@modality-dev/network-datastore/data/Block";
 
 import Runner from "./Runner";
 import StaticAuthority from "./sequencing/StaticAuthority";
@@ -13,7 +13,7 @@ describe("Runner", () => {
 
     // const election = RoundRobin.create();
 
-    let page, ack, round;
+    let block, ack, round;
 
     // setup
     const scribes = await Devnet.getPeerids(NODE_COUNT);
@@ -56,37 +56,38 @@ describe("Runner", () => {
 
     // round 2 from perspective of scribe 1
     round = 2;
-    page = Page.from({
-      round,
-      scribe: scribes[0],
-      last_round_certs: await runner1.datastore.getTimelyCertSigsAtRound(round - 1),
+    const prev_round_certs = await runner1.datastore.getTimelyCertSigsAtRound(round - 1);
+    block = Block.from({
+      round_id: round,
+      peer_id: scribes[0],
+      prev_round_certs,
       events: [],
     });
-    await page.generateSig(scribe_keypairs[scribes[0]]);
-    await page.save({ datastore: runner1.datastore });
-    ack = await runner1.onReceiveDraftPage(page);
-    await runner1.onReceivePageAck(ack);
+    await block.generateSig(scribe_keypairs[scribes[0]]);
+    await block.save({ datastore: runner1.datastore });
+    ack = await runner1.onReceiveBlockDraft(block);
+    await runner1.onReceiveBlockAck(ack);
 
-    ack = await runner2.onReceiveDraftPage(page);
-    await runner1.onReceivePageAck(ack);
+    ack = await runner2.onReceiveBlockDraft(block);
+    await runner1.onReceiveBlockAck(ack);
 
-    ack = await runner3.onReceiveDraftPage(page);
-    await runner1.onReceivePageAck(ack);
+    ack = await runner3.onReceiveBlockDraft(block);
+    await runner1.onReceiveBlockAck(ack);
 
-    await page.reload({ datastore: runner1.datastore });
-    await page.generateCert(scribe_keypairs[scribes[0]]);
-    expect(page.cert).not.toBeNull();
-    expect(Object.keys(page.acks).length).toBe(3);
-    expect(await page.validateCert({ acks_needed: 3 })).toBe(true);
+    await block.reload({ datastore: runner1.datastore });
+    await block.generateCert(scribe_keypairs[scribes[0]]);
+    expect(block.cert).not.toBeNull();
+    expect(Object.keys(block.acks).length).toBe(3);
+    expect(await block.validateCert({ acks_needed: 3 })).toBe(true);
 
-    let cert_page = await runner2.onReceiveCertifiedPage(
-      await page.toJSONObject()
+    let cert_block = await runner2.onReceiveBlockCert(
+      block.toJSONObject()
     );
-    expect(cert_page).not.toBe(null);
-    cert_page = await runner2.onReceiveCertifiedPage({
-      ...(await page.toJSONObject()),
+    expect(cert_block).not.toBe(null);
+    cert_block = await runner2.onReceiveBlockCert({
+      ...(block.toJSONObject()),
       cert: null,
     });
-    expect(cert_page).toBeNull();
+    expect(cert_block).toBeNull();
   });
 });

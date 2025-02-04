@@ -10,7 +10,7 @@ export const layout = "HeaderFooter";
 const INITIAL_MAX_ROUNDS = 20;
 const SHOW_MORE_ROUNDS = 10;
 
-export default function Page() {
+export default function Block() {
   const [status, setStatus] = React.useState();
   const [minRound, setMinRound] = React.useState(0);
   const [maxRound, setMaxRound] = React.useState(0);
