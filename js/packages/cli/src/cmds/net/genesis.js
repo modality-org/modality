@@ -2,8 +2,14 @@
 export const command = 'genesis';
 export const describe = 'Generate or fork a network';
 export const builder = {
-  passfile: {},
-  dir: {}
+  passfile: {
+    type: 'filepath',
+    demandOption: true
+  },
+  dir: {
+    type: 'filepath',
+    demandOption: true
+  }
 };
 
 import Keypair from "@modality-dev/utils/Keypair";
@@ -39,8 +45,8 @@ export async function handler({passfile, dir}) {
     network_config.rounds[round_id] = {};
     for (const peer_id of peers) {
       let block;
-      if (peer_id === my_peer_id && !fs.existsSync(`${dir}/setup/rounds/${round_id}/${peer_id}/events.json`)) {
-        console.log(`ACK round_id: ${round_id}, peer_id: ${peer_id}`)
+      if (peer_id === my_peer_id && fs.existsSync(`${dir}/setup/rounds/${round_id}/${peer_id}/events.json`) && !fs.existsSync(`${dir}/setup/rounds/${round_id}/${peer_id}/block.json`)) {
+        console.log(`CREATE BLOCK round_id: ${round_id}, peer_id: ${peer_id}`)
         const events = fs.readJSONSync(`${dir}/setup/rounds/${round_id}/${peer_id}/events.json`);
         block = Block.from({
           round_id,
@@ -52,7 +58,8 @@ export async function handler({passfile, dir}) {
         await block.generateClosingSig(keypair);
         const ack = await block.generateAck(keypair);
         await block.addAck(ack);
-      } else {
+        fs.writeJSONSync(`${dir}/setup/rounds/${round_id}/${peer_id}/block.json`, block.toJSONObject(), {spaces: 2});
+      } else if (fs.existsSync(`${dir}/setup/rounds/${round_id}/${peer_id}/block.json`)) {
         console.log(`ACK round_id: ${round_id}, peer_id: ${peer_id}`)
         const block_data = fs.readJSONSync(`${dir}/setup/rounds/${round_id}/${peer_id}/block.json`);
         block = Block.from(block_data)
@@ -68,7 +75,7 @@ export async function handler({passfile, dir}) {
           //
         }
       }
-      if (block.cert) {
+      if (block?.cert) {
         network_config.rounds[round_id][peer_id] = block.toJSONObject();
       } else {
         console.log(`MISSING CERT round_id: ${round_id}, peer_id: ${peer_id}`);

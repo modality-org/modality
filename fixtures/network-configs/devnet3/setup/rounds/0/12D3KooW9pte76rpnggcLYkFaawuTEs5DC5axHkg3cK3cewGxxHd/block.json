@@ -1,0 +1,16 @@
+{
+  "round_id": "0",
+  "peer_id": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
+  "prev_round_certs": {},
+  "opening_sig": "7uQ1Dqh4l1ZmwMgEBVAzuKka19YsxCovWQaMA+nW9lWgOspl644CDaX7WpYUlHQITcAHVx+3KGmMP3XGvZmICg==",
+  "events": [],
+  "closing_sig": "SAqrNEc7WHixMA/HoVwCGpxKAg0kkKlxsWPpkSkfypq48192A3fENZOperw7HeFPvyyVCe5so9t3FZFp7/bmCQ==",
+  "hash": "2SYKNA8BpNmL67WJV3MgN7d2mp6YJSSyYKgyg75wYBG1MibjfPZFUWHPpzbbQbBLdHznqE7Cu73zJooUSHiaeVYU",
+  "acks": {
+    "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd": "DkQexYtZaWoS+uyuF1aOIHmBxkPHGHftrNnEBGlS+PRAyQsNPiJMgJRkvdoB4ut1Elktfta2M1gHvRrlfq3ECA==",
+    "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB": "63FeNbShG/RQQqtNWd3/91pr7wAwm+ARmVLeIokHpNPjNYbLN5jwA5C8AjpodaBUUAIFnLhnKVI/V2mVZ8RjAQ==",
+    "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se": "ETrcSyAISqncXDL4OoyLZvwdrurXKXqo2UNEn7BoIgKk66606m9Ob+y2DrsIDph85ukKGr92dYxLCCpELcXnBQ=="
+  },
+  "late_acks": [],
+  "cert": "kFAk+vKhn4GRFE2RHs/WJPucinJs2jU/GsSZ1aLktaraRvyDZNks+MzEiHPSEWrYy+Z73DBgiR/G4Riq6i5LAw=="
+}
