@@ -117,7 +117,12 @@ export default class Node {
   }
 
   handleRequest(from, path, data) {
-    return this.swarm.services.reqres.handleRequest(from, path, data, {node: this.swarm});
+    const context = {
+      services: this.swarm.services,
+      datastore: this.swarm.services.local.datastore,
+      local: this.swarm.services.local
+    };
+    return this.swarm.services.reqres.handleRequest(from, path, data, context);
   }
 
   publishGossip(topic, data) {

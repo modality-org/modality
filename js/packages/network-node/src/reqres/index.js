@@ -135,10 +135,9 @@ export class ReqResService {
       req.path,
       req.data,
       {
+        services: this.components,
         local: this.components.local,
         datastore: this.components.local.datastore,
-        components: this.components.components
-        // node: this.components.node
       }
     );
     this.log(

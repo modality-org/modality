@@ -131,7 +131,7 @@ export default class Runner {
       if (this.communication) {
         await this.communication.sendBlockAck({
           from: this.peerid,
-          to: ack.acker,
+          to: ack.peer_id,
           ack_data: ack,
         });
       }
@@ -145,12 +145,14 @@ export default class Runner {
     }
 
     const whoami = this.peerid;
-    if (!whoami || whoami !== ack.peer_id) {
+    if (!whoami) {
+      console.warn(`ignoring ack, no private key`);
       return;
     }
 
     const round_id = await this.datastore.getCurrentRound();
-    if (ack.round_id !== round_id) {
+    if (ack.round_id != round_id) {
+      console.warn(`ignoring ack from other round`);
       return;
     }
 
@@ -169,6 +171,7 @@ export default class Runner {
     });
     if (block) {
       await this.mutex.runExclusive(async () => {
+        await block.reload({datastore: this.datastore});
         await block.addAck(ack);
         await block.save({ datastore: this.datastore });
       });
@@ -391,7 +394,6 @@ export default class Runner {
     let keep_waiting_for_acks = this.latest_seen_at_round ? false : true;
     let keep_waiting_for_certs = true;
     while (keep_waiting_for_acks || keep_waiting_for_certs) {
-      // console.log(this.peerid, {round, keep_waiting_for_acks, keep_waiting_for_certs})
       if (this.latest_seen_at_round && this.latest_seen_at_round > round) {
         await this.jumpToRound(
           this.latest_seen_at_round,

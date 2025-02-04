@@ -321,7 +321,7 @@ export default class NetworkDatastore {
       await Block.findAllInRound({ datastore: this, round_id })
     ).filter((i) => !i.seen_at_round);
     return blocks.reduce((acc, i) => {
-      acc[i.scribe] = i;
+      acc[i.peer_id] = i.cert;
       return acc;
     }, {});
   }

@@ -5,7 +5,7 @@ import { dirname } from 'dirname-filename-esm';
 const __dirname = dirname(import.meta);
 const FIXTURES_COMMON = `${__dirname}/../../../../fixtures-common`;
 
-describe.skip("devnet2", () => {
+describe("devnet2", () => {
   let node1, node2;
   it("should work", async () => {
     node1 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node1.json`, {storage_path: null});
@@ -30,11 +30,21 @@ describe.skip("devnet2", () => {
       ]);
 
       expect(mockListener).toHaveBeenCalled();
+
+      for (let i = 0; i < 10; i++) {
+        await Promise.all([
+          consensus1.runRound(),
+          consensus2.runRound()
+        ]);
+      }
+
+      const round_id = await node2.getDatastore().getCurrentRound();
+      expect(round_id).toBe(12);
     } finally {
       await node1.stop();
       await node2.stop();
     }
-  }, 5*1000);
+  }, 15*1000);
 
   afterEach(async () => {
     await node1?.stop();
