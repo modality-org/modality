@@ -125,6 +125,22 @@ export default class Node {
     return this.swarm.services.reqres.handleRequest(from, path, data, context);
   }
 
+  sendOrHandleRequest(to, path, data) {
+    if (to === this.peerid) {
+      return this.handleRequest(
+        this.peerid,
+        path,
+        data
+      );
+    } else {
+      return this.sendRequest(
+        to,
+        path,
+        data,
+      );
+    }
+  }
+
   publishGossip(topic, data) {
     const json_text = new TextEncoder().encode(JSON.stringify(data))
     return this.swarm.services.pubsub.publish(topic, json_text);

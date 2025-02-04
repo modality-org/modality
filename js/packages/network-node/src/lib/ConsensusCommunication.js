@@ -1,28 +1,9 @@
-import { peerIdFromString } from '@libp2p/peer-id'
-
 import { TOPIC as PAGE_DRAFT_TOPIC } from "../gossip/consensus/block/draft.js";
 import { TOPIC as PAGE_CERT_TOPIC } from "../gossip/consensus/block/cert.js";
 
 export default class ConsensusCommunication {
   constructor({ node }) {
     this.node = node;
-    return this;
-  }
-
-  async sendRequest( to, path, data ) {
-    if (to === this.node.peerid) {
-      return await this.node.handleRequest(
-        this.node.peerid,
-        path,
-        data
-      );
-    } else {
-      return await this.node.sendRequest(
-        to,
-        path,
-        data,
-      );
-    }
   }
 
   async broadcastDraftBlock({ from, block_data }) {
@@ -30,7 +11,7 @@ export default class ConsensusCommunication {
   }
 
   async sendBlockAck({ from, to, ack_data }) {
-    return await this.sendRequest(
+    return await this.node.sendOrHandleRequest(
       to,
       "/consensus/block/ack",
       ack_data
