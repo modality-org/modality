@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 use anyhow;
 
-use crate::models::page::Page;
+use crate::models::block::Block;
 
 pub struct NetworkDatastore {
     db: DB,
@@ -139,9 +139,9 @@ impl NetworkDatastore {
         Ok(new_block)
     }
 
-    pub async fn set_current_block_id(&self, block_id: u64) -> Result<()> {
+    pub async fn set_current_block_id(&self, round_id: u64) -> Result<()> {
         let key = "/status/current_block";
-        self.put(key, block_id.to_string().as_bytes()).await?;
+        self.put(key, round_id.to_string().as_bytes()).await?;
         Ok(())
     }
 
@@ -152,27 +152,27 @@ impl NetworkDatastore {
             .ok_or_else(|| Error::KeyNotFound(key.to_string()))
     }
 
-    pub async fn get_timely_cert_pages_at_block_id(&self, block_id: u64) -> anyhow::Result<HashMap<String, Page>> {
-        let pages = Page::find_all_in_block(self, block_id).await?;
+    pub async fn get_timely_cert_pages_at_block_id(&self, round_id: u64) -> anyhow::Result<HashMap<String, Block>> {
+        let pages = Block::find_all_in_round(self, round_id).await?;
         
         Ok(pages
             .into_iter()
-            .filter(|page| page.seen_at_block_id.is_none())
-            .map(|page| (page.peer_id.clone(), page))
+            .filter(|block| block.seen_at_block_id.is_none())
+            .map(|block| (block.peer_id.clone(), block))
             .collect())
     }
 
-    pub async fn get_timely_certs_at_block_id(&self, block_id: u64) -> anyhow::Result<HashMap<String, String>> {
-        let pages = Page::find_all_in_block(self, block_id).await?;
+    pub async fn get_timely_certs_at_block_id(&self, round_id: u64) -> anyhow::Result<HashMap<String, String>> {
+        let pages = Block::find_all_in_round(self, round_id).await?;
 
         Ok(pages
             .into_iter()
-            .filter(|page| page.seen_at_block_id.is_none())
-            .filter(|page| page.cert.is_some())
-            .map(|page| {
+            .filter(|block| block.seen_at_block_id.is_none())
+            .filter(|block| block.cert.is_some())
+            .map(|block| {
                 (
-                    page.peer_id.clone(),
-                    page.cert.unwrap_or_default(),
+                    block.peer_id.clone(),
+                    block.cert.unwrap_or_default(),
                 )
             })
             .collect())

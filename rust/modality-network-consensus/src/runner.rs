@@ -6,8 +6,8 @@ use crate::communication::Communication;
 use crate::sequencing::Sequencing;
 
 use modality_network_datastore::{Model, NetworkDatastore};
-use modality_network_datastore::models::{Page, Block, BlockMessage};
-use modality_network_datastore::models::page::{Ack};
+use modality_network_datastore::models::{Block, BlockMessage};
+use modality_network_datastore::models::block::{Ack};
 use modality_utils::keypair::Keypair;
 
 // const INTRA_ROUND_WAIT_TIME_MS: u64 = 50;
@@ -58,49 +58,49 @@ impl Runner {
         )
     }
 
-    async fn get_scribes_at_block_id(&self, block_id: u64) -> Result<Vec<String>> {
-        self.sequencing.get_scribes_at_block_id(block_id).await
+    async fn get_scribes_at_round_id(&self, round_id: u64) -> Result<Vec<String>> {
+        self.sequencing.get_scribes_at_round_id(round_id).await
     }
 
-    async fn consensus_threshold_at_block_id(&self, block_id: u64) -> Result<u64> {
-        self.sequencing.consensus_threshold_at_block_id(block_id).await
+    async fn consensus_threshold_at_round_id(&self, round_id: u64) -> Result<u64> {
+        self.sequencing.consensus_threshold_at_round_id(round_id).await
     }
 
-    pub async fn on_receive_draft_page(&mut self, page_data: serde_json::Value) -> Result<Option<Ack>> {
-        let page = Page::create_from_json(page_data.clone())?;
-        if !page.validate_sigs()? {
+    pub async fn on_receive_draft_block(&mut self, block_data: serde_json::Value) -> Result<Option<Ack>> {
+        let block = Block::create_from_json(block_data.clone())?;
+        if !block.validate_sigs()? {
             warn!("invalid sig");
             return Ok(None);
         }
 
-        let round_scribes = self.get_scribes_at_block_id(page.block_id.try_into().unwrap()).await?;
-        if !round_scribes.contains(&page.peer_id) {
-            warn!("ignoring non-scribe {} at block_id {}", page.peer_id, page.block_id);
+        let round_scribes = self.get_scribes_at_round_id(block.round_id.try_into().unwrap()).await?;
+        if !round_scribes.contains(&block.peer_id) {
+            warn!("ignoring non-scribe {} at round_id {}", block.peer_id, block.round_id);
             return Ok(None);
         }
 
         let current_block_id = self.datastore.get_current_block_id().await?;
 
-        if page.block_id > current_block_id {
-            self.on_receive_draft_page_from_later_round(page_data).await
-        } else if page.block_id < current_block_id {
-            self.on_receive_draft_page_from_earlier_round(page_data).await
+        if block.round_id > current_block_id {
+            self.on_receive_draft_block_from_later_round(block_data).await
+        } else if block.round_id < current_block_id {
+            self.on_receive_draft_block_from_earlier_round(block_data).await
         } else {
-            self.on_receive_draft_page_from_current_round(page_data).await
+            self.on_receive_draft_block_from_current_round(block_data).await
         }
     }
 
-    async fn on_receive_draft_page_from_earlier_round(
+    async fn on_receive_draft_block_from_earlier_round(
         &self,
-        page_data: serde_json::Value,
+        block_data: serde_json::Value,
     ) -> Result<Option<Ack>> {
         let current_block_id = self.datastore.get_current_block_id().await?;
-        let page = Page::create_from_json(page_data)?;
+        let block = Block::create_from_json(block_data)?;
 
         if let (Some(peerid), Some(keypair)) = (&self.peerid, &self.keypair) {
-            let ack = page.generate_late_ack(keypair, current_block_id)?;
+            let ack = block.generate_late_ack(keypair, current_block_id)?;
             if let Some(communication) = &self.communication {                
-                communication.send_page_late_ack(
+                communication.send_block_late_ack(
                     &peerid.clone(),
                     &ack.peer_id.clone(),
                     &ack.clone(),
@@ -112,40 +112,40 @@ impl Runner {
         }
     }
 
-    async fn on_receive_draft_page_from_later_round(
+    async fn on_receive_draft_block_from_later_round(
         &mut self,
-        page_data: serde_json::Value,
+        block_data: serde_json::Value,
     ) -> Result<Option<Ack>> {
         let current_block_id = self.datastore.get_current_block_id().await?;
-        let page = Page::create_from_json(page_data.clone())?;
+        let block = Block::create_from_json(block_data.clone())?;
 
         let round_message = BlockMessage::create_from_json(serde_json::json!({
-            "block_id": page.block_id,
-            "peer_id": page.peer_id,
+            "round_id": block.round_id,
+            "peer_id": block.peer_id,
             "type": "draft",
             "seen_at_block_id": current_block_id,
-            "content": page_data
+            "content": block_data
         }))?;
         round_message.save(&self.datastore).await?;
 
-        if current_block_id < page.block_id {
-            if self.latest_seen_at_block_id.is_none() || page.block_id > self.latest_seen_at_block_id.unwrap() {
-                self.latest_seen_at_block_id = Some(page.block_id);
+        if current_block_id < block.round_id {
+            if self.latest_seen_at_block_id.is_none() || block.round_id > self.latest_seen_at_block_id.unwrap() {
+                self.latest_seen_at_block_id = Some(block.round_id);
             }
         }
         Ok(None)
     }
 
-    async fn on_receive_draft_page_from_current_round(
+    async fn on_receive_draft_block_from_current_round(
         &self,
-        page_data: serde_json::Value,
+        block_data: serde_json::Value,
     ) -> Result<Option<Ack>> {
-        let page = Page::create_from_json(page_data)?;
+        let block = Block::create_from_json(block_data)?;
 
         if let (Some(peerid), Some(keypair)) = (&self.peerid, &self.keypair) {
-            let ack = page.generate_ack(keypair)?;
+            let ack = block.generate_ack(keypair)?;
             if let Some(communication) = &self.communication {
-                communication.send_page_ack(
+                communication.send_block_ack(
                     &peerid.clone(),
                     &ack.peer_id.clone(),
                     &ack.clone(),
@@ -157,7 +157,7 @@ impl Runner {
         }
     }
 
-    pub async fn on_receive_page_ack(&self, ack: Option<Ack>) -> Result<()> {
+    pub async fn on_receive_block_ack(&self, ack: Option<Ack>) -> Result<()> {
         let Some(ack) = ack else {
             return Ok(());
         };
@@ -171,98 +171,98 @@ impl Runner {
             return Ok(());
         }
 
-        let block_id = self.datastore.get_current_block_id().await?;
-        if ack.block_id != block_id {
+        let round_id = self.datastore.get_current_block_id().await?;
+        if ack.round_id != round_id {
             return Ok(());
         }
 
-        let round_scribes = self.get_scribes_at_block_id(ack.block_id).await?;
+        let round_scribes = self.get_scribes_at_round_id(ack.round_id).await?;
         if !round_scribes.contains(&ack.acker) {
-            warn!("ignoring non-scribe ack {} at block_id {}", ack.acker, ack.block_id);
+            warn!("ignoring non-scribe ack {} at round_id {}", ack.acker, ack.round_id);
             return Ok(());
         }
 
-        if let Some(mut page) = Page::find_one(
+        if let Some(mut block) = Block::find_one(
             &self.datastore,
             std::collections::HashMap::from([
-                (String::from("block_id"), block_id.to_string()),
+                (String::from("round_id"), round_id.to_string()),
                 (String::from("peer_id"), whoami.to_string()),
             ]),
         )
         .await?
         {
-            page.add_ack(ack)?;
-            page.save(&self.datastore).await?;
+            block.add_ack(ack)?;
+            block.save(&self.datastore).await?;
         }
 
         Ok(())
     }
 
-    pub async fn on_receive_certified_page(&mut self, page_data: serde_json::Value) -> Result<Option<Page>> {
-        let page = Page::from_json_object(page_data.clone())?;
-        if !page.validate_sigs()? {
+    pub async fn on_receive_certified_block(&mut self, block_data: serde_json::Value) -> Result<Option<Block>> {
+        let block = Block::from_json_object(block_data.clone())?;
+        if !block.validate_sigs()? {
             return Ok(None);
         }
 
-        let block_id = self.datastore.get_current_block_id().await?;
-        if page.block_id > block_id {
-            self.on_receive_certified_page_from_later_round(page_data).await
+        let round_id = self.datastore.get_current_block_id().await?;
+        if block.round_id > round_id {
+            self.on_receive_certified_block_from_later_round(block_data).await
         } else {
-            self.on_receive_certified_page_from_current_round(page_data).await
+            self.on_receive_certified_block_from_current_round(block_data).await
         }
     }
 
-    async fn on_receive_certified_page_from_later_round(
+    async fn on_receive_certified_block_from_later_round(
         &mut self,
-        page_data: serde_json::Value,
-    ) -> Result<Option<Page>> {
+        block_data: serde_json::Value,
+    ) -> Result<Option<Block>> {
         let current_block_id = self.datastore.get_current_block_id().await?;
-        let page = Page::from_json_object(page_data.clone())?;
+        let block = Block::from_json_object(block_data.clone())?;
 
         BlockMessage::from_json_object(serde_json::json!({
-            "block_id": page.block_id,
-            "peer_id": page.peer_id,
+            "round_id": block.round_id,
+            "peer_id": block.peer_id,
             "type": "certified",
             "seen_at_block_id": current_block_id,
-            "content": page_data
+            "content": block_data
         }))?
         .save(&self.datastore)
         .await?;
 
-        if current_block_id < page.block_id {
-            if self.latest_seen_at_block_id.is_none() || page.block_id > self.latest_seen_at_block_id.unwrap() {
-                self.latest_seen_at_block_id = Some(page.block_id);
+        if current_block_id < block.round_id {
+            if self.latest_seen_at_block_id.is_none() || block.round_id > self.latest_seen_at_block_id.unwrap() {
+                self.latest_seen_at_block_id = Some(block.round_id);
             }
         }
         Ok(None)
     }
 
-    async fn on_receive_certified_page_from_current_round(
+    async fn on_receive_certified_block_from_current_round(
         &self,
-        page_data: serde_json::Value,
-    ) -> Result<Option<Page>> {
-        let page = Page::from_json_object(page_data)?;
-        if !page.validate_sigs()? {
+        block_data: serde_json::Value,
+    ) -> Result<Option<Block>> {
+        let block = Block::from_json_object(block_data)?;
+        if !block.validate_sigs()? {
             return Ok(None);
         }
-        let block_id = page.block_id;
+        let round_id = block.round_id;
 
-        let last_block_threshold = self.consensus_threshold_at_block_id(block_id - 1).await?;
-        let current_block_threshold = self.consensus_threshold_at_block_id(block_id).await?;
+        let last_block_threshold = self.consensus_threshold_at_round_id(round_id - 1).await?;
+        let current_block_threshold = self.consensus_threshold_at_round_id(round_id).await?;
 
-        let page_last_block_cert_count = page.prev_block_certs.len() as u64;
-        if block_id > 1 && (page_last_block_cert_count < last_block_threshold) {
+        let block_last_block_cert_count = block.prev_round_certs.len() as u64;
+        if round_id > 1 && (block_last_block_cert_count < last_block_threshold) {
             return Ok(None);
         }
 
-        let has_valid_cert = page.validate_cert(current_block_threshold as usize)?;
+        let has_valid_cert = block.validate_cert(current_block_threshold as usize)?;
         
         if !has_valid_cert {
             return Ok(None);
         }
 
-        page.save(&self.datastore).await?;
-        Ok(Some(page))
+        block.save(&self.datastore).await?;
+        Ok(Some(block))
     }
 
     // Additional methods can be added following the same pattern

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use lazy_static::lazy_static;
-use modality_network_datastore::models::{Block, Page};
+use modality_network_datastore::models::Block;
 use modality_network_datastore::{Model, NetworkDatastore};
 use serde_json::{self, Value};
 use std::collections::HashMap;
@@ -106,48 +106,36 @@ impl Devnet {
     pub async fn setup_datastore_scribes(ds: &mut NetworkDatastore, count: usize) -> Result<()> {
         let peers_hashmap = Devnet::get_keypairs_dict(count)?;
         ds.set_current_block_id(1).await?;
-        let mut block = Block::create_from_json(serde_json::json!({"block_id": 1}))?;
-        for (peer_id_str, _peer_id_keypair) in &peers_hashmap {
-            block.add_scribe(peer_id_str.to_string());
-        }
-        block.save(ds).await?;
-        Devnet::add_fully_connected_empty_round(ds).await?;
+        Devnet::add_fully_connected_empty_round(ds, count).await?;
         Ok(())
     }
 
-    pub async fn add_fully_connected_empty_round(ds: &mut NetworkDatastore) -> Result<()> {
-        let block_id = ds.get_current_block_id().await?;
-        let block = Block::find_one(&ds, HashMap::from([("block_id".into(), block_id.to_string().into())]))
-            .await?
-            .unwrap();
-        let peers_hashmap = Devnet::get_keypairs_dict(block.scribes.len())?;
-        for peer_id_str in block.scribes.clone() {
-            let prev_block_certs: HashMap<String,String> = if block_id > 1 {
-                ds.get_timely_certs_at_block_id(block_id - 1).await.unwrap()
+    pub async fn add_fully_connected_empty_round(ds: &mut NetworkDatastore, count: usize) -> Result<()> {
+        let round_id = ds.get_current_block_id().await?;
+        let peers_hashmap = Devnet::get_keypairs_dict(count)?;
+        let round_scribes = peers_hashmap.keys();
+        for peer_id_str in round_scribes.clone() {
+            let prev_round_certs: HashMap<String,String> = if round_id > 1 {
+                ds.get_timely_certs_at_block_id(round_id - 1).await.unwrap()
             } else {
                 HashMap::new()
             };
-            let mut page = Page::create_from_json(serde_json::json!({
+            let mut block = Block::create_from_json(serde_json::json!({
                 "peer_id": peer_id_str,
-                "block_id": block_id,
+                "round_id": round_id,
                 "events": [],
-                "prev_block_certs": prev_block_certs
+                "prev_round_certs": prev_round_certs
             }))?;
-            page.generate_sigs(&peers_hashmap[&peer_id_str])?;
-            page.save(&ds).await?;
-            for acking_peer_id_str in block.scribes.clone() {
-                let ack = page.generate_ack(&peers_hashmap[&acking_peer_id_str])?;
-                page.add_ack(ack)?;
+            block.generate_sigs(&peers_hashmap[peer_id_str])?;
+            block.save(&ds).await?;
+            for acking_peer_id_str in round_scribes.clone() {
+                let ack = block.generate_ack(&peers_hashmap[acking_peer_id_str])?;
+                block.add_ack(ack)?;
             }
-            page.generate_cert(&peers_hashmap[&peer_id_str])?;
-            page.save(&ds).await?;
+            block.generate_cert(&peers_hashmap[peer_id_str])?;
+            block.save(&ds).await?;
         }
-        ds.set_current_block_id(block_id + 1).await?;
-        let mut block = Block::create_from_json(serde_json::json!({"block_id": block_id + 1}))?;
-        for (peer_id_str, _peer_id_keypair) in &peers_hashmap {
-            block.add_scribe(peer_id_str.to_string());
-        }
-        block.save(ds).await?;
+        ds.set_current_block_id(round_id + 1).await?;
         Ok(())
     }
 }

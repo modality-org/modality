@@ -12,21 +12,21 @@ mod tests {
         // Create and save some test messages
         let messages = vec![
             BlockMessage {
-                block_id: 1,
+                round_id: 1,
                 peer_id: "scribe1".to_string(),
                 r#type: "type1".to_string(),
                 seen_at_block_id: Some(1),
                 content: serde_json::json!({"key": "value1"}),
             },
             BlockMessage {
-                block_id: 1,
+                round_id: 1,
                 peer_id: "scribe2".to_string(),
                 r#type: "type1".to_string(),
                 seen_at_block_id: Some(1),
                 content: serde_json::json!({"key": "value2"}),
             },
             BlockMessage {
-                block_id: 1,
+                round_id: 1,
                 peer_id: "scribe3".to_string(),
                 r#type: "type2".to_string(),
                 seen_at_block_id: Some(1),
@@ -61,7 +61,7 @@ mod tests {
     #[test]
     fn test_get_id_keys() {
         let message = BlockMessage {
-            block_id: 1,
+            round_id: 1,
             peer_id: "scribe1".to_string(),
             r#type: "type1".to_string(),
             seen_at_block_id: Some(1),
@@ -69,7 +69,7 @@ mod tests {
         };
 
         let keys = message.get_id_keys();
-        assert_eq!(keys.get("block_id"), Some(&"1".to_string()));
+        assert_eq!(keys.get("round_id"), Some(&"1".to_string()));
         assert_eq!(keys.get("peer_id"), Some(&"scribe1".to_string()));
         assert_eq!(keys.get("type"), Some(&"type1".to_string()));
     }

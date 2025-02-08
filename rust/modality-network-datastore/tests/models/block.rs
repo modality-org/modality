@@ -1,41 +1,73 @@
 #[cfg(test)]
 mod tests {
+    use modality_utils::keypair::Keypair;
     use anyhow::{Result};
     use modality_network_datastore::NetworkDatastore;
+    use modality_network_datastore::Model;
     use modality_network_datastore::models::block::Block;
-    use modality_network_datastore::models::block::prelude::*;
-    
+
     #[tokio::test]
-    async fn test_block() -> Result<()> {
+    async fn test_page() -> Result<()> {
         let datastore = NetworkDatastore::create_in_memory()?;
-        
-        let block = Block::create_from_json(serde_json::json!({"block_id": 1}))?;
-        block.save(&datastore).await?;
-        
-        let block = Block::create_from_json(serde_json::json!({"block_id": 2}))?;
-        block.save(&datastore).await?;
-        
-        let block = Block::create_from_json(serde_json::json!({"block_id": 3}))?;
-        block.save(&datastore).await?;
-        
-        let max_block = Block::find_max_id(&datastore).await?;
-        assert_eq!(max_block, Some(3));
 
-        Ok(())
-    }
+        let node1_keypair = Keypair::generate()?;
+        let node1_pubkey = node1_keypair.as_public_address();
 
-    #[test]
-    fn test_add_remove_scribe() -> Result<()> {
-        let mut block = Block::create_from_json(serde_json::json!({"block_id": 1}))?;
-        
-        block.add_scribe("peer1".to_string());
-        assert_eq!(block.scribes, vec!["peer1"]);
+        let node2_keypair = Keypair::generate()?;
+        let _node2_pubkey = node2_keypair.as_public_address();
 
-        block.add_scribe("peer2".to_string());
-        assert_eq!(block.scribes, vec!["peer1", "peer2"]);
+        let mut b1 = Block::create_from_json(serde_json::json!({
+            "peer_id": node1_pubkey,
+            "round_id": 1,
+            "events": []
+        }))?;
 
-        block.remove_scribe("peer1");
-        assert_eq!(block.scribes, vec!["peer2"]);
+        b1.add_event(serde_json::json!({"data": "data1"}));
+        b1.add_event(serde_json::json!({"data": "data2"}));
+        assert_eq!(b1.events.len(), 2);
+
+        let sig1 = b1.generate_sigs(&node1_keypair)?;
+        let result = b1.validate_sigs()?;
+        assert!(result);
+
+        let mut b1empty = Block::create_from_json(serde_json::json!({
+            "peer_id": node1_pubkey,
+            "round_id": 1,
+            "events": []
+        }))?;
+        let sig1empty = b1empty.generate_sigs(&node1_keypair)?;
+        assert_ne!(sig1, sig1empty);
+
+        // ack self
+        let ack1 = b1.generate_ack(&node1_keypair)?;
+        b1.add_ack(ack1)?;
+        let result = b1.count_valid_acks()?;
+        assert_eq!(result, 1);
+        let result = b1.validate_acks()?;
+        assert!(result);
+
+        // other acks
+        let ack2 = b1.generate_ack(&node2_keypair)?;
+        b1.add_ack(ack2.clone())?;
+        assert_eq!(b1.acks.get(&ack2.acker), Some(&ack2));
+        let result = b1.validate_acks()?;
+        assert!(result);
+        let result = b1.count_valid_acks()?;
+        assert_eq!(result, 2);
+
+        b1.generate_cert(&node1_keypair)?;
+        assert!(b1.cert.is_some());
+        let result = b1.validate_cert(2)?;
+        assert!(result);
+        b1.save(&datastore).await?;
+
+        let result = b1.get_id();
+        assert_eq!(result, format!("/blocks/round/1/peer/{}", node1_pubkey));
+        let b1r = Block::find_one(&datastore, [
+            ("round_id".to_string(), "1".to_string()),
+            ("peer_id".to_string(), node1_pubkey.clone())
+        ].into_iter().collect()).await?.unwrap();
+        assert_eq!(b1r.cert, b1.cert);
 
         Ok(())
     }

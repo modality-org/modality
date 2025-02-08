@@ -7,55 +7,85 @@ use async_trait::async_trait;
 
 use crate::model::Model;
 
-use crate::models::Page;
+use crate::models::Block;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BlockHeader {
-    pub block_id: u64,
-    pub peer_block_headers: serde_json::Value,
+    pub round_id: u64,
+    pub peer_id: String,
+    pub prev_round_certs: HashMap<String, String>,
+    pub opening_sig: Option<String>,
+    pub cert: Option<String>,
 }
 
 #[async_trait]
 impl Model for BlockHeader {
-    const ID_PATH: &'static str = "/block_header/${block_id}";
-    const FIELDS: &'static [&'static str] = &["block_id"];
+    const ID_PATH: &'static str = "/block_headers/round/${round_id}/peer/${peer_id}";
+    const FIELDS: &'static [&'static str] = &["round_id"];
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
 
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
         match field {
-            "block_id" => self.block_id = value.as_u64().unwrap_or_default(),
-            "peer_block_headers" => self.peer_block_headers = value,
+            "peer_id" => self.peer_id = value.as_str().unwrap_or_default().to_string(),
+            "round_id" => self.round_id = value.as_u64().unwrap_or_default(),
+            "prev_round_certs" => { self.prev_round_certs = serde_json::from_value(value).unwrap_or_default() },
+            "opening_sig" => self.opening_sig = value.as_str().map(|s| s.to_string()),
+            "cert" => self.cert = value.as_str().map(|s| s.to_string()),
             _ => {},
         }
     }
 
     fn get_id_keys(&self) -> HashMap<String, String> {
         let mut keys = HashMap::new();
-        keys.insert("block_id".to_string(), self.block_id.to_string());
+        keys.insert("peer_id".to_string(), self.peer_id.clone());
+        keys.insert("round_id".to_string(), self.round_id.to_string());
         keys
     }
 }
 
 impl BlockHeader {
-    pub async fn create_from_datastore(datastore: &NetworkDatastore, block_id: u64) -> Result<Self> {
-        let pages = Page::find_all_in_block(datastore, block_id).await?;        
-        let peer_block_headers = serde_json::Value::Object(
-            pages.iter()
-                .filter_map(|page| {
-                    Some((
-                        page.peer_id.to_string(),
-                        serde_json::to_value(page.generate_peer_block_header().unwrap()).unwrap()
-                    ))
-                })
-                .collect()
-        );
-        Ok(BlockHeader {
-            block_id,
-            peer_block_headers,
-        })
+    pub async fn find_all_in_round(
+        datastore: &NetworkDatastore,
+        round_id: u64,
+    ) -> Result<Vec<Self>> {
+        let prefix = format!("/block_headers/round/{}/peer", round_id);
+        let mut block_headers = Vec::new();
+
+        let iterator = datastore.iterator(&prefix);
+        for result in iterator {
+            let (key, _) = result?;
+            let key_str = String::from_utf8(key.to_vec())?;
+            let peer_id = key_str
+                .split(&format!("{}/", prefix))
+                .nth(1)
+                .ok_or_else(|| anyhow!("Invalid key format: {}", key_str))?;
+
+            let mut keys = HashMap::new();
+            keys.insert("round_id".to_string(), round_id.to_string());
+            keys.insert("peer_id".to_string(), peer_id.to_string());
+
+            if let Some(block) = Self::find_one(datastore, keys).await? {
+                block_headers.push(block);
+            }
+        }
+
+        Ok(block_headers)
     }
 
-    pub async fn get_page_ids_missing_from_datastore(&self) {
+    pub async fn dervive_all_in_round(datastore: &NetworkDatastore, round_id: u64) -> Result<()> {
+        let blocks = Block::find_all_in_round(datastore, round_id).await?;        
+        for block in &blocks {
+            let header = BlockHeader {
+                round_id: block.round_id,
+                peer_id: block.peer_id.clone(),
+                prev_round_certs: block.prev_round_certs.clone(),
+                opening_sig: block.opening_sig.clone(),
+                cert: block.cert.clone(),
+            };
+            header.save(datastore).await?;
+            // Do something with header
+        }
+        Ok(())
     }
 }
 
