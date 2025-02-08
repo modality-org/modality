@@ -3,7 +3,7 @@ import Model from "./Model.js";
 import Block from './Block.js';
 
 export default class BlockMeta extends Model {
-  static id_path = "/block_metas/round/${round_id}/block/${peer_id}";
+  static id_path = "/block_metas/round/${round_id}/peer/${peer_id}";
   static fields = [
     "round_id",
     "peer_id",
@@ -16,7 +16,7 @@ export default class BlockMeta extends Model {
   ];
 
   static async findAllInRound({ datastore, round_id }) {
-    const prefix = `/block_metas/round/${round_id}/block`;
+    const prefix = `/block_metas/round/${round_id}/peer`;
     const it = datastore.iterator({ prefix });
     const r = [];
     for await (const [key, value] of it) {

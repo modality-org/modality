@@ -6,7 +6,7 @@ import * as EncodedText from '@modality-dev/utils/EncodedText';
 
 // Narwhal style vertices
 export default class Block extends Model {
-  static id_path = "/blocks/round/${round_id}/block/${peer_id}";
+  static id_path = "/blocks/round/${round_id}/peer/${peer_id}";
   static fields = [
     "round_id",
     "peer_id",
@@ -26,7 +26,7 @@ export default class Block extends Model {
   }
 
   static async findAllInRound({ datastore, round_id }) {
-    const prefix = `/blocks/round/${round_id}/block`;
+    const prefix = `/blocks/round/${round_id}/peer`;
     const it = datastore.iterator({ prefix });
     const r = [];
     for await (const [key, value] of it) {

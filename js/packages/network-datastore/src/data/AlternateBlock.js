@@ -1,7 +1,7 @@
 import Model from './Model.js';
 
 export default class AlternateBlock extends Model {
-  static id_path = "/alternates/block/round/${round_id}/block/${peer_id}/hash/${hash}";
+  static id_path = "/alternates/block/round/${round_id}/peer/${peer_id}/hash/${hash}";
   static fields = [
     "round_id",
     "peer_id",
