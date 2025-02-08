@@ -42,8 +42,8 @@ This holds transactions waiting to be sequenced by a node
 
 This holds alternate, possibly equivocating, block data, kept by a node during a consensus fork.
 
-* `/alternate/block/round/:round_id/block/:peer_id/hash/:hash`
-* `/alternate/block_headers/round/:round_id/block/:peer_id/hash/:hash`
+* `/alternate/blocks/round/:round_id/peer/:peer_id/hash/:hash`
+* `/alternate/block_headers/round/:round_id/peer/:peer_id/hash/:hash`
 
 ### `/node_status/`
 
