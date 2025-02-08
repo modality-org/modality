@@ -1,4 +1,5 @@
 scripts
 build
+dist
 tmp
 pnpm-lock.yaml

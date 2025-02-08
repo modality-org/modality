@@ -9,7 +9,7 @@
   "scripts": {
     "build": "lerna run build",
     "test": "lerna run test",
-    "lint": "eslint ./ --fix --ext .mts",
+    "lint": "eslint . --fix --ext .js",
     "format": "prettier --write .",
     "version": "lerna version --no-private",
     "publish": "lerna publish from-package --no-private",

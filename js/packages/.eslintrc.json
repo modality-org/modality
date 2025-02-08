@@ -1,17 +1,3 @@
 {
-  "env": {
-    "es2021": true,
-    "node": true
-  },
-  "extends": ["eslint:recommended", "prettier"],
-  "parserOptions": {
-    "ecmaVersion": "latest",
-    "ecmaFeatures": {
-      "jsx": true
-    },
-    "sourceType": "module"
-  },
-  "rules": {
-    "no-unused-vars": "off"
-  }
+  "extends": "../.eslintrc.json"
 }

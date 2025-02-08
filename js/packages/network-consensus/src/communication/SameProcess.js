@@ -1,3 +1,8 @@
+import { ICommunication } from './ICommunication.js';
+
+/**
+ * @implements {ICommunication}
+ */
 export default class SameProcess {
   constructor({ nodes } = {}) {
     this.nodes = nodes;

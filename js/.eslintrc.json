@@ -1,9 +1,12 @@
 {
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["jsdoc"],
   "env": {
     "es2021": true,
     "node": true
   },
-  "extends": ["eslint:recommended", "prettier"],
+  "extends": ["plugin:jsdoc/recommended", "eslint:recommended", "prettier"],
   "parserOptions": {
     "ecmaVersion": "latest",
     "ecmaFeatures": {
@@ -12,6 +15,14 @@
     "sourceType": "module"
   },
   "rules": {
-    "no-unused-vars": "off"
+    "no-unused-vars": "off",
+    "jsdoc/require-param": "off",
+    "jsdoc/require-returns": "off",
+    "jsdoc/require-jsdoc": "off",
+    "jsdoc/no-undefined-types": "error",
+    "jsdoc/check-types": "error",
+    "jsdoc/check-param-names": "error",
+    "jsdoc/require-param-description": "off",
+    "jsdoc/require-returns-description": "off"
   }
 }

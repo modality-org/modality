@@ -1,6 +1,11 @@
+import { ICommunication } from '@modality-dev/network-consensus/communication/ICommunication';
+
 import { TOPIC as PAGE_DRAFT_TOPIC } from "../gossip/consensus/block/draft.js";
 import { TOPIC as PAGE_CERT_TOPIC } from "../gossip/consensus/block/cert.js";
 
+/**
+ * @implements {ICommunication}
+ */
 export default class ConsensusCommunication {
   constructor({ node }) {
     this.node = node;
