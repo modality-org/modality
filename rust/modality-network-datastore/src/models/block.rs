@@ -16,7 +16,7 @@ pub struct Block {
     pub events: Vec<serde_json::Value>,
     pub closing_sig: Option<String>,
     pub hash: Option<String>,
-    pub acks: HashMap<String, Ack>,
+    pub acks: HashMap<String, String>,
     pub late_acks: Vec<Ack>,
     pub cert: Option<String>,
     pub is_section_leader: Option<bool>,
@@ -95,6 +95,13 @@ impl Model for Block {
         }
         if !obj.get("events").is_some() {
             obj["events"] = serde_json::Value::Object(serde_json::Map::new());
+        }
+
+        if let Some(round_id) = obj.get("round_id") {
+            if round_id.is_string() {
+                let parsed = round_id.as_str().unwrap().parse::<u64>().unwrap();
+                obj["round_id"] = serde_json::Value::Number(parsed.into());
+            }
         }
 
         serde_json::from_value(obj).context("Failed to deserialize Block")
@@ -310,7 +317,7 @@ impl Block {
 
     pub fn add_ack(&mut self, ack: Ack) -> Result<bool> {
         if self.validate_ack(&ack)? {
-            self.acks.insert(ack.acker.clone(), ack);
+            self.acks.insert(ack.acker.clone(), ack.acker_sig);
             Ok(true)
         } else {
             Ok(false)
@@ -318,14 +325,14 @@ impl Block {
     }
 
     pub fn validate_acks(&self) -> Result<bool> {
-        for ack in self.acks.values() {
-            let keypair = Keypair::from_public_key(&ack.acker, "ed25519")?;
+        for (acker, acker_sig) in self.acks.iter() {
+            let keypair = Keypair::from_public_key(&acker, "ed25519")?;
             let facts = serde_json::json!({
                 "peer_id": self.peer_id,
                 "round_id": self.round_id,
                 "sig": self.closing_sig,
             });
-            let verified = keypair.verify_json(&ack.acker_sig, &facts)?;
+            let verified = keypair.verify_json(&acker_sig, &facts)?;
             if !verified {
                 return Ok(false);
             }
@@ -335,14 +342,14 @@ impl Block {
 
     pub fn count_valid_acks(&self) -> Result<usize> {
         let mut valid_acks = 0;
-        for ack in self.acks.values() {
-            let keypair = Keypair::from_public_key(&ack.acker, "ed25519")?;
+        for (acker, acker_sig) in self.acks.iter() {
+            let keypair = Keypair::from_public_key(&acker, "ed25519")?;
             let facts = serde_json::json!({
                 "peer_id": self.peer_id,
                 "round_id": self.round_id,
                 "sig": self.closing_sig,
             });
-            if keypair.verify_json(&ack.acker_sig, &facts)? {
+            if keypair.verify_json(&acker_sig, &facts)? {
                 valid_acks += 1;
             }
         }

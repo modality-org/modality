@@ -6,7 +6,9 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 use anyhow;
 
+use crate::model::Model;
 use crate::models::block::Block;
+use crate::models::block_header::BlockHeader;
 
 pub struct NetworkDatastore {
     db: DB,
@@ -129,8 +131,8 @@ impl NetworkDatastore {
         Ok(max_value)
     }
 
-    pub async fn bump_current_block(&self) -> Result<u64> {
-        let key = "/status/current_block";
+    pub async fn bump_current_round(&self) -> Result<u64> {
+        let key = "/status/current_round";
         let current_block = self.get_string(key).await?
             .and_then(|s| s.parse::<u64>().ok())
             .unwrap_or(0);
@@ -139,17 +141,20 @@ impl NetworkDatastore {
         Ok(new_block)
     }
 
-    pub async fn set_current_block_id(&self, round_id: u64) -> Result<()> {
-        let key = "/status/current_block";
+    pub async fn set_current_round(&self, round_id: u64) -> Result<()> {
+        let key = "/status/current_round";
         self.put(key, round_id.to_string().as_bytes()).await?;
         Ok(())
     }
 
-    pub async fn get_current_block_id(&self) -> Result<u64> {
-        let key = "/status/current_block";
-        self.get_string(key).await?
-            .and_then(|s| s.parse::<u64>().ok())
-            .ok_or_else(|| Error::KeyNotFound(key.to_string()))
+    pub async fn get_current_round(&self) -> Result<u64> {
+        let key = "/status/current_round";
+        if let Some(round_id_str) = self.get_string(key).await? {
+            let round_id = round_id_str.parse::<u64>()?;
+            Ok(round_id)
+        } else {
+            Ok(0)
+        }
     }
 
     pub async fn get_timely_cert_pages_at_block_id(&self, round_id: u64) -> anyhow::Result<HashMap<String, Block>> {
@@ -176,5 +181,42 @@ impl NetworkDatastore {
                 )
             })
             .collect())
+    }
+
+    pub async fn load_network_config(&self, network_config: &serde_json::Value) -> Result<()> {
+        if let Some(rounds) = network_config.get("rounds").and_then(|v| v.as_object()) {
+            for (round_id_str, round_data) in rounds {
+                let round_id = round_id_str.parse::<u64>()?;
+                
+                if let Some(round_obj) = round_data.as_object() {
+                    for block_data in round_obj.values() {
+                        // Create and save Block
+                        let block = Block::create_from_json(block_data.clone())?;
+                        block.save(self).await?;
+
+                        // Create and save BlockHeader
+                        let block_header = BlockHeader::create_from_json(block_data.clone())?;
+                        block_header.save(self).await?;
+                    }
+
+                    // Update current round if necessary
+                    let current_round = self.get_current_round().await?;
+                    if current_round < round_id {
+                        self.set_current_round(round_id).await?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn get_keys(&self, prefix: &str) -> Result<Vec<String>> {
+        let mut keys = Vec::new();
+        for result in self.iterator(prefix) {
+            let (key, _) = result?;
+            let key_str = String::from_utf8(key.to_vec())?;
+            keys.push(key_str);
+        }
+        Ok(keys)
     }
 }

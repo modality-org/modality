@@ -49,7 +49,7 @@ mod tests {
         // other acks
         let ack2 = b1.generate_ack(&node2_keypair)?;
         b1.add_ack(ack2.clone())?;
-        assert_eq!(b1.acks.get(&ack2.acker), Some(&ack2));
+        assert_eq!(b1.acks.get(&ack2.acker), Some(&ack2.acker_sig));
         let result = b1.validate_acks()?;
         assert!(result);
         let result = b1.count_valid_acks()?;

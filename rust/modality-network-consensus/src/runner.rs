@@ -79,7 +79,7 @@ impl Runner {
             return Ok(None);
         }
 
-        let current_block_id = self.datastore.get_current_block_id().await?;
+        let current_block_id = self.datastore.get_current_round().await?;
 
         if block.round_id > current_block_id {
             self.on_receive_draft_block_from_later_round(block_data).await
@@ -94,7 +94,7 @@ impl Runner {
         &self,
         block_data: serde_json::Value,
     ) -> Result<Option<Ack>> {
-        let current_block_id = self.datastore.get_current_block_id().await?;
+        let current_block_id = self.datastore.get_current_round().await?;
         let block = Block::create_from_json(block_data)?;
 
         if let (Some(peerid), Some(keypair)) = (&self.peerid, &self.keypair) {
@@ -116,7 +116,7 @@ impl Runner {
         &mut self,
         block_data: serde_json::Value,
     ) -> Result<Option<Ack>> {
-        let current_block_id = self.datastore.get_current_block_id().await?;
+        let current_block_id = self.datastore.get_current_round().await?;
         let block = Block::create_from_json(block_data.clone())?;
 
         let round_message = BlockMessage::create_from_json(serde_json::json!({
@@ -171,7 +171,7 @@ impl Runner {
             return Ok(());
         }
 
-        let round_id = self.datastore.get_current_block_id().await?;
+        let round_id = self.datastore.get_current_round().await?;
         if ack.round_id != round_id {
             return Ok(());
         }
@@ -204,7 +204,7 @@ impl Runner {
             return Ok(None);
         }
 
-        let round_id = self.datastore.get_current_block_id().await?;
+        let round_id = self.datastore.get_current_round().await?;
         if block.round_id > round_id {
             self.on_receive_certified_block_from_later_round(block_data).await
         } else {
@@ -216,7 +216,7 @@ impl Runner {
         &mut self,
         block_data: serde_json::Value,
     ) -> Result<Option<Block>> {
-        let current_block_id = self.datastore.get_current_block_id().await?;
+        let current_block_id = self.datastore.get_current_round().await?;
         let block = Block::from_json_object(block_data.clone())?;
 
         BlockMessage::from_json_object(serde_json::json!({

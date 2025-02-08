@@ -22,4 +22,10 @@ pub enum Error {
 
     #[error("UTF-8 conversion error: {0}")]
     Utf8(#[from] std::string::FromUtf8Error),
+
+    #[error("Parse int error: {0}")]
+    ParseInt(#[from] std::num::ParseIntError),
+
+    #[error(transparent)]
+    Other(#[from] anyhow::Error)
 }

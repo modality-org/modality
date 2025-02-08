@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Result, Context, anyhow};
 use crate::NetworkDatastore;
 
 use serde::{Serialize, Deserialize};
@@ -23,6 +23,24 @@ impl Model for BlockHeader {
     const ID_PATH: &'static str = "/block_headers/round/${round_id}/peer/${peer_id}";
     const FIELDS: &'static [&'static str] = &["round_id"];
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
+
+    fn create_from_json(mut obj: serde_json::Value) -> Result<Self> {
+        // Apply default values for missing fields
+        for (field, default_value) in Self::FIELD_DEFAULTS {
+            if !obj.get(*field).is_some() {
+                obj[*field] = default_value.clone();
+            }
+        }
+
+        if let Some(round_id) = obj.get("round_id") {
+            if round_id.is_string() {
+                let parsed = round_id.as_str().unwrap().parse::<u64>().unwrap();
+                obj["round_id"] = serde_json::Value::Number(parsed.into());
+            }
+        }
+
+        serde_json::from_value(obj).context("Failed to deserialize BlockHeader")
+    }
 
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
         match field {

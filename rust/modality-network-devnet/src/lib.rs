@@ -105,13 +105,13 @@ impl Devnet {
 
     pub async fn setup_datastore_scribes(ds: &mut NetworkDatastore, count: usize) -> Result<()> {
         let peers_hashmap = Devnet::get_keypairs_dict(count)?;
-        ds.set_current_block_id(1).await?;
+        ds.set_current_round(1).await?;
         Devnet::add_fully_connected_empty_round(ds, count).await?;
         Ok(())
     }
 
     pub async fn add_fully_connected_empty_round(ds: &mut NetworkDatastore, count: usize) -> Result<()> {
-        let round_id = ds.get_current_block_id().await?;
+        let round_id = ds.get_current_round().await?;
         let peers_hashmap = Devnet::get_keypairs_dict(count)?;
         let round_scribes = peers_hashmap.keys();
         for peer_id_str in round_scribes.clone() {
@@ -135,7 +135,7 @@ impl Devnet {
             block.generate_cert(&peers_hashmap[peer_id_str])?;
             block.save(&ds).await?;
         }
-        ds.set_current_block_id(round_id + 1).await?;
+        ds.set_current_round(round_id + 1).await?;
         Ok(())
     }
 }
