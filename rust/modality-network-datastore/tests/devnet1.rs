@@ -2,8 +2,8 @@ use std::path::Path;
 use std::fs;
 use tempfile::TempDir;
 use zip::ZipArchive;
-use anyhow::Result;
-use std::collections::HashMap;
+use anyhow::{anyhow, Context, Result};
+use std::path::PathBuf;
 
 use modality_network_datastore::network_datastore::NetworkDatastore;
 use modality_network_datastore::models::block::prelude::*;
@@ -11,7 +11,7 @@ use modality_network_datastore::models::block::prelude::*;
 // TODO update fixture
 #[ignore]
 #[tokio::test]
-async fn test_devnet_static1() -> Result<()> {
+async fn test_devnet1_archive_loading() -> Result<()> {
     let fixtures_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/");
     let tmp_dir = TempDir::new()?;
     
@@ -30,5 +30,21 @@ async fn test_devnet_static1() -> Result<()> {
 
     // TODO
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_devnet1_config_loading() -> Result<()> {
+    let datastore = NetworkDatastore::create_in_memory()?;
+    
+    let config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../fixtures-common/network-configs/devnet1/config.json");
+    let config_str = std::fs::read_to_string(config_path)?;
+    let network_config = serde_json::from_str(&config_str)?;
+    
+    datastore.load_network_config(&network_config).await?;
+    let round0_blocks = datastore.get_keys("/blocks/round/0").await?;
+    assert_eq!(round0_blocks.len(), 1, "Expected exactly one block in round 0");
+    
     Ok(())
 }

@@ -60,20 +60,3 @@ async fn test_network_datastore() {
     let iterator = datastore.iterator(&"/block_messages/1/type/type1");
     assert_eq!(iterator.count(), 3);
 }
-
-// Then the test could be:
-#[tokio::test]
-async fn test_devnet1_config_loading() -> Result<()> {
-    let datastore = NetworkDatastore::create_in_memory()?;
-    
-    let config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../fixtures-common/network-configs/devnet1/config.json");
-    let config_str = std::fs::read_to_string(config_path)?;
-    let network_config = serde_json::from_str(&config_str)?;
-    
-    datastore.load_network_config(&network_config).await?;
-    let round0_blocks = datastore.get_keys("/blocks/round/0").await?;
-    assert_eq!(round0_blocks.len(), 1, "Expected exactly one block in round 0");
-    
-    Ok(())
-}
