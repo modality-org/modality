@@ -1,7 +1,7 @@
 import Model from './Model.js';
 
 export default class AlternateBlock extends Model {
-  static id_path = "/alternates/block/round/${round_id}/peer/${peer_id}/hash/${hash}";
+  static id_path = "/alternates/blocks/round/${round_id}/peer/${peer_id}/hash/${hash}";
   static fields = [
     "round_id",
     "peer_id",
@@ -22,11 +22,11 @@ export default class AlternateBlock extends Model {
   }
 
   static async findAllInRound({ datastore, round_id }) {
-    const prefix = `/alternates/block/round/${round_id}`;
+    const prefix = `/alternates/blocks/round/${round_id}`;
     const it = datastore.iterator({ prefix });
     const r = [];
     for await (const [key, value] of it) {
-      const matcher = key.match(new RegExp(`${prefix}/block/([a-z0-9])+/hash/([a-z0-9])+`));
+      const matcher = key.match(new RegExp(`${prefix}/peer/([a-z0-9])+/hash/([a-z0-9])+`));
       const peer_id = matcher[1];
       const hash = matcher[2];
       const block = await this.findOne({ datastore, round_id, peer_id, hash });
