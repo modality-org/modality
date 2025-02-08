@@ -9,7 +9,6 @@ import { dirname } from 'dirname-filename-esm';
 const __dirname = dirname(import.meta);
 
 import NetworkDatastore from '../src/NetworkDatastore';
-import Round from '../src/data/Round';
 
 describe("DevnetStatic1", () => {
   it.skip("should work", async () => {
@@ -20,9 +19,6 @@ describe("DevnetStatic1", () => {
     await zip.extract(null, tmpDir.name);
 
     const datastore = await NetworkDatastore.createInDirectory(`${tmpDir.name}/devnet-static1-datastore`);
-    await datastore.get("/consensus/round/1");
-    const round1 = await Round.findOne({datastore, round_id: 1})
-    expect(round1.round_id).toBe(1);
-    expect(round1.scribes[0]).toBe("12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd");
+    // TODO
   });
 });

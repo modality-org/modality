@@ -1,11 +1,11 @@
 import Model from "./Model.js";
 
-export default class RoundMessage extends Model {
-  static id_path = "/consensus/round_messages/${round}/type/${type}/scribe/${scribe}";
+export default class BlockMessage extends Model {
+  static id_path = "/block_messages/${round}/type/${type}/scribe/${scribe}";
   static fields = ["round", "scribe", "type", "seen_at_round", "content"];
 
   static async findAllInRoundOfType({ datastore, round, type }) {
-    const prefix = `/consensus/round_messages/${round}/type/${type}/scribe`;
+    const prefix = `/block_messages/${round}/type/${type}/scribe`;
     const it = datastore.iterator({ prefix });
     const r = [];
     for await (const [key, value] of it) {

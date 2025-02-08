@@ -5,7 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "build": "rimraf ./dist && tsc && npx prettier ./dist --write",
-    "test": "NODE_OPTIONS=--experimental-vm-modules npx jest --runInBand --detectOpenHandles"
+    "test": "NODE_DEBUG=events NODE_OPTIONS=--experimental-vm-modules npx jest --runInBand --detectOpenHandles"
   },
   "author": "Foy Savas",
   "license": "MIT",

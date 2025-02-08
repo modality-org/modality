@@ -1,7 +1,6 @@
 import Block from "@modality-dev/network-datastore/data/Block";
-import Round from "@modality-dev/network-datastore/data/Round";
-import RoundMessage from "@modality-dev/network-datastore/data/RoundMessage";
-import ContractCommitEvent from "@modality-dev/network-datastore/data/ContractCommitEvent";
+import BlockMessage from "@modality-dev/network-datastore/data/BlockMessage";
+import Transaction from "@modality-dev/network-datastore/data/Transaction";
 
 import ConsensusMath from "./lib/ConsensusMath.js";
 
@@ -102,7 +101,7 @@ export default class Runner {
     const block = await Block.fromJSONObject(data);
     // console.warn(`received draft for later round: round ${block.round} draft received but currently on round ${current_round}`);
 
-    await RoundMessage.fromJSONObject({
+    await BlockMessage.fromJSONObject({
       round: block.round,
       scribe: block.scribe,
       type: "draft",
@@ -203,7 +202,7 @@ export default class Runner {
     const current_round = await this.datastore.getCurrentRound();
     const block = await Block.fromJSONObject(data);
 
-    await RoundMessage.fromJSONObject({
+    await BlockMessage.fromJSONObject({
       round: block.round_id,
       scribe: block.peer_id,
       type: "certified",
@@ -256,6 +255,9 @@ export default class Runner {
   }
 
   async getOrFetchPrevRoundCerts(round) {
+    if (round == 0) {
+      return {};
+    }
     const prev_round = round - 1;
     let prev_round_certs = await this.datastore.getTimelyCertSigsAtRound(prev_round);
     const prev_round_scribes = await this.getScribesAtRound(prev_round);
@@ -294,7 +296,7 @@ export default class Runner {
     let round = await this.datastore.getCurrentRound() + 1;
     while (round_certified) {
       const prev_round_certs = await this.getOrFetchPrevRoundCerts(round);
-      const existing_certs = await RoundMessage.findAllInRoundOfType({
+      const existing_certs = await BlockMessage.findAllInRoundOfType({
         datastore: this.datastore,
         round: round - 1,
         type: "certified",
@@ -326,11 +328,12 @@ export default class Runner {
     const threshold = await this.consensusThresholdForRound(round - 1);
     const cert_count = Object.keys(prev_round_certs).length;
     if (cert_count < threshold) {
+      console.warn({prev_round: round-1, cert_count, threshold, prev_round_certs});
       throw new Error("not enough certs to start round");
     }
 
     const current_round_threshold = await this.consensusThresholdForRound(round);
-    const existing_this_round_certs = await RoundMessage.findAllInRoundOfType({
+    const existing_this_round_certs = await BlockMessage.findAllInRoundOfType({
       datastore: this.datastore,
       round: round,
       type: "certified",
@@ -340,7 +343,7 @@ export default class Runner {
       round = await this.datastore.getCurrentRound();
     }
 
-    let cc_events = await ContractCommitEvent.findAll({ datastore: this.datastore });
+    let cc_events = await Transaction.findAll({ datastore: this.datastore });
     let keep_waiting_for_events = (cc_events.length === 0);
     if (keep_waiting_for_events) {
       setTimeout(this.no_events_round_wait_time_ms ?? NO_EVENTS_ROUND_WAIT_TIME_MS).then(() => {
@@ -349,7 +352,7 @@ export default class Runner {
     }
     while (keep_waiting_for_events) {
       await setTimeout(this.no_events_poll_wait_time_ms ?? NO_EVENTS_POLL_WAIT_TIME_MS);
-      cc_events = await ContractCommitEvent.findAll({ datastore: this.datastore });
+      cc_events = await Transaction.findAll({ datastore: this.datastore });
       if (cc_events.length > 0) {
         keep_waiting_for_events = false;
       }
@@ -380,7 +383,7 @@ export default class Runner {
     }
 
     // handle enqueue round messages
-    const existing_drafts = await RoundMessage.findAllInRoundOfType({
+    const existing_drafts = await BlockMessage.findAllInRoundOfType({
       datastore: this.datastore,
       round,
       type: "draft",
@@ -467,17 +470,17 @@ export default class Runner {
       // roundi.scribes = await this.getScribesAtRound(i);
       // await roundi.save({ datastore: this.datastore });
     }
-    const round = Round.from({ round_id: round_num });
-    round.scribes = await this.getScribesAtRound(round_num);
-    await round.save({ datastore: this.datastore });
+    // const round = Round.from({ round_id: round_num });
+    // round.scribes = await this.getScribesAtRound(round_num);
+    // await round.save({ datastore: this.datastore });
     await this.datastore.setCurrentRound(round_num);
   }
 
   async bumpCurrentRound() {
     const round_num = await this.datastore.getCurrentRound();
-    const round = Round.from({ round_id: round_num });
-    round.scribes = await this.getScribesAtRound(round_num);
-    await round.save({ datastore: this.datastore });
+    // const round = Round.from({ round_id: round_num });
+    // round.scribes = await this.getScribesAtRound(round_num);
+    // await round.save({ datastore: this.datastore });
     await this.datastore.bumpCurrentRound();
   }
 

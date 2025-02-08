@@ -1,7 +1,6 @@
 import NetworkDatastore from "./NetworkDatastore.js";
 
 import Block from "./data/Block.js";
-import Round from "./data/Round.js";
 import fs from "fs";
 import Keypair from "@modality-dev/utils/Keypair";
 import DevnetCommon from "../../network-configs/src/devnet-common/index.js";
@@ -110,9 +109,9 @@ export default class NetworkDatastoreBuilder {
 
   async addFullyConnectedRound({ failures = 0 } = {}) {
     const round_num = ++this.round_num;
-    const round = Round.from({ round_id: round_num });
-    round.scribes = [...this.scribes];
-    await round.save({ datastore: this.datastore });
+    // const round = Round.from({ round_id: round_num });
+    // round.scribes = [...this.scribes];
+    // await round.save({ datastore: this.datastore });
     const scribes = shuffleArray(this.scribes);
     for (const scribe of scribes) {
       if (failures > 0) {
@@ -153,9 +152,9 @@ export default class NetworkDatastoreBuilder {
 
   async addConsensusConnectedRound({ failures = 0 } = {}) {
     const round_num = ++this.round_num;
-    const round = Round.from({ round: round_num });
-    round.scribes = [...this.scribes];
-    await round.save({ datastore: this.datastore });
+    // const round = Round.from({ round: round_num });
+    // round.scribes = [...this.scribes];
+    // await round.save({ datastore: this.datastore });
     const scribes = shuffleArray(this.scribes);
     const consensus_threshold =
       Math.floor((this.scribes.length * 2.0) / 3.0) + 1;
@@ -211,9 +210,9 @@ export default class NetworkDatastoreBuilder {
 
   async addPartiallyConnectedRound({ failures = 0 } = {}) {
     const round_num = ++this.round_num;
-    const round = Round.from({ round_id: round_num });
-    round.scribes = [...this.scribes];
-    await round.save({ datastore: this.datastore });
+    // const round = Round.from({ round_id: round_num });
+    // round.scribes = [...this.scribes];
+    // await round.save({ datastore: this.datastore });
     const scribes = shuffleArray(this.scribes);
     const consensus_threshold =
       Math.floor((this.scribes.length * 2.0) / 3.0) + 1;

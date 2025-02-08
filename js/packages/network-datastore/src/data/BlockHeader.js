@@ -2,18 +2,18 @@ import Model from "./Model.js";
 
 import Block from './Block.js';
 
-export default class RoundBlockHeader extends Model {
-  static id_path = "/round/${round_id}/block_header/${peer_id}";
+export default class BlockHeader extends Model {
+  static id_path = "/block_headers/round/${round_id}/block/${peer_id}";
   static fields = [
     "round_id",
     "peer_id",
-    "prev_block_certs",
+    "prev_round_certs",
     "opening_sig",
     "cert"
   ];
 
   static async findAllInRound({ datastore, round_id }) {
-    const prefix = `/round/${round_id}/block_header`;
+    const prefix = `/block_headers/round/${round_id}/block`;
     const it = datastore.iterator({ prefix });
     const r = [];
     for await (const [key, value] of it) {
@@ -26,19 +26,20 @@ export default class RoundBlockHeader extends Model {
     return r;
   }
 
-  static async ensureAllInRound({ datastore, round_id }) {
+  static async derviveAllInRound({ datastore, round_id }) {
     const blocks = await Block.findAllInRound({datastore, round_id})
     for (const block of blocks) {
-      const rbh = await RoundBlockHeader.findOne({datastore, round_id, peer_id: block.peer_id});
-      if (!rbh) {
-        const rbh = RoundBlockHeader.from({
+      const bh = await BlockHeader.findOne({datastore, round_id, peer_id: block.peer_id});
+      if (!bh) {
+        // check validity
+        const bh = BlockHeader.from({
           round_id,
           peer_id: block.peer_id,
           prev_round_certs: block.prev_round_certs,
           opening_sig: block.opening_sig,
           cert: block.cert,
         });
-        await rbh.save({datastore});
+        await bh.save({datastore});
       }
     }
   }

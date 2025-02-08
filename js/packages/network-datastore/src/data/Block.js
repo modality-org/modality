@@ -6,7 +6,7 @@ import * as EncodedText from '@modality-dev/utils/EncodedText';
 
 // Narwhal style vertices
 export default class Block extends Model {
-  static id_path = "/consensus/round/${round_id}/blocks/peer/${peer_id}";
+  static id_path = "/blocks/round/${round_id}/block/${peer_id}";
   static fields = [
     "round_id",
     "peer_id",
@@ -14,16 +14,9 @@ export default class Block extends Model {
     "opening_sig",
     "events",
     "closing_sig",
-    "hash",
     "acks",
     "late_acks",
     "cert",
-    "is_section_leader",
-    "section_ending_round",
-    "section_starting_round",
-    "section_block_number",
-    "block_number",
-    "seen_at_round",
   ];
   static field_defaults = {
     events: [],
@@ -33,7 +26,7 @@ export default class Block extends Model {
   }
 
   static async findAllInRound({ datastore, round_id }) {
-    const prefix = `/consensus/round/${round_id}/blocks/peer`;
+    const prefix = `/blocks/round/${round_id}/block`;
     const it = datastore.iterator({ prefix });
     const r = [];
     for await (const [key, value] of it) {
@@ -86,16 +79,14 @@ export default class Block extends Model {
       opening_sig: this.opening_sig,
       events: this.events,
     });
-    await this.generateHash();
     return this.closing_sig;
   }
 
-  async generateHash() {
+  getHash() {
     if (!this.closing_sig) {
       throw new Error("no hash without closing sig");
     }
     const hash = EncodedText.recode(this.closing_sig, 'base64pad', 'base58btc');
-    this.hash = hash;
     return hash;
   }
 

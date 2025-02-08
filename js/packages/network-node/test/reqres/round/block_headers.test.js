@@ -1,7 +1,7 @@
 import { expect, describe, test, it, afterEach } from "@jest/globals";
 
 import Node from '../../../src/Node.js';
-import RoundBlockHeader from "@modality-dev/network-datastore/data/RoundBlockHeader";
+import BlockHeader from "@modality-dev/network-datastore/data/BlockHeader";
 
 import { dirname } from 'dirname-filename-esm';
 const __dirname = dirname(import.meta);
@@ -19,7 +19,7 @@ describe("reqres /round/block_headers", () => {
 
     const node1_datastore = node1.getDatastore();
 
-    const rbh = await RoundBlockHeader.fromJSONObject({
+    const rbh = await BlockHeader.fromJSONObject({
       round_id: 1,
       peer_id: node1.peerid
     });

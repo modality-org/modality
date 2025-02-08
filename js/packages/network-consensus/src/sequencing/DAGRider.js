@@ -1,7 +1,6 @@
 import JSONStringifyDeterministic from "json-stringify-deterministic";
 
 import Block from "@modality-dev/network-datastore/data/Block";
-import Round from "@modality-dev/network-datastore/data/Round";
 import ConsensusMath from "../lib/ConsensusMath.js";
 
 export const NAME = "DAGRider";
@@ -31,18 +30,19 @@ export default class DAGRider {
   }
 
   async getScribesAtRound(round) {
-    if (round < 1) {
-      return [];
-      // TODO
-      // } else if (round === 1) {
-    } else {
-      // TODO make this not static
-      const round_data = await Round.findOne({
-        datastore: this.datastore,
-        round_id: 1,
-      });
-      return round_data.scribes;
-    }
+    return []; // TODO
+    // if (round < 1) {
+    //   return [];
+    //   // TODO
+    //   // } else if (round === 1) {
+    // } else {
+    //   // TODO make this not static
+    //   const round_data = await Round.findOne({
+    //     datastore: this.datastore,
+    //     round_id: 1,
+    //   });
+    //   return round_data.scribes;
+    // }
   }
 
   static getBoundRound(round, sequencer_first_round = 1) {
@@ -86,7 +86,7 @@ export default class DAGRider {
     }
 
     // ensure that rounds r+1,2,3 already complete
-    const max_round = await Round.findMaxId({ datastore: this.datastore });
+    const max_round = await this.datastore.getCurrentRound();
     if (max_round < round + 3) {
       return null;
     }

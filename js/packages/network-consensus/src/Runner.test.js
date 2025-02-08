@@ -23,7 +23,7 @@ describe("Runner", () => {
     const ds_builder = await NetworkDatastoreBuilder.createInMemory();
     ds_builder.scribes = [...scribes];
     ds_builder.scribe_keypairs = scribe_keypairs;
-    ds_builder.datastore.setCurrentRound(1);
+    ds_builder.datastore.setCurrentRound(0);
     await ds_builder.addFullyConnectedRound();
 
     const datastores = [
@@ -55,7 +55,7 @@ describe("Runner", () => {
     });
 
     // round 2 from perspective of scribe 1
-    round = 2;
+    round = 1;
     const prev_round_certs = await runner1.datastore.getTimelyCertSigsAtRound(round - 1);
     block = Block.from({
       round_id: round,

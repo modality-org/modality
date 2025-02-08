@@ -5,8 +5,7 @@ import SafeJSON from "@modality-dev/utils/SafeJSON";
 import fs from "fs-extra";
 
 import Block from './data/Block.js';
-import Round from './data/Round.js';
-import RoundBlockHeader from "./data/RoundBlockHeader.js";
+import BlockHeader from "./data/BlockHeader.js";
 
 export default class NetworkDatastore {
   constructor(datastore) {
@@ -56,11 +55,13 @@ export default class NetworkDatastore {
         for (const block_data of Object.values(round_data)) {
           const block = Block.from(block_data);
           await block.save({datastore: this});
-          const rbh = RoundBlockHeader.from({...block_data});
+          const rbh = BlockHeader.from({...block_data});
           await rbh.save({datastore: this});
         }
-        const round = Round.from({round_id});
-        await round.save({datastore: this});
+        const round = await this.getCurrentRound();
+        if (round < round_id) {
+          await this.setCurrentRound({round_id})
+        }
       }
     }
   }
@@ -319,7 +320,7 @@ export default class NetworkDatastore {
   async getTimelyCertsAtRound(round_id) {
     const blocks = (
       await Block.findAllInRound({ datastore: this, round_id })
-    ).filter((i) => !i.seen_at_round);
+    ).filter((i) => i.cert);
     return blocks.reduce((acc, i) => {
       acc[i.peer_id] = i.cert;
       return acc;
@@ -327,10 +328,9 @@ export default class NetworkDatastore {
   }
 
   async getTimelyCertSigsAtRound(round_id) {
-    const r = await Block.findAllInRound({ datastore: this, round_id })
     const blocks = (
       await Block.findAllInRound({ datastore: this, round_id })
-    ).filter((i) => !i.seen_at_round);
+    ).filter((i) => i.cert);
     return blocks.reduce((acc, i) => {
       acc[i.peer_id] = {
         cert: i.cert,

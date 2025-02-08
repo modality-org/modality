@@ -1,6 +1,5 @@
 import JSONStringifyDeterministic from "json-stringify-deterministic";
 
-import Round from "@modality-dev/network-datastore/data/Round";
 import ConsensusMath from "../lib/ConsensusMath.js";
 
 export const NAME = "Bullshark";
@@ -36,18 +35,7 @@ export default class Bullshark {
   }
 
   async getScribesAtRound(round) {
-    if (round < 1) {
-      return [];
-      // TODO
-      // } else if (round === 1) {
-    } else {
-      // TODO make this not static
-      const round_data = await Round.findOne({
-        datastore: this.datastore,
-        round_id: 1,
-      });
-      return round_data.scribes;
-    }
+    return []; // TODO
   }
   
   static getBoundRound(round, sequencer_first_round = 1) {
@@ -91,7 +79,7 @@ export default class Bullshark {
     }
 
     // ensure that rounds r+1,2,3 already complete
-    const max_round = await Round.findMaxId({ datastore: this.datastore });
+    const max_round = await this.datastore.getCurrentRound();
     if (max_round < round + 3) {
       return null;
     }
@@ -151,7 +139,7 @@ export default class Bullshark {
     }
 
     // ensure that rounds r+1,2 already complete
-    const max_round = await Round.findMaxId({ datastore: this.datastore });
+    const max_round = await this.datastore.getCurrentRound();
     if (max_round < round + 1) {
       return null;
     }
@@ -169,7 +157,7 @@ export default class Bullshark {
     }
 
     // ensure that rounds r+1,2 already complete
-    const max_round = await Round.findMaxId({ datastore: this.datastore });
+    const max_round = await this.datastore.getCurrentRound();
     if (max_round < round + 1) {
       return null;
     }
