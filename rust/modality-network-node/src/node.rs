@@ -30,7 +30,7 @@ impl Node {
         let node_keypair = config.get_libp2p_keypair().await?;
         let peerid = node_keypair.public().to_peer_id();
         let listeners = config.listeners.unwrap_or_default();
-        let resolved_bootstrappers = resolve_dns_multiaddrs(config.bootstrappers.unwrap()).await?;
+        let resolved_bootstrappers = resolve_dns_multiaddrs(config.bootstrappers.unwrap_or_default()).await?;
         let bootstrappers = exclude_multiaddresses_with_peerid(resolved_bootstrappers, peerid);
         let swarm = crate::swarm::create_swarm(node_keypair.clone()).await?;
         let node = Self { peerid, node_keypair, listeners, bootstrappers, swarm };
