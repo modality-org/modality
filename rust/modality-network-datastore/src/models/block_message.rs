@@ -15,7 +15,7 @@ pub struct BlockMessage {
 
 #[async_trait]
 impl Model for BlockMessage {
-    const ID_PATH: &'static str = "/block_message/${round_id}/type/${type}/peer/${peer_id}";
+    const ID_PATH: &'static str = "/block_messages/round/${round_id}/type/${type}/peer/${peer_id}";
     const FIELDS: &'static [&'static str] = &["round_id", "peer_id", "type", "seen_at_block_id", "content"];
     const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
 
@@ -41,7 +41,7 @@ impl Model for BlockMessage {
 
 impl BlockMessage {
     pub async fn find_all_in_block_of_type(datastore: &NetworkDatastore, round_id: i64, r#type: &str) -> Result<Vec<Self>> {
-        let prefix = format!("/block_message/{}/type/{}/peer", round_id, r#type);
+        let prefix = format!("/block_messages/round/{}/type/{}/peer", round_id, r#type);
         let mut messages = Vec::new();
 
         let iterator = datastore.iterator(&prefix);
