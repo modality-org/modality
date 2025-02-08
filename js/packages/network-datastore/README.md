@@ -2,10 +2,6 @@
 
 This is a RocksDB based datastore for Modality Network data.
 
-## Models
-
-- `Block`: a unit of
-
 ## Schema
 
 ### `/blocks/`
