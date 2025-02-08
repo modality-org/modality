@@ -13,6 +13,19 @@ export async function handler({config}) {
   await node.setupAsServer();
   console.log("Running node as %s", node.peerid);
   console.log("             on %s", node.listeners);
+
+  await new Promise(r => setTimeout(r, 5*1000));
+
+  const consensus = await node.setupLocalConsensus();
+  consensus.no_events_round_wait_time_ms = 500;
+  const controller = new AbortController();
+  process.on('SIGINT', () => {
+    controller.abort();
+  });
+  consensus.run(controller.signal, {beforeEachRound: async () => {
+    const round = await node.getDatastore().getCurrentRound();
+    console.log("running round:", round);
+  }});
 }
 
 export default handler;

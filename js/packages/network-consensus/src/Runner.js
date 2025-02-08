@@ -10,6 +10,8 @@ import { Mutex } from "async-mutex";
 const INTRA_ROUND_WAIT_TIME_MS = 50;
 const NO_EVENTS_ROUND_WAIT_TIME_MS = 15000;
 const NO_EVENTS_POLL_WAIT_TIME_MS = 500;
+const KEEP_WAITING_LOG_INTERVAL_MS = 5000;
+const KEEP_WAITING_FOR_ACKS_REBROADCAST_INTERVAL_MS = 5000;
 
 export default class Runner {
   constructor({
@@ -396,6 +398,18 @@ export default class Runner {
 
     let keep_waiting_for_acks = this.latest_seen_at_round ? false : true;
     let keep_waiting_for_certs = true;
+    const keep_waiting_interval = setInterval(() => {
+      console.log('KEEP_WAITING', {round, keep_waiting_for_acks, keep_waiting_for_certs})
+    }, KEEP_WAITING_LOG_INTERVAL_MS);
+    const keep_waiting_for_acks_rebroadcast_interval = setInterval(async () => {
+      if (keep_waiting_for_acks) {
+        const block_data = await block.toDraftJSONObject();
+        await this.communication.broadcastDraftBlock({
+          from: this.peerid,
+          block_data: block_data,
+        });
+      }
+    }, KEEP_WAITING_FOR_ACKS_REBROADCAST_INTERVAL_MS);
     while (keep_waiting_for_acks || keep_waiting_for_certs) {
       if (this.latest_seen_at_round && this.latest_seen_at_round > round) {
         await this.jumpToRound(
@@ -414,6 +428,7 @@ export default class Runner {
         // console.log(this.peerid, {valid_acks});
         if (valid_acks >= current_round_threshold) {
           await block.generateCert(this.keypair);
+          await block.save({ datastore: this.datastore });
           if (this.communication) {
             await this.communication.broadcastCertifiedBlock({
               from: this.peerid,
@@ -440,6 +455,8 @@ export default class Runner {
         await setImmediate();
       }
     }
+    clearInterval(keep_waiting_interval);
+    clearInterval(keep_waiting_for_acks_rebroadcast_interval);
     await this.bumpCurrentRound();
   }
 
@@ -495,10 +512,16 @@ export default class Runner {
     }
   }
 
-  async run(signal) {
+  async run(signal, {beforeEachRound, afterEachRound}) {
     // eslint-disable-next-line no-constant-condition
     while (true) {
+      if (beforeEachRound) {
+        await beforeEachRound();
+      }
       await this.runRound(signal);
+      if (afterEachRound) {
+        await afterEachRound();
+      }
     }
   }
 }
