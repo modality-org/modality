@@ -11,21 +11,17 @@ export const NAME = "Bullshark";
 /// * wave round 1 leader (based on predefined randomness)
 /// * wave round 3 leader (based on predefined randomness)
 export default class Bullshark {
-  constructor({
-    datastore,
-    election,
-    sequencer_first_round = 1,
-  }) {
+  constructor({ datastore, election, sequencer_first_round = 1 }) {
     this.datastore = datastore;
     this.election = election;
     this.sequencer_first_round = sequencer_first_round;
   }
 
-  static create({datastore, election, sequencer_first_round}) {
+  static create({ datastore, election, sequencer_first_round }) {
     return new Bullshark({
       datastore,
       election,
-      sequencer_first_round
+      sequencer_first_round,
     });
   }
 
@@ -37,7 +33,7 @@ export default class Bullshark {
   async getScribesAtRound(round) {
     return []; // TODO
   }
-  
+
   static getBoundRound(round, sequencer_first_round = 1) {
     return round - sequencer_first_round;
   }
@@ -205,6 +201,9 @@ export default class Bullshark {
   async findOrderedBlocksInSection(start_round, end_round) {
     const starting_leader = await this.findFallbackLeaderInRound(start_round);
     const ending_leader = await this.findFallbackLeaderInRound(end_round);
-    return this.datastore.findCausallyLinkedBlocks(ending_leader, starting_leader);
+    return this.datastore.findCausallyLinkedBlocks(
+      ending_leader,
+      starting_leader
+    );
   }
 }

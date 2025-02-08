@@ -8,7 +8,7 @@ export async function setupNetworkConsensus({
   sequencing_method,
   election_method,
   peerid,
-  keypair
+  keypair,
 }) {
   const election = await ELECTION_METHODS[election_method].create();
   const sequencing = await SEQUENCING_METHODS[sequencing_method].create({
@@ -17,7 +17,7 @@ export async function setupNetworkConsensus({
     keypair,
     election,
   });
-  const consensus_system  = Runner.create({
+  const consensus_system = Runner.create({
     datastore,
     peerid,
     keypair,
@@ -25,7 +25,6 @@ export async function setupNetworkConsensus({
   });
   return consensus_system;
 }
-
 
 export async function setupSequencing({
   datastore,

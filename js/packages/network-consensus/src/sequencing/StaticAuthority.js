@@ -10,17 +10,24 @@ export default class StaticAuthority {
   }
 
   async getScribesAtRound(round) {
-    if (round < 0) { return []; }
+    if (round < 0) {
+      return [];
+    }
     if (!this.scribes) {
-      const block_headers = await BlockHeader.findAllInRound({ datastore: this.datastore, round_id: 0 });
-      const peer_ids = block_headers.map(i => i.peer_id);
+      const block_headers = await BlockHeader.findAllInRound({
+        datastore: this.datastore,
+        round_id: 0,
+      });
+      const peer_ids = block_headers.map((i) => i.peer_id);
       this.scribes = peer_ids;
     }
     return this.scribes;
   }
 
   async consensusThresholdForRound(round) {
-    if (round < 0) { return 0; }
+    if (round < 0) {
+      return 0;
+    }
     return ConsensusMath.calculate2fplus1(this.scribes.length);
   }
 }

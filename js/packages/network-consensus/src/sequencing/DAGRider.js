@@ -6,21 +6,17 @@ import ConsensusMath from "../lib/ConsensusMath.js";
 export const NAME = "DAGRider";
 
 export default class DAGRider {
-  constructor({
-    datastore,
-    election,
-    sequencer_first_round = 1,
-  }) {
+  constructor({ datastore, election, sequencer_first_round = 1 }) {
     this.datastore = datastore;
     this.election = election;
     this.sequencer_first_round = sequencer_first_round;
   }
 
-  static create({datastore, election, sequencer_first_round}) {
+  static create({ datastore, election, sequencer_first_round }) {
     return new DAGRider({
       datastore,
       election,
-      sequencer_first_round
+      sequencer_first_round,
     });
   }
 
@@ -124,7 +120,8 @@ export default class DAGRider {
               scribe: prev_block_scribe,
             });
             if (
-              block.last_round_certs[prev_block.scribe]?.cert === prev_block.cert
+              block.last_round_certs[prev_block.scribe]?.cert ===
+              prev_block.cert
             ) {
               next_round_scribes.add(block.scribe);
               continue;
@@ -165,7 +162,10 @@ export default class DAGRider {
     const starting_leader = await this.findLeaderInRound(start_round);
     const ending_leader = await this.findLeaderInRound(end_round);
     // console.log({start_round, starting_leader, end_round, ending_leader});
-    return this.datastore.findCausallyLinkedBlocks(ending_leader, starting_leader);
+    return this.datastore.findCausallyLinkedBlocks(
+      ending_leader,
+      starting_leader
+    );
   }
 
   async findOrderedBlocksUptoRound(end_round) {

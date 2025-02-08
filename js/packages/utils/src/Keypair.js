@@ -9,10 +9,10 @@ import { fromString as uint8ArrayFromString } from "uint8arrays/from-string";
 import { base58btc } from "multiformats/bases/base58";
 import { identity } from "multiformats/hashes/identity";
 import * as Digest from "multiformats/hashes/digest";
-import { peerIdFromString } from '@libp2p/peer-id';
+import { peerIdFromString } from "@libp2p/peer-id";
 import JSONStringifyDeterministic from "json-stringify-deterministic";
 import SSHPem from "./SSHPem.js";
-import * as EncryptedText from './EncryptedText.js';
+import * as EncryptedText from "./EncryptedText.js";
 
 export default class Keypair {
   constructor(key) {
@@ -26,7 +26,7 @@ export default class Keypair {
   }
 
   async asPeerId() {
-    return peerIdFromString(await this.publicKeyAsBase58Identity())
+    return peerIdFromString(await this.publicKeyAsBase58Identity());
   }
 
   // SSH keys
@@ -95,18 +95,14 @@ export default class Keypair {
   }
 
   static keyAsBase64Pad(raw) {
-    const bytes = new Uint8Array([
-      8,
-      1,
-      18,
-      32,
-      ...raw
-    ]); 
+    const bytes = new Uint8Array([8, 1, 18, 32, ...raw]);
     return this.uint8ArrayAsBase64Pad(bytes);
   }
 
   async publicKeyAsBase64Pad() {
-    return this.constructor.keyAsBase64Pad(this.key.publicKey.toMultihash().bytes);
+    return this.constructor.keyAsBase64Pad(
+      this.key.publicKey.toMultihash().bytes
+    );
   }
 
   async privateKeyAsBase64Pad() {
@@ -139,7 +135,7 @@ export default class Keypair {
     const public_key_id = m[2];
     const multihash = Digest.decode(base58btc.decode(`z${public_key_id}`));
     const key = new Keypair({
-      publicKey: publicKeyFromRaw(multihash.digest.subarray(4))
+      publicKey: publicKeyFromRaw(multihash.digest.subarray(4)),
     });
     return key;
   }
@@ -154,7 +150,7 @@ export default class Keypair {
     } else if (public_key) {
       const raw = uint8ArrayFromString(public_key, "base64pad").subarray(4);
       const key = publicKeyFromRaw(raw);
-      return new Keypair({publicKey: key});
+      return new Keypair({ publicKey: key });
     }
   }
 
@@ -206,8 +202,14 @@ export default class Keypair {
     return writeFileSync(path, json_string, "utf-8");
   }
 
-  static async fromEncryptedJSON({ id, public_key, encrypted_private_key }, password) {
-    const private_key = await EncryptedText.decrypt(encrypted_private_key, password);
+  static async fromEncryptedJSON(
+    { id, public_key, encrypted_private_key },
+    password
+  ) {
+    const private_key = await EncryptedText.decrypt(
+      encrypted_private_key,
+      password
+    );
     return this.fromJSON({ id, public_key, private_key });
   }
 
@@ -223,7 +225,10 @@ export default class Keypair {
     const id = await this.publicKeyAsBase58Identity();
     const public_key = await this.publicKeyAsBase64Pad();
     const private_key = await this.privateKeyAsBase64Pad();
-    const encrypted_private_key = await EncryptedText.encrypt(private_key, password);
+    const encrypted_private_key = await EncryptedText.encrypt(
+      private_key,
+      password
+    );
     return {
       id,
       public_key,

@@ -1,5 +1,5 @@
 import Keypair from "@modality-dev/utils/Keypair";
-import { setupNetworkConsensus } from '@modality-dev/network-consensus';
+import { setupNetworkConsensus } from "@modality-dev/network-consensus";
 import ConsensusCommunication from "./ConsensusCommunication.js";
 
 export async function setupConsensus(node, conf) {
@@ -8,10 +8,11 @@ export async function setupConsensus(node, conf) {
     datastore: node.storage.datastore,
     keypair,
     peerid: keypair.id,
-    sequencing_method: 'DAGRider',
-    election_method: 'RoundRobin'
+    sequencing_method: "DAGRider",
+    election_method: "RoundRobin",
   });
   node.consensus.communication = new ConsensusCommunication({
-    node: node, sequencer: node.storage.sequencer
+    node: node,
+    sequencer: node.storage.sequencer,
   });
 }

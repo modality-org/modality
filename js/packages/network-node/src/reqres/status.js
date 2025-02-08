@@ -6,7 +6,7 @@ export async function handler({ datastore, peer, data }) {
   return {
     ok: true,
     data: {
-      ...status, 
-    }
+      ...status,
+    },
   };
 }

@@ -1,6 +1,6 @@
 import Model from "./Model.js";
 
-import Block from './Block.js';
+import Block from "./Block.js";
 
 export default class BlockMeta extends Model {
   static id_path = "/block_metas/round/${round_id}/peer/${peer_id}";

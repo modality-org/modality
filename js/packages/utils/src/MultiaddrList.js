@@ -1,4 +1,4 @@
-import dns from 'dns';
+import dns from "dns";
 
 function removeQuotes(str) {
   const m = str.match(/"(.+)"/);
@@ -14,18 +14,23 @@ export function matchesPeerIdSuffix(str, peer_id) {
 }
 
 async function resolveViaGoogleDns(name, type) {
-  const headers = {accept: 'application/dns-json'};
-  return fetch(`https://dns.google/resolve?name=${name}&type=${type}`, {headers}).then(r => r.json())
+  const headers = { accept: "application/dns-json" };
+  return fetch(`https://dns.google/resolve?name=${name}&type=${type}`, {
+    headers,
+  }).then((r) => r.json());
 }
 
 async function resolveViaCloudflareDns(name, type) {
-  const headers = {accept: 'application/dns-json'};
-  return fetch(`https://cloudflare-dns.com/dns-query?name=${name}&type=${type}`, {headers}).then(r => r.json())
+  const headers = { accept: "application/dns-json" };
+  return fetch(
+    `https://cloudflare-dns.com/dns-query?name=${name}&type=${type}`,
+    { headers }
+  ).then((r) => r.json());
 }
 
 async function resolveViaWebBasedDns(name, type) {
   const ans = await resolveViaGoogleDns(name, type);
-  return ans.Answer?.map(i => i.data);
+  return ans.Answer?.map((i) => i.data);
 }
 
 async function resolveViaDns(name, type) {
@@ -40,7 +45,7 @@ export async function resolveDnsEntries(entries) {
       const m = entry.match(/^\/dns\/([A-Za-z0-9-.]+)(.*)/);
       const name = m[1];
       const rest = m[2];
-      const answers = await resolveViaDns(name, 'A');
+      const answers = await resolveViaDns(name, "A");
       for (const address of answers) {
         const ans = `/ip4/${address}${rest}`;
         if (!p2p_match || matchesPeerIdSuffix(ans, p2p_match[1])) {
@@ -50,8 +55,8 @@ export async function resolveDnsEntries(entries) {
     } else if (entry.match(/^\/dnsaddr\//)) {
       const m = entry.match(/^\/dnsaddr\/([A-Za-z0-9-.]+)(.*)/);
       const name = `_dnsaddr.${m[1]}`;
-      let answers = await resolveViaDns(name, 'TXT');
-      answers = answers.flat().map(ans => removeQuotes(ans));
+      let answers = await resolveViaDns(name, "TXT");
+      answers = answers.flat().map((ans) => removeQuotes(ans));
       for (const answer of answers) {
         const ans_match = answer.match(/^dnsaddr=(.*)/);
         if (ans_match) {

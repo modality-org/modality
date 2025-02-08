@@ -1,14 +1,13 @@
 import React from "react";
 import styled from "styled-components";
 import { Link } from "react-router-dom";
-import LinkerLine from 'linkerline';
+import LinkerLine from "linkerline";
 
-import Backend from '../lib/Backend.mjs';
+import Backend from "../lib/Backend.mjs";
 
 export const layout = "HeaderFooter";
 
-export default function ScribeBlock({round, scribe, showLines = true}) {
-
+export default function ScribeBlock({ round, scribe, showLines = true }) {
   const [page, setBlock] = React.useState([]);
   const [lines, setLines] = React.useState([]);
   const [isHovering, setIsHovering] = React.useState(false);
@@ -22,16 +21,18 @@ export default function ScribeBlock({round, scribe, showLines = true}) {
 
   React.useEffect(() => {
     const lr_certs = Object.values(page.last_round_certs || {});
-    const connections = lr_certs.map(cert => (
-      [
-        {round: round-1, scribe: cert.scribe},
-        {round, scribe},
-      ]
-    ));
+    const connections = lr_certs.map((cert) => [
+      { round: round - 1, scribe: cert.scribe },
+      { round, scribe },
+    ]);
     const _lines = [];
     for (const conn of connections) {
-      const node1 = this.document.getElementById(`scribe-page-round-${conn[0].round}-scribe-${conn[0].scribe}`);
-      const node2 = this.document.getElementById(`scribe-page-round-${conn[1].round}-scribe-${conn[1].scribe}`);
+      const node1 = this.document.getElementById(
+        `scribe-page-round-${conn[0].round}-scribe-${conn[0].scribe}`
+      );
+      const node2 = this.document.getElementById(
+        `scribe-page-round-${conn[1].round}-scribe-${conn[1].scribe}`
+      );
       if (node1 && node2) {
         let line = new LinkerLine({
           end: node1,
@@ -42,7 +43,7 @@ export default function ScribeBlock({round, scribe, showLines = true}) {
           endSocket: "top",
           startPlug: "behind",
           endPlug: "arrow3",
-          path: 'straight',
+          path: "straight",
         });
         if (!showLines && !isHovering) {
           line.hide();
@@ -54,7 +55,12 @@ export default function ScribeBlock({round, scribe, showLines = true}) {
   }, [page, showLines, isHovering]);
 
   return (
-    <StyledDiv id={`scribe-page-round-${round}-scribe-${scribe}`} onMouseEnter={() => setIsHovering(true)} on onMouseLeave={() => setIsHovering(false)}>
+    <StyledDiv
+      id={`scribe-page-round-${round}-scribe-${scribe}`}
+      onMouseEnter={() => setIsHovering(true)}
+      on
+      onMouseLeave={() => setIsHovering(false)}
+    >
       <Link to={`/rounds/${round}/scribes/${scribe}`}>
         <div className="Block">
           {page?.is_section_leader && <div className="section-leader">§</div>}

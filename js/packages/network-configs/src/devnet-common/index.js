@@ -63,7 +63,7 @@ export function peeridOf(index) {
 }
 
 export function indexOf(peerid) {
-  let index = 0
+  let index = 0;
   for (const keypair of Object.entries(keypairs)) {
     if (keypair[1].id === peerid) {
       return index;
@@ -85,5 +85,5 @@ export default {
   getKeypairFor,
   getKeypairsDict,
   peeridOf,
-  indexOf
+  indexOf,
 };

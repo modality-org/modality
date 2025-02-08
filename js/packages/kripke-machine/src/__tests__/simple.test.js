@@ -5,7 +5,7 @@ import Step from "../parts/Step.js";
 import Evolution from "../parts/Evolution.js";
 
 import JSONFile from "@modality-dev/utils/JSONFile";
-import { dirname } from 'dirname-filename-esm';
+import { dirname } from "dirname-filename-esm";
 const __dirname = dirname(import.meta);
 function fixturesFile(fn) {
   return `${__dirname}/../../fixtures/${fn}`;

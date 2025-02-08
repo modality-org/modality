@@ -1,17 +1,14 @@
-import {
-  InvalidParametersError,
-  TimeoutError,
-} from "@libp2p/interface";
+import { InvalidParametersError, TimeoutError } from "@libp2p/interface";
 import { pipe } from "it-pipe";
 import all from "it-all";
 import * as Uint8ArrayHelpers from "uint8arrays";
 import SafeJSON from "@modality-dev/utils/SafeJSON";
 
-import * as Ping from './ping.js'
-import * as Status from './status.js'
+import * as Ping from "./ping.js";
+import * as Status from "./status.js";
 
-import * as Data_Round_BlockHeaders from './data/round/block_headers.js';
-import * as Data_Block from './data/block.js';
+import * as Data_Round_BlockHeaders from "./data/round/block_headers.js";
+import * as Data_Block from "./data/block.js";
 
 import * as Consensus_Block_Ack from "./consensus/block/ack.js";
 
@@ -84,7 +81,7 @@ export class ReqResService {
       }
     }
     throw new InvalidParametersError(
-      `invalid path (${path}) must be a supported path by modality reqres`,
+      `invalid path (${path}) must be a supported path by modality reqres`
     );
   }
 
@@ -112,7 +109,7 @@ export class ReqResService {
       path,
       data,
       options
-    ); 
+    );
     return res;
   }
 

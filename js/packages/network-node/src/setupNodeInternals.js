@@ -19,7 +19,7 @@ import { bootstrap } from "@libp2p/bootstrap";
 import { identify } from "@libp2p/identify";
 import { gossipsub } from "@chainsafe/libp2p-gossipsub";
 import reqres from "./reqres/index.js";
-import local from './local/index.js';
+import local from "./local/index.js";
 
 export default async function createLibp2pNode({
   port,
@@ -39,8 +39,8 @@ export default async function createLibp2pNode({
 
   const nat = enableNAT
     ? {
-      enabled: true,
-    }
+        enabled: true,
+      }
     : {};
 
   const relay = {
@@ -78,14 +78,14 @@ export default async function createLibp2pNode({
     ],
     services: {
       local: local({
-        storage_path: options.storage_path, 
-        network_config: options.network_config
+        storage_path: options.storage_path,
+        network_config: options.network_config,
       }),
       identify: identify(),
       ping: ping(),
       pubsub: gossipsub({
         allowPublishToZeroTopicPeers: true,
-        emitSelf: true
+        emitSelf: true,
       }),
       reqres: reqres(),
     },

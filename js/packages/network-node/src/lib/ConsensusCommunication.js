@@ -1,4 +1,4 @@
-import { ICommunication } from '@modality-dev/network-consensus/communication/ICommunication';
+import { ICommunication } from "@modality-dev/network-consensus/communication/ICommunication";
 
 import { TOPIC as PAGE_DRAFT_TOPIC } from "../gossip/consensus/block/draft.js";
 import { TOPIC as PAGE_CERT_TOPIC } from "../gossip/consensus/block/cert.js";
@@ -32,11 +32,12 @@ export default class ConsensusCommunication {
   }
 
   async fetchScribeRoundCertifiedBlock({ from, to, round_id, peer_id }) {
-    if (to === this.node.peerid) { return null; }
-    return await this.node.sendRequest(
-      to,
-      "/data/block",
-      { round_id, peer_id }
-    );
+    if (to === this.node.peerid) {
+      return null;
+    }
+    return await this.node.sendRequest(to, "/data/block", {
+      round_id,
+      peer_id,
+    });
   }
 }

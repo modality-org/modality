@@ -4,7 +4,7 @@ import LevelRocksDb from "level-rocksdb";
 import SafeJSON from "@modality-dev/utils/SafeJSON";
 import fs from "fs-extra";
 
-import Block from './data/Block.js';
+import Block from "./data/Block.js";
 import BlockHeader from "./data/BlockHeader.js";
 
 export default class NetworkDatastore {
@@ -51,16 +51,18 @@ export default class NetworkDatastore {
 
   async loadNetworkConfig(network_config) {
     if (network_config?.rounds) {
-      for (const [round_id,round_data] of Object.entries(network_config.rounds)) {
+      for (const [round_id, round_data] of Object.entries(
+        network_config.rounds
+      )) {
         for (const block_data of Object.values(round_data)) {
           const block = Block.from(block_data);
-          await block.save({datastore: this});
-          const rbh = BlockHeader.from({...block_data});
-          await rbh.save({datastore: this});
+          await block.save({ datastore: this });
+          const rbh = BlockHeader.from({ ...block_data });
+          await rbh.save({ datastore: this });
         }
         const round = await this.getCurrentRound();
         if (round < round_id) {
-          await this.setCurrentRound({round_id})
+          await this.setCurrentRound({ round_id });
         }
       }
     }
@@ -183,9 +185,7 @@ export default class NetworkDatastore {
   }
 
   async bumpCurrentRound() {
-    const current_round = await this.getInt(
-      "/status/current_round"
-    );
+    const current_round = await this.getInt("/status/current_round");
     const current_round_num = current_round || 0;
     return this.put(
       "/status/current_round",
@@ -194,10 +194,7 @@ export default class NetworkDatastore {
   }
 
   async setCurrentRound(round) {
-    return this.put(
-      "/status/current_round",
-      parseInt(round).toString()
-    );
+    return this.put("/status/current_round", parseInt(round).toString());
   }
 
   async getCurrentRound() {
@@ -208,10 +205,10 @@ export default class NetworkDatastore {
     const current_round = await this.getInt("/status/current_round");
     return {
       current_round,
-    }
+    };
   }
 
-  async findBlock({round, scribe}) {
+  async findBlock({ round, scribe }) {
     return Block.findOne({ datastore: this, round, scribe });
   }
 

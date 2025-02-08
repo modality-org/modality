@@ -18,7 +18,7 @@ describe("Runner", () => {
     // setup
     const scribes = await Devnet.getPeerids(NODE_COUNT);
     const scribe_keypairs = await Devnet.getKeypairsDict(NODE_COUNT);
-    const sequencing = await StaticAuthority.create({scribes});
+    const sequencing = await StaticAuthority.create({ scribes });
 
     const ds_builder = await NetworkDatastoreBuilder.createInMemory();
     ds_builder.scribes = [...scribes];
@@ -56,7 +56,9 @@ describe("Runner", () => {
 
     // round 2 from perspective of scribe 1
     round = 1;
-    const prev_round_certs = await runner1.datastore.getTimelyCertSigsAtRound(round - 1);
+    const prev_round_certs = await runner1.datastore.getTimelyCertSigsAtRound(
+      round - 1
+    );
     block = Block.from({
       round_id: round,
       peer_id: scribes[0],
@@ -80,12 +82,10 @@ describe("Runner", () => {
     expect(Object.keys(block.acks).length).toBe(3);
     expect(await block.validateCert({ acks_needed: 3 })).toBe(true);
 
-    let cert_block = await runner2.onReceiveBlockCert(
-      block.toJSONObject()
-    );
+    let cert_block = await runner2.onReceiveBlockCert(block.toJSONObject());
     expect(cert_block).not.toBe(null);
     cert_block = await runner2.onReceiveBlockCert({
-      ...(block.toJSONObject()),
+      ...block.toJSONObject(),
       cert: null,
     });
     expect(cert_block).toBeNull();

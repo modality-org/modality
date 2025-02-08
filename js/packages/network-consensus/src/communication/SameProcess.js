@@ -1,4 +1,4 @@
-import { ICommunication } from './ICommunication.js';
+import { ICommunication } from "./ICommunication.js";
 
 /**
  * @implements {ICommunication}
@@ -60,6 +60,6 @@ export default class SameProcess {
       return;
     }
     const to_seq = this.nodes[to];
-    return to_seq?.onFetchScribeRoundCertifiedBlockRequest({scribe, round});
-  };
+    return to_seq?.onFetchScribeRoundCertifiedBlockRequest({ scribe, round });
+  }
 }

@@ -69,7 +69,12 @@ class ReqResService {
   }
 
   async handleRequest(peer, path, data, options) {
-    const r = await SourceReqResService.handleRequest(peer, path, data, options);
+    const r = await SourceReqResService.handleRequest(
+      peer,
+      path,
+      data,
+      options
+    );
     return r;
   }
 

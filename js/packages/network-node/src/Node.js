@@ -1,14 +1,25 @@
 import JSONFile from "@modality-dev/utils/JSONFile";
-import Keypair from "@modality-dev/utils/Keypair"
-import { resolveDnsEntries, matchesPeerIdSuffix } from "@modality-dev/utils/MultiaddrList";
-import path from 'path';
+import Keypair from "@modality-dev/utils/Keypair";
+import {
+  resolveDnsEntries,
+  matchesPeerIdSuffix,
+} from "@modality-dev/utils/MultiaddrList";
+import path from "path";
 import setupNodeInternals from "./setupNodeInternals.js";
 import { addSequencerEventListeners } from "./gossip/index.js";
-import { setupNetworkConsensus } from '@modality-dev/network-consensus';
+import { setupNetworkConsensus } from "@modality-dev/network-consensus";
 import ConsensusCommunication from "../src/lib/ConsensusCommunication.js";
-import { peerIdFromString } from '@libp2p/peer-id'
+import { peerIdFromString } from "@libp2p/peer-id";
 export default class Node {
-  constructor({ peerid, keypair, listeners, bootstrappers, swarm, storage_path, network_config }) {
+  constructor({
+    peerid,
+    keypair,
+    listeners,
+    bootstrappers,
+    swarm,
+    storage_path,
+    network_config,
+  }) {
     this.peerid = peerid;
     this.keypair = keypair;
     this.listeners = listeners;
@@ -21,10 +32,15 @@ export default class Node {
   static async fromConfigFilepath(filepath, overrides = {}) {
     const config = JSONFile.readSync(filepath);
     const relative_path_base = path.resolve(path.dirname(filepath));
-    config.passfile_path = path.resolve(relative_path_base, config.passfile_path);
+    config.passfile_path = path.resolve(
+      relative_path_base,
+      config.passfile_path
+    );
     config.storage_path = path.resolve(relative_path_base, config.storage_path);
-    config.network_config_path = config.network_config_path && path.resolve(relative_path_base, config.network_config_path);
-    return Node.fromConfig({...config, ...overrides});
+    config.network_config_path =
+      config.network_config_path &&
+      path.resolve(relative_path_base, config.network_config_path);
+    return Node.fromConfig({ ...config, ...overrides });
   }
 
   static async fromConfig(config) {
@@ -32,49 +48,70 @@ export default class Node {
     const peerid = await keypair.asPublicAddress();
     const storage_path = config.storage_path;
     const listeners = config.listeners || [];
-    const resolved_bootstrappers = await resolveDnsEntries(config.bootstrappers || []);
-    const bootstrappers = resolved_bootstrappers.filter(ma => !matchesPeerIdSuffix(ma, peerid));
+    const resolved_bootstrappers = await resolveDnsEntries(
+      config.bootstrappers || []
+    );
+    const bootstrappers = resolved_bootstrappers.filter(
+      (ma) => !matchesPeerIdSuffix(ma, peerid)
+    );
     let network_config = null;
     if (config.network_config_path) {
       network_config = JSONFile.readSync(config.network_config_path);
     }
-    const node = new Node({ peerid, keypair, storage_path, listeners, bootstrappers, network_config });
+    const node = new Node({
+      peerid,
+      keypair,
+      storage_path,
+      listeners,
+      bootstrappers,
+      network_config,
+    });
 
     return node;
   }
 
-  static async createNetworkClient(network = 'mainnet', storage_path = null) {
-    const keypair = await Keypair.generate()
+  static async createNetworkClient(network = "mainnet", storage_path = null) {
+    const keypair = await Keypair.generate();
     const peerid = await keypair.asPublicAddress();
-    const resolved_bootstrappers = await resolveDnsEntries([`/dnsaddr/${network}.modality.network`]);
-    const bootstrappers = resolved_bootstrappers.filter(ma => !matchesPeerIdSuffix(ma, peerid));
+    const resolved_bootstrappers = await resolveDnsEntries([
+      `/dnsaddr/${network}.modality.network`,
+    ]);
+    const bootstrappers = resolved_bootstrappers.filter(
+      (ma) => !matchesPeerIdSuffix(ma, peerid)
+    );
     const listeners = [];
-    const node = new Node({ peerid, keypair, listeners, bootstrappers, storage_path });
+    const node = new Node({
+      peerid,
+      keypair,
+      listeners,
+      bootstrappers,
+      storage_path,
+    });
     return node;
   }
 
-  async setup(mode = 'client') {
+  async setup(mode = "client") {
     const peerId = await this.keypair.asPeerId(); //await PeerIdHelpers.createFromJSON(await this.keypair.asJSON());
     const privateKey = this.keypair.key;
-    const addresses = mode === 'client' ? {} : { listen: this.listeners };
+    const addresses = mode === "client" ? {} : { listen: this.listeners };
     const swarm = await setupNodeInternals({
       peerId,
       privateKey,
       addresses,
       bootstrappers: this.bootstrappers,
       storage_path: this.storage_path,
-      network_config: this.network_config
+      network_config: this.network_config,
     });
     this.swarm = swarm;
     await this.swarm.start();
   }
 
   async setupAsClient() {
-    return this.setup('client');
+    return this.setup("client");
   }
 
   async setupAsServer() {
-    return this.setup('server');
+    return this.setup("server");
   }
 
   async listenForConsensusEvents() {
@@ -98,10 +135,7 @@ export default class Node {
   }
 
   async addPeerMultiaddress(peer_id, multiaddress) {
-    return this.swarm.peerStore.save(
-      peer_id,
-      { multiaddrs: [multiaddress] }
-    );
+    return this.swarm.peerStore.save(peer_id, { multiaddrs: [multiaddress] });
   }
 
   getDatastore() {
@@ -110,7 +144,7 @@ export default class Node {
 
   sendRequest(to, path, data) {
     return this.swarm.services.reqres.call(
-      typeof to === 'string' ? peerIdFromString(to) : to,
+      typeof to === "string" ? peerIdFromString(to) : to,
       path,
       data
     );
@@ -120,29 +154,21 @@ export default class Node {
     const context = {
       services: this.swarm.services,
       datastore: this.swarm.services.local.datastore,
-      local: this.swarm.services.local
+      local: this.swarm.services.local,
     };
     return this.swarm.services.reqres.handleRequest(from, path, data, context);
   }
 
   sendOrHandleRequest(to, path, data) {
     if (to === this.peerid) {
-      return this.handleRequest(
-        this.peerid,
-        path,
-        data
-      );
+      return this.handleRequest(this.peerid, path, data);
     } else {
-      return this.sendRequest(
-        to,
-        path,
-        data,
-      );
+      return this.sendRequest(to, path, data);
     }
   }
 
   publishGossip(topic, data) {
-    const json_text = new TextEncoder().encode(JSON.stringify(data))
+    const json_text = new TextEncoder().encode(JSON.stringify(data));
     return this.swarm.services.pubsub.publish(topic, json_text);
   }
 
@@ -151,8 +177,8 @@ export default class Node {
       peerid: this.peerid,
       keypair: this.keypair,
       datastore: this.getDatastore(),
-      sequencing_method: 'StaticAuthority',
-      election_method: 'RoundRobin',
+      sequencing_method: "StaticAuthority",
+      election_method: "RoundRobin",
       ...opts,
     });
     consensus.communication = new ConsensusCommunication({

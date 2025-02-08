@@ -3,5 +3,5 @@ export function calculate2fplus1(n) {
 }
 
 export default {
-  calculate2fplus1
-}
+  calculate2fplus1,
+};

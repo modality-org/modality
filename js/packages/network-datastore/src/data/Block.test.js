@@ -22,7 +22,11 @@ describe("Block", () => {
     let sig1 = await b1.generateSig(node1_keypair);
     let result = await b1.validateSig();
     expect(result).toBe(true);
-    let b1empty = Block.from({ peer_id: node1_peerid, round_id: 1, events: [] });
+    let b1empty = Block.from({
+      peer_id: node1_peerid,
+      round_id: 1,
+      events: [],
+    });
     let sig1empty = await b1empty.generateSig(node1_keypair);
     expect(sig1).not.toBe(sig1empty);
 

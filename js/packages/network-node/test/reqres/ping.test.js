@@ -1,9 +1,9 @@
 import { expect, describe, test, it, afterEach } from "@jest/globals";
 
 // import createTestNode from "../../createTestNode";
-import Node from '../../src/Node.js';
+import Node from "../../src/Node.js";
 
-import { dirname } from 'dirname-filename-esm';
+import { dirname } from "dirname-filename-esm";
 const __dirname = dirname(import.meta);
 const FIXTURES_COMMON = `${__dirname}/../../../../fixtures-common`;
 
@@ -11,16 +11,20 @@ describe("reqres /ping", () => {
   let node1, node2;
 
   it("should work", async () => {
-    node1 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node1.json`, {storage_path: null});
-    node2 = await Node.fromConfigFilepath(`${FIXTURES_COMMON}/network-node-configs/devnet2/node2.json`, {storage_path: null});
+    node1 = await Node.fromConfigFilepath(
+      `${FIXTURES_COMMON}/network-node-configs/devnet2/node1.json`,
+      { storage_path: null }
+    );
+    node2 = await Node.fromConfigFilepath(
+      `${FIXTURES_COMMON}/network-node-configs/devnet2/node2.json`,
+      { storage_path: null }
+    );
     await node1.setupAsClient();
     await node2.setupAsServer();
 
-    await node1.swarm.peerStore.save(
-      await node2.getPeerId(),
-      {multiaddrs: [node2.getListenerMultiaddress()]}
-    );
-
+    await node1.swarm.peerStore.save(await node2.getPeerId(), {
+      multiaddrs: [node2.getListenerMultiaddress()],
+    });
 
     try {
       const r = await node1.swarm.services.reqres.call(
@@ -39,5 +43,5 @@ describe("reqres /ping", () => {
   afterEach(async () => {
     await node1?.stop();
     await node2?.stop();
-  })
+  });
 });

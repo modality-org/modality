@@ -15,7 +15,12 @@ export default class Transaction extends Model {
       const timestamp = key.split(`${prefix}/`)[1];
       const contract_id = key.split(`${prefix}/`)[2];
       const commit_id = key.split(`${prefix}/`)[3];
-      const Transaction = await this.findOne({ datastore, timestamp, contract_id, commit_id });
+      const Transaction = await this.findOne({
+        datastore,
+        timestamp,
+        contract_id,
+        commit_id,
+      });
       if (Transaction) {
         r.push(Transaction);
       }

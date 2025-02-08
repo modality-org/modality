@@ -12,8 +12,8 @@ describe("setupNetworkConsensus", () => {
       datastore,
       keypair,
       peerid: keypair.id,
-      sequencing_method: 'DAGRider',
-      election_method: 'RoundRobin'
+      sequencing_method: "DAGRider",
+      election_method: "RoundRobin",
     });
     expect(nc).not.toBeNull();
   });

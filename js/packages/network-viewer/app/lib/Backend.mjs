@@ -1,7 +1,7 @@
 import "isomorphic-fetch";
 import "isomorphic-form-data";
 // import { FormData } from 'formdata-polyfill/esm.min.js';
-import { serialize } from '@shoelace-style/shoelace/dist/utilities/form.js';
+import { serialize } from "@shoelace-style/shoelace/dist/utilities/form.js";
 
 const DEFAULT_HEADERS = {
   credentials: "include",
@@ -28,8 +28,8 @@ export function get(path) {
       if (!response.ok) {
         return Promise.reject(response);
       }
-      if (json.errors?.find(i => i.status === 404)) {
-        return window.location.href = '/not-found';
+      if (json.errors?.find((i) => i.status === 404)) {
+        return (window.location.href = "/not-found");
       }
       if (!json.ok) {
         return Promise.reject(json);

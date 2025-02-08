@@ -1,8 +1,8 @@
 import React from "react";
 import styled from "styled-components";
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams } from "react-router-dom";
 
-import Backend from '../../../lib/Backend.mjs';
+import Backend from "../../../lib/Backend.mjs";
 import RoundRow from "../../../components/RoundRow.jsx";
 
 export const layout = "HeaderFooter";
@@ -19,18 +19,21 @@ export default function Block() {
     })();
   }, [round_number]);
 
-  return (<StyledDiv>
-    <div>
-      <a href={`/rounds/${round_number}`}>Round {round_number}</a>
-    </div>
-    <div className="RoundRows"> 
-      {<RoundRow key={round_number+1} round={round_number+1} />}
-      <RoundRow key={round_number} round={round_number} />
-      {round_number > 1 && <RoundRow key={round_number-1} round={round_number-1} />}
-    </div>
-  </StyledDiv>);
+  return (
+    <StyledDiv>
+      <div>
+        <a href={`/rounds/${round_number}`}>Round {round_number}</a>
+      </div>
+      <div className="RoundRows">
+        {<RoundRow key={round_number + 1} round={round_number + 1} />}
+        <RoundRow key={round_number} round={round_number} />
+        {round_number > 1 && (
+          <RoundRow key={round_number - 1} round={round_number - 1} />
+        )}
+      </div>
+    </StyledDiv>
+  );
 }
-
 
 const StyledDiv = styled.div/*css*/ `
   .RoundRows {

@@ -1,8 +1,8 @@
 import SafeJSON from "@modality-dev/utils/SafeJSON";
 import Keypair from "@modality-dev/utils/Keypair";
-import Model from './Model.js';
+import Model from "./Model.js";
 
-import * as EncodedText from '@modality-dev/utils/EncodedText';
+import * as EncodedText from "@modality-dev/utils/EncodedText";
 
 // Narwhal style vertices
 export default class Block extends Model {
@@ -23,7 +23,7 @@ export default class Block extends Model {
     prev_round_certs: {},
     acks: {},
     late_acks: [],
-  }
+  };
 
   static async findAllInRound({ datastore, round_id }) {
     const prefix = `/blocks/round/${round_id}/peer`;
@@ -86,7 +86,7 @@ export default class Block extends Model {
     if (!this.closing_sig) {
       throw new Error("no hash without closing sig");
     }
-    const hash = EncodedText.recode(this.closing_sig, 'base64pad', 'base58btc');
+    const hash = EncodedText.recode(this.closing_sig, "base64pad", "base58btc");
     return hash;
   }
 
@@ -166,7 +166,7 @@ export default class Block extends Model {
       peer_id: this.peer_id,
       round_id: this.round_id,
       closing_sig: this.closing_sig,
-      acker: ack.acker
+      acker: ack.acker,
     };
     return await keypair.verifyJSON(ack.acker_sig, facts);
   }

@@ -1,6 +1,6 @@
 import Model from "./Model.js";
 
-import Block from './Block.js';
+import Block from "./Block.js";
 
 export default class BlockHeader extends Model {
   static id_path = "/block_headers/round/${round_id}/peer/${peer_id}";
@@ -9,7 +9,7 @@ export default class BlockHeader extends Model {
     "peer_id",
     "prev_round_certs",
     "opening_sig",
-    "cert"
+    "cert",
   ];
 
   static async findAllInRound({ datastore, round_id }) {
@@ -27,9 +27,13 @@ export default class BlockHeader extends Model {
   }
 
   static async derviveAllInRound({ datastore, round_id }) {
-    const blocks = await Block.findAllInRound({datastore, round_id})
+    const blocks = await Block.findAllInRound({ datastore, round_id });
     for (const block of blocks) {
-      const bh = await BlockHeader.findOne({datastore, round_id, peer_id: block.peer_id});
+      const bh = await BlockHeader.findOne({
+        datastore,
+        round_id,
+        peer_id: block.peer_id,
+      });
       if (!bh) {
         // check validity
         const bh = BlockHeader.from({
@@ -39,7 +43,7 @@ export default class BlockHeader extends Model {
           opening_sig: block.opening_sig,
           cert: block.cert,
         });
-        await bh.save({datastore});
+        await bh.save({ datastore });
       }
     }
   }

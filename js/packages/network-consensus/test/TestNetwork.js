@@ -11,7 +11,7 @@ export default class TestNetwork {
     this.nodes = {};
   }
 
-  static async setup({node_count = 1, election_method, sequencing_method}) {
+  static async setup({ node_count = 1, election_method, sequencing_method }) {
     const tn = new TestNetwork();
     tn.communication = new SameProcess();
     tn.communication.nodes = {};
@@ -60,10 +60,18 @@ export default class TestNetwork {
   }
 
   onlineSequencerEntries() {
-    return Object.fromEntries(Object.entries(this.nodes).filter((seq) => !this.communication.offline_nodes.includes(seq[0])));
+    return Object.fromEntries(
+      Object.entries(this.nodes).filter(
+        (seq) => !this.communication.offline_nodes.includes(seq[0])
+      )
+    );
   }
 
   runUntilRound(round, signal) {
-    return Promise.all(Object.values(this.onlineSequencerEntries()).map((seq) => seq.runner.runUntilRound(round, signal)));
+    return Promise.all(
+      Object.values(this.onlineSequencerEntries()).map((seq) =>
+        seq.runner.runUntilRound(round, signal)
+      )
+    );
   }
 }

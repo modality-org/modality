@@ -5,17 +5,17 @@ export default class Model {
   static fields = [];
   static field_defaults = {};
 
-  static from(obj) { 
+  static from(obj) {
     const r = new this(obj);
     for (const key of this.fields) {
       if (obj[key] !== undefined) {
         r[key] = obj[key];
       } else if (this.field_defaults?.[key] !== undefined) {
-        const default_value = this.field_defaults[key]; 
+        const default_value = this.field_defaults[key];
         if (Array.isArray(default_value)) {
           r[key] = [...default_value];
-        } else if (typeof default_value === 'object') {
-          r[key] = {...default_value};
+        } else if (typeof default_value === "object") {
+          r[key] = { ...default_value };
         } else {
           r[key] = default_value;
         }
@@ -26,7 +26,7 @@ export default class Model {
 
   static fromJSONString(json) {
     if (!json) return null;
-    const obj = SafeJSON.parse(json)
+    const obj = SafeJSON.parse(json);
     return this.from(obj);
   }
 
@@ -62,7 +62,7 @@ export default class Model {
   static getKeyNames() {
     const keyPattern = /\$\{(\w+)\}/g;
     const matches = [...this.id_path.matchAll(keyPattern)];
-    return matches.map(match => match[1]);
+    return matches.map((match) => match[1]);
   }
 
   getIdKeys() {
@@ -79,7 +79,6 @@ export default class Model {
     return this.constructor.getIdFor(keys);
   }
 
-
   static async findOne({ datastore, ...keys }) {
     const key = this.getIdFor(keys);
     try {
@@ -94,7 +93,7 @@ export default class Model {
     }
   }
 
-  async reload({datastore}) {
+  async reload({ datastore }) {
     const keys = this.getIdKeys();
     const obj = await this.constructor.findOne({ datastore, ...keys });
     for (const key of this.constructor.fields) {
@@ -106,5 +105,4 @@ export default class Model {
   async delete({ datastore }) {
     return datastore.delete(this.getId());
   }
-
 }

@@ -1,6 +1,6 @@
 import { jest, expect, describe, test, it } from "@jest/globals";
 
-import { setTimeout as setTimeoutPromise } from 'timers/promises';
+import { setTimeout as setTimeoutPromise } from "timers/promises";
 
 import NetworkDatastoreBuilder from "@modality-dev/network-datastore/NetworkDatastoreBuilder";
 
@@ -29,7 +29,7 @@ describe.skip("DAGRider", () => {
     const ds_builder = await NetworkDatastoreBuilder.createInMemory();
     const sequencing = DAGRider.create({
       datastore: ds_builder.datastore,
-      election
+      election,
     });
 
     ds_builder.scribes = [...scribes];
@@ -191,7 +191,11 @@ describe.skip("DAGRider", () => {
     const NODE_COUNT = 9;
     const my_seq_id = Devnet.peeridOf(0);
 
-    const network = await TestNetwork.setup({node_count: NODE_COUNT, sequencing_method: 'DAGRider', election_method: 'RoundRobin'});
+    const network = await TestNetwork.setup({
+      node_count: NODE_COUNT,
+      sequencing_method: "DAGRider",
+      election_method: "RoundRobin",
+    });
     await network.runUntilRound(9);
     const node1 = network.getNode(my_seq_id).runner;
 
@@ -208,12 +212,20 @@ describe.skip("DAGRider", () => {
     const BAD_NODE_COUNT = 1;
     const offline_seq_id = Devnet.peeridOf(NODE_COUNT - 1);
 
-    const network = await TestNetwork.setup({node_count: NODE_COUNT, sequencing_method: 'DAGRider', election_method: 'RoundRobin'});
+    const network = await TestNetwork.setup({
+      node_count: NODE_COUNT,
+      sequencing_method: "DAGRider",
+      election_method: "RoundRobin",
+    });
     network.communication.offline_nodes = [offline_seq_id];
 
     const abortController = new AbortController();
-    setTimeoutPromise(3000).then(() => { abortController.abort() });    
-    await expect(network.runUntilRound(9, abortController.signal)).rejects.toThrow("aborted");
+    setTimeoutPromise(3000).then(() => {
+      abortController.abort();
+    });
+    await expect(
+      network.runUntilRound(9, abortController.signal)
+    ).rejects.toThrow("aborted");
 
     network.communication.offline_nodes = [];
     await network.runUntilRound(9);
@@ -225,7 +237,7 @@ describe.skip("DAGRider", () => {
     const leader5 = await node1.sequencing.findLeaderInRound(5);
     expect(leader5).not.toBeNull();
     const blocks = await node1.sequencing.findOrderedBlocksInSection(null, 5);
-    expect(blocks.length).toBe((NODE_COUNT) * 4 + 1);
+    expect(blocks.length).toBe(NODE_COUNT * 4 + 1);
   });
 
   test("given f = 1, one bad sequencer not elected leader, network can sequence", async () => {
@@ -234,7 +246,11 @@ describe.skip("DAGRider", () => {
     const my_seq_id = Devnet.peeridOf(0);
     const offline_seq_id = Devnet.peeridOf(3);
 
-    const network = await TestNetwork.setup({node_count: NODE_COUNT, sequencing_method: 'DAGRider', election_method: 'RoundRobin'});
+    const network = await TestNetwork.setup({
+      node_count: NODE_COUNT,
+      sequencing_method: "DAGRider",
+      election_method: "RoundRobin",
+    });
     network.communication.offline_nodes = [offline_seq_id];
     await network.runUntilRound(9);
 
@@ -244,18 +260,28 @@ describe.skip("DAGRider", () => {
     const leader5 = await seq1.sequencing.findLeaderInRound(5);
     expect(leader5).not.toBeNull();
     const blocks = await seq1.sequencing.findOrderedBlocksInSection(null, 5);
-    expect(blocks.length).toBe((NODE_COUNT - BAD_NODE_COUNT) * 4 + 1 + BAD_NODE_COUNT);
+    expect(blocks.length).toBe(
+      (NODE_COUNT - BAD_NODE_COUNT) * 4 + 1 + BAD_NODE_COUNT
+    );
 
     // bring back the offline sequencer
     network.communication.offline_nodes = [];
     await network.runUntilRound(13);
-    const blocks_r0t9 = await seq1.sequencing.findOrderedBlocksInSection(null, 9);
+    const blocks_r0t9 = await seq1.sequencing.findOrderedBlocksInSection(
+      null,
+      9
+    );
     // bad node not yet producing blocks
     expect(blocks_r0t9.length).toBe(1 + (NODE_COUNT - BAD_NODE_COUNT) * 8 + 1);
 
     await network.runUntilRound(17);
-    const blocks_r0t13 = await seq1.sequencing.findOrderedBlocksInSection(null, 13);
+    const blocks_r0t13 = await seq1.sequencing.findOrderedBlocksInSection(
+      null,
+      13
+    );
     // bad node may have caught up and is producing blocks
-    expect(blocks_r0t13.length).toBeGreaterThanOrEqual(1 + (NODE_COUNT - BAD_NODE_COUNT) * 12 + 1);
+    expect(blocks_r0t13.length).toBeGreaterThanOrEqual(
+      1 + (NODE_COUNT - BAD_NODE_COUNT) * 12 + 1
+    );
   });
 });

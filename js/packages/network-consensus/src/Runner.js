@@ -14,13 +14,7 @@ const KEEP_WAITING_LOG_INTERVAL_MS = 5000;
 const KEEP_WAITING_FOR_ACKS_REBROADCAST_INTERVAL_MS = 5000;
 
 export default class Runner {
-  constructor({
-    datastore,
-    peerid,
-    keypair,
-    communication,
-    sequencing
-  }) {
+  constructor({ datastore, peerid, keypair, communication, sequencing }) {
     this.datastore = datastore;
     this.peerid = peerid;
     this.keypair = keypair;
@@ -172,7 +166,7 @@ export default class Runner {
     });
     if (block) {
       await this.mutex.runExclusive(async () => {
-        await block.reload({datastore: this.datastore});
+        await block.reload({ datastore: this.datastore });
         await block.addAck(ack);
         await block.save({ datastore: this.datastore });
       });
@@ -261,24 +255,24 @@ export default class Runner {
       return {};
     }
     const prev_round = round - 1;
-    let prev_round_certs = await this.datastore.getTimelyCertSigsAtRound(prev_round);
+    let prev_round_certs =
+      await this.datastore.getTimelyCertSigsAtRound(prev_round);
     const prev_round_scribes = await this.getScribesAtRound(prev_round);
-    const threshold = ConsensusMath.calculate2fplus1(
-      prev_round_scribes.length
-    );
+    const threshold = ConsensusMath.calculate2fplus1(prev_round_scribes.length);
     if (Object.keys(prev_round_certs) >= threshold) {
       return prev_round_certs;
     }
 
     if (this.communication) {
       for (const peer_id of prev_round_scribes) {
-        const block_data =
-          (await this.communication.fetchScribeRoundCertifiedBlock({
+        const block_data = (
+          await this.communication.fetchScribeRoundCertifiedBlock({
             from: this.peerid,
             to: peer_id,
             round_id: round,
             peer_id,
-          }))?.block;
+          })
+        )?.block;
         if (block_data) {
           const block = await Block.fromJSONObject(block_data?.block);
           if (block.validateCert({ acks_needed: threshold })) {
@@ -288,14 +282,15 @@ export default class Runner {
       }
     }
 
-    prev_round_certs = await this.datastore.getTimelyCertSigsAtRound(prev_round);
+    prev_round_certs =
+      await this.datastore.getTimelyCertSigsAtRound(prev_round);
 
     return prev_round_certs;
   }
 
   async speedUpToLatestUncertifiedRound() {
     let round_certified = true;
-    let round = await this.datastore.getCurrentRound() + 1;
+    let round = (await this.datastore.getCurrentRound()) + 1;
     while (round_certified) {
       const prev_round_certs = await this.getOrFetchPrevRoundCerts(round);
       const existing_certs = await BlockMessage.findAllInRoundOfType({
@@ -330,11 +325,17 @@ export default class Runner {
     const threshold = await this.consensusThresholdForRound(round - 1);
     const cert_count = Object.keys(prev_round_certs).length;
     if (cert_count < threshold) {
-      console.warn({prev_round: round-1, cert_count, threshold, prev_round_certs});
+      console.warn({
+        prev_round: round - 1,
+        cert_count,
+        threshold,
+        prev_round_certs,
+      });
       throw new Error("not enough certs to start round");
     }
 
-    const current_round_threshold = await this.consensusThresholdForRound(round);
+    const current_round_threshold =
+      await this.consensusThresholdForRound(round);
     const existing_this_round_certs = await BlockMessage.findAllInRoundOfType({
       datastore: this.datastore,
       round: round,
@@ -346,14 +347,18 @@ export default class Runner {
     }
 
     let cc_events = await Transaction.findAll({ datastore: this.datastore });
-    let keep_waiting_for_events = (cc_events.length === 0);
+    let keep_waiting_for_events = cc_events.length === 0;
     if (keep_waiting_for_events) {
-      setTimeout(this.no_events_round_wait_time_ms ?? NO_EVENTS_ROUND_WAIT_TIME_MS).then(() => {
+      setTimeout(
+        this.no_events_round_wait_time_ms ?? NO_EVENTS_ROUND_WAIT_TIME_MS
+      ).then(() => {
         keep_waiting_for_events = false;
       });
     }
     while (keep_waiting_for_events) {
-      await setTimeout(this.no_events_poll_wait_time_ms ?? NO_EVENTS_POLL_WAIT_TIME_MS);
+      await setTimeout(
+        this.no_events_poll_wait_time_ms ?? NO_EVENTS_POLL_WAIT_TIME_MS
+      );
       cc_events = await Transaction.findAll({ datastore: this.datastore });
       if (cc_events.length > 0) {
         keep_waiting_for_events = false;
@@ -399,7 +404,11 @@ export default class Runner {
     let keep_waiting_for_acks = this.latest_seen_at_round ? false : true;
     let keep_waiting_for_certs = true;
     const keep_waiting_interval = setInterval(() => {
-      console.log('KEEP_WAITING', {round, keep_waiting_for_acks, keep_waiting_for_certs})
+      console.log("KEEP_WAITING", {
+        round,
+        keep_waiting_for_acks,
+        keep_waiting_for_certs,
+      });
     }, KEEP_WAITING_LOG_INTERVAL_MS);
     const keep_waiting_for_acks_rebroadcast_interval = setInterval(async () => {
       if (keep_waiting_for_acks) {
@@ -512,7 +521,7 @@ export default class Runner {
     }
   }
 
-  async run(signal, {beforeEachRound, afterEachRound}) {
+  async run(signal, { beforeEachRound, afterEachRound }) {
     // eslint-disable-next-line no-constant-condition
     while (true) {
       if (beforeEachRound) {

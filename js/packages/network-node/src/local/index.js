@@ -1,17 +1,15 @@
 import NetworkDatastore from "@modality-dev/network-datastore";
 
 class ModalityLocalService {
-  static serviceName = 'local'
-  
-  static dependencies = {
-  }
+  static serviceName = "local";
+
+  static dependencies = {};
 
   constructor(config = {}) {
     this.config = config;
   }
 
-  async init({ datastore }) { 
-  }
+  async init({ datastore }) {}
 
   async start() {
     if (this.config?.storage_path) {

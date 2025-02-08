@@ -3,7 +3,7 @@ import DAGRider from "./DAGRider.js";
 import Bullshark from "./Bullshark.js";
 
 export const SEQUENCING_METHODS = {
-  'StaticAuthority': StaticAuthority,
-  'DAGRider': DAGRider,
-  'Bullshark': Bullshark
-}
+  StaticAuthority: StaticAuthority,
+  DAGRider: DAGRider,
+  Bullshark: Bullshark,
+};
