@@ -8,7 +8,7 @@ import { commands } from "./cmds/index.js";
 // unused return variable prevents node from prematurely exiting yargs
 /* eslint-disable no-unused-vars */
 const { argv } = yargs(hideBin(process.argv))
-  .scriptName("modality-js-cli")
+  .scriptName("modality-js")
   .help("h")
   .alias("h", "help")
   .wrap(null)

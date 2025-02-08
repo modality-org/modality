@@ -1,6 +1,8 @@
 # Modality Examples
 
-After `cargo build`, you can use this directory to locally try out the `modality` command.
+After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
+
+Alternatively, you can also use `modality-js` for the javascript implementation of the cli.
 
 Be sure to approve direnv to add the debug build to your PATH within this directory.
 
