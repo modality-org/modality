@@ -54,6 +54,19 @@ impl Node {
         }
         Ok(())
     }
+
+    pub async fn shutdown(&mut self) -> Result<()> {
+        let ids: Vec<_> = self.swarm
+            .connected_peers()
+            .cloned()
+            .collect();
+        for peer_id in ids {
+            self.swarm.disconnect_peer_id(peer_id)
+                .map_err(|_| anyhow::anyhow!("Failed to disconnect from peer {}", peer_id))?;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        Ok(())
+    }
 }
 
 fn extract_peer_id(multiaddr: Multiaddr) -> Option<PeerId> {
