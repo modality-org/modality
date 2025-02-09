@@ -3,6 +3,8 @@ import { ICommunication } from "@modality-dev/network-consensus/communication/IC
 import { TOPIC as PAGE_DRAFT_TOPIC } from "../gossip/consensus/block/draft.js";
 import { TOPIC as PAGE_CERT_TOPIC } from "../gossip/consensus/block/cert.js";
 
+import SafeJSON from "@modality-dev/utils/SafeJSON";
+
 /**
  * @implements {ICommunication}
  */
@@ -35,9 +37,12 @@ export default class ConsensusCommunication {
     if (to === this.node.peerid) {
       return null;
     }
-    return await this.node.sendRequest(to, "/data/block", {
+    const r = await this.node.sendOrHandleRequest(to, "/data/block", {
       round_id,
       peer_id,
     });
+    if (r.data?.block) {
+      return {block: SafeJSON.parse(r.data?.block)};
+    }
   }
 }

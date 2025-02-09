@@ -265,7 +265,7 @@ export default class Runner {
 
     if (this.communication) {
       for (const peer_id of prev_round_scribes) {
-        const block_data = (
+        let block_data = (
           await this.communication.fetchScribeRoundCertifiedBlock({
             from: this.peerid,
             to: peer_id,
@@ -273,8 +273,22 @@ export default class Runner {
             peer_id,
           })
         )?.block;
+        if (!block_data) {
+          for (const alt_peer_id of prev_round_scribes) {
+            block_data = (
+              await this.communication.fetchScribeRoundCertifiedBlock({
+                from: this.peerid,
+                to: alt_peer_id,
+                round_id: round,
+                peer_id,
+              })
+            )?.block;
+            // console.log({to: alt_peer_id, round, peer_id})
+            if (block_data) { break; }
+          }
+        }
         if (block_data) {
-          const block = await Block.fromJSONObject(block_data?.block);
+          const block = await Block.fromJSONObject(block_data);
           if (block.validateCert({ acks_needed: threshold })) {
             await block.save({ datastore: this.datastore });
           }
@@ -319,9 +333,24 @@ export default class Runner {
     await this.speedUpToLatestUncertifiedRound();
     let round = await this.datastore.getCurrentRound();
 
-    const prev_round_certs = await this.getOrFetchPrevRoundCerts(round);
-    // console.log('RUNNING round', this.peerid, {prev_round_certs});
+    let hasCertsRequired = false;
+    let working_round = round;
+    while (!hasCertsRequired) {
+      if (working_round < 1) {
+        break;
+      }
+      const prev_round_certs = await this.getOrFetchPrevRoundCerts(working_round);
+      const threshold = await this.consensusThresholdForRound(working_round - 1);
+      const cert_count = Object.keys(prev_round_certs).length;
+      if (cert_count >= threshold) {
+        break;
+      } else {
+        console.log(`NOT ENOUGH ${cert_count}/${threshold} going back to round ${working_round - 1}`)
+        working_round = working_round - 1;
+      }
+    }
 
+    const prev_round_certs = await this.getOrFetchPrevRoundCerts(round);
     const threshold = await this.consensusThresholdForRound(round - 1);
     const cert_count = Object.keys(prev_round_certs).length;
     if (cert_count < threshold) {
