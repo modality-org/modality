@@ -3,12 +3,14 @@ export const command = "run-node";
 export const describe = "Run a Modality Network node";
 export const builder = {
   config: {},
-  enable_consensus: {}
+  'enable-consensus': {}
 };
 
 import Node from "@modality-dev/network-node/Node";
 
-export async function handler({ config, enable_consensus }) {
+export async function handler({ config, ...args }) {
+  let enable_consensus = args['enable-consensus'];
+  
   const node = await Node.fromConfigFilepath(config);
   await node.setupAsServer();
   console.log("Running node as %s", node.peerid);

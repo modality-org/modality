@@ -10,6 +10,9 @@ use modality_network_node::actions;
 pub struct Opts {
     #[clap(long)]
     config: PathBuf,
+
+    #[clap(long)]
+    enable_consensus: bool,   
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
