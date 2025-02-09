@@ -104,7 +104,7 @@ impl Devnet {
     }
 
     pub async fn setup_datastore_scribes(ds: &mut NetworkDatastore, count: usize) -> Result<()> {
-        let peers_hashmap = Devnet::get_keypairs_dict(count)?;
+        // let peers_hashmap = Devnet::get_keypairs_dict(count)?;
         ds.set_current_round(1).await?;
         Devnet::add_fully_connected_empty_round(ds, count).await?;
         Ok(())

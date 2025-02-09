@@ -22,8 +22,11 @@ pub struct Runner {
     keypair: Option<Arc<Keypair>>,
     sequencing: Arc<dyn Sequencing>,
     latest_seen_at_block_id: Option<u64>,
+    #[allow(unused)]
     intra_round_wait_time_ms: Option<u64>,
+    #[allow(unused)]
     no_events_round_wait_time_ms: Option<u64>,
+    #[allow(unused)]
     no_events_poll_wait_time_ms: Option<u64>,
 }
 

@@ -34,7 +34,7 @@ impl SameProcess {
 
 #[async_trait]
 impl Communication for SameProcess {
-    async fn broadcast_draft_page(&self, from: &str, block_data: &Block) -> Result<()> {
+    async fn broadcast_draft_block(&self, from: &str, block_data: &Block) -> Result<()> {
         if self.offline_nodes.contains(&from.to_string()) {
             return Ok(());
         }

@@ -62,7 +62,7 @@ mod tests {
             "events": []
         }))?;
         
-        same_process.broadcast_draft_page("test", &block_data).await?;
+        same_process.broadcast_draft_block("test", &block_data).await?;
         Ok(())
     }
 }
