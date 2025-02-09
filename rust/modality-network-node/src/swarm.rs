@@ -6,10 +6,12 @@ use libp2p::swarm;
 use libp2p::{identify, identity};
 use libp2p::{swarm::NetworkBehaviour, swarm::Swarm, SwarmBuilder};
 use libp2p::kad;
+use libp2p::gossipsub;
 use libp2p_identity::PublicKey;
 use std::time::Duration;
 
 use crate::reqres;
+use crate::gossip;
 
 #[derive(NetworkBehaviour)]
 pub struct NodeBehaviour {
@@ -17,7 +19,7 @@ pub struct NodeBehaviour {
     pub ping: ping::Behaviour,
     pub identify: identify::Behaviour,
     pub reqres: reqres::Behaviour,
-    // gossipsub: gossipsub::Behaviour,
+    pub gossipsub: gossipsub::Behaviour,
     pub kademlia: kad::Behaviour<kad::store::MemoryStore>,
 }
 
@@ -44,11 +46,21 @@ pub async fn create_swarm(local_key: identity::Keypair) -> Result<NodeSwarm> {
         kad::store::MemoryStore::new(peer_id),
     );
 
+    let gossipsub_config = gossipsub::ConfigBuilder::default()
+        .heartbeat_interval(Duration::from_secs(10))
+        .validation_mode(gossipsub::ValidationMode::Strict)
+        .build()?;
+    let gossipsub_behaviour = gossipsub::Behaviour::new(
+        gossipsub::MessageAuthenticity::Signed(local_key.clone()),
+        gossipsub_config
+    ).unwrap();
+
     let behaviour = NodeBehaviour {
         // stream: stream_behaviour,
         ping: ping_behaviour,
         identify: identify_behaviour,
         reqres: reqres_behaviour,
+        gossipsub: gossipsub_behaviour,
         kademlia: kademlia_behaviour,
     };
     let swarm = create_swarm_with_behaviours(local_key, behaviour).await?;
