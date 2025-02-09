@@ -8,11 +8,6 @@ use crate::communication::Communication;
 use modality_network_datastore::models::block::Block;
 use modality_network_datastore::models::block::Ack;
 
-pub struct SameProcess {
-    nodes: HashMap<String, Arc<dyn Node>>,
-    offline_nodes: Vec<String>,
-}
-
 #[async_trait]
 pub trait Node: Send + Sync {
     fn peerid(&self) -> &str;
@@ -23,6 +18,11 @@ pub trait Node: Send + Sync {
     async fn on_fetch_peer_block_certified_block_request(&self, peer_id: &str, round_id: u64) -> Result<Option<Block>>;
 }
 
+pub struct SameProcess {
+    nodes: HashMap<String, Arc<dyn Node>>,
+    offline_nodes: Vec<String>,
+}
+
 impl SameProcess {
     pub fn new(nodes: HashMap<String, Arc<dyn Node>>) -> Self {
         Self {
@@ -30,17 +30,21 @@ impl SameProcess {
             offline_nodes: Vec::new(),
         }
     }
+
+    fn is_node_offline(&self, node_id: &str) -> bool {
+        self.offline_nodes.contains(&node_id.to_string())
+    }
 }
 
 #[async_trait]
 impl Communication for SameProcess {
     async fn broadcast_draft_block(&self, from: &str, block_data: &Block) -> Result<()> {
-        if self.offline_nodes.contains(&from.to_string()) {
+        if self.is_node_offline(from) {
             return Ok(());
         }
 
         for node in self.nodes.values() {
-            if self.offline_nodes.contains(&node.peerid().to_string()) {
+            if !self.is_node_offline(node.peerid()) {
                 continue;
             }
             node.on_receive_draft_block(block_data).await?;
@@ -49,8 +53,7 @@ impl Communication for SameProcess {
     }
 
     async fn send_block_ack(&self, from: &str, to: &str, ack_data: &Ack) -> Result<()> {
-        if self.offline_nodes.contains(&from.to_string()) || 
-           self.offline_nodes.contains(&to.to_string()) {
+        if self.is_node_offline(from) || self.is_node_offline(to) {
             return Ok(());
         }
 
@@ -61,8 +64,7 @@ impl Communication for SameProcess {
     }
 
     async fn send_block_late_ack(&self, from: &str, to: &str, ack_data: &Ack) -> Result<()> {
-        if self.offline_nodes.contains(&from.to_string()) || 
-           self.offline_nodes.contains(&to.to_string()) {
+        if self.is_node_offline(from) || self.is_node_offline(to) {
             return Ok(());
         }
 
@@ -73,12 +75,12 @@ impl Communication for SameProcess {
     }
 
     async fn broadcast_certified_page(&self, from: &str, block_data: &Block) -> Result<()> {
-        if self.offline_nodes.contains(&from.to_string()) {
+        if self.is_node_offline(from) {
             return Ok(());
         }
 
         for node in self.nodes.values() {
-            if self.offline_nodes.contains(&node.peerid().to_string()) {
+            if !self.is_node_offline(node.peerid()) {
                 continue;
             }
             node.on_receive_certified_block(block_data).await?;
@@ -87,7 +89,7 @@ impl Communication for SameProcess {
     }
 
     async fn fetch_peer_block_certified_page(&self, from: &str, to: &str, peer_id: &str, round_id: u64) -> Result<Option<Block>> {
-        if self.offline_nodes.contains(&from.to_string()) {
+        if self.is_node_offline(from) {
             return Ok(None);
         }
 

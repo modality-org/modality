@@ -1,22 +1,21 @@
 use anyhow::{Result};
-
+use std::sync::Arc;
 use crate::consensus_math::calculate_2f_plus_1;
 use crate::election::Election;
-
 use super::Sequencing;
 
 #[derive(Clone)]
 pub struct StaticAuthority {
     #[allow(dead_code)]
-    election: Election,
-    scribes: Vec<String>,  // Assuming scribes are identified by strings - adjust type as needed
+    election: Arc<Election>,
+    scribes: Arc<Vec<String>>,  // Use Arc for scribes
 }
 
 impl StaticAuthority {
     pub async fn create(scribes: Vec<String>, election: Election) -> Self {
         StaticAuthority {
-            election,
-            scribes,
+            election: Arc::new(election),
+            scribes: Arc::new(scribes),
         }
     }
 }
@@ -24,18 +23,19 @@ impl StaticAuthority {
 #[async_trait::async_trait]
 impl Sequencing for StaticAuthority {
     async fn get_scribes_at_round_id(&self, _round: u64) -> Result<Vec<String>> {
-        Ok(self.scribes.clone())
+        Ok((*self.scribes).clone())
     }
-
+    
     async fn consensus_threshold_at_round_id(&self, _round: u64) -> Result<u64> {
         Ok(calculate_2f_plus_1(self.scribes.len() as f64))
     }
 }
 
+// Remove Send + Sync derive, as Arc handles thread safety
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    
     #[tokio::test]
     async fn test_static_authority() -> anyhow::Result<()> {
         let scribes = vec!["scribe1".to_string(), "scribe2".to_string(), "scribe3".to_string()];
@@ -43,12 +43,11 @@ mod tests {
         
         let sa = StaticAuthority::create(scribes.clone(), election).await;
         
-        let round_scribes = sa.get_scribes_at_round_id(1).await?;
+        let round_scribes = sa.get_scribes_at_round_id(0).await?;
         assert_eq!(round_scribes, scribes);
         
-        let threshold = sa.consensus_threshold_at_round_id(1).await?;
+        let threshold = sa.consensus_threshold_at_round_id(0).await?;
         assert_eq!(threshold, 3);  // 2f+1 where n=3
-
         Ok(())
     }
 }
