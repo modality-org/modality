@@ -7,8 +7,7 @@ use futures::prelude::*;
 use std::time::Duration;
 
 use libp2p::gossipsub;
-use libp2p::kad;
-use libp2p::multiaddr::Multiaddr;
+// use libp2p::kad;
 use libp2p::request_response;
 use libp2p::swarm::SwarmEvent;
 use ctrlc;
@@ -81,12 +80,12 @@ pub async fn run(node: &mut Node) -> Result<()> {
               },
                 SwarmEvent::Behaviour(crate::swarm::NodeBehaviourEvent::Gossipsub(
                     gossipsub::Event::Message {
-                        propagation_source: peer_id,
-                        message_id: id,
+                        propagation_source: _peer_id,
+                        message_id: _message_id,
                         message,
                     },
                 )) => {
-                    log::info!("gossipsub request");
+                    log::info!("Gossip received {:?}", message.topic.to_string());
                     gossip::handle_event(node, message).await?;
                 }
                 SwarmEvent::Behaviour(event) => {
@@ -112,34 +111,34 @@ pub async fn run(node: &mut Node) -> Result<()> {
                         }
                     }
                 }
-                SwarmEvent::Behaviour(crate::swarm::NodeBehaviourEvent::Kademlia(
-                    kad::Event::OutboundQueryProgressed { result, .. },
-                )) => match result {
-                    kad::QueryResult::Bootstrap(result) => {
-                        log::info!("Bootstrap result: {:?}", result);
-                    }
-                    kad::QueryResult::GetClosestPeers(result) => {
-                        log::info!("GetClosestPeers result: {:?}", result);
-                    }
-                    kad::QueryResult::GetProviders(result) => {
-                        log::info!("GetProviders result: {:?}", result);
-                    }
-                    kad::QueryResult::StartProviding(result) => {
-                        log::info!("StartProviding result: {:?}", result);
-                    }
-                    kad::QueryResult::RepublishProvider(result) => {
-                        log::info!("RepublishProvider result: {:?}", result);
-                    }
-                    kad::QueryResult::GetRecord(result) => {
-                        log::info!("GetRecord result: {:?}", result);
-                    }
-                    kad::QueryResult::PutRecord(result) => {
-                        log::info!("PutRecord result: {:?}", result);
-                    }
-                    kad::QueryResult::RepublishRecord(result) => {
-                        log::info!("RepublishRecord result: {:?}", result);
-                    }
-                },
+                // SwarmEvent::Behaviour(crate::swarm::NodeBehaviourEvent::Kademlia(
+                //     kad::Event::OutboundQueryProgressed { result, .. },
+                // )) => match result {
+                //     kad::QueryResult::Bootstrap(result) => {
+                //         log::info!("Bootstrap result: {:?}", result);
+                //     }
+                //     kad::QueryResult::GetClosestPeers(result) => {
+                //         log::info!("GetClosestPeers result: {:?}", result);
+                //     }
+                //     kad::QueryResult::GetProviders(result) => {
+                //         log::info!("GetProviders result: {:?}", result);
+                //     }
+                //     kad::QueryResult::StartProviding(result) => {
+                //         log::info!("StartProviding result: {:?}", result);
+                //     }
+                //     kad::QueryResult::RepublishProvider(result) => {
+                //         log::info!("RepublishProvider result: {:?}", result);
+                //     }
+                //     kad::QueryResult::GetRecord(result) => {
+                //         log::info!("GetRecord result: {:?}", result);
+                //     }
+                //     kad::QueryResult::PutRecord(result) => {
+                //         log::info!("PutRecord result: {:?}", result);
+                //     }
+                //     kad::QueryResult::RepublishRecord(result) => {
+                //         log::info!("RepublishRecord result: {:?}", result);
+                //     }
+                // },
                 event => {
                     log::info!("Other Node Event {:?}", event)
                 }

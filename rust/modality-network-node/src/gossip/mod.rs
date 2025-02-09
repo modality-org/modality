@@ -1,5 +1,5 @@
 use anyhow::Result;
-use libp2p::{gossipsub::{self, Message}, PeerId};
+use libp2p::gossipsub::{self, Message};
 
 use crate::node::Node;
 

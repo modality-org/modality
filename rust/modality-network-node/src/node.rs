@@ -1,23 +1,22 @@
-use crate::config::Config;
 use anyhow::Result;
-use libp2p::swarm::SwarmEvent;
-use libp2p::{Multiaddr, PeerId};
-
-use std::ops::Mul;
 use std::path::PathBuf;
-use libp2p::multiaddr::Protocol;
-use futures::future::{select, Either};
-use libp2p::futures::StreamExt;
 use std::time::Duration;
-use libp2p::request_response;
+
+use libp2p::{Multiaddr, PeerId};
+use libp2p::multiaddr::Protocol;
+
 use modality_utils::multiaddr_list::resolve_dns_multiaddrs;
+use modality_network_datastore::NetworkDatastore;
+use crate::consensus::net_comm::NetComm;
+use crate::config::Config;
 
 pub struct Node {
     pub peerid: libp2p_identity::PeerId,
     pub node_keypair: libp2p_identity::Keypair,
     pub listeners: Vec<Multiaddr>,
     pub bootstrappers: Vec<Multiaddr>,
-    pub swarm: crate::swarm::NodeSwarm
+    pub swarm: crate::swarm::NodeSwarm,
+    pub datastore: NetworkDatastore,
 }
 
 impl Node {
@@ -33,7 +32,12 @@ impl Node {
         let resolved_bootstrappers = resolve_dns_multiaddrs(config.bootstrappers.unwrap_or_default()).await?;
         let bootstrappers = exclude_multiaddresses_with_peerid(resolved_bootstrappers, peerid);
         let swarm = crate::swarm::create_swarm(node_keypair.clone()).await?;
-        let node = Self { peerid, node_keypair, listeners, bootstrappers, swarm };
+        let datastore = if let Some(storage_path) = config.storage_path {
+            NetworkDatastore::create_in_directory(&storage_path)?
+        } else {
+            NetworkDatastore::create_in_memory()?
+        };
+        let node = Self { peerid, node_keypair, listeners, bootstrappers, swarm, datastore };
         Ok(node)
     }
 
@@ -53,6 +57,10 @@ impl Node {
             }
         }
         Ok(())
+    }
+
+    pub async fn get_consensus_communication(node: &'static mut Self) -> NetComm {
+        NetComm::new(node)
     }
 
     pub async fn shutdown(&mut self) -> Result<()> {

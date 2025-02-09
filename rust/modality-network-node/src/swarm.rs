@@ -7,11 +7,10 @@ use libp2p::{identify, identity};
 use libp2p::{swarm::NetworkBehaviour, swarm::Swarm, SwarmBuilder};
 use libp2p::kad;
 use libp2p::gossipsub;
-use libp2p_identity::PublicKey;
 use std::time::Duration;
 
 use crate::reqres;
-use crate::gossip;
+// use crate::gossip;
 
 #[derive(NetworkBehaviour)]
 pub struct NodeBehaviour {
