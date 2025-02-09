@@ -9,11 +9,6 @@ use reqwest;
 use serde_json::Value;
 use libp2p::multiaddr::Multiaddr;
 
-#[derive(Debug)]
-pub struct DnsAnswer {
-    data: String,
-}
-
 async fn remove_quotes(s: &str) -> String {
     let re = Regex::new(r#""(.+)""#).unwrap();
     if let Some(caps) = re.captures(s) {
@@ -28,6 +23,7 @@ fn matches_peer_id_suffix(s: &str, peer_id: &str) -> bool {
     re.is_match(s)
 }
 
+#[allow(dead_code)]
 async fn resolve_via_cloudflare_dns(name: &str, type_: &str) -> Result<Vec<String>, Error> {
     let client = reqwest::Client::new();
     let url = format!(

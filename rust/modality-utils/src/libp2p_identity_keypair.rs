@@ -10,9 +10,8 @@ pub async fn libp2p_identity_from_private_key(private_key: &str) -> Result<libp2
 }
 
 mod tests {
+  #[allow(unused_imports)]
   use super::*;
-  use libp2p::identity::Keypair;
-  use base64::prelude::*;
 
   #[tokio::test]
   async fn test_libp2p_identity_from_private_key() -> Result<()> {
