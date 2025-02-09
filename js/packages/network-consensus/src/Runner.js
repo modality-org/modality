@@ -434,6 +434,7 @@ export default class Runner {
     let keep_waiting_for_certs = true;
     const keep_waiting_interval = setInterval(() => {
       console.log("KEEP_WAITING", {
+        time: new Date(),
         round,
         keep_waiting_for_acks,
         keep_waiting_for_certs,
@@ -441,6 +442,7 @@ export default class Runner {
     }, KEEP_WAITING_LOG_INTERVAL_MS);
     const keep_waiting_for_acks_rebroadcast_interval = setInterval(async () => {
       if (keep_waiting_for_acks) {
+        console.log(`REBROADCASTING DRAFT for /round/${round}/peer/${this.peerid}`);
         const block_data = await block.toDraftJSONObject();
         await this.communication.broadcastDraftBlock({
           from: this.peerid,
