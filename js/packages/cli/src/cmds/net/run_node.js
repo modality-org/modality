@@ -3,6 +3,7 @@ export const command = "run-node";
 export const describe = "Run a Modality Network node";
 export const builder = {
   config: {},
+  enable_consensus: {}
 };
 
 import Node from "@modality-dev/network-node/Node";
