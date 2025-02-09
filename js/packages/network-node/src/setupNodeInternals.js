@@ -76,6 +76,10 @@ export default async function createLibp2pNode({
         ? []
         : [bootstrap({ list: bootstrappers })]),
     ],
+    connectionManager: {
+      // maxConnections: 500,
+      inboundConnectionThreshold: 100, // request-per-second for a host, default is 5 rps, which is too low
+    },
     services: {
       local: local({
         storage_path: options.storage_path,

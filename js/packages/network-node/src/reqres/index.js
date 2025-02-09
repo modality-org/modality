@@ -49,8 +49,8 @@ export const PROTOCOL_VERSION = "0.0.1";
 export const PROTOCOL_PREFIX = "modality-network";
 export const PROTOCOL_NAME = "reqres";
 export const TIMEOUT = 10000;
-export const MAX_INBOUND_STREAMS = 2;
-export const MAX_OUTBOUND_STREAMS = 1;
+export const MAX_INBOUND_STREAMS = 100;
+export const MAX_OUTBOUND_STREAMS = 20;
 
 export class ReqResService {
   // static dependencies = {
