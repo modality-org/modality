@@ -10,11 +10,11 @@ mod tests {
     use modality_network_datastore::models::block::Block;
     use modality_network_datastore::models::block::Ack;
 
-    struct MockNode {
+    struct MockConsensusRunner {
         peerid: String,
     }
 
-    impl MockNode {
+    impl MockConsensusRunner {
         fn new(peerid: &str) -> Self {
             Self {
                 peerid: peerid.to_string(),
@@ -23,7 +23,7 @@ mod tests {
     }
 
     #[async_trait]
-    impl Node for MockNode {
+    impl ConsensusRunner for MockConsensusRunner {
         fn peerid(&self) -> &str {
             &self.peerid
         }
@@ -52,10 +52,10 @@ mod tests {
     #[tokio::test]
     async fn test_same_process_basic() -> Result<()> {
         let mut nodes = HashMap::new();
-        let node = Arc::new(MockNode::new("test")) as Arc<dyn Node>;
+        let node = Arc::new(MockConsensusRunner::new("test")) as Arc<dyn ConsensusRunner>;
         nodes.insert("test".to_string(), node);
         
-        let same_process = SameProcess::new(nodes);
+        let mut same_process = SameProcess::new(nodes);
         let block_data = Block::create_from_json(serde_json::json!({
             "peer_id": "",
             "round_id": 1,

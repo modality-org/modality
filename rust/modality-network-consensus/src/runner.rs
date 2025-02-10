@@ -1,6 +1,7 @@
 use anyhow::Result;
 use log::warn;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::communication::Communication;
 use crate::sequencing::Sequencing;
@@ -18,7 +19,7 @@ use modality_utils::keypair::Keypair;
 pub struct Runner {
     pub datastore: Arc<NetworkDatastore>,
     pub peerid: Option<String>,
-    pub communication: Option<Arc<dyn Communication>>,
+    pub communication: Option<Arc<Mutex<dyn Communication>>>,
     keypair: Option<Arc<Keypair>>,
     sequencing: Arc<dyn Sequencing>,
     latest_seen_at_block_id: Option<u64>,
@@ -35,7 +36,7 @@ impl Runner {
         datastore: Arc<NetworkDatastore>,
         peerid: Option<String>,
         keypair: Option<Arc<Keypair>>,
-        communication: Option<Arc<dyn Communication>>,
+        communication: Option<Arc<Mutex<dyn Communication>>>,
         sequencing: Arc<dyn Sequencing>,
     ) -> Self {
         Runner {
@@ -103,7 +104,9 @@ impl Runner {
         if let (Some(peerid), Some(keypair)) = (&self.peerid, &self.keypair) {
             let ack = block.generate_late_ack(keypair, current_block_id)?;
             if let Some(communication) = &self.communication {                
-                communication.send_block_late_ack(
+                let mut comm = communication.lock()
+                    .map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+                comm.send_block_late_ack(
                     &peerid.clone(),
                     &ack.peer_id.clone(),
                     &ack.clone(),
@@ -148,7 +151,9 @@ impl Runner {
         if let (Some(peerid), Some(keypair)) = (&self.peerid, &self.keypair) {
             let ack = block.generate_ack(keypair)?;
             if let Some(communication) = &self.communication {
-                communication.send_block_ack(
+                let mut comm = communication.lock()
+                    .map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+                comm.send_block_ack(
                     &peerid.clone(),
                     &ack.peer_id.clone(),
                     &ack.clone(),
@@ -275,6 +280,6 @@ pub struct RunnerProps {
     pub datastore: Arc<NetworkDatastore>,
     pub peerid: Option<String>,
     pub keypair: Option<Arc<Keypair>>,
-    pub communication: Option<Arc<dyn Communication>>,
+    pub communication: Option<Arc<Mutex<dyn Communication>>>,
     pub sequencing: Arc<dyn Sequencing>,
 }
