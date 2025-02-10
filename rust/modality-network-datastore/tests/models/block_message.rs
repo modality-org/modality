@@ -38,21 +38,21 @@ mod tests {
             msg.save(&datastore).await?;
         }
 
-        // Test find_all_in_block_of_type
-        let found_messages = BlockMessage::find_all_in_block_of_type(&datastore, 1, "type1").await?;
+        // Test find_all_in_round_of_type
+        let found_messages = BlockMessage::find_all_in_round_of_type(&datastore, 1, "type1").await?;
         assert_eq!(found_messages.len(), 2);
         assert!(found_messages.iter().any(|m| m.peer_id == "scribe1"));
         assert!(found_messages.iter().any(|m| m.peer_id == "scribe2"));
 
-        let found_messages = BlockMessage::find_all_in_block_of_type(&datastore, 1, "type2").await?;
+        let found_messages = BlockMessage::find_all_in_round_of_type(&datastore, 1, "type2").await?;
         assert_eq!(found_messages.len(), 1);
         assert_eq!(found_messages[0].peer_id, "scribe3");
 
         // Test non-existent block or type
-        let found_messages = BlockMessage::find_all_in_block_of_type(&datastore, 2, "type1").await?;
+        let found_messages = BlockMessage::find_all_in_round_of_type(&datastore, 2, "type1").await?;
         assert_eq!(found_messages.len(), 0);
 
-        let found_messages = BlockMessage::find_all_in_block_of_type(&datastore, 1, "type3").await?;
+        let found_messages = BlockMessage::find_all_in_round_of_type(&datastore, 1, "type3").await?;
         assert_eq!(found_messages.len(), 0);
 
         Ok(())

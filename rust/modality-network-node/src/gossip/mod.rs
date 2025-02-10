@@ -3,7 +3,7 @@ use libp2p::gossipsub::{self, Message};
 
 use crate::node::Node;
 
-mod consensus;
+pub mod consensus;
 
 pub async fn add_sequencer_event_listeners(node: &mut Node) -> Result<()> {
   let topic = gossipsub::IdentTopic::new(consensus::block::draft::TOPIC);

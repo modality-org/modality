@@ -54,7 +54,7 @@ mod tests {
 
         // Round 2 from perspective of scribe 1
         let round_id = 2;
-        let last_round_certs = runner1.datastore.get_timely_certs_at_block_id(round_id - 1).await?;
+        let last_round_certs = runner1.datastore.get_timely_certs_at_round(round_id - 1).await?;
         let mut block = Block::create_from_json(serde_json::json!({
             "peer_id": scribes[0].to_string(),
             "round_id": round_id,

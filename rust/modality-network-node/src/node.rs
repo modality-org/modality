@@ -78,9 +78,9 @@ impl Node {
         Ok(())
     }
 
-    // pub async fn get_consensus_communication(node: &'static mut Self) -> NetComm {
-    // NetComm::new(node)
-    // }
+    pub async fn get_consensus_communication(self) -> NetComm {
+        NetComm::new(self)
+    }
 
     pub async fn send_request_only(
         &mut self,

@@ -157,20 +157,20 @@ impl NetworkDatastore {
         }
     }
 
-    pub async fn get_timely_cert_pages_at_block_id(&self, round_id: u64) -> anyhow::Result<HashMap<String, Block>> {
-        let pages = Block::find_all_in_round(self, round_id).await?;
+    pub async fn get_timely_cert_blocks_at_round(&self, round_id: u64) -> anyhow::Result<HashMap<String, Block>> {
+        let blocks = Block::find_all_in_round(self, round_id).await?;
         
-        Ok(pages
+        Ok(blocks
             .into_iter()
             .filter(|block| block.seen_at_block_id.is_none())
             .map(|block| (block.peer_id.clone(), block))
             .collect())
     }
 
-    pub async fn get_timely_certs_at_block_id(&self, round_id: u64) -> anyhow::Result<HashMap<String, String>> {
-        let pages = Block::find_all_in_round(self, round_id).await?;
+    pub async fn get_timely_certs_at_round(&self, round_id: u64) -> anyhow::Result<HashMap<String, String>> {
+        let blocks = Block::find_all_in_round(self, round_id).await?;
 
-        Ok(pages
+        Ok(blocks
             .into_iter()
             .filter(|block| block.seen_at_block_id.is_none())
             .filter(|block| block.cert.is_some())
@@ -181,6 +181,19 @@ impl NetworkDatastore {
                 )
             })
             .collect())
+    }
+
+    pub async fn get_timely_cert_sigs_at_round(&self, round_id: u64) -> anyhow::Result<Vec<String>> {
+        let blocks = Block::find_all_in_round(self, round_id).await?;
+    
+        let cert_map: std::collections::HashMap<String, String> = blocks
+            .into_iter()
+            .filter(|block| block.seen_at_block_id.is_none())
+            .filter(|block| block.cert.is_some())
+            .map(|block| (block.peer_id, block.cert.unwrap_or_default()))
+            .collect();
+        
+        Ok(cert_map.into_values().collect())
     }
 
     pub async fn load_network_config(&self, network_config: &serde_json::Value) -> Result<()> {

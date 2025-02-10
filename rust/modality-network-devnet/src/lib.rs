@@ -116,7 +116,7 @@ impl Devnet {
         let round_scribes = peers_hashmap.keys();
         for peer_id_str in round_scribes.clone() {
             let prev_round_certs: HashMap<String,String> = if round_id > 1 {
-                ds.get_timely_certs_at_block_id(round_id - 1).await.unwrap()
+                ds.get_timely_certs_at_round(round_id - 1).await.unwrap()
             } else {
                 HashMap::new()
             };

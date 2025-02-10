@@ -6,10 +6,10 @@ use async_trait::async_trait;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct BlockMessage {
-    pub round_id: i64,
+    pub round_id: u64,
     pub peer_id: String,
     pub r#type: String,
-    pub seen_at_block_id: Option<i64>,
+    pub seen_at_block_id: Option<u64>,
     pub content: serde_json::Value,
 }
 
@@ -21,10 +21,10 @@ impl Model for BlockMessage {
 
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
         match field {
-            "round_id" => self.round_id = value.as_i64().unwrap_or_default(),
+            "round_id" => self.round_id = value.as_u64().unwrap_or_default(),
             "peer_id" => self.peer_id = value.as_str().unwrap_or_default().to_string(),
             "type" => self.r#type = value.as_str().unwrap_or_default().to_string(),
-            "seen_at_block_id" => self.seen_at_block_id = value.as_i64(),
+            "seen_at_block_id" => self.seen_at_block_id = value.as_u64(),
             "content" => self.content = value,
             _ => {},
         }
@@ -40,7 +40,7 @@ impl Model for BlockMessage {
 }
 
 impl BlockMessage {
-    pub async fn find_all_in_block_of_type(datastore: &NetworkDatastore, round_id: i64, r#type: &str) -> Result<Vec<Self>> {
+    pub async fn find_all_in_round_of_type(datastore: &NetworkDatastore, round_id: u64, r#type: &str) -> Result<Vec<Self>> {
         let prefix = format!("/block_messages/round/{}/type/{}/peer", round_id, r#type);
         let mut messages = Vec::new();
 

@@ -1,7 +1,6 @@
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use async_trait::async_trait;
     use anyhow::Result;
     use modality_network_consensus::communication::Communication;
@@ -44,18 +43,16 @@ mod tests {
             Ok(())
         }
 
-        async fn on_fetch_peer_block_certified_block_request(&self, _peer_id: &str, _block_id: u64) -> Result<Option<Block>> {
+        async fn on_fetch_scribe_round_certified_block_request(&self, _peer_id: &str, _block_id: u64) -> Result<Option<Block>> {
             Ok(None)
         }
     }
 
     #[tokio::test]
     async fn test_same_process_basic() -> Result<()> {
-        let mut nodes = HashMap::new();
         let node = Arc::new(MockConsensusRunner::new("test")) as Arc<dyn ConsensusRunner>;
-        nodes.insert("test".to_string(), node);
-        
-        let mut same_process = SameProcess::new(nodes);
+        let mut same_process = SameProcess::new();
+        same_process.register_runner("test", node).await;
         let block_data = Block::create_from_json(serde_json::json!({
             "peer_id": "",
             "round_id": 1,
