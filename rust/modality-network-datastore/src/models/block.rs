@@ -381,12 +381,14 @@ impl Block {
             "closing_sig": self.closing_sig,
             "acks": self.acks,
         });
-        keypair.verify_json(
-            self.cert
-                .as_ref()
-                .ok_or_else(|| anyhow!("Missing certificate"))?,
-            &facts,
-        )
+        if let Some(cert) = self.cert.clone() {
+            keypair.verify_json(
+                &cert,
+                &facts,
+            )
+        } else {
+            Ok(false)
+        } 
     }
 
     pub fn validate_cert(&self, acks_needed: usize) -> Result<bool> {

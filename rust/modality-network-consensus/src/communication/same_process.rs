@@ -1,99 +1,171 @@
-use std::collections::HashMap;
 use anyhow::Result;
-use async_trait::async_trait;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use std::sync::Weak;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, Weak};
+use tokio::sync::mpsc;
 
-use modality_network_datastore::models::block::Block;
 use modality_network_datastore::models::block::Ack;
-use crate::communication::Communication;
+use modality_network_datastore::models::Block;
+// use modality_network_datastore::Model;
+// use modality_network_datastore::NetworkDatastore;
 
-#[async_trait]
-pub trait ConsensusRunner: Send + Sync {
-    fn peerid(&self) -> &str;
-    async fn on_receive_draft_block(&self, block_data: &Block) -> Result<()>;
-    async fn on_receive_block_ack(&self, ack_data: &Ack) -> Result<()>;
-    async fn on_receive_block_late_ack(&self, ack_data: &Ack) -> Result<()>;
-    async fn on_receive_certified_block(&self, block_data: &Block) -> Result<()>;
-    async fn on_fetch_scribe_round_certified_block_request(&self, peer_id: &str, round_id: u64) -> Result<Option<Block>>;
+use crate::communication::Communication;
+use crate::runner::ConsensusRunner;
+
+// Message types that can be sent through the channel
+#[derive(Debug)]
+enum Message {
+    DraftBlock {
+        #[allow(dead_code)]
+        from: String,
+        to: String,
+        block: Block,
+    },
+    BlockAck {
+        #[allow(dead_code)]
+        from: String,
+        to: String,
+        ack: Ack,
+    },
+    BlockLateAck {
+        #[allow(dead_code)]
+        from: String,
+        to: String,
+        ack: Ack,
+    },
+    CertifiedBlock {
+        #[allow(dead_code)]
+        from: String,
+        to: String,
+        block: Block,
+    },
 }
 
+#[derive(Clone)]
 pub struct SameProcess {
-    consensus_runners: Mutex<HashMap<String, Weak<dyn ConsensusRunner>>>,
+    pub consensus_runners: Arc<Mutex<HashMap<String, Weak<dyn ConsensusRunner>>>>,
     offline_nodes: Vec<String>,
+    message_queue: mpsc::UnboundedSender<Message>,
 }
 
 impl SameProcess {
     pub fn new() -> Self {
+        let consensus_runners = Arc::new(Mutex::new(HashMap::new()));
+        let runners_clone = Arc::clone(&consensus_runners);
+        let (message_queue, mut queue_consumer) = mpsc::unbounded_channel();
+
+        tokio::spawn(async move {
+            while let Some(msg) = queue_consumer.recv().await {
+                match msg {
+                    Message::DraftBlock { from: _, to, block } => {
+                        if let Some(runner) = Self::get_runner(&runners_clone, &to) {
+                            let _ = runner.on_receive_draft_block(&block).await;
+                        }
+                    }
+                    Message::BlockAck { from: _, to, ack } => {
+                        if let Some(runner) = Self::get_runner(&runners_clone, &to) {
+                            let _ = runner.on_receive_block_ack(&ack).await;
+                        }
+                    }
+                    Message::BlockLateAck { from: _, to, ack } => {
+                        if let Some(runner) = Self::get_runner(&runners_clone, &to) {
+                            let _ = runner.on_receive_block_late_ack(&ack).await;
+                        }
+                    }
+                    Message::CertifiedBlock { from: _, to, block } => {
+                        if let Some(runner) = Self::get_runner(&runners_clone, &to) {
+                            let _ = runner.on_receive_certified_block(&block).await;
+                        }
+                    }
+                }
+            }
+        });
+
         Self {
-            consensus_runners: Mutex::new(HashMap::new()),
+            consensus_runners,
             offline_nodes: Vec::new(),
+            message_queue,
         }
+    }
+
+    // Helper to get a single runner
+    fn get_runner(
+        runners: &Arc<Mutex<HashMap<String, Weak<dyn ConsensusRunner>>>>,
+        peer_id: &str,
+    ) -> Option<Arc<dyn ConsensusRunner>> {
+        let runners = runners.lock().unwrap();
+        runners.get(peer_id).and_then(|weak| weak.upgrade())
+    }
+
+    // Helper to get all runners except one
+    // fn get_all_runners_except(
+    //     runners: &Arc<Mutex<HashMap<String, Weak<dyn ConsensusRunner>>>>,
+    //     except: &str,
+    // ) -> Vec<Arc<dyn ConsensusRunner>> {
+    //     let runners = runners.lock().unwrap();
+    //     runners
+    //         .iter()
+    //         .filter(|(peer_id, _)| *peer_id != except)
+    //         .filter_map(|(_, weak)| weak.upgrade())
+    //         .collect()
+    // }
+
+    pub async fn register_runner(&self, peer_id: &str, consensus_runner: Arc<dyn ConsensusRunner>) {
+        let mut runners = self.consensus_runners.lock().unwrap();
+        runners.insert(peer_id.to_string(), Arc::downgrade(&consensus_runner));
     }
 
     fn is_node_offline(&self, node_id: &str) -> bool {
         self.offline_nodes.contains(&node_id.to_string())
     }
-
-    pub async fn register_runner(&self, peer_id: &str, consensus_runner: Arc<dyn ConsensusRunner>) {
-        self.consensus_runners
-            .lock()
-            .await
-            .insert(peer_id.to_string(), Arc::downgrade(&consensus_runner));
-    }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Communication for SameProcess {
     async fn broadcast_draft_block(&mut self, from: &str, block_data: &Block) -> Result<()> {
         if self.is_node_offline(from) {
             return Ok(());
         }
 
-        let peer_runners: Vec<Arc<dyn ConsensusRunner>> = {
-            let runners = self.consensus_runners.lock().await;
+        // Get list of peers to send to
+        let peer_ids: Vec<String> = {
+            let runners = self.consensus_runners.lock().unwrap();
             runners
                 .iter()
-                .filter(|(peer_id, _)| peer_id != &from)
-                .filter_map(|(_, weak_runner)| weak_runner.upgrade())
+                // .filter(|(peer_id, _)| *peer_id != from)
+                .map(|(peer_id, _)| peer_id.clone())
                 .collect()
         };
 
-        for runner in peer_runners {
-            runner.on_receive_draft_block(block_data).await?;
+        // Send a message for each peer
+        for to in peer_ids {
+            self.message_queue.send(Message::DraftBlock {
+                from: from.to_string(),
+                to,
+                block: block_data.clone(),
+            })?;
         }
+
         Ok(())
     }
 
     async fn send_block_ack(&mut self, from: &str, to: &str, ack_data: &Ack) -> Result<()> {
-        if self.is_node_offline(from) || self.is_node_offline(to) {
-            return Ok(());
-        }
-
-        let consensus_runner = {
-            let runners = self.consensus_runners.lock().await;
-            runners.get(to).and_then(|weak| weak.upgrade())
-        };
-
-        if let Some(runner) = consensus_runner {
-            runner.on_receive_block_ack(ack_data).await?;
+        if !self.is_node_offline(from) && !self.is_node_offline(to) {
+            self.message_queue.send(Message::BlockAck {
+                from: from.to_string(),
+                to: to.to_string(),
+                ack: ack_data.clone(),
+            })?;
         }
         Ok(())
     }
 
     async fn send_block_late_ack(&mut self, from: &str, to: &str, ack_data: &Ack) -> Result<()> {
-        if self.is_node_offline(from) || self.is_node_offline(to) {
-            return Ok(());
-        }
-
-        let consensus_runner = {
-            let runners = self.consensus_runners.lock().await;
-            runners.get(to).and_then(|weak| weak.upgrade())
-        };
-
-        if let Some(runner) = consensus_runner {
-            runner.on_receive_block_late_ack(ack_data).await?;
+        if !self.is_node_offline(from) && !self.is_node_offline(to) {
+            self.message_queue.send(Message::BlockLateAck {
+                from: from.to_string(),
+                to: to.to_string(),
+                ack: ack_data.clone(),
+            })?;
         }
         Ok(())
     }
@@ -103,17 +175,21 @@ impl Communication for SameProcess {
             return Ok(());
         }
 
-        let peer_runners: Vec<Arc<dyn ConsensusRunner>> = {
-            let runners = self.consensus_runners.lock().await;
+        let peer_ids: Vec<String> = {
+            let runners = self.consensus_runners.lock().unwrap();
             runners
                 .iter()
-                .filter_map(|(_, weak_runner)| weak_runner.upgrade())
-                .filter(|runner| !self.is_node_offline(runner.peerid()))
+                // .filter(|(peer_id, _)| *peer_id != from)
+                .map(|(peer_id, _)| peer_id.clone())
                 .collect()
         };
 
-        for runner in peer_runners {
-            runner.on_receive_certified_block(block_data).await?;
+        for to in peer_ids {
+            self.message_queue.send(Message::CertifiedBlock {
+                from: from.to_string(),
+                to: to.to_string(),
+                block: block_data.clone(),
+            })?;
         }
         Ok(())
     }
@@ -129,14 +205,12 @@ impl Communication for SameProcess {
             return Ok(None);
         }
 
-        let consensus_runner = {
-            let runners = self.consensus_runners.lock().await;
-            runners.get(to).and_then(|weak| weak.upgrade())
-        };
-
-        if let Some(runner) = consensus_runner {
-            return runner.on_fetch_scribe_round_certified_block_request(peer_id, round_id).await;
+        if let Some(runner) = Self::get_runner(&self.consensus_runners, to) {
+            runner
+                .on_fetch_scribe_round_certified_block_request(peer_id, round_id)
+                .await
+        } else {
+            Ok(None)
         }
-        Ok(None)
     }
 }

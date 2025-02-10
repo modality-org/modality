@@ -7,6 +7,7 @@ edition = "2021"
 anyhow = "1.0"
 tokio = { version = "1.42", features = ["full"] }
 tokio-util = "0.7.0"
+futures = "0.3"
 async-trait = "0.1.68"
 thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"] }
