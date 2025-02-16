@@ -5,7 +5,7 @@ use modality_network_datastore::NetworkDatastore;
 
 pub const TOPIC: &str = "/consensus/block/draft";
 
-pub async fn handler(datastore: &NetworkDatastore, data: String) -> Result<()> {
+pub async fn handler(data: String, datastore: &NetworkDatastore) -> Result<()> {
   let block_data = serde_json::from_str::<serde_json::Value>(&data).unwrap_or(serde_json::Value::Null);
   log::info!("{:?}", block_data);
   log::info!("current_round: {:?}", datastore.get_current_round().await);

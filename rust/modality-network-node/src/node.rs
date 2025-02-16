@@ -284,7 +284,10 @@ impl Node {
                                     ..
                                 } => {
                                     log::info!("reqres request");
-                                    let res = crate::reqres::handle_request(request).await?;
+                                    let res = {
+                                        let mut datastore = datastore.lock().await;
+                                        crate::reqres::handle_request(request, &mut *datastore).await?
+                                    };
                                     let mut swarm = swarm.lock().await;
                                     swarm.behaviour_mut().reqres.send_response(channel, res)
                                         .expect("failed to respond")
@@ -302,7 +305,7 @@ impl Node {
                             )) => {
                                 log::info!("Gossip received {:?}", message.topic.to_string());
                                 let mut datastore = datastore.lock().await;
-                                gossip::handle_event(&mut *datastore, message).await?;
+                                gossip::handle_event(message, &mut *datastore).await?;
                             }
                             SwarmEvent::Behaviour(event) => {
                                 log::info!("SwarmEvent::Behaviour event {:?}", event);

@@ -21,13 +21,13 @@ pub async fn add_sequencer_event_listeners(node: &mut Node) -> Result<()> {
   Ok(())
 }
 
-pub async fn handle_event(datastore: &mut NetworkDatastore, message: Message) -> Result<()> {
+pub async fn handle_event(message: Message, datastore: &mut NetworkDatastore) -> Result<()> {
   log::info!("handling gossip: {:?}", message);
   let data = String::from_utf8_lossy(&message.data).to_string();
   if &message.topic.to_string() == consensus::block::draft::TOPIC {
-    consensus::block::draft::handler(datastore, data).await?;
+    consensus::block::draft::handler(data, datastore).await?;
   } else if &message.topic.to_string() == consensus::block::cert::TOPIC {
-    consensus::block::cert::handler(datastore, data).await?;
+    consensus::block::cert::handler(data, datastore).await?;
   }
   Ok(())
 }

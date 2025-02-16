@@ -5,6 +5,8 @@ mod ping;
 mod data;
 use data as reqres_data;
 
+use modality_network_datastore::NetworkDatastore;
+
 #[allow(dead_code)]
 pub const PROTOCOL: &str = "/modality-network/reqres/0.0.1";
 #[allow(dead_code)]
@@ -29,7 +31,7 @@ pub struct Response {
     pub errors: Option<serde_json::Value>
 }
 
-pub async fn handle_request(req: Request) -> Result<Response> {
+pub async fn handle_request(req: Request, datastore: &mut NetworkDatastore) -> Result<Response> {
     log::info!("Handling request: {:?}", req);
     let path = req.path;
     let data = req.data.unwrap_or_default();
@@ -38,16 +40,16 @@ pub async fn handle_request(req: Request) -> Result<Response> {
             ping::handler(Some(data.clone())).await?
         },
         "/data/block/head" => {
-            reqres_data::block::head::handler(Some(data.clone())).await?
+            reqres_data::block::head::handler(Some(data.clone()), datastore).await?
         }
         "/data/block/body" => {
-            reqres_data::block::body::handler(Some(data.clone())).await?
+            reqres_data::block::body::handler(Some(data.clone()), datastore).await?
         }
         "/data/block/inclusions" => {
-            reqres_data::block::inclusions::handler(Some(data.clone())).await?
+            reqres_data::block::inclusions::handler(Some(data.clone()), datastore).await?
         }
         "/consensus/status" => {
-            consensus::status::handler(Some(data.clone())).await?
+            consensus::status::handler(Some(data.clone()), datastore).await?
         }
         _ => {
             Response {
