@@ -2,6 +2,8 @@ use anyhow::Result;
 use futures::prelude::*;
 use libp2p::gossipsub::IdentTopic;
 use libp2p::request_response::OutboundRequestId;
+use modality_network_consensus::runner::create_runner_props_from_datastore;
+use modality_network_consensus::runner::ConsensusRunner;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -20,6 +22,7 @@ use modality_utils::multiaddr_list::resolve_dns_multiaddrs;
 
 use crate::config::Config;
 use crate::consensus::net_comm::NetComm;
+use crate::consensus::node_communication::NodeCommunication;
 use crate::gossip;
 use crate::reqres;
 use crate::swarm;
@@ -31,6 +34,7 @@ pub struct Node {
     pub bootstrappers: Vec<Multiaddr>,
     pub swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     pub datastore: Arc<Mutex<NetworkDatastore>>,
+    consensus_runner: Option<modality_network_consensus::runner::Runner>,
     networking_task: Option<tokio::task::JoinHandle<Result<()>>>,
     consensus_task: Option<tokio::task::JoinHandle<Result<()>>>,
     consensus_tx: mpsc::Sender<ConsensusMessage>,
@@ -73,6 +77,7 @@ impl Node {
             consensus_tx,
             consensus_rx: Some(consensus_rx),
             shutdown_tx,
+            consensus_runner: None
         };
         Ok(node)
     }
@@ -343,6 +348,8 @@ impl Node {
     }
 
     pub async fn start_consensus(&mut self) -> Result<()> {
+        let runner_props = create_runner_props_from_datastore(self.datastore.clone()).await?;
+        // TODO Runner
         let mut shutdown_rx = self.shutdown_tx.subscribe();
         let mut consensus_rx = self
             .consensus_rx

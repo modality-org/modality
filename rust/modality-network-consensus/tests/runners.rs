@@ -34,7 +34,7 @@ mod tests {
 
         // Create runners with Arc wrapping from the start
         let runner1 = Arc::new(Runner::create(RunnerProps {
-            datastore: Arc::new(ds.clone_to_memory().await?),
+            datastore: Arc::new(Mutex::new(ds.clone_to_memory().await?)),
             peerid: Some(scribes[0].clone()),
             keypair: Some(Arc::new(scribe_keypairs[&scribes[0]].clone())),
             communication: Some(Arc::clone(&shared_communication)),
@@ -42,7 +42,7 @@ mod tests {
         }));
 
         let runner2 = Arc::new(Runner::create(RunnerProps {
-            datastore: Arc::new(ds.clone_to_memory().await?),
+            datastore: Arc::new(Mutex::new(ds.clone_to_memory().await?)),
             peerid: Some(scribes[1].clone()),
             keypair: Some(Arc::new(scribe_keypairs[&scribes[1]].clone())),
             communication: Some(Arc::clone(&shared_communication)),
@@ -50,7 +50,7 @@ mod tests {
         }));
 
         let runner3 = Arc::new(Runner::create(RunnerProps {
-            datastore: Arc::new(ds.clone_to_memory().await?),
+            datastore: Arc::new(Mutex::new(ds.clone_to_memory().await?)),
             peerid: Some(scribes[2].clone()),
             keypair: Some(Arc::new(scribe_keypairs[&scribes[2]].clone())),
             communication: Some(Arc::clone(&shared_communication)),
@@ -79,11 +79,11 @@ mod tests {
             runner3.run_round(None)
         ).expect("run_round failed");
 
-        let current_round = runner1.datastore.get_current_round().await?;
+        let current_round = runner1.datastore.lock().await.get_current_round().await?;
         assert_eq!(current_round, 3);
-        let current_round = runner2.datastore.get_current_round().await?;
+        let current_round = runner2.datastore.lock().await.get_current_round().await?;
         assert_eq!(current_round, 3);
-        let current_round = runner3.datastore.get_current_round().await?;
+        let current_round = runner3.datastore.lock().await.get_current_round().await?;
         assert_eq!(current_round, 3);
 
         Ok(())

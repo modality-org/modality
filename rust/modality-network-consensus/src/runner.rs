@@ -7,12 +7,14 @@ use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 use crate::communication::Communication;
+use crate::election;
+use crate::sequencing::static_authority::StaticAuthority;
 use crate::sequencing::Sequencing;
 
 use modality_network_datastore::models::block::Ack;
 use modality_network_datastore::models::{Block, BlockMessage, Transaction};
 use modality_network_datastore::{Model, NetworkDatastore};
-use modality_utils::keypair::Keypair;
+use modality_utils::keypair::{self, Keypair};
 
 // const INTRA_ROUND_WAIT_TIME_MS: u64 = 50;
 // const NO_EVENTS_ROUND_WAIT_TIME_MS: u64 = 15000;
@@ -33,7 +35,7 @@ pub trait ConsensusRunner: Send + Sync {
 }
 #[derive(Clone)]
 pub struct Runner {
-    pub datastore: Arc<NetworkDatastore>,
+    pub datastore: Arc<Mutex<NetworkDatastore>>,
     pub peerid: Option<String>,
     pub communication: Option<Arc<Mutex<dyn Communication>>>,
     keypair: Option<Arc<Keypair>>,
@@ -70,17 +72,17 @@ impl ConsensusRunner for Runner {
             return Ok(None);
         }
 
-        let current_block_id = self.datastore.get_current_round().await?;
+        let current_round_id = {
+            let datastore = self.datastore.lock().await;
+            datastore.get_current_round().await?
+        };
 
-        if block.round_id > current_block_id {
-            self.on_receive_draft_block_from_later_round(block)
-                .await
-        } else if block.round_id < current_block_id {
-            self.on_receive_draft_block_from_earlier_round(block)
-                .await
+        if block.round_id > current_round_id {
+            self.on_receive_draft_block_from_later_round(block).await
+        } else if block.round_id < current_round_id {
+            self.on_receive_draft_block_from_earlier_round(block).await
         } else {
-            self.on_receive_draft_block_from_current_round(block)
-                .await
+            self.on_receive_draft_block_from_current_round(block).await
         }
     }
 
@@ -94,7 +96,10 @@ impl ConsensusRunner for Runner {
         //     return Ok(());
         // }
 
-        let round_id = self.datastore.get_current_round().await?;
+        let round_id = {
+            let datastore = self.datastore.lock().await;
+            datastore.get_current_round().await?
+        };
         if ack.round_id != round_id {
             return Ok(());
         }
@@ -108,17 +113,20 @@ impl ConsensusRunner for Runner {
             return Ok(());
         }
 
-        if let Some(mut block) = Block::find_one(
-            &self.datastore,
-            std::collections::HashMap::from([
-                (String::from("round_id"), round_id.to_string()),
-                (String::from("peer_id"), whoami.to_string()),
-            ]),
-        )
-        .await?
         {
-            block.add_ack(ack.clone())?;
-            block.save(&self.datastore).await?;
+            let datastore = self.datastore.lock().await;
+            if let Some(mut block) = Block::find_one(
+                &datastore,
+                std::collections::HashMap::from([
+                    (String::from("round_id"), round_id.to_string()),
+                    (String::from("peer_id"), whoami.to_string()),
+                ]),
+            )
+            .await?
+            {
+                block.add_ack(ack.clone())?;
+                block.save(&datastore).await?;
+            }
         }
         Ok(())
     }
@@ -132,11 +140,18 @@ impl ConsensusRunner for Runner {
             return Ok(None);
         }
 
-        let round_id = self.datastore.get_current_round().await?;
+        let round_id = {
+            let datastore = self.datastore.lock().await;
+            datastore.get_current_round().await?
+        };
         if block.round_id > round_id {
-            return self.on_receive_certified_block_from_later_round(block).await
+            return self
+                .on_receive_certified_block_from_later_round(block)
+                .await;
         } else {
-            return self.on_receive_certified_block_from_current_round(block).await
+            return self
+                .on_receive_certified_block_from_current_round(block)
+                .await;
         }
     }
 
@@ -146,14 +161,17 @@ impl ConsensusRunner for Runner {
         round_id: u64,
     ) -> Result<Option<Block>> {
         // Search directly in the datastore instead of going through communication
-        let block = Block::find_one(
-            &self.datastore,
-            std::collections::HashMap::from([
-                (String::from("round_id"), round_id.to_string()),
-                (String::from("peer_id"), peer_id.to_string()),
-            ]),
-        )
-        .await?;
+        let block = {
+            let datastore = self.datastore.lock().await;
+            Block::find_one(
+                &datastore,
+                std::collections::HashMap::from([
+                    (String::from("round_id"), round_id.to_string()),
+                    (String::from("peer_id"), peer_id.to_string()),
+                ]),
+            )
+            .await?
+        };
 
         // Only return blocks that are certified
         if let Some(block) = block {
@@ -169,7 +187,7 @@ impl ConsensusRunner for Runner {
 
 impl Runner {
     pub fn new(
-        datastore: Arc<NetworkDatastore>,
+        datastore: Arc<Mutex<NetworkDatastore>>,
         peerid: Option<String>,
         keypair: Option<Arc<Keypair>>,
         communication: Option<Arc<Mutex<dyn Communication>>>,
@@ -212,10 +230,13 @@ impl Runner {
         &self,
         block: &Block,
     ) -> Result<Option<Ack>> {
-        let current_block_id = self.datastore.get_current_round().await?;
+        let current_round_id = {
+            let datastore = self.datastore.lock().await;
+            datastore.get_current_round().await?
+        };
 
         if let (Some(peerid), Some(keypair)) = (&self.peerid, &self.keypair) {
-            let ack = block.generate_late_ack(keypair, current_block_id)?;
+            let ack = block.generate_late_ack(keypair, current_round_id)?;
             if let Some(communication) = &self.communication {
                 let mut comm = communication.lock().await;
                 comm.send_block_late_ack(&peerid.clone(), &ack.peer_id.clone(), &ack.clone())
@@ -227,22 +248,25 @@ impl Runner {
         }
     }
 
-    async fn on_receive_draft_block_from_later_round(
-        &self,
-        block: &Block,
-    ) -> Result<Option<Ack>> {
-        let current_block_id = self.datastore.get_current_round().await?;
+    async fn on_receive_draft_block_from_later_round(&self, block: &Block) -> Result<Option<Ack>> {
+        let current_round_id = {
+            let datastore = self.datastore.lock().await;
+            datastore.get_current_round().await?
+        };
 
         let round_message = BlockMessage::create_from_json(serde_json::json!({
             "round_id": block.round_id,
             "peer_id": block.peer_id,
             "type": "draft",
-            "seen_at_block_id": current_block_id,
+            "seen_at_block_id": current_round_id,
             "content": block.to_draft_json_object()
         }))?;
-        round_message.save(&self.datastore).await?;
+        {
+            let datastore = self.datastore.lock().await;
+            round_message.save(&datastore).await?;
+        }
 
-        if current_block_id < block.round_id {
+        if current_round_id < block.round_id {
             if self.latest_seen_at_block_id.is_none()
                 || block.round_id > self.latest_seen_at_block_id.unwrap()
             {
@@ -280,19 +304,25 @@ impl Runner {
         &self,
         block: &Block,
     ) -> Result<Option<Block>> {
-        let current_block_id = self.datastore.get_current_round().await?;
+        let current_round_id = {
+            let datastore = self.datastore.lock().await;
+            datastore.get_current_round().await?
+        };
 
-        BlockMessage::from_json_object(serde_json::json!({
-            "round_id": block.round_id,
-            "peer_id": block.peer_id,
-            "type": "certified",
-            "seen_at_block_id": current_block_id,
-            "content": block.to_draft_json_object()
-        }))?
-        .save(&self.datastore)
-        .await?;
+        {
+            let datastore = self.datastore.lock().await;
+            BlockMessage::from_json_object(serde_json::json!({
+                "round_id": block.round_id,
+                "peer_id": block.peer_id,
+                "type": "certified",
+                "seen_at_block_id": current_round_id,
+                "content": block.to_draft_json_object()
+            }))?
+            .save(&datastore)
+            .await?;
+        }
 
-        if current_block_id < block.round_id {
+        if current_round_id < block.round_id {
             if self.latest_seen_at_block_id.is_none()
                 || block.round_id > self.latest_seen_at_block_id.unwrap()
             {
@@ -325,24 +355,34 @@ impl Runner {
             return Ok(None);
         }
 
-        block.save(&self.datastore).await?;
+        {
+            let datastore = self.datastore.lock().await;
+            block.save(&datastore).await?;
+        }
         Ok(Some(block.clone()))
     }
 
     pub async fn speed_up_to_latest_uncertified_round(&mut self) -> Result<()> {
         let mut round_certified = true;
-        let mut round = self.datastore.get_current_round().await? + 1;
+        let mut round = {
+            let datastore = self.datastore.lock().await;
+            datastore.get_current_round().await? + 1
+        };
 
         while round_certified {
             let prev_round_certs = self.get_or_fetch_prev_round_certs(round).await?;
-            let existing_certs =
-                BlockMessage::find_all_in_round_of_type(&self.datastore, round - 1, "certified")
-                    .await?;
+            let existing_certs = {
+                let datastore = self.datastore.lock().await;
+                BlockMessage::find_all_in_round_of_type(&datastore, round - 1, "certified").await?
+            };
 
             for block_message in existing_certs {
                 let block_content = block_message.content.clone();
                 let block = Block::create_from_json(block_content)?;
-                self.datastore.delete(&block.get_id()).await?;
+                {
+                    let datastore = self.datastore.lock().await;
+                    datastore.delete(&block.get_id()).await?;
+                }
                 self.on_receive_certified_block(&block).await?;
             }
 
@@ -357,9 +397,12 @@ impl Runner {
         }
 
         let newest_uncertified_round = round - 1;
-        self.datastore
-            .set_current_round(newest_uncertified_round)
-            .await?;
+        {
+            let datastore = self.datastore.lock().await;
+            datastore
+                .set_current_round(newest_uncertified_round)
+                .await?;
+        }
         Ok(())
     }
 
@@ -372,7 +415,10 @@ impl Runner {
         }
 
         let prev_round = round - 1;
-        let mut prev_round_certs = self.datastore.get_timely_certs_at_round(prev_round).await?;
+        let mut prev_round_certs = {
+            let datastore = self.datastore.lock().await;
+            datastore.get_timely_certs_at_round(prev_round).await?
+        };
         let prev_round_scribes = self.get_scribes_at_round_id(prev_round).await?;
         let threshold = self.consensus_threshold_at_round_id(prev_round).await?;
 
@@ -417,19 +463,28 @@ impl Runner {
                 if let Some(block_data) = block_data {
                     let block = Block::from_json_object(block_data.to_json_object()?)?;
                     if block.validate_cert(threshold as usize)? {
-                        block.save(&self.datastore).await?;
+                        {
+                            let datastore = self.datastore.lock().await;
+                            block.save(&datastore).await?;
+                        }
                     }
                 }
             }
         }
 
-        prev_round_certs = self.datastore.get_timely_certs_at_round(prev_round).await?;
+        let prev_round_certs = {
+            let datastore = self.datastore.lock().await;
+            datastore.get_timely_certs_at_round(prev_round).await?
+        };
         Ok(prev_round_certs)
     }
 
     pub async fn run_round(&mut self, signal: Option<CancellationToken>) -> Result<()> {
         self.speed_up_to_latest_uncertified_round().await?;
-        let mut round = self.datastore.get_current_round().await?;
+        let mut round = {
+            let datastore = self.datastore.lock().await;
+            datastore.get_current_round().await?
+        };
 
         let mut working_round = round;
 
@@ -473,15 +528,23 @@ impl Runner {
         }
 
         let current_round_threshold = self.consensus_threshold_at_round_id(round).await?;
-        let existing_this_round_certs =
-            BlockMessage::find_all_in_round_of_type(&self.datastore, round, "certified").await?;
+        let existing_this_round_certs = {
+            let datastore = self.datastore.lock().await;
+            BlockMessage::find_all_in_round_of_type(&datastore, round, "certified").await?
+        };
 
         if existing_this_round_certs.len() as u64 >= current_round_threshold {
             self.bump_current_round().await?;
-            round = self.datastore.get_current_round().await?;
+            round = {
+                let datastore = self.datastore.lock().await;
+                datastore.get_current_round().await?
+            };
         }
 
-        let mut cc_events = Transaction::find_all(&self.datastore).await?;
+        let mut cc_events = {
+            let datastore = self.datastore.lock().await;
+            Transaction::find_all(&datastore).await?
+        };
         let keep_waiting_for_events = cc_events.is_empty();
 
         if keep_waiting_for_events {
@@ -495,7 +558,10 @@ impl Runner {
                 tokio::task::yield_now().await;
                 tokio::time::sleep(tokio::time::Duration::from_millis(wait_time)).await;
             }
-            cc_events = Transaction::find_all(&self.datastore).await?;
+            cc_events = {
+                let datastore = self.datastore.lock().await;
+                Transaction::find_all(&datastore).await?
+            };
             if true || !cc_events.is_empty() {
                 break;
             }
@@ -508,7 +574,10 @@ impl Runner {
                 "contract_id": cc_event.contract_id,
                 "commit_id": cc_event.commit_id,
             }));
-            cc_event.delete(&self.datastore).await?;
+            {
+                let datastore = self.datastore.lock().await;
+                cc_event.delete(&datastore).await?;
+            }
         }
 
         let mut block = Block::create_from_json(serde_json::json!({
@@ -520,7 +589,10 @@ impl Runner {
         if let Some(keypair) = &self.keypair {
             block.generate_sigs(keypair)?;
         }
-        block.save(&self.datastore).await?;
+        {
+            let datastore = self.datastore.lock().await;
+            block.save(&datastore).await?;
+        }
 
         if let Some(communication) = &self.communication {
             let block_data = block.clone();
@@ -532,13 +604,18 @@ impl Runner {
         }
 
         // Handle enqueued round messages
-        let existing_drafts =
-            BlockMessage::find_all_in_round_of_type(&self.datastore, round, "draft").await?;
+        let existing_drafts = {
+            let datastore = self.datastore.lock().await;
+            BlockMessage::find_all_in_round_of_type(&datastore, round, "draft").await?
+        };
 
         for draft in existing_drafts {
             let draft_content = draft.content.clone();
             let block = Block::create_from_json(draft_content)?;
-            self.datastore.delete(&draft.get_id()).await?;
+            {
+                let datastore = self.datastore.lock().await;
+                datastore.delete(&draft.get_id()).await?
+            }
             self.on_receive_draft_block(&block).await?;
         }
 
@@ -552,13 +629,16 @@ impl Runner {
             let keypair = self.keypair.clone();
             let block = block.clone();
             let threshold = current_round_threshold;
-            let datastore = self.datastore.clone();
+            let datastore_mutex = self.datastore.clone();
 
             tokio::spawn(async move {
                 loop {
                     let mut block_clone = block.clone();
-                    if let Err(_) = block_clone.reload(&datastore).await {
-                        break;
+                    {
+                        let ds_lock = datastore_mutex.lock().await;
+                        if let Err(_) = block_clone.reload(&*ds_lock).await {
+                            break;
+                        }
                     }
                     let valid_acks = block_clone.count_valid_acks()?;
 
@@ -566,7 +646,10 @@ impl Runner {
                         if let Some(keypair) = &keypair {
                             block_clone.generate_cert(keypair)?;
                         }
-                        block_clone.save(&datastore).await?;
+                        {
+                            let datastore = datastore_mutex.lock().await;
+                            block_clone.save(&datastore).await?;
+                        }
 
                         if let Some(communication) = &communication {
                             let mut comm = communication.lock().await;
@@ -591,7 +674,10 @@ impl Runner {
 
             tokio::spawn(async move {
                 loop {
-                    let current_round_certs = datastore.get_timely_certs_at_round(round).await?;
+                    let current_round_certs = {
+                        let datastore = datastore.lock().await;
+                        datastore.get_timely_certs_at_round(round).await?
+                    };
                     if current_round_certs.len() as u64 >= threshold {
                         break;
                     }
@@ -618,8 +704,12 @@ impl Runner {
             }
 
             if signal.as_ref().map_or(false, |s| s.is_cancelled()) {
-                if !ack_monitor.is_finished() { ack_monitor.abort(); }
-                if !cert_monitor.is_finished() { cert_monitor.abort(); }
+                if !ack_monitor.is_finished() {
+                    ack_monitor.abort();
+                }
+                if !cert_monitor.is_finished() {
+                    cert_monitor.abort();
+                }
                 return Err(anyhow::anyhow!("aborted"));
             }
 
@@ -646,16 +736,25 @@ impl Runner {
         Ok(())
     }
     pub async fn jump_to_round(&mut self, round_num: u64) -> Result<()> {
-        let current_round_num = self.datastore.get_current_round().await?;
+        let current_round_num = {
+            let datastore = self.datastore.lock().await;
+            datastore.get_current_round().await?
+        };
         for _i in (current_round_num + 1)..round_num {
             // TODO: Maybe handle jumping from earlier rounds
         }
-        self.datastore.set_current_round(round_num).await?;
+        {
+            let datastore = self.datastore.lock().await;
+            datastore.set_current_round(round_num).await?;
+        }
         Ok(())
     }
 
     pub async fn bump_current_round(&mut self) -> Result<()> {
-        self.datastore.bump_current_round().await?;
+        {
+            let datastore = self.datastore.lock().await;
+            datastore.bump_current_round().await?;
+        }
         Ok(())
     }
 
@@ -664,13 +763,19 @@ impl Runner {
         target_round: u64,
         signal: Option<CancellationToken>,
     ) -> Result<()> {
-        let mut current_round = self.datastore.get_current_round().await?;
+        let mut current_round = {
+            let datastore = self.datastore.lock().await;
+            datastore.get_current_round().await?
+        };
         while current_round < target_round {
             if signal.as_ref().map_or(false, |s| s.is_cancelled()) {
                 return Err(anyhow::anyhow!("aborted"));
             }
             self.run_round(signal.clone()).await?;
-            current_round = self.datastore.get_current_round().await?;
+            current_round = {
+                let datastore = self.datastore.lock().await;
+                datastore.get_current_round().await?
+            };
         }
         Ok(())
     }
@@ -694,9 +799,31 @@ impl Runner {
 }
 
 pub struct RunnerProps {
-    pub datastore: Arc<NetworkDatastore>,
+    pub datastore: Arc<Mutex<NetworkDatastore>>,
     pub peerid: Option<String>,
     pub keypair: Option<Arc<Keypair>>,
     pub communication: Option<Arc<Mutex<dyn Communication>>>,
     pub sequencing: Arc<dyn Sequencing>,
+}
+
+pub async fn create_runner_props_from_datastore(
+    datastore: Arc<Mutex<NetworkDatastore>>,
+) -> Result<RunnerProps> {
+    // TODO more than StaticAuthority
+    let blocks = {
+        let datastore = datastore.lock().await;
+        Block::find_all_in_round(&datastore, 0).await?
+    };
+    let scribes: Vec<String> = blocks.iter().map(|b| b.peer_id.to_string()).collect();
+    let election = election::Election::RoundRobin(election::round_robin::RoundRobin::create());
+    let sequencing = StaticAuthority::create(scribes.clone(), election).await;
+
+    let runner_props = RunnerProps {
+        datastore: datastore,
+        peerid: None,
+        keypair: None,
+        sequencing: Arc::new(sequencing),
+        communication: None,
+    };
+    Ok(runner_props)
 }
