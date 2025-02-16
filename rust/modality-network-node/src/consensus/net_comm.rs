@@ -26,7 +26,7 @@ impl NetComm {
 
 #[async_trait::async_trait]
 impl Communication for NetComm {
-    async fn broadcast_draft_block(&mut self, from: &str, block_data: &Block) -> Result<()> {
+    async fn broadcast_draft_block(&mut self, _from: &str, block_data: &Block) -> Result<()> {
         let mut node = self.node.lock().await;
         node.publish_gossip(BLOCK_DRAFT_TOPIC.to_string(), block_data.to_draft_json_string()).await?;
         Ok(())
@@ -48,7 +48,7 @@ impl Communication for NetComm {
         Ok(())
     }
 
-    async fn broadcast_certified_block(&mut self, from: &str, block_data: &Block) -> Result<()> {
+    async fn broadcast_certified_block(&mut self, _from: &str, block_data: &Block) -> Result<()> {
         let mut node = self.node.lock().await;
         node.publish_gossip(BLOCK_CERT_TOPIC.to_string(), block_data.to_draft_json_string()).await?;
         Ok(())

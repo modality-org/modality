@@ -8,37 +8,9 @@ use modality_network_datastore::models::Block;
 // use modality_network_datastore::Model;
 // use modality_network_datastore::NetworkDatastore;
 
+use crate::communication::Message;
 use crate::communication::Communication;
 use crate::runner::ConsensusRunner;
-
-// Message types that can be sent through the channel
-#[derive(Debug)]
-enum Message {
-    DraftBlock {
-        #[allow(dead_code)]
-        from: String,
-        to: String,
-        block: Block,
-    },
-    BlockAck {
-        #[allow(dead_code)]
-        from: String,
-        to: String,
-        ack: Ack,
-    },
-    BlockLateAck {
-        #[allow(dead_code)]
-        from: String,
-        to: String,
-        ack: Ack,
-    },
-    CertifiedBlock {
-        #[allow(dead_code)]
-        from: String,
-        to: String,
-        block: Block,
-    },
-}
 
 #[derive(Clone)]
 pub struct SameProcess {

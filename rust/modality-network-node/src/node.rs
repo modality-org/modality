@@ -5,6 +5,7 @@ use libp2p::request_response::OutboundRequestId;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 
 use libp2p::gossipsub;
@@ -13,6 +14,7 @@ use libp2p::request_response;
 use libp2p::swarm::SwarmEvent;
 use libp2p::{Multiaddr, PeerId};
 
+use modality_network_consensus::communication::Message as ConsensusMessage;
 use modality_network_datastore::NetworkDatastore;
 use modality_utils::multiaddr_list::resolve_dns_multiaddrs;
 
@@ -31,6 +33,8 @@ pub struct Node {
     pub datastore: Arc<Mutex<NetworkDatastore>>,
     networking_task: Option<tokio::task::JoinHandle<Result<()>>>,
     consensus_task: Option<tokio::task::JoinHandle<Result<()>>>,
+    consensus_tx: mpsc::Sender<ConsensusMessage>,
+    consensus_rx: Option<mpsc::Receiver<ConsensusMessage>>,
     shutdown_tx: tokio::sync::broadcast::Sender<()>,
 }
 
@@ -49,11 +53,14 @@ impl Node {
         let bootstrappers = exclude_multiaddresses_with_peerid(resolved_bootstrappers, peerid);
         let swarm = crate::swarm::create_swarm(node_keypair.clone()).await?;
         let datastore = if let Some(storage_path) = config.storage_path {
-            Arc::new(Mutex::new(NetworkDatastore::create_in_directory(&storage_path)?))
+            Arc::new(Mutex::new(NetworkDatastore::create_in_directory(
+                &storage_path,
+            )?))
         } else {
             Arc::new(Mutex::new(NetworkDatastore::create_in_memory()?))
         };
         let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
+        let (consensus_tx, consensus_rx) = mpsc::channel(100);
         let node = Self {
             peerid,
             node_keypair,
@@ -63,6 +70,8 @@ impl Node {
             datastore,
             networking_task: None,
             consensus_task: None,
+            consensus_tx,
+            consensus_rx: Some(consensus_rx),
             shutdown_tx,
         };
         Ok(node)
@@ -105,7 +114,10 @@ impl Node {
         };
         let req_id = {
             let mut swarm = self.swarm.lock().await;
-            swarm.behaviour_mut().reqres.send_request(&target_peer_id, request)
+            swarm
+                .behaviour_mut()
+                .reqres
+                .send_request(&target_peer_id, request)
         };
         Ok(req_id)
     }
@@ -214,7 +226,7 @@ impl Node {
 
     pub async fn wait_for_shutdown(&mut self) -> Result<()> {
         let shutdown_tx = self.shutdown_tx.clone();
-        
+
         // Set up ctrl-c handler
         tokio::spawn(async move {
             if let Ok(()) = tokio::signal::ctrl_c().await {
@@ -226,13 +238,13 @@ impl Node {
         if let Some(net_handle) = self.networking_task.take() {
             net_handle.await??;
         }
-        
+
         if let Some(cons_handle) = self.consensus_task.take() {
             cons_handle.await??;
         }
 
         self.shutdown().await?;
-        
+
         Ok(())
     }
 
@@ -245,6 +257,7 @@ impl Node {
         let mut tick = futures_timer::Delay::new(tick_interval);
 
         let datastore = self.datastore.clone();
+        let consensus_tx = self.consensus_tx.clone();
 
         self.networking_task = Some(tokio::spawn(async move {
             loop {
@@ -305,7 +318,7 @@ impl Node {
                             )) => {
                                 log::info!("Gossip received {:?}", message.topic.to_string());
                                 let mut datastore = datastore.lock().await;
-                                gossip::handle_event(message, &mut *datastore).await?;
+                                gossip::handle_event(message, &mut *datastore, consensus_tx.clone()).await?;
                             }
                             SwarmEvent::Behaviour(event) => {
                                 log::info!("SwarmEvent::Behaviour event {:?}", event);
@@ -331,7 +344,10 @@ impl Node {
 
     pub async fn start_consensus(&mut self) -> Result<()> {
         let mut shutdown_rx = self.shutdown_tx.subscribe();
-        let swarm = self.swarm.clone();
+        let mut consensus_rx = self
+            .consensus_rx
+            .take()
+            .expect("Consensus receiver should be available");
 
         self.consensus_task = Some(tokio::spawn(async move {
             loop {
@@ -340,9 +356,9 @@ impl Node {
                         println!("Consensus task shutting down");
                         break;
                     }
-                    _ = async {
-                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                    } => {}
+                    Some(consensus_msg) = consensus_rx.recv() => {
+                        log::info!("Received consensus message: {:?}", consensus_msg);
+                    }
                 }
             }
             Ok(())
