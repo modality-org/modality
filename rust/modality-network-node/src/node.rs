@@ -1,21 +1,28 @@
 use anyhow::Result;
+use futures::future::{select, Either};
+use futures::prelude::*;
 use futures::prelude::*;
 use libp2p::gossipsub::IdentTopic;
 use libp2p::request_response::OutboundRequestId;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use libp2p::multiaddr::Protocol;
 use libp2p::request_response;
 use libp2p::swarm::SwarmEvent;
 use libp2p::{Multiaddr, PeerId};
+use libp2p::gossipsub;
+
+use modality_network_datastore::NetworkDatastore;
+use modality_utils::multiaddr_list::resolve_dns_multiaddrs;
 
 use crate::config::Config;
 use crate::consensus::net_comm::NetComm;
 use crate::reqres;
 use crate::swarm;
-use modality_network_datastore::NetworkDatastore;
-use modality_utils::multiaddr_list::resolve_dns_multiaddrs;
+use crate::gossip;
 
 pub struct Node {
     pub peerid: libp2p_identity::PeerId,
@@ -197,6 +204,100 @@ impl Node {
                 .map_err(|_| anyhow::anyhow!("Failed to disconnect from peer {}", peer_id))?;
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
+        Ok(())
+    }
+
+    pub async fn run(&mut self) -> Result<()> {
+        let running = Arc::new(AtomicBool::new(true));
+        let running_shared: Arc<AtomicBool> = running.clone();
+        ctrlc::set_handler(move || {
+            println!("Received Ctrl-C, shutting down...");
+            running_shared.store(false, Ordering::SeqCst);
+        })
+        .expect("Error setting Ctrl-C handler");
+
+        let tick_interval: Duration = Duration::from_secs(15);
+        let mut tick = futures_timer::Delay::new(tick_interval);
+
+        loop {
+            if !running.load(Ordering::SeqCst) {
+                // Do any cleanup here
+                break;
+            }
+            match select(self.swarm.next(), &mut tick).await {
+                Either::Left((event, _)) => match event.unwrap() {
+                    SwarmEvent::NewListenAddr { address, .. } => {
+                        let address_with_p2p = address
+                            .clone()
+                            .with(libp2p::multiaddr::Protocol::P2p(self.peerid));
+                        log::info!("Listening on {address_with_p2p:?}")
+                    }
+                    SwarmEvent::ConnectionEstablished { .. } => {
+                        // if peer_id == target_peer_id {
+                        //     log::debug!("Connected to peer {:?}", peer_id);
+                        //     // do we ever need to wait for correct transport upgrade event?
+                        //     // tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        //     break;
+                        // }
+                    }
+                    SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
+                        if let Some(peer_id) = peer_id {
+                            log::error!("Failed to dial peer {:?}", peer_id);
+                            log::error!("Error: {:?}", error);
+                            // anyhow::bail!("Failed to dial peer");
+                        }
+                    }
+                    SwarmEvent::Behaviour(crate::swarm::NodeBehaviourEvent::Reqres(
+                        request_response::Event::Message { message, .. },
+                    )) => match message {
+                      request_response::Message::Request {
+                          request,
+                          channel,
+                          .. // request, channel, ..
+                      } => {
+                          log::info!("reqres request");
+                          let res = crate::reqres::handle_request(request).await?;
+                          self.swarm.behaviour_mut().reqres.send_response(channel, res).expect("failed to respond")
+                      }
+                      request_response::Message::Response {
+                          ..
+                          // request_id,
+                          // response,
+                      } => {
+                          log::info!("reqres response")
+                      }
+                    },
+                    SwarmEvent::Behaviour(crate::swarm::NodeBehaviourEvent::Gossipsub(
+                        gossipsub::Event::Message {
+                            propagation_source: _peer_id,
+                            message_id: _message_id,
+                            message,
+                        },
+                    )) => {
+                        log::info!("Gossip received {:?}", message.topic.to_string());
+                        gossip::handle_event(self, message).await?;
+                    }
+                    SwarmEvent::Behaviour(event) => {
+                        log::info!("SwarmEvent::Behaviour event {:?}", event);
+                        match event {
+                            _ => {
+                                log::info!("Other Swarm Behaviour event {:?}", event);
+                            }
+                        }
+                    }
+                    event => {
+                        log::info!("Other Node Event {:?}", event)
+                    }
+                },
+                Either::Right(_) => {
+                    log::debug!("tick");
+                    tick = futures_timer::Delay::new(tick_interval);
+                }
+            }
+        }
+
+        self.shutdown().await?;
+
         Ok(())
     }
 }
