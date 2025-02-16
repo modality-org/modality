@@ -78,7 +78,7 @@ export default class Runner {
     if (this.peerid) {
       const ack = await block.generateLateAck(this.keypair, current_round);
       if (this.communication) {
-        const prev_round_certs = await this.datastore.getTimelyCertSigsAtRound(
+        const prev_round_certs = await this.datastore.getTimelyCertsAtRound(
           current_round - 1
         );
         await this.communication.sendBlockLateAck({
@@ -256,7 +256,7 @@ export default class Runner {
     }
     const prev_round = round - 1;
     let prev_round_certs =
-      await this.datastore.getTimelyCertSigsAtRound(prev_round);
+      await this.datastore.getTimelyCertsAtRound(prev_round);
     const prev_round_scribes = await this.getScribesAtRound(prev_round);
     const threshold = ConsensusMath.calculate2fplus1(prev_round_scribes.length);
     if (Object.keys(prev_round_certs) >= threshold) {
@@ -297,7 +297,7 @@ export default class Runner {
     }
 
     prev_round_certs =
-      await this.datastore.getTimelyCertSigsAtRound(prev_round);
+      await this.datastore.getTimelyCertsAtRound(prev_round);
 
     return prev_round_certs;
   }
