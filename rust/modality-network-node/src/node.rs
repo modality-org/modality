@@ -264,7 +264,7 @@ impl Node {
         // Set up ctrl-c handler
         tokio::spawn(async move {
             if let Ok(()) = tokio::signal::ctrl_c().await {
-                println!("Received Ctrl-C, initiating shutdown...");
+                log::info!("Received Ctrl-C, initiating shutdown...");
                 let _ = shutdown_tx.send(());
             }
         });
@@ -298,7 +298,7 @@ impl Node {
                 let mut swarm_lock = swarm.lock().await;
                 tokio::select! {
                     _ = shutdown_rx.recv() => {
-                        println!("Networking task shutting down");
+                        log::info!("Networking task shutting down");
                         let ids: Vec<_> = swarm_lock.connected_peers().cloned().collect();
                         for peer_id in ids {
                             swarm_lock.disconnect_peer_id(peer_id)
@@ -403,27 +403,18 @@ impl Node {
                         break;
                     }
                     Some(msg) = consensus_rx.recv() => {
-                        log::info!("msg");
                         match msg {
                             ConsensusMessage::DraftBlock { from: _, to, block } => {
-                                // if let Some(runner) = Self::get_runner(&runners_clone, &to) {
-                                    let _ = runner.on_receive_draft_block(&block).await;
-                                // }
+                                let _ = runner.on_receive_draft_block(&block).await;
                             }
                             ConsensusMessage::BlockAck { from: _, to, ack } => {
-                                // if let Some(runner) = Self::get_runner(&runners_clone, &to) {
-                                //     let _ = runner.on_receive_block_ack(&ack).await;
-                                // }
+                                let _ = runner.on_receive_block_ack(&ack).await;
                             }
                             ConsensusMessage::BlockLateAck { from: _, to, ack } => {
-                                // if let Some(runner) = Self::get_runner(&runners_clone, &to) {
-                                //     let _ = runner.on_receive_block_late_ack(&ack).await;
-                                // }
+                                let _ = runner.on_receive_block_late_ack(&ack).await;
                             }
                             ConsensusMessage::CertifiedBlock { from: _, to, block } => {
-                                // if let Some(runner) = Self::get_runner(&runners_clone, &to) {
-                                //     let _ = runner.on_receive_certified_block(&block).await;
-                                // }
+                                let _ = runner.on_receive_certified_block(&block).await;
                             }
                         }
                     }

@@ -36,7 +36,7 @@ mod tests {
         let runner1 = Arc::new(Runner::create(RunnerProps {
             datastore: Arc::new(Mutex::new(ds.clone_to_memory().await?)),
             peerid: Some(scribes[0].clone()),
-            keypair: Some(Arc::new(scribe_keypairs[&scribes[0]].clone())),
+            keypair: Some(scribe_keypairs[&scribes[0]].clone()),
             communication: Some(Arc::clone(&shared_communication)),
             sequencing: Arc::new(sequencing.clone()),
         }));
@@ -44,7 +44,7 @@ mod tests {
         let runner2 = Arc::new(Runner::create(RunnerProps {
             datastore: Arc::new(Mutex::new(ds.clone_to_memory().await?)),
             peerid: Some(scribes[1].clone()),
-            keypair: Some(Arc::new(scribe_keypairs[&scribes[1]].clone())),
+            keypair: Some(scribe_keypairs[&scribes[1]].clone()),
             communication: Some(Arc::clone(&shared_communication)),
             sequencing: Arc::new(sequencing.clone()),
         }));
@@ -52,7 +52,7 @@ mod tests {
         let runner3 = Arc::new(Runner::create(RunnerProps {
             datastore: Arc::new(Mutex::new(ds.clone_to_memory().await?)),
             peerid: Some(scribes[2].clone()),
-            keypair: Some(Arc::new(scribe_keypairs[&scribes[2]].clone())),
+            keypair: Some(scribe_keypairs[&scribes[2]].clone()),
             communication: Some(Arc::clone(&shared_communication)),
             sequencing: Arc::new(sequencing.clone()),
         }));

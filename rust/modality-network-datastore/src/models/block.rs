@@ -31,10 +31,10 @@ pub struct Block {
 pub struct Ack {
     pub peer_id: String,
     pub round_id: u64,
-    pub sig: String,
+    pub closing_sig: String,
     pub acker: String,
     pub acker_sig: String,
-    pub seen_at_block_id: Option<u64>,
+    // pub seen_at_block_id: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -267,19 +267,20 @@ impl Block {
         let facts = serde_json::json!({
             "peer_id": self.peer_id,
             "round_id": self.round_id,
-            "sig": self.closing_sig,
+            "closing_sig": self.closing_sig,
+            "acker": peer_id
         });
         let acker_sig = keypair.sign_json(&facts)?;
         Ok(Ack {
             peer_id: self.peer_id.clone(),
             round_id: self.round_id,
-            sig: self
+            closing_sig: self
                 .closing_sig
                 .clone()
                 .ok_or_else(|| anyhow!("Missing signature"))?,
             acker: peer_id,
             acker_sig,
-            seen_at_block_id: None,
+            // seen_at_block_id: None,
         })
     }
 
@@ -288,20 +289,21 @@ impl Block {
         let facts = serde_json::json!({
             "peer_id": self.peer_id,
             "round_id": self.round_id,
-            "sig": self.closing_sig,
-            "seen_at_block_id": seen_at_block_id,
+            "closing_sig": self.closing_sig,
+            "acker": peer_id,
+            // "seen_at_block_id": seen_at_block_id,
         });
         let acker_sig = keypair.sign_json(&facts)?;
         Ok(Ack {
             peer_id: self.peer_id.clone(),
             round_id: self.round_id,
-            sig: self
+            closing_sig: self
                 .closing_sig
                 .clone()
                 .ok_or_else(|| anyhow!("Missing signature"))?,
             acker: peer_id,
             acker_sig,
-            seen_at_block_id: Some(seen_at_block_id),
+            // seen_at_block_id: Some(seen_at_block_id),
         })
     }
 
@@ -310,7 +312,8 @@ impl Block {
         let facts = serde_json::json!({
             "peer_id": self.peer_id,
             "round_id": self.round_id,
-            "sig": self.closing_sig,
+            "closing_sig": self.closing_sig,
+            "acker": ack.acker.clone(),
         });
         keypair.verify_json(&ack.acker_sig, &facts)
     }
@@ -330,7 +333,8 @@ impl Block {
             let facts = serde_json::json!({
                 "peer_id": self.peer_id,
                 "round_id": self.round_id,
-                "sig": self.closing_sig,
+                "closing_sig": self.closing_sig,
+                "acker": acker.clone(),
             });
             let verified = keypair.verify_json(&acker_sig, &facts)?;
             if !verified {
@@ -347,7 +351,8 @@ impl Block {
             let facts = serde_json::json!({
                 "peer_id": self.peer_id,
                 "round_id": self.round_id,
-                "sig": self.closing_sig,
+                "closing_sig": self.closing_sig,
+                "acker": acker.clone(),
             });
             if keypair.verify_json(&acker_sig, &facts)? {
                 valid_acks += 1;
