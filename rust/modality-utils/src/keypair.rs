@@ -71,6 +71,10 @@ impl Keypair {
         unimplemented!("SSH public key conversion not implemented yet")
     }
 
+    pub fn from_libp2p_keypair(keypair: libp2p_identity::Keypair) -> Result<Self> {
+        Ok(Self::new(KeypairOrPublicKey::Keypair(keypair)))
+    }
+
     pub fn from_ssh_dot_pub(_public_key_str: &str, _key_type: &str) -> Result<Self> {
         // TODO: Implement SSH public key parsing
         unimplemented!("SSH public key parsing not implemented yet")

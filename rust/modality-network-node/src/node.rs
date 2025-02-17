@@ -103,6 +103,35 @@ impl Node {
         Ok(())
     }
 
+    pub async fn wait_for_connections(&mut self) -> Result<()> {
+        let count = self.swarm.lock().await.connected_peers().count();
+        loop {
+            log::info!("connecting to peers...");
+            log::info!("{}", count);
+            let count = self.swarm.lock().await.connected_peers().count();
+            tokio::time::sleep(Duration::from_millis(1000*5)).await;
+            for bootstrapper in self.bootstrappers.clone() {
+                log::info!("{}", bootstrapper);
+                if let Some(peer_id) = extract_peer_id(bootstrapper.clone()) {
+                    {
+                        let mut swarm = self.swarm.lock().await;
+                        swarm.add_peer_address(peer_id.clone(), bootstrapper.clone());
+                        swarm
+
+                            .behaviour_mut()
+                            .kademlia
+                            .add_address(&peer_id.clone(), bootstrapper.clone());
+                        swarm.dial(bootstrapper.clone())?;
+                    }
+                }
+            }
+            if count > 0 {
+                break;
+            }
+        }
+        Ok(())
+    }
+
     pub async fn get_consensus_communication(self) -> NetComm {
         NetComm::new(self)
     }
@@ -279,6 +308,7 @@ impl Node {
                         break;
                     }
                     event = swarm_lock.select_next_some() => {
+                        log::info!("{:?}", event);
                         match event {
                             SwarmEvent::NewListenAddr { address, .. } => {
                                 let address_with_p2p = address
@@ -286,7 +316,9 @@ impl Node {
                                     .with(libp2p::multiaddr::Protocol::P2p(peerid));
                                 log::info!("Listening on {address_with_p2p:?}")
                             }
-                            SwarmEvent::ConnectionEstablished { .. } => {},
+                            SwarmEvent::ConnectionEstablished { .. } => {
+                                log::info!("CONNECTION ESTABLISHED");
+                            },
                             SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
                                 if let Some(peer_id) = peer_id {
                                     log::error!("Failed to dial peer {:?}", peer_id);
@@ -306,8 +338,7 @@ impl Node {
                                         let mut datastore = datastore.lock().await;
                                         crate::reqres::handle_request(request, &mut *datastore).await?
                                     };
-                                    let mut swarm = swarm.lock().await;
-                                    swarm.behaviour_mut().reqres.send_response(channel, res)
+                                    swarm_lock.behaviour_mut().reqres.send_response(channel, res)
                                         .expect("failed to respond")
                                 }
                                 request_response::Message::Response { .. } => {
@@ -348,8 +379,15 @@ impl Node {
     }
 
     pub async fn start_consensus(&mut self) -> Result<()> {
-        let runner_props = create_runner_props_from_datastore(self.datastore.clone()).await?;
-        // TODO Runner
+        let mut runner_props = create_runner_props_from_datastore(self.datastore.clone()).await?;
+        runner_props.peerid = Some(self.peerid.to_string());
+        runner_props.keypair =  Some(modality_utils::keypair::Keypair::from_libp2p_keypair(self.node_keypair.clone())?);
+        runner_props.communication = Some(Arc::new(Mutex::new(NodeCommunication {
+            swarm: self.swarm.clone()
+        })));
+        let mut runner = modality_network_consensus::runner::Runner::create(runner_props);
+        // self.consensus_runner = Some(modality_network_consensus::runner::Runner::create(runner_props));
+
         let mut shutdown_rx = self.shutdown_tx.subscribe();
         let mut consensus_rx = self
             .consensus_rx
@@ -360,11 +398,34 @@ impl Node {
             loop {
                 tokio::select! {
                     _ = shutdown_rx.recv() => {
-                        println!("Consensus task shutting down");
+                        log::info!("Consensus task shutting down");
+                        drop(consensus_rx);
                         break;
                     }
-                    Some(consensus_msg) = consensus_rx.recv() => {
-                        log::info!("Received consensus message: {:?}", consensus_msg);
+                    Some(msg) = consensus_rx.recv() => {
+                        log::info!("msg");
+                        match msg {
+                            ConsensusMessage::DraftBlock { from: _, to, block } => {
+                                // if let Some(runner) = Self::get_runner(&runners_clone, &to) {
+                                    let _ = runner.on_receive_draft_block(&block).await;
+                                // }
+                            }
+                            ConsensusMessage::BlockAck { from: _, to, ack } => {
+                                // if let Some(runner) = Self::get_runner(&runners_clone, &to) {
+                                //     let _ = runner.on_receive_block_ack(&ack).await;
+                                // }
+                            }
+                            ConsensusMessage::BlockLateAck { from: _, to, ack } => {
+                                // if let Some(runner) = Self::get_runner(&runners_clone, &to) {
+                                //     let _ = runner.on_receive_block_late_ack(&ack).await;
+                                // }
+                            }
+                            ConsensusMessage::CertifiedBlock { from: _, to, block } => {
+                                // if let Some(runner) = Self::get_runner(&runners_clone, &to) {
+                                //     let _ = runner.on_receive_certified_block(&block).await;
+                                // }
+                            }
+                        }
                     }
                 }
             }

@@ -1,6 +1,9 @@
 use anyhow::Result;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+use libp2p_identity::PeerId;
 
 use modality_network_consensus::communication::Communication;
 use modality_network_datastore::models::block::Block;
@@ -11,7 +14,7 @@ use crate::gossip::consensus::block::draft::TOPIC as BLOCK_DRAFT_TOPIC;
 use crate::gossip::consensus::block::cert::TOPIC as BLOCK_CERT_TOPIC;
 
 pub struct NodeCommunication {
-  swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
+  pub swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
 }
 
 #[async_trait::async_trait]
@@ -34,15 +37,14 @@ impl Communication for NodeCommunication {
       Ok(())
   }
 
-  async fn send_block_ack(&mut self, from_peer: &str, to_peer: &str, ack: &Ack) -> Result<()> {
-      // let target_peer = PeerId::from_str(to_peer)?;
-      // let request = crate::reqres::Request {
-      //     path: "block_ack".into(),
-      //     data: Some(serde_json::json!(ack)),
-      // };
-      
-      // let mut swarm = self.swarm.lock().await;
-      // let _req_id = swarm.behaviour_mut().reqres.send_request(&target_peer, request);
+  async fn send_block_ack(&mut self, _from_peer: &str, to_peer: &str, ack: &Ack) -> Result<()> {
+      let target_peer = PeerId::from_str(to_peer)?;
+      let request = crate::reqres::Request {
+          path: "/consensus/block/ack".into(),
+          data: Some(serde_json::json!(ack)),
+      }; 
+      let mut swarm = self.swarm.lock().await;
+      let _req_id = swarm.behaviour_mut().reqres.send_request(&target_peer, request);
       Ok(())
   }
 

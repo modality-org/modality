@@ -39,6 +39,9 @@ pub async fn handle_request(req: Request, datastore: &mut NetworkDatastore) -> R
         "/ping" => {
             ping::handler(Some(data.clone())).await?
         },
+        "/data/block" => {
+            reqres_data::block::handler(Some(data.clone()), datastore).await?
+        }
         "/data/block/head" => {
             reqres_data::block::head::handler(Some(data.clone()), datastore).await?
         }
