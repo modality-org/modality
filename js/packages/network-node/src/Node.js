@@ -190,16 +190,24 @@ export default class Node {
   }
 
   async waitForConnections() {
-    console.log("connecting to network...")
+    console.log("connecting to peers...")
     return new Promise(r => {
       let interval = setInterval(async () => {
-        console.log("connecting to network...")
+        console.log("connecting to peers...")
         const connections = this.swarm.getConnections();
         if (connections.length > 0) {
           clearInterval(interval);
           r();
+        } else {
+          for (const ma of this.bootstrappers) {
+            try {
+              await this.swarm.dial(ma);
+            } catch (e) {
+              //
+            }
+          }
         }
-      }, 15*1000);
+      }, 2*1000);
     });
   }
 }
