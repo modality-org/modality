@@ -10,6 +10,7 @@ use crate::model::Model;
 use crate::models::block::Block;
 use crate::models::block_header::BlockHeader;
 
+#[derive(Debug)]
 pub struct NetworkDatastore {
     db: DB,
     #[allow(dead_code)]

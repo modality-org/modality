@@ -11,6 +11,7 @@ pub struct Config {
     pub id: Option<String>,
     pub passfile_path: Option<PathBuf>,
     pub storage_path: Option<PathBuf>,
+    pub network_config_path: Option<PathBuf>,
     pub listeners: Option<Vec<Multiaddr>>,
     pub bootstrappers: Option<Vec<Multiaddr>>,
 }
@@ -34,6 +35,12 @@ impl Config {
             let storage_path = storage_path_buf.as_path();
             let abs_storage_path = to_absolute_path(config_dir, storage_path)?;
             config.storage_path = Some(abs_storage_path);
+        }
+
+        if let Some(network_config_path_buf) = config.network_config_path {
+            let network_config_path = network_config_path_buf.as_path();
+            let abs_network_config_path = to_absolute_path(config_dir, network_config_path)?;
+            config.network_config_path = Some(abs_network_config_path);
         }
     
         Ok(config)

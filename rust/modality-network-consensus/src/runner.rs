@@ -514,7 +514,11 @@ impl Runner {
         }
 
         let prev_round_certs = self.get_or_fetch_prev_round_certs(round).await?;
-        let threshold = self.consensus_threshold_at_round_id(round - 1).await?;
+        let threshold = if round == 0 {
+            0
+        } else {
+            self.consensus_threshold_at_round_id(round - 1).await?
+        };
         let cert_count = prev_round_certs.len() as u64;
 
         if cert_count < threshold {

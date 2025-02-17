@@ -69,6 +69,9 @@ mod tests {
         ].into_iter().collect()).await?.unwrap();
         assert_eq!(b1r.cert, b1.cert);
 
+        let r1blocks = Block::find_all_in_round(&datastore, 1).await?;
+        assert_eq!(r1blocks.len(), 1);
+
         Ok(())
     }
 }

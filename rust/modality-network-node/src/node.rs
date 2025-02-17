@@ -63,6 +63,11 @@ impl Node {
         } else {
             Arc::new(Mutex::new(NetworkDatastore::create_in_memory()?))
         };
+        if let Some(network_config_path) = config.network_config_path {
+            let config_str = std::fs::read_to_string(network_config_path)?;
+            let network_config = serde_json::from_str(&config_str)?;
+            datastore.lock().await.load_network_config(&network_config).await?;
+        }
         let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
         let (consensus_tx, consensus_rx) = mpsc::channel(100);
         let node = Self {
