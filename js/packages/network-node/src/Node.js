@@ -188,4 +188,18 @@ export default class Node {
     this.swarm.services.local.consensus = consensus;
     return consensus;
   }
+
+  async waitForConnections() {
+    console.log("connecting to network...")
+    return new Promise(r => {
+      let interval = setInterval(async () => {
+        console.log("connecting to network...")
+        const connections = this.swarm.getConnections();
+        if (connections.length > 0) {
+          clearInterval(interval);
+          r();
+        }
+      }, 15*1000);
+    });
+  }
 }

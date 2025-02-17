@@ -16,7 +16,7 @@ export async function handler({ config, ...args }) {
   console.log("Running node as %s", node.peerid);
   console.log("             on %s", node.listeners);
 
-  await new Promise((r) => setTimeout(r, 5 * 1000));
+  await node.waitForConnections();
 
   if (config.enable_consensus || enable_consensus) {
     const consensus = await node.setupLocalConsensus();

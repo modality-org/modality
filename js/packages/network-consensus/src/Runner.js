@@ -283,7 +283,6 @@ export default class Runner {
                 peer_id,
               })
             )?.block;
-            // console.log({to: alt_peer_id, round, peer_id})
             if (block_data) { break; }
           }
         }
