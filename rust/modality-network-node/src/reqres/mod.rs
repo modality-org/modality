@@ -4,8 +4,10 @@ mod consensus;
 mod ping;
 mod data;
 use data as reqres_data;
+use tokio::sync::mpsc;
 
 use modality_network_datastore::NetworkDatastore;
+use modality_network_consensus::communication::Message as ConsensusMessage;
 
 #[allow(dead_code)]
 pub const PROTOCOL: &str = "/modality-network/reqres/0.0.1";
@@ -31,7 +33,7 @@ pub struct Response {
     pub errors: Option<serde_json::Value>
 }
 
-pub async fn handle_request(req: Request, datastore: &mut NetworkDatastore) -> Result<Response> {
+pub async fn handle_request(req: Request, datastore: &mut NetworkDatastore, consensus_tx: mpsc::Sender<ConsensusMessage>) -> Result<Response> {
     log::info!("Handling request: {:?}", req);
     let path = req.path;
     let data = req.data.unwrap_or_default();
@@ -53,6 +55,9 @@ pub async fn handle_request(req: Request, datastore: &mut NetworkDatastore) -> R
         }
         "/consensus/status" => {
             consensus::status::handler(Some(data.clone()), datastore).await?
+        }
+        "/consensus/block/ack" => {
+            consensus::block::ack::handler(Some(data.clone()), datastore, consensus_tx).await?
         }
         _ => {
             Response {

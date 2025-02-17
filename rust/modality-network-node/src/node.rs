@@ -336,7 +336,7 @@ impl Node {
                                     log::info!("reqres request");
                                     let res = {
                                         let mut datastore = datastore.lock().await;
-                                        crate::reqres::handle_request(request, &mut *datastore).await?
+                                        crate::reqres::handle_request(request, &mut *datastore, consensus_tx.clone()).await?
                                     };
                                     swarm_lock.behaviour_mut().reqres.send_response(channel, res)
                                         .expect("failed to respond")
@@ -352,7 +352,7 @@ impl Node {
                                     message,
                                 },
                             )) => {
-                                log::info!("Gossip received {:?}", message.topic.to_string());
+                                log::error!("Gossip received {:?}", message.topic.to_string());
                                 let mut datastore = datastore.lock().await;
                                 gossip::handle_event(message, &mut *datastore, consensus_tx.clone()).await?;
                             }
@@ -383,7 +383,8 @@ impl Node {
         runner_props.peerid = Some(self.peerid.to_string());
         runner_props.keypair =  Some(modality_utils::keypair::Keypair::from_libp2p_keypair(self.node_keypair.clone())?);
         runner_props.communication = Some(Arc::new(Mutex::new(NodeCommunication {
-            swarm: self.swarm.clone()
+            swarm: self.swarm.clone(),
+            consensus_tx: self.consensus_tx.clone()
         })));
         let mut runner = modality_network_consensus::runner::Runner::create(runner_props);
         // self.consensus_runner = Some(modality_network_consensus::runner::Runner::create(runner_props));
@@ -394,11 +395,15 @@ impl Node {
             .take()
             .expect("Consensus receiver should be available");
 
+        let token = tokio_util::sync::CancellationToken::new();
+        let token_clone = token.clone();
+
         self.consensus_task = Some(tokio::spawn(async move {
             loop {
                 tokio::select! {
                     _ = shutdown_rx.recv() => {
                         log::info!("Consensus task shutting down");
+                        token.cancel();
                         drop(consensus_rx);
                         break;
                     }
@@ -415,6 +420,23 @@ impl Node {
                             }
                             ConsensusMessage::CertifiedBlock { from: _, to, block } => {
                                 let _ = runner.on_receive_certified_block(&block).await;
+                            }
+                        }
+                    }
+                    result = runner.run_round(Some(token_clone.clone())) => {
+                        match result {
+                            Ok(_) => {
+                                log::info!("Round completed successfully");
+                                // Continue to next round
+                            }
+                            Err(e) if e.to_string() == "aborted" => {
+                                log::info!("Round aborted due to shutdown");
+                                break;
+                            }
+                            Err(e) => {
+                                log::error!("Error in consensus round: {:?}", e);
+                                // Consider adding a delay or backoff here before retrying
+                                tokio::time::sleep(Duration::from_secs(1)).await;
                             }
                         }
                     }

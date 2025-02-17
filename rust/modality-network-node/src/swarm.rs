@@ -48,6 +48,7 @@ pub async fn create_swarm(local_key: identity::Keypair) -> Result<NodeSwarm> {
     let gossipsub_config = gossipsub::ConfigBuilder::default()
         .heartbeat_interval(Duration::from_secs(10))
         .validation_mode(gossipsub::ValidationMode::Strict)
+        .allow_self_origin(true)
         .build()?;
     let gossipsub_behaviour = gossipsub::Behaviour::new(
         gossipsub::MessageAuthenticity::Signed(local_key.clone()),

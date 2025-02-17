@@ -126,6 +126,7 @@ impl ConsensusRunner for Runner {
             {
                 block.add_ack(ack.clone())?;
                 block.save(&datastore).await?;
+                log::info!("ACKS {:?}", block.acks);
             }
         }
         Ok(())
