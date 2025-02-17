@@ -352,7 +352,7 @@ impl Node {
                                     message,
                                 },
                             )) => {
-                                log::error!("Gossip received {:?}", message.topic.to_string());
+                                log::info!("Gossip received {:?}", message.topic.to_string());
                                 let mut datastore = datastore.lock().await;
                                 gossip::handle_event(message, &mut *datastore, consensus_tx.clone()).await?;
                             }
