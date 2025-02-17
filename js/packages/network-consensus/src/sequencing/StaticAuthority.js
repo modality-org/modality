@@ -28,6 +28,9 @@ export default class StaticAuthority {
     if (round < 0) {
       return 0;
     }
+    if (!this.scribes) {
+      await this.getScribesAtRound(round);
+    }
     return ConsensusMath.calculate2fplus1(this.scribes.length);
   }
 }

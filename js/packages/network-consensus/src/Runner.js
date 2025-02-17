@@ -8,7 +8,7 @@ import { setTimeout, setImmediate } from "timers/promises";
 import { Mutex } from "async-mutex";
 
 const INTRA_ROUND_WAIT_TIME_MS = 50;
-const NO_EVENTS_ROUND_WAIT_TIME_MS = 15000;
+const NO_EVENTS_ROUND_WAIT_TIME_MS = 50;
 const NO_EVENTS_POLL_WAIT_TIME_MS = 500;
 const KEEP_WAITING_LOG_INTERVAL_MS = 5000;
 const KEEP_WAITING_FOR_ACKS_REBROADCAST_INTERVAL_MS = 5000;
@@ -328,10 +328,7 @@ export default class Runner {
     await this.datastore.setCurrentRound(newest_uncertified_round);
   }
 
-  async runRound(signal) {
-    await this.speedUpToLatestUncertifiedRound();
-    let round = await this.datastore.getCurrentRound();
-
+  async runRound_getPrevRoundCerts(round) {
     let hasCertsRequired = false;
     let working_round = round;
     while (!hasCertsRequired) {
@@ -349,31 +346,31 @@ export default class Runner {
       }
     }
 
-    const prev_round_certs = await this.getOrFetchPrevRoundCerts(round);
-    const threshold = await this.consensusThresholdForRound(round - 1);
-    const cert_count = Object.keys(prev_round_certs).length;
-    if (cert_count < threshold) {
-      console.warn({
-        prev_round: round - 1,
-        cert_count,
-        threshold,
-        prev_round_certs,
-      });
-      throw new Error("not enough certs to start round");
+    let prev_round_certs = {};
+    let enough_certs = false;
+    while (!enough_certs) {
+      prev_round_certs = await this.getOrFetchPrevRoundCerts(round);
+      const threshold = await this.consensusThresholdForRound(round - 1);
+      const cert_count = Object.keys(prev_round_certs).length;
+      if (cert_count < threshold) {
+        console.warn({
+          prev_round: round - 1,
+          cert_count,
+          threshold,
+          prev_round_certs,
+        });
+        await new Promise(r => setTimeout(r, 1000));
+        // throw new Error("not enough certs to start round");
+      } else {
+        enough_certs = true;
+      }
     }
 
-    const current_round_threshold =
-      await this.consensusThresholdForRound(round);
-    const existing_this_round_certs = await BlockMessage.findAllInRoundOfType({
-      datastore: this.datastore,
-      round: round,
-      type: "certified",
-    });
-    if (existing_this_round_certs.length >= current_round_threshold) {
-      await this.bumpCurrentRound();
-      round = await this.datastore.getCurrentRound();
-    }
-
+    return prev_round_certs;
+  }
+  
+  async runRound_getPendingTransactions() {
+    return []; // TODO
     let cc_events = await Transaction.findAll({ datastore: this.datastore });
     let keep_waiting_for_events = cc_events.length === 0;
     if (keep_waiting_for_events) {
@@ -400,34 +397,11 @@ export default class Runner {
       });
       await cc_event.delete({ datastore: this.datastore });
     }
-    const block = Block.from({
-      round_id: round,
-      peer_id: this.peerid,
-      prev_round_certs,
-      events,
-    });
-    await block.generateSig(this.keypair);
-    await block.save({ datastore: this.datastore });
+    return events;
+  }
 
-    if (this.communication) {
-      const block_data = await block.toDraftJSONObject();
-      await this.communication.broadcastDraftBlock({
-        from: this.peerid,
-        block_data: block_data,
-      });
-    }
-
-    // handle enqueue round messages
-    const existing_drafts = await BlockMessage.findAllInRoundOfType({
-      datastore: this.datastore,
-      round,
-      type: "draft",
-    });
-    for (const draft of existing_drafts) {
-      const draft_content = draft.content;
-      await this.datastore.datastore.delete(draft.getId());
-      await this.onReceiveBlockDraft(draft_content);
-    }
+  async runRound_waitForAcksAndCerts(round, block, signal) {
+    const current_round_threshold = await this.consensusThresholdForRound(round);
 
     let keep_waiting_for_acks = this.latest_seen_at_round ? false : true;
     let keep_waiting_for_certs = true;
@@ -439,11 +413,18 @@ export default class Runner {
         keep_waiting_for_certs,
       });
     }, KEEP_WAITING_LOG_INTERVAL_MS);
-    const keep_waiting_for_acks_rebroadcast_interval = setInterval(async () => {
+    const keep_waiting_for_rebroadcast_interval = setInterval(async () => {
       if (keep_waiting_for_acks) {
         console.log(`REBROADCASTING DRAFT for /round/${round}/peer/${this.peerid}`);
         const block_data = await block.toDraftJSONObject();
         await this.communication.broadcastDraftBlock({
+          from: this.peerid,
+          block_data: block_data,
+        });
+      } else if (keep_waiting_for_certs) {
+        console.log(`REBROADCASTING CERT for /round/${round}/peer/${this.peerid}`);
+        const block_data = await block.toJSONObject();
+        await this.communication.broadcastCertifiedBlock({
           from: this.peerid,
           block_data: block_data,
         });
@@ -480,6 +461,7 @@ export default class Runner {
       if (keep_waiting_for_certs) {
         const current_round_certs =
           await this.datastore.getTimelyCertsAtRound(round);
+        // console.log({current_round_certs, current_round_threshold})
         if (
           Object.keys(current_round_certs).length >= current_round_threshold
         ) {
@@ -494,9 +476,69 @@ export default class Runner {
         await setImmediate();
       }
     }
+
     clearInterval(keep_waiting_interval);
-    clearInterval(keep_waiting_for_acks_rebroadcast_interval);
+    clearInterval(keep_waiting_for_rebroadcast_interval);
+  }
+
+  async runRound(signal) {
+    console.time('runRound');
+    let starting_round = await this.datastore.getCurrentRound();
+    await this.speedUpToLatestUncertifiedRound();
+    let round = await this.datastore.getCurrentRound();
+    if (starting_round != round) {
+      console.log(`sped up from round ${starting_round} to ${round}`);
+    }
+
+    const prev_round_certs = await this.runRound_getPrevRoundCerts(round);
+
+    const current_round_threshold =
+      await this.consensusThresholdForRound(round);
+    const existing_this_round_certs = await BlockMessage.findAllInRoundOfType({
+      datastore: this.datastore,
+      round: round,
+      type: "certified",
+    });
+    if (existing_this_round_certs.length >= current_round_threshold) {
+      await this.bumpCurrentRound();
+      round = await this.datastore.getCurrentRound();
+    }
+
+    let events = await this.runRound_getPendingTransactions();
+    
+    const block = Block.from({
+      round_id: round,
+      peer_id: this.peerid,
+      prev_round_certs,
+      events,
+    });
+    await block.generateSig(this.keypair);
+    await block.save({ datastore: this.datastore });
+
+    if (this.communication) {
+      const block_data = await block.toDraftJSONObject();
+      await this.communication.broadcastDraftBlock({
+        from: this.peerid,
+        block_data: block_data,
+      });
+    }
+
+    // handle enqueue round messages
+    const existing_drafts = await BlockMessage.findAllInRoundOfType({
+      datastore: this.datastore,
+      round,
+      type: "draft",
+    });
+    for (const draft of existing_drafts) {
+      const draft_content = draft.content;
+      await this.datastore.datastore.delete(draft.getId());
+      await this.onReceiveBlockDraft(draft_content);
+    }
+
+    await this.runRound_waitForAcksAndCerts(round, block, signal);
+
     await this.bumpCurrentRound();
+    console.timeEnd('runRound');
   }
 
   async onFetchScribeRoundCertifiedBlockRequest({ round, scribe }) {
