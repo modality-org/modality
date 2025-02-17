@@ -38,7 +38,7 @@ pub struct Runner {
     pub datastore: Arc<Mutex<NetworkDatastore>>,
     pub peerid: Option<String>,
     pub communication: Option<Arc<Mutex<dyn Communication>>>,
-    keypair: Option<Arc<Keypair>>,
+    keypair: Option<Keypair>,
     sequencing: Arc<dyn Sequencing>,
     latest_seen_at_block_id: Option<u64>,
     #[allow(unused)]
@@ -189,7 +189,7 @@ impl Runner {
     pub fn new(
         datastore: Arc<Mutex<NetworkDatastore>>,
         peerid: Option<String>,
-        keypair: Option<Arc<Keypair>>,
+        keypair: Option<Keypair>,
         communication: Option<Arc<Mutex<dyn Communication>>>,
         sequencing: Arc<dyn Sequencing>,
     ) -> Self {
@@ -801,7 +801,7 @@ impl Runner {
 pub struct RunnerProps {
     pub datastore: Arc<Mutex<NetworkDatastore>>,
     pub peerid: Option<String>,
-    pub keypair: Option<Arc<Keypair>>,
+    pub keypair: Option<Keypair>,
     pub communication: Option<Arc<Mutex<dyn Communication>>>,
     pub sequencing: Arc<dyn Sequencing>,
 }
