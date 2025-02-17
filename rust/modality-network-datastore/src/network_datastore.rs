@@ -233,3 +233,9 @@ impl NetworkDatastore {
         Ok(keys)
     }
 }
+
+impl Drop for NetworkDatastore {
+    fn drop(&mut self) {
+        let _ = self.db.flush();
+    }
+}
