@@ -23,32 +23,36 @@ pub struct NodeCommunication {
 #[async_trait::async_trait]
 impl Communication for NodeCommunication {
     async fn broadcast_draft_block(&mut self, from_peer: &str, block: &Block) -> Result<()> {
-        let mut swarm = self.swarm.lock().await;
         let msg = ConsensusMessage::DraftBlock {
             from: from_peer.to_string(),
             to: String::new(),
             block: block.clone(),
           };
         self.consensus_tx.send(msg).await?;
-        swarm.behaviour_mut().gossipsub.publish(
-            libp2p::gossipsub::IdentTopic::new(BLOCK_DRAFT_TOPIC),
-            serde_json::to_string(block)?,
-        )?;
+        {
+            let mut swarm = self.swarm.lock().await;
+            swarm.behaviour_mut().gossipsub.publish(
+                libp2p::gossipsub::IdentTopic::new(BLOCK_DRAFT_TOPIC),
+                serde_json::to_string(block)?,
+            )?;
+        }
         Ok(())
     }
 
     async fn broadcast_certified_block(&mut self, from_peer: &str, block: &Block) -> Result<()> {
-        let mut swarm = self.swarm.lock().await;
         let msg = ConsensusMessage::CertifiedBlock {
             from: from_peer.to_string(),
             to: String::new(),
             block: block.clone(),
           };
         self.consensus_tx.send(msg).await?;
-        swarm.behaviour_mut().gossipsub.publish(
-            libp2p::gossipsub::IdentTopic::new(BLOCK_CERT_TOPIC),
-            serde_json::to_string(block)?,
-        )?;
+        {
+            let mut swarm = self.swarm.lock().await;
+            swarm.behaviour_mut().gossipsub.publish(
+                libp2p::gossipsub::IdentTopic::new(BLOCK_CERT_TOPIC),
+                serde_json::to_string(block)?,
+            )?;
+        }
         Ok(())
     }
 
@@ -58,7 +62,6 @@ impl Communication for NodeCommunication {
             path: "/consensus/block/ack".into(),
             data: Some(serde_json::json!(ack)),
         };
-        log::info!("ACK {:?}", ack);
         if ack.peer_id == ack.acker {
             let msg = ConsensusMessage::BlockAck {
                 from: from_peer.to_string(),

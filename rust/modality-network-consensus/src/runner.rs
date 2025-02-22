@@ -1,5 +1,5 @@
 use anyhow::Result;
-use log::warn;
+use tokio::task::JoinHandle;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -57,7 +57,7 @@ impl ConsensusRunner for Runner {
 
     async fn on_receive_draft_block(&self, block: &Block) -> Result<Option<Ack>> {
         if !block.validate_sigs()? {
-            warn!("invalid sig");
+            log::warn!("invalid sig");
             return Ok(None);
         }
 
@@ -65,7 +65,7 @@ impl ConsensusRunner for Runner {
             .get_scribes_at_round_id(block.round_id.try_into().unwrap())
             .await?;
         if !round_scribes.contains(&block.peer_id) {
-            warn!(
+            log::warn!(
                 "ignoring non-scribe {} at round_id {}",
                 block.peer_id, block.round_id
             );
@@ -106,7 +106,7 @@ impl ConsensusRunner for Runner {
 
         let round_scribes = self.get_scribes_at_round_id(ack.round_id).await?;
         if !round_scribes.contains(&ack.acker) {
-            warn!(
+            log::warn!(
                 "ignoring non-scribe ack {} at round_id {}",
                 ack.acker, ack.round_id
             );
@@ -124,9 +124,12 @@ impl ConsensusRunner for Runner {
             )
             .await?
             {
-                block.add_ack(ack.clone())?;
-                block.save(&datastore).await?;
-                log::info!("ACKS {:?}", block.acks);
+                if !block.acks.contains_key(&ack.acker) {
+                    if block.add_ack(ack.clone())? {
+                        block.save(&datastore).await?;
+                        // log::info!("ROUND {:?} ACKS {:?}, ACK {:?}", block.round_id, block.acks, ack);
+                    }
+                }
             }
         }
         Ok(())
@@ -281,6 +284,22 @@ impl Runner {
         &self,
         block: &Block,
     ) -> Result<Option<Ack>> {
+        let whoami = self.peerid.clone().unwrap_or_default();
+        if whoami == block.peer_id {
+            let datastore = self.datastore.lock().await;
+            let eblock = Block::find_one(
+                &datastore,
+                [
+                    ("round_id".to_string(), block.round_id.to_string()),
+                    ("peer_id".to_string(), block.peer_id.clone()),
+                ]
+                .into_iter()
+                .collect(),
+            )
+            .await?
+            .unwrap();
+        }
+
         let ack = match (&self.peerid, &self.keypair) {
             (Some(_peerid), Some(keypair)) => Some(block.generate_ack(keypair)?),
             _ => None,
@@ -480,12 +499,13 @@ impl Runner {
         Ok(prev_round_certs)
     }
 
-    pub async fn run_round(&mut self, signal: Option<CancellationToken>) -> Result<()> {
+    async fn run_round_get_prev_round_certs(&mut self) -> Result<HashMap<String, String>> {
         self.speed_up_to_latest_uncertified_round().await?;
         let mut round = {
             let datastore = self.datastore.lock().await;
             datastore.get_current_round().await?
         };
+        log::info!("running round {}", round);
 
         let mut working_round = round;
 
@@ -503,7 +523,7 @@ impl Runner {
             if cert_count >= threshold {
                 break;
             } else {
-                warn!(
+                log::warn!(
                     "NOT ENOUGH {}/{} going back to round {}",
                     cert_count,
                     threshold,
@@ -514,6 +534,7 @@ impl Runner {
         }
 
         let prev_round_certs = self.get_or_fetch_prev_round_certs(round).await?;
+
         let threshold = if round == 0 {
             0
         } else {
@@ -522,7 +543,7 @@ impl Runner {
         let cert_count = prev_round_certs.len() as u64;
 
         if cert_count < threshold {
-            warn!(
+            log::warn!(
                 "prev_round: {}, cert_count: {}, threshold: {}, prev_round_certs: {:?}",
                 round - 1,
                 cert_count,
@@ -546,47 +567,63 @@ impl Runner {
             };
         }
 
-        let mut cc_events = {
-            let datastore = self.datastore.lock().await;
-            Transaction::find_all(&datastore).await?
-        };
-        let keep_waiting_for_events = cc_events.is_empty();
+        Ok(prev_round_certs)
+    }
 
-        if keep_waiting_for_events {
-            if let Some(wait_time) = self.no_events_round_wait_time_ms {
-                tokio::time::sleep(std::time::Duration::from_millis(wait_time)).await;
-            }
-        }
+    async fn run_round_get_pending_transactions(&mut self) -> Result<Vec<serde_json::Value>> {
+        let r: Vec<serde_json::Value> = Vec::new();
+        return Ok(r);
 
-        loop {
-            if let Some(wait_time) = self.no_events_poll_wait_time_ms {
-                tokio::task::yield_now().await;
-                tokio::time::sleep(tokio::time::Duration::from_millis(wait_time)).await;
-            }
-            cc_events = {
-                let datastore = self.datastore.lock().await;
-                Transaction::find_all(&datastore).await?
-            };
-            if true || !cc_events.is_empty() {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
+        // let mut cc_events = {
+        //     let datastore = self.datastore.lock().await;
+        //     Transaction::find_all(&datastore).await?
+        // };
 
-        let mut events = Vec::new();
-        for cc_event in cc_events {
-            events.push(serde_json::json!({
-                "contract_id": cc_event.contract_id,
-                "commit_id": cc_event.commit_id,
-            }));
-            {
-                let datastore = self.datastore.lock().await;
-                cc_event.delete(&datastore).await?;
-            }
-        }
+        // let keep_waiting_for_events = cc_events.is_empty();
 
+        // if keep_waiting_for_events {
+        //     if let Some(wait_time) = self.no_events_round_wait_time_ms {
+        //         tokio::time::sleep(std::time::Duration::from_millis(wait_time)).await;
+        //     }
+        // }
+
+        // loop {
+        //     if let Some(wait_time) = self.no_events_poll_wait_time_ms {
+        //         tokio::task::yield_now().await;
+        //         tokio::time::sleep(tokio::time::Duration::from_millis(wait_time)).await;
+        //     }
+        //     cc_events = {
+        //         let datastore = self.datastore.lock().await;
+        //         Transaction::find_all(&datastore).await?
+        //     };
+        //     if true || !cc_events.is_empty() {
+        //         break;
+        //     }
+        //     tokio::task::yield_now().await;
+        // }
+
+        // let mut events = Vec::new();
+        // for cc_event in cc_events {
+        //     events.push(serde_json::json!({
+        //         "contract_id": cc_event.contract_id,
+        //         "commit_id": cc_event.commit_id,
+        //     }));
+        //     {
+        //         let datastore = self.datastore.lock().await;
+        //         cc_event.delete(&datastore).await?;
+        //     }
+        // }
+
+        // Ok(events)
+    }
+
+    async fn run_round_create_block(
+        &mut self,
+        round_id: u64,
+        prev_round_certs: HashMap<String, String>,
+    ) -> Result<Block> {
         let mut block = Block::create_from_json(serde_json::json!({
-            "round_id": round,
+            "round_id": round_id,
             "peer_id": self.peerid.clone(),
             "prev_round_certs": prev_round_certs,
             "events": []
@@ -601,17 +638,15 @@ impl Runner {
 
         if let Some(communication) = &self.communication {
             let block_data = block.clone();
-            // Take communication lock once
             let mut comm = communication.lock().await;
             comm.broadcast_draft_block(&self.peerid.clone().unwrap(), &block_data)
                 .await?;
-            // Lock is released here
         }
 
         // Handle enqueued round messages
         let existing_drafts = {
             let datastore = self.datastore.lock().await;
-            BlockMessage::find_all_in_round_of_type(&datastore, round, "draft").await?
+            BlockMessage::find_all_in_round_of_type(&datastore, round_id, "draft").await?
         };
 
         for draft in existing_drafts {
@@ -624,122 +659,184 @@ impl Runner {
             self.on_receive_draft_block(&block).await?;
         }
 
-        let mut keep_waiting_for_acks = self.latest_seen_at_block_id.is_none();
-        let mut keep_waiting_for_certs = true;
+        Ok(block)
+    }
 
-        // Outside the loop, spawn tasks to monitor acks and certs
-        let mut ack_monitor = {
-            let peerid = self.peerid.clone();
-            let communication = self.communication.clone();
-            let keypair = self.keypair.clone();
-            let block = block.clone();
-            let threshold = current_round_threshold;
-            let datastore_mutex = self.datastore.clone();
-
-            tokio::spawn(async move {
-                loop {
-                    let mut block_clone = block.clone();
+    async fn run_round_create_ack_monitor(&mut self, signal: Option<Arc<CancellationToken>>) -> Result<JoinHandle<std::result::Result<(), anyhow::Error>>> {
+        let round_id = {
+            let datastore = self.datastore.lock().await;
+            datastore.get_current_round().await?
+        };
+        let current_round_threshold = self.consensus_threshold_at_round_id(round_id).await?;
+    
+        let block = {
+            let datastore = self.datastore.lock().await;
+            Block::find_one(&datastore, HashMap::from([
+                ("peer_id".to_string(), self.peerid.clone().unwrap()),
+                ("round_id".to_string(), round_id.to_string()),
+            ])).await?.unwrap()
+        };
+    
+        let peerid = self.peerid.clone();
+        let communication = self.communication.clone();
+        let keypair = self.keypair.clone();
+        let datastore_mutex = self.datastore.clone();
+    
+        let ack_monitor = tokio::spawn(async move {
+            log::info!("Ack monitor started");
+            loop {
+                if let Some(signal) = &signal {
+                    if signal.is_cancelled() {
+                        log::info!("Ack monitor cancelled");
+                        return Ok(());
+                    }
+                }
+    
+                let mut block_clone = block.clone();
+                {
+                    let ds_lock = datastore_mutex.lock().await;
+                    if let Err(e) = block_clone.reload(&*ds_lock).await {
+                        log::info!("Failed to reload block: {:?}", e);
+                        return Ok(());
+                    }
+                }
+                let valid_acks = block_clone.count_valid_acks()?;
+    
+                if valid_acks >= (current_round_threshold as usize) {
+                    log::info!("Ack threshold reached: {} / {}", valid_acks, current_round_threshold);
+                    if let Some(keypair) = &keypair {
+                        block_clone.generate_cert(keypair)?;
+                    }
                     {
-                        let ds_lock = datastore_mutex.lock().await;
-                        if let Err(_) = block_clone.reload(&*ds_lock).await {
-                            break;
-                        }
+                        let datastore = datastore_mutex.lock().await;
+                        block_clone.save(&datastore).await?;
                     }
-                    let valid_acks = block_clone.count_valid_acks()?;
-
-                    if valid_acks >= (threshold as usize) {
-                        if let Some(keypair) = &keypair {
-                            block_clone.generate_cert(keypair)?;
-                        }
-                        {
-                            let datastore = datastore_mutex.lock().await;
-                            block_clone.save(&datastore).await?;
-                        }
-
-                        if let Some(communication) = &communication {
-                            let mut comm = communication.lock().await;
-                            comm.broadcast_certified_block(
-                                &peerid.clone().unwrap(),
-                                &block_clone.clone(),
-                            )
-                            .await?;
-                        }
-                        break;
+    
+                    if let Some(communication) = &communication {
+                        let mut comm = communication.lock().await;
+                        comm.broadcast_certified_block(
+                            &peerid.clone().unwrap(),
+                            &block_clone.clone(),
+                        )
+                        .await?;
                     }
-                    tokio::task::yield_now().await;
-                }
-                Ok::<_, anyhow::Error>(())
-            })
-        };
-
-        let mut cert_monitor = {
-            let datastore = self.datastore.clone();
-            let round = round;
-            let threshold = current_round_threshold;
-
-            tokio::spawn(async move {
-                loop {
-                    let current_round_certs = {
-                        let datastore = datastore.lock().await;
-                        datastore.get_timely_certs_at_round(round).await?
-                    };
-                    if current_round_certs.len() as u64 >= threshold {
-                        break;
-                    }
-                    tokio::task::yield_now().await;
-                }
-                Ok::<_, anyhow::Error>(())
-            })
-        };
-
-        // Wait for either condition to be met or latest_seen to change
-        loop {
-            if let Some(latest_seen) = self.latest_seen_at_block_id {
-                if latest_seen > round {
-                    // Cancel our monitors
-                    tokio::spawn(async move {
-                        ack_monitor.abort();
-                        cert_monitor.abort();
-                    });
-
-                    self.jump_to_round(latest_seen).await?;
-                    self.latest_seen_at_block_id = None;
                     return Ok(());
                 }
+    
+                tokio::time::sleep(Duration::from_millis(50)).await;
             }
+        });
+    
+        Ok(ack_monitor)
+    }
 
-            if signal.as_ref().map_or(false, |s| s.is_cancelled()) {
-                if !ack_monitor.is_finished() {
-                    ack_monitor.abort();
+    async fn run_round_create_cert_monitor(&mut self, signal: Option<Arc<CancellationToken>>) -> Result<JoinHandle<std::result::Result<(), anyhow::Error>>> {
+        let round_id = {
+            let datastore = self.datastore.lock().await;
+            datastore.get_current_round().await?
+        };
+        let current_round_threshold = self.consensus_threshold_at_round_id(round_id).await?;
+        let datastore_mutex = self.datastore.clone();
+    
+        let cert_monitor = tokio::spawn(async move {
+            log::info!("Cert monitor started");
+            loop {
+                if let Some(signal) = &signal {
+                    if signal.is_cancelled() {
+                        log::info!("Cert monitor cancelled");
+                        return Ok(());
+                    }
                 }
-                if !cert_monitor.is_finished() {
-                    cert_monitor.abort();
+    
+                let current_round_certs = {
+                    let datastore = datastore_mutex.lock().await;
+                    datastore.get_timely_certs_at_round(round_id).await?
+                };
+    
+                if current_round_certs.len() as u64 >= current_round_threshold {
+                    log::info!("Cert threshold reached: {} / {}", current_round_certs.len(), current_round_threshold);
+                    return Ok(());
                 }
-                return Err(anyhow::anyhow!("aborted"));
+    
+                tokio::time::sleep(Duration::from_millis(50)).await;
             }
+        });
+    
+        Ok(cert_monitor)
+    }
 
-            if !keep_waiting_for_acks && !keep_waiting_for_certs {
-                break;
+    async fn run_round_wait_for_acks_and_certs(&mut self, signal: Option<Arc<CancellationToken>>) -> Result<(), anyhow::Error> {
+        let mut ack_monitor = self.run_round_create_ack_monitor(signal.clone()).await?;
+        let mut cert_monitor = self.run_round_create_cert_monitor(signal.clone()).await?;
+    
+        if let Some(ref signal) = signal {
+            if signal.is_cancelled() {
+                log::info!("Monitors cancelled before starting");
+                ack_monitor.abort();
+                cert_monitor.abort();
+                return Err(anyhow::anyhow!("Round cancelled before starting wait"));
             }
+        }
+    
+        let wait_future = futures::future::try_join(&mut ack_monitor, &mut cert_monitor);
+    
+        tokio::select! {
+            result = wait_future => {
+                result?; // Unwraps the (Result<(), anyhow::Error>, Result<(), anyhow::Error>) tuple
+                log::info!("Both monitors completed successfully");
+            }
+            _ = async {
+                if let Some(ref signal) = signal {
+                    signal.cancelled().await;
+                } else {
+                    std::future::pending().await
+                }
+            } => {
+                log::info!("Cancelling ack and cert monitors from wait_for_acks_and_certs");
+                ack_monitor.abort();
+                cert_monitor.abort();
+                return Err(anyhow::anyhow!("Round cancelled"));
+            }
+        }
+    
+        Ok(())
+    }
 
-            tokio::select! {
-                ack_result = &mut ack_monitor, if keep_waiting_for_acks => {
-                    ack_result??;
-                    keep_waiting_for_acks = false;
+    pub async fn run_round(&mut self, signal: Option<Arc<CancellationToken>>) -> Result<()> {
+        let prev_round_certs = self.run_round_get_prev_round_certs().await?;
+
+        let round_id = {
+            let datastore = self.datastore.lock().await;
+            datastore.get_current_round().await?
+        };
+        log::error!("STARTING ROUND {}", round_id);
+        let events = self.run_round_get_pending_transactions().await?;
+        let _block = self
+            .run_round_create_block(round_id, prev_round_certs.clone())
+            .await?;
+
+        if let Some(ref signal) = signal {
+            log::info!("Token cancelled before wait_for_acks_and_certs: {}", signal.is_cancelled());
+        }
+        tokio::select! {
+            result = self.run_round_wait_for_acks_and_certs(signal.clone()) => {
+                result?;
+            }
+            _ = async {
+                if let Some(ref signal) = signal {
+                    signal.cancelled().await;
+                } else {
+                    std::future::pending().await
                 }
-                cert_result = &mut cert_monitor, if keep_waiting_for_certs => {
-                    cert_result??;
-                    keep_waiting_for_certs = false;
-                }
-                _ = tokio::time::sleep(Duration::from_millis(
-                    self.intra_round_wait_time_ms.unwrap_or(50)
-                )) => {}
+            } => {
+                return Err(anyhow::anyhow!("Round cancelled during execution"));
             }
         }
 
-        self.bump_current_round().await?;
+        // self.bump_current_round().await?;
         Ok(())
     }
+
     pub async fn jump_to_round(&mut self, round_num: u64) -> Result<()> {
         let current_round_num = {
             let datastore = self.datastore.lock().await;
@@ -766,7 +863,7 @@ impl Runner {
     pub async fn run_until_round(
         &mut self,
         target_round: u64,
-        signal: Option<CancellationToken>,
+        signal: Option<Arc<CancellationToken>>,
     ) -> Result<()> {
         let mut current_round = {
             let datastore = self.datastore.lock().await;
@@ -787,7 +884,7 @@ impl Runner {
 
     pub async fn run(
         &mut self,
-        signal: Option<CancellationToken>,
+        signal: Option<Arc<CancellationToken>>,
         before_each_round: Option<Box<dyn Fn() -> Result<()>>>,
         after_each_round: Option<Box<dyn Fn() -> Result<()>>>,
     ) -> Result<()> {

@@ -66,7 +66,11 @@ impl Node {
         if let Some(network_config_path) = config.network_config_path {
             let config_str = std::fs::read_to_string(network_config_path)?;
             let network_config = serde_json::from_str(&config_str)?;
-            datastore.lock().await.load_network_config(&network_config).await?;
+            datastore
+                .lock()
+                .await
+                .load_network_config(&network_config)
+                .await?;
         }
         let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
         let (consensus_tx, consensus_rx) = mpsc::channel(100);
@@ -82,7 +86,7 @@ impl Node {
             consensus_tx,
             consensus_rx: Some(consensus_rx),
             shutdown_tx,
-            consensus_runner: None
+            consensus_runner: None,
         };
         Ok(node)
     }
@@ -114,7 +118,7 @@ impl Node {
             log::info!("connecting to peers...");
             log::info!("{}", count);
             let count = self.swarm.lock().await.connected_peers().count();
-            tokio::time::sleep(Duration::from_millis(1000*5)).await;
+            tokio::time::sleep(Duration::from_millis(1000 * 5)).await;
             for bootstrapper in self.bootstrappers.clone() {
                 log::info!("{}", bootstrapper);
                 if let Some(peer_id) = extract_peer_id(bootstrapper.clone()) {
@@ -122,7 +126,6 @@ impl Node {
                         let mut swarm = self.swarm.lock().await;
                         swarm.add_peer_address(peer_id.clone(), bootstrapper.clone());
                         swarm
-
                             .behaviour_mut()
                             .kademlia
                             .add_address(&peer_id.clone(), bootstrapper.clone());
@@ -265,25 +268,31 @@ impl Node {
 
     pub async fn wait_for_shutdown(&mut self) -> Result<()> {
         let shutdown_tx = self.shutdown_tx.clone();
-
-        // Set up ctrl-c handler
+    
         tokio::spawn(async move {
-            if let Ok(()) = tokio::signal::ctrl_c().await {
-                log::info!("Received Ctrl-C, initiating shutdown...");
-                let _ = shutdown_tx.send(());
-            }
+            tokio::signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
+            log::info!("Received Ctrl-C, initiating shutdown...");
+            let _ = shutdown_tx.send(());
         });
-
-        if let Some(net_handle) = self.networking_task.take() {
-            net_handle.await??;
+    
+        let mut shutdown_rx = self.shutdown_tx.subscribe();
+        shutdown_rx.recv().await?;
+        log::info!("Shutdown signal received in wait_for_shutdown");
+    
+        if let Some(handle) = self.consensus_task.take() {
+            log::info!("Awaiting consensus task shutdown...");
+            handle.await??;
+            log::info!("Consensus task shutdown complete");
         }
-
-        if let Some(cons_handle) = self.consensus_task.take() {
-            cons_handle.await??;
+    
+        if let Some(handle) = self.networking_task.take() {
+            log::info!("Awaiting networking task shutdown...");
+            handle.await??;
+            log::info!("Networking task shutdown complete");
         }
-
+    
         self.shutdown().await?;
-
+        log::info!("Node shutdown complete");
         Ok(())
     }
 
@@ -382,37 +391,69 @@ impl Node {
 
         Ok(())
     }
-
     pub async fn start_consensus(&mut self) -> Result<()> {
         let mut runner_props = create_runner_props_from_datastore(self.datastore.clone()).await?;
         runner_props.peerid = Some(self.peerid.to_string());
-        runner_props.keypair =  Some(modality_utils::keypair::Keypair::from_libp2p_keypair(self.node_keypair.clone())?);
+        runner_props.keypair = Some(modality_utils::keypair::Keypair::from_libp2p_keypair(
+            self.node_keypair.clone(),
+        )?);
         runner_props.communication = Some(Arc::new(Mutex::new(NodeCommunication {
             swarm: self.swarm.clone(),
-            consensus_tx: self.consensus_tx.clone()
+            consensus_tx: self.consensus_tx.clone(),
         })));
-        let mut runner = modality_network_consensus::runner::Runner::create(runner_props);
-        // self.consensus_runner = Some(modality_network_consensus::runner::Runner::create(runner_props));
-
+        let runner = modality_network_consensus::runner::Runner::create(runner_props);
+        self.consensus_runner = Some(runner.clone());
+    
         let mut shutdown_rx = self.shutdown_tx.subscribe();
+        log::info!("Consensus task started and listening for shutdown signal");
         let mut consensus_rx = self
             .consensus_rx
             .take()
             .expect("Consensus receiver should be available");
-
-        let token = tokio_util::sync::CancellationToken::new();
+    
+        let token = Arc::new(tokio_util::sync::CancellationToken::new());
+        let runner = Arc::new(Mutex::new(runner));
+        let runner_clone = runner.clone();
         let token_clone = token.clone();
-
+    
+        let (round_tx, mut round_rx) = tokio::sync::mpsc::channel::<()>(1);
+    
         self.consensus_task = Some(tokio::spawn(async move {
+            let mut round_handle: Option<tokio::task::JoinHandle<()>> = None;
+    
+            if !token_clone.is_cancelled() {
+                log::info!("Starting initial consensus round");
+                let round_tx_clone = round_tx.clone();
+                let runner_clone_inner = runner_clone.clone();
+                let token_inner = token_clone.clone();
+                round_handle = Some(tokio::spawn(async move {
+                    let mut runner_lock = runner_clone_inner.lock().await;
+                    if let Ok(_) = runner_lock.run_round(Some(token_inner)).await {
+                        let _ = round_tx_clone.send(()).await;
+                    }
+                }));
+            } else {
+                log::warn!("Consensus task started but token already cancelled");
+            }
+    
             loop {
                 tokio::select! {
                     _ = shutdown_rx.recv() => {
-                        log::info!("Consensus task shutting down");
+                        log::info!("Shutdown signal received in consensus task");
                         token.cancel();
-                        drop(consensus_rx);
+                        log::info!("Cancellation token triggered");
+                        if let Some(handle) = round_handle.take() {
+                            log::info!("Aborting round handle");
+                            handle.abort();
+                            if let Err(e) = handle.await {
+                                log::warn!("Round handle await failed: {:?}", e);
+                            }
+                        }
                         break;
                     }
                     Some(msg) = consensus_rx.recv() => {
+                        log::info!("Received consensus message: {:?}", msg);
+                        let mut runner = runner_clone.lock().await;
                         match msg {
                             ConsensusMessage::DraftBlock { from: _, to, block } => {
                                 let _ = runner.on_receive_draft_block(&block).await;
@@ -428,30 +469,31 @@ impl Node {
                             }
                         }
                     }
-                    result = runner.run_round(Some(token_clone.clone())) => {
-                        match result {
-                            Ok(_) => {
-                                log::info!("Round completed successfully");
-                                // Continue to next round
-                            }
-                            Err(e) if e.to_string() == "aborted" => {
-                                log::info!("Round aborted due to shutdown");
-                                break;
-                            }
-                            Err(e) => {
-                                log::error!("Error in consensus round: {:?}", e);
-                                // Consider adding a delay or backoff here before retrying
-                                tokio::time::sleep(Duration::from_secs(1)).await;
-                            }
+                    Some(_) = round_rx.recv() => {
+                        log::info!("Round completed, starting new round");
+                        if token_clone.is_cancelled() {
+                            log::info!("Token cancelled, stopping consensus");
+                            break;
                         }
+                        let round_tx_clone = round_tx.clone();
+                        let runner_clone_inner = runner_clone.clone();
+                        let token_inner = token_clone.clone();
+                        round_handle = Some(tokio::spawn(async move {
+                            let mut runner_lock = runner_clone_inner.lock().await;
+                            if let Ok(_) = runner_lock.run_round(Some(token_inner)).await {
+                                let _ = round_tx_clone.send(()).await;
+                            }
+                        }));
                     }
                 }
             }
+            log::info!("Consensus task fully terminated");
             Ok(())
         }));
-
+    
         Ok(())
     }
+    
 }
 
 fn extract_peer_id(multiaddr: Multiaddr) -> Option<PeerId> {
