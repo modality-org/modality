@@ -1,14 +1,15 @@
+use serde::{Serialize, Deserialize};
 use crate::ast::{Model, Graph, Transition, Property, PropertySign, Formula, FormulaExpr};
 
 /// Represents a state in the model (graph name and node name)
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct State {
     pub graph_name: String,
     pub node_name: String,
 }
 
 /// Represents the result of model checking
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModelCheckResult {
     pub formula: Formula,
     pub satisfying_states: Vec<State>,

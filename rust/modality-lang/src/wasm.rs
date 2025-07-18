@@ -1,8 +1,9 @@
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
-use crate::ast::{Model, PropertySign};
-use crate::lalrpop_parser::{parse_file_lalrpop, parse_content_lalrpop, parse_all_models_lalrpop, parse_all_models_content_lalrpop};
+use crate::ast::{Model, PropertySign, Formula};
+use crate::lalrpop_parser::{parse_file_lalrpop, parse_content_lalrpop, parse_all_models_lalrpop, parse_all_models_content_lalrpop, parse_all_formulas_content_lalrpop};
 use crate::mermaid::{generate_mermaid_diagram, generate_mermaid_diagrams, generate_mermaid_diagram_with_styling, generate_mermaid_diagram_with_state};
+use crate::model_checker::{ModelChecker, State, ModelCheckResult};
 use serde_json;
 
 #[wasm_bindgen]
@@ -51,6 +52,37 @@ impl ModalityParser {
             .map_err(|e| JsValue::from_str(&format!("JSON parse error: {}", e)))?;
         Ok(generate_mermaid_diagram_with_state(&model))
     }
+
+    /// Parse formulas from a string
+    pub fn parse_formulas(&self, content: &str) -> Result<JsValue, JsValue> {
+        let formulas = parse_all_formulas_content_lalrpop(content)
+            .map_err(|e| JsValue::from_str(&e))?;
+        wasm_bindgen::JsValue::from_serde(&formulas).map_err(|e| JsValue::from_str(&format!("Serde error: {}", e)))
+    }
+
+    /// Check a formula against a model (per-graph requirement)
+    pub fn check_formula(&self, model_json: &str, formula_json: &str) -> Result<JsValue, JsValue> {
+        let model: Model = serde_json::from_str(model_json)
+            .map_err(|e| JsValue::from_str(&format!("Model JSON parse error: {}", e)))?;
+        let formula: Formula = serde_json::from_str(formula_json)
+            .map_err(|e| JsValue::from_str(&format!("Formula JSON parse error: {}", e)))?;
+        
+        let checker = ModelChecker::new(model);
+        let result = checker.check_formula(&formula);
+        wasm_bindgen::JsValue::from_serde(&result).map_err(|e| JsValue::from_str(&format!("Serde error: {}", e)))
+    }
+
+    /// Check a formula against a model (any-state requirement)
+    pub fn check_formula_any_state(&self, model_json: &str, formula_json: &str) -> Result<JsValue, JsValue> {
+        let model: Model = serde_json::from_str(model_json)
+            .map_err(|e| JsValue::from_str(&format!("Model JSON parse error: {}", e)))?;
+        let formula: Formula = serde_json::from_str(formula_json)
+            .map_err(|e| JsValue::from_str(&format!("Formula JSON parse error: {}", e)))?;
+        
+        let checker = ModelChecker::new(model);
+        let result = checker.check_formula_any_state(&formula);
+        wasm_bindgen::JsValue::from_serde(&result).map_err(|e| JsValue::from_str(&format!("Serde error: {}", e)))
+    }
 }
 
 /// Standalone WASM functions
@@ -87,4 +119,35 @@ pub fn generate_mermaid_with_state(model_json: &str) -> Result<String, JsValue> 
     let model: Model = serde_json::from_str(model_json)
         .map_err(|e| JsValue::from_str(&format!("JSON parse error: {}", e)))?;
     Ok(generate_mermaid_diagram_with_state(&model))
+}
+
+#[wasm_bindgen]
+pub fn parse_formulas(content: &str) -> Result<JsValue, JsValue> {
+    let formulas = parse_all_formulas_content_lalrpop(content)
+        .map_err(|e| JsValue::from_str(&e))?;
+    wasm_bindgen::JsValue::from_serde(&formulas).map_err(|e| JsValue::from_str(&format!("Serde error: {}", e)))
+}
+
+#[wasm_bindgen]
+pub fn check_formula(model_json: &str, formula_json: &str) -> Result<JsValue, JsValue> {
+    let model: Model = serde_json::from_str(model_json)
+        .map_err(|e| JsValue::from_str(&format!("Model JSON parse error: {}", e)))?;
+    let formula: Formula = serde_json::from_str(formula_json)
+        .map_err(|e| JsValue::from_str(&format!("Formula JSON parse error: {}", e)))?;
+    
+    let checker = ModelChecker::new(model);
+    let result = checker.check_formula(&formula);
+    wasm_bindgen::JsValue::from_serde(&result).map_err(|e| JsValue::from_str(&format!("Serde error: {}", e)))
+}
+
+#[wasm_bindgen]
+pub fn check_formula_any_state(model_json: &str, formula_json: &str) -> Result<JsValue, JsValue> {
+    let model: Model = serde_json::from_str(model_json)
+        .map_err(|e| JsValue::from_str(&format!("Model JSON parse error: {}", e)))?;
+    let formula: Formula = serde_json::from_str(formula_json)
+        .map_err(|e| JsValue::from_str(&format!("Formula JSON parse error: {}", e)))?;
+    
+    let checker = ModelChecker::new(model);
+    let result = checker.check_formula_any_state(&formula);
+    wasm_bindgen::JsValue::from_serde(&result).map_err(|e| JsValue::from_str(&format!("Serde error: {}", e)))
 } 
