@@ -3,6 +3,7 @@ pub mod ast;
 pub mod lexer;
 pub mod lalrpop_parser;
 pub mod mermaid;
+pub mod wasm;
 
 // Include the generated parser
 use lalrpop_util::lalrpop_mod;

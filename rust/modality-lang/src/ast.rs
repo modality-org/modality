@@ -1,19 +1,21 @@
+use serde::{Serialize, Deserialize};
+
 /// Represents a property with a sign (+ or -)
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Property {
     pub sign: PropertySign,
     pub name: String,
 }
 
 /// The sign of a property
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PropertySign {
     Plus,
     Minus,
 }
 
 /// Represents a transition between nodes
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Transition {
     pub from: String,
     pub to: String,
@@ -21,14 +23,14 @@ pub struct Transition {
 }
 
 /// Represents a graph within a model
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Graph {
     pub name: String,
     pub transitions: Vec<Transition>,
 }
 
 /// Represents a complete model
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Model {
     pub name: String,
     pub graphs: Vec<Graph>,

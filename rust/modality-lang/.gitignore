@@ -1,0 +1,19 @@
+# Build artifacts
+dist/
+dist-node/
+dist-bundler/
+target/
+
+# Generated files
+src/grammar.rs
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log 
