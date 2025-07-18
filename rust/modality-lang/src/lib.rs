@@ -1,4 +1,3 @@
-pub mod parser;
 pub mod ast;
 pub mod lexer;
 pub mod lalrpop_parser;
@@ -9,10 +8,11 @@ pub mod wasm;
 use lalrpop_util::lalrpop_mod;
 lalrpop_mod!(pub grammar);
 
-pub use parser::parse_file;
 pub use lalrpop_parser::{parse_file_lalrpop, parse_content_lalrpop, parse_all_models_lalrpop, parse_all_models_content_lalrpop};
-pub use ast::{Model, Graph, Transition, Property, PropertySign};
-pub use mermaid::{generate_mermaid_diagram, generate_mermaid_diagrams, generate_mermaid_diagram_with_styling};
+pub use ast::{Model, Graph, Transition, Property, PropertySign, Formula, FormulaExpr, GraphState};
+pub use mermaid::{generate_mermaid_diagram, generate_mermaid_diagrams, generate_mermaid_diagram_with_styling, generate_mermaid_diagram_with_state};
 
 // Re-export the generated parser
-pub use grammar::ModelParser; 
+pub use grammar::ModelParser;
+pub use grammar::FormulaParser;
+pub use grammar::TopLevelParser; 

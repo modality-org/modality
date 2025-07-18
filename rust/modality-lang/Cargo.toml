@@ -16,7 +16,7 @@ crate-type = ["cdylib", "rlib"]
 lalrpop-util = { version = "0.20", features = ["lexer"] }
 
 # WASM dependencies
-wasm-bindgen = "0.2"
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
 js-sys = "0.3"
 web-sys = { version = "0.3", features = ["console"] }
 serde = { version = "1.0", features = ["derive"] }

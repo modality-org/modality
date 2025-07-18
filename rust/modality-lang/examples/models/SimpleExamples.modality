@@ -4,13 +4,13 @@ model InitialModel:
     n1 --> n1
 
 // graph with a acyclic set of three nodes, where +blue is on each of the transitions between them
-model Model3:
+model Model1:
   graph g1:
     n1 --> n2: +blue
     n2 --> n3: +blue
 
 // graph with a cycle of three nodes, where +blue is on each of the transitions between them
-model Model2:
+model Model3:
   graph g1:
     n1 --> n2: +blue
     n2 --> n3: +blue
@@ -24,10 +24,33 @@ model Model4:
     n3 --> n1: -blue +red
 
 // model with two graphs
-model Model4:
+model Model5:
   graph g1:
     n1 --> n2: +blue -red
     n2 --> n3: +blue -green
     n3 --> n1: -blue +red
   graph g2:
     n1 --> n1: +yellow
+
+// example where current state is specified, note that state may be non-deterministic
+model Model6:
+  graph g1:
+    n1 --> n2: +blue -red
+    n2 --> n3: +blue -green
+    n3 --> n1: -blue +red
+  graph g2:
+    n1 --> n1: +yellow
+  state:
+    g1: n1 n2
+    g2: n1
+
+
+// boolean formulas
+formula FormulaTrue: true
+formula FormulaFalse: false
+formula FormulaBooleanWff: (true or false) and true
+
+// true within Model1
+formula FormulaDiamondBlueTrue: <+blue> true
+formula FormulaBoxNegBlueFalse: [-blue] false
+formula FormulaBoxNegBlueTrue: <+blue> <+blue> [-blue] false

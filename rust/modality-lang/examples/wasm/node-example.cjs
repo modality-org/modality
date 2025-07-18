@@ -9,16 +9,19 @@ async function main() {
         // WASM module is automatically initialized in Node.js version
         console.log('✅ WASM module is ready to use!\n');
 
-        // Example Modality language code
-        const modalityCode = `model TestModel:
-  graph g1:
-    n1 --> n2 : +blue -red
-    n2 --> n3 : +green
-    n3 --> n1 : -blue +yellow
-  graph g2:
-    a --> b : +init
-    b --> c : +complete
-    c --> a : +reset`;
+                            // Example Modality language code
+                    const modalityCode = `model TestModel:
+              graph g1:
+                n1 --> n2 : +blue -red
+                n2 --> n3 : +green
+                n3 --> n1 : -blue +yellow
+              graph g2:
+                a --> b : +init
+                b --> c : +complete
+                c --> a : +reset
+              state:
+                g1: n1 n2
+                g2: a`;
 
         console.log('📝 Example Modality Code:');
         console.log(modalityCode);
@@ -63,19 +66,34 @@ async function main() {
         }
         console.log('\n' + '='.repeat(50) + '\n');
 
-        // Generate styled Mermaid diagram
-        console.log('🎨 Generating styled Mermaid diagram...');
-        try {
-            const modelResult = modalityLang.parse_model(modalityCode);
-            const styledMermaidResult = modalityLang.generate_mermaid_styled(modelResult);
-            console.log('✅ Styled Mermaid diagram generated successfully!');
-            console.log('Styled Mermaid diagram:');
-            console.log('```mermaid');
-            console.log(styledMermaidResult);
-            console.log('```');
-        } catch (error) {
-            console.error('❌ Error generating styled Mermaid diagram:', error.message);
-        }
+                            // Generate styled Mermaid diagram
+                    console.log('🎨 Generating styled Mermaid diagram...');
+                    try {
+                        const modelResult = modalityLang.parse_model(modalityCode);
+                        const styledMermaidResult = modalityLang.generate_mermaid_styled(modelResult);
+                        console.log('✅ Styled Mermaid diagram generated successfully!');
+                        console.log('Styled Mermaid diagram:');
+                        console.log('```mermaid');
+                        console.log(styledMermaidResult);
+                        console.log('```');
+                    } catch (error) {
+                        console.error('❌ Error generating styled Mermaid diagram:', error.message);
+                    }
+
+                    // Generate state-aware Mermaid diagram
+                    console.log('\n' + '='.repeat(50) + '\n');
+                    console.log('🎯 Generating state-aware Mermaid diagram...');
+                    try {
+                        const modelResult = modalityLang.parse_model(modalityCode);
+                        const stateMermaidResult = modalityLang.generate_mermaid_with_state(modelResult);
+                        console.log('✅ State-aware Mermaid diagram generated successfully!');
+                        console.log('State-aware Mermaid diagram:');
+                        console.log('```mermaid');
+                        console.log(stateMermaidResult);
+                        console.log('```');
+                    } catch (error) {
+                        console.error('❌ Error generating state-aware Mermaid diagram:', error.message);
+                    }
 
         // Test the ModalityParser class
         console.log('\n' + '='.repeat(50) + '\n');

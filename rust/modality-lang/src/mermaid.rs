@@ -85,6 +85,7 @@ pub fn generate_mermaid_diagram_with_styling(model: &Model) -> String {
     diagram.push_str("    classDef start fill:#d4edda,stroke:#155724,stroke-width:2px\n");
     diagram.push_str("    classDef end fill:#f8d7da,stroke:#721c24,stroke-width:2px\n");
     diagram.push_str("    classDef property fill:#fff3cd,stroke:#856404,stroke-width:2px\n");
+    diagram.push_str("    classDef current fill:#e3f2fd,stroke:#1976d2,stroke-width:3px\n");
     
     for (_graph_idx, graph) in model.graphs.iter().enumerate() {
         if model.graphs.len() > 1 {
@@ -140,6 +141,100 @@ pub fn generate_mermaid_diagram_with_styling(model: &Model) -> String {
     
     // Apply default styling to all nodes
     diagram.push_str("    class * default\n");
+    
+    diagram
+}
+
+/// Generate a Mermaid state diagram with current state highlighting
+pub fn generate_mermaid_diagram_with_state(model: &Model) -> String {
+    let mut diagram = String::new();
+    diagram.push_str("stateDiagram-v2\n");
+    
+    // Add styling for current states
+    diagram.push_str("    classDef current fill:#e3f2fd,stroke:#1976d2,stroke-width:3px\n");
+    
+    for (_graph_idx, graph) in model.graphs.iter().enumerate() {
+        if model.graphs.len() > 1 {
+            diagram.push_str(&format!("    state {} {{\n", graph.name));
+        }
+        
+        // Add all nodes first with graph prefix if multiple graphs
+        let mut nodes = std::collections::HashSet::new();
+        for transition in &graph.transitions {
+            nodes.insert(&transition.from);
+            nodes.insert(&transition.to);
+        }
+        
+        // Check if this graph has current state information
+        let empty_vec = Vec::<String>::new();
+        let current_nodes = if let Some(state) = &model.state {
+            state.iter()
+                .find(|s| s.graph_name == graph.name)
+                .map(|s| &s.current_nodes)
+                .unwrap_or(&empty_vec)
+        } else {
+            &empty_vec
+        };
+        
+        for node in nodes {
+            let node_name = if model.graphs.len() > 1 {
+                format!("{}.{}", graph.name, node)
+            } else {
+                node.to_string()
+            };
+            
+            if model.graphs.len() > 1 {
+                diagram.push_str(&format!("        {}.{} : {}\n", graph.name, node, node));
+            } else {
+                diagram.push_str(&format!("        {}\n", node));
+            }
+        }
+        
+        // Add all transitions within this graph only
+        for transition in &graph.transitions {
+            let edge_label = if transition.properties.is_empty() {
+                String::new()
+            } else {
+                let props: Vec<String> = transition.properties
+                    .iter()
+                    .map(|prop| {
+                        let sign = match prop.sign {
+                            PropertySign::Plus => "+",
+                            PropertySign::Minus => "-",
+                        };
+                        format!("{}{}", sign, prop.name)
+                    })
+                    .collect();
+                format!(" : {}", props.join(" "))
+            };
+            
+            if model.graphs.len() > 1 {
+                diagram.push_str(&format!("        {}.{} --> {}.{}{}\n", 
+                    graph.name, transition.from, graph.name, transition.to, edge_label));
+            } else {
+                diagram.push_str(&format!("        {} --> {}{}\n", 
+                    transition.from, transition.to, edge_label));
+            }
+        }
+        
+        if model.graphs.len() > 1 {
+            diagram.push_str("    }\n");
+        }
+    }
+    
+    // Apply current state styling
+    if let Some(state) = &model.state {
+        for graph_state in state {
+            for node in &graph_state.current_nodes {
+                let node_name = if model.graphs.len() > 1 {
+                    format!("{}.{}", graph_state.graph_name, node)
+                } else {
+                    node.to_string()
+                };
+                diagram.push_str(&format!("    class {} current\n", node_name));
+            }
+        }
+    }
     
     diagram
 }
@@ -308,5 +403,64 @@ mod tests {
         assert!(diagram.contains("n1 --> n2"));
         assert!(!diagram.contains("g1.n1"));
         assert!(!diagram.contains("g1.n2"));
+    }
+
+    #[test]
+    fn test_generate_diagram_with_state() {
+        use crate::ast::GraphState;
+        
+        let mut model = Model::new("TestModel".to_string());
+        let mut graph = Graph::new("g1".to_string());
+        
+        let transition = Transition::new("n1".to_string(), "n2".to_string());
+        graph.add_transition(transition);
+        model.add_graph(graph);
+        
+        // Add state information
+        let state = vec![
+            GraphState::new("g1".to_string(), vec!["n1".to_string(), "n2".to_string()])
+        ];
+        model.set_state(state);
+        
+        let diagram = generate_mermaid_diagram_with_state(&model);
+        
+        // Should contain current state styling
+        assert!(diagram.contains("classDef current fill:#e3f2fd,stroke:#1976d2,stroke-width:3px"));
+        assert!(diagram.contains("class n1 current"));
+        assert!(diagram.contains("class n2 current"));
+    }
+
+    #[test]
+    fn test_generate_diagram_with_multiple_graphs_and_state() {
+        use crate::ast::GraphState;
+        
+        let mut model = Model::new("TestModel".to_string());
+        
+        // First graph
+        let mut graph1 = Graph::new("g1".to_string());
+        let transition1 = Transition::new("n1".to_string(), "n2".to_string());
+        graph1.add_transition(transition1);
+        model.add_graph(graph1);
+        
+        // Second graph
+        let mut graph2 = Graph::new("g2".to_string());
+        let transition2 = Transition::new("a".to_string(), "b".to_string());
+        graph2.add_transition(transition2);
+        model.add_graph(graph2);
+        
+        // Add state information
+        let state = vec![
+            GraphState::new("g1".to_string(), vec!["n1".to_string()]),
+            GraphState::new("g2".to_string(), vec!["a".to_string(), "b".to_string()])
+        ];
+        model.set_state(state);
+        
+        let diagram = generate_mermaid_diagram_with_state(&model);
+        
+        // Should contain current state styling with prefixed names
+        assert!(diagram.contains("classDef current fill:#e3f2fd,stroke:#1976d2,stroke-width:3px"));
+        assert!(diagram.contains("class g1.n1 current"));
+        assert!(diagram.contains("class g2.a current"));
+        assert!(diagram.contains("class g2.b current"));
     }
 } 

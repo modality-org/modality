@@ -1,6 +1,23 @@
-use crate::ast::{Model, Graph, Transition, Property, PropertySign};
+use crate::ast::{Model, Graph, Transition, Property, PropertySign, Formula, FormulaExpr, GraphState, TopLevelItem};
 
 grammar;
+
+pub TopLevel: Vec<Model> = {
+    <items:TopLevelItem*> => {
+        let mut models = Vec::new();
+        for item in items {
+            if let TopLevelItem::Model(model) = item {
+                models.push(model);
+            }
+        }
+        models
+    }
+};
+
+TopLevelItem: TopLevelItem = {
+    <model:Model> => TopLevelItem::Model(model),
+    <formula:Formula> => TopLevelItem::Formula(formula)
+};
 
 pub Model: Model = {
     <model:ModelDecl> => model
@@ -51,6 +68,49 @@ PropertyList: Vec<Property> = {
 Property: Property = {
     "+" <name:Ident> => Property::new(PropertySign::Plus, name),
     "-" <name:Ident> => Property::new(PropertySign::Minus, name)
+};
+
+// Formula parsing
+pub Formula: Formula = {
+    <formula:FormulaDecl> => formula
+};
+
+FormulaDecl: Formula = {
+    "formula" <name:Ident> ":" <expr:FormulaExpr> => {
+        Formula::new(name, expr)
+    }
+};
+
+FormulaExpr: FormulaExpr = {
+    <expr:FormulaOrExpr> => expr
+};
+
+FormulaOrExpr: FormulaExpr = {
+    <expr:FormulaAndExpr> => expr,
+    <expr:FormulaOrExpr> "or" <expr2:FormulaAndExpr> => {
+        FormulaExpr::Or(Box::new(expr), Box::new(expr2))
+    }
+};
+
+FormulaAndExpr: FormulaExpr = {
+    <expr:FormulaAtom> => expr,
+    <expr:FormulaAndExpr> "and" <expr2:FormulaAtom> => {
+        FormulaExpr::And(Box::new(expr), Box::new(expr2))
+    }
+};
+
+FormulaAtom: FormulaExpr = {
+    "true" => FormulaExpr::True,
+    "false" => FormulaExpr::False,
+    "(" <expr:FormulaExpr> ")" => {
+        FormulaExpr::Paren(Box::new(expr))
+    },
+    "<" <property:Property> ">" <expr:FormulaAtom> => {
+        FormulaExpr::Diamond(property, Box::new(expr))
+    },
+    "[" <property:Property> "]" <expr:FormulaAtom> => {
+        FormulaExpr::Box(property, Box::new(expr))
+    }
 };
 
 Ident: String = {

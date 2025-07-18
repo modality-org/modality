@@ -91,23 +91,27 @@
         
         <div class="section">
             <label for="modalityInput">Enter Modality Language Code:</label>
-            <textarea id="modalityInput" placeholder="Enter your modality language code here...">model TestModel:
-  graph g1:
-    n1 --> n2 : +blue -red
-    n2 --> n3 : +green
-    n3 --> n1 : -blue +yellow
-  graph g2:
-    a --> b : +init
-    b --> c : +complete
-    c --> a : +reset</textarea>
+                                    <textarea id="modalityInput" placeholder="Enter your modality language code here...">model TestModel:
+              graph g1:
+                n1 --> n2 : +blue -red
+                n2 --> n3 : +green
+                n3 --> n1 : -blue +yellow
+              graph g2:
+                a --> b : +init
+                b --> c : +complete
+                c --> a : +reset
+              state:
+                g1: n1 n2
+                g2: a</textarea>
         </div>
 
-        <div class="section">
-            <button onclick="parseModel()">Parse Single Model</button>
-            <button onclick="parseAllModels()">Parse All Models</button>
-            <button onclick="generateMermaid()">Generate Mermaid Diagram</button>
-            <button onclick="generateStyledMermaid()">Generate Styled Mermaid</button>
-        </div>
+                            <div class="section">
+                        <button onclick="parseModel()">Parse Single Model</button>
+                        <button onclick="parseAllModels()">Parse All Models</button>
+                        <button onclick="generateMermaid()">Generate Mermaid Diagram</button>
+                        <button onclick="generateStyledMermaid()">Generate Styled Mermaid</button>
+                        <button onclick="generateStateMermaid()">Generate State-Aware Mermaid</button>
+                    </div>
 
         <div class="section">
             <label>Output:</label>
@@ -195,26 +199,47 @@
             }
         };
 
-        window.generateStyledMermaid = async function() {
-            if (!wasmModule) {
-                document.getElementById('output').innerHTML = '<div class="error">WASM module not initialized</div>';
-                return;
-            }
+                            window.generateStyledMermaid = async function() {
+                        if (!wasmModule) {
+                            document.getElementById('output').innerHTML = '<div class="error">WASM module not initialized</div>';
+                            return;
+                        }
 
-            const input = document.getElementById('modalityInput').value;
-            const output = document.getElementById('output');
+                        const input = document.getElementById('modalityInput').value;
+                        const output = document.getElementById('output');
 
-            try {
-                const result = parse_model(input);
-                const mermaidResult = generate_mermaid_styled(result);
-                
-                output.innerHTML = '<div class="success">✅ Styled Mermaid diagram generated successfully!</div>\n\n' +
-                    '<strong>Styled Mermaid Diagram:</strong>\n' +
-                    '```mermaid\n' + mermaidResult + '\n```';
-            } catch (error) {
-                output.innerHTML = '<div class="error">❌ Error generating styled Mermaid: ' + error.message + '</div>';
-            }
-        };
+                        try {
+                            const result = parse_model(input);
+                            const mermaidResult = generate_mermaid_styled(result);
+                            
+                            output.innerHTML = '<div class="success">✅ Styled Mermaid diagram generated successfully!</div>\n\n' +
+                                '<strong>Styled Mermaid Diagram:</strong>\n' +
+                                '```mermaid\n' + mermaidResult + '\n```';
+                        } catch (error) {
+                            output.innerHTML = '<div class="error">❌ Error generating styled Mermaid: ' + error.message + '</div>';
+                        }
+                    };
+
+                    window.generateStateMermaid = async function() {
+                        if (!wasmModule) {
+                            document.getElementById('output').innerHTML = '<div class="error">WASM module not initialized</div>';
+                            return;
+                        }
+
+                        const input = document.getElementById('modalityInput').value;
+                        const output = document.getElementById('output');
+
+                        try {
+                            const result = parse_model(input);
+                            const mermaidResult = generate_mermaid_with_state(result);
+                            
+                            output.innerHTML = '<div class="success">✅ State-aware Mermaid diagram generated successfully!</div>\n\n' +
+                                '<strong>State-Aware Mermaid Diagram:</strong>\n' +
+                                '```mermaid\n' + mermaidResult + '\n```';
+                        } catch (error) {
+                            output.innerHTML = '<div class="error">❌ Error generating state-aware Mermaid: ' + error.message + '</div>';
+                        }
+                    };
 
         // Initialize WASM module when page loads
         initializeWasm();
