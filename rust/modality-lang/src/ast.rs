@@ -64,8 +64,8 @@ pub enum FormulaExpr {
     /// Parenthesized expressions
     Paren(Box<FormulaExpr>),
     /// Modal operators
-    Diamond(Property, Box<FormulaExpr>),
-    Box(Property, Box<FormulaExpr>),
+    Diamond(Vec<Property>, Box<FormulaExpr>),
+    Box(Vec<Property>, Box<FormulaExpr>),
 }
 
 impl Model {

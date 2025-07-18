@@ -105,11 +105,11 @@ FormulaAtom: FormulaExpr = {
     "(" <expr:FormulaExpr> ")" => {
         FormulaExpr::Paren(Box::new(expr))
     },
-    "<" <property:Property> ">" <expr:FormulaAtom> => {
-        FormulaExpr::Diamond(property, Box::new(expr))
+    "<" <properties:PropertyList> ">" <expr:FormulaAtom> => {
+        FormulaExpr::Diamond(properties, Box::new(expr))
     },
-    "[" <property:Property> "]" <expr:FormulaAtom> => {
-        FormulaExpr::Box(property, Box::new(expr))
+    "[" <properties:PropertyList> "]" <expr:FormulaAtom> => {
+        FormulaExpr::Box(properties, Box::new(expr))
     }
 };
 
