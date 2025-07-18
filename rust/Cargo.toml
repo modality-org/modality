@@ -7,5 +7,6 @@ members = [
 , 'modality-network-devnet'
 , 'modality-network-node'
 , "modality-utils"
-, "modality"]
+, "modality"
+, "modality-lang"]
 

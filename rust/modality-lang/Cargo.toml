@@ -1,0 +1,23 @@
+[package]
+name = "modality-lang"
+version = "0.1.5"
+edition = "2021"
+description = "Modality language lib"
+license = "MIT"
+repository = "https://github.com/modality-org/modality"
+homepage = "https://www.modality.org"
+documentation = "https://docs.rs/modality"
+
+[lib]
+name = "modality_lang"
+
+[dependencies]
+modality-utils = { path = "../modality-utils" }
+tokio = { version = "1.42.0", features = ["full"] }
+lalrpop-util = { version = "0.20", features = ["lexer"] }
+
+[build-dependencies]
+lalrpop = "0.20"
+
+[dev-dependencies]
+tokio = { version = "1.42.0", features = ["full", "test-util"] }

@@ -1,0 +1,33 @@
+// graph with a single node and a transition mapping back to itself
+model InitialModel:
+  graph g1:
+    n1 --> n1
+
+// graph with a acyclic set of three nodes, where +blue is on each of the transitions between them
+model Model3:
+  graph g1:
+    n1 --> n2: +blue
+    n2 --> n3: +blue
+
+// graph with a cycle of three nodes, where +blue is on each of the transitions between them
+model Model2:
+  graph g1:
+    n1 --> n2: +blue
+    n2 --> n3: +blue
+    n3 --> n1: +blue
+
+// graph with a cycle of three nodes
+model Model4:
+  graph g1:
+    n1 --> n2: +blue -red
+    n2 --> n3: +blue -green
+    n3 --> n1: -blue +red
+
+// model with two graphs
+model Model4:
+  graph g1:
+    n1 --> n2: +blue -red
+    n2 --> n3: +blue -green
+    n3 --> n1: -blue +red
+  graph g2:
+    n1 --> n1: +yellow

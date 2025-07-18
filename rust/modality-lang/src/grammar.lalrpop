@@ -1,0 +1,58 @@
+use crate::ast::{Model, Graph, Transition, Property, PropertySign};
+
+grammar;
+
+pub Model: Model = {
+    <model:ModelDecl> => model
+};
+
+ModelDecl: Model = {
+    "model" <name:Ident> ":" <graphs:Graph*> => {
+        let mut model = Model::new(name);
+        for graph in graphs {
+            model.add_graph(graph);
+        }
+        model
+    }
+};
+
+Graph: Graph = {
+    "graph" <name:Ident> ":" <transitions:Transition*> => {
+        let mut graph = Graph::new(name);
+        for transition in transitions {
+            graph.add_transition(transition);
+        }
+        graph
+    }
+};
+
+Transition: Transition = {
+    <from:Ident> "-->" <to:Ident> => {
+        Transition::new(from, to)
+    },
+    <from:Ident> "-->" <to:Ident> ":" <properties:PropertyList> => {
+        let mut transition = Transition::new(from, to);
+        for property in properties {
+            transition.add_property(property);
+        }
+        transition
+    }
+};
+
+PropertyList: Vec<Property> = {
+    <property:Property> => vec![property],
+    <properties:PropertyList> <property:Property> => {
+        let mut props = properties;
+        props.push(property);
+        props
+    }
+};
+
+Property: Property = {
+    "+" <name:Ident> => Property::new(PropertySign::Plus, name),
+    "-" <name:Ident> => Property::new(PropertySign::Minus, name)
+};
+
+Ident: String = {
+    r#"[a-zA-Z_][a-zA-Z0-9_]*"# => <>.to_string()
+}; 
