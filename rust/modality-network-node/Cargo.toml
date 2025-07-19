@@ -58,6 +58,6 @@ base64 = "0.22.1"
 zeroize = "1.7.0"
 ctrlc = "3.4.5"
 # libp2p-stream = "0.1.0-alpha"
-modality-utils = { path = "../modality-utils", version = "0.1.5" }
+modality-utils = { path = "../modality-utils", version = "0.1.6" }
 modality-network-consensus = { path = "../modality-network-consensus", version = "0.1.0" }
 modality-network-datastore = { path = "../modality-network-datastore", version = "0.1.0" }
