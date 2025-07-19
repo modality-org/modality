@@ -27,12 +27,17 @@ enum Commands {
         command: PassfileCommands,
     },
 
-
     #[command(alias = "network")]
     #[command(about = "Network related commands")]
     Net {
         #[command(subcommand)]
         command: NetworkCommands,
+    },
+
+    #[command(about = "Model related commands")]
+    Model {
+        #[command(subcommand)]
+        command: ModelCommands,
     },
 }
 
@@ -60,6 +65,15 @@ enum NetworkCommands {
     // Request(cmds::node::request::Opts)
 }
 
+#[derive(Subcommand)]
+enum ModelCommands {
+    #[command(about = "Generate a Mermaid diagram from a Modality file")]
+    Mermaid(cmds::mermaid::Opts),
+    
+    #[command(about = "Check a formula against a model")]
+    Check(cmds::check::Opts),
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -81,6 +95,12 @@ async fn main() -> Result<()> {
             match command {
                 NetworkCommands::RunNode(opts) => cmds::net::run_node::run(opts).await?,
                 NetworkCommands::Ping(opts) => cmds::net::ping::run(opts).await?,
+            }
+        }
+        Commands::Model { command } => {
+            match command {
+                ModelCommands::Mermaid(opts) => cmds::mermaid::run(opts).await?,
+                ModelCommands::Check(opts) => cmds::check::run(opts).await?,
             }
         }
     }
