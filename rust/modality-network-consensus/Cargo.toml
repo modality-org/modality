@@ -2,6 +2,11 @@
 name = "modality-network-consensus"
 version = "0.1.0"
 edition = "2021"
+description = "Network consensus for Modality"
+license = "MIT"
+repository = "https://github.com/modality-org/modality"
+homepage = "https://www.modality.org"
+documentation = "https://docs.rs/modality"
 
 [dependencies]
 anyhow = "1.0"
