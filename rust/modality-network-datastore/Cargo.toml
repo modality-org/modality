@@ -2,6 +2,11 @@
 name = "modality-network-datastore"
 version = "0.1.0"
 edition = "2021"
+description = "Network datastore for Modality"
+license = "MIT"
+repository = "https://github.com/modality-org/modality-rust"
+homepage = "https://www.modality.org"
+documentation = "https://docs.rs/modality"
 
 [dependencies]
 anyhow = "1.0"
@@ -12,14 +17,17 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 rocksdb = "0.20"
 regex = "1.5" 
-modality-utils = { path = "../modality-utils" }
+modality-utils = { path = "../modality-utils", version = "0.1.5" }
 uuid = { version = "1.10.0", features = ["v4"] }
 tempfile = "3.5"
 log = "0.4.17"
+
+[dependencies.base64ct]
+version = "=1.6.0"
 
 [dev-dependencies]
 tempfile = "3.5"
 tokio-test = "0.4"
 tokio = { version = "1.42", features = ["full", "test-util"] }
-zip = "0.6"
+zip = "0.5"
 modality-network-devnet = { path = "../modality-network-devnet" }
