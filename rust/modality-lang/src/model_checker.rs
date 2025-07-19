@@ -186,9 +186,21 @@ impl ModelChecker {
     }
 
     /// Check if a transition satisfies all properties in a list
+    /// A transition satisfies a property if:
+    /// - For +property: transition explicitly has +property OR doesn't mention property at all
+    /// - For -property: transition explicitly has -property OR doesn't mention property at all
     fn transition_satisfies_properties(&self, transition: &Transition, properties: &[Property]) -> bool {
         properties.iter().all(|property| {
-            transition.properties.iter().any(|p| p == property)
+            // Check if transition explicitly has this property
+            let has_explicit = transition.properties.iter().any(|p| p == property);
+            if has_explicit {
+                return true;
+            }
+            
+            // If transition doesn't mention this property at all, it's usable
+            let property_name = &property.name;
+            let mentions_property = transition.properties.iter().any(|p| p.name == *property_name);
+            !mentions_property
         })
     }
 

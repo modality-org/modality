@@ -49,6 +49,11 @@ The goal of [Modality JavaScript](/js) is to provide easy to use web-compatible 
 ### Rust
 The goal of [Modality Rust](/rust) is to provide portable system level libraries and a CLI for use with verifiable contracts.
 
+### Language & Tools
+- **[Modality Language Semantics](docs/modality-semantics.md)**: Comprehensive guide to the Modality language and model checking
+- **[Quick Reference](docs/quick-reference.md)**: Fast reference for developers using Modality
+- **[Developer Guide](docs/developer-guide.md)**: Implementation details and extension guide
+
 
 ## 🌍 Community & Support
 
