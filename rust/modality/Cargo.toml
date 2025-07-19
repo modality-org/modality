@@ -13,7 +13,7 @@ readme = "../README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-modality-utils = { path = "../modality-utils", version = "0.1.5" }
+modality-utils = { path = "../modality-utils", version = "0.1.6" }
 modality-network-node = { path = "../modality-network-node", version = "0.1.6" }
 modality-lang = { path = "../modality-lang", version = "0.1.6" }
 anyhow = "1.0"
