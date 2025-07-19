@@ -1,6 +1,6 @@
 [package]
 name = "modality"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 description = "CLI for Modality, an evolving temporal modal logic"
 license = "MIT"
@@ -15,7 +15,7 @@ readme = "../README.md"
 [dependencies]
 modality-utils = { path = "../modality-utils", version = "0.1.5" }
 modality-network-node = { path = "../modality-network-node", version = "0.1.5" }
-modality-lang = { path = "../modality-lang" }
+modality-lang = { path = "../modality-lang", version = "0.1.6" }
 anyhow = "1.0"
 clap = { version = "4.1.11", features = ["cargo", "derive", "env"] }
 tokio = { version = "1.42.0", features = ["full"] }
