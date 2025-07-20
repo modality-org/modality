@@ -125,20 +125,19 @@ mod tests {
     fn test_parse_simple_model_lalrpop() {
         let content = r#"
 model InitialModel:
-  graph g1:
+  part g1:
     n1 --> n1
 "#;
         
         let model = parse_content_lalrpop(content).unwrap();
         
         assert_eq!(model.name, "InitialModel");
-        assert_eq!(model.graphs.len(), 1);
+        assert_eq!(model.parts.len(), 1);
+        let part = &model.parts[0];
+        assert_eq!(part.name, "g1");
+        assert_eq!(part.transitions.len(), 1);
         
-        let graph = &model.graphs[0];
-        assert_eq!(graph.name, "g1");
-        assert_eq!(graph.transitions.len(), 1);
-        
-        let transition = &graph.transitions[0];
+        let transition = &part.transitions[0];
         assert_eq!(transition.from, "n1");
         assert_eq!(transition.to, "n1");
         assert_eq!(transition.properties.len(), 0);
@@ -148,7 +147,7 @@ model InitialModel:
     fn test_parse_model_with_properties_lalrpop() {
         let content = r#"
 model Model3:
-  graph g1:
+  part g1:
     n1 --> n2: +blue
     n2 --> n3: +blue
 "#;
@@ -156,20 +155,19 @@ model Model3:
         let model = parse_content_lalrpop(content).unwrap();
         
         assert_eq!(model.name, "Model3");
-        assert_eq!(model.graphs.len(), 1);
+        assert_eq!(model.parts.len(), 1);
+        let part = &model.parts[0];
+        assert_eq!(part.name, "g1");
+        assert_eq!(part.transitions.len(), 2);
         
-        let graph = &model.graphs[0];
-        assert_eq!(graph.name, "g1");
-        assert_eq!(graph.transitions.len(), 2);
-        
-        let transition1 = &graph.transitions[0];
+        let transition1 = &part.transitions[0];
         assert_eq!(transition1.from, "n1");
         assert_eq!(transition1.to, "n2");
         assert_eq!(transition1.properties.len(), 1);
         assert_eq!(transition1.properties[0].sign, PropertySign::Plus);
         assert_eq!(transition1.properties[0].name, "blue");
         
-        let transition2 = &graph.transitions[1];
+        let transition2 = &part.transitions[1];
         assert_eq!(transition2.from, "n2");
         assert_eq!(transition2.to, "n3");
         assert_eq!(transition2.properties.len(), 1);
@@ -181,7 +179,7 @@ model Model3:
     fn test_parse_model_with_multiple_properties_lalrpop() {
         let content = r#"
 model Model4:
-  graph g1:
+  part g1:
     n1 --> n2: +blue -red
     n2 --> n3: +blue -green
     n3 --> n1: -blue +red
@@ -190,13 +188,12 @@ model Model4:
         let model = parse_content_lalrpop(content).unwrap();
         
         assert_eq!(model.name, "Model4");
-        assert_eq!(model.graphs.len(), 1);
+        assert_eq!(model.parts.len(), 1);
+        let part = &model.parts[0];
+        assert_eq!(part.name, "g1");
+        assert_eq!(part.transitions.len(), 3);
         
-        let graph = &model.graphs[0];
-        assert_eq!(graph.name, "g1");
-        assert_eq!(graph.transitions.len(), 3);
-        
-        let transition1 = &graph.transitions[0];
+        let transition1 = &part.transitions[0];
         assert_eq!(transition1.properties.len(), 2);
         assert_eq!(transition1.properties[0].sign, PropertySign::Plus);
         assert_eq!(transition1.properties[0].name, "blue");
@@ -208,28 +205,28 @@ model Model4:
     fn test_parse_model_with_multiple_graphs_lalrpop() {
         let content = r#"
 model Model4:
-  graph g1:
+  part g1:
     n1 --> n2: +blue -red
     n2 --> n3: +blue -green
     n3 --> n1: -blue +red
-  graph g2:
+  part g2:
     n1 --> n1: +yellow
 "#;
         
         let model = parse_content_lalrpop(content).unwrap();
         
         assert_eq!(model.name, "Model4");
-        assert_eq!(model.graphs.len(), 2);
+        assert_eq!(model.parts.len(), 2);
         
-        let graph1 = &model.graphs[0];
-        assert_eq!(graph1.name, "g1");
-        assert_eq!(graph1.transitions.len(), 3);
+        let part1 = &model.parts[0];
+        assert_eq!(part1.name, "g1");
+        assert_eq!(part1.transitions.len(), 3);
         
-        let graph2 = &model.graphs[1];
-        assert_eq!(graph2.name, "g2");
-        assert_eq!(graph2.transitions.len(), 1);
+        let part2 = &model.parts[1];
+        assert_eq!(part2.name, "g2");
+        assert_eq!(part2.transitions.len(), 1);
         
-        let transition = &graph2.transitions[0];
+        let transition = &part2.transitions[0];
         assert_eq!(transition.from, "n1");
         assert_eq!(transition.to, "n1");
         assert_eq!(transition.properties.len(), 1);

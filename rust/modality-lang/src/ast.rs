@@ -22,17 +22,17 @@ pub struct Transition {
     pub properties: Vec<Property>,
 }
 
-/// Represents a graph within a model
+/// Represents a part within a model
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Graph {
+pub struct Part {
     pub name: String,
     pub transitions: Vec<Transition>,
 }
 
-/// Represents the current state of a graph
+/// Represents the current state of a part
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct GraphState {
-    pub graph_name: String,
+pub struct PartState {
+    pub part_name: String,
     pub current_nodes: Vec<String>,
 }
 
@@ -40,8 +40,8 @@ pub struct GraphState {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Model {
     pub name: String,
-    pub graphs: Vec<Graph>,
-    pub state: Option<Vec<GraphState>>,
+    pub parts: Vec<Part>,
+    pub state: Option<Vec<PartState>>,
 }
 
 /// Represents a temporal modal formula
@@ -73,24 +73,24 @@ impl Model {
     pub fn new(name: String) -> Self {
         Self {
             name,
-            graphs: Vec::new(),
+            parts: Vec::new(),
             state: None,
         }
     }
 
-    /// Add a graph to this model
-    pub fn add_graph(&mut self, graph: Graph) {
-        self.graphs.push(graph);
+    /// Add a part to this model
+    pub fn add_part(&mut self, part: Part) {
+        self.parts.push(part);
     }
 
     /// Set the state information for this model
-    pub fn set_state(&mut self, state: Vec<GraphState>) {
+    pub fn set_state(&mut self, state: Vec<PartState>) {
         self.state = Some(state);
     }
 }
 
-impl Graph {
-    /// Create a new graph with the given name
+impl Part {
+    /// Create a new part with the given name
     pub fn new(name: String) -> Self {
         Self {
             name,
@@ -98,7 +98,7 @@ impl Graph {
         }
     }
 
-    /// Add a transition to this graph
+    /// Add a transition to this part
     pub fn add_transition(&mut self, transition: Transition) {
         self.transitions.push(transition);
     }
@@ -127,11 +127,11 @@ impl Property {
     }
 }
 
-impl GraphState {
-    /// Create a new graph state
-    pub fn new(graph_name: String, current_nodes: Vec<String>) -> Self {
+impl PartState {
+    /// Create a new part state
+    pub fn new(part_name: String, current_nodes: Vec<String>) -> Self {
         Self {
-            graph_name,
+            part_name,
             current_nodes,
         }
     }

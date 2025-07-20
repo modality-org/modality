@@ -5,7 +5,7 @@
 ### Models
 ```modality
 model ModelName:
-  graph graphName:
+  part partName:
     node1 --> node2: +property1 -property2
     node2 --> node3: +property3
 ```
@@ -29,7 +29,7 @@ formula ComplexFormula: <+blue +green> [-red] phi
 - `<+prop1 +prop2> phi`: "Exists transition with BOTH properties"
 
 ### Satisfaction Rules
-- **Per-Graph** (default): At least one state from each graph satisfies
+- **Per-Part** (default): At least one state from each part satisfies
 - **Any-State**: At least one state anywhere satisfies
 
 ## CLI Commands
@@ -76,7 +76,7 @@ formula BlueThenGreen: <+blue> <+green> true
 ### Simple Model
 ```modality
 model Test:
-  graph g1:
+  part g1:
     n1 --> n2: +blue
     n2 --> n3: +green
     n3 --> n1: +red
@@ -85,15 +85,15 @@ formula HasBlue: <+blue> true
 formula HasYellow: <+yellow> true  # ✅ All transitions neutral to yellow
 ```
 
-### Multi-Graph Model
+### Multi-Part Model
 ```modality
-model MultiGraph:
-  graph g1:
+model MultiPart:
+  part g1:
     n1 --> n2: +blue
-  graph g2:
+  part g2:
     n1 --> n1: +yellow
 
-formula CrossGraph: <+blue> <+yellow> true  # ✅ Can chain across graphs
+formula CrossPart: <+blue> <+yellow> true  # ✅ Can chain across parts
 ```
 
 ## Debugging

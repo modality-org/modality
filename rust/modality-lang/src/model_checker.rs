@@ -1,10 +1,10 @@
 use serde::{Serialize, Deserialize};
-use crate::ast::{Model, Graph, Transition, Property, PropertySign, Formula, FormulaExpr};
+use crate::ast::{Model, Part, Transition, Property, PropertySign, Formula, FormulaExpr};
 
-/// Represents a state in the model (graph name and node name)
+/// Represents a state in the model (part name and node name)
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct State {
-    pub graph_name: String,
+    pub part_name: String,
     pub node_name: String,
 }
 
@@ -31,8 +31,8 @@ impl ModelChecker {
     pub fn check_formula(&self, formula: &Formula) -> ModelCheckResult {
         let satisfying_states = self.evaluate_formula(&formula.expression);
         
-        // Check if at least one state from each graph satisfies the formula
-        let is_satisfied = self.check_satisfaction_per_graph(&satisfying_states);
+        // Check if at least one state from each part satisfies the formula
+        let is_satisfied = self.check_satisfaction_per_part(&satisfying_states);
         
         ModelCheckResult {
             formula: formula.clone(),
@@ -52,22 +52,22 @@ impl ModelChecker {
         }
     }
 
-    /// Check if at least one state from each graph satisfies the formula
-    fn check_satisfaction_per_graph(&self, satisfying_states: &[State]) -> bool {
-        // Get all graph names from the model
-        let model_graphs: std::collections::HashSet<String> = self.model.graphs
+    /// Check if at least one state from each part satisfies the formula
+    fn check_satisfaction_per_part(&self, satisfying_states: &[State]) -> bool {
+        // Get all part names from the model
+        let model_parts: std::collections::HashSet<String> = self.model.parts
             .iter()
-            .map(|g| g.name.clone())
+            .map(|p| p.name.clone())
             .collect();
         
-        // Get graph names from states that satisfy the formula
-        let satisfying_graphs: std::collections::HashSet<String> = satisfying_states
+        // Get part names from states that satisfy the formula
+        let satisfying_parts: std::collections::HashSet<String> = satisfying_states
             .iter()
-            .map(|s| s.graph_name.clone())
+            .map(|s| s.part_name.clone())
             .collect();
         
-        // Check if all graphs in the model have at least one satisfying state
-        model_graphs.is_subset(&satisfying_graphs)
+        // Check if all parts in the model have at least one satisfying state
+        model_parts.is_subset(&satisfying_parts)
     }
 
     /// Evaluate a formula expression and return all satisfying states
@@ -113,18 +113,18 @@ impl ModelChecker {
         let target_states = self.evaluate_formula(expr);
         let mut result = Vec::new();
 
-        for graph in &self.model.graphs {
-            for transition in &graph.transitions {
+        for part in &self.model.parts {
+            for transition in &part.transitions {
                 // Check if this transition has all the required properties
                 if self.transition_satisfies_properties(transition, properties) {
                     // Check if the target state satisfies the inner formula
                     let from_state = State {
-                        graph_name: graph.name.clone(),
+                        part_name: part.name.clone(),
                         node_name: transition.from.clone(),
                     };
                     
                     let to_state = State {
-                        graph_name: graph.name.clone(),
+                        part_name: part.name.clone(),
                         node_name: transition.to.clone(),
                     };
 
@@ -144,15 +144,15 @@ impl ModelChecker {
         let target_states = self.evaluate_formula(expr);
         let mut result = Vec::new();
 
-        for graph in &self.model.graphs {
-            for node in self.get_nodes_in_graph(graph) {
+        for part in &self.model.parts {
+            for node in self.get_nodes_in_part(part) {
                 let state = State {
-                    graph_name: graph.name.clone(),
+                    part_name: part.name.clone(),
                     node_name: node.clone(),
                 };
 
                 // Check if ALL transitions from this state with all the properties lead to states satisfying phi
-                let transitions_with_properties = self.get_transitions_from_node(graph, &node)
+                let transitions_with_properties = self.get_transitions_from_node(part, &node)
                     .into_iter()
                     .filter(|t| self.transition_satisfies_properties(t, properties))
                     .collect::<Vec<_>>();
@@ -164,7 +164,7 @@ impl ModelChecker {
                     // Check if all target states satisfy the formula
                     let all_targets_satisfy = transitions_with_properties.iter().all(|t| {
                         let target_state = State {
-                            graph_name: graph.name.clone(),
+                            part_name: part.name.clone(),
                             node_name: t.to.clone(),
                         };
                         target_states.contains(&target_state)
@@ -204,19 +204,19 @@ impl ModelChecker {
         })
     }
 
-    /// Get all nodes in a graph
-    fn get_nodes_in_graph(&self, graph: &Graph) -> Vec<String> {
+    /// Get all nodes in a part
+    fn get_nodes_in_part(&self, part: &Part) -> Vec<String> {
         let mut nodes = std::collections::HashSet::new();
-        for transition in &graph.transitions {
+        for transition in &part.transitions {
             nodes.insert(transition.from.clone());
             nodes.insert(transition.to.clone());
         }
         nodes.into_iter().collect()
     }
 
-    /// Get all transitions from a specific node in a graph
-    fn get_transitions_from_node<'a>(&self, graph: &'a Graph, node: &str) -> Vec<&'a Transition> {
-        graph.transitions.iter()
+    /// Get all transitions from a specific node in a part
+    fn get_transitions_from_node<'a>(&self, part: &'a Part, node: &str) -> Vec<&'a Transition> {
+        part.transitions.iter()
             .filter(|t| t.from == node)
             .collect()
     }
@@ -224,10 +224,10 @@ impl ModelChecker {
     /// Get all states in the model
     fn all_states(&self) -> Vec<State> {
         let mut states = Vec::new();
-        for graph in &self.model.graphs {
-            for node in self.get_nodes_in_graph(graph) {
+        for part in &self.model.parts {
+            for node in self.get_nodes_in_part(part) {
                 states.push(State {
-                    graph_name: graph.name.clone(),
+                    part_name: part.name.clone(),
                     node_name: node,
                 });
             }
@@ -239,10 +239,10 @@ impl ModelChecker {
     fn current_states(&self) -> Vec<State> {
         if let Some(state_info) = &self.model.state {
             let mut states = Vec::new();
-            for graph_state in state_info {
-                for node in &graph_state.current_nodes {
+            for part_state in state_info {
+                for node in &part_state.current_nodes {
                     states.push(State {
-                        graph_name: graph_state.graph_name.clone(),
+                        part_name: part_state.part_name.clone(),
                         node_name: node.clone(),
                     });
                 }
@@ -285,12 +285,12 @@ impl ModelChecker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{Model, Graph, Transition, Property, PropertySign, Formula, FormulaExpr};
+    use crate::ast::{Model, Part, Transition, Property, PropertySign, Formula, FormulaExpr};
 
     fn create_test_model() -> Model {
         let mut model = Model::new("TestModel".to_string());
         
-        let mut graph1 = Graph::new("g1".to_string());
+        let mut graph1 = Part::new("g1".to_string());
         graph1.add_transition(Transition::new("n1".to_string(), "n2".to_string()));
         let mut t1 = Transition::new("n1".to_string(), "n2".to_string());
         t1.add_property(Property::new(PropertySign::Plus, "blue".to_string()));
@@ -300,7 +300,7 @@ mod tests {
         t2.add_property(Property::new(PropertySign::Plus, "blue".to_string()));
         graph1.add_transition(t2);
         
-        model.add_graph(graph1);
+        model.add_part(graph1);
         model
     }
 

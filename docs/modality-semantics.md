@@ -11,15 +11,15 @@ Modality is a temporal logic language for describing and analyzing labeled trans
 
 ## Core Concepts
 
-### Models and Graphs
+### Models and Parts
 
-A **model** represents a system as a collection of **graphs**. Each graph contains:
+A **model** represents a system as a collection of **parts**. Each part contains:
 - **Nodes** (states of the system)
 - **Transitions** between nodes with **labels** (actions)
 
 ```modality
 model ExampleModel:
-  graph g1:
+  part g1:
     n1 --> n2: +blue
     n2 --> n3: +green
     n3 --> n1: +red

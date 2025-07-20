@@ -7,9 +7,9 @@ This document provides the formal Backus-Naur Form (BNF) grammar specification f
 ```
 <file> ::= <comment>* <model> <comment>*
 
-<model> ::= "model" <identifier> ":" <graph>*
+<model> ::= "model" <identifier> ":" <part>*
 
-<graph> ::= "graph" <identifier> ":" <transition>*
+<part> ::= "part" <identifier> ":" <transition>*
 
 <transition> ::= <identifier> "-->" <identifier> [":" <property-list>]
 
@@ -39,7 +39,7 @@ This document provides the formal Backus-Naur Form (BNF) grammar specification f
 
 ### Terminals
 - `"model"` - Keyword to start a model definition
-- `"graph"` - Keyword to start a graph definition  
+- `"part"` - Keyword to start a part definition  
 - `"-->"` - Arrow operator for transitions
 - `":"` - Colon separator
 - `"+"` - Positive property sign
@@ -52,8 +52,8 @@ This document provides the formal Backus-Naur Form (BNF) grammar specification f
 
 ### Non-terminals
 - `<file>` - Complete Modality file
-- `<model>` - Model definition with name and graphs
-- `<graph>` - Graph definition with name and transitions
+- `<model>` - Model definition with name and parts
+- `<part>` - Part definition with name and transitions
 - `<transition>` - Transition between two nodes with optional properties
 - `<property-list>` - List of properties (zero or more)
 - `<property>` - Single property with sign and name
@@ -74,15 +74,15 @@ A file consists of optional comments, followed by a model, followed by optional 
 
 ### Model Definition
 ```
-<model> ::= "model" <identifier> ":" <graph>*
+<model> ::= "model" <identifier> ":" <part>*
 ```
-A model starts with the keyword "model", followed by an identifier, a colon, and zero or more graphs.
+A model starts with the keyword "model", followed by an identifier, a colon, and zero or more parts.
 
-### Graph Definition
+### Part Definition
 ```
-<graph> ::= "graph" <identifier> ":" <transition>*
+<part> ::= "part" <identifier> ":" <transition>*
 ```
-A graph starts with the keyword "graph", followed by an identifier, a colon, and zero or more transitions.
+A part starts with the keyword "part", followed by an identifier, a colon, and zero or more transitions.
 
 ### Transition Definition
 ```
@@ -131,18 +131,18 @@ n1 --> n2: +blue -red +green
 **Complete model:**
 ```
 model MyModel:
-  graph g1:
+  part p1:
     n1 --> n2: +blue
     n2 --> n3: -red
 ```
 
-**Model with multiple graphs:**
+**Model with multiple parts:**
 ```
 model ComplexModel:
-  graph g1:
+  part p1:
     n1 --> n2: +blue
     n2 --> n3: -red
-  graph g2:
+  part p2:
     n1 --> n1: +yellow
 ```
 
@@ -150,7 +150,7 @@ model ComplexModel:
 ```
 // This is a comment
 model CommentedModel:
-  graph g1:
+  part p1:
     n1 --> n2: +blue  // Another comment
     n2 --> n3: -red
 ```
@@ -165,7 +165,7 @@ model CommentedModel:
 **Missing colon after model name:**
 ```
 model MyModel  // Missing colon
-  graph g1:
+  part p1:
 ```
 
 **Invalid property sign:**
@@ -189,6 +189,6 @@ n1 -> n2  // Should be -->
 - **Comments**: Single-line comments start with `//` and continue to end of line
 - **Case Sensitivity**: Identifiers are case-sensitive
 - **Multiple Models**: Files can contain multiple models (parsed separately)
-- **Empty Lists**: Graphs and property lists can be empty
+- **Empty Lists**: Parts and property lists can be empty
 - **Recursion**: Property lists use left recursion for efficient parsing
 - **Arrow Syntax**: Transitions use `-->` (three dashes followed by greater than) 

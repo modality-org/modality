@@ -1,14 +1,14 @@
 model Model1:
-  graph g1:
+  part g1:
     n1 --> n2: +blue
     n2 --> n3: +green
     n3 --> n1: +red
 
 model Model2:
-  graph g2:
+  part g2:
     start --> running: +active
     running --> stopped: +inactive
     stopped --> running: +active
-  graph g3:
+  part g3:
     idle --> busy: +work
     busy --> idle: +rest 

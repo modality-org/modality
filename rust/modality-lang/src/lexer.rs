@@ -3,7 +3,7 @@ use lalrpop_util::lexer::Token;
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModalityToken {
     Model,
-    Graph,
+    Part,
     Arrow,
     Colon,
     Plus,
@@ -111,10 +111,10 @@ impl Lexer {
                     ModalityToken::Ident(ident)
                 }
             }
-            'g' => {
+            'p' => {
                 let ident = self.read_identifier();
-                if ident == "graph" {
-                    ModalityToken::Graph
+                if ident == "part" {
+                    ModalityToken::Part
                 } else {
                     ModalityToken::Ident(ident)
                 }

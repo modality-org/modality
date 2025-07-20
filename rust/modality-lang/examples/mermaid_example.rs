@@ -1,7 +1,7 @@
 use modality_lang::{parse_all_models_lalrpop, generate_mermaid_diagram, generate_mermaid_diagrams, generate_mermaid_diagram_with_styling};
 
 fn main() -> Result<(), String> {
-    let file_path = "examples/models/SimpleExamples.modality";
+    let file_path = "test.modality";
     
     println!("=== Mermaid Diagram Generation Example ===\n");
     
@@ -12,8 +12,8 @@ fn main() -> Result<(), String> {
     
     // Generate diagrams for each model
     for (i, model) in models.iter().enumerate() {
-        println!("--- Model {}: {} ---", i + 1, model.name);
-        println!("Number of graphs: {}", model.graphs.len());
+        println!("Model: {}", model.name);
+        println!("Number of parts: {}", model.parts.len());
         
         // Generate basic Mermaid diagram
         let diagram = generate_mermaid_diagram(model);

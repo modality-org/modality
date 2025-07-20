@@ -1,44 +1,44 @@
-// graph with a single node and a transition mapping back to itself
+// part with a single node and a transition mapping back to itself
 model InitialModel:
-  graph g1:
+  part p1:
     n1 --> n1
 
-// graph with a acyclic set of three nodes, where +blue is on each of the transitions between them
+// part with a acyclic set of three nodes, where +blue is on each of the transitions between them
 model Model1:
-  graph g1:
+  part p1:
     n1 --> n2: +blue
     n2 --> n3: +blue
 
-// graph with a cycle of three nodes, where +blue is on each of the transitions between them
+// part with a cycle of three nodes, where +blue is on each of the transitions between them
 model Model3:
-  graph g1:
+  part p1:
     n1 --> n2: +blue
     n2 --> n3: +blue
     n3 --> n1: +blue
 
-// graph with a cycle of three nodes
+// part with a cycle of three nodes
 model Model4:
-  graph g1:
+  part p1:
     n1 --> n2: +blue -red
     n2 --> n3: +blue -green
     n3 --> n1: -blue +red
 
-// model with two graphs
+// model with two parts
 model Model5:
-  graph g1:
+  part p1:
     n1 --> n2: +blue -red
     n2 --> n3: +blue -green
     n3 --> n1: -blue +red
-  graph g2:
+  part p2:
     n1 --> n1: +yellow
 
 // example where current state is specified, note that state may be non-deterministic
 model Model6:
-  graph g1:
+  part p1:
     n1 --> n2: +blue -red
     n2 --> n3: +blue -green
     n3 --> n1: -blue +red
-  graph g2:
+  part p2:
     n1 --> n1: +yellow
   state:
     g1: n1 n2
@@ -58,3 +58,70 @@ formula FormulaBoxNegBlueTrue: <+blue> <+blue> [-blue] false
 formula FormulaBlueYellowTest1: <+blue -yellow> true // false within Model6 because yellow is not on the transition
 formula FormulaBlueYellowTest2: <+blue +yellow> true // true within Model6
 formula FormulaBlueYellowTest2: <+blue> true // true within Model6, absence of yellow is irrelevant
+
+
+// takes a transition with +blue in label
+action ActionBlue: +blue
+// takes a transition with +red in label
+action ActionRed: +red
+// takes a transition with +green in label
+action ActionGreen: +green
+
+// takes a transition that based on the previous transition where +red is added
+action Action1: ...prev +red
+action Action2: ...prev +green
+// takes a transition based on the previous transition where +blue is removed
+action Action2: ...prev -blue
+
+action ActionBlue: +blue
+
+// ...previous vs ...persistent
+// should this allow for ambiguity over non-deterministic transitions?
+
+set(/users/alice.id, "12D3KooWGv3tXpFDBBWHheJbhru5C3PcTUqEEj6m5nVhv3T34ueV") // example of persistent subaction
+include_sig(/users/alice.id) // example of non-persistent subaction
+
+
+// one face of a william potts traffic light
+model TrafficLightOneFace:
+  part p1:
+    // stay same color
+    n_red --> n_red:       +red -yellow -green
+    n_green --> n_green:   -red -yellow +green
+    n_yellow --> n_yellow: -red +yellow -green
+    // change color
+    n_red --> n_green:     +red -yellow -green
+    n_green --> n_yellow:  +red -yellow -green
+    n_yellow --> n_red:    +red -yellow -green
+
+action ActionTurnRed: +red
+action ActionTurnGreen: +green
+action ActionTurnYellow: +yellow
+
+test:
+  m = clone(TrafficLightOneFace)
+  m.state.g1 = n_green
+  m.commit(ActionTurnRed) // turns red
+  m.commit(action("+red")) // stays red
+  assert(false, m.try_commit(ActionTurnYellow)) // cannot turn yellow
+  assert(true, m.try_formula(formula("[+green][+yellow]<+red> true")))
+  assert(false, m.try_formula(formula("[+green][+yellow]<+green> true")))
+
+// commit Commit2:
+//   action: +blue +red
+
+// commit Commit3:
+//   action:
+//     +blue
+//     +green
+
+// // how to handle persistent state via a commit?
+// commit Commit4:
+//   action:
+//     set(blue, true)
+//     post(blue, true)
+
+// commit Commit5:
+//   inherit: false
+//   action:
+//     set(blue, true)

@@ -1,4 +1,4 @@
-use crate::ast::{Model, Graph, Transition, Property, PropertySign, Formula, FormulaExpr, GraphState, TopLevelItem};
+use crate::ast::{Model, Part, Transition, Property, PropertySign, Formula, FormulaExpr, PartState, TopLevelItem};
 
 grammar;
 
@@ -24,22 +24,22 @@ pub Model: Model = {
 };
 
 ModelDecl: Model = {
-    "model" <name:Ident> ":" <graphs:Graph*> => {
+    "model" <name:Ident> ":" <parts:Part*> => {
         let mut model = Model::new(name);
-        for graph in graphs {
-            model.add_graph(graph);
+        for part in parts {
+            model.add_part(part);
         }
         model
     }
 };
 
-Graph: Graph = {
-    "graph" <name:Ident> ":" <transitions:Transition*> => {
-        let mut graph = Graph::new(name);
+Part: Part = {
+    "part" <name:Ident> ":" <transitions:Transition*> => {
+        let mut part = Part::new(name);
         for transition in transitions {
-            graph.add_transition(transition);
+            part.add_transition(transition);
         }
-        graph
+        part
     }
 };
 

@@ -36,11 +36,10 @@ The Abstract Syntax Tree represents parsed Modality constructs:
 ```rust
 pub struct Model {
     pub name: String,
-    pub graphs: Vec<Graph>,
-    pub state: Option<Vec<GraphState>>,
+    pub parts: Vec<Part>,
 }
 
-pub struct Graph {
+pub struct Part {
     pub name: String,
     pub transitions: Vec<Transition>,
 }
@@ -95,7 +94,7 @@ fn transition_satisfies_properties(&self, transition: &Transition, properties: &
 ```
 
 #### Satisfaction Criteria
-- **Per-Graph**: At least one state from each graph satisfies the formula
+- **Per-Part**: At least one state from each part satisfies the formula
 - **Any-State**: At least one state anywhere satisfies the formula
 
 ### Grammar Specification
@@ -246,92 +245,4 @@ mod tests {
 
 Test end-to-end functionality:
 
-```rust
-#[test]
-fn test_model_checking() {
-    let model = create_test_model();
-    let checker = ModelChecker::new(model);
-    let formula = Formula::new("Test".to_string(), FormulaExpr::True);
-    
-    let result = checker.check_formula(&formula);
-    assert!(result.is_satisfied);
-}
 ```
-
-### CLI Tests
-
-Test command-line interface:
-
-```bash
-# Test mermaid generation
-cargo run -- model mermaid test.modality
-
-# Test formula checking
-cargo run -- model check test.modality --formula TestFormula
-```
-
-## Performance Considerations
-
-### Model Checker Optimization
-
-- **State Sets**: Use `HashSet` for efficient state operations
-- **Caching**: Cache intermediate results for complex formulas
-- **Early Termination**: Stop evaluation when satisfaction criteria are met
-
-### Memory Management
-
-- **WASM**: Minimize data copying between Rust and JavaScript
-- **Large Models**: Consider streaming for very large models
-- **AST**: Use references where possible to avoid cloning
-
-## Debugging
-
-### Common Issues
-
-1. **Grammar Conflicts**: Use LALRPOP's conflict resolution
-2. **Property Semantics**: Double-check neutral transition handling
-3. **WASM Serialization**: Ensure all types implement `Serialize`/`Deserialize`
-
-### Debug Tools
-
-```rust
-// Enable debug output
-#[cfg(debug_assertions)]
-println!("Debug: {:?}", ast);
-
-// Use model checker debug methods
-checker.debug_evaluate_formula(&formula);
-```
-
-## Contributing
-
-### Code Style
-
-- Follow Rust conventions
-- Use meaningful variable names
-- Add comprehensive documentation
-- Include tests for new features
-
-### Pull Request Process
-
-1. **Fork** the repository
-2. **Create** a feature branch
-3. **Implement** changes with tests
-4. **Update** documentation
-5. **Submit** pull request
-
-### Testing Checklist
-
-- [ ] Unit tests pass
-- [ ] Integration tests pass
-- [ ] CLI commands work
-- [ ] WASM bindings work
-- [ ] Documentation updated
-- [ ] No warnings (or warnings documented)
-
-## Resources
-
-- [Rust Book](https://doc.rust-lang.org/book/)
-- [LALRPOP Documentation](https://github.com/lalrpop/lalrpop)
-- [wasm-bindgen Guide](https://rustwasm.github.io/docs/wasm-bindgen/)
-- [Temporal Logic](https://en.wikipedia.org/wiki/Temporal_logic) 

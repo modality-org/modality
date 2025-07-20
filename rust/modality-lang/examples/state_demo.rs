@@ -30,12 +30,12 @@ model NonDeterministicModel:
     
     println!("\n✅ Parsed Model:");
     println!("Name: {}", model.name);
-    println!("Number of graphs: {}", model.graphs.len());
+    println!("Number of parts: {}", model.parts.len());
     
-    if let Some(state) = &model.state {
-        println!("\n🎯 Current State Information:");
-        for graph_state in state {
-            println!("  Graph '{}': {:?}", graph_state.graph_name, graph_state.current_nodes);
+    if let Some(state_info) = &model.state {
+        println!("Current states:");
+        for part_state in state_info {
+            println!("  Part '{}': {:?}", part_state.part_name, part_state.current_nodes);
         }
     }
     

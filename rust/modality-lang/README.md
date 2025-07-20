@@ -80,29 +80,29 @@ The parser supports the following syntax:
 ```modality
 // Simple model with one transition
 model InitialModel:
-  graph g1:
+  part g1:
     n1 --> n1
 
 // Model with properties
 model Model3:
-  graph g1:
+  part g1:
     n1 --> n2: +blue
     n2 --> n3: +blue
 
 // Model with multiple properties
 model Model4:
-  graph g1:
+  part g1:
     n1 --> n2: +blue -red
     n2 --> n3: +blue -green
     n3 --> n1: -blue +red
 
-// Model with multiple graphs
+// Model with multiple parts
 model Model4:
-  graph g1:
+  part g1:
     n1 --> n2: +blue -red
     n2 --> n3: +blue -green
     n3 --> n1: -blue +red
-  graph g2:
+  part g2:
     n1 --> n1: +yellow
 ```
 
@@ -242,11 +242,23 @@ Model: Model = {
 };
 
 ModelDecl: Model = {
-    "model" <name:Ident> ":" <graphs:Graph*> => { ... }
+    "model" <name:Ident> ":" <parts:Part*> => {
+        let mut model = Model::new(name);
+        for part in parts {
+            model.add_part(part);
+        }
+        model
+    }
 };
 
-Graph: Graph = {
-    "graph" <name:Ident> ":" <transitions:Transition*> => { ... }
+Part: Part = {
+    "part" <name:Ident> ":" <transitions:Transition*> => {
+        let mut part = Part::new(name);
+        for transition in transitions {
+            part.add_transition(transition);
+        }
+        part
+    }
 };
 
 Transition: Transition = {

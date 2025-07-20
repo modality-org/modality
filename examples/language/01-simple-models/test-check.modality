@@ -1,14 +1,14 @@
 model TestModel1:
-  graph g1:
+  part g1:
     n1 --> n2: +blue
     n2 --> n3: +green
     n3 --> n1: +red
 
 model TestModel2:
-  graph g1:
+  part g1:
     n1 --> n2: +blue
     n2 --> n3: +green
-  graph g2:
+  part g2:
     n1 --> n1: +yellow
 
 formula FormulaBlue: <+blue> true

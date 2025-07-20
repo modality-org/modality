@@ -2,7 +2,7 @@ use modality_lang::{
     parse_content_lalrpop, 
     parse_all_formulas_content_lalrpop,
     ModelChecker,
-    ast::{Model, Graph, Transition, Property, PropertySign, GraphState}
+    ast::{Model, Part, Transition, Property, PropertySign, PartState}
 };
 
 fn main() -> Result<(), String> {
@@ -12,7 +12,7 @@ fn main() -> Result<(), String> {
     let mut model = Model::new("Model6".to_string());
     
     // Create graph g1
-    let mut graph1 = Graph::new("g1".to_string());
+    let mut graph1 = Part::new("g1".to_string());
     let mut t1 = Transition::new("n1".to_string(), "n2".to_string());
     t1.add_property(Property::new(PropertySign::Plus, "blue".to_string()));
     t1.add_property(Property::new(PropertySign::Minus, "red".to_string()));
@@ -27,32 +27,32 @@ fn main() -> Result<(), String> {
     t3.add_property(Property::new(PropertySign::Minus, "blue".to_string()));
     t3.add_property(Property::new(PropertySign::Plus, "red".to_string()));
     graph1.add_transition(t3);
-    model.add_graph(graph1);
+    model.add_part(graph1);
     
     // Create graph g2
-    let mut graph2 = Graph::new("g2".to_string());
+    let mut graph2 = Part::new("g2".to_string());
     let mut t4 = Transition::new("n1".to_string(), "n1".to_string());
     t4.add_property(Property::new(PropertySign::Plus, "yellow".to_string()));
     graph2.add_transition(t4);
-    model.add_graph(graph2);
+    model.add_part(graph2);
     
     // Add state information
     let state = vec![
-        GraphState::new("g1".to_string(), vec!["n1".to_string(), "n2".to_string()]),
-        GraphState::new("g2".to_string(), vec!["n1".to_string()])
+        PartState::new("g1".to_string(), vec!["n1".to_string(), "n2".to_string()]),
+        PartState::new("g2".to_string(), vec!["n1".to_string()])
     ];
     model.set_state(state);
 
     println!("📊 Model: {}", model.name);
-    println!("   Graphs: {}", model.graphs.len());
-    for graph in &model.graphs {
-        println!("   - Graph '{}': {} transitions", graph.name, graph.transitions.len());
+    println!("   Graphs: {}", model.parts.len());
+    for part in &model.parts {
+        println!("   - Graph '{}': {} transitions", part.name, part.transitions.len());
     }
     
     if let Some(state_info) = &model.state {
         println!("   📍 Current states:");
-        for graph_state in state_info {
-            println!("      - {}: {:?}", graph_state.graph_name, graph_state.current_nodes);
+        for part_state in state_info {
+            println!("      - {}: {:?}", part_state.part_name, part_state.current_nodes);
         }
     }
     println!();
@@ -100,7 +100,7 @@ formula FormulaBlueYellowTest3: <+blue> true
         
         println!("   📍 Satisfying states ({}):", result.satisfying_states.len());
         for state in &result.satisfying_states {
-            println!("      - {}.{}", state.graph_name, state.node_name);
+            println!("      - {}.{}", state.part_name, state.node_name);
         }
         println!();
     }
@@ -131,7 +131,7 @@ formula FormulaBlueYellowTest3: <+blue> true
     
     println!("   📍 States where <+blue> true holds:");
     for state in &result.satisfying_states {
-        println!("      - {}.{}", state.graph_name, state.node_name);
+        println!("      - {}.{}", state.part_name, state.node_name);
     }
     println!();
 
@@ -158,7 +158,7 @@ formula FormulaBlueYellowTest3: <+blue> true
     
     println!("   📍 States where <+blue -yellow> true holds:");
     for state in &result.satisfying_states {
-        println!("      - {}.{}", state.graph_name, state.node_name);
+        println!("      - {}.{}", state.part_name, state.node_name);
     }
     println!();
 
@@ -185,7 +185,7 @@ formula FormulaBlueYellowTest3: <+blue> true
     
     println!("   📍 States where <+blue +yellow> true holds:");
     for state in &result.satisfying_states {
-        println!("      - {}.{}", state.graph_name, state.node_name);
+        println!("      - {}.{}", state.part_name, state.node_name);
     }
 
     println!("\n=== Demo Complete ===");

@@ -26,13 +26,13 @@ fn main() -> Result<(), String> {
             i = new_i;
 
             println!("Model name: {}", model.name);
-            println!("Number of graphs: {}", model.graphs.len());
+            println!("Number of parts: {}", model.parts.len());
+            
+            for (part_idx, part) in model.parts.iter().enumerate() {
+                println!("  Part {}: {}", part_idx + 1, part.name);
+                println!("    Transitions: {}", part.transitions.len());
 
-            for (graph_idx, graph) in model.graphs.iter().enumerate() {
-                println!("  Graph {}: {}", graph_idx + 1, graph.name);
-                println!("    Transitions: {}", graph.transitions.len());
-
-                for transition in &graph.transitions {
+                for transition in &part.transitions {
                     print!("    {} --> {}:", transition.from, transition.to);
 
                     if transition.properties.is_empty() {
@@ -83,7 +83,7 @@ fn parse_single_model(lines: &[&str], start: usize) -> Result<(modality_lang::Mo
 
         if line.starts_with("graph ") {
             let (graph, new_i) = parse_single_graph(lines, i)?;
-            model.add_graph(graph);
+            model.add_part(graph);
             i = new_i;
         } else {
             i += 1; // Skip unknown lines
@@ -94,7 +94,7 @@ fn parse_single_model(lines: &[&str], start: usize) -> Result<(modality_lang::Mo
 }
 
 // Helper function to parse a single graph
-fn parse_single_graph(lines: &[&str], start: usize) -> Result<(modality_lang::Graph, usize), String> {
+fn parse_single_graph(lines: &[&str], start: usize) -> Result<(modality_lang::Part, usize), String> {
     if start >= lines.len() {
         return Err("Unexpected end of file".to_string());
     }
@@ -105,7 +105,7 @@ fn parse_single_graph(lines: &[&str], start: usize) -> Result<(modality_lang::Gr
         .and_then(|s| s.strip_suffix(':'))
         .ok_or_else(|| format!("Invalid graph declaration: {}", graph_line))?;
 
-    let mut graph = modality_lang::Graph::new(graph_name.to_string());
+    let mut part = modality_lang::Part::new(graph_name.to_string());
     let mut i = start + 1;
 
     while i < lines.len() {
@@ -117,13 +117,13 @@ fn parse_single_graph(lines: &[&str], start: usize) -> Result<(modality_lang::Gr
 
         if line.contains("-->") {
             let transition = parse_single_transition(line)?;
-            graph.add_transition(transition);
+            part.add_transition(transition);
         }
 
         i += 1;
     }
 
-    Ok((graph, i))
+    Ok((part, i))
 }
 
 // Helper function to parse a single transition

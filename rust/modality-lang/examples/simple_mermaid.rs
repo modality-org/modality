@@ -16,7 +16,7 @@ model SimpleModel:
     let model = parse_content_lalrpop(model_content)?;
     
     println!("Model: {}", model.name);
-    println!("Graphs: {}", model.graphs.len());
+    println!("Parts: {}", model.parts.len());
     
     // Generate and display the Mermaid diagram
     let diagram = generate_mermaid_diagram(&model);

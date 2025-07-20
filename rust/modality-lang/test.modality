@@ -1,0 +1,1 @@
+model TestModel: part g1: n1 --> n2: +blue n2 --> n3: +green part g2: a --> b: +yellow

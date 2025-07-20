@@ -12,13 +12,13 @@ fn main() -> Result<(), String> {
             
             for (i, model) in models.iter().enumerate() {
                 println!("\n--- Model {}: {} ---", i + 1, model.name);
-                println!("Number of graphs: {}", model.graphs.len());
+                println!("Number of parts: {}", model.parts.len());
                 
-                for (graph_idx, graph) in model.graphs.iter().enumerate() {
-                    println!("  Graph {}: {} ({} transitions)", 
-                             graph_idx + 1, graph.name, graph.transitions.len());
+                for (part_idx, part) in model.parts.iter().enumerate() {
+                    println!("  Part {}: {} ({} transitions)", 
+                             part_idx + 1, part.name, part.transitions.len());
                     
-                    for transition in &graph.transitions {
+                    for transition in &part.transitions {
                         print!("    {} --> {}:", transition.from, transition.to);
                         
                         if transition.properties.is_empty() {
