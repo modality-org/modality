@@ -56,7 +56,7 @@ formula FormulaBoxNegBlueFalse: [-blue] false
 formula FormulaBoxNegBlueTrue: <+blue> <+blue> [-blue] false
 
 formula FormulaBlueYellowTest1: <+blue -yellow> true // false within Model6 because yellow is not on the transition
-formula FormulaBlueYellowTest2: <+blue +yellow> true // true within Model6
+formula FormulaBlueYellowTest2: <blue +yellow> true // true within Model6
 formula FormulaBlueYellowTest2: <+blue> true // true within Model6, absence of yellow is irrelevant
 
 

@@ -4,6 +4,9 @@
   "scopeName": "source.modality",
   "patterns": [
     {
+      "include": "#modal-operators"
+    },
+    {
       "include": "#comments"
     },
     {
@@ -13,13 +16,19 @@
       "include": "#strings"
     },
     {
-      "include": "#identifiers"
+      "include": "#properties"
+    },
+    {
+      "include": "#transitions"
     },
     {
       "include": "#operators"
     },
     {
-      "include": "#properties"
+      "include": "#named-identifiers"
+    },
+    {
+      "include": "#identifiers"
     }
   ],
   "repository": {
@@ -54,6 +63,30 @@
         }
       ]
     },
+    "named-identifiers": {
+      "patterns": [
+        {
+          "name": "entity.name.type.model.modality",
+          "match": "(?<=model\\s+)[a-zA-Z_][a-zA-Z0-9_]*"
+        },
+        {
+          "name": "entity.name.type.part.modality",
+          "match": "(?<=part\\s+)[a-zA-Z_][a-zA-Z0-9_]*"
+        },
+        {
+          "name": "entity.name.type.formula.modality",
+          "match": "(?<=formula\\s+)[a-zA-Z_][a-zA-Z0-9_]*"
+        },
+        {
+          "name": "entity.name.type.action.modality",
+          "match": "(?<=action\\s+)[a-zA-Z_][a-zA-Z0-9_]*"
+        },
+        {
+          "name": "entity.name.type.test.modality",
+          "match": "(?<=test\\s+)[a-zA-Z_][a-zA-Z0-9_]*"
+        }
+      ]
+    },
     "identifiers": {
       "patterns": [
         {
@@ -62,23 +95,91 @@
         }
       ]
     },
-    "operators": {
+    "modal-operators": {
       "patterns": [
         {
-          "name": "keyword.operator.arrow.modality",
-          "match": "-->"
+          "name": "keyword.operator.modal.diamond.begin.modality",
+          "match": "<(?!\\=)"
         },
         {
-          "name": "keyword.operator.modality",
-          "match": "\\b(\\+|-|\\[|\\]|<|>|\\(|\\)|,|\\*|\\?)\\b"
+          "name": "keyword.operator.modal.diamond.end.modality",
+          "match": ">(?!\\=)"
+        },
+        {
+          "name": "keyword.operator.modal.diamond.complete.modality",
+          "match": "<[+\\-][a-zA-Z_][a-zA-Z0-9_]*>"
+        },
+        {
+          "name": "keyword.operator.modal.box.begin.modality",
+          "match": "\\["
+        },
+        {
+          "name": "keyword.operator.modal.box.end.modality",
+          "match": "\\]"
         }
       ]
     },
     "properties": {
       "patterns": [
         {
-          "name": "entity.name.tag.property.modality",
-          "match": "\\b[+-][a-zA-Z_][a-zA-Z0-9_]*\\b"
+          "name": "entity.name.tag.property.positive.modality",
+          "match": "\\+[a-zA-Z_][a-zA-Z0-9_]*"
+        },
+        {
+          "name": "entity.name.tag.property.negative.modality",
+          "match": "\\-[a-zA-Z_][a-zA-Z0-9_]*"
+        }
+      ]
+    },
+    "transitions": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arrow.transition.modality",
+          "match": "-->"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.logical.modality",
+          "match": "\\b(and|or|not)\\b"
+        },
+        {
+          "name": "keyword.operator.assignment.modality",
+          "match": "="
+        },
+        {
+          "name": "keyword.operator.comparison.modality",
+          "match": "\\b(==|!=|<=|>=)\\b"
+        },
+        {
+          "name": "punctuation.separator.comma.modality",
+          "match": ","
+        },
+        {
+          "name": "punctuation.terminator.semicolon.modality",
+          "match": ";"
+        },
+        {
+          "name": "punctuation.section.block.begin.modality",
+          "match": "\\{"
+        },
+        {
+          "name": "punctuation.section.block.end.modality",
+          "match": "\\}"
+        },
+        {
+          "name": "punctuation.section.parens.begin.modality",
+          "match": "\\("
+        },
+        {
+          "name": "punctuation.section.parens.end.modality",
+          "match": "\\)"
+        },
+        {
+          "name": "punctuation.definition.modality",
+          "match": ":"
         }
       ]
     }

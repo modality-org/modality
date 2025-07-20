@@ -1,0 +1,25 @@
+// Enhanced Modality sample with complex syntax highlighting
+model ComplexModel:
+  part p1:
+    n1 --> n2: +blue +green
+    n2 --> n3: -red +yellow
+    n3 --> n1: +purple -orange
+
+  part p2:
+    n1 --> n1: +active
+    n2 --> n2: -inactive
+
+formula HasBlueTransition: <+blue> true
+formula NoRedTransition: [-red] true
+formula ComplexFormula: <+blue +green> [-red] <+yellow> true
+formula NestedModal: <+blue> [<+green> true]
+formula MultiStep: <+blue> <+green> <+yellow> true
+
+action testAction: +test +demo
+action anotherAction: -error +success
+
+test:
+  // Test case with complex properties
+  x = "hello"
+  commit(testAction)
+  action("+hello") 

@@ -1,0 +1,12 @@
+// Diamond bracket test
+<+here> should be blue
+<-there> should be blue
+[+always] should be orange
+[-never] should be orange
+
+// Comparison operators should NOT be blue
+x <= 5
+y >= 10
+
+// Mixed context
+<+active> and x <= 5 

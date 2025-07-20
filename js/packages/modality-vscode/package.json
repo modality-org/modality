@@ -42,6 +42,18 @@
         "path": "./syntaxes/modality.tmLanguage.json"
       }
     ],
+    "themes": [
+      {
+        "label": "Modality Dark",
+        "uiTheme": "vs-dark",
+        "path": "./themes/modality-dark.json"
+      },
+      {
+        "label": "Modality Light",
+        "uiTheme": "vs",
+        "path": "./themes/modality-light.json"
+      }
+    ],
     "commands": [
       {
         "command": "modality.generateMermaid",
@@ -80,14 +92,12 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src --ext ts",
-    "test": "node ./out/test/runTest.js",
     "install:local": "npm run compile && node scripts/install-local.js",
-    "uninstall:local": "node scripts/uninstall-local.js"
+    "uninstall:local": "node scripts/uninstall-local.js",
+    "test-syntax": "node scripts/test-syntax.js",
+    "test-visual": "node scripts/visual-test.js"
   },
   "devDependencies": {
     "@types/vscode": "^1.74.0",

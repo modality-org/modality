@@ -1,0 +1,167 @@
+{
+  "name": "Modality Light",
+  "type": "light",
+  "colors": {
+    "editor.background": "#ffffff",
+    "editor.foreground": "#000000",
+    "editor.lineHighlightBackground": "#f0f0f0",
+    "editor.selectionBackground": "#add6ff",
+    "editor.inactiveSelectionBackground": "#e5ebf1",
+    "editorBracketMatch.background": "#e0e0e0",
+    "editorBracketMatch.border": "#ff8c00"
+  },
+  "tokenColors": [
+    {
+      "name": "Comments",
+      "scope": "comment.line.double-slash.modality",
+      "settings": {
+        "foreground": "#008000"
+      }
+    },
+    {
+      "name": "Keywords",
+      "scope": "keyword.control.modality",
+      "settings": {
+        "foreground": "#0000ff",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Named Identifiers - Model",
+      "scope": "entity.name.type.model.modality",
+      "settings": {
+        "foreground": "#267f99",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Named Identifiers - Part",
+      "scope": "entity.name.type.part.modality",
+      "settings": {
+        "foreground": "#267f99",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Named Identifiers - Formula",
+      "scope": "entity.name.type.formula.modality",
+      "settings": {
+        "foreground": "#795e26",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Named Identifiers - Action",
+      "scope": "entity.name.type.action.modality",
+      "settings": {
+        "foreground": "#795e26",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Named Identifiers - Test",
+      "scope": "entity.name.type.test.modality",
+      "settings": {
+        "foreground": "#795e26",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Modal Operators - Diamond",
+      "scope": [
+        "keyword.operator.modal.diamond.begin.modality",
+        "keyword.operator.modal.diamond.end.modality"
+      ],
+      "settings": {
+        "foreground": "#0000ff",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Modal Operators - Box",
+      "scope": [
+        "keyword.operator.modal.box.begin.modality",
+        "keyword.operator.modal.box.end.modality"
+      ],
+      "settings": {
+        "foreground": "#ff8c00",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Properties - Positive",
+      "scope": "entity.name.tag.property.positive.modality",
+      "settings": {
+        "foreground": "#267f99",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Properties - Negative",
+      "scope": "entity.name.tag.property.negative.modality",
+      "settings": {
+        "foreground": "#d73a49",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Transition Arrow",
+      "scope": "keyword.operator.arrow.transition.modality",
+      "settings": {
+        "foreground": "#795e26",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Logical Operators",
+      "scope": "keyword.operator.logical.modality",
+      "settings": {
+        "foreground": "#000000",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Assignment Operator",
+      "scope": "keyword.operator.assignment.modality",
+      "settings": {
+        "foreground": "#000000"
+      }
+    },
+    {
+      "name": "Comparison Operators",
+      "scope": "keyword.operator.comparison.modality",
+      "settings": {
+        "foreground": "#000000"
+      }
+    },
+    {
+      "name": "Punctuation",
+      "scope": [
+        "punctuation.separator.comma.modality",
+        "punctuation.terminator.semicolon.modality",
+        "punctuation.section.block.begin.modality",
+        "punctuation.section.block.end.modality",
+        "punctuation.section.parens.begin.modality",
+        "punctuation.section.parens.end.modality",
+        "punctuation.definition.modality"
+      ],
+      "settings": {
+        "foreground": "#000000"
+      }
+    },
+    {
+      "name": "Strings",
+      "scope": "string.quoted.double.modality",
+      "settings": {
+        "foreground": "#a31515"
+      }
+    },
+    {
+      "name": "Variables",
+      "scope": "variable.other.modality",
+      "settings": {
+        "foreground": "#001080"
+      }
+    }
+  ]
+} 

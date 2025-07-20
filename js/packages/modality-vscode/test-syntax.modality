@@ -1,0 +1,62 @@
+// Test file for Modality syntax highlighting
+// This file tests diamond bracket highlighting in various contexts
+
+model TrafficLight:
+  parts:
+    red: Light
+    green: Light  
+    yellow: Light
+
+formula TrafficFlow:
+  <+red> isRed and
+  <+green> isGreen and
+  <+yellow> isYellow
+
+formula ComplexModal:
+  <+active> isActive implies
+  <-inactive> notInactive and
+  <+ready> isReady
+
+action ChangeLight:
+  when <+red> isRed also <+green> turnGreen
+
+action ComplexAction:
+  when <+active> isActive and <-inactive> notInactive also
+  <+ready> makeReady
+
+test TrafficTest:
+  when <+red> isRed also
+  <+green> turnGreen
+
+// Test comparison operators (should NOT be highlighted as modal)
+formula ComparisonTest:
+  x <= 5 and y >= 10
+
+// Test mixed contexts
+formula MixedContext:
+  <+active> isActive and x <= 5 and
+  <-inactive> notInactive and y >= 10
+
+// Test box operators
+formula BoxOperators:
+  [+always] alwaysTrue and
+  [-never] neverFalse
+
+// Test nested contexts
+formula NestedModal:
+  <+outer> outerCondition implies
+  (<+inner> innerCondition and
+   <-negative> negativeCondition)
+
+// Test with properties
+formula PropertyTest:
+  <+red> isRed and
+  <+green> isGreen and
+  <+yellow> isYellow and
+  <+blue> isBlue
+
+// Test with identifiers
+formula IdentifierTest:
+  <+state> currentState and
+  <+mode> currentMode and
+  <+status> currentStatus 
