@@ -1,0 +1,102 @@
+{
+  "name": "@modality-dev/modality-vscode",
+  "displayName": "Modality Language Support",
+  "description": "VS Code extension for Modality temporal logic language",
+  "version": "0.0.1",
+  "publisher": "modality-dev",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "modality",
+    "temporal-logic",
+    "model-checking",
+    "lts"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:modality"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "modality",
+        "aliases": [
+          "Modality",
+          "modality"
+        ],
+        "extensions": [
+          ".modality"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "modality",
+        "scopeName": "source.modality",
+        "path": "./syntaxes/modality.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "modality.generateMermaid",
+        "title": "Generate Mermaid Diagram",
+        "category": "Modality"
+      },
+      {
+        "command": "modality.checkFormula",
+        "title": "Check Formula",
+        "category": "Modality"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "modality.generateMermaid",
+          "when": "resourceExtname == .modality"
+        },
+        {
+          "command": "modality.checkFormula",
+          "when": "resourceExtname == .modality"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "modality.generateMermaid",
+          "when": "resourceExtname == .modality",
+          "group": "modality"
+        },
+        {
+          "command": "modality.checkFormula",
+          "when": "resourceExtname == .modality",
+          "group": "modality"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "install:local": "npm run compile && node scripts/install-local.js",
+    "uninstall:local": "node scripts/uninstall-local.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "@typescript-eslint/eslint-plugin": "^5.42.0",
+    "@typescript-eslint/parser": "^5.42.0",
+    "eslint": "^8.26.0",
+    "typescript": "^4.8.4",
+    "@vscode/test-electron": "^2.3.8",
+    "@types/mocha": "^10.0.6"
+  }
+}

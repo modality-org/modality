@@ -1,0 +1,23 @@
+// Sample Modality model for testing the VS Code extension
+model TestModel:
+  part p1:
+    n1 --> n2: +blue
+    n2 --> n3: +green
+    n3 --> n1: +red
+
+  part p2:
+    n1 --> n1: +yellow
+    n2 --> n2: +purple
+
+formula HasBlue: <+blue> true
+formula NoRed: [-red] true
+formula BlueAndGreen: <+blue +green> true
+formula Complex: <+blue> <+green> true
+
+action testAction: +test +demo
+action anotherAction: -error +success
+
+test:
+  // Test case
+  x = "hello"
+  commit(testAction) 
