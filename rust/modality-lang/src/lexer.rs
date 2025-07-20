@@ -4,10 +4,15 @@ use lalrpop_util::lexer::Token;
 pub enum ModalityToken {
     Model,
     Part,
+    Action,
+    Test,
+    Commit,
     Arrow,
     Colon,
     Plus,
     Minus,
+    LeftParen,
+    RightParen,
     Ident(String),
     Whitespace,
     Comment,
@@ -94,6 +99,8 @@ impl Lexer {
                 }
             }
             ':' => ModalityToken::Colon,
+            '(' => ModalityToken::LeftParen,
+            ')' => ModalityToken::RightParen,
             '+' => ModalityToken::Plus,
             '-' => {
                 if let Some('>') = self.peek() {
@@ -101,6 +108,22 @@ impl Lexer {
                     ModalityToken::Arrow
                 } else {
                     ModalityToken::Minus
+                }
+            }
+            'a' => {
+                let ident = self.read_identifier();
+                if ident == "action" {
+                    ModalityToken::Action
+                } else {
+                    ModalityToken::Ident(ident)
+                }
+            }
+            'c' => {
+                let ident = self.read_identifier();
+                if ident == "commit" {
+                    ModalityToken::Commit
+                } else {
+                    ModalityToken::Ident(ident)
                 }
             }
             'm' => {
@@ -115,6 +138,14 @@ impl Lexer {
                 let ident = self.read_identifier();
                 if ident == "part" {
                     ModalityToken::Part
+                } else {
+                    ModalityToken::Ident(ident)
+                }
+            }
+            't' => {
+                let ident = self.read_identifier();
+                if ident == "test" {
+                    ModalityToken::Test
                 } else {
                     ModalityToken::Ident(ident)
                 }

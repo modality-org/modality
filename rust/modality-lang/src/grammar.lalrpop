@@ -1,4 +1,4 @@
-use crate::ast::{Model, Part, Transition, Property, PropertySign, Formula, FormulaExpr, PartState, TopLevelItem};
+use crate::ast::{Model, Part, Transition, Property, PropertySign, Formula, FormulaExpr, PartState, TopLevelItem, Action, ActionCall, Test, TestStatement};
 
 grammar;
 
@@ -16,7 +16,9 @@ pub TopLevel: Vec<Model> = {
 
 TopLevelItem: TopLevelItem = {
     <model:Model> => TopLevelItem::Model(model),
-    <formula:Formula> => TopLevelItem::Formula(formula)
+    <formula:Formula> => TopLevelItem::Formula(formula),
+    <action:Action> => TopLevelItem::Action(action),
+    <test:Test> => TopLevelItem::Test(test)
 };
 
 pub Model: Model = {
@@ -68,6 +70,47 @@ PropertyList: Vec<Property> = {
 Property: Property = {
     "+" <name:Ident> => Property::new(PropertySign::Plus, name),
     "-" <name:Ident> => Property::new(PropertySign::Minus, name)
+};
+
+// Action parsing
+pub Action: Action = {
+    <action:ActionDecl> => action
+};
+
+ActionDecl: Action = {
+    "action" <name:Ident> ":" <properties:PropertyList> => {
+        Action::new(name, properties)
+    }
+};
+
+// Action call parsing
+pub ActionCall: ActionCall = {
+    <call:ActionCallExpr> => call
+};
+
+ActionCallExpr: ActionCall = {
+    "action" "(" <arg:StringLiteral> ")" => ActionCall::new(arg)
+};
+
+// Test parsing - simplified for now
+pub Test: Test = {
+    <test:TestDecl> => test
+};
+
+TestDecl: Test = {
+    "test" ":" => {
+        Test::new(None)
+    },
+    "test" <name:Ident> ":" => {
+        Test::new(Some(name))
+    }
+};
+
+StringLiteral: String = {
+    r#""[^"]*""# => {
+        let s = <>.to_string();
+        s[1..s.len()-1].to_string() // Remove quotes
+    }
 };
 
 // Formula parsing

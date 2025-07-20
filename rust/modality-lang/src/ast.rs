@@ -44,6 +44,34 @@ pub struct Model {
     pub state: Option<Vec<PartState>>,
 }
 
+/// Represents an action declaration
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Action {
+    pub name: String,
+    pub properties: Vec<Property>,
+}
+
+/// Represents an action function call
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ActionCall {
+    pub argument: String,
+}
+
+/// Represents a test declaration
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Test {
+    pub name: Option<String>,
+    pub statements: Vec<TestStatement>,
+}
+
+/// Represents a statement within a test
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum TestStatement {
+    Assignment(String, String), // variable = expression
+    Commit(String), // commit(action)
+    ActionCall(String), // action("+hello")
+}
+
 /// Represents a temporal modal formula
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Formula {
@@ -137,6 +165,35 @@ impl PartState {
     }
 }
 
+impl Action {
+    /// Create a new action
+    pub fn new(name: String, properties: Vec<Property>) -> Self {
+        Self { name, properties }
+    }
+}
+
+impl ActionCall {
+    /// Create a new action call
+    pub fn new(argument: String) -> Self {
+        Self { argument }
+    }
+}
+
+impl Test {
+    /// Create a new test
+    pub fn new(name: Option<String>) -> Self {
+        Self {
+            name,
+            statements: Vec::new(),
+        }
+    }
+
+    /// Add a statement to this test
+    pub fn add_statement(&mut self, statement: TestStatement) {
+        self.statements.push(statement);
+    }
+}
+
 impl Formula {
     /// Create a new formula
     pub fn new(name: String, expression: FormulaExpr) -> Self {
@@ -149,4 +206,6 @@ impl Formula {
 pub enum TopLevelItem {
     Model(Model),
     Formula(Formula),
+    Action(Action),
+    Test(Test),
 } 

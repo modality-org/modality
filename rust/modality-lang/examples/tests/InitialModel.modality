@@ -1,0 +1,12 @@
+// part with a single node and a transition mapping back to itself
+model InitialModel:
+  part p1:
+    n1 --> n1
+
+action ActionHello: +hello
+action ActionComplex: +avenue_light_red +street_light_green
+
+test:
+  m = clone(InitialModel)
+  m.commit(ActionHello)
+  m.commit(action("+hello"))

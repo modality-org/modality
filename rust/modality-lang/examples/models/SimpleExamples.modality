@@ -41,8 +41,8 @@ model Model6:
   part p2:
     n1 --> n1: +yellow
   state:
-    g1: n1 n2
-    g2: n1
+    p1: n1 n2
+    p2: n1
 
 
 // boolean formulas
@@ -100,7 +100,7 @@ action ActionTurnYellow: +yellow
 
 test:
   m = clone(TrafficLightOneFace)
-  m.state.g1 = n_green
+  m.state.p1 = n_green
   m.commit(ActionTurnRed) // turns red
   m.commit(action("+red")) // stays red
   assert(false, m.try_commit(ActionTurnYellow)) // cannot turn yellow
