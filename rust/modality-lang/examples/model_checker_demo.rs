@@ -44,9 +44,9 @@ fn main() -> Result<(), String> {
     model.set_state(state);
 
     println!("📊 Model: {}", model.name);
-    println!("   Graphs: {}", model.parts.len());
+    println!("   Parts: {}", model.parts.len());
     for part in &model.parts {
-        println!("   - Graph '{}': {} transitions", part.name, part.transitions.len());
+        println!("   - Part '{}': {} transitions", part.name, part.transitions.len());
     }
     
     if let Some(state_info) = &model.state {

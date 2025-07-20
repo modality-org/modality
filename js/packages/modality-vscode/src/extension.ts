@@ -20,9 +20,48 @@ export function activate(context: vscode.ExtensionContext) {
         commands.generateMermaid.bind(commands)
     );
 
+    const visualizeModelCommand = vscode.commands.registerCommand(
+        'modality.visualizeModel',
+        commands.visualizeModel.bind(commands)
+    );
+
     const checkFormulaCommand = vscode.commands.registerCommand(
         'modality.checkFormula',
         commands.checkFormula.bind(commands)
+    );
+
+    // Register CodeLens provider for model visualization
+    const codeLensProvider = vscode.languages.registerCodeLensProvider(
+        { language: 'modality' },
+        {
+            provideCodeLenses(document, token) {
+                const codeLenses: vscode.CodeLens[] = [];
+                const text = document.getText();
+                const lines = text.split('\n');
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    const trimmedLine = line.trim();
+                    
+                    // Check for model declaration
+                    const modelMatch = trimmedLine.match(/^model\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*:/);
+                    if (modelMatch) {
+                        const modelName = modelMatch[1];
+                        const range = new vscode.Range(i, 0, i, line.length);
+                        
+                        const codeLens = new vscode.CodeLens(range, {
+                            title: 'Visualize',
+                            command: 'modality.visualizeModel',
+                            arguments: []
+                        });
+                        
+                        codeLenses.push(codeLens);
+                    }
+                }
+
+                return codeLenses;
+            }
+        }
     );
 
     // Register hover provider for syntax help
@@ -64,7 +103,9 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         providerRegistration,
         generateMermaidCommand,
+        visualizeModelCommand,
         checkFormulaCommand,
+        codeLensProvider,
         hoverProvider,
         diagnosticCollection,
         changeListener,

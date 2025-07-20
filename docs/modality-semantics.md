@@ -5,7 +5,7 @@ This document explains the semantics of the Modality language, including how to 
 ## Overview
 
 Modality is a temporal logic language for describing and analyzing labeled transition systems (LTS). It allows you to:
-- Define models as collections of graphs with labeled transitions
+- Define models as collections of parts with labeled transitions
 - Write temporal formulas to express properties about system behavior
 - Check whether models satisfy these properties using model checking
 

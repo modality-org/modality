@@ -110,8 +110,8 @@ TopLevelItem: TopLevelItem = {
 
 // Model definition
 Model: Model = {
-    "model" <name:IDENT> ":" <graphs:GraphList> => {
-        Model { name, graphs, state: None }
+    "model" <name:IDENT> ":" <parts:GraphList> => {
+        Model { name, parts, state: None }
     },
 };
 

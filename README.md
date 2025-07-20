@@ -65,7 +65,7 @@ The goal of [Modality Rust](/rust) is to provide portable system level libraries
 
 ## 🧑‍💻 Contributors
 
-<a href="https://github.com/modality-org/modality/graphs/contributors"><img src="https://contrib.rocks/image?repo=modality-org/modality" /></a>
+<a href="https://github.com/modality-org/modality/parts/contributors"><img src="https://contrib.rocks/image?repo=modality-org/modality" /></a>
 
 ## Star History
 

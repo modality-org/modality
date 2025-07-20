@@ -312,7 +312,7 @@ model Model4:
     }
 
     #[test]
-    fn test_parse_model_with_multiple_graphs_lalrpop() {
+    fn test_parse_model_with_multiple_parts_lalrpop() {
         let content = r#"
 model Model5:
   part g1:

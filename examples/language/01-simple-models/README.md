@@ -4,7 +4,7 @@ This example demonstrates how to use the Modality CLI to generate Mermaid diagra
 
 ## Files
 
-- `simple-model.modality` - A simple Modality model with two graphs
+- `simple-model.modality` - A simple Modality model with two parts
 - `test-check.modality` - Test models and formulas for model checking
 - `01-generate-diagram.sh` - Script to generate Mermaid diagrams
 - `02-check-formulas.sh` - Script to demonstrate formula checking

@@ -78,8 +78,8 @@ action ActionBlue: +blue
 // ...previous vs ...persistent
 // should this allow for ambiguity over non-deterministic transitions?
 
-set(/users/alice.id, "12D3KooWGv3tXpFDBBWHheJbhru5C3PcTUqEEj6m5nVhv3T34ueV") // example of persistent subaction
-include_sig(/users/alice.id) // example of non-persistent subaction
+// set(/users/alice.id, "12D3KooWGv3tXpFDBBWHheJbhru5C3PcTUqEEj6m5nVhv3T34ueV") // example of persistent subaction
+// include_sig(/users/alice.id) // example of non-persistent subaction
 
 
 // one face of a william potts traffic light
@@ -98,14 +98,14 @@ action ActionTurnRed: +red
 action ActionTurnGreen: +green
 action ActionTurnYellow: +yellow
 
-test:
-  m = clone(TrafficLightOneFace)
-  m.state.p1 = n_green
-  m.commit(ActionTurnRed) // turns red
-  m.commit(action("+red")) // stays red
-  assert(false, m.try_commit(ActionTurnYellow)) // cannot turn yellow
-  assert(true, m.try_formula(formula("[+green][+yellow]<+red> true")))
-  assert(false, m.try_formula(formula("[+green][+yellow]<+green> true")))
+// test:
+//   m = clone(TrafficLightOneFace)
+//   m.state.p1 = n_green
+//   m.commit(ActionTurnRed) // turns red
+//   m.commit(action("+red")) // stays red
+//   assert(false, m.try_commit(ActionTurnYellow)) // cannot turn yellow
+//   assert(true, m.try_formula(formula("[+green][+yellow]<+red> true")))
+//   assert(false, m.try_formula(formula("[+green][+yellow]<+green> true")))
 
 // commit Commit2:
 //   action: +blue +red

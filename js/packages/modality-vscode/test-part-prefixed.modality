@@ -1,0 +1,49 @@
+// Test file for part-prefixed nodes
+// This demonstrates how nodes are prefixed with part names but display only the node name
+
+model TestModel {
+    part p1 {
+        // Nodes in p1 are prefixed as p1.n1, p1.n2, etc.
+        // but display as n1, n2 in the diagram
+        p1.n1 --> p1.n2: +start
+        p1.n2 --> p1.n3: +process
+        p1.n3 --> p1.n1: +reset
+    }
+    
+    part p2 {
+        // Nodes in p2 are prefixed as p2.n1, p2.n2, etc.
+        // but display as n1, n2 in the diagram
+        p2.n1 --> p2.n2: +request
+        p2.n2 --> p2.n3: +response
+        p2.n3 --> p2.n1: +timeout
+    }
+    
+    // Cross-part transitions (if supported)
+    p1.n2 --> p2.n1: +signal
+    p2.n3 --> p1.n1: +notify
+}
+
+// Expected Mermaid output:
+// stateDiagram-v2
+//     state p1 {
+//         n1
+//         n2
+//         n3
+//
+//         n1 --> n2: +start
+//         n2 --> n3: +process
+//         n3 --> n1: +reset
+//     }
+//
+//     state p2 {
+//         n1
+//         n2
+//         n3
+//
+//         n1 --> n2: +request
+//         n2 --> n3: +response
+//         n3 --> n1: +timeout
+//     }
+//
+//     p1.n2 --> p2.n1: +signal
+//     p2.n3 --> p1.n1: +notify 

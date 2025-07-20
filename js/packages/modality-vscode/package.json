@@ -61,6 +61,11 @@
         "category": "Modality"
       },
       {
+        "command": "modality.visualizeModel",
+        "title": "Visualize Model",
+        "category": "Modality"
+      },
+      {
         "command": "modality.checkFormula",
         "title": "Check Formula",
         "category": "Modality"
@@ -73,31 +78,56 @@
           "when": "resourceExtname == .modality"
         },
         {
+          "command": "modality.visualizeModel",
+          "when": "resourceExtname == .modality"
+        },
+        {
           "command": "modality.checkFormula",
           "when": "resourceExtname == .modality"
         }
       ],
       "editor/context": [
         {
+          "command": "modality.visualizeModel",
+          "when": "resourceExtname == .modality",
+          "group": "modality@1"
+        },
+        {
           "command": "modality.generateMermaid",
           "when": "resourceExtname == .modality",
-          "group": "modality"
+          "group": "modality@2"
         },
         {
           "command": "modality.checkFormula",
           "when": "resourceExtname == .modality",
-          "group": "modality"
+          "group": "modality@3"
         }
       ]
+    },
+    "configuration": {
+      "title": "Modality",
+      "properties": {
+        "modality.enableCodeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable CodeLens features for model visualization"
+        }
+      }
     }
   },
   "scripts": {
-    "compile": "tsc -p ./",
+    "compile": "tsc -p ./ && npm run copy-wasm",
+    "copy-wasm": "cp ../../../rust/modality-lang/pkg/modality_lang.js out/ && cp ../../../rust/modality-lang/pkg/modality_lang_bg.wasm out/",
     "watch": "tsc -watch -p ./",
     "install:local": "npm run compile && node scripts/install-local.js",
     "uninstall:local": "node scripts/uninstall-local.js",
     "test-syntax": "node scripts/test-syntax.js",
-    "test-visual": "node scripts/visual-test.js"
+    "test-visual": "node scripts/visual-test.js",
+    "test-visualization": "node scripts/test-visualization.js",
+    "test-codelens": "node scripts/test-codelens.js"
+  },
+  "dependencies": {
+    "modality-lang": "file:../../../rust/modality-lang/dist-node"
   },
   "devDependencies": {
     "@types/vscode": "^1.74.0",

@@ -1,0 +1,23 @@
+model TrafficLightOneFace:
+  part p1:
+    // stay same color
+    n_red --> n_red:       +red -yellow -green
+    n_green --> n_green:   -red -yellow +green
+    n_yellow --> n_yellow: -red +yellow -green
+    // change color
+    n_red --> n_green:     +red -yellow -green
+    n_green --> n_yellow:  +red -yellow -green
+    n_yellow --> n_red:    +red -yellow -green
+
+action ActionTurnRed: +red
+action ActionTurnGreen: +green
+action ActionTurnYellow: +yellow
+
+// test:
+//   m = clone(TrafficLightOneFace)
+//   m.state.p1 = n_green
+//   m.commit(ActionTurnRed) // turns red
+//   m.commit(action("+red")) // stays red
+//   assert(false, m.try_commit(ActionTurnYellow)) // cannot turn yellow
+//   assert(true, m.try_formula(formula("[+green][+yellow]<+red> true")))
+//   assert(false, m.try_formula(formula("[+green][+yellow]<+green> true")))

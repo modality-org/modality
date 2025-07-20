@@ -1,150 +1,150 @@
-# Modality Language Support for VS Code
+# Modality VS Code Extension
 
-This extension provides language support for the Modality temporal logic language in Visual Studio Code and Cursor.
+VS Code extension for the Modality temporal logic language, providing syntax highlighting, model visualization, and formula checking.
 
 ## Features
 
-- **Enhanced Syntax Highlighting**: Full syntax highlighting for `.modality` files with special emphasis on modal operators and properties
-- **Custom Themes**: Built-in "Modality Dark" and "Modality Light" themes optimized for Modality syntax
-- **IntelliSense**: Auto-completion for keywords, operators, and syntax elements
-- **Hover Information**: Detailed information about language constructs on hover
-- **Real-time Validation**: Syntax validation with error highlighting
-- **Commands**: 
-  - Generate Mermaid diagrams from Modality models
-  - Check formulas against models
-
-## Syntax Highlighting
-
-The extension provides enhanced highlighting for:
-
-### Modal Operators
-- **Diamond Operators** (`< >`): Highlighted in orange for existential quantification
-- **Box Operators** (`[ ]`): Highlighted in orange for universal quantification
-
-### Properties
-- **Positive Properties** (`+property`): Highlighted in teal/green for required properties
-- **Negative Properties** (`-property`): Highlighted in red for forbidden properties
-
-### Other Elements
-- **Transition Arrows** (`-->`): Highlighted in yellow for state transitions
-- **Keywords**: Bold blue highlighting for language keywords
-- **Comments**: Green highlighting for single-line comments
-- **Strings**: Orange highlighting for string literals
-- **Variables**: Light blue highlighting for identifiers
-
-## Language Support
-
-The extension recognizes the following Modality language constructs:
-
-### Keywords
-- `model` - Define a new model
-- `part` - Define a part within a model
-- `formula` - Define a temporal logic formula
-- `action` - Define an action with properties
-- `test` - Define a test case
-
-### Operators
-- `-->` - Transition arrow between states
-- `+` - Positive property sign (requires the property)
-- `-` - Negative property sign (forbids the property)
-- `<` `>` - Diamond operators (exists)
-- `[` `]` - Box operators (forall)
-
-### Boolean Values
-- `true` - Boolean true value
-- `false` - Boolean false value
-
-### Logical Operators
-- `and` - Logical AND operator
-- `or` - Logical OR operator
-- `not` - Logical NOT operator
-
-### Temporal Operators
-- `when` - When operator
-- `also` - Also operator
-- `next` - Next operator
-- `must` - Must operator
-- `can` - Can operator
-- `always` - Always operator
-- `eventually` - Eventually operator
-- `until` - Until operator
-- `lfp` - Least fixed point
-- `gfp` - Greatest fixed point
+- **Syntax Highlighting**: Full support for Modality syntax with custom themes
+- **Model Visualization**: Generate Mermaid diagrams from Modality models
+- **CodeLens Integration**: "Visualize" button appears over model declaration lines
+- **Formula Checking**: Basic validation of temporal logic formulas
+- **Hover Information**: Context-sensitive help for Modality keywords
+- **Real-time Validation**: Live syntax checking as you type
 
 ## Installation
 
 ### Local Development Installation
 
-For development and testing, you can install the extension locally to both VS Code and Cursor:
-
 ```bash
 # Install dependencies
 pnpm install
 
-# Compile and install locally
+# Install extension locally to VS Code and Cursor
 pnpm run install:local
-```
 
-This will install the extension to:
-- **VS Code**: `~/.vscode/extensions/` (macOS) or equivalent on other platforms
-- **Cursor**: `~/Library/Application Support/Cursor/User/extensions/` (macOS) or equivalent on other platforms
-
-The script automatically detects which editors are available and installs to all found locations.
-
-### Uninstall Local Extension
-
-To remove the locally installed extension from all editors:
-
-```bash
+# Uninstall extension
 pnpm run uninstall:local
 ```
 
 ## Usage
 
-1. Open a `.modality` file in VS Code or Cursor
-2. The extension will automatically activate and provide language support
-3. For best highlighting, select "Modality Dark" or "Modality Light" theme:
-   - **VS Code**: `Ctrl+Shift+P` → "Preferences: Color Theme" → "Modality Dark" or "Modality Light"
-   - **Cursor**: `Cmd+Shift+P` → "Preferences: Color Theme" → "Modality Dark" or "Modality Light"
-4. Use `Ctrl+Space` (or `Cmd+Space` on macOS) for auto-completion
-5. Hover over language constructs for detailed information
-6. Use the command palette to access Modality-specific commands:
-   - `Modality: Generate Mermaid Diagram`
-   - `Modality: Check Formula`
+### Model Visualization
 
-## Example
+The extension provides multiple ways to visualize your Modality models:
+
+1. **CodeLens Button** (Easiest): Click the "Visualize" button that appears above model declaration lines
+2. **Visualize Model** (Recommended): Enhanced visualization with model parsing
+   - Right-click in a `.modality` file → "Visualize Model"
+   - Or use Command Palette: `Modality: Visualize Model`
+
+3. **Generate Mermaid Diagram**: Basic diagram generation
+   - Right-click in a `.modality` file → "Generate Mermaid Diagram"
+   - Or use Command Palette: `Modality: Generate Mermaid Diagram`
+
+### Example Model
 
 ```modality
-model ExampleModel:
-  part p1:
-    n1 --> n2: +blue
-    n2 --> n3: +green
-    n3 --> n1: +red
+model SimpleModel:
 
-formula HasBlue: <+blue> true
-formula NoRed: [-red] true
-formula Complex: <+blue +green> [-red] <+yellow> true
+part StateMachine:
+    idle --> active: +start
+    active --> processing: +request
+    processing --> active: +response
+    processing --> idle: +timeout
+    active --> idle: +stop
+
+part Controller:
+    init --> running: +boot
+    running --> paused: +pause
+    paused --> running: +resume
+    running --> stopped: +shutdown
 ```
+
+### Formula Checking
+
+- Right-click in a `.modality` file → "Check Formula"
+- Or use Command Palette: `Modality: Check Formula`
+
+## Themes
+
+The extension includes custom themes optimized for Modality syntax:
+
+- **Modality Dark**: Dark theme with blue diamond operators and orange box operators
+- **Modality Light**: Light theme with consistent coloring
+
+To use the themes:
+1. Open Command Palette (`Cmd+Shift+P`)
+2. Type "Preferences: Color Theme"
+3. Select "Modality Dark" or "Modality Light"
+
+## Syntax Highlighting
+
+The extension provides comprehensive syntax highlighting for:
+
+- **Modal Operators**: `< >` (diamond) and `[ ]` (box) operators
+- **Properties**: `+property` and `-property` syntax
+- **Named Identifiers**: Model names, part names, formula names, action names, test names
+- **Transitions**: `-->` arrows with property labels
+- **Keywords**: `model`, `part`, `formula`, `action`, `test`, etc.
+
+## Testing
+
+```bash
+# Test syntax highlighting patterns
+pnpm run test-syntax
+
+# Open visual test file
+pnpm run test-visual
+
+# Test model visualization
+pnpm run test-visualization
+
+# Test CodeLens detection
+pnpm run test-codelens
+```
+
+### Test Files
+
+- `sample-model.modality` - Basic model with transitions and properties
+- `multi-model-test.modality` - Multiple models to test CodeLens buttons
+- `test-syntax.modality` - Syntax highlighting test cases
+- `diamond-test.modality` - Modal operator highlighting tests
 
 ## Development
 
-This extension is part of the Modality project. To contribute:
+```bash
+# Compile TypeScript
+pnpm run compile
 
-1. Clone the repository
-2. Install dependencies: `pnpm install`
-3. Compile the extension: `pnpm run compile`
-4. Install locally: `pnpm run install:local`
-5. Press F5 in VS Code to run the extension in debug mode
+# Watch for changes
+pnpm run watch
+```
 
-### Available Scripts
+## Commands
 
-- `pnpm run compile` - Compile TypeScript to JavaScript
-- `pnpm run watch` - Watch for changes and recompile
-- `pnpm run lint` - Run ESLint
-- `pnpm run test` - Run tests
-- `pnpm run install:local` - Install extension locally for testing (VS Code + Cursor)
-- `pnpm run uninstall:local` - Remove locally installed extension from all editors
+| Command | Description | Shortcut |
+|---------|-------------|----------|
+| `Modality: Visualize Model` | Generate enhanced Mermaid diagram | Right-click → "Visualize Model" or CodeLens button |
+| `Modality: Generate Mermaid Diagram` | Generate basic Mermaid diagram | Right-click → "Generate Mermaid Diagram" |
+| `Modality: Check Formula` | Validate temporal logic formulas | Right-click → "Check Formula" |
 
-## License
+## File Structure
 
-MIT 
+```
+modality-vscode/
+├── src/
+│   ├── extension.ts          # Main extension entry point
+│   ├── commands.ts           # Command implementations
+│   └── languageProvider.ts   # Language features
+├── syntaxes/
+│   └── modality.tmLanguage.json  # TextMate grammar
+├── themes/
+│   ├── modality-dark.json    # Dark theme
+│   └── modality-light.json   # Light theme
+├── scripts/
+│   ├── install-local.js      # Local installation script
+│   ├── uninstall-local.js    # Uninstall script
+│   ├── test-syntax.js        # Syntax testing
+│   └── visual-test.js        # Visual testing
+└── test-syntax.modality      # Syntax test file
+``` 

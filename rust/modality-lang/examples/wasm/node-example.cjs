@@ -104,7 +104,7 @@ async function main() {
             const model = JSON.parse(modelResult);
             console.log('✅ ModalityParser class works!');
             console.log('Model name:', model.name);
-            console.log('Number of graphs:', model.graphs.length);
+            console.log('Number of parts:', model.parts.length);
         } catch (error) {
             console.error('❌ Error with ModalityParser class:', error.message);
         }

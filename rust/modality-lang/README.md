@@ -5,7 +5,7 @@ This crate provides a parser for the Modality temporal logic language, specifica
 ## Features
 
 - Parse `.modality` files containing model definitions
-- Support for multiple graphs per model
+- Support for multiple parts per model
 - Support for transitions with properties (signed properties with + or -)
 - Handle comments and empty lines
 - Robust error handling
@@ -141,9 +141,9 @@ model Model4:
 - **States**: All states/nodes are represented as state boxes
 - **Transitions**: Arrows show state transitions within each graph
 - **Properties**: Edge labels show transition properties (e.g., ` : +blue -red`)
-- **State Groups**: Multiple graphs are grouped in isolated state containers
-- **Graph Isolation**: Each graph is completely isolated - no transitions between graphs
-- **State Naming**: Multiple graphs use prefixed state names (e.g., `g1.n1`, `g2.n1`) to prevent conflicts
+- **State Groups**: Multiple parts are grouped in isolated state containers
+- **Graph Isolation**: Each graph is completely isolated - no transitions between parts
+- **State Naming**: Multiple parts use prefixed state names (e.g., `g1.n1`, `g2.n1`) to prevent conflicts
 - **Styling**: Optional CSS classes for visual customization
 
 ### Example Mermaid Output
@@ -163,17 +163,17 @@ stateDiagram-v2
     }
 ```
 
-**Note**: In the above example, `g1` and `g2` are completely isolated graphs. States in `g1` (g1.n1, g1.n2, g1.n3) cannot transition to states in `g2` (g2.n1), and vice versa. Each graph represents an independent LTS (Labeled Transition System). The prefixed naming (g1.n1, g2.n1) makes the graph isolation explicit and prevents naming conflicts. Properties are space-separated in transition labels.
+**Note**: In the above example, `g1` and `g2` are completely isolated parts. States in `g1` (g1.n1, g1.n2, g1.n3) cannot transition to states in `g2` (g2.n1), and vice versa. Each graph represents an independent LTS (Labeled Transition System). The prefixed naming (g1.n1, g2.n1) makes the graph isolation explicit and prevents naming conflicts. Properties are space-separated in transition labels.
 
 ## Data Structures
 
 ### Model
-Represents a complete model containing multiple graphs.
+Represents a complete model containing multiple parts.
 
 ```rust
 pub struct Model {
     pub name: String,
-    pub graphs: Vec<Graph>,
+    pub parts: Vec<Graph>,
 }
 ```
 

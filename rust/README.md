@@ -100,7 +100,7 @@ Prints the current version of the CLI.
 
 ## Contributors
 
-<a href="https://github.com/modality-dev/modality-rust/graphs/contributors">
+<a href="https://github.com/modality-dev/modality-rust/parts/contributors">
   <img src="https://contrib.rocks/image?repo=modality-dev/modality-rust" />
 </a>
 
