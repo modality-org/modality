@@ -61,7 +61,7 @@ class ModalityCommands {
             vscode.window.showErrorMessage(`Failed to generate Mermaid diagram: ${error}`);
         }
     }
-    async visualizeModel() {
+    async visualizeModel(modelNameArg) {
         const editor = vscode.window.activeTextEditor;
         if (!editor || editor.document.languageId !== 'modality') {
             vscode.window.showErrorMessage('Please open a .modality file first');
@@ -77,10 +77,26 @@ class ModalityCommands {
                 vscode.window.showErrorMessage('Failed to load modality-lang WASM module');
                 return;
             }
-            const modelJson = lang.parse_model(content);
-            const mermaidContent = lang.generate_mermaid(JSON.stringify(modelJson));
-            // Extract model name from parsed JSON
-            const modelName = modelJson && modelJson.name ? modelJson.name : fileName;
+            // Use parse_all_models to get all models
+            const models = lang.parse_all_models(content);
+            let modelToShow = null;
+            if (Array.isArray(models)) {
+                if (modelNameArg) {
+                    modelToShow = models.find((m) => m.name === modelNameArg);
+                }
+                if (!modelToShow) {
+                    modelToShow = models[0];
+                }
+            }
+            else {
+                modelToShow = models;
+            }
+            if (!modelToShow) {
+                vscode.window.showErrorMessage('No model found to visualize.');
+                return;
+            }
+            const mermaidContent = lang.generate_mermaid(JSON.stringify(modelToShow));
+            const modelName = modelToShow && modelToShow.name ? modelToShow.name : fileName;
             // Create a webview panel to display the rendered Mermaid diagram
             const panel = vscode.window.createWebviewPanel('modalityVisualization', `Model: ${modelName}`, vscode.ViewColumn.Beside, {
                 enableScripts: true,

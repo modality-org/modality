@@ -1,0 +1,8 @@
+model InitialModel:
+  part p1:
+    n1 --> n1
+
+model Model1:
+  part p1:
+    n1 --> n2: +blue
+    n2 --> n3: +blue

@@ -74,7 +74,7 @@ export class ModalityCommands {
         }
     }
 
-    async visualizeModel() {
+    async visualizeModel(modelNameArg?: string) {
         const editor = vscode.window.activeTextEditor;
         if (!editor || editor.document.languageId !== 'modality') {
             vscode.window.showErrorMessage('Please open a .modality file first');
@@ -93,12 +93,25 @@ export class ModalityCommands {
                 return;
             }
 
-            const modelJson = lang.parse_model(content);
-            const mermaidContent = lang.generate_mermaid(JSON.stringify(modelJson));
-            
-            // Extract model name from parsed JSON
-            const modelName = modelJson && modelJson.name ? modelJson.name : fileName;
-            
+            // Use parse_all_models to get all models
+            const models = lang.parse_all_models(content);
+            let modelToShow = null;
+            if (Array.isArray(models)) {
+                if (modelNameArg) {
+                    modelToShow = models.find((m: any) => m.name === modelNameArg);
+                }
+                if (!modelToShow) {
+                    modelToShow = models[0];
+                }
+            } else {
+                modelToShow = models;
+            }
+            if (!modelToShow) {
+                vscode.window.showErrorMessage('No model found to visualize.');
+                return;
+            }
+            const mermaidContent = lang.generate_mermaid(JSON.stringify(modelToShow));
+            const modelName = modelToShow && modelToShow.name ? modelToShow.name : fileName;
             // Create a webview panel to display the rendered Mermaid diagram
             const panel = vscode.window.createWebviewPanel(
                 'modalityVisualization',
@@ -109,10 +122,8 @@ export class ModalityCommands {
                     retainContextWhenHidden: true
                 }
             );
-
             // Generate HTML content with Mermaid rendering
             panel.webview.html = this.getWebviewContent(mermaidContent, modelName);
-            
             vscode.window.showInformationMessage(`Model '${modelName}' visualized successfully!`);
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to visualize model: ${error}`);

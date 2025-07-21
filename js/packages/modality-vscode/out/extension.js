@@ -31,7 +31,7 @@ function activate(context) {
                     const codeLens = new vscode.CodeLens(range, {
                         title: 'Visualize',
                         command: 'modality.visualizeModel',
-                        arguments: []
+                        arguments: [modelName]
                     });
                     codeLenses.push(codeLens);
                 }
@@ -108,19 +108,19 @@ function validateDocument(document, collection) {
         // Basic syntax validation
         if (line.trim() && !line.trim().startsWith('//')) {
             // Check for model declaration
-            if (line.match(/^model\s+[a-zA-Z_][a-zA-Z0-9_]*\s*:/)) {
+            if (line.match(/^\s*model\s+[a-zA-Z_][a-zA-Z0-9_]*\s*:/)) {
                 // Valid model declaration
             }
-            else if (line.match(/^part\s+[a-zA-Z_][a-zA-Z0-9_]*\s*:/)) {
+            else if (line.match(/^\s*part\s+[a-zA-Z_][a-zA-Z0-9_]*\s*:/)) {
                 // Valid part declaration
             }
-            else if (line.match(/^formula\s+[a-zA-Z_][a-zA-Z0-9_]*\s*:/)) {
+            else if (line.match(/^\s*formula\s+[a-zA-Z_][a-zA-Z0-9_]*\s*:/)) {
                 // Valid formula declaration
             }
-            else if (line.match(/^action\s+[a-zA-Z_][a-zA-Z0-9_]*\s*:/)) {
+            else if (line.match(/^\s*action\s+[a-zA-Z_][a-zA-Z0-9_]*\s*:/)) {
                 // Valid action declaration
             }
-            else if (line.match(/^test\s*:/)) {
+            else if (line.match(/^\s*test\s*:/)) {
                 // Valid test declaration
             }
             else if (line.match(/^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*-->\s*[a-zA-Z_][a-zA-Z0-9_]*/)) {
