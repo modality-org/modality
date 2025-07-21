@@ -74,8 +74,7 @@ class ModalityCommands {
             // Use Rust WASM parser for proper stateDiagram-v2 generation
             const lang = await getModalityLang();
             if (!lang) {
-                vscode.window.showErrorMessage('Failed to load modality-lang WASM module');
-                return;
+                throw new Error('Failed to load modality-lang WASM module');
             }
             // Use parse_all_models to get all models
             const models = lang.parse_all_models(content);
@@ -92,8 +91,7 @@ class ModalityCommands {
                 modelToShow = models;
             }
             if (!modelToShow) {
-                vscode.window.showErrorMessage('No model found to visualize.');
-                return;
+                throw new Error('No model found to visualize.');
             }
             const mermaidContent = lang.generate_mermaid(JSON.stringify(modelToShow));
             const modelName = modelToShow && modelToShow.name ? modelToShow.name : fileName;
@@ -107,7 +105,32 @@ class ModalityCommands {
             vscode.window.showInformationMessage(`Model '${modelName}' visualized successfully!`);
         }
         catch (error) {
-            vscode.window.showErrorMessage(`Failed to visualize model: ${error}`);
+            // Show a webview panel with the error details
+            const errorPanel = vscode.window.createWebviewPanel('modalityVisualizationError', 'Modality Visualization Error', vscode.ViewColumn.Beside, {
+                enableScripts: false,
+                retainContextWhenHidden: true
+            });
+            const err = error;
+            errorPanel.webview.html = `
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Modality Visualization Error</title>
+                    <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #fff; color: #c00; padding: 2em; }
+                        h1 { color: #c00; }
+                        pre { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-radius: 4px; padding: 1em; overflow-x: auto; }
+                    </style>
+                </head>
+                <body>
+                    <h1>Visualization Failed</h1>
+                    <p>The model could not be visualized due to the following error:</p>
+                    <pre>${(err && err.stack) ? err.stack : (err && err.message) ? err.message : String(err)}</pre>
+                </body>
+                </html>
+            `;
         }
     }
     async checkFormula() {
