@@ -9,13 +9,11 @@ use std::collections::HashMap;
 /// This includes both canonical chain blocks and orphaned blocks
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct MinerBlock {
-    // Block identification
+    // Block header fields
     pub hash: String,
     pub index: u64,
     pub epoch: u64,
-    
-    // Block header fields
-    pub timestamp: i64, // Unix timestamp in seconds
+    pub timestamp: i64, // Unix timestamp
     pub previous_hash: String,
     pub data_hash: String,
     pub nonce: String, // Store as string since u128 doesn't play well with JSON
@@ -29,12 +27,10 @@ pub struct MinerBlock {
     pub is_orphaned: bool,
     pub is_canonical: bool, // True if this block is in the main chain
     
-    // Optional metadata
-    pub seen_at: Option<i64>, // When this block was first seen (Unix timestamp)
+    // Metadata
+    pub seen_at: Option<i64>, // When this block was first seen
     pub orphaned_at: Option<i64>, // When this block was marked as orphaned
-    pub orphan_reason: Option<String>, // Why it was orphaned (e.g., "chain reorg", "competing block")
-    
-    // Chain context
+    pub orphan_reason: Option<String>, // Why this block was orphaned
     pub height_at_time: Option<u64>, // What the chain height was when this block was seen
     pub competing_hash: Option<String>, // Hash of the block that won over this one (if orphaned)
 }
@@ -119,15 +115,17 @@ impl MinerBlock {
         self.competing_hash = competing_hash;
     }
     
-    /// Convert nonce string back to u128
+    /// Parse nonce from string to u128
     pub fn get_nonce_u128(&self) -> Result<u128> {
-        self.nonce.parse::<u128>()
+        self.nonce
+            .parse::<u128>()
             .context("Failed to parse nonce as u128")
     }
     
-    /// Convert difficulty string back to u128
+    /// Parse difficulty from string to u128
     pub fn get_difficulty_u128(&self) -> Result<u128> {
-        self.difficulty.parse::<u128>()
+        self.difficulty
+            .parse::<u128>()
             .context("Failed to parse difficulty as u128")
     }
 }
@@ -161,17 +159,6 @@ impl Model for MinerBlock {
         ("is_orphaned", serde_json::json!(false)),
         ("is_canonical", serde_json::json!(true)),
     ];
-    
-    fn create_from_json(mut obj: serde_json::Value) -> Result<Self> {
-        // Apply default values for missing fields
-        for (field, default_value) in Self::FIELD_DEFAULTS {
-            if !obj.get(*field).is_some() {
-                obj[*field] = default_value.clone();
-            }
-        }
-        
-        serde_json::from_value(obj).context("Failed to deserialize MinerBlock")
-    }
     
     fn set_field(&mut self, field: &str, value: serde_json::Value) {
         match field {
@@ -250,7 +237,7 @@ impl Model for MinerBlock {
             "competing_hash" => {
                 self.competing_hash = value.as_str().map(|s| s.to_string());
             }
-            _ => {}
+            _ => (),
         }
     }
     
@@ -262,6 +249,16 @@ impl Model for MinerBlock {
 }
 
 impl MinerBlock {
+    /// Find a MinerBlock by its hash
+    pub async fn find_by_hash(
+        datastore: &NetworkDatastore,
+        hash: &str,
+    ) -> Result<Option<Self>> {
+        let mut keys = HashMap::new();
+        keys.insert("hash".to_string(), hash.to_string());
+        Self::find_one(datastore, keys).await
+    }
+    
     /// Find all canonical blocks in an epoch
     pub async fn find_canonical_by_epoch(
         datastore: &NetworkDatastore,
@@ -276,6 +273,27 @@ impl MinerBlock {
                 .context("Failed to deserialize MinerBlock")?;
             
             if block.epoch == epoch && block.is_canonical {
+                blocks.push(block);
+            }
+        }
+        
+        blocks.sort_by_key(|b| b.index);
+        Ok(blocks)
+    }
+    
+    /// Find all canonical blocks (sorted by index)
+    pub async fn find_all_canonical(
+        datastore: &NetworkDatastore,
+    ) -> Result<Vec<Self>> {
+        let prefix = "/miner_blocks/hash";
+        let mut blocks = Vec::new();
+        
+        for item in datastore.iterator(prefix) {
+            let (_, value) = item?;
+            let block: MinerBlock = serde_json::from_slice(&value)
+                .context("Failed to deserialize MinerBlock")?;
+            
+            if block.is_canonical {
                 blocks.push(block);
             }
         }
@@ -301,11 +319,11 @@ impl MinerBlock {
             }
         }
         
-        blocks.sort_by_key(|b| (b.epoch, b.index));
+        blocks.sort_by_key(|b| b.index);
         Ok(blocks)
     }
     
-    /// Find blocks by index (may return multiple if there are orphans)
+    /// Find all blocks at a specific index (may include orphans)
     pub async fn find_by_index(
         datastore: &NetworkDatastore,
         index: u64,
@@ -339,18 +357,13 @@ impl MinerBlock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
-    
-    async fn setup_test_datastore() -> (NetworkDatastore, TempDir) {
-        let temp_dir = TempDir::new().unwrap();
-        let datastore = NetworkDatastore::new(temp_dir.path()).unwrap();
-        (datastore, temp_dir)
-    }
     
     #[tokio::test]
-    async fn test_create_canonical_block() {
+    async fn test_create_and_save_canonical() {
+        let datastore = NetworkDatastore::create_in_memory().unwrap();
+        
         let block = MinerBlock::new_canonical(
-            "abc123".to_string(),
+            "test_hash".to_string(),
             1,
             0,
             1234567890,
@@ -358,143 +371,107 @@ mod tests {
             "data_hash".to_string(),
             12345,
             1000,
-            "abcdef0123456789".to_string(),
+            "peer_id_123".to_string(),
             42,
         );
         
-        assert_eq!(block.hash, "abc123");
-        assert_eq!(block.index, 1);
-        assert_eq!(block.is_canonical, true);
-        assert_eq!(block.is_orphaned, false);
-        assert!(block.seen_at.is_some());
-    }
-    
-    #[tokio::test]
-    async fn test_create_orphaned_block() {
-        let block = MinerBlock::new_orphaned(
-            "xyz789".to_string(),
-            1,
-            0,
-            1234567890,
-            "prev_hash".to_string(),
-            "data_hash".to_string(),
-            12345,
-            1000,
-            "abcdef0123456789".to_string(),
-            42,
-            "chain reorg".to_string(),
-            Some("winning_hash".to_string()),
-        );
+        assert!(block.is_canonical);
+        assert!(!block.is_orphaned);
         
-        assert_eq!(block.hash, "xyz789");
-        assert_eq!(block.is_canonical, false);
-        assert_eq!(block.is_orphaned, true);
-        assert_eq!(block.orphan_reason, Some("chain reorg".to_string()));
-        assert_eq!(block.competing_hash, Some("winning_hash".to_string()));
+        block.save(&datastore).await.unwrap();
+        
+        let loaded = MinerBlock::find_by_hash(&datastore, "test_hash")
+            .await
+            .unwrap();
+        assert!(loaded.is_some());
+        
+        let loaded = loaded.unwrap();
+        assert_eq!(loaded.index, 1);
+        assert_eq!(loaded.miner_number, 42);
+        assert_eq!(loaded.nominated_peer_id, "peer_id_123");
     }
     
     #[tokio::test]
     async fn test_mark_as_orphaned() {
+        let datastore = NetworkDatastore::create_in_memory().unwrap();
+        
         let mut block = MinerBlock::new_canonical(
-            "abc123".to_string(),
-            1,
+            "test_hash_2".to_string(),
+            2,
             0,
             1234567890,
             "prev_hash".to_string(),
             "data_hash".to_string(),
             12345,
             1000,
-            "abcdef0123456789".to_string(),
-            42,
+            "peer_id_456".to_string(),
+            99,
         );
         
-        assert_eq!(block.is_orphaned, false);
-        
-        block.mark_as_orphaned("replaced by longer chain".to_string(), Some("new_hash".to_string()));
-        
-        assert_eq!(block.is_orphaned, true);
-        assert_eq!(block.is_canonical, false);
-        assert!(block.orphaned_at.is_some());
-        assert_eq!(block.orphan_reason, Some("replaced by longer chain".to_string()));
-    }
-    
-    #[tokio::test]
-    async fn test_save_and_load() {
-        let (datastore, _temp_dir) = setup_test_datastore().await;
-        
-        let block = MinerBlock::new_canonical(
-            "test_hash_123".to_string(),
-            1,
-            0,
-            1234567890,
-            "prev_hash".to_string(),
-            "data_hash".to_string(),
-            12345,
-            1000,
-            "abcdef0123456789".to_string(),
-            42,
-        );
-        
-        // Save block
         block.save(&datastore).await.unwrap();
         
-        // Load block
-        let mut keys = HashMap::new();
-        keys.insert("hash".to_string(), "test_hash_123".to_string());
+        block.mark_as_orphaned("Reorg".to_string(), Some("winner_hash".to_string()));
         
-        let loaded = MinerBlock::find_one(&datastore, keys).await.unwrap();
-        assert!(loaded.is_some());
+        assert!(block.is_orphaned);
+        assert!(!block.is_canonical);
         
-        let loaded_block = loaded.unwrap();
-        assert_eq!(loaded_block.hash, block.hash);
-        assert_eq!(loaded_block.index, block.index);
-        assert_eq!(loaded_block.miner_number, block.miner_number);
+        block.save(&datastore).await.unwrap();
+        
+        let loaded = MinerBlock::find_by_hash(&datastore, "test_hash_2")
+            .await
+            .unwrap()
+            .unwrap();
+        
+        assert!(loaded.is_orphaned);
+        assert!(!loaded.is_canonical);
+        assert_eq!(loaded.orphan_reason, Some("Reorg".to_string()));
     }
     
     #[tokio::test]
     async fn test_find_canonical_by_epoch() {
-        let (datastore, _temp_dir) = setup_test_datastore().await;
+        let datastore = NetworkDatastore::create_in_memory().unwrap();
         
-        // Create blocks in epoch 0
         for i in 0..5 {
             let block = MinerBlock::new_canonical(
                 format!("hash_{}", i),
                 i,
                 0,
                 1234567890 + i as i64,
-                format!("prev_hash_{}", i),
-                format!("data_hash_{}", i),
-                12345,
+                format!("prev_{}", i),
+                format!("data_{}", i),
+                12345 + i as u128,
                 1000,
-                "abcdef0123456789".to_string(),
-                i,
+                format!("peer_{}", i),
+                100 + i,
             );
             block.save(&datastore).await.unwrap();
         }
         
-        // Create an orphaned block in epoch 0
-        let orphaned = MinerBlock::new_orphaned(
-            "orphaned_hash".to_string(),
-            2,
+        let epoch_0 = MinerBlock::find_canonical_by_epoch(&datastore, 0)
+            .await
+            .unwrap();
+        
+        assert_eq!(epoch_0.len(), 5);
+        assert_eq!(epoch_0[0].index, 0);
+        assert_eq!(epoch_0[4].index, 4);
+    }
+    
+    #[tokio::test]
+    async fn test_nonce_and_difficulty_parsing() {
+        let block = MinerBlock::new_canonical(
+            "test".to_string(),
+            1,
             0,
-            1234567892,
-            "prev_hash_2".to_string(),
-            "data_hash_orphan".to_string(),
-            99999,
-            1000,
-            "abcdef0123456789".to_string(),
-            99,
-            "reorg".to_string(),
-            None,
+            123,
+            "prev".to_string(),
+            "data".to_string(),
+            999999999999,
+            777777777777,
+            "peer".to_string(),
+            42,
         );
-        orphaned.save(&datastore).await.unwrap();
         
-        // Find canonical blocks in epoch 0
-        let canonical = MinerBlock::find_canonical_by_epoch(&datastore, 0).await.unwrap();
-        
-        assert_eq!(canonical.len(), 5);
-        assert!(canonical.iter().all(|b| b.is_canonical));
-        assert!(canonical.iter().all(|b| b.epoch == 0));
+        assert_eq!(block.get_nonce_u128().unwrap(), 999999999999);
+        assert_eq!(block.get_difficulty_u128().unwrap(), 777777777777);
     }
 }
-

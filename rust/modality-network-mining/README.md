@@ -1,209 +1,352 @@
 # Modality Network Mining
 
-A proof-of-work blockchain implementation for the Modality network, featuring epoch-based difficulty adjustment and hash-tax-based mining.
+A proof-of-work blockchain implementation for the Modality network with epoch-based difficulty adjustment and deterministic nomination shuffling.
 
 ## Features
 
-- **Proof-of-Work Mining**: Uses the hash_tax module for efficient mining
-- **Epoch Management**: 40 blocks per epoch with automatic difficulty adjustment
-- **Ed25519 Public Key System**: Each block records the miner's public key
-- **Arbitrary Miner Number**: Miners can record any number they choose in each block
-- **Difficulty Adjustment**: Dynamic difficulty based on block mining time
-- **Chain Validation**: Comprehensive validation of blocks and chains
+- **Proof-of-Work Mining**: SHA-256 based block mining with configurable difficulty
+- **Epoch-Based Difficulty Adjustment**: Automatic difficulty adjustment every 40 blocks (1 epoch)
+- **Nominated Peer IDs**: Each block nominates a network peer ID for downstream use (e.g., validator selection)
+- **Deterministic Shuffling**: Fisher-Yates shuffle based on XOR of epoch nonces for fair nomination ordering
+- **Persistence Support** (optional): Save and load blockchain data using `NetworkDatastore`
+- **Comprehensive Validation**: Block and chain validation with detailed error reporting
 
 ## Architecture
 
-### Blocks
+### Core Components
 
-Each block contains:
-- **Header**: Index, timestamp, previous hash, data hash, nonce, difficulty, and hash
-- **Block Data**: 
-  - **Nominated Public Key**: Ed25519 public key nominated by the miner (to be used downstream)
-  - **Miner Number**: An arbitrary u64 number selected by the miner
+- **Block**: Contains header (hash, nonce, difficulty) and data (nominated peer ID, miner number)
+- **Blockchain**: Manages the chain of blocks, validation, and mining
+- **Miner**: Handles proof-of-work computation
+- **EpochManager**: Manages difficulty adjustment and nomination shuffling per epoch
+- **Persistence** (optional feature): Save/load blocks to/from NetworkDatastore
 
-### Epochs
+### Block Structure
 
-The blockchain is divided into epochs of 40 blocks each. At the end of each epoch:
+Each block consists of:
 
-**Difficulty Adjustment:**
-- If blocks were mined too quickly, difficulty increases
-- If blocks were mined too slowly, difficulty decreases
-- Target block time is configurable (default: 1 minute per block)
+#### Block Header
+- `index`: Block number in the chain
+- `timestamp`: When the block was created
+- `previous_hash`: Hash of the previous block
+- `data_hash`: Hash of the block data
+- `nonce`: Proof-of-work nonce
+- `difficulty`: Target difficulty for mining
+- `hash`: SHA-256 hash of the block header
 
-**Nomination Shuffling:**
-- All nonces from the epoch are XORed together to create a deterministic seed
-- The 40 nominated public keys are shuffled using the Fisher-Yates algorithm with this seed
-- The shuffled nominations can be used downstream for consensus, governance, or other purposes
-- The shuffle is completely deterministic: same blocks always produce the same shuffle
+#### Block Data
+- **Nominated Peer ID**: Peer ID nominated by the miner (to be used downstream for various purposes)
+- **Miner Number**: An arbitrary u64 number selected by the miner
 
-### Mining
+## Installation
 
-Mining uses the `hash_tax` module from `modality-utils` to find a valid nonce that satisfies the difficulty requirement. The miner:
+Add to your `Cargo.toml`:
 
-1. Creates block data with their public key and chosen number
-2. Finds a nonce that produces a hash below the difficulty target
-3. Returns the mined block with valid nonce and hash
+```toml
+[dependencies]
+modality-network-mining = { path = "../modality-network-mining" }
+
+# With persistence support
+modality-network-mining = { path = "../modality-network-mining", features = ["persistence"] }
+```
 
 ## Usage
 
-### Create a new blockchain
+### Basic Mining (Without Persistence)
 
 ```rust
-use modality_network_mining::{Blockchain, ChainConfig, SigningKey};
+use modality_network_mining::{Blockchain, ChainConfig};
 
-// Generate a signing key for genesis
-let genesis_key = SigningKey::from_bytes(&[1u8; 32]);
-
-// With default configuration
-let mut chain = Blockchain::new_default(genesis_key.verifying_key());
-
-// With custom configuration
+// Create a new blockchain
 let config = ChainConfig {
     initial_difficulty: 1000,
-    target_block_time_secs: 60, // 1 minute
+    target_block_time_secs: 60, // 1 minute per block
 };
-let mut chain = Blockchain::new(config, genesis_key.verifying_key());
+
+let genesis_peer_id = "QmGenesisAbc123...";
+let mut chain = Blockchain::new(config, genesis_peer_id.to_string());
+
+// Mine a block
+let nominated_peer_id = "QmMiner1Def456...";
+let miner_number = 12345;
+
+let block = chain.mine_block(nominated_peer_id.to_string(), miner_number)?;
+println!("Mined block {}: {}", block.header.index, block.header.hash);
 ```
 
-### Mine blocks
+### With Persistence
 
 ```rust
-use modality_network_mining::SigningKey;
+use modality_network_mining::{Blockchain, ChainConfig, BlockchainPersistence};
+use modality_network_datastore::NetworkDatastore;
+use std::sync::Arc;
 
-// Generate a key to nominate
-let nominated_key = SigningKey::from_bytes(&[2u8; 32]);
-
-// Mine a block nominating a public key with an arbitrary number
-let mined_block = chain.mine_block(nominated_key.verifying_key(), 12345)?;
-
-println!("Mined block {} with nominated key and number {}", 
-    mined_block.header.index, 
-    mined_block.data.miner_number
-);
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Create or open datastore
+    let datastore = Arc::new(NetworkDatastore::create_in_directory("./blockchain_data")?);
+    
+    let config = ChainConfig::default();
+    let genesis_peer_id = "QmGenesis...";
+    
+    // Load existing chain or create new
+    let mut chain = Blockchain::load_or_create(
+        config,
+        genesis_peer_id.to_string(),
+        datastore.clone(),
+    ).await?;
+    
+    // Mine blocks with automatic persistence
+    let block = chain.mine_block_with_persistence(
+        "QmMiner1...".to_string(),
+        42,
+    ).await?;
+    
+    println!("Block persisted: {}", block.header.hash);
+    
+    // Query persisted blocks
+    let canonical = datastore.load_canonical_blocks().await?;
+    println!("Total canonical blocks: {}", canonical.len());
+    
+    Ok(())
+}
 ```
 
-### Query the chain
+### Epoch-Based Nomination Shuffling
 
 ```rust
-// Get blockchain height
-let height = chain.height();
+// Mine a complete epoch (40 blocks)
+for i in 0..40 {
+    let peer_id = format!("QmMiner{}", i);
+    chain.mine_block(peer_id, 1000 + i)?;
+}
 
-// Get current epoch
-let epoch = chain.current_epoch();
-
-// Count blocks that nominated a specific public key
-let nominated_key = SigningKey::from_bytes(&[2u8; 32]);
-let count = chain.count_blocks_by_nominated_key(&nominated_key.verifying_key());
-
-// Get all blocks that nominated a key
-let blocks = chain.get_blocks_by_nominated_key(&nominated_key.verifying_key());
-
-// Get block by hash
-let block = chain.get_block_by_hash("block_hash");
-
-// Get all blocks in an epoch
-let epoch_blocks = chain.get_epoch_blocks(0);
-
-// Get shuffled nominations for a complete epoch
+// Get shuffled nominations for epoch 0
 if let Some(shuffled) = chain.get_epoch_shuffled_nominations(0) {
-    // Returns Vec<(block_index, nominated_key)> in shuffled order
-    for (idx, key) in shuffled.iter().take(10) {
-        println!("Position in shuffle: {}, Original block: {}", idx, idx);
+    // Returns Vec<(block_index, nominated_peer_id)> in shuffled order
+    for (idx, peer_id) in shuffled.iter().take(10) {
+        println!("Position {}: Block {} nominated {}", idx, idx, peer_id);
     }
 }
 
-// Get just the shuffled keys (without indices)
-if let Some(keys) = chain.get_epoch_shuffled_keys(0) {
-    println!("Got {} shuffled keys", keys.len());
+// Or just get the shuffled peer IDs
+if let Some(peer_ids) = chain.get_epoch_shuffled_peer_ids(0) {
+    println!("Shuffled peer IDs: {:?}", peer_ids);
 }
-
-// Validate entire chain
-chain.validate_chain()?;
 ```
 
-### Direct mining
+### Query the Chain
 
 ```rust
-use modality_network_mining::{Block, BlockData, Miner, SigningKey};
+// Get blocks by nominated peer ID
+let peer_id = "QmMiner1...";
+let blocks = chain.get_blocks_by_nominated_peer(peer_id);
+let count = chain.count_blocks_by_nominated_peer(peer_id);
 
-// Create a miner
+// Get blocks by epoch
+let epoch_0_blocks = chain.get_epoch_blocks(0);
+
+// Get specific blocks
+let latest = chain.latest_block();
+let genesis = chain.get_block_by_index(0);
+let by_hash = chain.get_block_by_hash("block_hash_here");
+
+// Chain info
+let height = chain.height();
+let current_epoch = chain.current_epoch();
+let next_difficulty = chain.get_next_difficulty();
+```
+
+### Validation
+
+```rust
+// Validate entire chain
+match chain.validate_chain() {
+    Ok(_) => println!("Chain is valid!"),
+    Err(e) => eprintln!("Chain validation failed: {}", e),
+}
+
+// Direct mining with validation
+use modality_network_mining::{Block, BlockData, Miner};
+
 let miner = Miner::new_default();
-
-// Create key to nominate
-let nominated_key = SigningKey::from_bytes(&[2u8; 32]);
-
-// Create block data with nominated key
-let data = BlockData::new(nominated_key.verifying_key(), 12345);
-
-// Create a block
+let data = BlockData::new("QmMiner...".to_string(), 999);
 let block = Block::new(1, "prev_hash".to_string(), data, 1000);
 
-// Mine it
+// Mine and verify
 let mined_block = miner.mine_block(block)?;
-
-// Verify it
 assert!(miner.verify_block(&mined_block)?);
 ```
 
-## Block Data Structure
+## Epoch Management
 
-The key innovation is that **blocks do not store transactions**. Instead, each block records:
+An **epoch** is a period of 40 blocks. At the end of each epoch:
 
-1. **Nominated Public Key**: An Ed25519 public key chosen by the miner (to be used downstream for various purposes)
-2. **Arbitrary Number**: Any u64 number the miner chooses to include
+1. **Difficulty Adjustment**: Based on actual vs. target block time
+2. **Nomination Shuffling**: Deterministic shuffle of nominated peer IDs using XOR of all nonces as seed
 
-This design allows for:
-- Miners to nominate any public key they choose
-- The nominated key can be used downstream for consensus, governance, or other purposes
-- Flexible use cases where the "miner number" can represent various things
-- Minimal block size
-- Easy tracking of nomination statistics per public key
+### Difficulty Adjustment
 
-## Configuration
+- If blocks are mined **faster** than target → difficulty **increases** (up to 2x)
+- If blocks are mined **slower** than target → difficulty **decreases** (down to 0.5x)
+- Smoothed using exponential moving average
 
-### Chain Configuration
+### Nomination Shuffling
 
-- `initial_difficulty`: Starting difficulty for the chain
-- `target_block_time_secs`: Target time between blocks (affects difficulty adjustment)
+The shuffling process:
+1. XOR all nonces from blocks in the epoch to create a seed
+2. Use seed for deterministic Fisher-Yates shuffle
+3. Output is a shuffled list of (block_index, peer_id) pairs
 
-### Epoch Configuration
+This can be used for:
+- Validator selection
+- Consensus participation
+- Reward distribution
+- Governance voting order
 
-- `blocks_per_epoch`: Number of blocks per epoch (default: 40)
-- `target_block_time_secs`: Target block time
-- `initial_difficulty`: Starting difficulty
-- `min_difficulty` / `max_difficulty`: Bounds for difficulty adjustment
+## Persistence
 
-### Miner Configuration
+The optional `persistence` feature integrates with `modality-network-datastore`:
 
-- `max_tries`: Maximum attempts to find a valid nonce
-- `hash_func_name`: Hash function to use (default: "sha256")
+```bash
+# Build with persistence
+cargo build --features persistence
+
+# Run tests with persistence
+cargo test --features persistence
+
+# Run persistence example
+cargo run --example persistence_demo --features persistence
+```
+
+### Persistence API
+
+```rust
+// Trait: BlockchainPersistence (implemented for NetworkDatastore)
+trait BlockchainPersistence {
+    async fn save_block(&self, block: &Block, epoch: u64) -> Result<()>;
+    async fn load_canonical_blocks(&self) -> Result<Vec<Block>>;
+    async fn load_epoch_blocks(&self, epoch: u64) -> Result<Vec<Block>>;
+    async fn mark_block_orphaned(&self, block_hash: &str, reason: String, ...) -> Result<()>;
+}
+
+// Blockchain methods with persistence
+chain.mine_block_with_persistence(peer_id, number).await?;
+chain.add_block_with_persistence(block).await?;
+Blockchain::load_or_create(config, genesis_peer_id, datastore).await?;
+```
 
 ## Examples
 
-See the `examples` directory for comprehensive examples:
-- `basic_usage.rs`: Creating chains, mining blocks, and querying data
-- `epoch_shuffle_demo.rs`: Demonstrating epoch-based nomination shuffling
+Run the examples:
 
-Run an example:
 ```bash
-cargo run --package modality-network-mining --example basic_usage
-cargo run --package modality-network-mining --example epoch_shuffle_demo
+# Basic blockchain usage
+cargo run --example basic_usage
+
+# Epoch shuffling demonstration
+cargo run --example epoch_shuffle_demo
+
+# Persistence demo (requires persistence feature)
+cargo run --example persistence_demo --features persistence
+```
+
+## Configuration
+
+```rust
+pub struct ChainConfig {
+    /// Initial difficulty for mining
+    pub initial_difficulty: u128,
+    
+    /// Target time between blocks in seconds
+    pub target_block_time_secs: u64,
+}
+
+impl Default for ChainConfig {
+    fn default() -> Self {
+        Self {
+            initial_difficulty: 1000,
+            target_block_time_secs: 60, // 1 minute
+        }
+    }
+}
+
+pub struct MinerConfig {
+    /// Maximum attempts before giving up
+    pub max_nonce: u128,
+}
+```
+
+## Constants
+
+```rust
+/// The number of blocks in each epoch
+pub const BLOCKS_PER_EPOCH: u64 = 40;
+```
+
+## Error Handling
+
+```rust
+pub enum MiningError {
+    MiningFailed(String),
+    InvalidBlock(String),
+    InvalidChain(String),
+    BlockNotFound(String),
+    InvalidNonce,
+    SerializationError(String),
+    HashError(String),
+    PersistenceError(String), // Only with persistence feature
+}
 ```
 
 ## Testing
 
-Run the test suite:
-
 ```bash
-cargo test --package modality-network-mining
+# Run all tests (without persistence)
+cargo test
+
+# Run with persistence tests
+cargo test --features persistence
+
+# Run specific test
+cargo test test_full_blockchain_lifecycle
 ```
 
-Run with output:
+## Performance
 
-```bash
-cargo test --package modality-network-mining -- --nocapture
-```
+- **Mining**: Variable based on difficulty. Lower difficulty = faster mining.
+- **Validation**: O(n) for chain validation, O(1) for single block
+- **Epoch Operations**: O(n) where n = BLOCKS_PER_EPOCH (40)
+- **Persistence**: Async I/O with RocksDB backend
+
+## Use Cases
+
+1. **Network Validator Selection**: Use shuffled nominations to determine validator sets
+2. **Consensus Mechanism**: Proof-of-work provides Sybil resistance
+3. **Reward Distribution**: Track miner contributions via nominated peer IDs
+4. **Governance**: Use shuffle order for proposal voting
+5. **Timestamping**: Immutable record of events
+
+## Dependencies
+
+- `sha2`: SHA-256 hashing
+- `chrono`: Timestamp handling
+- `serde`/`serde_json`: Serialization
+- `thiserror`: Error handling
+- `modality-utils`: Fisher-Yates shuffle and utilities
+- `modality-network-datastore`: Optional persistence (feature-gated)
+- `async-trait`, `tokio`: Optional async support (feature-gated)
 
 ## License
 
 MIT
+
+## Contributing
+
+See [CONTRIBUTING.md](../../CONTRIBUTING.md)
+
+## Related Packages
+
+- `modality-network-datastore`: Persistent storage for blockchain data
+- `modality-network-consensus`: Consensus mechanisms using mining data
+- `modality-utils`: Shared utilities including crypto functions

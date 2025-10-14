@@ -30,6 +30,9 @@ pub struct Blockchain {
     pub config: ChainConfig,
     pub genesis_peer_id: String,
     block_index: HashMap<String, usize>, // hash -> index mapping
+    
+    #[cfg(feature = "persistence")]
+    datastore: Option<std::sync::Arc<modality_network_datastore::NetworkDatastore>>,
 }
 
 impl Blockchain {
@@ -52,12 +55,98 @@ impl Blockchain {
             config,
             genesis_peer_id,
             block_index,
+            #[cfg(feature = "persistence")]
+            datastore: None,
         }
     }
     
     /// Create a new blockchain with default configuration
     pub fn new_default(genesis_peer_id: String) -> Self {
         Self::new(ChainConfig::default(), genesis_peer_id)
+    }
+    
+    #[cfg(feature = "persistence")]
+    /// Create a new blockchain with persistence support
+    pub fn new_with_datastore(
+        config: ChainConfig,
+        genesis_peer_id: String,
+        datastore: std::sync::Arc<modality_network_datastore::NetworkDatastore>,
+    ) -> Self {
+        let epoch_manager = EpochManager::new(
+            40, // BLOCKS_PER_EPOCH
+            config.target_block_time_secs,
+            config.initial_difficulty,
+        );
+        
+        let genesis = Block::genesis(config.initial_difficulty, genesis_peer_id.clone());
+        let mut block_index = HashMap::new();
+        block_index.insert(genesis.header.hash.clone(), 0);
+        
+        Self {
+            blocks: vec![genesis],
+            epoch_manager,
+            miner: Miner::new_default(),
+            config,
+            genesis_peer_id,
+            block_index,
+            datastore: Some(datastore),
+        }
+    }
+    
+    #[cfg(feature = "persistence")]
+    /// Load blockchain from datastore, or create genesis if empty
+    pub async fn load_or_create(
+        config: ChainConfig,
+        genesis_peer_id: String,
+        datastore: std::sync::Arc<modality_network_datastore::NetworkDatastore>,
+    ) -> Result<Self, MiningError> {
+        use crate::persistence::BlockchainPersistence;
+        
+        // Try to load existing blocks
+        let loaded_blocks = datastore.load_canonical_blocks().await?;
+        
+        if loaded_blocks.is_empty() {
+            // No existing blocks, create genesis
+            let chain = Self::new_with_datastore(config, genesis_peer_id, datastore.clone());
+            
+            // Save genesis block
+            let genesis = chain.blocks[0].clone();
+            datastore.save_block(&genesis, 0).await?;
+            
+            Ok(chain)
+        } else {
+            // Load existing blockchain
+            let epoch_manager = EpochManager::new(
+                40,
+                config.target_block_time_secs,
+                config.initial_difficulty,
+            );
+            
+            let mut block_index = HashMap::new();
+            for (idx, block) in loaded_blocks.iter().enumerate() {
+                block_index.insert(block.header.hash.clone(), idx);
+            }
+            
+            Ok(Self {
+                blocks: loaded_blocks,
+                epoch_manager,
+                miner: Miner::new_default(),
+                config,
+                genesis_peer_id,
+                block_index,
+                datastore: Some(datastore),
+            })
+        }
+    }
+    
+    #[cfg(feature = "persistence")]
+    /// Set the datastore for persistence
+    pub fn with_datastore(
+        mut self,
+        datastore: std::sync::Arc<modality_network_datastore::NetworkDatastore>,
+    ) -> Self {
+        self.datastore = Some(datastore);
+        self
     }
     
     /// Get the latest block in the chain
@@ -83,7 +172,7 @@ impl Blockchain {
     }
     
     /// Mine a new block with the provided block data
-    /// 
+    ///
     /// # Arguments
     /// * `nominated_peer_id` - The peer ID being nominated (to be used downstream)
     /// * `miner_number` - An arbitrary number chosen by the miner
@@ -116,10 +205,64 @@ impl Blockchain {
         Ok(mined_block)
     }
     
+    #[cfg(feature = "persistence")]
+    /// Mine a new block and persist it to the datastore
+    pub async fn mine_block_with_persistence(
+        &mut self,
+        nominated_peer_id: String,
+        miner_number: u64,
+    ) -> Result<Block, MiningError> {
+        let next_index = self.height() + 1;
+        let next_difficulty = self.get_next_difficulty();
+        let previous_hash = self.latest_block().header.hash.clone();
+        
+        // Create block data with nominated peer ID
+        let block_data = BlockData::new(nominated_peer_id, miner_number);
+        
+        // Create new block
+        let block = Block::new(
+            next_index,
+            previous_hash,
+            block_data,
+            next_difficulty,
+        );
+        
+        // Mine the block
+        let mined_block = self.miner.mine_block(block)?;
+        
+        // Add to chain with persistence
+        self.add_block_with_persistence(mined_block.clone()).await?;
+        
+        Ok(mined_block)
+    }
+    
     /// Add a pre-mined block to the chain
     pub fn add_block(&mut self, block: Block) -> Result<(), MiningError> {
         // Validate the block
         self.validate_block(&block)?;
+        
+        // Add to index
+        self.block_index
+            .insert(block.header.hash.clone(), self.blocks.len());
+        
+        // Add to chain
+        self.blocks.push(block);
+        
+        Ok(())
+    }
+    
+    #[cfg(feature = "persistence")]
+    /// Add a block and persist it to the datastore
+    pub async fn add_block_with_persistence(&mut self, block: Block) -> Result<(), MiningError> {
+        // Validate the block
+        self.validate_block(&block)?;
+        
+        // Save to datastore if available
+        if let Some(ref datastore) = self.datastore {
+            use crate::persistence::BlockchainPersistence;
+            let epoch = self.epoch_manager.get_epoch(block.header.index);
+            datastore.save_block(&block, epoch).await?;
+        }
         
         // Add to index
         self.block_index

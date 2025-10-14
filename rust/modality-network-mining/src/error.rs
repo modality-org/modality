@@ -22,5 +22,8 @@ pub enum MiningError {
     
     #[error("Hash error: {0}")]
     HashError(String),
+    
+    #[error("Persistence error: {0}")]
+    PersistenceError(String),
 }
 
