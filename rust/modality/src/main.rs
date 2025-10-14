@@ -58,6 +58,9 @@ enum NetworkCommands {
     #[command(alias = "run_node")]
     RunNode(cmds::net::run_node::Opts),
 
+    #[command(about = "Run a mining node")]
+    RunMiner(cmds::net::run_miner::Opts),
+
     #[clap(name = "ping")]
     Ping(cmds::net::ping::Opts),
 
@@ -109,6 +112,7 @@ async fn main() -> Result<()> {
         Commands::Net { command } => {
             match command {
                 NetworkCommands::RunNode(opts) => cmds::net::run_node::run(opts).await?,
+                NetworkCommands::RunMiner(opts) => cmds::net::run_miner::run(opts).await?,
                 NetworkCommands::Ping(opts) => cmds::net::ping::run(opts).await?,
                 NetworkCommands::Storage(opts) => cmds::net::storage::run(opts).await?,
                 NetworkCommands::Mining { command } => {
