@@ -3,3 +3,4 @@ alwaysApply: true
 ---
 
 - After editing a package, make sure all its tests and examples are passing.
+- Keep code within the modality cli package as minimal as possible, refactoring code into other packages as needed.

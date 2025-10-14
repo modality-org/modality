@@ -15,6 +15,7 @@ readme = "../README.md"
 [dependencies]
 modality-utils = { path = "../modality-utils", version = "0.1.6" }
 modality-network-node = { path = "../modality-network-node", version = "0.1.6" }
+modality-network-datastore = { path = "../modality-network-datastore", version = "0.1.0" }
 modality-lang = { path = "../modality-lang", version = "0.1.6" }
 anyhow = "1.0"
 clap = { version = "4.1.11", features = ["cargo", "derive", "env"] }
@@ -28,3 +29,4 @@ dirs = "5.0"
 env_logger = "0.11.5"
 log = "0.4.17"
 rand = "0.8"
+chrono = "0.4"

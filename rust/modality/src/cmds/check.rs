@@ -86,7 +86,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     println!("");
     println!("📍 Satisfying states ({}):", result.satisfying_states.len());
     for state in &result.satisfying_states {
-        println!("   - {}.{}", state.graph_name, state.node_name);
+        println!("   - {}.{}", state.part_name, state.node_name);
     }
     
     Ok(())

@@ -61,8 +61,23 @@ enum NetworkCommands {
     #[clap(name = "ping")]
     Ping(cmds::net::ping::Opts),
 
+    #[command(about = "Inspect network datastore and show statistics")]
+    Storage(cmds::net::storage::Opts),
+
+    #[command(about = "Mining related commands")]
+    Mining {
+        #[command(subcommand)]
+        command: MiningCommands,
+    },
+
     // #[clap(name = "request")]
     // Request(cmds::node::request::Opts)
+}
+
+#[derive(Subcommand)]
+enum MiningCommands {
+    #[command(about = "Sync miner blocks from a specified node")]
+    Sync(cmds::net::mining::sync::Opts),
 }
 
 #[derive(Subcommand)]
@@ -95,6 +110,12 @@ async fn main() -> Result<()> {
             match command {
                 NetworkCommands::RunNode(opts) => cmds::net::run_node::run(opts).await?,
                 NetworkCommands::Ping(opts) => cmds::net::ping::run(opts).await?,
+                NetworkCommands::Storage(opts) => cmds::net::storage::run(opts).await?,
+                NetworkCommands::Mining { command } => {
+                    match command {
+                        MiningCommands::Sync(opts) => cmds::net::mining::sync::run(opts).await?,
+                    }
+                }
             }
         }
         Commands::Model { command } => {
