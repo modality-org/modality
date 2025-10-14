@@ -61,3 +61,7 @@ ctrlc = "3.4.5"
 modality-utils = { path = "../modality-utils", version = "0.1.6" }
 modality-network-consensus = { path = "../modality-network-consensus", version = "0.1.0" }
 modality-network-datastore = { path = "../modality-network-datastore", version = "0.1.0" }
+modality-network-mining = { path = "../modality-network-mining", version = "0.1.0", features = ["persistence"] }
+
+[dev-dependencies]
+tempfile = "3.5"

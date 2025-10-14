@@ -59,6 +59,18 @@ pub async fn handle_request(req: Request, datastore: &mut NetworkDatastore, cons
         "/consensus/block/ack" => {
             consensus::block::ack::handler(Some(data.clone()), datastore, consensus_tx).await?
         }
+        "/data/miner_block/get" => {
+            reqres_data::miner_block::get::handler(Some(data.clone()), datastore).await?
+        }
+        "/data/miner_block/canonical" => {
+            reqres_data::miner_block::list_canonical::handler(Some(data.clone()), datastore).await?
+        }
+        "/data/miner_block/epoch" => {
+            reqres_data::miner_block::by_epoch::handler(Some(data.clone()), datastore).await?
+        }
+        "/data/miner_block/range" => {
+            reqres_data::miner_block::range::handler(Some(data.clone()), datastore).await?
+        }
         _ => {
             Response {
                 ok: false,
