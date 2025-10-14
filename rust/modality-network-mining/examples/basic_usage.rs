@@ -1,12 +1,12 @@
-use modality_network_mining::{Blockchain, ChainConfig, SigningKey};
+use modality_network_mining::{Blockchain, ChainConfig};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Modality Network Mining Example ===\n");
 
-    // Create signing keys
-    let genesis_key = SigningKey::from_bytes(&[1u8; 32]);
-    let nominated_key1 = SigningKey::from_bytes(&[2u8; 32]);
-    let nominated_key2 = SigningKey::from_bytes(&[3u8; 32]);
+    // Define peer IDs for the blockchain
+    let genesis_peer_id = "QmGenesis123456789abcdef";
+    let nominated_peer_id1 = "QmMiner1aaaabbbbccccdddd";
+    let nominated_peer_id2 = "QmMiner2eeeeffffgggghhh";
 
     // Create a new blockchain with custom configuration
     let config = ChainConfig {
@@ -14,24 +14,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         target_block_time_secs: 60, // 1 minute per block
     };
 
-    let mut chain = Blockchain::new(config, genesis_key.verifying_key());
+    let mut chain = Blockchain::new(config, genesis_peer_id.to_string());
     println!("✓ Created new blockchain");
     println!("  Genesis block hash: {}", chain.latest_block().header.hash);
+    println!("  Genesis peer ID: {}", genesis_peer_id);
     println!("  Height: {}", chain.height());
     println!("  Current epoch: {}\n", chain.current_epoch());
 
-    // Mine a block nominating key1
-    println!("⛏ Mining block 1 (nominating key1, number: 12345)...");
+    // Mine a block nominating peer1
+    println!("⛏ Mining block 1 (nominating peer1, number: 12345)...");
     let start = std::time::Instant::now();
-    let block = chain.mine_block(nominated_key1.verifying_key(), 12345)?;
+    let block = chain.mine_block(nominated_peer_id1.to_string(), 12345)?;
     let duration = start.elapsed();
-    
+
     println!("✓ Block mined successfully!");
     println!("  Hash: {}", block.header.hash);
     println!("  Nonce: {}", block.header.nonce);
     println!("  Difficulty: {}", block.header.difficulty);
     println!("  Miner number: {}", block.data.miner_number);
-    println!("  Nominated public key: {}", hex::encode(block.data.nominated_public_key.to_bytes()));
+    println!("  Nominated peer ID: {}", block.data.nominated_peer_id);
     println!("  Time taken: {:?}", duration);
     println!("  Height: {}", chain.height());
 
@@ -39,28 +40,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n⛏ Mining more blocks with different nominations...");
     for i in 2..=5 {
         let miner_num = 10000 + i;
-        let nominated_key = if i % 2 == 0 { &nominated_key1 } else { &nominated_key2 };
-        let key_name = if i % 2 == 0 { "key1" } else { "key2" };
-        
-        let block = chain.mine_block(nominated_key.verifying_key(), miner_num)?;
-        println!("  Block {}: {} (epoch {}, nominated: {}, number: {})", 
-            block.header.index, 
-            &block.header.hash[..16], 
+        let nominated_peer = if i % 2 == 0 { nominated_peer_id1 } else { nominated_peer_id2 };
+        let peer_name = if i % 2 == 0 { "peer1" } else { "peer2" };
+
+        let block = chain.mine_block(nominated_peer.to_string(), miner_num)?;
+        println!("  Block {}: {} (epoch {}, nominated: {}, number: {})",
+            block.header.index,
+            &block.header.hash[..16],
             chain.epoch_manager.get_epoch(block.header.index),
-            key_name,
+            peer_name,
             block.data.miner_number
         );
     }
 
     // Check nomination statistics
     println!("\n📊 Nomination Statistics:");
-    let key1_count = chain.count_blocks_by_nominated_key(&nominated_key1.verifying_key());
-    let key2_count = chain.count_blocks_by_nominated_key(&nominated_key2.verifying_key());
-    let genesis_count = chain.count_blocks_by_nominated_key(&genesis_key.verifying_key());
-    
-    println!("  Blocks nominating key1: {}", key1_count);
-    println!("  Blocks nominating key2: {}", key2_count);
-    println!("  Blocks nominating genesis key: {}", genesis_count);
+    let peer1_count = chain.count_blocks_by_nominated_peer(nominated_peer_id1);
+    let peer2_count = chain.count_blocks_by_nominated_peer(nominated_peer_id2);
+    let genesis_count = chain.count_blocks_by_nominated_peer(genesis_peer_id);
+
+    println!("  Blocks nominating peer1: {}", peer1_count);
+    println!("  Blocks nominating peer2: {}", peer2_count);
+    println!("  Blocks nominating genesis peer: {}", genesis_count);
 
     // Validate the entire chain
     println!("\n✓ Validating blockchain...");
@@ -87,11 +88,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    // Get blocks by nominated key
-    println!("\n📦 Blocks nominating key1:");
-    let key1_blocks = chain.get_blocks_by_nominated_key(&nominated_key1.verifying_key());
-    for block in key1_blocks {
-        println!("    Block {}: miner_number = {}", 
+    // Get blocks by nominated peer
+    println!("\n📦 Blocks nominating peer1:");
+    let peer1_blocks = chain.get_blocks_by_nominated_peer(nominated_peer_id1);
+    for block in peer1_blocks {
+        println!("    Block {}: miner_number = {}",
             block.header.index,
             block.data.miner_number
         );

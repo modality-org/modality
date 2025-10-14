@@ -1,10 +1,10 @@
-use modality_network_mining::{Blockchain, ChainConfig, SigningKey};
+use modality_network_mining::{Blockchain, ChainConfig};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Epoch Nomination Shuffling Demo ===\n");
 
-    // Create genesis key
-    let genesis_key = SigningKey::from_bytes(&[1u8; 32]);
+    // Define genesis peer ID
+    let genesis_peer_id = "QmGenesisAbcd1234567890";
 
     // Create a blockchain with low difficulty for fast mining
     let config = ChainConfig {
@@ -12,30 +12,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         target_block_time_secs: 60,
     };
 
-    let mut chain = Blockchain::new(config, genesis_key.verifying_key());
+    let mut chain = Blockchain::new(config, genesis_peer_id.to_string());
     println!("✓ Created blockchain with genesis block");
+    println!("  Genesis peer ID: {}", genesis_peer_id);
     println!("  Blocks per epoch: {}\n", chain.epoch_manager.blocks_per_epoch);
 
-    // Create different keys to nominate
-    println!("Creating 10 different keys for nominations...");
-    let keys: Vec<SigningKey> = (0..10)
-        .map(|i| SigningKey::from_bytes(&[(i + 10) as u8; 32]))
+    // Create different peer IDs to nominate
+    println!("Creating 10 different peer IDs for nominations...");
+    let peer_ids: Vec<String> = (0..10)
+        .map(|i| format!("QmMiner{}xxyyzz{:08x}", i, i * 12345))
         .collect();
 
     // Mine 39 blocks to complete epoch 0 (genesis + 39 = 40 total)
     println!("⛏ Mining 39 blocks to complete epoch 0...\n");
     
     for i in 0..39 {
-        // Cycle through keys for nominations
-        let nominated_key = &keys[i % keys.len()];
+        // Cycle through peer IDs for nominations
+        let nominated_peer_id = &peer_ids[i % peer_ids.len()];
         let miner_number = 1000 + i as u64;
         
-        let block = chain.mine_block(nominated_key.verifying_key(), miner_number)?;
+        let block = chain.mine_block(nominated_peer_id.clone(), miner_number)?;
         
         if i < 5 || i >= 34 {
-            println!("  Block {}: nominated key {}, number {}, nonce {}",
+            println!("  Block {}: nominated peer {}, number {}, nonce {}",
                 block.header.index,
-                i % keys.len(),
+                i % peer_ids.len(),
                 miner_number,
                 block.header.nonce
             );
@@ -53,9 +54,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Original nomination order (first 10 blocks):");
     let epoch_blocks = chain.get_epoch_blocks(0);
     for (i, block) in epoch_blocks.iter().take(10).enumerate() {
-        let key_bytes = block.data.nominated_public_key.to_bytes();
-        println!("  Block {}: key starting with {:02x}{:02x}..., number {}",
-            i, key_bytes[0], key_bytes[1], block.data.miner_number);
+        let peer_id = &block.data.nominated_peer_id;
+        println!("  Block {}: peer {} (number {})",
+            i, &peer_id[..20], block.data.miner_number);
     }
 
     // Calculate and show the epoch seed
@@ -68,22 +69,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match chain.get_epoch_shuffled_nominations(0) {
         Some(shuffled) => {
             println!("🔀 Shuffled nominations (first 10 of 40):");
-            for (i, (original_idx, key)) in shuffled.iter().take(10).enumerate() {
-                let key_bytes = key.to_bytes();
+            for (i, (original_idx, peer_id)) in shuffled.iter().take(10).enumerate() {
                 let block = &epoch_blocks[*original_idx];
-                println!("  Position {}: Block {} (key {:02x}{:02x}..., number {})",
-                    i, original_idx, key_bytes[0], key_bytes[1], block.data.miner_number);
+                println!("  Position {}: Block {} (peer {}..., number {})",
+                    i, original_idx, &peer_id[..20], block.data.miner_number);
             }
 
             println!("\n  ... and 30 more shuffled nominations ...");
 
             // Show last 5
             println!("\n🔀 Last 5 shuffled nominations:");
-            for (i, (original_idx, key)) in shuffled.iter().skip(35).enumerate() {
-                let key_bytes = key.to_bytes();
+            for (i, (original_idx, peer_id)) in shuffled.iter().skip(35).enumerate() {
                 let block = &epoch_blocks[*original_idx];
-                println!("  Position {}: Block {} (key {:02x}{:02x}..., number {})",
-                    35 + i, original_idx, key_bytes[0], key_bytes[1], block.data.miner_number);
+                println!("  Position {}: Block {} (peer {}..., number {})",
+                    35 + i, original_idx, &peer_id[..20], block.data.miner_number);
             }
 
             // Verify determinism
@@ -93,14 +92,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("  ✓ Shuffle is deterministic (same result on repeated calls)");
             }
 
-            // Get just the keys
-            let shuffled_keys = chain.get_epoch_shuffled_keys(0).unwrap();
-            println!("\n📋 Shuffled keys can be used for:");
+            // Get just the peer IDs
+            let shuffled_peer_ids = chain.get_epoch_shuffled_peer_ids(0).unwrap();
+            println!("\n📋 Shuffled peer IDs can be used for:");
             println!("  - Validator selection");
             println!("  - Consensus participation");
             println!("  - Reward distribution");
             println!("  - Governance voting order");
-            println!("\n  Total shuffled keys: {}", shuffled_keys.len());
+            println!("\n  Total shuffled peer IDs: {}", shuffled_peer_ids.len());
         }
         None => {
             println!("⚠ Epoch 0 is not complete yet");
