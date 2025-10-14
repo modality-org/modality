@@ -23,11 +23,18 @@ Each block contains:
 
 ### Epochs
 
-The blockchain is divided into epochs of 40 blocks each. At the end of each epoch, the difficulty is automatically adjusted based on how quickly blocks were mined:
+The blockchain is divided into epochs of 40 blocks each. At the end of each epoch:
 
+**Difficulty Adjustment:**
 - If blocks were mined too quickly, difficulty increases
 - If blocks were mined too slowly, difficulty decreases
 - Target block time is configurable (default: 1 minute per block)
+
+**Nomination Shuffling:**
+- All nonces from the epoch are XORed together to create a deterministic seed
+- The 40 nominated public keys are shuffled using the Fisher-Yates algorithm with this seed
+- The shuffled nominations can be used downstream for consensus, governance, or other purposes
+- The shuffle is completely deterministic: same blocks always produce the same shuffle
 
 ### Mining
 
@@ -97,6 +104,19 @@ let block = chain.get_block_by_hash("block_hash");
 // Get all blocks in an epoch
 let epoch_blocks = chain.get_epoch_blocks(0);
 
+// Get shuffled nominations for a complete epoch
+if let Some(shuffled) = chain.get_epoch_shuffled_nominations(0) {
+    // Returns Vec<(block_index, nominated_key)> in shuffled order
+    for (idx, key) in shuffled.iter().take(10) {
+        println!("Position in shuffle: {}, Original block: {}", idx, idx);
+    }
+}
+
+// Get just the shuffled keys (without indices)
+if let Some(keys) = chain.get_epoch_shuffled_keys(0) {
+    println!("Got {} shuffled keys", keys.len());
+}
+
 // Validate entire chain
 chain.validate_chain()?;
 ```
@@ -162,10 +182,12 @@ This design allows for:
 
 See the `examples` directory for comprehensive examples:
 - `basic_usage.rs`: Creating chains, mining blocks, and querying data
+- `epoch_shuffle_demo.rs`: Demonstrating epoch-based nomination shuffling
 
 Run an example:
 ```bash
 cargo run --package modality-network-mining --example basic_usage
+cargo run --package modality-network-mining --example epoch_shuffle_demo
 ```
 
 ## Testing

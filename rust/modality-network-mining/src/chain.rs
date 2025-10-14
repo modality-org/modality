@@ -258,6 +258,32 @@ impl Blockchain {
             .collect()
     }
     
+    /// Get shuffled nominations for a specific epoch
+    /// 
+    /// Returns the nominated public keys from the epoch in shuffled order.
+    /// The shuffle is deterministic, based on XORing all nonces from the epoch.
+    /// 
+    /// Returns None if the epoch is not complete (doesn't have all blocks yet)
+    pub fn get_epoch_shuffled_nominations(&self, epoch: u64) -> Option<Vec<(usize, VerifyingKey)>> {
+        let epoch_blocks = self.get_epoch_blocks(epoch);
+        
+        // Only return shuffled nominations if the epoch is complete
+        if epoch_blocks.len() < self.epoch_manager.blocks_per_epoch as usize {
+            return None;
+        }
+        
+        // Convert references to owned blocks for the epoch manager
+        let owned_blocks: Vec<Block> = epoch_blocks.into_iter().cloned().collect();
+        
+        Some(self.epoch_manager.get_shuffled_nominations(&owned_blocks))
+    }
+    
+    /// Get shuffled nominated keys for a specific epoch (without indices)
+    pub fn get_epoch_shuffled_keys(&self, epoch: u64) -> Option<Vec<VerifyingKey>> {
+        self.get_epoch_shuffled_nominations(epoch)
+            .map(|nominations| nominations.into_iter().map(|(_, key)| key).collect())
+    }
+    
     /// Get all blocks that nominated a specific public key
     pub fn get_blocks_by_nominated_key(&self, public_key: &VerifyingKey) -> Vec<&Block> {
         self.blocks
@@ -440,6 +466,125 @@ mod tests {
         let epoch_0_blocks = chain.get_epoch_blocks(0);
         // 1 genesis + 10 mined = 11 total in epoch 0
         assert_eq!(epoch_0_blocks.len(), 11);
+    }
+    
+    #[test]
+    fn test_get_epoch_shuffled_nominations_incomplete() {
+        let signing_key = test_signing_key();
+        let public_key = signing_key.verifying_key();
+        let nominated_key = test_miner_key();
+        let nominated_public_key = nominated_key.verifying_key();
+        
+        let mut chain = Blockchain::new(
+            ChainConfig {
+                initial_difficulty: 50,
+                target_block_time_secs: 60,
+            },
+            public_key,
+        );
+        
+        // Mine only 10 blocks (epoch 0 incomplete)
+        for i in 0..10 {
+            chain.mine_block(nominated_public_key, 1000 + i).unwrap();
+        }
+        
+        // Epoch 0 is incomplete (has 11 blocks including genesis, needs 40)
+        let shuffled = chain.get_epoch_shuffled_nominations(0);
+        assert!(shuffled.is_none());
+    }
+    
+    #[test]
+    fn test_get_epoch_shuffled_nominations_complete() {
+        let signing_key = test_signing_key();
+        let public_key = signing_key.verifying_key();
+        
+        let mut chain = Blockchain::new(
+            ChainConfig {
+                initial_difficulty: 50,
+                target_block_time_secs: 60,
+            },
+            public_key,
+        );
+        
+        // Mine 39 blocks to complete epoch 0 (genesis + 39 = 40 total)
+        for i in 0..39 {
+            let key_bytes = [(i + 1) as u8; 32];
+            let nominated_key = ed25519_dalek::SigningKey::from_bytes(&key_bytes);
+            chain.mine_block(nominated_key.verifying_key(), 1000 + i).unwrap();
+        }
+        
+        // Epoch 0 should now be complete
+        let shuffled = chain.get_epoch_shuffled_nominations(0);
+        assert!(shuffled.is_some());
+        
+        let shuffled = shuffled.unwrap();
+        assert_eq!(shuffled.len(), 40);
+        
+        // Verify all indices 0-39 are present
+        let mut indices: Vec<usize> = shuffled.iter().map(|(idx, _)| *idx).collect();
+        indices.sort();
+        assert_eq!(indices, (0..40).collect::<Vec<_>>());
+    }
+    
+    #[test]
+    fn test_get_epoch_shuffled_keys() {
+        let signing_key = test_signing_key();
+        let public_key = signing_key.verifying_key();
+        
+        let mut chain = Blockchain::new(
+            ChainConfig {
+                initial_difficulty: 50,
+                target_block_time_secs: 60,
+            },
+            public_key,
+        );
+        
+        // Mine 39 blocks to complete epoch 0
+        for i in 0..39 {
+            let key_bytes = [(i + 1) as u8; 32];
+            let nominated_key = ed25519_dalek::SigningKey::from_bytes(&key_bytes);
+            chain.mine_block(nominated_key.verifying_key(), 1000 + i).unwrap();
+        }
+        
+        let shuffled_keys = chain.get_epoch_shuffled_keys(0);
+        assert!(shuffled_keys.is_some());
+        
+        let keys = shuffled_keys.unwrap();
+        assert_eq!(keys.len(), 40);
+        
+        // Verify all keys are from the epoch blocks
+        let epoch_blocks = chain.get_epoch_blocks(0);
+        for key in &keys {
+            assert!(epoch_blocks.iter().any(|b| &b.data.nominated_public_key == key));
+        }
+    }
+    
+    #[test]
+    fn test_epoch_shuffled_nominations_deterministic() {
+        let signing_key = test_signing_key();
+        let public_key = signing_key.verifying_key();
+        
+        let mut chain = Blockchain::new(
+            ChainConfig {
+                initial_difficulty: 50,
+                target_block_time_secs: 60,
+            },
+            public_key,
+        );
+        
+        // Mine 39 blocks to complete epoch 0
+        for i in 0..39 {
+            let key_bytes = [(i + 1) as u8; 32];
+            let nominated_key = ed25519_dalek::SigningKey::from_bytes(&key_bytes);
+            chain.mine_block(nominated_key.verifying_key(), i).unwrap();
+        }
+        
+        // Get shuffled nominations twice
+        let shuffled1 = chain.get_epoch_shuffled_nominations(0).unwrap();
+        let shuffled2 = chain.get_epoch_shuffled_nominations(0).unwrap();
+        
+        // Should be identical (deterministic)
+        assert_eq!(shuffled1, shuffled2);
     }
 }
 
