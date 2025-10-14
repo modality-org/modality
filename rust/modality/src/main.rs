@@ -44,6 +44,7 @@ enum Commands {
 #[derive(Subcommand)]
 enum IdCommands {
     Create(cmds::id::create::Opts),
+    Derive(cmds::id::derive::Opts),
 }
 
 #[derive(Subcommand)]
@@ -101,6 +102,7 @@ async fn main() -> Result<()> {
         Commands::Id { command } => {
             match command {
                 IdCommands::Create(opts) => cmds::id::create::run(opts).await?,
+                IdCommands::Derive(opts) => cmds::id::derive::run(opts).await?,
             }
         }
         Commands::Passfile { command } => {

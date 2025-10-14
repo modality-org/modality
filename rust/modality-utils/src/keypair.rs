@@ -10,6 +10,7 @@ use std::fs;
 
 use crate::encrypted_text::EncryptedText;
 use crate::json_stringify_deterministic::stringify_deterministic;
+use crate::mnemonic::Mnemonic;
 
 #[derive(Clone)]
 pub enum KeypairOrPublicKey {
@@ -30,6 +31,12 @@ pub struct KeypairJSON {
     pub private_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub encrypted_private_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mnemonic: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encrypted_mnemonic: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub derivation_path: Option<String>,
 }
 
 impl KeypairJSON {
@@ -48,6 +55,18 @@ impl KeypairJSON {
     pub fn encrypted_private_key(&self) -> Option<&str> {
         self.encrypted_private_key.as_deref()
     }
+
+    pub fn mnemonic(&self) -> Option<&str> {
+        self.mnemonic.as_deref()
+    }
+
+    pub fn encrypted_mnemonic(&self) -> Option<&str> {
+        self.encrypted_mnemonic.as_deref()
+    }
+
+    pub fn derivation_path(&self) -> Option<&str> {
+        self.derivation_path.as_deref()
+    }
 }
 
 impl Keypair {
@@ -59,6 +78,44 @@ impl Keypair {
         let key = ed25519::Keypair::generate();
         let libp2p_keypair = Libp2pKeypair::from(key);
         Ok(Self::new(KeypairOrPublicKey::Keypair(libp2p_keypair)))
+    }
+
+    /// Generate a keypair from a mnemonic phrase with BIP44 derivation
+    /// account, change, and index follow the BIP44 standard
+    /// Default path: m/44'/501'/account'/change'/index'
+    pub fn from_mnemonic(
+        mnemonic_phrase: &str,
+        account: u32,
+        change: u32,
+        index: u32,
+        passphrase: Option<&str>,
+    ) -> Result<Self> {
+        let mnemonic = Mnemonic::from_phrase(mnemonic_phrase)?;
+        let ed25519_keypair = mnemonic.derive_ed25519_keypair(account, change, index, passphrase)?;
+        
+        // Convert ed25519-dalek keypair to libp2p keypair
+        let libp2p_ed25519_keypair = ed25519::Keypair::from(
+            ed25519::SecretKey::try_from_bytes(ed25519_keypair.secret.to_bytes())
+                .map_err(|e| anyhow!("Failed to create libp2p secret key: {:?}", e))?,
+        );
+        
+        let libp2p_keypair = Libp2pKeypair::from(libp2p_ed25519_keypair);
+        Ok(Self::new(KeypairOrPublicKey::Keypair(libp2p_keypair)))
+    }
+
+    /// Generate a new mnemonic and derive a keypair from it
+    /// Returns the keypair and the mnemonic phrase
+    pub fn generate_with_mnemonic(
+        word_count: usize,
+        account: u32,
+        change: u32,
+        index: u32,
+        passphrase: Option<&str>,
+    ) -> Result<(Self, String)> {
+        let mnemonic = Mnemonic::generate(word_count)?;
+        let mnemonic_phrase = mnemonic.phrase();
+        let keypair = Self::from_mnemonic(&mnemonic_phrase, account, change, index, passphrase)?;
+        Ok((keypair, mnemonic_phrase))
     }
 
     pub async fn as_ssh_private_pem(&self, _comment: &str) -> Result<String> {
@@ -187,11 +244,18 @@ impl Keypair {
 
         if let Some(encrypted_key) = json.encrypted_private_key() {
             let decrypted_key = EncryptedText::decrypt(encrypted_key, password).ok();
+            let decrypted_mnemonic = json
+                .encrypted_mnemonic()
+                .and_then(|m| EncryptedText::decrypt(m, password).ok());
+            
             let decrypted_json = KeypairJSON {
                 id: json.id().to_string(),
                 public_key: json.public_key().to_string(),
                 private_key: decrypted_key,
                 encrypted_private_key: None,
+                mnemonic: decrypted_mnemonic,
+                encrypted_mnemonic: None,
+                derivation_path: json.derivation_path().map(|s| s.to_string()),
             };
             Self::from_json(&decrypted_json)
         } else {
@@ -210,6 +274,9 @@ impl Keypair {
             public_key: self.public_key_as_base64_pad(),
             private_key: None,
             encrypted_private_key: None,
+            mnemonic: None,
+            encrypted_mnemonic: None,
+            derivation_path: None,
         })
     }
 
@@ -225,6 +292,14 @@ impl Keypair {
     }
 
     pub fn as_json(&self) -> Result<KeypairJSON> {
+        self.as_json_with_mnemonic(None, None)
+    }
+
+    pub fn as_json_with_mnemonic(
+        &self,
+        mnemonic: Option<String>,
+        derivation_path: Option<String>,
+    ) -> Result<KeypairJSON> {
         let private_key = self.private_key_as_base64_pad().ok();
         let encrypted_private_key = if private_key.is_some() {
             None
@@ -237,6 +312,9 @@ impl Keypair {
             public_key: self.public_key_as_base64_pad(),
             private_key,
             encrypted_private_key,
+            mnemonic,
+            encrypted_mnemonic: None,
+            derivation_path,
         })
     }
 
@@ -252,12 +330,28 @@ impl Keypair {
     }
 
     pub fn as_encrypted_json(&self, password: &str) -> Result<KeypairJSON> {
+        self.as_encrypted_json_with_mnemonic(password, None, None)
+    }
+
+    pub fn as_encrypted_json_with_mnemonic(
+        &self,
+        password: &str,
+        mnemonic: Option<String>,
+        derivation_path: Option<String>,
+    ) -> Result<KeypairJSON> {
         let enc_pk = EncryptedText::encrypt(&self.private_key_as_base64_pad()?, password).ok();
+        let encrypted_mnemonic = mnemonic
+            .as_ref()
+            .and_then(|m| EncryptedText::encrypt(m, password).ok());
+
         Ok(KeypairJSON {
             id: self.public_key_as_base58_identity(),
             public_key: self.public_key_as_base64_pad(),
             private_key: None,
             encrypted_private_key: enc_pk,
+            mnemonic: None,
+            encrypted_mnemonic,
+            derivation_path,
         })
     }
 
@@ -268,6 +362,31 @@ impl Keypair {
 
     pub fn as_encrypted_json_file(&self, path: &str, password: &str) -> Result<()> {
         let json_string = self.as_encrypted_json_string(password)?;
+        fs::write(path, json_string)?;
+        Ok(())
+    }
+
+    pub fn as_json_file_with_mnemonic(
+        &self,
+        path: &str,
+        mnemonic: Option<String>,
+        derivation_path: Option<String>,
+    ) -> Result<()> {
+        let json = self.as_json_with_mnemonic(mnemonic, derivation_path)?;
+        let json_string = serde_json::to_string(&json)?;
+        fs::write(path, json_string)?;
+        Ok(())
+    }
+
+    pub fn as_encrypted_json_file_with_mnemonic(
+        &self,
+        path: &str,
+        password: &str,
+        mnemonic: Option<String>,
+        derivation_path: Option<String>,
+    ) -> Result<()> {
+        let json = self.as_encrypted_json_with_mnemonic(password, mnemonic, derivation_path)?;
+        let json_string = serde_json::to_string(&json)?;
         fs::write(path, json_string)?;
         Ok(())
     }
