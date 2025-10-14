@@ -17,7 +17,7 @@ impl Default for ChainConfig {
     fn default() -> Self {
         Self {
             initial_difficulty: 1000,
-            target_block_time_secs: 600,
+            target_block_time_secs: 60, // 1 minute
         }
     }
 }

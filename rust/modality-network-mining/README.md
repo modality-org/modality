@@ -27,7 +27,7 @@ The blockchain is divided into epochs of 40 blocks each. At the end of each epoc
 
 - If blocks were mined too quickly, difficulty increases
 - If blocks were mined too slowly, difficulty decreases
-- Target block time is configurable (default: 10 minutes per block)
+- Target block time is configurable (default: 1 minute per block)
 
 ### Mining
 
@@ -53,7 +53,7 @@ let mut chain = Blockchain::new_default(genesis_key.verifying_key());
 // With custom configuration
 let config = ChainConfig {
     initial_difficulty: 1000,
-    target_block_time_secs: 600, // 10 minutes
+    target_block_time_secs: 60, // 1 minute
 };
 let mut chain = Blockchain::new(config, genesis_key.verifying_key());
 ```

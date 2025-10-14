@@ -295,13 +295,13 @@ fn test_difficulty_adjustment_logic() {
     let manager = EpochManager::default();
     let genesis = genesis_key();
 
-    // Create blocks mined too fast (half expected time)
+    // Create blocks mined too fast (half expected time: 30 seconds instead of 60)
     let start_time = chrono::Utc::now();
     let mut fast_blocks = vec![];
     for i in 0..40 {
         let data = BlockData::new(genesis.verifying_key(), i);
         let mut block = Block::new(i, format!("prev_{}", i), data, 1000);
-        block.header.timestamp = start_time + chrono::Duration::seconds((i as i64) * 300);
+        block.header.timestamp = start_time + chrono::Duration::seconds((i as i64) * 30);
         fast_blocks.push(block);
     }
 
@@ -311,12 +311,12 @@ fn test_difficulty_adjustment_logic() {
         "Difficulty should increase for fast blocks"
     );
 
-    // Create blocks mined too slow (double expected time)
+    // Create blocks mined too slow (double expected time: 120 seconds instead of 60)
     let mut slow_blocks = vec![];
     for i in 0..40 {
         let data = BlockData::new(genesis.verifying_key(), i);
         let mut block = Block::new(i, format!("prev_{}", i), data, 1000);
-        block.header.timestamp = start_time + chrono::Duration::seconds((i as i64) * 1200);
+        block.header.timestamp = start_time + chrono::Duration::seconds((i as i64) * 120);
         slow_blocks.push(block);
     }
 

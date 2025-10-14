@@ -15,7 +15,7 @@ impl Default for EpochManager {
     fn default() -> Self {
         Self {
             blocks_per_epoch: BLOCKS_PER_EPOCH,
-            target_block_time_secs: 600, // 10 minutes per block (Bitcoin-like)
+            target_block_time_secs: 60, // 1 minute per block
             initial_difficulty: 1000,
             min_difficulty: 1,
             max_difficulty: u128::MAX,
@@ -203,8 +203,8 @@ mod tests {
                 data,
                 1000,
             );
-            // Blocks mined in half the expected time
-            block.header.timestamp = start_time + Duration::seconds((i as i64) * 300);
+            // Blocks mined in half the expected time (30 seconds instead of 60)
+            block.header.timestamp = start_time + Duration::seconds((i as i64) * 30);
             blocks.push(block);
         }
         
@@ -235,8 +235,8 @@ mod tests {
                 data,
                 1000,
             );
-            // Blocks mined in double the expected time
-            block.header.timestamp = start_time + Duration::seconds((i as i64) * 1200);
+            // Blocks mined in double the expected time (120 seconds instead of 60)
+            block.header.timestamp = start_time + Duration::seconds((i as i64) * 120);
             blocks.push(block);
         }
         

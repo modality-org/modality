@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a new blockchain with custom configuration
     let config = ChainConfig {
         initial_difficulty: 100, // Low difficulty for demo
-        target_block_time_secs: 600, // 10 minutes per block
+        target_block_time_secs: 60, // 1 minute per block
     };
 
     let mut chain = Blockchain::new(config, genesis_key.verifying_key());
