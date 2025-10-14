@@ -1,6 +1,5 @@
 use crate::block::Block;
 use crate::BLOCKS_PER_EPOCH;
-use ed25519_dalek::VerifyingKey;
 
 /// Manages epochs and difficulty adjustment
 #[derive(Debug, Clone)]
@@ -172,8 +171,8 @@ impl EpochManager {
     /// XORs all the nonces to create a seed, and shuffles the nominations
     /// using the Fisher-Yates algorithm.
     /// 
-    /// Returns a vector of (index_in_epoch, nominated_key) tuples in shuffled order
-    pub fn get_shuffled_nominations(&self, epoch_blocks: &[Block]) -> Vec<(usize, VerifyingKey)> {
+    /// Returns a vector of (index_in_epoch, nominated_peer_id) tuples in shuffled order
+    pub fn get_shuffled_nominations(&self, epoch_blocks: &[Block]) -> Vec<(usize, String)> {
         if epoch_blocks.is_empty() {
             return Vec::new();
         }
@@ -184,18 +183,18 @@ impl EpochManager {
         // Get the shuffled indices
         let shuffled_indices = modality_utils::shuffle::fisher_yates_shuffle(seed, epoch_blocks.len());
         
-        // Map shuffled indices to (original_index, nominated_key) tuples
+        // Map shuffled indices to (original_index, nominated_peer_id) tuples
         shuffled_indices
             .into_iter()
-            .map(|idx| (idx, epoch_blocks[idx].data.nominated_public_key))
+            .map(|idx| (idx, epoch_blocks[idx].data.nominated_peer_id.clone()))
             .collect()
     }
     
-    /// Get just the shuffled nominated keys for a completed epoch (without indices)
-    pub fn get_shuffled_nominated_keys(&self, epoch_blocks: &[Block]) -> Vec<VerifyingKey> {
+    /// Get just the shuffled nominated peer IDs for a completed epoch (without indices)
+    pub fn get_shuffled_nominated_peer_ids(&self, epoch_blocks: &[Block]) -> Vec<String> {
         self.get_shuffled_nominations(epoch_blocks)
             .into_iter()
-            .map(|(_, key)| key)
+            .map(|(_, peer_id)| peer_id)
             .collect()
     }
 }
@@ -235,18 +234,15 @@ mod tests {
     #[test]
     fn test_difficulty_adjustment_fast_mining() {
         use crate::block::BlockData;
-        use ed25519_dalek::SigningKey;
         
         let manager = EpochManager::default();
-        let signing_key = SigningKey::from_bytes(&[1u8; 32]);
-        let public_key = signing_key.verifying_key();
         
         // Create blocks that were mined too fast
         let mut blocks = vec![];
         let start_time = chrono::Utc::now();
         
         for i in 0..40 {
-            let data = BlockData::new(public_key, i);
+            let data = BlockData::new(format!("peer_id_{}", i), i);
             let mut block = Block::new(
                 i,
                 format!("prev_{}", i),
@@ -267,18 +263,15 @@ mod tests {
     #[test]
     fn test_difficulty_adjustment_slow_mining() {
         use crate::block::BlockData;
-        use ed25519_dalek::SigningKey;
         
         let manager = EpochManager::default();
-        let signing_key = SigningKey::from_bytes(&[1u8; 32]);
-        let public_key = signing_key.verifying_key();
         
         // Create blocks that were mined too slowly
         let mut blocks = vec![];
         let start_time = chrono::Utc::now();
         
         for i in 0..40 {
-            let data = BlockData::new(public_key, i);
+            let data = BlockData::new(format!("peer_id_{}", i), i);
             let mut block = Block::new(
                 i,
                 format!("prev_{}", i),
@@ -299,7 +292,6 @@ mod tests {
     #[test]
     fn test_difficulty_bounds() {
         use crate::block::BlockData;
-        use ed25519_dalek::SigningKey;
         
         let manager = EpochManager {
             min_difficulty: 10,
@@ -307,12 +299,9 @@ mod tests {
             ..Default::default()
         };
         
-        let signing_key = SigningKey::from_bytes(&[1u8; 32]);
-        let public_key = signing_key.verifying_key();
-        
         let mut blocks = vec![];
         for i in 0..40 {
-            let data = BlockData::new(public_key, i);
+            let data = BlockData::new(format!("peer_id_{}", i), i);
             blocks.push(Block::new(i, format!("prev_{}", i), data, 100));
         }
         
@@ -328,15 +317,12 @@ mod tests {
     #[test]
     fn test_calculate_epoch_seed() {
         use crate::block::BlockData;
-        use ed25519_dalek::SigningKey;
         
         let manager = EpochManager::default();
-        let signing_key = SigningKey::from_bytes(&[1u8; 32]);
-        let public_key = signing_key.verifying_key();
         
         let mut blocks = vec![];
         for i in 0..5 {
-            let data = BlockData::new(public_key, i);
+            let data = BlockData::new(format!("peer_id_{}", i), i);
             let mut block = Block::new(i, format!("prev_{}", i), data, 100);
             block.header.nonce = (i + 1) as u128 * 100; // Nonces: 100, 200, 300, 400, 500
             blocks.push(block);
@@ -358,18 +344,13 @@ mod tests {
     #[test]
     fn test_get_shuffled_nominations() {
         use crate::block::BlockData;
-        use ed25519_dalek::SigningKey;
         
         let manager = EpochManager::default();
         
-        // Create different signing keys for nominations
+        // Create different peer IDs for nominations
         let mut blocks = vec![];
         for i in 0..40 {
-            let key_bytes = [(i + 1) as u8; 32];
-            let signing_key = SigningKey::from_bytes(&key_bytes);
-            let public_key = signing_key.verifying_key();
-            
-            let data = BlockData::new(public_key, i);
+            let data = BlockData::new(format!("peer_id_{}", i + 1), i);
             let mut block = Block::new(i, format!("prev_{}", i), data, 100);
             block.header.nonce = (i + 1) as u128; // Nonces: 1, 2, 3, ..., 40
             blocks.push(block);
@@ -385,24 +366,21 @@ mod tests {
         indices.sort();
         assert_eq!(indices, (0..40).collect::<Vec<_>>());
         
-        // Verify that nominated keys match the original blocks
-        for (original_idx, key) in &shuffled {
-            assert_eq!(*key, blocks[*original_idx].data.nominated_public_key);
+        // Verify that nominated peer IDs match the original blocks
+        for (original_idx, peer_id) in &shuffled {
+            assert_eq!(*peer_id, blocks[*original_idx].data.nominated_peer_id);
         }
     }
     
     #[test]
     fn test_get_shuffled_nominations_deterministic() {
         use crate::block::BlockData;
-        use ed25519_dalek::SigningKey;
         
         let manager = EpochManager::default();
-        let signing_key = SigningKey::from_bytes(&[1u8; 32]);
-        let public_key = signing_key.verifying_key();
         
         let mut blocks = vec![];
         for i in 0..40 {
-            let data = BlockData::new(public_key, i);
+            let data = BlockData::new("peer_id_1".to_string(), i);
             let mut block = Block::new(i, format!("prev_{}", i), data, 100);
             block.header.nonce = (i * 7 + 13) as u128; // Some deterministic nonces
             blocks.push(block);
@@ -416,32 +394,27 @@ mod tests {
     }
     
     #[test]
-    fn test_get_shuffled_nominated_keys() {
+    fn test_get_shuffled_nominated_peer_ids() {
         use crate::block::BlockData;
-        use ed25519_dalek::SigningKey;
         
         let manager = EpochManager::default();
         
         let mut blocks = vec![];
         for i in 0..10 {
-            let key_bytes = [(i + 1) as u8; 32];
-            let signing_key = SigningKey::from_bytes(&key_bytes);
-            let public_key = signing_key.verifying_key();
-            
-            let data = BlockData::new(public_key, i);
+            let data = BlockData::new(format!("peer_id_{}", i + 1), i);
             let mut block = Block::new(i, format!("prev_{}", i), data, 100);
             block.header.nonce = (i + 1) as u128;
             blocks.push(block);
         }
         
-        let shuffled_keys = manager.get_shuffled_nominated_keys(&blocks);
+        let shuffled_peer_ids = manager.get_shuffled_nominated_peer_ids(&blocks);
         
-        // Should have all 10 keys
-        assert_eq!(shuffled_keys.len(), 10);
+        // Should have all 10 peer IDs
+        assert_eq!(shuffled_peer_ids.len(), 10);
         
-        // All keys should be from the original blocks
-        for key in &shuffled_keys {
-            assert!(blocks.iter().any(|b| &b.data.nominated_public_key == key));
+        // All peer IDs should be from the original blocks
+        for peer_id in &shuffled_peer_ids {
+            assert!(blocks.iter().any(|b| &b.data.nominated_peer_id == peer_id));
         }
     }
 }

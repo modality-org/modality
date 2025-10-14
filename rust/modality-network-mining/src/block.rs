@@ -1,55 +1,30 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
-use ed25519_dalek::VerifyingKey;
 
-/// Block data containing a nominated public key and arbitrary number
+/// Block data containing a nominated peer ID and arbitrary number
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BlockData {
-    /// Ed25519 public key nominated by the miner (to be used downstream)
-    #[serde(with = "public_key_serde")]
-    pub nominated_public_key: VerifyingKey,
+    /// Peer ID nominated by the miner (to be used downstream)
+    pub nominated_peer_id: String,
     /// Arbitrary number selected by the miner
     pub miner_number: u64,
 }
 
 impl BlockData {
-    pub fn new(nominated_public_key: VerifyingKey, miner_number: u64) -> Self {
+    pub fn new(nominated_peer_id: String, miner_number: u64) -> Self {
         Self {
-            nominated_public_key,
+            nominated_peer_id,
             miner_number,
         }
     }
     
     /// Serialize block data to JSON-compatible string for hashing
     pub fn to_hash_string(&self) -> String {
-        format!("{}{}", hex::encode(self.nominated_public_key.to_bytes()), self.miner_number)
+        format!("{}{}", self.nominated_peer_id, self.miner_number)
     }
 }
 
-// Serde helper for VerifyingKey
-mod public_key_serde {
-    use ed25519_dalek::VerifyingKey;
-    use serde::{Deserialize, Deserializer, Serializer};
-    
-    pub fn serialize<S>(key: &VerifyingKey, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&hex::encode(key.to_bytes()))
-    }
-    
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<VerifyingKey, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        let bytes = hex::decode(&s).map_err(serde::de::Error::custom)?;
-        let bytes_array: [u8; 32] = bytes.try_into()
-            .map_err(|_| serde::de::Error::custom("Invalid public key length"))?;
-        VerifyingKey::from_bytes(&bytes_array).map_err(serde::de::Error::custom)
-    }
-}
 
 /// Block header containing metadata
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -119,8 +94,8 @@ impl Block {
     }
     
     /// Create genesis block (first block in chain)
-    pub fn genesis(difficulty: u128, genesis_public_key: VerifyingKey) -> Self {
-        let data = BlockData::new(genesis_public_key, 0);
+    pub fn genesis(difficulty: u128, genesis_peer_id: String) -> Self {
+        let data = BlockData::new(genesis_peer_id, 0);
         
         let mut block = Self::new(
             0,
@@ -162,57 +137,46 @@ impl Block {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::SigningKey;
-    
-    fn test_signing_key() -> SigningKey {
-        SigningKey::from_bytes(&[1u8; 32])
-    }
-    
+
     #[test]
     fn test_block_data_creation() {
-        let signing_key = test_signing_key();
-        let public_key = signing_key.verifying_key();
-        let data = BlockData::new(public_key, 12345);
-        
+        let data = BlockData::new("peer_id_123".to_string(), 12345);
+
         assert_eq!(data.miner_number, 12345);
+        assert_eq!(data.nominated_peer_id, "peer_id_123");
         assert!(!data.to_hash_string().is_empty());
     }
-    
+
     #[test]
     fn test_genesis_block() {
-        let signing_key = test_signing_key();
-        let public_key = signing_key.verifying_key();
-        let genesis = Block::genesis(1, public_key);
-        
+        let genesis = Block::genesis(1, "genesis_peer_id".to_string());
+
         assert_eq!(genesis.header.index, 0);
         assert_eq!(genesis.header.previous_hash, "0");
         assert_eq!(genesis.data.miner_number, 0);
+        assert_eq!(genesis.data.nominated_peer_id, "genesis_peer_id");
         assert!(!genesis.header.hash.is_empty());
     }
-    
+
     #[test]
     fn test_data_hash() {
-        let signing_key = test_signing_key();
-        let public_key = signing_key.verifying_key();
-        let data = BlockData::new(public_key, 42);
-        
+        let data = BlockData::new("peer_id_abc".to_string(), 42);
+
         let block = Block::new(1, "prev".to_string(), data, 1);
-        
+
         assert!(block.verify_data_hash());
     }
-    
+
     #[test]
     fn test_block_hash_calculation() {
-        let signing_key = test_signing_key();
-        let public_key = signing_key.verifying_key();
-        let data = BlockData::new(public_key, 100);
-        
+        let data = BlockData::new("peer_id_test".to_string(), 100);
+
         let block = Block::new(1, "prev".to_string(), data, 1);
-        
+
         let hash1 = block.header.calculate_hash(0);
         let hash2 = block.header.calculate_hash(0);
         let hash3 = block.header.calculate_hash(1);
-        
+
         assert_eq!(hash1, hash2);
         assert_ne!(hash1, hash3);
     }

@@ -85,50 +85,39 @@ impl Miner {
 mod tests {
     use super::*;
     use crate::block::BlockData;
-    use ed25519_dalek::SigningKey;
-    
-    fn test_signing_key() -> SigningKey {
-        SigningKey::from_bytes(&[1u8; 32])
-    }
-    
+
     #[test]
     fn test_mine_block() {
         let miner = Miner::new_default();
-        let signing_key = test_signing_key();
-        let public_key = signing_key.verifying_key();
-        
-        let data = BlockData::new(public_key, 12345);
+
+        let data = BlockData::new("peer_id_123".to_string(), 12345);
         let block = Block::new(1, "prev_hash".to_string(), data, 100);
-        
+
         let mined_block = miner.mine_block(block).unwrap();
-        
+
         assert!(miner.verify_block(&mined_block).unwrap());
         assert!(!mined_block.header.hash.is_empty());
         assert!(mined_block.header.nonce > 0);
         assert_eq!(mined_block.data.miner_number, 12345);
     }
-    
+
     #[test]
     fn test_verify_invalid_block() {
         let miner = Miner::new_default();
-        let signing_key = test_signing_key();
-        let public_key = signing_key.verifying_key();
-        
-        let data = BlockData::new(public_key, 100);
+
+        let data = BlockData::new("peer_id_test".to_string(), 100);
         let mut block = Block::new(1, "prev_hash".to_string(), data, 100);
         block.header.nonce = 12345;
         block.header.hash = "invalid_hash".to_string();
-        
+
         assert!(!miner.verify_block(&block).unwrap());
     }
-    
+
     #[test]
     fn test_genesis_block_verification() {
         let miner = Miner::new_default();
-        let signing_key = test_signing_key();
-        let public_key = signing_key.verifying_key();
-        let genesis = Block::genesis(1, public_key);
-        
+        let genesis = Block::genesis(1, "genesis_peer_id".to_string());
+
         // Genesis block has difficulty 1 and nonce 0, should be valid
         assert!(miner.verify_block(&genesis).unwrap());
     }
