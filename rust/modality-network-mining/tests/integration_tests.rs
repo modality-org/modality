@@ -1,58 +1,64 @@
 use modality_network_mining::{
-    Block, Blockchain, ChainConfig, EpochManager, Miner, MinerConfig, Transaction,
+    Block, BlockData, Blockchain, ChainConfig, EpochManager, Miner, MinerConfig, SigningKey,
     BLOCKS_PER_EPOCH,
 };
 
+fn genesis_key() -> SigningKey {
+    SigningKey::from_bytes(&[1u8; 32])
+}
+
+fn miner1_key() -> SigningKey {
+    SigningKey::from_bytes(&[2u8; 32])
+}
+
+fn miner2_key() -> SigningKey {
+    SigningKey::from_bytes(&[3u8; 32])
+}
+
 #[test]
 fn test_full_blockchain_lifecycle() {
-    let mut chain = Blockchain::new(ChainConfig {
-        initial_difficulty: 100,
-        target_block_time_secs: 600,
-    });
+    let genesis = genesis_key();
+    let nominated = miner1_key();
+    
+    let mut chain = Blockchain::new(
+        ChainConfig {
+            initial_difficulty: 100,
+            target_block_time_secs: 600,
+        },
+        genesis.verifying_key(),
+    );
 
-    // Add multiple transactions
+    // Mine blocks nominating the same key with different numbers
     for i in 0..5 {
-        let tx = Transaction::new(
-            format!("sender{}", i),
-            format!("receiver{}", i),
-            100 + i as u64,
-            Some(format!("Transaction {}", i)),
-        );
-        chain.add_transaction(tx);
+        let result = chain.mine_block(nominated.verifying_key(), 1000 + i);
+        assert!(result.is_ok(), "Failed to mine block {}", i);
     }
 
-    // Mine the block
-    let result = chain.mine_pending_transactions("miner1", 50);
-    assert!(result.is_ok());
-
-    let mined_block = result.unwrap();
-    assert_eq!(mined_block.header.index, 1);
-    assert_eq!(mined_block.transactions.len(), 6); // 5 + 1 reward
+    assert_eq!(chain.height(), 5);
 
     // Verify chain is valid
     assert!(chain.validate_chain().is_ok());
 
-    // Check miner got reward
-    assert_eq!(chain.get_balance("miner1"), 50);
+    // Check nominated key appears in all blocks
+    assert_eq!(chain.count_blocks_by_nominated_key(&nominated.verifying_key()), 5);
 }
 
 #[test]
 fn test_multiple_epochs() {
-    let mut chain = Blockchain::new(ChainConfig {
-        initial_difficulty: 50,
-        target_block_time_secs: 600,
-    });
+    let genesis = genesis_key();
+    let miner1 = miner1_key();
+    
+    let mut chain = Blockchain::new(
+        ChainConfig {
+            initial_difficulty: 50,
+            target_block_time_secs: 600,
+        },
+        genesis.verifying_key(),
+    );
 
     // Mine blocks through multiple epochs
     for i in 0..85 {
-        chain.add_transaction(Transaction::new(
-            format!("sender{}", i),
-            format!("receiver{}", i),
-            10,
-            None,
-        ));
-
-        let result = chain.mine_pending_transactions("miner1", 5);
+        let result = chain.mine_block(miner1.verifying_key(), 10000 + i);
         assert!(result.is_ok(), "Failed to mine block {}", i);
     }
 
@@ -73,74 +79,57 @@ fn test_multiple_epochs() {
 }
 
 #[test]
-fn test_transaction_tracking() {
-    let mut chain = Blockchain::new(ChainConfig {
-        initial_difficulty: 100,
-        target_block_time_secs: 600,
-    });
+fn test_multiple_nominations() {
+    let genesis = genesis_key();
+    let nominated1 = miner1_key();
+    let nominated2 = miner2_key();
+    
+    let mut chain = Blockchain::new(
+        ChainConfig {
+            initial_difficulty: 100,
+            target_block_time_secs: 600,
+        },
+        genesis.verifying_key(),
+    );
 
-    // Alice sends to Bob
-    chain.add_transaction(Transaction::new(
-        "alice".to_string(),
-        "bob".to_string(),
-        100,
-        None,
-    ));
-    chain.mine_pending_transactions("miner1", 50).unwrap();
+    // Mine blocks nominating key1
+    for i in 0..3 {
+        chain.mine_block(nominated1.verifying_key(), 1000 + i).unwrap();
+    }
 
-    // Bob sends to Charlie
-    chain.add_transaction(Transaction::new(
-        "bob".to_string(),
-        "charlie".to_string(),
-        50,
-        None,
-    ));
-    chain.mine_pending_transactions("miner1", 50).unwrap();
+    // Mine blocks nominating key2
+    for i in 0..2 {
+        chain.mine_block(nominated2.verifying_key(), 2000 + i).unwrap();
+    }
 
-    // Charlie sends to Alice
-    chain.add_transaction(Transaction::new(
-        "charlie".to_string(),
-        "alice".to_string(),
-        25,
-        None,
-    ));
-    chain.mine_pending_transactions("miner1", 50).unwrap();
-
-    // Check balances
-    assert_eq!(chain.get_balance("alice"), 25); // -100 + 25
-    assert_eq!(chain.get_balance("bob"), 50); // +100 - 50
-    assert_eq!(chain.get_balance("charlie"), 25); // +50 - 25
-    assert_eq!(chain.get_balance("miner1"), 150); // 3 * 50
-
-    // Check transaction history
-    let alice_txs = chain.get_transactions("alice");
-    assert_eq!(alice_txs.len(), 2); // Sent 1, received 1
-
-    let bob_txs = chain.get_transactions("bob");
-    assert_eq!(bob_txs.len(), 2); // Received 1, sent 1
+    // Check counts
+    assert_eq!(chain.count_blocks_by_nominated_key(&nominated1.verifying_key()), 3);
+    assert_eq!(chain.count_blocks_by_nominated_key(&nominated2.verifying_key()), 2);
+    assert_eq!(chain.count_blocks_by_nominated_key(&genesis.verifying_key()), 1); // Genesis
 }
 
 #[test]
 fn test_block_validation() {
-    let mut chain = Blockchain::new(ChainConfig {
-        initial_difficulty: 100,
-        target_block_time_secs: 600,
-    });
+    let genesis = genesis_key();
+    let miner1 = miner1_key();
+    
+    let mut chain = Blockchain::new(
+        ChainConfig {
+            initial_difficulty: 100,
+            target_block_time_secs: 600,
+        },
+        genesis.verifying_key(),
+    );
 
     // Add and mine a valid block
-    chain.add_transaction(Transaction::new(
-        "alice".to_string(),
-        "bob".to_string(),
-        100,
-        None,
-    ));
-    let _valid_block = chain.mine_pending_transactions("miner1", 50).unwrap();
+    let _valid_block = chain.mine_block(miner1.verifying_key(), 100).unwrap();
 
     // Try to add an invalid block (wrong previous hash)
+    let data = BlockData::new(miner1.verifying_key(), 200);
     let mut invalid_block = Block::new(
         chain.height() + 1,
         "wrong_hash".to_string(),
-        vec![],
+        data,
         100,
     );
 
@@ -179,8 +168,9 @@ fn test_miner_config() {
     };
 
     let miner = Miner::new(config);
-
-    let block = Block::new(1, "prev".to_string(), vec![], 50); // Reduced difficulty
+    let signing_key = genesis_key();
+    let data = BlockData::new(signing_key.verifying_key(), 100);
+    let block = Block::new(1, "prev".to_string(), data, 50); // Reduced difficulty
 
     let result = miner.mine_block(block);
     assert!(result.is_ok());
@@ -191,10 +181,9 @@ fn test_miner_config() {
 
 #[test]
 fn test_block_hash_verification() {
-    let tx1 = Transaction::new("alice".to_string(), "bob".to_string(), 100, None);
-    let tx2 = Transaction::new("bob".to_string(), "charlie".to_string(), 50, None);
-
-    let mut block = Block::new(1, "prev_hash".to_string(), vec![tx1, tx2], 1000);
+    let signing_key = genesis_key();
+    let data = BlockData::new(signing_key.verifying_key(), 12345);
+    let mut block = Block::new(1, "prev_hash".to_string(), data, 1000);
 
     // Block hasn't been mined yet, so verification should fail
     assert!(!block.verify_hash());
@@ -205,16 +194,17 @@ fn test_block_hash_verification() {
 
     // Now verification should pass
     assert!(block.verify_hash());
-    assert!(block.verify_merkle_root());
+    assert!(block.verify_data_hash());
 }
 
 #[test]
 fn test_genesis_block() {
-    let genesis = Block::genesis(1000);
+    let signing_key = genesis_key();
+    let genesis = Block::genesis(1000, signing_key.verifying_key());
 
     assert_eq!(genesis.header.index, 0);
     assert_eq!(genesis.header.previous_hash, "0");
-    assert_eq!(genesis.transactions.len(), 0);
+    assert_eq!(genesis.data.miner_number, 0);
     assert!(!genesis.header.hash.is_empty());
 
     // Genesis should be valid
@@ -224,49 +214,47 @@ fn test_genesis_block() {
 
 #[test]
 fn test_chain_json_export() {
-    let mut chain = Blockchain::new(ChainConfig {
-        initial_difficulty: 100,
-        target_block_time_secs: 600,
-    });
+    let genesis = genesis_key();
+    let miner1 = miner1_key();
+    
+    let mut chain = Blockchain::new(
+        ChainConfig {
+            initial_difficulty: 100,
+            target_block_time_secs: 600,
+        },
+        genesis.verifying_key(),
+    );
 
-    chain.add_transaction(Transaction::new(
-        "alice".to_string(),
-        "bob".to_string(),
-        100,
-        None,
-    ));
-    chain.mine_pending_transactions("miner1", 50).unwrap();
+    chain.mine_block(miner1.verifying_key(), 12345).unwrap();
 
     let json = chain.to_json();
     assert!(json.is_ok());
 
     let json_str = json.unwrap();
-    assert!(json_str.contains("alice"));
-    assert!(json_str.contains("bob"));
-    assert!(json_str.contains("miner1"));
+    assert!(json_str.contains("12345"));
 }
 
 #[test]
 fn test_get_block_by_index_and_hash() {
-    let mut chain = Blockchain::new(ChainConfig {
-        initial_difficulty: 100,
-        target_block_time_secs: 600,
-    });
+    let genesis = genesis_key();
+    let miner1 = miner1_key();
+    
+    let mut chain = Blockchain::new(
+        ChainConfig {
+            initial_difficulty: 100,
+            target_block_time_secs: 600,
+        },
+        genesis.verifying_key(),
+    );
 
-    chain.add_transaction(Transaction::new(
-        "alice".to_string(),
-        "bob".to_string(),
-        100,
-        None,
-    ));
-
-    let mined = chain.mine_pending_transactions("miner1", 50).unwrap();
+    let mined = chain.mine_block(miner1.verifying_key(), 999).unwrap();
     let hash = mined.header.hash.clone();
 
     // Get by index
     let by_index = chain.get_block_by_index(1);
     assert!(by_index.is_some());
     assert_eq!(by_index.unwrap().header.index, 1);
+    assert_eq!(by_index.unwrap().data.miner_number, 999);
 
     // Get by hash
     let by_hash = chain.get_block_by_hash(&hash);
@@ -284,29 +272,35 @@ fn test_blocks_per_epoch_constant() {
 }
 
 #[test]
-fn test_merkle_root_changes_with_transactions() {
-    let tx1 = Transaction::new("alice".to_string(), "bob".to_string(), 100, None);
-    let tx2 = Transaction::new("bob".to_string(), "charlie".to_string(), 50, None);
+fn test_data_hash_changes_with_content() {
+    let signing_key1 = genesis_key();
+    let signing_key2 = miner1_key();
 
-    let block1 = Block::new(1, "prev".to_string(), vec![tx1.clone()], 100);
-    let block2 = Block::new(1, "prev".to_string(), vec![tx1.clone(), tx2.clone()], 100);
-    let block3 = Block::new(1, "prev".to_string(), vec![tx2.clone()], 100);
+    let data1 = BlockData::new(signing_key1.verifying_key(), 100);
+    let data2 = BlockData::new(signing_key1.verifying_key(), 200);
+    let data3 = BlockData::new(signing_key2.verifying_key(), 100);
 
-    // Different transactions should produce different merkle roots
-    assert_ne!(block1.header.merkle_root, block2.header.merkle_root);
-    assert_ne!(block1.header.merkle_root, block3.header.merkle_root);
-    assert_ne!(block2.header.merkle_root, block3.header.merkle_root);
+    let block1 = Block::new(1, "prev".to_string(), data1, 100);
+    let block2 = Block::new(1, "prev".to_string(), data2, 100);
+    let block3 = Block::new(1, "prev".to_string(), data3, 100);
+
+    // Different numbers or keys should produce different data hashes
+    assert_ne!(block1.header.data_hash, block2.header.data_hash);
+    assert_ne!(block1.header.data_hash, block3.header.data_hash);
+    assert_ne!(block2.header.data_hash, block3.header.data_hash);
 }
 
 #[test]
 fn test_difficulty_adjustment_logic() {
     let manager = EpochManager::default();
+    let genesis = genesis_key();
 
     // Create blocks mined too fast (half expected time)
     let start_time = chrono::Utc::now();
     let mut fast_blocks = vec![];
     for i in 0..40 {
-        let mut block = Block::new(i, format!("prev_{}", i), vec![], 1000);
+        let data = BlockData::new(genesis.verifying_key(), i);
+        let mut block = Block::new(i, format!("prev_{}", i), data, 1000);
         block.header.timestamp = start_time + chrono::Duration::seconds((i as i64) * 300);
         fast_blocks.push(block);
     }
@@ -320,7 +314,8 @@ fn test_difficulty_adjustment_logic() {
     // Create blocks mined too slow (double expected time)
     let mut slow_blocks = vec![];
     for i in 0..40 {
-        let mut block = Block::new(i, format!("prev_{}", i), vec![], 1000);
+        let data = BlockData::new(genesis.verifying_key(), i);
+        let mut block = Block::new(i, format!("prev_{}", i), data, 1000);
         block.header.timestamp = start_time + chrono::Duration::seconds((i as i64) * 1200);
         slow_blocks.push(block);
     }
@@ -332,3 +327,47 @@ fn test_difficulty_adjustment_logic() {
     );
 }
 
+#[test]
+fn test_get_blocks_by_nominated_key() {
+    let genesis = genesis_key();
+    let nominated1 = miner1_key();
+    let nominated2 = miner2_key();
+    
+    let mut chain = Blockchain::new(
+        ChainConfig {
+            initial_difficulty: 100,
+            target_block_time_secs: 600,
+        },
+        genesis.verifying_key(),
+    );
+
+    // Mine blocks nominating different keys
+    chain.mine_block(nominated1.verifying_key(), 100).unwrap();
+    chain.mine_block(nominated2.verifying_key(), 200).unwrap();
+    chain.mine_block(nominated1.verifying_key(), 300).unwrap();
+
+    let key1_blocks = chain.get_blocks_by_nominated_key(&nominated1.verifying_key());
+    let key2_blocks = chain.get_blocks_by_nominated_key(&nominated2.verifying_key());
+
+    assert_eq!(key1_blocks.len(), 2);
+    assert_eq!(key2_blocks.len(), 1);
+    
+    assert_eq!(key1_blocks[0].data.miner_number, 100);
+    assert_eq!(key1_blocks[1].data.miner_number, 300);
+    assert_eq!(key2_blocks[0].data.miner_number, 200);
+}
+
+#[test]
+fn test_block_data_serialization() {
+    let signing_key = genesis_key();
+    let data = BlockData::new(signing_key.verifying_key(), 42);
+    
+    // Serialize to JSON
+    let json = serde_json::to_string(&data).unwrap();
+    assert!(json.contains("42"));
+    
+    // Deserialize back
+    let deserialized: BlockData = serde_json::from_str(&json).unwrap();
+    assert_eq!(deserialized.miner_number, 42);
+    assert_eq!(deserialized.nominated_public_key, signing_key.verifying_key());
+}

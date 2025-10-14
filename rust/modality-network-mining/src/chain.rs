@@ -1,7 +1,8 @@
-use crate::block::{Block, Transaction};
+use crate::block::{Block, BlockData};
 use crate::epoch::EpochManager;
 use crate::error::MiningError;
 use crate::miner::Miner;
+use ed25519_dalek::VerifyingKey;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -25,39 +26,39 @@ impl Default for ChainConfig {
 #[derive(Debug, Clone)]
 pub struct Blockchain {
     pub blocks: Vec<Block>,
-    pub pending_transactions: Vec<Transaction>,
     pub epoch_manager: EpochManager,
     pub miner: Miner,
     pub config: ChainConfig,
+    pub genesis_public_key: VerifyingKey,
     block_index: HashMap<String, usize>, // hash -> index mapping
 }
 
 impl Blockchain {
     /// Create a new blockchain with a genesis block
-    pub fn new(config: ChainConfig) -> Self {
+    pub fn new(config: ChainConfig, genesis_public_key: VerifyingKey) -> Self {
         let epoch_manager = EpochManager::new(
             40, // BLOCKS_PER_EPOCH
             config.target_block_time_secs,
             config.initial_difficulty,
         );
         
-        let genesis = Block::genesis(config.initial_difficulty);
+        let genesis = Block::genesis(config.initial_difficulty, genesis_public_key);
         let mut block_index = HashMap::new();
         block_index.insert(genesis.header.hash.clone(), 0);
         
         Self {
             blocks: vec![genesis],
-            pending_transactions: Vec::new(),
             epoch_manager,
             miner: Miner::new_default(),
             config,
+            genesis_public_key,
             block_index,
         }
     }
     
     /// Create a new blockchain with default configuration
-    pub fn new_default() -> Self {
-        Self::new(ChainConfig::default())
+    pub fn new_default(genesis_public_key: VerifyingKey) -> Self {
+        Self::new(ChainConfig::default(), genesis_public_key)
     }
     
     /// Get the latest block in the chain
@@ -75,11 +76,6 @@ impl Blockchain {
         self.epoch_manager.get_epoch(self.height())
     }
     
-    /// Add a transaction to the pending pool
-    pub fn add_transaction(&mut self, transaction: Transaction) {
-        self.pending_transactions.push(transaction);
-    }
-    
     /// Get the difficulty for the next block
     fn get_next_difficulty(&self) -> u128 {
         let next_index = self.height() + 1;
@@ -87,32 +83,28 @@ impl Blockchain {
             .get_difficulty_for_block(next_index, &self.blocks)
     }
     
-    /// Mine a new block with pending transactions
-    pub fn mine_pending_transactions(
+    /// Mine a new block with the provided block data
+    /// 
+    /// # Arguments
+    /// * `nominated_public_key` - The public key being nominated (to be used downstream)
+    /// * `miner_number` - An arbitrary number chosen by the miner
+    pub fn mine_block(
         &mut self,
-        miner_address: &str,
-        reward_amount: u64,
+        nominated_public_key: VerifyingKey,
+        miner_number: u64,
     ) -> Result<Block, MiningError> {
         let next_index = self.height() + 1;
         let next_difficulty = self.get_next_difficulty();
         let previous_hash = self.latest_block().header.hash.clone();
         
-        // Add mining reward transaction
-        let mut transactions = vec![Transaction::new(
-            "SYSTEM".to_string(),
-            miner_address.to_string(),
-            reward_amount,
-            Some("Mining reward".to_string()),
-        )];
-        
-        // Add pending transactions
-        transactions.append(&mut self.pending_transactions);
+        // Create block data with nominated public key
+        let block_data = BlockData::new(nominated_public_key, miner_number);
         
         // Create new block
         let block = Block::new(
             next_index,
             previous_hash,
-            transactions,
+            block_data,
             next_difficulty,
         );
         
@@ -160,10 +152,10 @@ impl Blockchain {
             ));
         }
         
-        // Verify merkle root
-        if !block.verify_merkle_root() {
+        // Verify data hash
+        if !block.verify_data_hash() {
             return Err(MiningError::InvalidBlock(
-                "Invalid merkle root".to_string(),
+                "Invalid data hash".to_string(),
             ));
         }
         
@@ -215,10 +207,10 @@ impl Blockchain {
                 )));
             }
             
-            // Verify merkle root
-            if !block.verify_merkle_root() {
+            // Verify data hash
+            if !block.verify_data_hash() {
                 return Err(MiningError::InvalidChain(format!(
-                    "Invalid merkle root at block {}",
+                    "Invalid data hash at block {}",
                     block.header.index
                 )));
             }
@@ -266,37 +258,17 @@ impl Blockchain {
             .collect()
     }
     
-    /// Get the balance for an address by scanning all transactions
-    pub fn get_balance(&self, address: &str) -> u64 {
-        let mut balance = 0u64;
-        
-        for block in &self.blocks {
-            for tx in &block.transactions {
-                if tx.to == address {
-                    balance = balance.saturating_add(tx.amount);
-                }
-                if tx.from == address {
-                    balance = balance.saturating_sub(tx.amount);
-                }
-            }
-        }
-        
-        balance
+    /// Get all blocks that nominated a specific public key
+    pub fn get_blocks_by_nominated_key(&self, public_key: &VerifyingKey) -> Vec<&Block> {
+        self.blocks
+            .iter()
+            .filter(|block| &block.data.nominated_public_key == public_key)
+            .collect()
     }
     
-    /// Get all transactions for an address
-    pub fn get_transactions(&self, address: &str) -> Vec<(&Block, &Transaction)> {
-        let mut transactions = Vec::new();
-        
-        for block in &self.blocks {
-            for tx in &block.transactions {
-                if tx.from == address || tx.to == address {
-                    transactions.push((block, tx));
-                }
-            }
-        }
-        
-        transactions
+    /// Count blocks that nominated a specific public key
+    pub fn count_blocks_by_nominated_key(&self, public_key: &VerifyingKey) -> usize {
+        self.get_blocks_by_nominated_key(public_key).len()
     }
     
     /// Export chain to JSON
@@ -309,10 +281,21 @@ impl Blockchain {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ed25519_dalek::SigningKey;
+    
+    fn test_signing_key() -> SigningKey {
+        SigningKey::from_bytes(&[1u8; 32])
+    }
+    
+    fn test_miner_key() -> SigningKey {
+        SigningKey::from_bytes(&[2u8; 32])
+    }
     
     #[test]
     fn test_new_blockchain() {
-        let chain = Blockchain::new_default();
+        let signing_key = test_signing_key();
+        let public_key = signing_key.verifying_key();
+        let chain = Blockchain::new_default(public_key);
         
         assert_eq!(chain.height(), 0);
         assert_eq!(chain.blocks.len(), 1);
@@ -320,104 +303,91 @@ mod tests {
     }
     
     #[test]
-    fn test_add_transaction() {
-        let mut chain = Blockchain::new_default();
-        
-        let tx = Transaction::new(
-            "alice".to_string(),
-            "bob".to_string(),
-            100,
-            None,
-        );
-        
-        chain.add_transaction(tx);
-        
-        assert_eq!(chain.pending_transactions.len(), 1);
-    }
-    
-    #[test]
     fn test_mine_block() {
-        let mut chain = Blockchain::new(ChainConfig {
-            initial_difficulty: 100, // Low difficulty for fast test
-            target_block_time_secs: 600,
-        });
+        let signing_key = test_signing_key();
+        let public_key = signing_key.verifying_key();
+        let miner_key = test_miner_key();
+        let miner_public_key = miner_key.verifying_key();
         
-        let tx = Transaction::new(
-            "alice".to_string(),
-            "bob".to_string(),
-            50,
-            None,
+        let mut chain = Blockchain::new(
+            ChainConfig {
+                initial_difficulty: 100, // Low difficulty for fast test
+                target_block_time_secs: 600,
+            },
+            public_key,
         );
         
-        chain.add_transaction(tx);
-        
-        let result = chain.mine_pending_transactions("miner1", 10);
+        let result = chain.mine_block(miner_public_key, 12345);
         assert!(result.is_ok());
         
         assert_eq!(chain.height(), 1);
-        assert_eq!(chain.pending_transactions.len(), 0);
         
-        // Check mining reward was added
-        let balance = chain.get_balance("miner1");
-        assert_eq!(balance, 10);
+        let block = result.unwrap();
+        assert_eq!(block.data.miner_number, 12345);
     }
     
     #[test]
     fn test_validate_chain() {
-        let mut chain = Blockchain::new(ChainConfig {
-            initial_difficulty: 100,
-            target_block_time_secs: 600,
-        });
+        let signing_key = test_signing_key();
+        let public_key = signing_key.verifying_key();
+        let miner_key = test_miner_key();
+        let miner_public_key = miner_key.verifying_key();
         
-        chain.add_transaction(Transaction::new(
-            "alice".to_string(),
-            "bob".to_string(),
-            50,
-            None,
-        ));
+        let mut chain = Blockchain::new(
+            ChainConfig {
+                initial_difficulty: 100,
+                target_block_time_secs: 600,
+            },
+            public_key,
+        );
         
-        chain.mine_pending_transactions("miner1", 10).unwrap();
+        chain.mine_block(miner_public_key, 100).unwrap();
         
         assert!(chain.validate_chain().is_ok());
     }
     
     #[test]
-    fn test_get_balance() {
-        let mut chain = Blockchain::new(ChainConfig {
-            initial_difficulty: 100,
-            target_block_time_secs: 600,
-        });
+    fn test_count_blocks_by_nominated_key() {
+        let signing_key = test_signing_key();
+        let public_key = signing_key.verifying_key();
+        let nominated_key = test_miner_key();
+        let nominated_public_key = nominated_key.verifying_key();
         
-        chain.add_transaction(Transaction::new(
-            "alice".to_string(),
-            "bob".to_string(),
-            50,
-            None,
-        ));
+        let mut chain = Blockchain::new(
+            ChainConfig {
+                initial_difficulty: 100,
+                target_block_time_secs: 600,
+            },
+            public_key,
+        );
         
-        chain.mine_pending_transactions("miner1", 10).unwrap();
+        // Mine multiple blocks nominating the same key
+        for i in 0..3 {
+            chain.mine_block(nominated_public_key, 1000 + i).unwrap();
+        }
         
-        assert_eq!(chain.get_balance("miner1"), 10);
-        assert_eq!(chain.get_balance("bob"), 50);
+        assert_eq!(chain.count_blocks_by_nominated_key(&nominated_public_key), 3);
+        assert_eq!(chain.count_blocks_by_nominated_key(&public_key), 1); // Genesis
     }
     
     #[test]
     fn test_epoch_progression() {
-        let mut chain = Blockchain::new(ChainConfig {
-            initial_difficulty: 50, // Very low for fast mining
-            target_block_time_secs: 600,
-        });
+        let signing_key = test_signing_key();
+        let public_key = signing_key.verifying_key();
+        let miner_key = test_miner_key();
+        let miner_public_key = miner_key.verifying_key();
+        
+        let mut chain = Blockchain::new(
+            ChainConfig {
+                initial_difficulty: 50, // Very low for fast mining
+                target_block_time_secs: 600,
+            },
+            public_key,
+        );
         
         // Mine enough blocks to cross epoch boundary
         for i in 0..41 {
-            chain.add_transaction(Transaction::new(
-                format!("sender{}", i),
-                format!("receiver{}", i),
-                10,
-                None,
-            ));
-            
-            chain.mine_pending_transactions("miner1", 5).unwrap();
+            chain.mine_block(miner_public_key, 1000 + i).unwrap();
         }
         
         assert_eq!(chain.height(), 41);
@@ -426,19 +396,20 @@ mod tests {
     
     #[test]
     fn test_get_block_by_hash() {
-        let mut chain = Blockchain::new(ChainConfig {
-            initial_difficulty: 100,
-            target_block_time_secs: 600,
-        });
+        let signing_key = test_signing_key();
+        let public_key = signing_key.verifying_key();
+        let miner_key = test_miner_key();
+        let miner_public_key = miner_key.verifying_key();
         
-        chain.add_transaction(Transaction::new(
-            "alice".to_string(),
-            "bob".to_string(),
-            50,
-            None,
-        ));
+        let mut chain = Blockchain::new(
+            ChainConfig {
+                initial_difficulty: 100,
+                target_block_time_secs: 600,
+            },
+            public_key,
+        );
         
-        let block = chain.mine_pending_transactions("miner1", 10).unwrap();
+        let block = chain.mine_block(miner_public_key, 42).unwrap();
         let hash = block.header.hash.clone();
         
         let found = chain.get_block_by_hash(&hash);
@@ -448,20 +419,22 @@ mod tests {
     
     #[test]
     fn test_get_epoch_blocks() {
-        let mut chain = Blockchain::new(ChainConfig {
-            initial_difficulty: 50,
-            target_block_time_secs: 600,
-        });
+        let signing_key = test_signing_key();
+        let public_key = signing_key.verifying_key();
+        let miner_key = test_miner_key();
+        let miner_public_key = miner_key.verifying_key();
+        
+        let mut chain = Blockchain::new(
+            ChainConfig {
+                initial_difficulty: 50,
+                target_block_time_secs: 600,
+            },
+            public_key,
+        );
         
         // Mine blocks in first epoch
-        for _ in 0..10 {
-            chain.add_transaction(Transaction::new(
-                "alice".to_string(),
-                "bob".to_string(),
-                10,
-                None,
-            ));
-            chain.mine_pending_transactions("miner1", 5).unwrap();
+        for i in 0..10 {
+            chain.mine_block(miner_public_key, 1000 + i).unwrap();
         }
         
         let epoch_0_blocks = chain.get_epoch_blocks(0);

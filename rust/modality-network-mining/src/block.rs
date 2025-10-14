@@ -1,31 +1,53 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
+use ed25519_dalek::VerifyingKey;
 
-/// Represents a transaction in a block
+/// Block data containing a nominated public key and arbitrary number
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Transaction {
-    pub from: String,
-    pub to: String,
-    pub amount: u64,
-    pub timestamp: DateTime<Utc>,
-    pub data: Option<String>,
+pub struct BlockData {
+    /// Ed25519 public key nominated by the miner (to be used downstream)
+    #[serde(with = "public_key_serde")]
+    pub nominated_public_key: VerifyingKey,
+    /// Arbitrary number selected by the miner
+    pub miner_number: u64,
 }
 
-impl Transaction {
-    pub fn new(from: String, to: String, amount: u64, data: Option<String>) -> Self {
+impl BlockData {
+    pub fn new(nominated_public_key: VerifyingKey, miner_number: u64) -> Self {
         Self {
-            from,
-            to,
-            amount,
-            timestamp: Utc::now(),
-            data,
+            nominated_public_key,
+            miner_number,
         }
     }
     
-    /// Serialize transaction to JSON string for hashing
-    pub fn to_json_string(&self) -> String {
-        serde_json::to_string(self).unwrap_or_default()
+    /// Serialize block data to JSON-compatible string for hashing
+    pub fn to_hash_string(&self) -> String {
+        format!("{}{}", hex::encode(self.nominated_public_key.to_bytes()), self.miner_number)
+    }
+}
+
+// Serde helper for VerifyingKey
+mod public_key_serde {
+    use ed25519_dalek::VerifyingKey;
+    use serde::{Deserialize, Deserializer, Serializer};
+    
+    pub fn serialize<S>(key: &VerifyingKey, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&hex::encode(key.to_bytes()))
+    }
+    
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<VerifyingKey, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let bytes = hex::decode(&s).map_err(serde::de::Error::custom)?;
+        let bytes_array: [u8; 32] = bytes.try_into()
+            .map_err(|_| serde::de::Error::custom("Invalid public key length"))?;
+        VerifyingKey::from_bytes(&bytes_array).map_err(serde::de::Error::custom)
     }
 }
 
@@ -35,7 +57,7 @@ pub struct BlockHeader {
     pub index: u64,
     pub timestamp: DateTime<Utc>,
     pub previous_hash: String,
-    pub merkle_root: String,
+    pub data_hash: String,  // Hash of the BlockData
     pub nonce: u128,
     pub difficulty: u128,
     pub hash: String,
@@ -49,7 +71,7 @@ impl BlockHeader {
             self.index,
             self.timestamp.timestamp(),
             self.previous_hash,
-            self.merkle_root,
+            self.data_hash,
             self.difficulty
         )
     }
@@ -67,7 +89,7 @@ impl BlockHeader {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
     pub header: BlockHeader,
-    pub transactions: Vec<Transaction>,
+    pub data: BlockData,
 }
 
 impl Block {
@@ -75,16 +97,16 @@ impl Block {
     pub fn new(
         index: u64,
         previous_hash: String,
-        transactions: Vec<Transaction>,
+        data: BlockData,
         difficulty: u128,
     ) -> Self {
-        let merkle_root = Self::calculate_merkle_root(&transactions);
+        let data_hash = Self::calculate_data_hash(&data);
         
         let header = BlockHeader {
             index,
             timestamp: Utc::now(),
             previous_hash,
-            merkle_root,
+            data_hash,
             nonce: 0,
             difficulty,
             hash: String::new(),
@@ -92,16 +114,18 @@ impl Block {
         
         Self {
             header,
-            transactions,
+            data,
         }
     }
     
     /// Create genesis block (first block in chain)
-    pub fn genesis(difficulty: u128) -> Self {
+    pub fn genesis(difficulty: u128, genesis_public_key: VerifyingKey) -> Self {
+        let data = BlockData::new(genesis_public_key, 0);
+        
         let mut block = Self::new(
             0,
             "0".to_string(),
-            vec![],
+            data,
             difficulty,
         );
         
@@ -110,48 +134,17 @@ impl Block {
         block
     }
     
-    /// Calculate Merkle root of transactions
-    fn calculate_merkle_root(transactions: &[Transaction]) -> String {
-        if transactions.is_empty() {
-            return "0".to_string();
-        }
-        
-        let mut hashes: Vec<String> = transactions
-            .iter()
-            .map(|tx| {
-                let mut hasher = Sha256::new();
-                hasher.update(tx.to_json_string().as_bytes());
-                format!("{:x}", hasher.finalize())
-            })
-            .collect();
-        
-        while hashes.len() > 1 {
-            let mut new_hashes = Vec::new();
-            
-            for i in (0..hashes.len()).step_by(2) {
-                let left = &hashes[i];
-                let right = if i + 1 < hashes.len() {
-                    &hashes[i + 1]
-                } else {
-                    left
-                };
-                
-                let combined = format!("{}{}", left, right);
-                let mut hasher = Sha256::new();
-                hasher.update(combined.as_bytes());
-                new_hashes.push(format!("{:x}", hasher.finalize()));
-            }
-            
-            hashes = new_hashes;
-        }
-        
-        hashes[0].clone()
+    /// Calculate hash of block data
+    fn calculate_data_hash(data: &BlockData) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(data.to_hash_string().as_bytes());
+        format!("{:x}", hasher.finalize())
     }
     
-    /// Verify the merkle root is correct
-    pub fn verify_merkle_root(&self) -> bool {
-        let calculated = Self::calculate_merkle_root(&self.transactions);
-        calculated == self.header.merkle_root
+    /// Verify the data hash is correct
+    pub fn verify_data_hash(&self) -> bool {
+        let calculated = Self::calculate_data_hash(&self.data);
+        calculated == self.header.data_hash
     }
     
     /// Verify this block's hash is valid
@@ -169,57 +162,59 @@ impl Block {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ed25519_dalek::SigningKey;
+    
+    fn test_signing_key() -> SigningKey {
+        SigningKey::from_bytes(&[1u8; 32])
+    }
     
     #[test]
-    fn test_transaction_creation() {
-        let tx = Transaction::new(
-            "alice".to_string(),
-            "bob".to_string(),
-            100,
-            None,
-        );
+    fn test_block_data_creation() {
+        let signing_key = test_signing_key();
+        let public_key = signing_key.verifying_key();
+        let data = BlockData::new(public_key, 12345);
         
-        assert_eq!(tx.from, "alice");
-        assert_eq!(tx.to, "bob");
-        assert_eq!(tx.amount, 100);
+        assert_eq!(data.miner_number, 12345);
+        assert!(!data.to_hash_string().is_empty());
     }
     
     #[test]
     fn test_genesis_block() {
-        let genesis = Block::genesis(1);
+        let signing_key = test_signing_key();
+        let public_key = signing_key.verifying_key();
+        let genesis = Block::genesis(1, public_key);
         
         assert_eq!(genesis.header.index, 0);
         assert_eq!(genesis.header.previous_hash, "0");
-        assert_eq!(genesis.transactions.len(), 0);
+        assert_eq!(genesis.data.miner_number, 0);
         assert!(!genesis.header.hash.is_empty());
     }
     
     #[test]
-    fn test_merkle_root() {
-        let tx1 = Transaction::new(
-            "alice".to_string(),
-            "bob".to_string(),
-            100,
-            None,
-        );
-        let tx2 = Transaction::new(
-            "bob".to_string(),
-            "charlie".to_string(),
-            50,
-            None,
-        );
+    fn test_data_hash() {
+        let signing_key = test_signing_key();
+        let public_key = signing_key.verifying_key();
+        let data = BlockData::new(public_key, 42);
         
-        let block = Block::new(1, "prev".to_string(), vec![tx1, tx2], 1);
+        let block = Block::new(1, "prev".to_string(), data, 1);
         
-        assert!(block.verify_merkle_root());
+        assert!(block.verify_data_hash());
     }
     
     #[test]
-    fn test_empty_transactions_merkle_root() {
-        let block = Block::new(1, "prev".to_string(), vec![], 1);
+    fn test_block_hash_calculation() {
+        let signing_key = test_signing_key();
+        let public_key = signing_key.verifying_key();
+        let data = BlockData::new(public_key, 100);
         
-        assert_eq!(block.header.merkle_root, "0");
-        assert!(block.verify_merkle_root());
+        let block = Block::new(1, "prev".to_string(), data, 1);
+        
+        let hash1 = block.header.calculate_hash(0);
+        let hash2 = block.header.calculate_hash(0);
+        let hash3 = block.header.calculate_hash(1);
+        
+        assert_eq!(hash1, hash2);
+        assert_ne!(hash1, hash3);
     }
 }
 

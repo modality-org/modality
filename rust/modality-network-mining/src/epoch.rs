@@ -184,17 +184,23 @@ mod tests {
     
     #[test]
     fn test_difficulty_adjustment_fast_mining() {
+        use crate::block::BlockData;
+        use ed25519_dalek::SigningKey;
+        
         let manager = EpochManager::default();
+        let signing_key = SigningKey::from_bytes(&[1u8; 32]);
+        let public_key = signing_key.verifying_key();
         
         // Create blocks that were mined too fast
         let mut blocks = vec![];
         let start_time = chrono::Utc::now();
         
         for i in 0..40 {
+            let data = BlockData::new(public_key, i);
             let mut block = Block::new(
                 i,
                 format!("prev_{}", i),
-                vec![],
+                data,
                 1000,
             );
             // Blocks mined in half the expected time
@@ -210,17 +216,23 @@ mod tests {
     
     #[test]
     fn test_difficulty_adjustment_slow_mining() {
+        use crate::block::BlockData;
+        use ed25519_dalek::SigningKey;
+        
         let manager = EpochManager::default();
+        let signing_key = SigningKey::from_bytes(&[1u8; 32]);
+        let public_key = signing_key.verifying_key();
         
         // Create blocks that were mined too slowly
         let mut blocks = vec![];
         let start_time = chrono::Utc::now();
         
         for i in 0..40 {
+            let data = BlockData::new(public_key, i);
             let mut block = Block::new(
                 i,
                 format!("prev_{}", i),
-                vec![],
+                data,
                 1000,
             );
             // Blocks mined in double the expected time
@@ -236,15 +248,22 @@ mod tests {
     
     #[test]
     fn test_difficulty_bounds() {
+        use crate::block::BlockData;
+        use ed25519_dalek::SigningKey;
+        
         let manager = EpochManager {
             min_difficulty: 10,
             max_difficulty: 1000,
             ..Default::default()
         };
         
+        let signing_key = SigningKey::from_bytes(&[1u8; 32]);
+        let public_key = signing_key.verifying_key();
+        
         let mut blocks = vec![];
         for i in 0..40 {
-            blocks.push(Block::new(i, format!("prev_{}", i), vec![], 100));
+            let data = BlockData::new(public_key, i);
+            blocks.push(Block::new(i, format!("prev_{}", i), data, 100));
         }
         
         // Try to set difficulty too high
