@@ -1,0 +1,9 @@
+{
+  "passfile_path": "../../passfiles/node1.mod_passfile",
+  "storage_path": "../../../tmp/storage/node1",
+  "autoupgrade_enabled": true,
+  "autoupgrade_git_repo": "https://github.com/modality-org/modality",
+  "autoupgrade_git_branch": "devnet",
+  "autoupgrade_check_interval_secs": 300,
+  "noop_mode": true
+}

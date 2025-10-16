@@ -134,7 +134,7 @@ mod tests {
         let miner_block = gossip.to_miner_block();
         assert_eq!(miner_block.hash, gossip.hash);
         assert_eq!(miner_block.index, gossip.index);
-        assert!(miner_block.canonical);
+        assert!(miner_block.is_canonical);
 
         let gossip2 = MinerBlockGossip::from_miner_block(&miner_block);
         assert_eq!(gossip2.hash, gossip.hash);

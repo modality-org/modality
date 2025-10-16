@@ -37,6 +37,8 @@ pub struct Node {
     consensus_runner: Option<modality_network_consensus::runner::Runner>,
     networking_task: Option<tokio::task::JoinHandle<Result<()>>>,
     consensus_task: Option<tokio::task::JoinHandle<Result<()>>>,
+    autoupgrade_task: Option<tokio::task::JoinHandle<Result<()>>>,
+    pub autoupgrade_config: Option<crate::autoupgrade::AutoupgradeConfig>,
     consensus_tx: mpsc::Sender<ConsensusMessage>,
     consensus_rx: Option<mpsc::Receiver<ConsensusMessage>>,
     shutdown_tx: tokio::sync::broadcast::Sender<()>,
@@ -51,6 +53,7 @@ impl Node {
     pub async fn from_config(config: Config) -> Result<Node> {
         let node_keypair = config.get_libp2p_keypair().await?;
         let peerid = node_keypair.public().to_peer_id();
+        let autoupgrade_config = crate::autoupgrade::AutoupgradeConfig::from_node_config(&config);
         let listeners = config.listeners.unwrap_or_default();
         let resolved_bootstrappers =
             resolve_dns_multiaddrs(config.bootstrappers.unwrap_or_default()).await?;
@@ -83,6 +86,8 @@ impl Node {
             datastore,
             networking_task: None,
             consensus_task: None,
+            autoupgrade_task: None,
+            autoupgrade_config,
             consensus_tx,
             consensus_rx: Some(consensus_rx),
             shutdown_tx,
@@ -278,6 +283,12 @@ impl Node {
         let mut shutdown_rx = self.shutdown_tx.subscribe();
         shutdown_rx.recv().await?;
         log::info!("Shutdown signal received in wait_for_shutdown");
+    
+        if let Some(handle) = self.autoupgrade_task.take() {
+            log::info!("Awaiting autoupgrade task shutdown...");
+            handle.await??;
+            log::info!("Autoupgrade task shutdown complete");
+        }
     
         if let Some(handle) = self.consensus_task.take() {
             log::info!("Awaiting consensus task shutdown...");
@@ -491,6 +502,27 @@ impl Node {
             Ok(())
         }));
     
+        Ok(())
+    }
+    
+    pub async fn start_autoupgrade(&mut self) -> Result<()> {
+        let Some(config) = self.autoupgrade_config.clone() else {
+            log::debug!("Autoupgrade not configured, skipping");
+            return Ok(());
+        };
+
+        if !config.enabled {
+            log::debug!("Autoupgrade disabled, skipping");
+            return Ok(());
+        }
+
+        let shutdown_rx = self.shutdown_tx.subscribe();
+        
+        self.autoupgrade_task = Some(tokio::spawn(async move {
+            crate::autoupgrade::start_autoupgrade_task(config, shutdown_rx).await
+        }));
+
+        log::info!("Autoupgrade task started");
         Ok(())
     }
     

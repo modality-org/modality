@@ -13,6 +13,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
 
     // Start networking
     node.start_networking().await?;
+    node.start_autoupgrade().await?;
     node.wait_for_connections().await?;
 
     log::info!("Starting miner...");

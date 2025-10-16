@@ -56,11 +56,17 @@ enum PassfileCommands {
 
 #[derive(Subcommand)]
 enum NetworkCommands {
+    #[command(about = "Create a new node directory with config.json and node.passfile")]
+    CreateNodeDir(cmds::net::create_node_dir::Opts),
+
     #[command(alias = "run_node")]
     RunNode(cmds::net::run_node::Opts),
 
     #[command(about = "Run a mining node")]
     RunMiner(cmds::net::run_miner::Opts),
+
+    #[command(about = "Run a noop node (only autoupgrade, no network operations)")]
+    RunNoop(cmds::net::run_noop::Opts),
 
     #[clap(name = "ping")]
     Ping(cmds::net::ping::Opts),
@@ -95,8 +101,6 @@ enum ModelCommands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-
     let cli = Cli::parse();
     match &cli.command {
         Commands::Id { command } => {
@@ -113,8 +117,10 @@ async fn main() -> Result<()> {
         }
         Commands::Net { command } => {
             match command {
+                NetworkCommands::CreateNodeDir(opts) => cmds::net::create_node_dir::run(opts).await?,
                 NetworkCommands::RunNode(opts) => cmds::net::run_node::run(opts).await?,
                 NetworkCommands::RunMiner(opts) => cmds::net::run_miner::run(opts).await?,
+                NetworkCommands::RunNoop(opts) => cmds::net::run_noop::run(opts).await?,
                 NetworkCommands::Ping(opts) => cmds::net::ping::run(opts).await?,
                 NetworkCommands::Storage(opts) => cmds::net::storage::run(opts).await?,
                 NetworkCommands::Mining { command } => {

@@ -11,9 +11,17 @@ pub struct Config {
     pub id: Option<String>,
     pub passfile_path: Option<PathBuf>,
     pub storage_path: Option<PathBuf>,
+    pub logs_path: Option<PathBuf>,
+    pub logs_enabled: Option<bool>,
+    pub log_level: Option<String>,
     pub network_config_path: Option<PathBuf>,
     pub listeners: Option<Vec<Multiaddr>>,
     pub bootstrappers: Option<Vec<Multiaddr>>,
+    pub autoupgrade_enabled: Option<bool>,
+    pub autoupgrade_git_repo: Option<String>,
+    pub autoupgrade_git_branch: Option<String>,
+    pub autoupgrade_check_interval_secs: Option<u64>,
+    pub noop_mode: Option<bool>,
 }
 
 impl Config {
@@ -35,6 +43,12 @@ impl Config {
             let storage_path = storage_path_buf.as_path();
             let abs_storage_path = to_absolute_path(config_dir, storage_path)?;
             config.storage_path = Some(abs_storage_path);
+        }
+
+        if let Some(logs_path_buf) = config.logs_path {
+            let logs_path = logs_path_buf.as_path();
+            let abs_logs_path = to_absolute_path(config_dir, logs_path)?;
+            config.logs_path = Some(abs_logs_path);
         }
 
         if let Some(network_config_path_buf) = config.network_config_path {
