@@ -63,6 +63,18 @@ pub struct Opts {
     /// Log level (error, warn, info, debug, trace). Default: info
     #[clap(long, default_value = "info")]
     pub log_level: String,
+
+    /// Enable bootup tasks (default: true)
+    #[clap(long)]
+    pub bootup_enabled: Option<bool>,
+
+    /// Minimum genesis timestamp for pruning old blocks (Unix timestamp)
+    #[clap(long)]
+    pub bootup_minimum_genesis_timestamp: Option<u64>,
+
+    /// Enable pruning of old genesis blocks (default: false)
+    #[clap(long)]
+    pub bootup_prune_old_genesis_blocks: Option<bool>,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
@@ -176,6 +188,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         "logs_path": "./logs",
         "logs_enabled": opts.logs_enabled.unwrap_or(true),
         "log_level": opts.log_level,
+        "bootup_enabled": opts.bootup_enabled.unwrap_or(true),
+        "bootup_minimum_genesis_timestamp": opts.bootup_minimum_genesis_timestamp,
+        "bootup_prune_old_genesis_blocks": opts.bootup_prune_old_genesis_blocks.unwrap_or(false),
         "_bootstrappers": bootstrappers
     });
 
@@ -205,6 +220,13 @@ pub async fn run(opts: &Opts) -> Result<()> {
     println!("📊 Logging: {} (level: {})", 
         if opts.logs_enabled.unwrap_or(true) { "enabled" } else { "disabled" }, 
         opts.log_level);
+    println!("🚀 Bootup tasks: {} (prune old genesis: {})", 
+        if opts.bootup_enabled.unwrap_or(true) { "enabled" } else { "disabled" },
+        if opts.bootup_prune_old_genesis_blocks.unwrap_or(false) { "enabled" } else { "disabled" });
+    
+    if let Some(timestamp) = opts.bootup_minimum_genesis_timestamp {
+        println!("📅 Minimum genesis timestamp: {}", timestamp);
+    }
     
     if !bootstrappers.is_empty() {
         println!("🌐 Bootstrappers: {}", bootstrappers.join(", "));

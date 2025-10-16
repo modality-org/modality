@@ -34,8 +34,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
     
     log::info!("Starting noop node with config loaded from node directory or config file");
     
-    let mut node = Node::from_config(config).await?;
-    node.setup().await?;
+    let mut node = Node::from_config(config.clone()).await?;
+    node.setup(&config).await?;
     
     actions::noop::run(&mut node).await?;
     

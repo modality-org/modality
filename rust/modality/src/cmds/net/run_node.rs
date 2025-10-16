@@ -34,9 +34,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Initialize logging with the logs_path from config
     logging::init_logging(config.logs_path.clone(), config.logs_enabled, config.log_level.clone())?;
     
-    let mut node = Node::from_config(config).await?;
+    let mut node = Node::from_config(config.clone()).await?;
     log::info!("Running node as {:?}", node.peerid);
-    node.setup().await?;
+    node.setup(&config).await?;
     // TODO connect to network
     modality_network_node::actions::server::run(&mut node).await?;
 

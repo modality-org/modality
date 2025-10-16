@@ -3,6 +3,7 @@ pub mod gossip;
 pub mod config;
 pub mod config_resolution;
 pub mod logging;
+pub mod bootup;
 pub mod swarm;
 pub mod node;
 

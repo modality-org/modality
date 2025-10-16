@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 use modality_network_node::actions;
 use modality_network_node::node::Node;
+use modality_network_node::config::Config;
 use rand::Rng;
 
 #[derive(Debug, Parser)]
@@ -22,9 +23,10 @@ pub struct Opts {
 
 pub async fn run(opts: &Opts) -> Result<()> {
     let times_to_ping = opts.times;
+    let config = Config::from_filepath(&opts.config)?;
     let mut node = Node::from_config_filepath(opts.config.clone()).await?;
     log::info!("Running node as {:?}", node.peerid);
-    node.setup().await?;
+    node.setup(&config).await?;
     let target = opts.target.clone();
 
     let start = Instant::now();

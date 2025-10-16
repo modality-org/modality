@@ -5,6 +5,7 @@ use std::time::Instant;
 
 use modality_network_node::actions;
 use modality_network_node::node::Node;
+use modality_network_node::config::Config;
 
 #[derive(Debug, Parser)]
 #[command(about = "Sync miner blocks from a specified node")]
@@ -43,9 +44,10 @@ pub struct Opts {
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
+    let config = Config::from_filepath(&opts.config)?;
     let mut node = Node::from_config_filepath(opts.config.clone()).await?;
     log::info!("Running node as {:?}", node.peerid);
-    node.setup().await?;
+    node.setup(&config).await?;
 
     let target = opts.target.clone();
     let start = Instant::now();

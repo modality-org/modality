@@ -344,6 +344,25 @@ impl MinerBlock {
         Ok(blocks)
     }
     
+    /// Find all blocks (both canonical and orphaned)
+    pub async fn find_all_blocks(
+        datastore: &NetworkDatastore,
+    ) -> Result<Vec<Self>> {
+        let prefix = "/miner_blocks/hash";
+        let mut blocks = Vec::new();
+        
+        for item in datastore.iterator(prefix) {
+            let (_, value) = item?;
+            let block: MinerBlock = serde_json::from_slice(&value)
+                .context("Failed to deserialize MinerBlock")?;
+            
+            blocks.push(block);
+        }
+        
+        blocks.sort_by_key(|b| b.index);
+        Ok(blocks)
+    }
+    
     /// Find the canonical block at a specific index
     pub async fn find_canonical_by_index(
         datastore: &NetworkDatastore,

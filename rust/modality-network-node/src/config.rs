@@ -14,6 +14,9 @@ pub struct Config {
     pub logs_path: Option<PathBuf>,
     pub logs_enabled: Option<bool>,
     pub log_level: Option<String>,
+    pub bootup_enabled: Option<bool>,
+    pub bootup_minimum_genesis_timestamp: Option<u64>,
+    pub bootup_prune_old_genesis_blocks: Option<bool>,
     pub network_config_path: Option<PathBuf>,
     pub listeners: Option<Vec<Multiaddr>>,
     pub bootstrappers: Option<Vec<Multiaddr>>,
@@ -64,6 +67,25 @@ impl Config {
         let passfile = modality_utils::passfile::Passfile::load_file(self.passfile_path.clone().unwrap(), true).await?;
         let node_keypair = modality_utils::libp2p_identity_keypair::libp2p_identity_from_private_key(passfile.keypair.private_key().as_str()).await?;
         Ok(node_keypair)
+    }
+
+    /// Get bootup configuration
+    pub fn get_bootup_config(&self) -> Result<crate::bootup::BootupConfig> {
+        let mut config = crate::bootup::BootupConfig::default();
+        
+        if let Some(enabled) = self.bootup_enabled {
+            config.enabled = enabled;
+        }
+
+        if let Some(prune_old) = self.bootup_prune_old_genesis_blocks {
+            config.prune_old_genesis_blocks = prune_old;
+        }
+
+        if let Some(timestamp) = self.bootup_minimum_genesis_timestamp {
+            config.minimum_genesis_timestamp = Some(timestamp);
+        }
+
+        Ok(config)
     }
 }
 

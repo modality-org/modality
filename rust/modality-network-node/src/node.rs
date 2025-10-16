@@ -96,7 +96,10 @@ impl Node {
         Ok(node)
     }
 
-    pub async fn setup(&mut self) -> Result<()> {
+    pub async fn setup(&mut self, config: &Config) -> Result<()> {
+        // Run bootup tasks if configured
+        self.run_bootup_tasks(config).await?;
+
         let mut swarm = self.swarm.lock().await;
         for listener in self.listeners.clone() {
             swarm.listen_on(listener.clone())?;
@@ -523,6 +526,31 @@ impl Node {
         }));
 
         log::info!("Autoupgrade task started");
+        Ok(())
+    }
+
+    /// Run bootup tasks if configured
+    async fn run_bootup_tasks(&self, config: &Config) -> Result<()> {
+        let bootup_config = config.get_bootup_config()?;
+        
+        if !bootup_config.enabled {
+            log::debug!("Bootup tasks disabled, skipping");
+            return Ok(());
+        }
+
+        log::info!("Running bootup tasks...");
+        
+        // Get storage path for bootup runner
+        let storage_path = config.storage_path
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Storage path not configured for bootup tasks"))?
+            .clone();
+        
+        // Create and run bootup tasks
+        let bootup_runner = crate::bootup::BootupRunner::new(bootup_config, storage_path);
+        bootup_runner.run().await?;
+        
+        log::info!("Bootup tasks completed successfully");
         Ok(())
     }
     
