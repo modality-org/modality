@@ -30,3 +30,5 @@ env_logger = "0.11.5"
 log = "0.4.17"
 rand = "0.8"
 chrono = "0.4"
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+self-replace = "1.3"

@@ -39,6 +39,9 @@ enum Commands {
         #[command(subcommand)]
         command: ModelCommands,
     },
+
+    #[command(about = "Upgrade modality to the latest version")]
+    Upgrade(cmds::upgrade::Opts),
 }
 
 #[derive(Subcommand)]
@@ -136,6 +139,7 @@ async fn main() -> Result<()> {
                 ModelCommands::Check(opts) => cmds::check::run(opts).await?,
             }
         }
+        Commands::Upgrade(opts) => cmds::upgrade::run(opts).await?,
     }
 
     Ok(())
