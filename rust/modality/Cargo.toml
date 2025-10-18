@@ -1,6 +1,6 @@
 [package]
 name = "modality"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 description = "CLI for Modality, an evolving temporal modal logic"
 license = "MIT"
@@ -13,10 +13,10 @@ readme = "../README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-modality-utils = { path = "../modality-utils", version = "0.1.6" }
-modality-network-node = { path = "../modality-network-node", version = "0.1.6" }
+modality-utils = { path = "../modality-utils", version = "0.1.7" }
+modality-network-node = { path = "../modality-network-node", version = "0.1.7" }
 modality-network-datastore = { path = "../modality-network-datastore", version = "0.1.0" }
-modality-lang = { path = "../modality-lang", version = "0.1.6" }
+modality-lang = { path = "../modality-lang", version = "0.1.7" }
 anyhow = "1.0"
 clap = { version = "4.1.11", features = ["cargo", "derive", "env"] }
 tokio = { version = "1.42.0", features = ["full"] }
