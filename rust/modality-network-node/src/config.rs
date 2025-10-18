@@ -21,7 +21,9 @@ pub struct Config {
     pub listeners: Option<Vec<Multiaddr>>,
     pub bootstrappers: Option<Vec<Multiaddr>>,
     pub autoupgrade_enabled: Option<bool>,
-    pub autoupgrade_registry_url: Option<String>,
+    pub autoupgrade_base_url: Option<String>,
+    pub autoupgrade_branch: Option<String>,
+    pub autoupgrade_registry_url: Option<String>, // Deprecated: kept for backward compatibility
     pub autoupgrade_check_interval_secs: Option<u64>,
     pub noop_mode: Option<bool>,
 }

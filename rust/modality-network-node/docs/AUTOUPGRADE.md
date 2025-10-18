@@ -1,6 +1,6 @@
 # Network Node Autoupgrade
 
-The network node supports automatic upgrading from a configured cargo registry. When enabled, the node will periodically check for new versions and automatically upgrade itself by installing the latest version using `cargo install`.
+The network node supports automatic upgrading by downloading pre-built binaries from a package server. When enabled, the node will periodically check for new versions and automatically upgrade itself by downloading and replacing the binary.
 
 ## Configuration
 
@@ -9,7 +9,8 @@ Add the following fields to your node configuration JSON file:
 ```json
 {
   "autoupgrade_enabled": true,
-  "autoupgrade_registry_url": "http://packages.modality.org/testnet/latest/cargo-registry/index/",
+  "autoupgrade_base_url": "http://packages.modality.org",
+  "autoupgrade_branch": "testnet",
   "autoupgrade_check_interval_secs": 3600
 }
 ```
@@ -17,22 +18,23 @@ Add the following fields to your node configuration JSON file:
 ### Configuration Options
 
 - **`autoupgrade_enabled`** (optional, boolean): Enable or disable the autoupgrade feature. Default: `false`
-- **`autoupgrade_registry_url`** (required if enabled, string): The cargo registry URL to check for updates
+- **`autoupgrade_base_url`** (optional, string): The base URL of the package server. Default: `http://packages.modality.org`
+- **`autoupgrade_branch`** (optional, string): The branch to upgrade from (e.g., "testnet" or "mainnet"). Default: `testnet`
 - **`autoupgrade_check_interval_secs`** (optional, number): How often to check for updates in seconds. Default: `3600` (1 hour)
 
 ## How It Works
 
-1. **Periodic Checks**: The node spawns a background task that periodically checks the configured cargo registry for new versions using `cargo search`
+1. **Periodic Checks**: The node spawns a background task that periodically checks the package server for new versions by fetching the manifest
 
-2. **Detecting Updates**: The autoupgrade task compares the latest version in the registry with the version at startup. If they differ, an update is available.
+2. **Detecting Updates**: The autoupgrade task compares the latest version in the manifest with the version at startup. If they differ, an update is available.
 
-3. **Installing Updates**: When a new version is detected, the node:
-   - Runs `cargo install --index sparse+<registry_url> modality --force`
-   - Downloads and compiles the new version
-   - Verifies the installation was successful
+3. **Downloading Updates**: When a new version is detected, the node:
+   - Fetches the manifest from `{base_url}/{branch}/latest/manifest.json`
+   - Determines the appropriate binary for the current platform
+   - Downloads the binary from `{base_url}/{branch}/latest/binaries/{platform}/modality`
 
-4. **Binary Replacement**: After successful compilation:
-   - The current executable is replaced with the newly compiled binary
+4. **Binary Replacement**: After successful download:
+   - The current executable is replaced with the newly downloaded binary
    - A new process is spawned with the same command-line arguments
    - The current process exits gracefully
 
@@ -40,9 +42,40 @@ Add the following fields to your node configuration JSON file:
 
 ## Requirements
 
-- **Cargo**: Must be installed and available in PATH (used to search and install updates)
-- **Network Access**: The node must be able to reach the cargo registry URL
+- **Network Access**: The node must be able to reach the package server URL
 - **Write Permissions**: The node must have permission to replace its own binary
+
+## Platform Support
+
+The autoupgrade feature automatically detects your platform and downloads the appropriate binary:
+- Linux x86_64
+- Linux ARM64 (aarch64)
+- macOS Intel (x86_64)
+- macOS Apple Silicon (aarch64)
+- Windows x86_64
+
+## Migration from Registry-Based Autoupgrade
+
+If you were previously using the registry-based autoupgrade (with `autoupgrade_registry_url`), please update your configuration to use the new binary-based approach:
+
+**Old configuration:**
+```json
+{
+  "autoupgrade_enabled": true,
+  "autoupgrade_registry_url": "http://packages.modality.org/testnet/latest/cargo-registry/index/"
+}
+```
+
+**New configuration:**
+```json
+{
+  "autoupgrade_enabled": true,
+  "autoupgrade_base_url": "http://packages.modality.org",
+  "autoupgrade_branch": "testnet"
+}
+```
+
+The old `autoupgrade_registry_url` field is deprecated but still supported for backward compatibility.
 
 ## Example Configuration
 
@@ -50,27 +83,27 @@ See `fixtures/network-node-configs/devnet1/node1-with-autoupgrade.json` for a co
 
 ## Security Considerations
 
-- **Trust the Registry**: Only configure autoupgrade with cargo registries you trust, as the node will automatically download and execute code from that source
-- **Registry Security**: Ensure the registry URL uses HTTPS to prevent man-in-the-middle attacks
+- **Trust the Package Server**: Only configure autoupgrade with package servers you trust, as the node will automatically download and execute binaries from that source
+- **HTTPS**: Ensure the package server URL uses HTTPS to prevent man-in-the-middle attacks
 - **Access Control**: Consider the security implications of automatic updates in your deployment environment
+- **Binary Verification**: Future versions may include signature verification for downloaded binaries
 
 ## Troubleshooting
 
 ### Autoupgrade Not Working
 
 1. Check that `autoupgrade_enabled` is set to `true`
-2. Verify cargo is installed: `cargo --version`
+2. Verify the package server URL is accessible: `curl {base_url}/{branch}/latest/manifest.json`
 3. Check the logs for autoupgrade-related messages
-4. Ensure the node has network access to the cargo registry
-5. Verify the registry URL is correct and accessible
+4. Ensure the node has network access to the package server
 
-### Installation Fails
+### Download Fails
 
-If `cargo install` fails, check:
-- Sufficient disk space for compilation
-- All required system dependencies are installed
-- The cargo registry is accessible and contains the modality package
-- The registry URL is correct and accessible
+If binary download fails, check:
+- Network connectivity to the package server
+- The package server has binaries available for your platform
+- Sufficient disk space in the temporary directory
+- No firewall rules blocking access to the package server
 
 ### Binary Replacement Fails
 
@@ -89,25 +122,40 @@ To disable autoupgrade:
 
 The autoupgrade feature logs its activity at various levels:
 
-- **INFO**: Initial setup, upgrade detection, installation progress
+- **INFO**: Initial setup, upgrade detection, download progress, binary replacement
 - **DEBUG**: Periodic check messages
-- **ERROR**: Problems with registry access, installation failures, or binary replacement issues
+- **ERROR**: Problems with manifest fetch, download failures, or binary replacement issues
 
 Look for log messages starting with "Autoupgrade" to track the feature's behavior.
 
-## Registry Format
+## Package Server Format
 
-The autoupgrade system uses Cargo's sparse registry format. The registry URL should point to a directory containing:
-- `config.json` - Registry configuration
-- Package index files - Containing package metadata and versions
+The autoupgrade system expects the package server to provide:
+- A `manifest.json` file at `{base_url}/{branch}/latest/manifest.json`
+- Binary files at paths specified in the manifest
 
-Example registry structure:
-```
-http://packages.modality.org/testnet/latest/cargo-registry/index/
-├── config.json
-├── mo/
-│   └── modality/
-│       └── index
-└── ...
+Example manifest structure:
+```json
+{
+  "version": "20251018_182116-3a00ac0",
+  "git_branch": "testnet",
+  "git_commit": "3a00ac0",
+  "packages": {
+    "binaries": {
+      "darwin-aarch64": {
+        "name": "modality",
+        "path": "binaries/darwin-aarch64/modality",
+        "platform": "darwin",
+        "arch": "aarch64"
+      },
+      "linux-x86_64": {
+        "name": "modality",
+        "path": "binaries/linux-x86_64/modality",
+        "platform": "linux",
+        "arch": "x86_64"
+      }
+    }
+  }
+}
 ```
 

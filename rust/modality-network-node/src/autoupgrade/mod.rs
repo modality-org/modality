@@ -1,4 +1,4 @@
-pub mod registry_checker;
+pub mod binary_checker;
 pub mod installer;
 pub mod self_replace;
 
@@ -9,12 +9,15 @@ use tokio::sync::broadcast;
 use crate::config::Config;
 
 const DEFAULT_CHECK_INTERVAL_SECS: u64 = 3600;
+const DEFAULT_BASE_URL: &str = "http://packages.modality.org";
+const DEFAULT_BRANCH: &str = "testnet";
 
 /// Configuration for autoupgrade
 #[derive(Debug, Clone)]
 pub struct AutoupgradeConfig {
     pub enabled: bool,
-    pub registry_url: String,
+    pub base_url: String,
+    pub branch: String,
     pub check_interval: Duration,
 }
 
@@ -26,12 +29,16 @@ impl AutoupgradeConfig {
             return None;
         }
 
-        let registry_url = config.autoupgrade_registry_url.clone()?;
+        let base_url = config.autoupgrade_base_url.clone()
+            .unwrap_or_else(|| DEFAULT_BASE_URL.to_string());
+        let branch = config.autoupgrade_branch.clone()
+            .unwrap_or_else(|| DEFAULT_BRANCH.to_string());
         let check_interval_secs = config.autoupgrade_check_interval_secs.unwrap_or(DEFAULT_CHECK_INTERVAL_SECS);
 
         Some(Self {
             enabled,
-            registry_url,
+            base_url,
+            branch,
             check_interval: Duration::from_secs(check_interval_secs),
         })
     }
@@ -43,13 +50,14 @@ pub async fn start_autoupgrade_task(
     mut shutdown_rx: broadcast::Receiver<()>,
 ) -> Result<()> {
     log::info!(
-        "Autoupgrade enabled: checking registry '{}' for package 'modality' every {:?}",
-        config.registry_url,
+        "Autoupgrade enabled: checking {}/{} for package 'modality' every {:?}",
+        config.base_url,
+        config.branch,
         config.check_interval
     );
 
     // Get the current version at startup
-    let last_known_version = registry_checker::get_current_version(&config.registry_url)
+    let last_known_version = binary_checker::get_current_version(&config.base_url, &config.branch)
         .await
         .context("Failed to get initial version")?;
     
@@ -65,7 +73,7 @@ pub async fn start_autoupgrade_task(
                 break;
             }
             _ = interval.tick() => {
-                log::debug!("Checking for updates in registry '{}'", config.registry_url);
+                log::debug!("Checking for updates at {}/{}", config.base_url, config.branch);
                 
                 match check_and_upgrade(&config, &last_known_version).await {
                     Ok(Some(new_version)) => {
@@ -95,7 +103,7 @@ async fn check_and_upgrade(
     config: &AutoupgradeConfig,
     last_known_version: &str,
 ) -> Result<Option<String>> {
-    let latest_version = registry_checker::get_current_version(&config.registry_url)
+    let latest_version = binary_checker::get_current_version(&config.base_url, &config.branch)
         .await
         .context("Failed to check for updates")?;
 
@@ -111,12 +119,12 @@ async fn check_and_upgrade(
 
     log::info!("Starting upgrade process...");
     
-    // Install the new version
-    let new_binary_path = installer::install_from_registry(&config.registry_url)
+    // Download the new binary
+    let new_binary_path = installer::download_from_binary_server(&config.base_url, &config.branch)
         .await
-        .context("Failed to install new version")?;
+        .context("Failed to download new version")?;
 
-    log::info!("New version installed at: {}", new_binary_path.display());
+    log::info!("New version downloaded to: {}", new_binary_path.display());
 
     // Replace and restart
     self_replace::replace_and_restart(new_binary_path)
