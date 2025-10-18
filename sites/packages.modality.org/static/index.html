@@ -157,7 +157,24 @@
         
         <div class="install-section testnet">
             <h2>🧪 Testnet Installation</h2>
-            <p class="description">Install the testnet version of Modality for testing and development:</p>
+            
+            <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; color: #e6a700;">Option 1: Pre-built Binary (Recommended)</h3>
+            <p class="description">Fast and easy - install the pre-compiled binary with a single command:</p>
+            <div class="command">
+                <button class="copy-btn" onclick="copyToClipboard(this)">Copy</button>
+                curl -fsSL http://packages.modality.org/testnet/latest/install.sh | sh
+            </div>
+            <p class="description" style="font-size: 0.9rem; margin-top: 0.5rem;">Supports: Linux x86_64 • macOS Apple Silicon</p>
+            
+            <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; color: #e6a700;">Option 2: Direct Download</h3>
+            <p class="description">Download binaries directly:</p>
+            <ul style="margin-left: 1rem;">
+                <li><a href="http://packages.modality.org/testnet/latest/binaries/linux-x86_64/modality" style="color: #667eea;">Linux x86_64</a></li>
+                <li><a href="http://packages.modality.org/testnet/latest/binaries/darwin-aarch64/modality" style="color: #667eea;">macOS Apple Silicon</a></li>
+            </ul>
+            
+            <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; color: #e6a700;">Option 3: Build from Source</h3>
+            <p class="description">Compile from source using Cargo:</p>
             <div class="command">
                 <button class="copy-btn" onclick="copyToClipboard(this)">Copy</button>
                 cargo install --index sparse+http://packages.modality.org/testnet/latest/cargo-registry/index/ modality
@@ -165,7 +182,11 @@
         </div>
         
         <div class="note">
-            <strong>Note:</strong> Make sure you have Rust and Cargo installed on your system before running these commands. If you don't have Rust installed, you can get it from <a href="https://rustup.rs/" target="_blank" style="color: #0d7377;">rustup.rs</a>.
+            <strong>Quick Start:</strong> The pre-built binary is the fastest way to get started. Just run the install script and follow the instructions to add Modality to your PATH.
+        </div>
+        
+        <div class="note" style="margin-top: 1rem; background-color: #f7fafc; border-color: #cbd5e0;">
+            <strong>Building from Source:</strong> Make sure you have Rust and Cargo installed on your system. If you don't have Rust installed, you can get it from <a href="https://rustup.rs/" target="_blank" style="color: #0d7377;">rustup.rs</a>.
         </div>
     </div>
 
