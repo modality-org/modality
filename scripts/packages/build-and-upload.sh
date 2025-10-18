@@ -23,7 +23,7 @@ if [[ ! " ${ALLOWED_BRANCHES[@]} " =~ " ${GIT_BRANCH} " ]]; then
 fi
 
 # Default values
-S3_BUCKET=""
+S3_BUCKET="packages.modality.org"
 S3_PREFIX=""
 AWS_REGION="us-east-1"
 SKIP_BUILD=false
@@ -61,12 +61,10 @@ show_help() {
 Build and Upload Modality Packages
 
 USAGE:
-    $0 --bucket BUCKET [OPTIONS]
-
-REQUIRED:
-    --bucket BUCKET         S3 bucket name for uploads
+    $0 [OPTIONS]
 
 OPTIONS:
+    --bucket BUCKET         S3 bucket name for uploads (default: packages.modality.org)
     --prefix PREFIX         S3 prefix for uploads (default: empty)
     --version VERSION       Package version (default: TIMESTAMP-GITCOMMIT)
     --region REGION         AWS region (default: us-east-1)
@@ -81,14 +79,16 @@ ENVIRONMENT VARIABLES:
     AWS_PROFILE            AWS profile to use
 
 EXAMPLES:
-    $0 --bucket my-bucket
-    $0 --bucket my-bucket --prefix modality-packages/
-    $0 --bucket my-bucket --version custom-version --region us-west-2
-    $0 --bucket my-bucket --skip-build  # Only upload existing build
+    $0                                    # Uses default bucket: packages.modality.org
+    $0 --bucket my-bucket                 # Use custom bucket
+    $0 --prefix modality-packages/        # Add prefix to path
+    $0 --version custom-version --region us-west-2
+    $0 --skip-build                       # Only upload existing build
 
 S3 PATH STRUCTURE:
     Uploads will be organized as: s3://BUCKET/PREFIX/BRANCH/VERSION/
-    Example: s3://my-bucket/modality-packages/main/20251018_143022-a1b2c3d/
+    Default: s3://packages.modality.org/BRANCH/VERSION/
+    Example: s3://packages.modality.org/testnet/20251018_143022-a1b2c3d/
 
 CARGO REGISTRY:
     The script also publishes to a Cargo sparse registry for easy installation:
@@ -148,13 +148,6 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-
-# Validate required parameters
-if [[ -z "$S3_BUCKET" ]]; then
-    log_error "S3 bucket is required. Use --bucket BUCKET"
-    show_help
-    exit 1
-fi
 
 # Show configuration
 if [[ "$SKIP_BUILD" == false ]]; then

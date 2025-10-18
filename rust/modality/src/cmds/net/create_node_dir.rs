@@ -75,6 +75,26 @@ pub struct Opts {
     /// Enable pruning of old genesis blocks (default: false)
     #[clap(long)]
     pub bootup_prune_old_genesis_blocks: Option<bool>,
+
+    /// Network preset (testnet, devnet1, devnet2, devnet3) - loads bootstrappers from fixtures/network-configs
+    #[clap(long)]
+    pub network: Option<String>,
+
+    /// Enable testnet mode - sets bootstrappers and autoupgrade configuration for testnet
+    #[clap(long)]
+    pub testnet: bool,
+
+    /// Enable autoupgrade (requires --network or manual --autoupgrade-registry-url)
+    #[clap(long)]
+    pub enable_autoupgrade: bool,
+
+    /// Autoupgrade registry URL (optional, for manual configuration)
+    #[clap(long)]
+    pub autoupgrade_registry_url: Option<String>,
+
+    /// Autoupgrade check interval in seconds (default: 3600)
+    #[clap(long)]
+    pub autoupgrade_check_interval_secs: Option<u64>,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
@@ -154,6 +174,67 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     let peer_id = opts.node_id.clone().unwrap_or_else(|| keypair.as_public_address());
 
+    // Validate that --network and --testnet are not both specified
+    if opts.testnet && opts.network.is_some() {
+        return Err(anyhow::anyhow!(
+            "Cannot specify both --testnet and --network. Use one or the other."
+        ));
+    }
+
+    // Resolve network configuration
+    let (network_bootstrappers, autoupgrade_config) = if opts.testnet {
+        // Testnet mode: load testnet config and enable autoupgrade
+        let network_config_path = std::env::current_exe()?
+            .parent()
+            .ok_or_else(|| anyhow::anyhow!("Cannot determine binary directory"))?
+            .join("../../../fixtures/network-configs/testnet/config.json")
+            .canonicalize()?;
+        let config_content = std::fs::read_to_string(&network_config_path)
+            .with_context(|| format!("Failed to read testnet config at {}", network_config_path.display()))?;
+        let network_config: serde_json::Value = serde_json::from_str(&config_content)?;
+        
+        let bootstrappers = network_config["bootstrappers"]
+            .as_array()
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .unwrap_or_default();
+        
+        let autoupgrade = Some((
+            "http://packages.modality.org/testnet/latest/cargo-registry/index/".to_string(),
+            3600u64
+        ));
+        
+        (bootstrappers, autoupgrade)
+    } else if let Some(network) = &opts.network {
+        // Network preset mode: just load bootstrappers
+        let network_config_path = std::env::current_exe()?
+            .parent()
+            .ok_or_else(|| anyhow::anyhow!("Cannot determine binary directory"))?
+            .join(format!("../../../fixtures/network-configs/{}/config.json", network))
+            .canonicalize()?;
+        let config_content = std::fs::read_to_string(&network_config_path)
+            .with_context(|| format!("Failed to read {} network config at {}", network, network_config_path.display()))?;
+        let network_config: serde_json::Value = serde_json::from_str(&config_content)?;
+        
+        let bootstrappers = network_config["bootstrappers"]
+            .as_array()
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .unwrap_or_default();
+        
+        // Enable autoupgrade if --enable-autoupgrade is specified
+        let autoupgrade = if opts.enable_autoupgrade {
+            let url = opts.autoupgrade_registry_url.clone()
+                .ok_or_else(|| anyhow::anyhow!("--enable-autoupgrade requires --autoupgrade-registry-url"))?;
+            Some((url, opts.autoupgrade_check_interval_secs.unwrap_or(3600)))
+        } else {
+            None
+        };
+        
+        (bootstrappers, autoupgrade)
+    } else {
+        // No network preset, use manual bootstrappers if provided
+        (vec![], None)
+    };
+
     // Create node.passfile
     let passfile_path = opts.dir.join("node.passfile");
     let passfile_str = passfile_path.to_str().ok_or_else(|| {
@@ -170,18 +251,18 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Create config.json
     let config_path = opts.dir.join("config.json");
     
-    // Parse bootstrappers if provided
-    let bootstrappers = if let Some(bootstrappers_str) = &opts.bootstrappers {
-        bootstrappers_str
-            .split(',')
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect::<Vec<String>>()
-    } else {
-        vec![]
-    };
+    // Parse bootstrappers - merge network and manual bootstrappers
+    let mut bootstrappers = network_bootstrappers;
+    if let Some(bootstrappers_str) = &opts.bootstrappers {
+        bootstrappers.extend(
+            bootstrappers_str
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+        );
+    }
 
-    let config = json!({
+    let mut config = json!({
         "id": peer_id,
         "passfile_path": "./node.passfile",
         "storage_path": opts.storage_path,
@@ -193,6 +274,15 @@ pub async fn run(opts: &Opts) -> Result<()> {
         "bootup_prune_old_genesis_blocks": opts.bootup_prune_old_genesis_blocks.unwrap_or(false),
         "_bootstrappers": bootstrappers
     });
+
+    // Add autoupgrade config if enabled
+    if let Some((registry_url, check_interval)) = &autoupgrade_config {
+        if let Some(obj) = config.as_object_mut() {
+            obj.insert("autoupgrade_enabled".to_string(), json!(true));
+            obj.insert("autoupgrade_registry_url".to_string(), json!(registry_url.clone()));
+            obj.insert("autoupgrade_check_interval_secs".to_string(), json!(*check_interval));
+        }
+    }
 
     std::fs::write(&config_path, serde_json::to_string_pretty(&config)?)
         .with_context(|| format!("Failed to write config.json to {}", config_path.display()))?;
@@ -230,6 +320,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
     
     if !bootstrappers.is_empty() {
         println!("🌐 Bootstrappers: {}", bootstrappers.join(", "));
+    }
+    
+    if let Some((registry_url, interval)) = &autoupgrade_config {
+        println!("🔄 Autoupgrade: enabled");
+        println!("   Registry: {}", registry_url);
+        println!("   Check interval: {}s", interval);
     }
     
     println!("\n🚀 You can now run your node with:");
