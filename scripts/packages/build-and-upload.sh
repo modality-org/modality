@@ -14,6 +14,14 @@ GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 VERSION="${TIMESTAMP}-${GIT_COMMIT}"
 
+# Validate allowed branches
+ALLOWED_BRANCHES=("mainnet" "testnet")
+if [[ ! " ${ALLOWED_BRANCHES[@]} " =~ " ${GIT_BRANCH} " ]]; then
+    echo -e "\033[0;31m[ERROR]\033[0m Branch '$GIT_BRANCH' is not allowed. Allowed branches: ${ALLOWED_BRANCHES[*]}"
+    echo -e "\033[0;31m[ERROR]\033[0m Please switch to one of the allowed branches before running this script."
+    exit 1
+fi
+
 # Default values
 S3_BUCKET=""
 S3_PREFIX=""
