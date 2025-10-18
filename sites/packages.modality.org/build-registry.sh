@@ -299,7 +299,7 @@ for member in "${WORKSPACE_MEMBERS[@]}"; do
         
         # Special handling for packages that fail due to missing workspace deps on crates.io
         # We'll manually create a .crate by running cargo prepare-for-publish
-        if [[ "$ERROR_MSG" =~ "no matching package named" ]]; then
+        if [[ "$ERROR_MSG" =~ ("no matching package named"|"failed to select a version") ]]; then
             log_info "  Attempting manual package creation..."
             
             # Try building just the package to ensure it compiles
@@ -329,7 +329,8 @@ with open('$TEMP_PKG_DIR/Cargo.toml', 'w') as f:
                     # Create .crate archive
                     CRATE_FILE="${PACKAGE_NAME}-${PACKAGE_VERSION}.crate"
                     cd /tmp
-                    tar -czf "$REGISTRY_DIR/$CRATE_FILE" "${PACKAGE_NAME}-${PACKAGE_VERSION}"
+                    # Exclude macOS metadata files
+                    COPYFILE_DISABLE=1 tar -czf "$REGISTRY_DIR/$CRATE_FILE" --exclude='._*' --exclude='.DS_Store' "${PACKAGE_NAME}-${PACKAGE_VERSION}"
                     cd "$PROJECT_ROOT/rust/$member"
                     
                     # Clean up temp dir

@@ -179,16 +179,60 @@ mkdir -p "$BUILD_DIR"
 build_packages() {
     log_info "Building Modality packages..."
     
-    # Build Rust CLI
-    log_info "Building Rust CLI..."
-    cd "$PROJECT_ROOT/rust"
-    cargo build --release
+    # Install cross if not available
+    if ! command -v cross &> /dev/null; then
+        log_info "Installing cross for cross-compilation..."
+        cargo install cross
+    fi
     
-    # Copy Rust CLI binary and strip it to reduce size
-    mkdir -p "$BUILD_DIR/bin"
-    cp "$PROJECT_ROOT/rust/target/release/modality" "$BUILD_DIR/bin/"
-    strip "$BUILD_DIR/bin/modality"
-    log_success "Rust CLI built successfully"
+    # Define target platforms
+    TARGETS=(
+        "x86_64-unknown-linux-gnu"      # Linux x86_64
+        "aarch64-apple-darwin"          # macOS Apple Silicon
+    )
+    
+    # Build for each target platform
+    log_info "Building Rust CLI for multiple platforms..."
+    cd "$PROJECT_ROOT/rust"
+    
+    for target in "${TARGETS[@]}"; do
+        log_info "Building for $target..."
+        
+        # Use cross for Linux and Windows, regular cargo for macOS (if on macOS)
+        if [[ "$target" == *"darwin"* ]] && [[ "$(uname -s)" == "Darwin" ]]; then
+            # On macOS, use native cargo for macOS targets
+            rustup target add "$target" 2>/dev/null || true
+            cargo build --release --target "$target"
+        else
+            # Use cross for other platforms
+            cross build --release --target "$target"
+        fi
+        
+        # Determine platform name and binary extension
+        case "$target" in
+            x86_64-unknown-linux-gnu)
+                platform="linux-x86_64"
+                binary_name="modality"
+                ;;
+            aarch64-apple-darwin)
+                platform="darwin-aarch64"
+                binary_name="modality"
+                ;;
+        esac
+        
+        # Copy binary to platform-specific directory
+        mkdir -p "$BUILD_DIR/binaries/$platform"
+        cp "$PROJECT_ROOT/rust/target/$target/release/$binary_name" "$BUILD_DIR/binaries/$platform/"
+        
+        # Strip binary to reduce size (except Windows)
+        if [[ "$platform" != "windows-"* ]]; then
+            strip "$BUILD_DIR/binaries/$platform/$binary_name" 2>/dev/null || true
+        fi
+        
+        log_success "Built for $platform"
+    done
+    
+    log_success "Rust CLI built successfully for all platforms"
     
     # Build WASM package
     log_info "Building WASM package..."
@@ -258,10 +302,19 @@ build_packages() {
     "git_branch": "$GIT_BRANCH",
     "git_commit": "$GIT_COMMIT",
     "packages": {
-        "rust_cli": {
-            "name": "modality",
-            "path": "bin/modality",
-            "platform": "linux-x86_64"
+        "binaries": {
+            "linux-x86_64": {
+                "name": "modality",
+                "path": "binaries/linux-x86_64/modality",
+                "platform": "linux",
+                "arch": "x86_64"
+            },
+            "darwin-aarch64": {
+                "name": "modality",
+                "path": "binaries/darwin-aarch64/modality",
+                "platform": "darwin",
+                "arch": "aarch64"
+            }
         },
         "wasm_web": {
             "name": "modality-lang-wasm",
@@ -282,6 +335,118 @@ build_packages() {
 }
 EOF
     
+    # Create install script for users
+    log_info "Creating install script..."
+    cat > "$BUILD_DIR/install.sh" << 'INSTALL_SCRIPT_EOF'
+#!/usr/bin/env bash
+# Modality Installation Script
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+log_info() { printf "${BLUE}[INFO]${NC} %s\n" "$1"; }
+log_success() { printf "${GREEN}[SUCCESS]${NC} %s\n" "$1"; }
+log_error() { printf "${RED}[ERROR]${NC} %s\n" "$1"; }
+
+# Detect platform
+detect_platform() {
+    local os="$(uname -s)"
+    local arch="$(uname -m)"
+    
+    case "$os" in
+        Linux*)
+            case "$arch" in
+                x86_64) echo "linux-x86_64" ;;
+                aarch64|arm64) echo "linux-aarch64" ;;
+                *) log_error "Unsupported architecture: $arch"; exit 1 ;;
+            esac
+            ;;
+        Darwin*)
+            case "$arch" in
+                x86_64) echo "darwin-x86_64" ;;
+                arm64) echo "darwin-aarch64" ;;
+                *) log_error "Unsupported architecture: $arch"; exit 1 ;;
+            esac
+            ;;
+        MINGW*|MSYS*|CYGWIN*)
+            echo "windows-x86_64"
+            ;;
+        *)
+            log_error "Unsupported operating system: $os"
+            exit 1
+            ;;
+    esac
+}
+
+# Installation
+PLATFORM=$(detect_platform)
+BASE_URL="${MODALITY_INSTALL_URL:-http://packages.modality.org/BRANCH/VERSION}"
+INSTALL_DIR="${MODALITY_INSTALL_DIR:-$HOME/.modality/bin}"
+BINARY_NAME="modality"
+
+if [ "$PLATFORM" = "windows-x86_64" ]; then
+    BINARY_NAME="modality.exe"
+fi
+
+log_info "Detected platform: $PLATFORM"
+log_info "Installing to: $INSTALL_DIR"
+
+# Create install directory
+mkdir -p "$INSTALL_DIR"
+
+# Download binary
+BINARY_URL="$BASE_URL/binaries/$PLATFORM/$BINARY_NAME"
+log_info "Downloading from: $BINARY_URL"
+
+if command -v curl > /dev/null 2>&1; then
+    curl -fsSL "$BINARY_URL" -o "$INSTALL_DIR/$BINARY_NAME"
+elif command -v wget > /dev/null 2>&1; then
+    wget -q "$BINARY_URL" -O "$INSTALL_DIR/$BINARY_NAME"
+else
+    log_error "Neither curl nor wget found. Please install one of them."
+    exit 1
+fi
+
+# Make executable
+chmod +x "$INSTALL_DIR/$BINARY_NAME"
+
+log_success "Modality installed successfully!"
+log_info "Binary location: $INSTALL_DIR/$BINARY_NAME"
+
+# Check if in PATH
+case ":$PATH:" in
+    *":$INSTALL_DIR:"*)
+        # Already in PATH
+        ;;
+    *)
+        printf "\n"
+        log_info "To use modality, add it to your PATH:"
+        log_info "  export PATH=\"\$PATH:$INSTALL_DIR\""
+        printf "\n"
+        log_info "Add this line to your shell profile (~/.bashrc, ~/.zshrc, etc.)"
+        ;;
+esac
+
+# Test installation
+if command -v modality > /dev/null 2>&1 || [ -x "$INSTALL_DIR/$BINARY_NAME" ]; then
+    log_success "Installation verified!"
+else
+    log_error "Installation failed. Binary not found or not executable."
+    exit 1
+fi
+INSTALL_SCRIPT_EOF
+    chmod +x "$BUILD_DIR/install.sh"
+    
+    # Replace placeholders in install script
+    sed -i.bak "s|BRANCH|$GIT_BRANCH|g" "$BUILD_DIR/install.sh"
+    sed -i.bak "s|VERSION|$VERSION|g" "$BUILD_DIR/install.sh"
+    rm "$BUILD_DIR/install.sh.bak"
+    
     # Create index.html files for S3 browsing
     log_info "Creating main index.html for S3 browsing..."
     cat > "$BUILD_DIR/index.html" << EOF
@@ -291,10 +456,13 @@ EOF
     <meta charset="utf-8">
     <title>Modality Packages - $VERSION</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
         h1 { color: #333; }
+        h2 { color: #555; margin-top: 30px; }
         .package { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }
-        code { background: #eee; padding: 2px 4px; border-radius: 3px; }
+        code { background: #eee; padding: 2px 4px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .platform { display: inline-block; background: #007bff; color: white; padding: 3px 8px; border-radius: 3px; margin: 2px; font-size: 0.9em; }
     </style>
 </head>
 <body>
@@ -304,16 +472,37 @@ EOF
     <p>Commit: <code>$GIT_COMMIT</code></p>
     <p>Built: <code>$(date)</code></p>
     
-    <h2>Available Packages</h2>
+    <h2>Quick Installation</h2>
+    <pre>curl -fsSL http://packages.modality.org/$GIT_BRANCH/$VERSION/install.sh | sh</pre>
+    
+    <h2>Available Binaries</h2>
+    <div class="package">
+        <h3>Pre-built Binaries</h3>
+        <p>Download directly for your platform:</p>
+        <ul>
+            <li><span class="platform">Linux x86_64</span> <a href="binaries/linux-x86_64/modality">Download</a></li>
+            <li><span class="platform">macOS Apple Silicon</span> <a href="binaries/darwin-aarch64/modality">Download</a></li>
+        </ul>
+    </div>
+    
+    <h2>Other Packages</h2>
     <ul>
-        <li><a href="bin/">Rust CLI Binary</a></li>
+        <li><a href="binaries/">All Binaries</a></li>
         <li><a href="wasm/">WebAssembly Packages</a></li>
         <li><a href="cargo-registry/">Cargo Registry</a></li>
         <li><a href="manifest.json">Package Manifest</a></li>
+        <li><a href="install.sh">Install Script</a></li>
     </ul>
     
-    <h2>Installation</h2>
-    <h3>Rust CLI</h3>
+    <h2>Installation Methods</h2>
+    
+    <h3>Method 1: Install Script (Recommended)</h3>
+    <pre>curl -fsSL http://packages.modality.org/$GIT_BRANCH/$VERSION/install.sh | sh</pre>
+    
+    <h3>Method 2: Manual Download</h3>
+    <p>Download the binary for your platform above and add it to your PATH.</p>
+    
+    <h3>Method 3: Build from Source (Cargo Registry)</h3>
     <pre>cargo install --index sparse+https://packages.modality.org/$GIT_BRANCH/$VERSION/cargo-registry/index/ modality</pre>
     
     <h3>Registry Configuration</h3>
@@ -326,20 +515,36 @@ index = "sparse+https://packages.modality.org/$GIT_BRANCH/$VERSION/cargo-registr
 </html>
 EOF
     
-    # Create index.html for the bin directory
-    cat > "$BUILD_DIR/bin/index.html" << EOF
+    # Create index.html for the binaries directory
+    cat > "$BUILD_DIR/binaries/index.html" << EOF
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Rust CLI Binary</title>
+    <title>Modality Binaries</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .platform { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .platform h3 { margin-top: 0; color: #007bff; }
+    </style>
 </head>
 <body>
-    <h1>Rust CLI Binary</h1>
-    <p>Platform: linux-x86_64</p>
-    <ul>
-        <li><a href="modality">modality</a> - Main CLI binary</li>
-    </ul>
+    <h1>Modality Pre-built Binaries</h1>
+    <p>Version: <code>$VERSION</code></p>
+    
+    <div class="platform">
+        <h3>Linux x86_64</h3>
+        <ul>
+            <li><a href="linux-x86_64/modality">modality</a></li>
+        </ul>
+    </div>
+    
+    <div class="platform">
+        <h3>macOS Apple Silicon (ARM64)</h3>
+        <ul>
+            <li><a href="darwin-aarch64/modality">modality</a></li>
+        </ul>
+    </div>
 </body>
 </html>
 EOF
