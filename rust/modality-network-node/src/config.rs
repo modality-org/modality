@@ -21,8 +21,7 @@ pub struct Config {
     pub listeners: Option<Vec<Multiaddr>>,
     pub bootstrappers: Option<Vec<Multiaddr>>,
     pub autoupgrade_enabled: Option<bool>,
-    pub autoupgrade_git_repo: Option<String>,
-    pub autoupgrade_git_branch: Option<String>,
+    pub autoupgrade_registry_url: Option<String>,
     pub autoupgrade_check_interval_secs: Option<u64>,
     pub noop_mode: Option<bool>,
 }

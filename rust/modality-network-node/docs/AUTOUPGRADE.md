@@ -1,6 +1,6 @@
 # Network Node Autoupgrade
 
-The network node supports automatic upgrading from a configured git branch. When enabled, the node will periodically check for new commits and automatically upgrade itself by installing the latest version using `cargo install`.
+The network node supports automatic upgrading from a configured cargo registry. When enabled, the node will periodically check for new versions and automatically upgrade itself by installing the latest version using `cargo install`.
 
 ## Configuration
 
@@ -9,8 +9,7 @@ Add the following fields to your node configuration JSON file:
 ```json
 {
   "autoupgrade_enabled": true,
-  "autoupgrade_git_repo": "https://github.com/modality-org/modality",
-  "autoupgrade_git_branch": "devnet",
+  "autoupgrade_registry_url": "http://packages.modality.org/testnet/latest/cargo-registry/index/",
   "autoupgrade_check_interval_secs": 3600
 }
 ```
@@ -18,18 +17,17 @@ Add the following fields to your node configuration JSON file:
 ### Configuration Options
 
 - **`autoupgrade_enabled`** (optional, boolean): Enable or disable the autoupgrade feature. Default: `false`
-- **`autoupgrade_git_repo`** (required if enabled, string): The git repository URL to check for updates
-- **`autoupgrade_git_branch`** (required if enabled, string): The branch to track for updates (e.g., "devnet", "main")
+- **`autoupgrade_registry_url`** (required if enabled, string): The cargo registry URL to check for updates
 - **`autoupgrade_check_interval_secs`** (optional, number): How often to check for updates in seconds. Default: `3600` (1 hour)
 
 ## How It Works
 
-1. **Periodic Checks**: The node spawns a background task that periodically checks the configured git branch for new commits using `git ls-remote`
+1. **Periodic Checks**: The node spawns a background task that periodically checks the configured cargo registry for new versions using `cargo search`
 
-2. **Detecting Updates**: The autoupgrade task compares the latest commit hash on the remote branch with the commit hash at startup. If they differ, an update is available.
+2. **Detecting Updates**: The autoupgrade task compares the latest version in the registry with the version at startup. If they differ, an update is available.
 
-3. **Installing Updates**: When a new commit is detected, the node:
-   - Runs `cargo install --git <repo> --branch <branch> modality-network-node --force`
+3. **Installing Updates**: When a new version is detected, the node:
+   - Runs `cargo install --index sparse+<registry_url> modality --force`
    - Downloads and compiles the new version
    - Verifies the installation was successful
 
@@ -42,9 +40,8 @@ Add the following fields to your node configuration JSON file:
 
 ## Requirements
 
-- **Git**: Must be installed and available in PATH
-- **Cargo**: Must be installed and available in PATH (used to compile updates)
-- **Network Access**: The node must be able to reach the git repository URL
+- **Cargo**: Must be installed and available in PATH (used to search and install updates)
+- **Network Access**: The node must be able to reach the cargo registry URL
 - **Write Permissions**: The node must have permission to replace its own binary
 
 ## Example Configuration
@@ -53,9 +50,8 @@ See `fixtures/network-node-configs/devnet1/node1-with-autoupgrade.json` for a co
 
 ## Security Considerations
 
-- **Trust the Source**: Only configure autoupgrade with git repositories you trust, as the node will automatically download and execute code from that source
-- **Branch Selection**: Use stable branches (like "devnet") rather than development branches to avoid unexpected behavior
-- **Network Security**: Ensure the git repository URL uses HTTPS to prevent man-in-the-middle attacks
+- **Trust the Registry**: Only configure autoupgrade with cargo registries you trust, as the node will automatically download and execute code from that source
+- **Registry Security**: Ensure the registry URL uses HTTPS to prevent man-in-the-middle attacks
 - **Access Control**: Consider the security implications of automatic updates in your deployment environment
 
 ## Troubleshooting
@@ -63,17 +59,18 @@ See `fixtures/network-node-configs/devnet1/node1-with-autoupgrade.json` for a co
 ### Autoupgrade Not Working
 
 1. Check that `autoupgrade_enabled` is set to `true`
-2. Verify git is installed: `git --version`
-3. Verify cargo is installed: `cargo --version`
-4. Check the logs for autoupgrade-related messages
-5. Ensure the node has network access to the git repository
+2. Verify cargo is installed: `cargo --version`
+3. Check the logs for autoupgrade-related messages
+4. Ensure the node has network access to the cargo registry
+5. Verify the registry URL is correct and accessible
 
 ### Installation Fails
 
 If `cargo install` fails, check:
 - Sufficient disk space for compilation
 - All required system dependencies are installed
-- The git repository and branch exist and are accessible
+- The cargo registry is accessible and contains the modality package
+- The registry URL is correct and accessible
 
 ### Binary Replacement Fails
 
@@ -94,7 +91,23 @@ The autoupgrade feature logs its activity at various levels:
 
 - **INFO**: Initial setup, upgrade detection, installation progress
 - **DEBUG**: Periodic check messages
-- **ERROR**: Problems with git access, installation failures, or binary replacement issues
+- **ERROR**: Problems with registry access, installation failures, or binary replacement issues
 
 Look for log messages starting with "Autoupgrade" to track the feature's behavior.
+
+## Registry Format
+
+The autoupgrade system uses Cargo's sparse registry format. The registry URL should point to a directory containing:
+- `config.json` - Registry configuration
+- Package index files - Containing package metadata and versions
+
+Example registry structure:
+```
+http://packages.modality.org/testnet/latest/cargo-registry/index/
+├── config.json
+├── mo/
+│   └── modality/
+│       └── index
+└── ...
+```
 
