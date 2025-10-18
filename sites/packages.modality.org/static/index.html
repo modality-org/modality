@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modality - Installation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 3rem;
+            max-width: 800px;
+            width: 90%;
+            margin: 2rem;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 0.5rem;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 3rem;
+            font-size: 1.1rem;
+        }
+        
+        .install-section {
+            margin-bottom: 2.5rem;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border-left: 4px solid;
+        }
+        
+        .mainnet {
+            background-color: #f8f9fa;
+            border-left-color: #28a745;
+        }
+        
+        .testnet {
+            background-color: #fff3cd;
+            border-left-color: #ffc107;
+        }
+        
+        .install-section h2 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+        
+        .mainnet h2 {
+            color: #28a745;
+        }
+        
+        .testnet h2 {
+            color: #e6a700;
+        }
+        
+        .command {
+            background-color: #2d3748;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.95rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+            position: relative;
+        }
+        
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: #4a5568;
+            color: white;
+            border: none;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .copy-btn:hover {
+            background: #2d3748;
+        }
+        
+        .copy-btn.copied {
+            background: #38a169;
+        }
+        
+        .description {
+            color: #4a5568;
+            margin-bottom: 1rem;
+        }
+        
+        .note {
+            background-color: #e6fffa;
+            border: 1px solid #81e6d9;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-top: 2rem;
+            color: #234e52;
+        }
+        
+        .note strong {
+            color: #0d7377;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 2rem;
+                margin: 1rem;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .command {
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Modality</h1>
+        <p class="subtitle">Installation Instructions</p>
+        
+        <div class="install-section mainnet">
+            <h2>🚀 Mainnet Installation</h2>
+            <p class="description">Install the stable version of Modality for mainnet usage:</p>
+            <div class="command">
+                <button class="copy-btn" onclick="copyToClipboard(this)">Copy</button>
+                cargo install modality
+            </div>
+        </div>
+        
+        <div class="install-section testnet">
+            <h2>🧪 Testnet Installation</h2>
+            <p class="description">Install the testnet version of Modality for testing and development:</p>
+            <div class="command">
+                <button class="copy-btn" onclick="copyToClipboard(this)">Copy</button>
+                cargo install --index sparse+http://packages.modality.org/testnet/latest/cargo-registry/index/ modality
+            </div>
+        </div>
+        
+        <div class="note">
+            <strong>Note:</strong> Make sure you have Rust and Cargo installed on your system before running these commands. If you don't have Rust installed, you can get it from <a href="https://rustup.rs/" target="_blank" style="color: #0d7377;">rustup.rs</a>.
+        </div>
+    </div>
+
+    <script>
+        function copyToClipboard(button) {
+            const command = button.parentElement.textContent.trim();
+            navigator.clipboard.writeText(command).then(() => {
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                button.classList.add('copied');
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('copied');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = command;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                button.classList.add('copied');
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('copied');
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
