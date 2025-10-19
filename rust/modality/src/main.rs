@@ -27,6 +27,12 @@ enum Commands {
         command: PassfileCommands,
     },
 
+    #[command(about = "Node related commands")]
+    Node {
+        #[command(subcommand)]
+        command: NodeCommands,
+    },
+
     #[command(alias = "network")]
     #[command(about = "Network related commands")]
     Net {
@@ -59,18 +65,6 @@ enum PassfileCommands {
 
 #[derive(Subcommand)]
 enum NetworkCommands {
-    #[command(about = "Create a new node directory with config.json and node.passfile")]
-    CreateNodeDir(cmds::net::create_node_dir::Opts),
-
-    #[command(alias = "run_node")]
-    RunNode(cmds::net::run_node::Opts),
-
-    #[command(about = "Run a mining node")]
-    RunMiner(cmds::net::run_miner::Opts),
-
-    #[command(about = "Run a noop node (only autoupgrade, no network operations)")]
-    RunNoop(cmds::net::run_noop::Opts),
-
     #[clap(name = "ping")]
     Ping(cmds::net::ping::Opts),
 
@@ -85,6 +79,21 @@ enum NetworkCommands {
 
     // #[clap(name = "request")]
     // Request(cmds::node::request::Opts)
+}
+
+#[derive(Subcommand)]
+enum NodeCommands {
+    #[command(about = "Create a new node directory with config.json and node.passfile")]
+    Create(cmds::net::create_node_dir::Opts),
+
+    #[command(alias = "run_node", about = "Run a Modality Network node")]
+    Run(cmds::net::run_node::Opts),
+
+    #[command(about = "Run a mining node")]
+    RunMiner(cmds::net::run_miner::Opts),
+
+    #[command(about = "Run a noop node (only autoupgrade, no network operations)")]
+    RunNoop(cmds::net::run_noop::Opts),
 }
 
 #[derive(Subcommand)]
@@ -118,12 +127,16 @@ async fn main() -> Result<()> {
                 PassfileCommands::Encrypt(opts) => cmds::passfile::encrypt::run(opts).await?,
             }
         }
+        Commands::Node { command } => {
+            match command {
+                NodeCommands::Create(opts) => cmds::net::create_node_dir::run(opts).await?,
+                NodeCommands::Run(opts) => cmds::net::run_node::run(opts).await?,
+                NodeCommands::RunMiner(opts) => cmds::net::run_miner::run(opts).await?,
+                NodeCommands::RunNoop(opts) => cmds::net::run_noop::run(opts).await?,
+            }
+        }
         Commands::Net { command } => {
             match command {
-                NetworkCommands::CreateNodeDir(opts) => cmds::net::create_node_dir::run(opts).await?,
-                NetworkCommands::RunNode(opts) => cmds::net::run_node::run(opts).await?,
-                NetworkCommands::RunMiner(opts) => cmds::net::run_miner::run(opts).await?,
-                NetworkCommands::RunNoop(opts) => cmds::net::run_noop::run(opts).await?,
                 NetworkCommands::Ping(opts) => cmds::net::ping::run(opts).await?,
                 NetworkCommands::Storage(opts) => cmds::net::storage::run(opts).await?,
                 NetworkCommands::Mining { command } => {

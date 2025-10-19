@@ -354,7 +354,7 @@ jq '.blocks[] | select(.nominated_peer_id == "QmMiner1...")' blockchain.json
 
 ## Related Commands
 
-- `modality net run-node`: Start a Modality network node
+- `modality node run`: Start a Modality network node
 - `modality net ping`: Test connection to a node
 - See [examples/miner_block_sync.rs](../../modality-network-node/examples/miner_block_sync.rs) for programmatic sync
 

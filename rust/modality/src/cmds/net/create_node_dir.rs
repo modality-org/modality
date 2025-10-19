@@ -8,9 +8,9 @@ use modality_utils::keypair::Keypair;
 #[derive(Debug, Parser)]
 #[command(about = "Create a new node directory with config.json and node.passfile")]
 pub struct Opts {
-    /// Path to the node directory to create
+    /// Path to the node directory to create (defaults to current directory if no config.json exists)
     #[clap(long)]
-    pub dir: PathBuf,
+    pub dir: Option<PathBuf>,
 
     /// Node ID (peer ID) - if not provided, a new one will be generated
     #[clap(long)]
@@ -102,20 +102,60 @@ pub struct Opts {
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
-    // Check if node directory already exists
-    if opts.dir.exists() {
+    // Determine the node directory
+    let node_dir = if let Some(dir) = &opts.dir {
+        dir.clone()
+    } else {
+        // Use current directory if no --dir provided
+        let current_dir = std::env::current_dir()?;
+        let config_path = current_dir.join("config.json");
+        
+        // Check if config.json already exists in current directory
+        if config_path.exists() {
+            return Err(anyhow::anyhow!(
+                "config.json already exists in current directory ({}). \
+                Please specify a different --dir or remove the existing config.json.",
+                current_dir.display()
+            ));
+        }
+        
+        current_dir
+    };
+
+    // Check if node directory already exists and has config.json
+    let config_path = node_dir.join("config.json");
+    if config_path.exists() {
         return Err(anyhow::anyhow!(
-            "Node directory already exists at {}. Please choose a different path or remove the existing directory.",
-            opts.dir.display()
+            "Node directory already exists at {} with config.json. \
+            Please choose a different path or remove the existing directory.",
+            node_dir.display()
         ));
     }
 
-    // Create the node directory
-    std::fs::create_dir_all(&opts.dir)
-        .with_context(|| format!("Failed to create node directory at {}", opts.dir.display()))?;
+    // Create the node directory (if it doesn't exist)
+    std::fs::create_dir_all(&node_dir)
+        .with_context(|| format!("Failed to create node directory at {}", node_dir.display()))?;
 
-    // Generate or import keypair based on options
-    let (keypair, mnemonic_phrase, derivation_path) = if opts.use_mnemonic {
+    // Check if node.passfile already exists in the directory
+    let passfile_path = node_dir.join("node.passfile");
+    let existing_passfile = passfile_path.exists();
+
+    // Load existing keypair or generate a new one
+    let (keypair, mnemonic_phrase, derivation_path, loaded_from_existing) = if existing_passfile {
+        // Load existing passfile
+        println!("📂 Found existing node.passfile, loading identity...");
+        let passfile_str = passfile_path.to_str().ok_or_else(|| {
+            anyhow::anyhow!("Invalid passfile path: contains non-Unicode characters")
+        })?;
+        
+        let kp = Keypair::from_json_file(passfile_str)
+            .with_context(|| format!("Failed to load keypair from {}", passfile_path.display()))?;
+        
+        println!("✅ Loaded identity: {}", kp.as_public_address());
+        
+        // When loading from existing passfile, we don't generate new mnemonic info
+        (kp, None, None, true)
+    } else if opts.use_mnemonic {
         let (mnemonic, is_new) = if let Some(phrase) = &opts.mnemonic_phrase {
             // Import from existing mnemonic
             (phrase.clone(), false)
@@ -167,13 +207,13 @@ pub async fn run(opts: &Opts) -> Result<()> {
             Some(mnemonic)
         };
 
-        (kp, mnemonic_to_store, Some(path))
+        (kp, mnemonic_to_store, Some(path), false)
     } else {
         let kp = Keypair::generate().map_err(|e| {
             eprintln!("Failed to generate keypair: {}", e);
             e
         })?;
-        (kp, None, None)
+        (kp, None, None, false)
     };
 
     let peer_id = opts.node_id.clone().unwrap_or_else(|| keypair.as_public_address());
@@ -242,21 +282,22 @@ pub async fn run(opts: &Opts) -> Result<()> {
         (vec![], None)
     };
 
-    // Create node.passfile
-    let passfile_path = opts.dir.join("node.passfile");
-    let passfile_str = passfile_path.to_str().ok_or_else(|| {
-        anyhow::anyhow!("Invalid passfile path: contains non-Unicode characters")
-    })?;
-
-    keypair
-        .as_json_file_with_mnemonic(passfile_str, mnemonic_phrase, derivation_path.clone())
-        .map_err(|e| {
-            eprintln!("Failed to save passfile: {}", e);
-            e
+    // Create node.passfile (only if we didn't load from existing)
+    if !loaded_from_existing {
+        let passfile_str = passfile_path.to_str().ok_or_else(|| {
+            anyhow::anyhow!("Invalid passfile path: contains non-Unicode characters")
         })?;
 
+        keypair
+            .as_json_file_with_mnemonic(passfile_str, mnemonic_phrase, derivation_path.clone())
+            .map_err(|e| {
+                eprintln!("Failed to save passfile: {}", e);
+                e
+            })?;
+    }
+
     // Create config.json
-    let config_path = opts.dir.join("config.json");
+    let config_path = node_dir.join("config.json");
     
     // Parse bootstrappers - merge network and manual bootstrappers
     let mut bootstrappers = network_bootstrappers;
@@ -296,17 +337,17 @@ pub async fn run(opts: &Opts) -> Result<()> {
         .with_context(|| format!("Failed to write config.json to {}", config_path.display()))?;
 
     // Create storage directory
-    let storage_dir = opts.dir.join(opts.storage_path.trim_start_matches("./"));
+    let storage_dir = node_dir.join(opts.storage_path.trim_start_matches("./"));
     std::fs::create_dir_all(&storage_dir)
         .with_context(|| format!("Failed to create storage directory at {}", storage_dir.display()))?;
 
     // Create logs directory
-    let logs_dir = opts.dir.join("logs");
+    let logs_dir = node_dir.join("logs");
     std::fs::create_dir_all(&logs_dir)
         .with_context(|| format!("Failed to create logs directory at {}", logs_dir.display()))?;
 
     println!("✨ Successfully created new node directory!");
-    println!("📁 Node directory: {}", opts.dir.display());
+    println!("📁 Node directory: {}", node_dir.display());
     println!("🆔 Node ID: {}", peer_id);
     if let Some(path) = derivation_path {
         println!("🔑 BIP44 Derivation Path: {}", path);
@@ -338,7 +379,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
     
     println!("\n🚀 You can now run your node with:");
-    println!("   modality net run-node --dir {}", opts.dir.display());
+    println!("   modality node run --dir {}", node_dir.display());
     println!("\n🚨🚨🚨  IMPORTANT: Keep your passfile secure and never share it! 🚨🚨🚨");
 
     Ok(())

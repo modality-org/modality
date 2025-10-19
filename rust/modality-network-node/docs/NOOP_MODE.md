@@ -7,7 +7,7 @@ The network node supports a "noop" (no-operation) mode that boots up but doesn't
 Run a noop node using the CLI:
 
 ```bash
-modality net run-noop --config /path/to/config.json
+modality node run-noop --config /path/to/config.json
 ```
 
 ## Configuration
@@ -53,7 +53,7 @@ The primary use case is testing the autoupgrade functionality:
 
 ```bash
 # Start a noop node with autoupgrade enabled
-modality net run-noop --config node1-noop.json
+modality node run-noop --config node1-noop.json
 
 # The node will:
 # 1. Boot up

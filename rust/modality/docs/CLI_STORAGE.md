@@ -380,7 +380,7 @@ modality net storage --config ./node.json
 ## Related Commands
 
 - [`modality net mining sync`](./CLI_MINING_SYNC.md) - Sync miner blocks from a node
-- [`modality net run-node`](./CLI_RUN_NODE.md) - Run a network node
+- [`modality node run`](./CLI_RUN_NODE.md) - Run a network node
 
 ## See Also
 
