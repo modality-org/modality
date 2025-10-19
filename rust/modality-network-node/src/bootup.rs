@@ -1,7 +1,6 @@
 use anyhow::Result;
 use log::{info, warn, error};
 use modality_network_datastore::{NetworkDatastore, models::miner_block::MinerBlock, Model};
-use std::path::PathBuf;
 
 /// Configuration for bootup tasks
 #[derive(Debug, Clone)]
@@ -27,19 +26,17 @@ impl Default for BootupConfig {
 /// Bootup task runner
 pub struct BootupRunner {
     config: BootupConfig,
-    datastore_path: PathBuf,
 }
 
 impl BootupRunner {
-    pub fn new(config: BootupConfig, datastore_path: PathBuf) -> Self {
+    pub fn new(config: BootupConfig) -> Self {
         Self {
             config,
-            datastore_path,
         }
     }
 
     /// Run all configured bootup tasks
-    pub async fn run(&self) -> Result<()> {
+    pub async fn run(&self, datastore: &NetworkDatastore) -> Result<()> {
         if !self.config.enabled {
             info!("Bootup tasks disabled, skipping");
             return Ok(());
@@ -48,20 +45,18 @@ impl BootupRunner {
         info!("Starting bootup tasks...");
 
         // Check datastore integrity and prune blocks
-        self.check_and_prune_miner_blocks().await?;
+        self.check_and_prune_miner_blocks(datastore).await?;
 
         info!("Bootup tasks completed successfully");
         Ok(())
     }
 
     /// Check miner block integrity and prune bad/old blocks
-    async fn check_and_prune_miner_blocks(&self) -> Result<()> {
+    async fn check_and_prune_miner_blocks(&self, datastore: &NetworkDatastore) -> Result<()> {
         info!("Checking miner block integrity...");
 
-        let datastore = NetworkDatastore::create_in_directory(&self.datastore_path)?;
-
         // Get all miner blocks
-        let all_blocks = MinerBlock::find_all_blocks(&datastore).await?;
+        let all_blocks = MinerBlock::find_all_blocks(datastore).await?;
         info!("Found {} miner blocks to check", all_blocks.len());
 
         let mut blocks_to_prune = Vec::new();

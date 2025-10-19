@@ -540,15 +540,10 @@ impl Node {
 
         log::info!("Running bootup tasks...");
         
-        // Get storage path for bootup runner
-        let storage_path = config.storage_path
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Storage path not configured for bootup tasks"))?
-            .clone();
-        
         // Create and run bootup tasks
-        let bootup_runner = crate::bootup::BootupRunner::new(bootup_config, storage_path);
-        bootup_runner.run().await?;
+        let bootup_runner = crate::bootup::BootupRunner::new(bootup_config);
+        let datastore = self.datastore.lock().await;
+        bootup_runner.run(&datastore).await?;
         
         log::info!("Bootup tasks completed successfully");
         Ok(())
