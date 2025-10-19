@@ -204,8 +204,8 @@ build_packages() {
             rustup target add "$target" 2>/dev/null || true
             cargo build --release --target "$target"
         else
-            # Use cross for other platforms
-            cross build --release --target "$target"
+            # Use cross for other platforms with static OpenSSL
+            OPENSSL_STATIC=1 cross build --release --target "$target"
         fi
         
         # Determine platform name and binary extension

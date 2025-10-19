@@ -1,0 +1,20 @@
+[build.env]
+passthrough = [
+    "OPENSSL_STATIC",
+    "OPENSSL_DIR",
+    "OPENSSL_INCLUDE_DIR",
+    "OPENSSL_LIB_DIR",
+]
+
+[target.x86_64-unknown-linux-gnu]
+pre-build = [
+    "dpkg --add-architecture $CROSS_DEB_ARCH",
+    "apt-get update && apt-get install -y libssl-dev:$CROSS_DEB_ARCH pkg-config",
+]
+
+[target.x86_64-unknown-linux-gnu.env]
+volumes = ["CARGO_HOME"]
+OPENSSL_STATIC = "1"
+OPENSSL_LIB_DIR = "/usr/lib/x86_64-linux-gnu"
+OPENSSL_INCLUDE_DIR = "/usr/include"
+
