@@ -84,13 +84,17 @@ pub struct Opts {
     #[clap(long)]
     pub testnet: bool,
 
-    /// Enable autoupgrade (requires --network or manual --autoupgrade-registry-url)
+    /// Enable autoupgrade (requires --network or manual --autoupgrade-base-url and --autoupgrade-branch)
     #[clap(long)]
     pub enable_autoupgrade: bool,
 
-    /// Autoupgrade registry URL (optional, for manual configuration)
+    /// Autoupgrade base URL (optional, default: http://packages.modality.org)
     #[clap(long)]
-    pub autoupgrade_registry_url: Option<String>,
+    pub autoupgrade_base_url: Option<String>,
+
+    /// Autoupgrade branch (optional, default: testnet)
+    #[clap(long)]
+    pub autoupgrade_branch: Option<String>,
 
     /// Autoupgrade check interval in seconds (default: 3600)
     #[clap(long)]
@@ -199,7 +203,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
             .unwrap_or_default();
         
         let autoupgrade = Some((
-            "http://packages.modality.org/testnet/latest/cargo-registry/index/".to_string(),
+            "http://packages.modality.org".to_string(),
+            "testnet".to_string(),
             3600u64
         ));
         
@@ -222,9 +227,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
         
         // Enable autoupgrade if --enable-autoupgrade is specified
         let autoupgrade = if opts.enable_autoupgrade {
-            let url = opts.autoupgrade_registry_url.clone()
-                .ok_or_else(|| anyhow::anyhow!("--enable-autoupgrade requires --autoupgrade-registry-url"))?;
-            Some((url, opts.autoupgrade_check_interval_secs.unwrap_or(3600)))
+            let base_url = opts.autoupgrade_base_url.clone()
+                .unwrap_or_else(|| "http://packages.modality.org".to_string());
+            let branch = opts.autoupgrade_branch.clone()
+                .unwrap_or_else(|| network.clone());
+            Some((base_url, branch, opts.autoupgrade_check_interval_secs.unwrap_or(3600)))
         } else {
             None
         };
@@ -276,10 +283,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
     });
 
     // Add autoupgrade config if enabled
-    if let Some((registry_url, check_interval)) = &autoupgrade_config {
+    if let Some((base_url, branch, check_interval)) = &autoupgrade_config {
         if let Some(obj) = config.as_object_mut() {
             obj.insert("autoupgrade_enabled".to_string(), json!(true));
-            obj.insert("autoupgrade_registry_url".to_string(), json!(registry_url.clone()));
+            obj.insert("autoupgrade_base_url".to_string(), json!(base_url.clone()));
+            obj.insert("autoupgrade_branch".to_string(), json!(branch.clone()));
             obj.insert("autoupgrade_check_interval_secs".to_string(), json!(*check_interval));
         }
     }
@@ -322,9 +330,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("🌐 Bootstrappers: {}", bootstrappers.join(", "));
     }
     
-    if let Some((registry_url, interval)) = &autoupgrade_config {
+    if let Some((base_url, branch, interval)) = &autoupgrade_config {
         println!("🔄 Autoupgrade: enabled");
-        println!("   Registry: {}", registry_url);
+        println!("   Base URL: {}", base_url);
+        println!("   Branch: {}", branch);
         println!("   Check interval: {}s", interval);
     }
     
