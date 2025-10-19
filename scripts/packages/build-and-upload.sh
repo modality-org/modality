@@ -205,7 +205,7 @@ build_packages() {
             cargo build --release --target "$target"
         else
             # Use cross for other platforms with static OpenSSL
-            OPENSSL_STATIC=1 cross build --release --target "$target"
+            cross build --release --target "$target"
         fi
         
         # Determine platform name and binary extension

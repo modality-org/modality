@@ -26,6 +26,7 @@ pub struct Config {
     pub autoupgrade_registry_url: Option<String>, // Deprecated: kept for backward compatibility
     pub autoupgrade_check_interval_secs: Option<u64>,
     pub noop_mode: Option<bool>,
+    pub miner_nominees: Option<Vec<String>>,
 }
 
 impl Config {

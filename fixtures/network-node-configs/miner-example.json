@@ -1,0 +1,13 @@
+{
+  "passfile_path": "../passfiles/node1.mod_passfile",
+  "storage_path": "../../tmp/storage/node1",
+  "listeners": ["/ip4/0.0.0.0/tcp/10101/ws"],
+  "bootstrappers": ["/dnsaddr/devnet1.modality.network"],
+  "network_config_path": "../network-configs/devnet1/config.json",
+  "miner_nominees": [
+    "12D3KooWPjceQrSwdWXPyLLeABRXmuqt69Rg3sBYbU1Nft9HyQ6X",
+    "12D3KooWQYV9dGMFoRzNStwpXztXaBUjtPqi6aU76ZVGCCidaliL",
+    "12D3KooWMvyvKxYcy6wXRKZfkH9p8RJWKjJLyLLEKKwj67pUbwvh"
+  ]
+}
+

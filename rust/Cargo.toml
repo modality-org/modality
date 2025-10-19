@@ -11,6 +11,10 @@ members = [
 , "modality"
 , "modality-lang"]
 
+[profile.release]
+strip = true
+lto = true
+
 
 
 

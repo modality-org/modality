@@ -41,6 +41,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     let datastore = node.datastore.clone();
     let swarm = node.swarm.clone();
     let peerid_str = node.peerid.to_string();
+    let miner_nominees = node.miner_nominees.clone();
     
     tokio::spawn(async move {
         let mut current_index = starting_index;
@@ -53,6 +54,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
             match mine_and_gossip_block(
                 current_index,
                 &peerid_str,
+                &miner_nominees,
                 datastore.clone(),
                 swarm.clone(),
             ).await {
@@ -81,23 +83,39 @@ pub async fn run(node: &mut Node) -> Result<()> {
 async fn mine_and_gossip_block(
     index: u64,
     peer_id: &str,
+    miner_nominees: &Option<Vec<String>>,
     datastore: std::sync::Arc<tokio::sync::Mutex<modality_network_datastore::NetworkDatastore>>,
     swarm: std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
 ) -> Result<()> {
-    use modality_network_mining::{Blockchain, ChainConfig, Block, BlockData};
+    use modality_network_mining::{Blockchain, ChainConfig};
     
     // Get previous block if exists
-    let (previous_hash, difficulty) = {
+    let previous_hash = {
         let ds = datastore.lock().await;
         if index == 0 {
-            ("0".to_string(), 1000u128)
+            "0".to_string()
         } else {
             match MinerBlock::find_canonical_by_index(&ds, index - 1).await? {
-                Some(prev) => (prev.hash.clone(), prev.difficulty.parse().unwrap_or(1000)),
-                None => ("0".to_string(), 1000u128),
+                Some(prev) => prev.hash.clone(),
+                None => "0".to_string(),
             }
         }
     };
+
+    // Determine the nominee to use for this block
+    let nominated_peer_id = match miner_nominees {
+        Some(nominees) if !nominees.is_empty() => {
+            // Select a nominee by rotating through the list based on block index
+            let nominee_index = (index as usize) % nominees.len();
+            nominees[nominee_index].clone()
+        }
+        _ => {
+            // If no nominees are configured, use the miner's own peer ID
+            peer_id.to_string()
+        }
+    };
+
+    log::info!("Mining block {} with nominated peer: {}", index, nominated_peer_id);
 
     // Create a temporary blockchain for mining this single block
     let mut chain = Blockchain::new(ChainConfig::default(), peer_id.to_string());
@@ -109,7 +127,7 @@ async fn mine_and_gossip_block(
     } else {
         // Mine next block
         let miner_number = rand::random::<u64>();
-        chain.mine_block(peer_id.to_string(), miner_number)?
+        chain.mine_block(nominated_peer_id.clone(), miner_number)?
     };
 
     // Convert to MinerBlock for datastore
@@ -149,4 +167,5 @@ async fn mine_and_gossip_block(
 
     Ok(())
 }
+
 

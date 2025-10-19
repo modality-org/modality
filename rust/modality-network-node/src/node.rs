@@ -34,6 +34,7 @@ pub struct Node {
     pub bootstrappers: Vec<Multiaddr>,
     pub swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     pub datastore: Arc<Mutex<NetworkDatastore>>,
+    pub miner_nominees: Option<Vec<String>>,
     consensus_runner: Option<modality_network_consensus::runner::Runner>,
     networking_task: Option<tokio::task::JoinHandle<Result<()>>>,
     consensus_task: Option<tokio::task::JoinHandle<Result<()>>>,
@@ -77,6 +78,7 @@ impl Node {
         }
         let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
         let (consensus_tx, consensus_rx) = mpsc::channel(100);
+        let miner_nominees = config.miner_nominees.clone();
         let node = Self {
             peerid,
             node_keypair,
@@ -84,6 +86,7 @@ impl Node {
             bootstrappers,
             swarm: Arc::new(Mutex::new(swarm)),
             datastore,
+            miner_nominees,
             networking_task: None,
             consensus_task: None,
             autoupgrade_task: None,
@@ -467,18 +470,18 @@ impl Node {
                     }
                     Some(msg) = consensus_rx.recv() => {
                         log::info!("Received consensus message: {:?}", msg);
-                        let mut runner = runner_clone.lock().await;
+                        let runner = runner_clone.lock().await;
                         match msg {
-                            ConsensusMessage::DraftBlock { from: _, to, block } => {
+                            ConsensusMessage::DraftBlock { from: _, to: _, block } => {
                                 let _ = runner.on_receive_draft_block(&block).await;
                             }
-                            ConsensusMessage::BlockAck { from: _, to, ack } => {
+                            ConsensusMessage::BlockAck { from: _, to: _, ack } => {
                                 let _ = runner.on_receive_block_ack(&ack).await;
                             }
-                            ConsensusMessage::BlockLateAck { from: _, to, ack } => {
+                            ConsensusMessage::BlockLateAck { from: _, to: _, ack } => {
                                 let _ = runner.on_receive_block_late_ack(&ack).await;
                             }
-                            ConsensusMessage::CertifiedBlock { from: _, to, block } => {
+                            ConsensusMessage::CertifiedBlock { from: _, to: _, block } => {
                                 let _ = runner.on_receive_certified_block(&block).await;
                             }
                         }

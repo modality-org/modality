@@ -1,0 +1,6 @@
+{
+  "setup-worktree": [
+    "cd rust",
+    "cargo build"
+  ]
+}
