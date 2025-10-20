@@ -35,10 +35,10 @@ Add the following fields to your node configuration JSON file:
 
 4. **Binary Replacement**: After successful download:
    - The current executable is replaced with the newly downloaded binary
-   - A new process is spawned with the same command-line arguments
-   - The current process exits gracefully
+   - The current process is replaced with the new binary using `exec()` (on Unix systems)
+   - The new process inherits the same terminal session, allowing Ctrl-C to work
 
-5. **Seamless Restart**: The node restarts with the new version, maintaining the same configuration
+5. **Seamless Restart**: The node restarts with the new version, maintaining the same configuration and terminal session
 
 ## Requirements
 

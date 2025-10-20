@@ -23,18 +23,32 @@ pub async fn replace_and_restart(new_binary_path: PathBuf) -> Result<()> {
     self_replace::self_replace(&new_binary_path)
         .context("Failed to replace binary")?;
 
-    log::info!("Binary replaced successfully, spawning new process...");
+    log::info!("Binary replaced successfully, restarting process...");
 
-    // Spawn the new binary with the same arguments
-    Command::new(&current_exe)
-        .args(&args)
-        .spawn()
-        .context("Failed to spawn new process")?;
+    // Replace the current process with the new binary (keeps it in the foreground)
+    // This ensures the user can still Ctrl-C out of it
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        let err = Command::new(&current_exe)
+            .args(&args)
+            .exec();
+        // exec() only returns if there's an error
+        return Err(anyhow::anyhow!("Failed to exec new process: {}", err));
+    }
 
-    log::info!("New process spawned, exiting current process");
-    
-    // Exit the current process
-    std::process::exit(0);
+    #[cfg(not(unix))]
+    {
+        // On non-Unix systems, spawn the process and exit
+        // Note: This won't keep the process in the foreground
+        Command::new(&current_exe)
+            .args(&args)
+            .spawn()
+            .context("Failed to spawn new process")?;
+        
+        log::info!("New process spawned, exiting current process");
+        std::process::exit(0);
+    }
 }
 
 #[cfg(test)]
