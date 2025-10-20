@@ -111,6 +111,7 @@ impl BlockchainPersistence for NetworkDatastore {
 fn miner_block_to_block(mb: &MinerBlock) -> Result<Block, MiningError> {
     use crate::block::{BlockData, BlockHeader};
     use chrono::{DateTime, Utc, TimeZone};
+    use sha2::{Sha256, Digest};
     
     let nonce = mb.get_nonce_u128()
         .map_err(|e| MiningError::PersistenceError(format!("Invalid nonce: {}", e)))?;
@@ -121,20 +122,26 @@ fn miner_block_to_block(mb: &MinerBlock) -> Result<Block, MiningError> {
     let timestamp = DateTime::<Utc>::from_timestamp(mb.timestamp, 0)
         .ok_or_else(|| MiningError::PersistenceError("Invalid timestamp".to_string()))?;
     
-    let header = BlockHeader {
-        index: mb.index,
-        timestamp,
-        previous_hash: mb.previous_hash.clone(),
-        data_hash: mb.data_hash.clone(),
-        nonce,
-        difficulty,
-        hash: mb.hash.clone(),
-    };
-    
     let data = BlockData::new(
         mb.nominated_peer_id.clone(),
         mb.miner_number,
     );
+    
+    // Recalculate data_hash from the BlockData instead of using stored value
+    // This is necessary because gossip doesn't include data_hash
+    let mut hasher = Sha256::new();
+    hasher.update(data.to_hash_string().as_bytes());
+    let data_hash = format!("{:x}", hasher.finalize());
+    
+    let header = BlockHeader {
+        index: mb.index,
+        timestamp,
+        previous_hash: mb.previous_hash.clone(),
+        data_hash, // Use recalculated hash
+        nonce,
+        difficulty,
+        hash: mb.hash.clone(),
+    };
     
     Ok(Block { header, data })
 }

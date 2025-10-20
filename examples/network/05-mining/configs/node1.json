@@ -1,0 +1,8 @@
+{
+  "passfile_path": "../../../../fixtures/passfiles/node1.mod_passfile",
+  "storage_path": "/Users/dotcontract/work/modality-dev/modality/examples/network/05-mining/tmp/storage/node1",
+  "listeners": ["/ip4/0.0.0.0/tcp/4041/ws"],
+  "bootstrappers": [],
+  "run_miner": true,
+  "miner_nominees": ["node1"]
+}

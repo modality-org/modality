@@ -128,6 +128,18 @@ impl MinerBlock {
             .parse::<u128>()
             .context("Failed to parse difficulty as u128")
     }
+    
+    /// Calculate total work (cumulative difficulty) for a chain of blocks
+    /// Higher cumulative difficulty means more computational work was performed
+    pub fn calculate_cumulative_difficulty(blocks: &[MinerBlock]) -> Result<u128> {
+        let mut total: u128 = 0;
+        for block in blocks {
+            let difficulty = block.get_difficulty_u128()?;
+            total = total.checked_add(difficulty)
+                .context("Cumulative difficulty overflow")?;
+        }
+        Ok(total)
+    }
 }
 
 #[async_trait]

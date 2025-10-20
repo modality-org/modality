@@ -131,15 +131,18 @@ pub async fn handler(
     // Check if a block exists at this index (fork choice)
     match MinerBlock::find_canonical_by_index(datastore, miner_block.index).await? {
         Some(existing) => {
-            // Apply fork choice: lower hash (harder to mine) wins
-            if miner_block.hash < existing.hash {
-                log::info!("Fork choice: Replacing existing block {} (hash: {}) with gossiped block (hash: {})",
-                    miner_block.index, &existing.hash[..16], &miner_block.hash[..16]);
+            // Apply fork choice: higher difficulty (more work) wins
+            let new_difficulty = miner_block.get_difficulty_u128()?;
+            let existing_difficulty = existing.get_difficulty_u128()?;
+            
+            if new_difficulty > existing_difficulty {
+                log::info!("Fork choice: Replacing existing block {} (difficulty: {}) with gossiped block (difficulty: {})",
+                    miner_block.index, existing_difficulty, new_difficulty);
                 
                 // Mark old block as orphaned
                 let mut orphaned = existing.clone();
                 orphaned.mark_as_orphaned(
-                    "Replaced by gossiped block with harder hash".to_string(),
+                    format!("Replaced by gossiped block with higher difficulty ({} vs {})", new_difficulty, existing_difficulty),
                     Some(miner_block.hash.clone())
                 );
                 orphaned.save(datastore).await?;
@@ -148,7 +151,8 @@ pub async fn handler(
                 miner_block.save(datastore).await?;
                 log::info!("Accepted gossiped block {} at index {}", &miner_block.hash[..16], miner_block.index);
             } else {
-                log::debug!("Existing block {} has equal or harder hash, keeping it", miner_block.index);
+                log::debug!("Existing block {} has equal or higher difficulty (existing: {}, new: {}), keeping it", 
+                    miner_block.index, existing_difficulty, new_difficulty);
             }
         }
         None => {

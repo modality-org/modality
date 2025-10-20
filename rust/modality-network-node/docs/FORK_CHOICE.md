@@ -4,21 +4,36 @@ This document describes the fork choice algorithm used by Modality network nodes
 
 ## Overview
 
-When multiple blocks exist at the same index (competing blocks), the network must choose which one becomes canonical. Modality uses a simple but effective fork choice rule:
+When multiple blocks exist at the same index (competing blocks), or when chains diverge, the network must choose which becomes canonical. Modality uses a cumulative difficulty-based fork choice rule:
 
-**The block with the lowest hash wins.**
+**At the block level:** The block with higher difficulty wins.
+**At the chain level:** The chain with higher cumulative difficulty (total work) wins.
 
 ## Rationale
 
-Lower hash values have more leading zeros, which means they were harder to mine (more computational work). This is similar to Bitcoin's longest chain rule but applied at the block level.
+The fork choice rule is based on **proof of work** - the chain that required the most computational effort to produce is considered canonical. This prevents attackers from creating longer but easier chains to displace the legitimate chain.
+
+### Why Cumulative Difficulty?
+
+Simply comparing chain lengths is vulnerable to attack:
+- A long chain with low difficulty (easy mining) could displace a shorter chain with high difficulty
+- An attacker with less hashpower could create a longer but weaker chain
+
+Cumulative difficulty ensures:
+- The chain with the most computational work always wins
+- Miners are incentivized to mine at appropriate difficulty levels
+- Network converges on the strongest chain, not just the longest
 
 ### Example
 
 ```
-Block A at index 5: hash = 0000abc123...  (4 leading zeros)
-Block B at index 5: hash = 000def4567...  (3 leading zeros)
+Chain A: [block 0: diff 1000] → [block 1: diff 2000] → [block 2: diff 2000]
+         Total: 3 blocks, cumulative difficulty = 5000
 
-Winner: Block A (lower hash = more work)
+Chain B: [block 0: diff 1000] → [block 1: diff 100] → [block 2: diff 100] → [block 3: diff 100] → [block 4: diff 100]
+         Total: 5 blocks, cumulative difficulty = 1400
+
+Winner: Chain A (higher cumulative difficulty despite fewer blocks)
 ```
 
 ## Implementation
@@ -34,8 +49,11 @@ When a miner saves a block it just mined:
 
 match MinerBlock::find_canonical_by_index(&ds, index).await? {
     Some(existing) => {
-        // Apply fork choice: lower hash wins
-        if miner_block.hash < existing.hash {
+        // Apply fork choice: higher difficulty wins
+        let new_difficulty = mined_block.header.difficulty;
+        let existing_difficulty = existing.get_difficulty_u128()?;
+        
+        if new_difficulty > existing_difficulty {
             // Replace existing with new block
             mark_as_orphaned(existing);
             save(miner_block);
@@ -54,7 +72,7 @@ match MinerBlock::find_canonical_by_index(&ds, index).await? {
 **When it triggers:**
 - Mining succeeds but gossip fails
 - Miner retries and produces a different block for the same index
-- New block might have a harder (lower) hash
+- New block might have higher difficulty
 
 ### 2. Gossip Receives Block
 
@@ -65,8 +83,11 @@ When a node receives a block via gossip:
 
 match MinerBlock::find_canonical_by_index(datastore, block.index).await? {
     Some(existing) => {
-        if gossiped_block.hash < existing.hash {
-            // Gossiped block is harder, replace local
+        let new_difficulty = miner_block.get_difficulty_u128()?;
+        let existing_difficulty = existing.get_difficulty_u128()?;
+        
+        if new_difficulty > existing_difficulty {
+            // Gossiped block has higher difficulty, replace local
             mark_as_orphaned(existing);
             save(gossiped_block);
         } else {
@@ -83,37 +104,47 @@ match MinerBlock::find_canonical_by_index(datastore, block.index).await? {
 **When it triggers:**
 - Two miners produce blocks for the same index
 - Network receives both via gossip
-- Nodes converge on the block with lowest hash
+- Nodes converge on the block with higher difficulty
 
-### 3. Sync Receives Blocks
+### 3. Chain Reorganization (Sync)
 
-When syncing from another node:
+When syncing from another node and chains diverge:
 
 ```rust
-// File: rust/modality-network-node/src/actions/sync_blocks.rs
+// File: rust/modality-network-node/src/actions/miner.rs
 
-for block in synced_blocks {
-    apply_fork_choice(block);
+// Calculate cumulative difficulty for both chains
+let local_difficulty = MinerBlock::calculate_cumulative_difficulty(&local_blocks)?;
+let peer_difficulty = MinerBlock::calculate_cumulative_difficulty(&peer_blocks)?;
+
+if peer_difficulty > local_difficulty {
+    // Adopt peer chain - it has more total work
+    orphan_local_blocks();
+    save_peer_blocks();
+} else {
+    // Keep local chain
+    reject_peer_blocks();
 }
 ```
 
 **When it triggers:**
 - Node syncs from another node's chain
-- Remote chain might have different blocks at same indices
-- Local node adopts blocks with lower hashes
+- Chains have diverged (different blocks at same indices)
+- Local node adopts the chain with higher cumulative difficulty
 
 ## Orphaned Blocks
 
 When a block is replaced by fork choice:
 
 1. **Marked as orphaned**: `is_canonical = false`, `is_orphaned = true`
-2. **Reason recorded**: "Replaced by block with harder hash"
+2. **Reason recorded**: Includes difficulty comparison details
 3. **Competing hash stored**: Reference to the winning block
 4. **Preserved in database**: Still queryable for analysis
 
 ```rust
 orphaned.mark_as_orphaned(
-    "Replaced by block with harder hash".to_string(),
+    format!("Replaced by block with higher difficulty ({} vs {})", 
+        new_difficulty, old_difficulty),
     Some(winning_block.hash)
 );
 orphaned.save(datastore).await?;
@@ -121,20 +152,32 @@ orphaned.save(datastore).await?;
 
 ## Chain Reorganization
 
-Fork choice can cause chain reorganizations (reorgs):
+Fork choice can cause chain reorganizations (reorgs) when chains diverge:
 
 ```
 Initial chain:
-  0 → 1a → 2a → 3a
+  0 → 1a (diff 1000) → 2a (diff 1000) → 3a (diff 1000)
+  Cumulative: 3000
 
-Receive competing blocks:
-  0 → 1b → 2b → 3b
+Receive competing chain:
+  0 → 1b (diff 2000) → 2b (diff 2000)
+  Cumulative: 4000
 
-If blocks 1b, 2b, 3b all have lower hashes:
-  0 → 1b → 2b → 3b  (new canonical chain)
+Result: Chain B becomes canonical despite having fewer blocks
+  0 → 1b (diff 2000) → 2b (diff 2000)  (new canonical chain)
   
 Orphaned: 1a, 2a, 3a
 ```
+
+### Reorg Types
+
+**Partial Reorg:** Chains share a common ancestor
+- Only blocks after the common ancestor are affected
+- Cumulative difficulty compared for divergent branches only
+
+**Complete Reorg:** No common ancestor found
+- Entire chains compared by cumulative difficulty
+- All local blocks orphaned if peer chain has higher difficulty
 
 ### Reorg Safety
 
@@ -145,41 +188,6 @@ Applications should:
 - Wait for multiple confirmations before considering blocks final
 - Monitor for reorgs via orphaned block events
 - Have logic to handle state rollbacks
-
-## Future Enhancements
-
-### Longest Chain Rule
-
-Current: Block-level fork choice (lowest hash at each index)
-Future: Chain-level fork choice (longest valid chain wins)
-
-```rust
-fn compare_chains(chain_a: &[Block], chain_b: &[Block]) -> Chain {
-    if chain_a.len() > chain_b.len() {
-        return chain_a;  // Longer chain wins
-    }
-    if chain_a.len() < chain_b.len() {
-        return chain_b;
-    }
-    // Same length: compare cumulative difficulty
-    if cumulative_difficulty(chain_a) > cumulative_difficulty(chain_b) {
-        return chain_a;  // More work wins
-    }
-    return chain_b;
-}
-```
-
-### Cumulative Difficulty
-
-Instead of comparing individual hashes, compare total work:
-
-```rust
-fn cumulative_difficulty(chain: &[Block]) -> u128 {
-    chain.iter()
-        .map(|block| hash_to_difficulty(&block.hash))
-        .sum()
-}
-```
 
 ## Testing
 
@@ -203,24 +211,54 @@ cd examples/network/05-mining
 # Should show no duplicate indices, all unique block indices
 ```
 
+### Testing Cumulative Difficulty
+
+To test that cumulative difficulty is working correctly:
+
+1. Create two competing chains with different difficulties
+2. Verify the chain with higher cumulative difficulty wins, even if shorter
+3. Check log messages show difficulty comparisons
+4. Verify orphaned blocks have correct reasons recorded
+
 ## Comparison with Other Systems
 
 | System | Fork Choice Rule |
 |--------|-----------------|
 | Bitcoin | Longest chain (most cumulative work) |
 | Ethereum | GHOST (Greedy Heaviest Observed SubTree) |
-| Modality | Lowest hash per block (simplest) |
+| Modality | Cumulative difficulty (most total work) |
 
-Modality's approach is simpler but effective for:
-- Small networks
-- Development/testing
-- Applications that don't need deep reorg resistance
+Modality's approach is similar to Bitcoin's, using cumulative difficulty to determine the canonical chain. This ensures:
+- Security against attacks from less powerful miners
+- Proper incentives for mining at appropriate difficulty levels
+- Network convergence on the strongest chain
 
-For production, consider implementing longest chain or cumulative difficulty.
+## Cumulative Difficulty Calculation
+
+The cumulative difficulty helper function sums the difficulty values across a chain:
+
+```rust
+/// Calculate total work (cumulative difficulty) for a chain of blocks
+pub fn calculate_cumulative_difficulty(blocks: &[MinerBlock]) -> Result<u128> {
+    let mut total: u128 = 0;
+    for block in blocks {
+        let difficulty = block.get_difficulty_u128()?;
+        total = total.checked_add(difficulty)
+            .context("Cumulative difficulty overflow")?;
+    }
+    Ok(total)
+}
+```
+
+This function is used in:
+- Partial chain reorgs (comparing divergent branches)
+- Complete chain reorgs (comparing entire chains)
+- Chain selection during sync operations
 
 ## References
 
 - Bitcoin's longest chain: https://bitcoin.org/bitcoin.pdf
 - Ethereum's GHOST: https://eprint.iacr.org/2013/881.pdf
 - Nakamoto consensus: https://en.wikipedia.org/wiki/Nakamoto_consensus
+
 
