@@ -98,15 +98,18 @@ pub async fn handler(
         let mut ds = datastore.lock().await;
         if let Some(existing) = MinerBlock::find_canonical_by_index(&ds, miner_block.index).await? {
             // We have a different block at the same index - this is a fork!
-            // Apply fork choice: higher difficulty wins, lower hash breaks ties
+            // Apply fork choice: higher difficulty wins, first-seen wins on tie (Bitcoin-style)
             let new_difficulty = miner_block.get_difficulty_u128()?;
             let existing_difficulty = existing.get_difficulty_u128()?;
             
             let should_replace = if new_difficulty > existing_difficulty {
                 true
             } else if new_difficulty == existing_difficulty {
-                // Tiebreaker: lower hash wins (lexicographic comparison)
-                miner_block.hash < existing.hash
+                // First-seen rule: keep the existing block, reject the new one
+                // This prevents flip-flopping between equal-difficulty blocks
+                log::debug!("Equal difficulty blocks at index {} - keeping first-seen block {}", 
+                    miner_block.index, &existing.hash[..16]);
+                false
             } else {
                 false
             };
