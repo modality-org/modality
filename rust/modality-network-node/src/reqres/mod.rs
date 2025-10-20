@@ -71,6 +71,12 @@ pub async fn handle_request(req: Request, datastore: &mut NetworkDatastore, cons
         "/data/miner_block/range" => {
             reqres_data::miner_block::range::handler(Some(data.clone()), datastore).await?
         }
+        "/data/miner_block/chain_info" => {
+            reqres_data::miner_block::chain_info::handler(Some(data.clone()), datastore).await?
+        }
+        "/data/miner_block/find_ancestor" => {
+            reqres_data::miner_block::find_ancestor::handler(Some(data.clone()), datastore).await?
+        }
         _ => {
             Response {
                 ok: false,

@@ -1,7 +1,6 @@
 use anyhow::Result;
 use modality_network_datastore::NetworkDatastore;
 use modality_network_datastore::models::MinerBlock;
-use modality_network_datastore::Model;
 use crate::reqres::Response;
 
 /// Get a miner block by hash
@@ -15,6 +14,12 @@ pub mod by_epoch;
 
 /// Get miner block range by indices
 pub mod range;
+
+/// Get chain info including cumulative difficulty
+pub mod chain_info;
+
+/// Find common ancestor efficiently using binary search
+pub mod find_ancestor;
 
 /// Handler for GET /data/miner_block/:hash
 pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatastore) -> Result<Response> {

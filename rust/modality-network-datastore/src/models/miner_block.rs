@@ -383,7 +383,91 @@ impl MinerBlock {
         let blocks = Self::find_by_index(datastore, index).await?;
         Ok(blocks.into_iter().find(|b| b.is_canonical))
     }
+    
+    /// Create a new pending (non-canonical) block
+    /// Used when syncing blocks that need verification before being made canonical
+    pub fn new_pending(
+        hash: String,
+        index: u64,
+        epoch: u64,
+        timestamp: i64,
+        previous_hash: String,
+        data_hash: String,
+        nonce: u128,
+        difficulty: u128,
+        nominated_peer_id: String,
+        miner_number: u64,
+    ) -> Self {
+        Self {
+            hash,
+            index,
+            epoch,
+            timestamp,
+            previous_hash,
+            data_hash,
+            nonce: nonce.to_string(),
+            difficulty: difficulty.to_string(),
+            nominated_peer_id,
+            miner_number,
+            is_orphaned: false,
+            is_canonical: false, // Pending blocks are not canonical until verified
+            seen_at: Some(chrono::Utc::now().timestamp()),
+            orphaned_at: None,
+            orphan_reason: None,
+            height_at_time: Some(index),
+            competing_hash: None,
+        }
+    }
+    
+    /// Save a block as pending (non-canonical) for later verification
+    pub async fn save_as_pending(&self, datastore: &NetworkDatastore) -> Result<()> {
+        let mut pending = self.clone();
+        pending.is_canonical = false;
+        pending.is_orphaned = false;
+        pending.save(datastore).await
+    }
+    
+    /// Canonize this block (flip is_canonical to true)
+    pub async fn canonize(&mut self, datastore: &NetworkDatastore) -> Result<()> {
+        self.is_canonical = true;
+        self.is_orphaned = false;
+        self.save(datastore).await
+    }
+    
+    /// Find all pending (non-canonical, non-orphaned) blocks
+    pub async fn find_all_pending(
+        datastore: &NetworkDatastore,
+    ) -> Result<Vec<Self>> {
+        let prefix = "/miner_blocks/hash";
+        let mut blocks = Vec::new();
+        
+        for item in datastore.iterator(prefix) {
+            let (_, value) = item?;
+            let block: MinerBlock = serde_json::from_slice(&value)
+                .context("Failed to deserialize MinerBlock")?;
+            
+            if !block.is_canonical && !block.is_orphaned {
+                blocks.push(block);
+            }
+        }
+        
+        blocks.sort_by_key(|b| b.index);
+        Ok(blocks)
+    }
+    
+    /// Delete all pending blocks
+    pub async fn delete_all_pending(datastore: &NetworkDatastore) -> Result<usize> {
+        let pending_blocks = Self::find_all_pending(datastore).await?;
+        let count = pending_blocks.len();
+        
+        for block in pending_blocks {
+            block.delete(datastore).await?;
+        }
+        
+        Ok(count)
+    }
 }
+
 
 #[cfg(test)]
 mod tests {
