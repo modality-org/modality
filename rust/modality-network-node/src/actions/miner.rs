@@ -1335,13 +1335,34 @@ async fn mine_and_gossip_block(
                     chain.blocks.len(),
                     chain.height());
                 
+                // Orphan all blocks from the discontinuity point onwards
+                // This prevents the node from getting stuck trying to mine ahead of the valid chain
+                log::info!("Orphaning blocks from index {} onwards to resolve discontinuity", stopped_index);
+                let all_canonical = MinerBlock::find_all_canonical(&*ds_guard).await.unwrap_or_default();
+                let mut orphaned_count = 0;
+                for mut block in all_canonical {
+                    if block.index >= stopped_index {
+                        block.mark_as_orphaned(
+                            format!("Chain discontinuity detected at index {} - block doesn't fit in canonical chain", stopped_index),
+                            None
+                        );
+                        if let Err(e) = block.save(&mut ds_guard).await {
+                            log::warn!("Failed to orphan block {}: {}", block.index, e);
+                        } else {
+                            orphaned_count += 1;
+                            log::debug!("Orphaned block {} (hash: {})", block.index, &block.hash[..16]);
+                        }
+                    }
+                }
+                log::info!("Orphaned {} blocks starting from index {}", orphaned_count, stopped_index);
+                
                 // If we're trying to mine a block but our chain has a discontinuity,
-                // it means we might be behind. Return an error to trigger retry/sync.
+                // return an error so the mining loop can adjust to the correct index
                 if index > chain.height() + 1 {
                     drop(ds_guard);
                     return Err(anyhow::anyhow!(
-                        "Chain has discontinuity at index {}. Need to sync with peers to resolve. Current chain height: {}, trying to mine: {}",
-                        stopped_index, chain.height(), index
+                        "Chain had discontinuity at index {}. Orphaned {} blocks. Mine from index {} instead.",
+                        stopped_index, orphaned_count, chain.height() + 1
                     ));
                 }
             } else {
