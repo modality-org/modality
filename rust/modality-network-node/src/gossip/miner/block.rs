@@ -64,28 +64,47 @@ impl MinerBlockGossip {
 
 /// Handler for incoming miner block gossip messages
 pub async fn handler(data: String, datastore: &mut NetworkDatastore) -> Result<()> {
-    log::info!("Received miner block gossip: {}", data);
+    log::info!("Received miner block gossip");
     
     // Parse the gossip message
     let gossip_msg: MinerBlockGossip = serde_json::from_str(&data)?;
-    
-    // Convert to MinerBlock
     let miner_block = gossip_msg.to_miner_block();
     
-    // Check if we already have this block
-    match MinerBlock::find_by_hash(datastore, &miner_block.hash).await {
-        Ok(Some(existing_block)) => {
-            log::debug!("Miner block {} already exists, skipping", existing_block.hash);
-            return Ok(());
+    log::debug!("Gossip block: index={}, hash={}", miner_block.index, &miner_block.hash[..16]);
+    
+    // Check if we already have this exact block (by hash)
+    if let Ok(Some(_)) = MinerBlock::find_by_hash(datastore, &miner_block.hash).await {
+        log::debug!("Block with hash {} already exists, skipping", &miner_block.hash[..16]);
+        return Ok(());
+    }
+    
+    // Check if a block exists at this index (fork choice)
+    match MinerBlock::find_canonical_by_index(datastore, miner_block.index).await? {
+        Some(existing) => {
+            // Apply fork choice: lower hash (harder to mine) wins
+            if miner_block.hash < existing.hash {
+                log::info!("Fork choice: Replacing existing block {} (hash: {}) with gossiped block (hash: {})",
+                    miner_block.index, &existing.hash[..16], &miner_block.hash[..16]);
+                
+                // Mark old block as orphaned
+                let mut orphaned = existing.clone();
+                orphaned.mark_as_orphaned(
+                    "Replaced by gossiped block with harder hash".to_string(),
+                    Some(miner_block.hash.clone())
+                );
+                orphaned.save(datastore).await?;
+                
+                // Save new block as canonical
+                miner_block.save(datastore).await?;
+                log::info!("Saved gossiped block {} at index {}", &miner_block.hash[..16], miner_block.index);
+            } else {
+                log::debug!("Existing block {} has equal or harder hash, keeping it", miner_block.index);
+            }
         }
-        Ok(None) => {
-            // Block doesn't exist, save it
-            log::info!("Saving new miner block {} at index {}", miner_block.hash, miner_block.index);
+        None => {
+            // No block at this index, save it
+            log::info!("Saving new gossiped block {} at index {}", &miner_block.hash[..16], miner_block.index);
             miner_block.save(datastore).await?;
-        }
-        Err(e) => {
-            log::error!("Error checking for existing miner block: {:?}", e);
-            return Err(e);
         }
     }
     

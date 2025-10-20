@@ -216,11 +216,39 @@ async fn mine_and_gossip_block(
         mined_block.data.miner_number,
     );
 
-    // Save to datastore
+    // Save to datastore with duplicate checking and fork choice
     {
         let mut ds = datastore.lock().await;
-        log::info!("Saving block {} (hash: {}) to datastore", miner_block.index, miner_block.hash);
-        miner_block.save(&mut ds).await?;
+        
+        // Check if a block already exists at this index
+        match MinerBlock::find_canonical_by_index(&ds, index).await? {
+            Some(existing) => {
+                // Block exists - apply fork choice (lower hash = harder to mine = wins)
+                if miner_block.hash < existing.hash {
+                    log::info!("Fork choice: Replacing existing block {} (hash: {}) with new block (hash: {})",
+                        index, &existing.hash[..16], &miner_block.hash[..16]);
+                    
+                    // Mark old block as orphaned
+                    let mut orphaned = existing.clone();
+                    orphaned.mark_as_orphaned(
+                        "Replaced by block with harder hash".to_string(),
+                        Some(miner_block.hash.clone())
+                    );
+                    orphaned.save(&mut ds).await?;
+                    
+                    // Save new block as canonical
+                    miner_block.save(&mut ds).await?;
+                } else {
+                    log::info!("Block {} already exists with equal or harder hash (existing: {}, new: {}), skipping save",
+                        index, &existing.hash[..16], &miner_block.hash[..16]);
+                }
+            }
+            None => {
+                // No existing block at this index, save normally
+                log::info!("Saving block {} (hash: {}) to datastore", miner_block.index, &miner_block.hash[..16]);
+                miner_block.save(&mut ds).await?;
+            }
+        }
     }
 
     // Gossip the block
