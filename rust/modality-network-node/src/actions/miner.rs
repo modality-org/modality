@@ -108,8 +108,6 @@ async fn mine_and_gossip_block(
     // Load blockchain from datastore with all historical blocks for proper difficulty calculation
     let mut chain = {
         let ds_guard = datastore.lock().await;
-        // Create a new Arc wrapper around a reference to the datastore
-        // We need to use the persistence loading approach
         use modality_network_mining::persistence::BlockchainPersistence;
         
         let loaded_blocks = ds_guard.load_canonical_blocks().await?;
@@ -119,11 +117,15 @@ async fn mine_and_gossip_block(
             // No existing blocks, create genesis
             Blockchain::new(ChainConfig::default(), peer_id.to_string())
         } else {
-            // Create a blockchain from the loaded blocks
-            // We need to reconstruct the blockchain state
+            // Reconstruct blockchain from loaded blocks
+            // Start with a fresh chain and replace genesis, then add remaining blocks
             let mut chain = Blockchain::new(ChainConfig::default(), peer_id.to_string());
             
-            // Skip genesis (first block) if it's already there, add the rest
+            // Replace the auto-generated genesis with the loaded one
+            chain.blocks.clear();
+            chain.blocks.push(loaded_blocks[0].clone());
+            
+            // Add all subsequent blocks (add_block will handle block_index updates)
             for block in loaded_blocks.into_iter().skip(1) {
                 chain.add_block(block)?;
             }
@@ -132,15 +134,16 @@ async fn mine_and_gossip_block(
         }
     };
     
+    // Check if we're trying to mine a block that already exists
+    if index <= chain.height() {
+        // Block already exists in the chain, return it
+        log::warn!("Block {} already exists in chain (height: {}), skipping mining", index, chain.height());
+        return Ok(());
+    }
+    
     // Mine the next block (difficulty will be calculated based on loaded blockchain state)
-    let mined_block = if index == 0 {
-        // Return genesis block (should already exist in loaded chain)
-        chain.blocks[0].clone()
-    } else {
-        // Mine next block with proper difficulty adjustment
-        let miner_number = rand::random::<u64>();
-        chain.mine_block(nominated_peer_id.clone(), miner_number)?
-    };
+    let miner_number = rand::random::<u64>();
+    let mined_block = chain.mine_block(nominated_peer_id.clone(), miner_number)?;
 
     // Convert to MinerBlock for datastore
     let miner_block = MinerBlock::new_canonical(
