@@ -159,11 +159,11 @@ async fn mine_and_gossip_block(
             
             // Add all subsequent blocks (add_block will handle block_index updates)
             for (i, block) in loaded_blocks.into_iter().skip(1).enumerate() {
-                log::info!("Adding block {} (index: {}, prev_hash: {}, hash: {})", 
+                log::debug!("Adding block {} (index: {}, prev_hash: {}, hash: {})", 
                     i + 1,
                     block.header.index,
-                    block.header.previous_hash,
-                    block.header.hash);
+                    &block.header.previous_hash[..16],
+                    &block.header.hash[..16]);
                 chain.add_block(block)?;
             }
             
@@ -264,7 +264,16 @@ async fn mine_and_gossip_block(
             .publish(topic, json.as_bytes())?;
     }
 
-    log::info!("Mined block {} with hash {}", miner_block.index, miner_block.hash);
+    log::info!("Mined block {} (epoch {}) with hash {} and difficulty {}", 
+        miner_block.index,
+        miner_block.epoch,
+        &miner_block.hash[..16],
+        miner_block.difficulty);
+    
+    // Log epoch changes prominently
+    if miner_block.index > 0 && miner_block.index % 40 == 0 {
+        log::info!("🎯 EPOCH {} STARTED - New difficulty: {}", miner_block.epoch, miner_block.difficulty);
+    }
 
     Ok(())
 }
