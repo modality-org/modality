@@ -15,7 +15,14 @@ pub async fn run(node: &mut Node) -> Result<()> {
     node.start_status_server().await?;
     node.start_networking().await?;
     node.start_autoupgrade().await?;
-    node.wait_for_connections().await?;
+    
+    // Only wait for connections if we have bootstrappers configured
+    if !node.bootstrappers.is_empty() {
+        log::info!("Waiting for peer connections...");
+        node.wait_for_connections().await?;
+    } else {
+        log::info!("No bootstrappers configured - mining in solo mode");
+    }
 
     log::info!("Starting miner...");
     
@@ -107,15 +114,36 @@ async fn mine_and_gossip_block(
 
     // Load blockchain from datastore with all historical blocks for proper difficulty calculation
     let mut chain = {
-        let ds_guard = datastore.lock().await;
+        let mut ds_guard = datastore.lock().await;
         use modality_network_mining::persistence::BlockchainPersistence;
         
         let loaded_blocks = ds_guard.load_canonical_blocks().await?;
-        drop(ds_guard); // Release the lock
+        
+        log::info!("Loaded {} blocks from datastore", loaded_blocks.len());
         
         if loaded_blocks.is_empty() {
             // No existing blocks, create genesis
-            Blockchain::new(ChainConfig::default(), peer_id.to_string())
+            let chain = Blockchain::new(ChainConfig::default(), peer_id.to_string());
+            
+            // Save genesis block to datastore
+            let genesis = &chain.blocks[0];
+            let genesis_miner_block = MinerBlock::new_canonical(
+                genesis.header.hash.clone(),
+                genesis.header.index,
+                0, // epoch 0
+                genesis.header.timestamp.timestamp(),
+                genesis.header.previous_hash.clone(),
+                genesis.header.data_hash.clone(),
+                genesis.header.nonce,
+                genesis.header.difficulty,
+                genesis.data.nominated_peer_id.clone(),
+                genesis.data.miner_number,
+            );
+            genesis_miner_block.save(&mut ds_guard).await?;
+            log::info!("Saved genesis block (index: 0) to datastore");
+            
+            drop(ds_guard); // Release the lock
+            chain
         } else {
             // Reconstruct blockchain from loaded blocks
             // Start with a fresh chain and replace genesis, then add remaining blocks
@@ -125,25 +153,54 @@ async fn mine_and_gossip_block(
             chain.blocks.clear();
             chain.blocks.push(loaded_blocks[0].clone());
             
+            log::info!("Set genesis block (index: {}, hash: {})", 
+                loaded_blocks[0].header.index,
+                loaded_blocks[0].header.hash);
+            
             // Add all subsequent blocks (add_block will handle block_index updates)
-            for block in loaded_blocks.into_iter().skip(1) {
+            for (i, block) in loaded_blocks.into_iter().skip(1).enumerate() {
+                log::info!("Adding block {} (index: {}, prev_hash: {}, hash: {})", 
+                    i + 1,
+                    block.header.index,
+                    block.header.previous_hash,
+                    block.header.hash);
                 chain.add_block(block)?;
             }
             
+            log::info!("Reconstructed chain with {} blocks (height: {})", 
+                chain.blocks.len(),
+                chain.height());
+            
+            drop(ds_guard); // Release the lock
             chain
         }
     };
     
     // Check if we're trying to mine a block that already exists
-    if index <= chain.height() {
-        // Block already exists in the chain, return it
+    if index < chain.height() + 1 && index < chain.blocks.len() as u64 {
+        // Block already exists in the chain, skip it
         log::warn!("Block {} already exists in chain (height: {}), skipping mining", index, chain.height());
         return Ok(());
     }
     
+    // Verify we're mining the correct next block
+    let expected_next = chain.height() + 1;
+    if index != expected_next {
+        log::error!("Index mismatch: expected to mine block {}, but was asked to mine block {}", expected_next, index);
+        return Err(anyhow::anyhow!("Index mismatch: chain expects block {} but trying to mine {}", expected_next, index));
+    }
+    
+    log::info!("Chain ready for mining. Height: {}, Mining next index: {}", chain.height(), index);
+    
     // Mine the next block (difficulty will be calculated based on loaded blockchain state)
     let miner_number = rand::random::<u64>();
     let mined_block = chain.mine_block(nominated_peer_id.clone(), miner_number)?;
+    
+    // Verify the mined block has the expected index
+    if mined_block.header.index != index {
+        log::error!("Mined block index mismatch: expected {}, got {}", index, mined_block.header.index);
+        return Err(anyhow::anyhow!("Mined block index mismatch"));
+    }
 
     // Convert to MinerBlock for datastore
     let miner_block = MinerBlock::new_canonical(
@@ -162,6 +219,7 @@ async fn mine_and_gossip_block(
     // Save to datastore
     {
         let mut ds = datastore.lock().await;
+        log::info!("Saving block {} (hash: {}) to datastore", miner_block.index, miner_block.hash);
         miner_block.save(&mut ds).await?;
     }
 
