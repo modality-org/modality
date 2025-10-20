@@ -11,7 +11,8 @@ pub async fn run(node: &mut Node) -> Result<()> {
     // Subscribe to miner gossip
     gossip::add_miner_event_listeners(node).await?;
 
-    // Start networking
+    // Start status server and networking
+    node.start_status_server().await?;
     node.start_networking().await?;
     node.start_autoupgrade().await?;
     node.wait_for_connections().await?;

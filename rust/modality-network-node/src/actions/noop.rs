@@ -8,7 +8,8 @@ use crate::node::Node;
 pub async fn run(node: &mut Node) -> Result<()> {
     log::info!("Starting node in noop mode");
 
-    // Start autoupgrade if configured
+    // Start status server and autoupgrade if configured
+    node.start_status_server().await?;
     node.start_autoupgrade().await?;
 
     // Log periodic status messages
