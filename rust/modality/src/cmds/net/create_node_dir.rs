@@ -320,7 +320,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
         "bootup_enabled": opts.bootup_enabled.unwrap_or(true),
         "bootup_minimum_genesis_timestamp": opts.bootup_minimum_genesis_timestamp,
         "bootup_prune_old_genesis_blocks": opts.bootup_prune_old_genesis_blocks.unwrap_or(false),
-        "_bootstrappers": bootstrappers
+        "listeners": ["/ip4/0.0.0.0/tcp/4040/ws"],
+        "bootstrappers": bootstrappers
     });
 
     // Add autoupgrade config if enabled
