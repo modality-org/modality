@@ -37,8 +37,15 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let mut node = Node::from_config(config.clone()).await?;
     log::info!("Running node as {:?}", node.peerid);
     node.setup(&config).await?;
-    // TODO connect to network
-    modality_network_node::actions::server::run(&mut node).await?;
+    
+    // Check if we should run as a miner
+    if config.run_miner.unwrap_or(false) {
+        log::info!("Running node in miner mode");
+        modality_network_node::actions::miner::run(&mut node).await?;
+    } else {
+        log::info!("Running node in server mode");
+        modality_network_node::actions::server::run(&mut node).await?;
+    }
 
     Ok(())
 }

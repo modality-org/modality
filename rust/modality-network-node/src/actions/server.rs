@@ -10,7 +10,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     node.start_networking().await?;
     node.start_autoupgrade().await?;
     node.wait_for_connections().await?;
-    node.start_consensus().await?;
+    // node.start_consensus().await?;
 
     node.wait_for_shutdown().await?;
 
