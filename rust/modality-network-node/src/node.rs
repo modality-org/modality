@@ -325,6 +325,7 @@ impl Node {
                 port,
                 self.peerid,
                 self.datastore.clone(),
+                self.swarm.clone(),
                 self.listeners.clone(),
             )
             .await?;

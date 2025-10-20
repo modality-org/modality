@@ -1,6 +1,7 @@
 {
   "passfile_path": "../../../../fixtures/passfiles/node1.mod_passfile",
   "storage_path": "../tmp/storage/miner",
-  "listeners": ["/ip4/0.0.0.0/tcp/10301/ws"]
+  "listeners": ["/ip4/0.0.0.0/tcp/10301/ws"],
+  "status_port": 8080
 }
 

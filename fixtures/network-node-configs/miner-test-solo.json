@@ -1,0 +1,11 @@
+{
+  "passfile_path": "../passfiles/node1.mod_passfile",
+  "storage_path": "../../tmp/storage/miner-test",
+  "listeners": ["/ip4/0.0.0.0/tcp/10201/ws"],
+  "bootstrappers": [],
+  "status_port": 8080,
+  "miner_nominees": [
+    "12D3KooWPjceQrSwdWXPyLLeABRXmuqt69Rg3sBYbU1Nft9HyQ6X"
+  ]
+}
+

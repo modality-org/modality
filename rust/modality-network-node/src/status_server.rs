@@ -3,18 +3,21 @@ use tokio::sync::Mutex;
 use warp::Filter;
 
 use modality_network_datastore::NetworkDatastore;
+use modality_network_datastore::models::MinerBlock;
 
 /// Start HTTP status server on the specified port
 pub async fn start_status_server(
     port: u16,
     peerid: libp2p_identity::PeerId,
     datastore: Arc<Mutex<NetworkDatastore>>,
+    swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     listeners: Vec<libp2p::Multiaddr>,
 ) -> Result<tokio::task::JoinHandle<()>, anyhow::Error> {
     let status_route = warp::path::end()
         .and(warp::get())
         .and(with_peerid(peerid))
         .and(with_datastore(datastore.clone()))
+        .and(with_swarm(swarm.clone()))
         .and(with_listeners(listeners.clone()))
         .and_then(status_handler);
 
@@ -44,6 +47,13 @@ fn with_datastore(
     warp::any().map(move || datastore.clone())
 }
 
+fn with_swarm(
+    swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
+) -> impl Filter<Extract = (Arc<Mutex<crate::swarm::NodeSwarm>>,), Error = std::convert::Infallible> + Clone
+{
+    warp::any().map(move || swarm.clone())
+}
+
 fn with_listeners(
     listeners: Vec<libp2p::Multiaddr>,
 ) -> impl Filter<Extract = (Vec<libp2p::Multiaddr>,), Error = std::convert::Infallible> + Clone {
@@ -53,17 +63,64 @@ fn with_listeners(
 async fn status_handler(
     peerid: libp2p_identity::PeerId,
     datastore: Arc<Mutex<NetworkDatastore>>,
+    swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     listeners: Vec<libp2p::Multiaddr>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    let ds = datastore.lock().await;
+    // Get connected peers count
+    let connected_peers = {
+        let swarm_lock = swarm.lock().await;
+        swarm_lock.connected_peers().count()
+    };
     
     // Get node status information
+    let ds = datastore.lock().await;
     let current_round = ds.get_current_round().await.unwrap_or(0);
-    
-    // Get the latest round number from the datastore keys
     let latest_round = ds.find_max_int_key("/blocks/round").await.ok().flatten().unwrap_or(0);
     
+    // Get miner blocks information
+    let miner_blocks = MinerBlock::find_all_canonical(&ds).await.unwrap_or_default();
+    let total_miner_blocks = miner_blocks.len();
+    
+    // Get latest block for current difficulty
+    let latest_block = miner_blocks.iter().max_by_key(|b| b.index);
+    let current_difficulty = latest_block
+        .map(|b| b.difficulty.clone())
+        .unwrap_or_else(|| "0".to_string());
+    let current_epoch = latest_block.map(|b| b.epoch).unwrap_or(0);
+    
+    // Get last 80 blocks (sorted by index descending)
+    let mut recent_blocks = miner_blocks.clone();
+    recent_blocks.sort_by(|a, b| b.index.cmp(&a.index));
+    recent_blocks.truncate(80);
+    
     drop(ds);
+
+    // Build blocks table HTML
+    let blocks_html = if recent_blocks.is_empty() {
+        "<tr><td colspan='4' style='text-align: center; padding: 20px; color: #666;'>No blocks yet</td></tr>".to_string()
+    } else {
+        recent_blocks
+            .iter()
+            .map(|block| {
+                format!(
+                    "<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td></tr>",
+                    block.index,
+                    block.epoch,
+                    if block.hash.len() > 16 {
+                        format!("{}...{}", &block.hash[..8], &block.hash[block.hash.len()-8..])
+                    } else {
+                        block.hash.clone()
+                    },
+                    if block.nominated_peer_id.len() > 20 {
+                        format!("{}...{}", &block.nominated_peer_id[..10], &block.nominated_peer_id[block.nominated_peer_id.len()-10..])
+                    } else {
+                        block.nominated_peer_id.clone()
+                    }
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n                    ")
+    };
 
     // Build HTML response
     let html = format!(
@@ -76,7 +133,7 @@ async fn status_handler(
     <style>
         body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            max-width: 900px;
+            max-width: 1200px;
             margin: 40px auto;
             padding: 20px;
             background: #0f0f0f;
@@ -87,11 +144,22 @@ async fn status_handler(
             border-bottom: 2px solid #4a9eff;
             padding-bottom: 10px;
         }}
+        h2 {{
+            color: #4a9eff;
+            font-size: 1.3em;
+            margin-top: 0;
+        }}
         .status-card {{
             background: #1a1a1a;
             border: 1px solid #333;
             border-radius: 8px;
             padding: 20px;
+            margin: 20px 0;
+        }}
+        .status-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
             margin: 20px 0;
         }}
         .status-item {{
@@ -112,6 +180,23 @@ async fn status_handler(
             font-family: 'Courier New', monospace;
             word-break: break-all;
         }}
+        .stat-box {{
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }}
+        .stat-label {{
+            color: #888;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+        }}
+        .stat-value {{
+            color: #4a9eff;
+            font-size: 2em;
+            font-weight: bold;
+        }}
         .status-online {{
             color: #4ade80;
             font-weight: bold;
@@ -130,6 +215,49 @@ async fn status_handler(
             color: #e0e0e0;
             font-family: 'Courier New', monospace;
         }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }}
+        th {{
+            background: #252525;
+            color: #4a9eff;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #333;
+        }}
+        td {{
+            padding: 10px 12px;
+            border-bottom: 1px solid #2a2a2a;
+        }}
+        tr:hover {{
+            background: #1f1f1f;
+        }}
+        code {{
+            background: #252525;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }}
+        .blocks-container {{
+            max-height: 600px;
+            overflow-y: auto;
+        }}
+        .blocks-container::-webkit-scrollbar {{
+            width: 8px;
+        }}
+        .blocks-container::-webkit-scrollbar-track {{
+            background: #1a1a1a;
+        }}
+        .blocks-container::-webkit-scrollbar-thumb {{
+            background: #333;
+            border-radius: 4px;
+        }}
+        .blocks-container::-webkit-scrollbar-thumb:hover {{
+            background: #444;
+        }}
     </style>
     <script>
         // Auto-refresh every 10 seconds
@@ -142,6 +270,25 @@ async fn status_handler(
     <div class="header">
         <h1>🟢 Modality Network Node</h1>
         <p class="status-online">Status: ONLINE</p>
+    </div>
+    
+    <div class="status-grid">
+        <div class="stat-box">
+            <div class="stat-label">Connected Peers</div>
+            <div class="stat-value">{}</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">Miner Blocks</div>
+            <div class="stat-value">{}</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">Current Difficulty</div>
+            <div class="stat-value">{}</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">Current Epoch</div>
+            <div class="stat-value">{}</div>
+        </div>
     </div>
     
     <div class="status-card">
@@ -173,12 +320,35 @@ async fn status_handler(
     </div>
 
     <div class="status-card">
+        <h2>Recent Blocks (Last 80)</h2>
+        <div class="blocks-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Index</th>
+                        <th>Epoch</th>
+                        <th>Hash</th>
+                        <th>Nominee</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="status-card">
         <p style="text-align: center; color: #666; font-size: 0.9em;">
             Page auto-refreshes every 10 seconds
         </p>
     </div>
 </body>
 </html>"#,
+        connected_peers,
+        total_miner_blocks,
+        current_difficulty,
+        current_epoch,
         peerid,
         listeners
             .iter()
@@ -187,6 +357,7 @@ async fn status_handler(
             .join("\n                    "),
         current_round,
         latest_round,
+        blocks_html,
     );
 
     Ok(warp::reply::html(html))
