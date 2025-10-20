@@ -4,9 +4,10 @@ use libp2p::gossipsub::IdentTopic;
 use libp2p::request_response::OutboundRequestId;
 use modality_network_consensus::runner::create_runner_props_from_datastore;
 use modality_network_consensus::runner::ConsensusRunner;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 
@@ -27,6 +28,13 @@ use crate::gossip;
 use crate::reqres;
 use crate::swarm;
 
+/// Information about an ignored peer
+#[derive(Clone, Debug)]
+pub struct IgnoredPeerInfo {
+    pub ignore_until: Instant,
+    pub ignore_count: u32,
+}
+
 pub struct Node {
     pub peerid: libp2p_identity::PeerId,
     pub node_keypair: libp2p_identity::Keypair,
@@ -35,6 +43,9 @@ pub struct Node {
     pub swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     pub datastore: Arc<Mutex<NetworkDatastore>>,
     pub miner_nominees: Option<Vec<String>>,
+    pub ignored_peers: Arc<Mutex<HashMap<PeerId, IgnoredPeerInfo>>>,
+    pub sync_request_tx: Option<mpsc::UnboundedSender<(PeerId, String)>>, // Set later in miner run
+    pub mining_update_tx: Option<mpsc::UnboundedSender<u64>>, // Set in miner run to notify of chain tip updates
     consensus_runner: Option<modality_network_consensus::runner::Runner>,
     networking_task: Option<tokio::task::JoinHandle<Result<()>>>,
     consensus_task: Option<tokio::task::JoinHandle<Result<()>>>,
@@ -92,6 +103,9 @@ impl Node {
             swarm: Arc::new(Mutex::new(swarm)),
             datastore,
             miner_nominees,
+            ignored_peers: Arc::new(Mutex::new(HashMap::new())),
+            sync_request_tx: None, // Will be set in miner run()
+            mining_update_tx: None, // Will be set in miner run()
             networking_task: None,
             consensus_task: None,
             autoupgrade_task: None,
@@ -347,7 +361,9 @@ impl Node {
 
         let datastore = self.datastore.clone();
         let consensus_tx = self.consensus_tx.clone();
-        let sync_trigger_tx = Some(self.sync_trigger_tx.clone());
+        let sync_request_tx = self.sync_request_tx.clone();
+        let mining_update_tx = self.mining_update_tx.clone();
+        let bootstrappers = self.bootstrappers.clone();
 
         self.networking_task = Some(tokio::spawn(async move {
             loop {
@@ -409,8 +425,7 @@ impl Node {
                                 },
                             )) => {
                                 log::info!("Gossip received {:?}", message.topic.to_string());
-                                let mut datastore = datastore.lock().await;
-                                gossip::handle_event(message, &mut *datastore, consensus_tx.clone(), sync_trigger_tx.clone()).await?;
+                                gossip::handle_event(message, datastore.clone(), consensus_tx.clone(), sync_request_tx.clone(), mining_update_tx.clone(), bootstrappers.clone()).await?;
                             }
                             SwarmEvent::Behaviour(event) => {
                                 log::info!("SwarmEvent::Behaviour event {:?}", event);
@@ -575,6 +590,49 @@ impl Node {
         
         log::info!("Bootup tasks completed successfully");
         Ok(())
+    }
+    
+    /// Check if a peer is currently ignored
+    pub async fn is_peer_ignored(&self, peer_id: &PeerId) -> bool {
+        let ignored_peers = self.ignored_peers.lock().await;
+        if let Some(info) = ignored_peers.get(peer_id) {
+            Instant::now() < info.ignore_until
+        } else {
+            false
+        }
+    }
+    
+    /// Add a peer to the ignore list with exponential backoff
+    /// Starts at 1 minute and doubles each time
+    pub async fn ignore_peer(&self, peer_id: PeerId, reason: &str) {
+        let mut ignored_peers = self.ignored_peers.lock().await;
+        
+        let (new_count, duration_secs) = if let Some(existing) = ignored_peers.get(&peer_id) {
+            let new_count = existing.ignore_count + 1;
+            let duration_secs = 60 * (1 << new_count.min(10)); // Cap at ~17 hours (2^10 minutes)
+            (new_count, duration_secs)
+        } else {
+            (0, 60) // First time: 1 minute
+        };
+        
+        let ignore_until = Instant::now() + Duration::from_secs(duration_secs);
+        
+        ignored_peers.insert(peer_id, IgnoredPeerInfo {
+            ignore_until,
+            ignore_count: new_count,
+        });
+        
+        log::warn!(
+            "Ignoring peer {} for {} seconds (count: {}, reason: {})",
+            peer_id, duration_secs, new_count + 1, reason
+        );
+    }
+    
+    /// Clean up expired entries from the ignore list
+    pub async fn cleanup_expired_ignores(&self) {
+        let mut ignored_peers = self.ignored_peers.lock().await;
+        let now = Instant::now();
+        ignored_peers.retain(|_, info| now < info.ignore_until);
     }
     
 }

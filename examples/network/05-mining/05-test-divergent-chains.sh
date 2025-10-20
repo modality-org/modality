@@ -18,7 +18,7 @@ echo ""
 
 # Clean up any existing storage
 echo "1. Cleaning up existing storage..."
-./00-clean-storage.sh
+rm -rf tmp/storage/node1 tmp/storage/node2
 mkdir -p tmp/storage/node1
 mkdir -p tmp/storage/node2
 mkdir -p configs
@@ -153,8 +153,8 @@ NODE1_PID=$!
 echo "   Node1 PID: $NODE1_PID"
 
 echo ""
-echo "6. Waiting 30 seconds for chains to sync and resolve..."
-sleep 30
+echo "6. Waiting 60 seconds for chains to sync and resolve..."
+sleep 60
 
 # Stop both nodes
 echo ""
@@ -183,13 +183,21 @@ echo ""
 echo "   Checking if chains have converged (comparing recent block hashes)..."
 NODE1_HASH=$(RUST_LOG=error ../../../build/bin/modality net storage \
   --config "${SCRIPT_DIR}/configs/node1-connected.json" --detailed --limit 100 2>/dev/null | \
-  grep "^  Block #" | tail -3 | head -1 | grep -o "hash: [a-f0-9]*" | cut -d' ' -f2 || echo "none")
+  grep "^  Block #" | tail -1 | sed 's/.*#//' || echo "none")
 NODE2_HASH=$(RUST_LOG=error ../../../build/bin/modality net storage \
   --config "${SCRIPT_DIR}/configs/node2-connected.json" --detailed --limit 100 2>/dev/null | \
-  grep "^  Block #" | tail -3 | head -1 | grep -o "hash: [a-f0-9]*" | cut -d' ' -f2 || echo "none")
+  grep "^  Block #" | tail -1 | sed 's/.*#//' || echo "none")
 
-echo "   Node1 recent block hash: ${NODE1_HASH:0:16}..."
-echo "   Node2 recent block hash: ${NODE2_HASH:0:16}..."
+# Get the actual hashes by getting the next line after "Block #X"
+NODE1_FULL_HASH=$(RUST_LOG=error ../../../build/bin/modality net storage \
+  --config "${SCRIPT_DIR}/configs/node1-connected.json" --detailed --limit 100 2>/dev/null | \
+  grep -A 1 "^  Block #${NODE1_HASH}" | grep "Hash:" | awk '{print $2}' || echo "none")
+NODE2_FULL_HASH=$(RUST_LOG=error ../../../build/bin/modality net storage \
+  --config "${SCRIPT_DIR}/configs/node2-connected.json" --detailed --limit 100 2>/dev/null | \
+  grep -A 1 "^  Block #${NODE2_HASH}" | grep "Hash:" | awk '{print $2}' || echo "none")
+
+echo "   Node1 block #${NODE1_HASH} hash: ${NODE1_FULL_HASH:0:16}..."
+echo "   Node2 block #${NODE2_HASH} hash: ${NODE2_FULL_HASH:0:16}..."
 
 echo ""
 echo "==================================="
@@ -206,7 +214,7 @@ echo "  - Node2: $NODE2_FINAL blocks"
 echo ""
 
 # Check if node1 adopted node2's longer chain
-if [ "$NODE1_FINAL" -ge "$NODE2_BLOCKS" ] && [ "$NODE1_HASH" == "$NODE2_HASH" ]; then
+if [ "$NODE1_FINAL" -ge "$NODE2_BLOCKS" ] && [ "$NODE1_FULL_HASH" == "$NODE2_FULL_HASH" ] && [ "$NODE1_FULL_HASH" != "none" ]; then
     echo "✅ SUCCESS: Node1 adopted the longer chain!"
     echo "   Both nodes now have the same chain with matching block hashes."
     echo ""
@@ -216,7 +224,9 @@ if [ "$NODE1_FINAL" -ge "$NODE2_BLOCKS" ] && [ "$NODE1_HASH" == "$NODE2_HASH" ];
     exit 0
 elif [ "$NODE1_FINAL" -ge "$NODE2_BLOCKS" ]; then
     echo "⚠️  PARTIAL SUCCESS: Node1 has enough blocks but hashes don't match"
-    echo "   This could indicate the chains haven't fully synchronized yet."
+    echo "   Node1 hash: $NODE1_FULL_HASH"
+    echo "   Node2 hash: $NODE2_FULL_HASH"
+    echo "   This indicates the chains haven't converged - they still have different blocks."
     echo ""
     echo "Check the logs for more details:"
     echo "  - tmp/node1.log"

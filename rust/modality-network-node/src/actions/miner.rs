@@ -2,13 +2,79 @@ use anyhow::Result;
 use libp2p::gossipsub::IdentTopic;
 use modality_network_datastore::Model;
 use modality_network_datastore::models::MinerBlock;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use crate::node::Node;
 use crate::gossip;
 
+/// Shared state for coordinating mining with sync operations
+#[derive(Clone, Debug)]
+struct MiningState {
+    /// The index we're currently mining at
+    current_mining_index: u64,
+    /// Set to true to signal mining loop to update its view
+    needs_update: bool,
+}
+
 /// Run a mining node that continuously mines and gossips blocks
 pub async fn run(node: &mut Node) -> Result<()> {
-    // Subscribe to miner gossip
+    // Create a channel to signal mining view updates
+    // This must be created FIRST so we can clone it for various tasks
+    let (mining_update_tx, mut mining_update_rx) = tokio::sync::mpsc::unbounded_channel::<u64>();
+    
+    // Store the mining update channel in node so gossip/networking handlers can use it
+    node.mining_update_tx = Some(mining_update_tx.clone());
+    
+    // Start sync request handler task BEFORE gossip is active
+    // This handles chain comparison requests triggered by orphan detection
+    let sync_node_datastore = node.datastore.clone();
+    let sync_node_swarm = node.swarm.clone();
+    let sync_node_ignored_peers = node.ignored_peers.clone();
+    let (sync_request_tx, mut sync_request_rx) = tokio::sync::mpsc::unbounded_channel();
+    // Set the node's channel so gossip handler can send to our new receiver
+    node.sync_request_tx = Some(sync_request_tx);
+    let mining_update_tx_for_sync = mining_update_tx.clone();
+    
+    tokio::spawn(async move {
+        while let Some((peer_id, peer_addr)) = sync_request_rx.recv().await {
+            log::info!("🔄 Processing sync request for peer {}", peer_id);
+            
+            // Create a temporary mutable node-like structure for request_chain_info
+            // Since we can't easily clone Node, we'll call the function with what it needs
+            let result = request_chain_info_impl(
+                peer_id,
+                peer_addr,
+                sync_node_swarm.clone(),
+                sync_node_datastore.clone(),
+                sync_node_ignored_peers.clone(),
+            ).await;
+            
+            match result {
+                Ok(()) => {
+                    // After successful chain sync, notify mining loop to update view
+                    let new_tip = {
+                        let ds = sync_node_datastore.lock().await;
+                        match MinerBlock::find_all_canonical(&ds).await {
+                            Ok(blocks) if !blocks.is_empty() => {
+                                blocks.iter().map(|b| b.index).max()
+                            }
+                            _ => None
+                        }
+                    };
+                    if let Some(tip) = new_tip {
+                        log::info!("📡 Chain sync completed, notifying mining loop (new tip: {})", tip);
+                        let _ = mining_update_tx_for_sync.send(tip);
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Chain sync failed for peer {}: {}", peer_id, e);
+                }
+            }
+        }
+    });
+
+    // Subscribe to miner gossip AFTER setting up sync channel
     gossip::add_miner_event_listeners(node).await?;
 
     // Start status server and networking
@@ -16,23 +82,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     node.start_networking().await?;
     node.start_autoupgrade().await?;
     
-    // Only wait for connections if we have bootstrappers configured
-    if !node.bootstrappers.is_empty() {
-        log::info!("Waiting for peer connections...");
-        node.wait_for_connections().await?;
-        
-        // Sync from peers before starting to mine
-        log::info!("Syncing blockchain state from peers...");
-        if let Err(e) = sync_from_peers(node).await {
-            log::warn!("Failed to sync from peers: {:?}. Starting with local chain.", e);
-        }
-    } else {
-        log::info!("No bootstrappers configured - mining in solo mode");
-    }
-
-    log::info!("Starting miner...");
-    
-    // Get the current blockchain height from datastore
+    // Get the current blockchain height from datastore (before we start syncing)
     let latest_block = {
         let datastore = node.datastore.lock().await;
         MinerBlock::find_all_canonical(&datastore).await?
@@ -51,11 +101,14 @@ pub async fn run(node: &mut Node) -> Result<()> {
         }
     };
 
-    // Start sync listener task that actually requests missing blocks
+    // Start sync listener task BEFORE we wait for connections
+    // This ensures it's ready to handle sync triggers from gossip
+    // This task also handles chain cleanup/reorg in the background
     let sync_datastore = node.datastore.clone();
     let sync_swarm = node.swarm.clone();
     let sync_bootstrappers = node.bootstrappers.clone();
     let mut sync_trigger_rx = node.sync_trigger_tx.subscribe();
+    let mining_update_tx_clone = mining_update_tx.clone();
     
     tokio::spawn(async move {
         let mut last_sync_time = std::time::Instant::now();
@@ -71,6 +124,81 @@ pub async fn run(node: &mut Node) -> Result<()> {
             log::info!("🔄 Sync requested for blocks up to index {}", target_index);
             last_sync_time = std::time::Instant::now();
             
+            // Step 1: Validate and clean up local chain if needed
+            // This runs in background and doesn't block mining
+            {
+                let mut ds = sync_datastore.lock().await;
+                
+                if let Ok(all_blocks) = MinerBlock::find_all_canonical(&ds).await {
+                    if !all_blocks.is_empty() {
+                        let max_index = all_blocks.iter().map(|b| b.index).max().unwrap_or(0);
+                        
+                        // Quick chain validation
+                        let mut last_valid_index = 0;
+                        let mut chain_is_valid = true;
+                        
+                        // Check if we have block 0 (genesis)
+                        if all_blocks.iter().find(|b| b.index == 0).is_none() {
+                            log::warn!("⚠️  Missing genesis block during sync validation");
+                            chain_is_valid = false;
+                        } else {
+                            // Validate chain continuity
+                            for i in 1..=max_index {
+                                if let Some(block) = all_blocks.iter().find(|b| b.index == i) {
+                                    if let Some(prev_block) = all_blocks.iter().find(|b| b.index == i - 1) {
+                                        if block.previous_hash != prev_block.hash {
+                                            log::warn!(
+                                                "⚠️  Chain break at block {}: prev_hash {} doesn't match block {}'s hash {}",
+                                                i, &block.previous_hash[..16], i - 1, &prev_block.hash[..16]
+                                            );
+                                            chain_is_valid = false;
+                                            break;
+                                        }
+                                        last_valid_index = i;
+                                    } else {
+                                        log::warn!("⚠️  Missing block {} (gap in chain)", i - 1);
+                                        chain_is_valid = false;
+                                        break;
+                                    }
+                                } else {
+                                    log::warn!("⚠️  Missing block {} (gap in chain)", i);
+                                    chain_is_valid = false;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // Clean up invalid blocks if needed
+                        if !chain_is_valid {
+                            log::info!("🔧 Cleaning up invalid chain in background (last valid: {})", last_valid_index);
+                            
+                            let mut orphaned_count = 0;
+                            for block in all_blocks.iter() {
+                                if block.index > last_valid_index {
+                                    let mut orphaned = block.clone();
+                                    orphaned.mark_as_orphaned(
+                                        format!("Background chain cleanup: removing blocks after index {}", last_valid_index),
+                                        None
+                                    );
+                                    if let Err(e) = orphaned.save(&mut *ds).await {
+                                        log::error!("Failed to orphan block {}: {}", block.index, e);
+                                    } else {
+                                        orphaned_count += 1;
+                                    }
+                                }
+                            }
+                            
+                            if orphaned_count > 0 {
+                                log::info!("✓ Cleaned up {} invalid blocks in background", orphaned_count);
+                                // Notify mining loop to update its view
+                                let _ = mining_update_tx_clone.send(last_valid_index);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Step 2: Sync missing blocks from peers
             // Find the actual range of blocks we need
             let (first_index, _last_index) = {
                 let ds = sync_datastore.lock().await;
@@ -83,7 +211,20 @@ pub async fn run(node: &mut Node) -> Result<()> {
                             let max_index = blocks.iter().map(|b| b.index).max().unwrap_or(0);
                             
                             // If we're missing genesis (block 0), start from 0
-                            let start = if min_index > 0 { 0 } else { max_index + 1 };
+                            let start = if min_index > 0 {
+                                log::info!("Missing genesis - requesting full chain from 0");
+                                0
+                            } else if target_index > max_index + 1 {
+                                // ANY gap suggests potential chain divergence - request from 0 for safety
+                                log::warn!(
+                                    "⚠️  Gap detected: we have blocks up to {}, but received orphan at index {}",
+                                    max_index, target_index
+                                );
+                                log::info!("This suggests potential chain divergence - requesting full peer chain from 0 for comparison");
+                                0
+                            } else {
+                                max_index + 1
+                            };
                             (start, target_index)
                         }
                     }
@@ -110,6 +251,19 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 ).await {
                     Ok(count) if count > 0 => {
                         log::info!("✓ Successfully synced {} blocks!", count);
+                        // Notify mining loop that chain tip may have changed
+                        let new_tip = {
+                            let ds = sync_datastore.lock().await;
+                            match MinerBlock::find_all_canonical(&ds).await {
+                                Ok(blocks) if !blocks.is_empty() => {
+                                    blocks.iter().map(|b| b.index).max()
+                                }
+                                _ => None
+                            }
+                        };
+                        if let Some(tip) = new_tip {
+                            let _ = mining_update_tx_clone.send(tip);
+                        }
                     }
                     Ok(_) => {
                         log::warn!("Sync request succeeded but no new blocks received");
@@ -124,38 +278,63 @@ pub async fn run(node: &mut Node) -> Result<()> {
         }
     });
 
-    // Start mining loop
+    // Start mining loop - this runs CONTINUOUSLY without blocking
     let datastore = node.datastore.clone();
     let swarm = node.swarm.clone();
     let peerid_str = node.peerid.to_string();
     let miner_nominees = node.miner_nominees.clone();
     
+    // Create shared mining state
+    let mining_state = Arc::new(Mutex::new(MiningState {
+        current_mining_index: starting_index,
+        needs_update: false,
+    }));
+    let mining_state_clone = mining_state.clone();
+    
     tokio::spawn(async move {
         let mut current_index = starting_index;
         
         loop {
-            // Check if we have newer blocks from gossip before mining
-            let latest_canonical = {
-                let ds = datastore.lock().await;
-                if let Ok(blocks) = MinerBlock::find_all_canonical(&ds).await {
-                    blocks.into_iter().max_by_key(|b| b.index)
-                } else {
-                    None
-                }
-            };
-            
-            if let Some(latest) = latest_canonical {
-                if latest.index >= current_index {
-                    log::info!("📥 Detected newer blocks via gossip, updating mining index from {} to {}", 
-                        current_index, latest.index + 1);
-                    current_index = latest.index + 1;
+            // Non-blocking check for view updates from sync/gossip
+            while let Ok(new_tip_index) = mining_update_rx.try_recv() {
+                let next_index = new_tip_index + 1;
+                if next_index > current_index {
+                    log::info!("⛏️  Mining view updated: switching from block {} to block {}", 
+                        current_index, next_index);
+                    current_index = next_index;
+                } else if next_index < current_index {
+                    log::warn!("⛏️  Mining view updated: reorg detected, switching from block {} to block {}", 
+                        current_index, next_index);
+                    current_index = next_index;
                 }
             }
             
-            log::info!("Mining block at index {}...", current_index);
+            // Always get the latest canonical view before mining
+            // This is a quick check that doesn't block
+            let latest_tip_index = {
+                let ds = datastore.lock().await;
+                match MinerBlock::find_all_canonical(&ds).await {
+                    Ok(blocks) if !blocks.is_empty() => {
+                        blocks.into_iter().max_by_key(|b| b.index).map(|b| b.index)
+                    }
+                    _ => None
+                }
+            };
             
-            // Mine a block (this is a simplified version - in production you'd use the full mining chain)
-            // For now, we'll just create a basic block structure
+            // Update mining index if we see a newer tip
+            if let Some(tip_index) = latest_tip_index {
+                let next_index = tip_index + 1;
+                if next_index > current_index {
+                    log::info!("⛏️  Detected newer chain tip via datastore check: updating from {} to {}", 
+                        current_index, next_index);
+                    current_index = next_index;
+                }
+            }
+            
+            log::info!("⛏️  Mining block at index {}...", current_index);
+            
+            // Mine a block - if this fails, we simply retry on the next iteration
+            // We don't block or do complex error handling here
             match mine_and_gossip_block(
                 current_index,
                 &peerid_str,
@@ -164,136 +343,347 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 swarm.clone(),
             ).await {
                 Ok(()) => {
-                    log::info!("Successfully mined and gossipped block {}", current_index);
+                    log::info!("✅ Successfully mined and gossipped block {}", current_index);
+                    // Move to next block
                     current_index += 1;
+                    
+                    // Update shared state
+                    let mut state = mining_state_clone.lock().await;
+                    state.current_mining_index = current_index;
                 }
-                    Err(e) => {
-                        let error_msg = e.to_string();
-                        log::error!("Error mining block {}: {:?}", current_index, e);
-                        
-                        // Check if this is a chain divergence error
-                        if error_msg.contains("Previous hash doesn't match") || 
-                           error_msg.contains("Invalid block index") {
-                            log::warn!("⚠️  Chain divergence detected at block {}! Validating chain...", current_index);
-                            
-                            // Acquire lock once for all operations
-                            let mut ds = datastore.lock().await;
-                            
-                            if let Ok(all_blocks) = MinerBlock::find_all_canonical(&ds).await {
-                                let max_index = all_blocks.iter().map(|b| b.index).max().unwrap_or(0);
-                                
-                                log::info!("Chain validation: have {} blocks, max index: {}, trying to mine: {}", 
-                                    all_blocks.len(), max_index, current_index);
-                                
-                                // Validate the chain by checking if each block's previous_hash matches
-                                // the hash of the actual previous block
-                                let mut last_valid_index = 0;
-                                let mut chain_is_valid = true;
-                                
-                                // First, check if we have block 0 (genesis)
-                                if all_blocks.iter().find(|b| b.index == 0).is_none() {
-                                    log::error!("❌ Missing genesis block (block 0)!");
-                                    chain_is_valid = false;
-                                    // last_valid_index stays at 0, meaning we have no valid chain
-                                }
-                                
-                                for i in 1..=max_index {
-                                    if let Some(block) = all_blocks.iter().find(|b| b.index == i) {
-                                        if let Some(prev_block) = all_blocks.iter().find(|b| b.index == i - 1) {
-                                            if block.previous_hash != prev_block.hash {
-                                                log::error!(
-                                                    "❌ Chain break detected at block {}: prev_hash {} doesn't match block {}'s hash {}",
-                                                    i, &block.previous_hash[..16], i - 1, &prev_block.hash[..16]
-                                                );
-                                                chain_is_valid = false;
-                                                break;
-                                            }
-                                            last_valid_index = i;
-                                        } else {
-                                            log::error!("❌ Missing block {} (gap in chain)", i - 1);
-                                            chain_is_valid = false;
-                                            break;
-                                        }
-                                    } else {
-                                        log::error!("❌ Missing block {} (gap in chain)", i);
-                                        chain_is_valid = false;
-                                        break;
-                                    }
-                                }
-                                
-                                if !chain_is_valid || last_valid_index < max_index {
-                                    log::error!(
-                                        "❌ INVALID CHAIN DETECTED: Last valid block is {}, but have blocks up to {}",
-                                        last_valid_index, max_index
-                                    );
-                                    
-                                    // Special case: if we're missing genesis (block 0), orphan everything
-                                    if last_valid_index == 0 && all_blocks.iter().find(|b| b.index == 0).is_none() {
-                                        log::error!("❌ CRITICAL: Missing genesis block! Orphaning entire invalid chain...");
-                                        let mut orphaned_count = 0;
-                                        for block in all_blocks.iter() {
-                                            log::info!("Orphaning block {} (hash: {}) - no valid genesis", 
-                                                block.index, &block.hash[..16]);
-                                            let mut orphaned = block.clone();
-                                            orphaned.mark_as_orphaned(
-                                                "Missing genesis block - orphaning entire chain".to_string(),
-                                                None
-                                            );
-                                            if let Err(e) = orphaned.save(&mut *ds).await {
-                                                log::error!("Failed to orphan block {}: {}", block.index, e);
-                                            } else {
-                                                orphaned_count += 1;
-                                            }
-                                        }
-                                        log::info!("✓ Orphaned {} blocks. Will need to sync from genesis.", orphaned_count);
-                                        current_index = 0;
-                                    } else {
-                                        log::info!("Cleaning up invalid chain by orphaning blocks after {}...", last_valid_index);
-                                        
-                                        // Orphan all blocks after the last valid one
-                                        let mut orphaned_count = 0;
-                                        for block in all_blocks.iter() {
-                                            if block.index > last_valid_index {
-                                                log::info!("Orphaning invalid block {} (hash: {})", 
-                                                    block.index, &block.hash[..16]);
-                                                let mut orphaned = block.clone();
-                                                orphaned.mark_as_orphaned(
-                                                    format!("Chain validation failed: removing blocks after index {}", last_valid_index),
-                                                    None
-                                                );
-                                                if let Err(e) = orphaned.save(&mut *ds).await {
-                                                    log::error!("Failed to orphan block {}: {}", block.index, e);
-                                                } else {
-                                                    orphaned_count += 1;
-                                                }
-                                            }
-                                        }
-                                        
-                                        log::info!("✓ Cleaned up {} invalid blocks. Restarting from block {}", 
-                                            orphaned_count, last_valid_index + 1);
-                                        current_index = last_valid_index + 1;
-                                    }
-                                } else {
-                                    log::warn!("Chain appears valid up to block {}, but mining still failed. This shouldn't happen!", 
-                                        last_valid_index);
-                                }
+                Err(e) => {
+                    // Log error but don't block - we'll retry on next iteration
+                    // The sync/gossip handlers running in parallel will fix any chain issues
+                    log::warn!("⚠️  Failed to mine block {} ({}), will retry with updated view", 
+                        current_index, e);
+                    
+                    // Brief pause before retrying - give sync handlers time to update view
+                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                    
+                    // Check if we need to adjust our view
+                    // This happens when our local chain has issues
+                    let corrected_index = {
+                        let ds = datastore.lock().await;
+                        match MinerBlock::find_all_canonical(&ds).await {
+                            Ok(blocks) if !blocks.is_empty() => {
+                                let max_index = blocks.iter().map(|b| b.index).max().unwrap_or(0);
+                                Some(max_index + 1)
                             }
-                            drop(ds);
+                            _ => Some(0) // Start from genesis if no valid blocks
                         }
-                        
-                        // Wait before retrying
-                        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    };
+                    
+                    if let Some(corrected) = corrected_index {
+                        if corrected != current_index {
+                            log::info!("⛏️  Correcting mining index from {} to {} after error", 
+                                current_index, corrected);
+                            current_index = corrected;
+                        }
                     }
+                }
             }
             
-            // Small delay between blocks
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            // Small delay between mining attempts
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
     });
+
+    // Only wait for connections if we have bootstrappers configured
+    // This happens AFTER the sync listener is started so it can handle sync triggers
+    if !node.bootstrappers.is_empty() {
+        log::info!("Waiting for peer connections...");
+        node.wait_for_connections().await?;
+        
+        // Announce our chain tip to peers so they can sync if needed
+        log::info!("Announcing our chain to connected peers...");
+        if let Err(e) = announce_chain_tip(node).await {
+            log::warn!("Failed to announce chain tip: {:?}", e);
+        }
+        
+        // Sync from peers before starting to mine
+        log::info!("Syncing blockchain state from peers...");
+        if let Err(e) = sync_from_peers(node).await {
+            log::warn!("Failed to sync from peers: {:?}. Starting with local chain.", e);
+        }
+    } else {
+        log::info!("No bootstrappers configured - mining in solo mode");
+    }
+
+    log::info!("Starting miner...");
 
     // Wait for shutdown signal
     node.wait_for_shutdown().await?;
 
+    Ok(())
+}
+
+/// Request chain info from a peer and perform sync if their chain has higher cumulative difficulty
+/// This is called when we detect an orphan block from a peer
+async fn request_chain_info_impl(
+    peer_id: libp2p::PeerId,
+    peer_addr: String,
+    swarm: std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
+    datastore: std::sync::Arc<tokio::sync::Mutex<modality_network_datastore::NetworkDatastore>>,
+    ignored_peers: std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<libp2p::PeerId, crate::node::IgnoredPeerInfo>>>,
+) -> Result<()> {
+    use libp2p::multiaddr::Multiaddr;
+    
+    // Check if peer is ignored
+    {
+        let ignored = ignored_peers.lock().await;
+        if let Some(info) = ignored.get(&peer_id) {
+            if std::time::Instant::now() < info.ignore_until {
+                log::debug!("Peer {} is ignored, skipping chain info request", peer_id);
+                return Ok(());
+            }
+        }
+    }
+    
+    log::info!("🔄 Requesting chain info from peer {}", peer_id);
+    
+    // Get our local block hashes for common ancestor detection
+    let local_hashes = {
+        let ds = datastore.lock().await;
+        let blocks = MinerBlock::find_all_canonical(&ds).await?;
+        blocks.iter().map(|b| b.hash.clone()).collect::<Vec<String>>()
+    };
+    
+    let ma: Multiaddr = peer_addr.parse()?;
+    let Some(libp2p::multiaddr::Protocol::P2p(target_peer_id)) = ma.iter().last() else {
+        anyhow::bail!("Invalid peer address - missing PeerID");
+    };
+    
+    // Request chain info WITH blocks in a single batched request
+    let request = crate::reqres::Request {
+        path: "/data/miner_block/chain_info".to_string(),
+        data: Some(serde_json::json!({
+            "local_block_hashes": local_hashes,
+            "include_blocks": true,  // Get blocks immediately
+        })),
+    };
+    
+    let request_id = {
+        let mut swarm_lock = swarm.lock().await;
+        swarm_lock.behaviour_mut().reqres.send_request(&target_peer_id, request)
+    };
+    
+    log::debug!("Sent chain info request (id: {:?}) to peer {}", request_id, peer_id);
+    
+    // Wait for response with timeout
+    let response = match tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        wait_for_reqres_response(&swarm, request_id)
+    ).await {
+        Ok(Ok(resp)) => resp,
+        Ok(Err(e)) => {
+            log::warn!("Failed to get response from peer {}: {}", peer_id, e);
+            return Ok(());
+        }
+        Err(_) => {
+            log::warn!("Request to peer {} timed out", peer_id);
+            return Ok(());
+        }
+    };
+    
+    if !response.ok {
+        log::warn!("Peer returned error for chain info: {:?}", response.errors);
+        return Ok(());
+    }
+    
+    let Some(ref data) = response.data else {
+        log::warn!("Peer returned no data for chain info");
+        return Ok(());
+    };
+    
+    // Parse chain info
+    let peer_cumulative_difficulty_str = data.get("cumulative_difficulty")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Missing cumulative_difficulty"))?;
+    let peer_cumulative_difficulty: u128 = peer_cumulative_difficulty_str.parse()?;
+    
+    let peer_chain_length = data.get("chain_length")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| anyhow::anyhow!("Missing chain_length"))?;
+    
+    // Calculate our cumulative difficulty
+    let (local_cumulative_difficulty, local_chain_length) = {
+        let ds = datastore.lock().await;
+        let blocks = MinerBlock::find_all_canonical(&ds).await?;
+        let local_difficulty = MinerBlock::calculate_cumulative_difficulty(&blocks)?;
+        (local_difficulty, blocks.len() as u64)
+    };
+    
+    log::info!(
+        "Chain comparison: Local (length: {}, difficulty: {}) vs Peer (length: {}, difficulty: {})",
+        local_chain_length, local_cumulative_difficulty,
+        peer_chain_length, peer_cumulative_difficulty
+    );
+    
+    // Compare cumulative difficulty
+    if peer_cumulative_difficulty <= local_cumulative_difficulty {
+        log::info!("Our chain has equal or higher cumulative difficulty, keeping it");
+        return Ok(());
+    }
+    
+    // Peer has higher cumulative difficulty - process blocks
+    log::info!("✅ Peer has higher cumulative difficulty - processing blocks");
+    
+    let Some(blocks_array) = data.get("blocks").and_then(|b| b.as_array()) else {
+        log::warn!("No blocks array in response");
+        return Ok(());
+    };
+    
+    if blocks_array.is_empty() {
+        log::info!("No new blocks to sync");
+        return Ok(());
+    }
+    
+    log::info!("Received {} blocks from peer - saving as pending", blocks_array.len());
+    
+    // Parse and save blocks as pending (non-canonical)
+    let mut pending_blocks = Vec::new();
+    {
+        let ds = datastore.lock().await;
+        
+        for block_json in blocks_array {
+            let block: MinerBlock = serde_json::from_value(block_json.clone())?;
+            block.save_as_pending(&ds).await?;
+            pending_blocks.push(block);
+        }
+    }
+    
+    // Verify cumulative difficulty
+    let verified_cumulative_difficulty = MinerBlock::calculate_cumulative_difficulty(&pending_blocks)?;
+    
+    log::info!(
+        "Verifying: Calculated {} from {} blocks (peer claimed {})",
+        verified_cumulative_difficulty, pending_blocks.len(), peer_cumulative_difficulty
+    );
+    
+    // The verified difficulty should be reasonable
+    if verified_cumulative_difficulty == 0 || verified_cumulative_difficulty > peer_cumulative_difficulty * 2 {
+        log::error!(
+            "⚠️  VERIFICATION FAILED: Unexpected cumulative difficulty"
+        );
+        
+        {
+            let ds = datastore.lock().await;
+            MinerBlock::delete_all_pending(&ds).await?;
+        }
+        
+        // Ignore peer with exponential backoff
+        let mut ignored = ignored_peers.lock().await;
+        let (new_count, duration_secs) = if let Some(existing) = ignored.get(&peer_id) {
+            let new_count = existing.ignore_count + 1;
+            (new_count, 60 * (1 << new_count.min(10)))
+        } else {
+            (0, 60)
+        };
+        ignored.insert(peer_id, crate::node::IgnoredPeerInfo {
+            ignore_until: std::time::Instant::now() + std::time::Duration::from_secs(duration_secs),
+            ignore_count: new_count,
+        });
+        log::warn!("Ignoring dishonest peer {} for {} seconds", peer_id, duration_secs);
+        
+        return Ok(());
+    }
+    
+    // Verification passed - canonize pending blocks and orphan competing local blocks
+    log::info!("✅ Verification passed - adopting peer's chain");
+    
+    {
+        let ds = datastore.lock().await;
+        
+        // Find local blocks that compete
+        let local_blocks = MinerBlock::find_all_canonical(&ds).await?;
+        
+        for pending in &pending_blocks {
+            if let Some(local) = local_blocks.iter().find(|b| b.index == pending.index && b.hash != pending.hash) {
+                log::info!("Orphaning local block {} at index {}", &local.hash[..16], local.index);
+                let mut orphaned = local.clone();
+                orphaned.mark_as_orphaned(
+                    format!("Replaced by peer chain with higher cumulative difficulty"),
+                    Some(pending.hash.clone())
+                );
+                orphaned.save(&ds).await?;
+            }
+        }
+        
+        // Canonize all pending blocks
+        for mut pending in pending_blocks {
+            pending.canonize(&ds).await?;
+        }
+    }
+    
+    log::info!("🎉 Successfully adopted peer's chain!");
+    
+    Ok(())
+}
+
+/// Helper to wait for a reqres response
+async fn wait_for_reqres_response(
+    swarm: &std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
+    request_id: libp2p::request_response::OutboundRequestId,
+) -> Result<crate::reqres::Response> {
+    use futures::StreamExt;
+    
+    loop {
+        let event = {
+            let mut swarm_lock = swarm.lock().await;
+            swarm_lock.select_next_some().await
+        };
+        
+        if let libp2p::swarm::SwarmEvent::Behaviour(
+            crate::swarm::NodeBehaviourEvent::Reqres(
+                libp2p::request_response::Event::Message {
+                    message: libp2p::request_response::Message::Response { request_id: rid, response },
+                    ..
+                }
+            )
+        ) = event {
+            if rid == request_id {
+                return Ok(response);
+            }
+        }
+    }
+}
+
+/// Announce our chain tip to connected peers
+async fn announce_chain_tip(node: &Node) -> Result<()> {
+    use crate::gossip;
+    
+    // Get our highest block
+    let tip_block = {
+        let datastore = node.datastore.lock().await;
+        MinerBlock::find_all_canonical(&datastore).await?
+            .into_iter()
+            .max_by_key(|b| b.index)
+    };
+    
+    if let Some(block) = tip_block {
+        log::info!("Announcing chain tip: block {} (index: {})", &block.hash[..16], block.index);
+        
+        // Gossip the tip block to trigger sync on peers if needed
+        let gossip_msg = gossip::miner::block::MinerBlockGossip::from_miner_block(&block);
+        let topic = IdentTopic::new(gossip::miner::block::TOPIC);
+        let json = serde_json::to_string(&gossip_msg)?;
+        
+        let mut swarm_lock = node.swarm.lock().await;
+        match swarm_lock
+            .behaviour_mut()
+            .gossipsub
+            .publish(topic, json.as_bytes()) {
+            Ok(_) => {
+                log::info!("✓ Announced our chain tip (block {}) to peers", block.index);
+            }
+            Err(e) => {
+                log::debug!("Could not gossip chain tip: {}", e);
+            }
+        }
+    } else {
+        log::info!("No blocks to announce (empty chain)");
+    }
+    
     Ok(())
 }
 
@@ -368,7 +758,7 @@ async fn request_block_range_from_peer(
     // Wait for response (with timeout)
     let response = tokio::time::timeout(
         std::time::Duration::from_secs(10),
-        wait_for_response(swarm, request_id)
+        wait_for_reqres_response(swarm, request_id)
     ).await??;
     
     if !response.ok {
@@ -377,7 +767,7 @@ async fn request_block_range_from_peer(
     
     // Save the blocks
     let saved_count = if let Some(ref data) = response.data {
-        if let Some(blocks_array) = data.get("blocks").and_then(|b| b.as_array()) {
+        if let Some(blocks_array) = data.get("blocks").and_then(|b: &serde_json::Value| b.as_array()) {
             let mut ds = datastore.lock().await;
             let mut count = 0;
             let mut skipped_no_parent = 0;
@@ -394,10 +784,40 @@ async fn request_block_range_from_peer(
                 if block.index > 0 {
                     match MinerBlock::find_by_hash(&*ds, &block.previous_hash).await? {
                         Some(_) => {
-                            // Parent exists, save the block
-                            block.save(&*ds).await?;
-                            count += 1;
-                            log::debug!("Saved synced block {} (index: {})", &block.hash[..16], block.index);
+                            // Parent exists, now check for fork choice
+                            match MinerBlock::find_canonical_by_index(&*ds, block.index).await? {
+                                Some(existing) => {
+                                    // Apply fork choice: higher difficulty wins
+                                    let new_difficulty = block.get_difficulty_u128()?;
+                                    let existing_difficulty = existing.get_difficulty_u128()?;
+                                    
+                                    if new_difficulty > existing_difficulty {
+                                        log::info!("Fork choice during sync: Replacing existing block {} (difficulty: {}) with synced block (difficulty: {})",
+                                            block.index, existing_difficulty, new_difficulty);
+                                        
+                                        // Mark old block as orphaned
+                                        let mut orphaned = existing.clone();
+                                        orphaned.mark_as_orphaned(
+                                            format!("Replaced by synced block with higher difficulty ({} vs {})", new_difficulty, existing_difficulty),
+                                            Some(block.hash.clone())
+                                        );
+                                        orphaned.save(&*ds).await?;
+                                        
+                                        // Save new block as canonical
+                                        block.save(&*ds).await?;
+                                        count += 1;
+                                        log::debug!("Saved synced block {} (index: {})", &block.hash[..16], block.index);
+                                    } else {
+                                        log::debug!("Existing block {} has equal or higher difficulty, skipping synced block", block.index);
+                                    }
+                                }
+                                None => {
+                                    // No existing block at this index, save it
+                                    block.save(&*ds).await?;
+                                    count += 1;
+                                    log::debug!("Saved synced block {} (index: {})", &block.hash[..16], block.index);
+                                }
+                            }
                         }
                         None => {
                             // Parent missing - this indicates chain divergence!
@@ -406,22 +826,80 @@ async fn request_block_range_from_peer(
                         }
                     }
                 } else {
-                    // Genesis block
-                    block.save(&*ds).await?;
-                    count += 1;
-                    log::debug!("Saved synced block {} (index: {})", &block.hash[..16], block.index);
+                    // Genesis block (index 0) - apply fork choice
+                    match MinerBlock::find_canonical_by_index(&*ds, 0).await? {
+                        Some(existing) => {
+                            // Apply fork choice: higher difficulty wins (or lower hash as tiebreaker)
+                            let new_difficulty = block.get_difficulty_u128()?;
+                            let existing_difficulty = existing.get_difficulty_u128()?;
+                            
+                            if new_difficulty > existing_difficulty || 
+                               (new_difficulty == existing_difficulty && block.hash < existing.hash) {
+                                log::info!("Fork choice during sync: Replacing existing genesis block (hash: {}) with synced genesis (hash: {})",
+                                    &existing.hash[..16], &block.hash[..16]);
+                                
+                                // Mark old genesis as orphaned
+                                let mut orphaned = existing.clone();
+                                orphaned.mark_as_orphaned(
+                                    "Replaced by synced genesis block".to_string(),
+                                    Some(block.hash.clone())
+                                );
+                                orphaned.save(&*ds).await?;
+                                
+                                // Save new genesis as canonical
+                                block.save(&*ds).await?;
+                                count += 1;
+                                log::debug!("Saved synced genesis block {}", &block.hash[..16]);
+                            } else {
+                                log::debug!("Existing genesis has equal or higher difficulty/lower hash, skipping synced genesis");
+                            }
+                        }
+                        None => {
+                            // No existing genesis, save it
+                            block.save(&*ds).await?;
+                            count += 1;
+                            log::debug!("Saved synced block {} (index: {})", &block.hash[..16], block.index);
+                        }
+                    }
                 }
             }
             
-            // Detect chain divergence
-            if skipped_no_parent > 0 && count == 0 {
+            // Detect chain divergence and trigger reorg if needed
+            if from_index == 0 && blocks_array.len() > 0 {
+                // We requested from 0 (full chain comparison)
+                // Check if the peer's chain is different from ours
+                let local_blocks = MinerBlock::find_all_canonical(&ds).await?;
+                let local_chain_length = local_blocks.len();
+                let peer_chain_length = blocks_array.len();
+                
+                if peer_chain_length > local_chain_length {
+                    log::warn!(
+                        "⚠️  FULL CHAIN COMPARISON: Peer has longer chain ({} blocks) than us ({} blocks). Attempting reorg...",
+                        peer_chain_length, local_chain_length
+                    );
+                    if let Err(e) = attempt_chain_reorg(&mut ds, blocks_array, from_index).await {
+                        log::error!("Chain reorg failed: {:?}", e);
+                    } else {
+                        // Recount saved blocks after reorg
+                        return Ok(MinerBlock::find_all_canonical(&ds).await?.len());
+                    }
+                } else if skipped_no_parent > 0 && count == 0 {
+                    // Only do reorg if no blocks were saved due to missing parents
+                    log::error!(
+                        "⚠️  CHAIN DIVERGENCE DETECTED: Received {} blocks but none could be saved due to missing parents.",
+                        skipped_no_parent
+                    );
+                    log::info!("Attempting chain reorganization...");
+                    if let Err(e) = attempt_chain_reorg(&mut ds, blocks_array, from_index).await {
+                        log::error!("Chain reorg failed: {:?}", e);
+                    }
+                }
+            } else if skipped_no_parent > 0 && count == 0 {
+                // Not a full chain comparison, but detected missing parents
                 log::error!(
-                    "⚠️  CHAIN DIVERGENCE DETECTED: Received {} blocks but none could be saved due to missing parents. \
-                    This node's chain has diverged from the peer's chain. Chain reorganization needed!",
+                    "⚠️  CHAIN DIVERGENCE DETECTED: Received {} blocks but none could be saved due to missing parents.",
                     skipped_no_parent
                 );
-                
-                // Try to find common ancestor and perform reorg
                 log::info!("Attempting chain reorganization...");
                 if let Err(e) = attempt_chain_reorg(&mut ds, blocks_array, from_index).await {
                     log::error!("Chain reorg failed: {:?}", e);
@@ -522,9 +1000,79 @@ async fn attempt_chain_reorg(
                 
                 log::info!("✓ Chain reorganization complete: replaced {} blocks (difficulty {}) with {} new blocks (difficulty {})", 
                     orphan_count, local_branch_difficulty, saved, peer_branch_difficulty);
+            } else if peer_branch_difficulty == local_branch_difficulty {
+                // Cumulative difficulty is equal, use chain length as tiebreaker
+                if peer_blocks_to_adopt.len() > orphan_candidates.len() {
+                    log::info!("Equal difficulty but peer branch is longer - adopting it");
+                    
+                    // Mark all blocks after the ancestor as orphaned
+                    let orphan_count = orphan_candidates.len();
+                    for local_block in orphan_candidates {
+                        log::info!("Marking block {} as orphaned (reorg - longer chain)", local_block.index);
+                        let mut orphaned = local_block.clone();
+                        orphaned.mark_as_orphaned(
+                            "Chain reorganization: replaced by longer chain with equal difficulty".to_string(),
+                            None
+                        );
+                        orphaned.save(ds).await?;
+                    }
+                    
+                    // Save peer blocks starting after the ancestor
+                    let mut saved = 0;
+                    for peer_block in peer_blocks_to_adopt {
+                        peer_block.save(ds).await?;
+                        saved += 1;
+                        log::debug!("Reorg: saved block {} at index {}", &peer_block.hash[..16], peer_block.index);
+                    }
+                    
+                    log::info!("✓ Chain reorganization complete: replaced {} blocks with {} new blocks (longer chain)", 
+                        orphan_count, saved);
+                } else if peer_blocks_to_adopt.len() == orphan_candidates.len() {
+                    // Same difficulty AND same length - use hash of first diverging block as tiebreaker
+                    let peer_first_hash = peer_blocks_to_adopt.first().map(|b| &b.hash);
+                    let local_first_hash = orphan_candidates.first().map(|b| &b.hash);
+                    
+                    if let (Some(ph), Some(lh)) = (peer_first_hash, local_first_hash) {
+                        if ph < lh {
+                            log::info!("Equal difficulty and length but peer branch has lower hash - adopting it");
+                            
+                            // Mark all blocks after the ancestor as orphaned
+                            let orphan_count = orphan_candidates.len();
+                            for local_block in orphan_candidates {
+                                log::info!("Marking block {} as orphaned (reorg - hash tiebreaker)", local_block.index);
+                                let mut orphaned = local_block.clone();
+                                orphaned.mark_as_orphaned(
+                                    "Chain reorganization: replaced by chain with lower hash (tiebreaker)".to_string(),
+                                    None
+                                );
+                                orphaned.save(ds).await?;
+                            }
+                            
+                            // Save peer blocks starting after the ancestor
+                            let mut saved = 0;
+                            for peer_block in peer_blocks_to_adopt {
+                                peer_block.save(ds).await?;
+                                saved += 1;
+                                log::debug!("Reorg: saved block {} at index {}", &peer_block.hash[..16], peer_block.index);
+                            }
+                            
+                            log::info!("✓ Chain reorganization complete: replaced {} blocks with {} new blocks (hash tiebreaker)", 
+                                orphan_count, saved);
+                        } else {
+                            log::info!("Local branch has equal difficulty, equal length, and lower/equal hash - keeping it");
+                            anyhow::bail!("Local branch wins tiebreaker, no reorg needed");
+                        }
+                    } else {
+                        log::info!("Local branch has equal difficulty and length - keeping it");
+                        anyhow::bail!("No clear winner, keeping local chain");
+                    }
+                } else {
+                    log::info!("Local branch is longer with equal difficulty - keeping it");
+                    anyhow::bail!("Local branch is longer, no reorg needed");
+                }
             } else {
-                log::info!("Local branch has equal or higher cumulative difficulty - keeping it");
-                anyhow::bail!("Local branch has equal or higher cumulative difficulty, no reorg needed");
+                log::info!("Local branch has higher cumulative difficulty - keeping it");
+                anyhow::bail!("Local branch has higher difficulty, no reorg needed");
             }
             
             Ok(())
@@ -582,34 +1130,6 @@ async fn attempt_chain_reorg(
             } else {
                 log::info!("Local chain has equal or higher cumulative difficulty - keeping it");
                 anyhow::bail!("Local chain has equal or higher cumulative difficulty, no reorg needed")
-            }
-        }
-    }
-}
-
-/// Wait for a response from a request-response query
-async fn wait_for_response(
-    swarm: &std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
-    request_id: libp2p::request_response::OutboundRequestId,
-) -> Result<crate::reqres::Response> {
-    use futures::StreamExt;
-    
-    loop {
-        let event = {
-            let mut swarm_lock = swarm.lock().await;
-            swarm_lock.select_next_some().await
-        };
-        
-        if let libp2p::swarm::SwarmEvent::Behaviour(
-            crate::swarm::NodeBehaviourEvent::Reqres(
-                libp2p::request_response::Event::Message {
-                    message: libp2p::request_response::Message::Response { request_id: rid, response },
-                    ..
-                }
-            )
-        ) = event {
-            if rid == request_id {
-                return Ok(response);
             }
         }
     }
@@ -826,6 +1346,217 @@ async fn mine_and_gossip_block(
     }
 
     Ok(())
+}
+
+/// Efficiently find the common ancestor between local and remote chains using binary search
+/// 
+/// This function uses the `/data/miner_block/find_ancestor` route to iteratively find
+/// the highest block index where both chains agree, using an exponential search followed
+/// by binary search for O(log n) complexity.
+/// 
+/// # Arguments
+/// * `swarm` - The swarm for making requests
+/// * `peer_addr` - The peer address to query
+/// * `datastore` - Local datastore to get our chain
+/// 
+/// # Returns
+/// * `Ok(Some(index))` - The index of the common ancestor
+/// * `Ok(None)` - No common ancestor found (different genesis)
+/// * `Err(_)` - Error during the search
+pub async fn find_common_ancestor_efficient(
+    swarm: &std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
+    peer_addr: String,
+    datastore: &std::sync::Arc<tokio::sync::Mutex<modality_network_datastore::NetworkDatastore>>,
+) -> Result<Option<u64>> {
+    use libp2p::multiaddr::Multiaddr;
+    
+    log::info!("🔍 Finding common ancestor with peer using efficient binary search");
+    
+    // Load our local canonical chain
+    let local_blocks = {
+        let ds = datastore.lock().await;
+        MinerBlock::find_all_canonical(&ds).await?
+    };
+    
+    if local_blocks.is_empty() {
+        log::info!("Local chain is empty, no common ancestor");
+        return Ok(None);
+    }
+    
+    let local_chain_length = local_blocks.len() as u64;
+    log::debug!("Local chain length: {}", local_chain_length);
+    
+    // Parse peer address
+    let ma: Multiaddr = peer_addr.parse()?;
+    let Some(libp2p::multiaddr::Protocol::P2p(target_peer_id)) = ma.iter().last() else {
+        anyhow::bail!("Invalid peer address - missing PeerID");
+    };
+    
+    // Step 1: Exponential search to find an upper bound
+    // Check blocks at indices: [tip, tip-1, tip-2, tip-4, tip-8, tip-16, ...]
+    let mut checkpoints = Vec::new();
+    let mut step = 0;
+    
+    loop {
+        let index = if step == 0 {
+            local_chain_length.saturating_sub(1)
+        } else if step == 1 {
+            local_chain_length.saturating_sub(2)
+        } else {
+            local_chain_length.saturating_sub(1 << step)
+        };
+        
+        if index >= local_chain_length {
+            break;
+        }
+        
+        if let Some(block) = local_blocks.iter().find(|b| b.index == index) {
+            checkpoints.push((block.index, block.hash.clone()));
+        }
+        
+        if index == 0 {
+            break;
+        }
+        
+        step += 1;
+    }
+    
+    log::debug!("Phase 1: Exponential search with {} checkpoints", checkpoints.len());
+    
+    // Make the initial request
+    let request = crate::reqres::Request {
+        path: "/data/miner_block/find_ancestor".to_string(),
+        data: Some(serde_json::json!({
+            "check_points": checkpoints.iter().map(|(idx, hash)| {
+                serde_json::json!({
+                    "index": idx,
+                    "hash": hash
+                })
+            }).collect::<Vec<_>>()
+        })),
+    };
+    
+    let request_id = {
+        let mut swarm_lock = swarm.lock().await;
+        swarm_lock.behaviour_mut().reqres.send_request(&target_peer_id, request)
+    };
+    
+    let response = match tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        wait_for_reqres_response(swarm, request_id)
+    ).await {
+        Ok(Ok(resp)) => resp,
+        Ok(Err(e)) => return Err(e),
+        Err(_) => anyhow::bail!("Timeout waiting for find_ancestor response"),
+    };
+    
+    if !response.ok {
+        anyhow::bail!("Peer returned error: {:?}", response.errors);
+    }
+    
+    let data = response.data.ok_or_else(|| anyhow::anyhow!("No data in response"))?;
+    let highest_match = data.get("highest_match").and_then(|v| v.as_u64());
+    let remote_chain_length = data.get("chain_length").and_then(|v| v.as_u64())
+        .ok_or_else(|| anyhow::anyhow!("Missing chain_length in response"))?;
+    
+    log::info!("Remote chain length: {}, Initial highest match: {:?}", remote_chain_length, highest_match);
+    
+    // If no match at all, chains have no common ancestor
+    if highest_match.is_none() {
+        log::warn!("No common blocks found - chains have completely diverged (different genesis?)");
+        return Ok(None);
+    }
+    
+    let mut highest_match_idx = highest_match.unwrap();
+    
+    // Step 2: Binary search to find the exact divergence point
+    // We need to search between highest_match and the next checkpoint that didn't match
+    let matches = data.get("matches").and_then(|v| v.as_array())
+        .ok_or_else(|| anyhow::anyhow!("Missing matches in response"))?;
+    
+    // Find the range to binary search
+    let mut search_low = highest_match_idx;
+    let mut search_high = local_chain_length - 1;
+    
+    // Find the first non-matching index that's higher than highest_match
+    for match_info in matches {
+        let idx = match_info.get("index").and_then(|v| v.as_u64()).unwrap();
+        let matches_val = match_info.get("matches").and_then(|v| v.as_bool()).unwrap();
+        
+        if !matches_val && idx > highest_match_idx && idx < search_high {
+            search_high = idx;
+        }
+    }
+    
+    log::debug!("Phase 2: Binary search between {} and {}", search_low, search_high);
+    
+    // Binary search to narrow down the exact divergence point
+    while search_low < search_high && search_high - search_low > 1 {
+        let mid = (search_low + search_high) / 2;
+        
+        // Check if we have a block at mid index
+        let mid_block = match local_blocks.iter().find(|b| b.index == mid) {
+            Some(block) => block,
+            None => {
+                // If we don't have this block locally, adjust search range
+                search_high = mid;
+                continue;
+            }
+        };
+        
+        log::debug!("Binary search: checking index {} (range: {} to {})", mid, search_low, search_high);
+        
+        // Query just this one checkpoint
+        let request = crate::reqres::Request {
+            path: "/data/miner_block/find_ancestor".to_string(),
+            data: Some(serde_json::json!({
+                "check_points": [{
+                    "index": mid,
+                    "hash": mid_block.hash
+                }]
+            })),
+        };
+        
+        let request_id = {
+            let mut swarm_lock = swarm.lock().await;
+            swarm_lock.behaviour_mut().reqres.send_request(&target_peer_id, request)
+        };
+        
+        let response = match tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            wait_for_reqres_response(swarm, request_id)
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => return Err(e),
+            Err(_) => anyhow::bail!("Timeout during binary search"),
+        };
+        
+        if !response.ok {
+            anyhow::bail!("Peer error during binary search: {:?}", response.errors);
+        }
+        
+        let data = response.data.ok_or_else(|| anyhow::anyhow!("No data in binary search response"))?;
+        let matches_array = data.get("matches").and_then(|v| v.as_array())
+            .ok_or_else(|| anyhow::anyhow!("Missing matches"))?;
+        
+        if let Some(match_info) = matches_array.first() {
+            let matches_val = match_info.get("matches").and_then(|v| v.as_bool()).unwrap_or(false);
+            
+            if matches_val {
+                // This block matches, search higher
+                search_low = mid;
+                highest_match_idx = mid;
+                log::debug!("Block {} matches, searching higher", mid);
+            } else {
+                // This block doesn't match, search lower
+                search_high = mid;
+                log::debug!("Block {} doesn't match, searching lower", mid);
+            }
+        }
+    }
+    
+    log::info!("✅ Found common ancestor at block index {}", highest_match_idx);
+    Ok(Some(highest_match_idx))
 }
 
 
