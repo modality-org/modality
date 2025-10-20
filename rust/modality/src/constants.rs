@@ -2,8 +2,9 @@
 
 /// Testnet bootstrapper addresses
 pub const TESTNET_BOOTSTRAPPERS: &[&str] = &[
-    "/ip4/3.79.153.50/tcp/4040/ws/p2p/12D3KooWR6XSn7tBTmBGm377NzgQ6nE6bZDivjHU1F8xyxQEmTng",
-    "/ip4/52.91.115.9/tcp/4040/ws/p2p/12D3KooWPGcuRE7nP7tVVfhgmvKF1ntzmPsd1QoyfmvDkSK6GAc1",
+    "/ip4/3.125.46.158/tcp/4040/ws/p2p/12D3KooWBGR3m1JmVFm2aZYR7TZXicjA7HSVSWi2fama5cPpgQiX",
+    "/ip4/18.217.58.253/tcp/4040/ws/p2p/12D3KooWEA6dRWvK1vutRDxKfdPZZr7ycHvQNWrDGZZQbiE6YibZ",
+    "/ip4/43.207.233.31/tcp/4040/ws/p2p/12D3KooWDGLGJhoUfkjG4P5MBaoRFVLMLRu4bEHQb9yy1XtHsH5h",
 ];
 
 /// Default autoupgrade base URL
