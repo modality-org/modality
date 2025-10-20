@@ -5,7 +5,7 @@ edition = "2021"
 description = "CLI for Modality, an evolving temporal modal logic"
 license = "MIT"
 documentation = "https://docs.rs/modality"
-repository = "https://github.com/modality-org/modality-rust"
+repository = "https://github.com/modality-org/modality"
 homepage = "https://www.modality.org"
 readme = "../README.md"
 

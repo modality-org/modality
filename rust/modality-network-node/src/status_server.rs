@@ -95,6 +95,13 @@ async fn status_handler(
         .filter_map(|block| block.difficulty.parse::<u128>().ok())
         .sum();
     
+    // Count blocks mined by this node
+    let peerid_str = peerid.to_string();
+    let blocks_mined_by_node = miner_blocks
+        .iter()
+        .filter(|block| block.nominated_peer_id == peerid_str)
+        .count();
+    
     // Get Block 0 (genesis block)
     let block_0 = MinerBlock::find_canonical_by_index(&ds, 0).await.ok().flatten();
     
@@ -103,17 +110,22 @@ async fn status_handler(
     recent_blocks.sort_by(|a, b| b.index.cmp(&a.index));
     recent_blocks.truncate(80);
     
+    // Get first 40 blocks (sorted by index ascending)
+    let mut first_blocks = miner_blocks.clone();
+    first_blocks.sort_by(|a, b| a.index.cmp(&b.index));
+    first_blocks.truncate(40);
+    
     drop(ds);
 
-    // Build blocks table HTML
+    // Build blocks table HTML for recent blocks (last 80)
     let blocks_html = if recent_blocks.is_empty() {
-        "<tr><td colspan='4' style='text-align: center; padding: 20px; color: #666;'>No blocks yet</td></tr>".to_string()
+        "<tr><td colspan='5' style='text-align: center; padding: 20px; color: #666;'>No blocks yet</td></tr>".to_string()
     } else {
         recent_blocks
             .iter()
             .map(|block| {
                 format!(
-                    "<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td></tr>",
+                    "<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td><td>{}</td></tr>",
                     block.index,
                     block.epoch,
                     if block.hash.len() > 16 {
@@ -125,7 +137,36 @@ async fn status_handler(
                         format!("{}...{}", &block.nominated_peer_id[..10], &block.nominated_peer_id[block.nominated_peer_id.len()-10..])
                     } else {
                         block.nominated_peer_id.clone()
-                    }
+                    },
+                    block.timestamp
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n                    ")
+    };
+
+    // Build blocks table HTML for first 40 blocks
+    let first_blocks_html = if first_blocks.is_empty() {
+        "<tr><td colspan='5' style='text-align: center; padding: 20px; color: #666;'>No blocks yet</td></tr>".to_string()
+    } else {
+        first_blocks
+            .iter()
+            .map(|block| {
+                format!(
+                    "<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td><td>{}</td></tr>",
+                    block.index,
+                    block.epoch,
+                    if block.hash.len() > 16 {
+                        format!("{}...{}", &block.hash[..8], &block.hash[block.hash.len()-8..])
+                    } else {
+                        block.hash.clone()
+                    },
+                    if block.nominated_peer_id.len() > 20 {
+                        format!("{}...{}", &block.nominated_peer_id[..10], &block.nominated_peer_id[block.nominated_peer_id.len()-10..])
+                    } else {
+                        block.nominated_peer_id.clone()
+                    },
+                    block.timestamp
                 )
             })
             .collect::<Vec<_>>()
@@ -354,7 +395,11 @@ async fn status_handler(
             <div class="stat-value">{}</div>
         </div>
         <div class="stat-box">
-            <div class="stat-label">Miner Blocks</div>
+            <div class="stat-label">Block Height</div>
+            <div class="stat-value">{}</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">Blocks Mined by Node</div>
             <div class="stat-value">{}</div>
         </div>
         <div class="stat-box">
@@ -430,6 +475,27 @@ async fn status_handler(
                         <th>Epoch</th>
                         <th>Hash</th>
                         <th>Nominee</th>
+                        <th>Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="status-card">
+        <h2>First 40 Blocks</h2>
+        <div class="blocks-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Index</th>
+                        <th>Epoch</th>
+                        <th>Hash</th>
+                        <th>Nominee</th>
+                        <th>Timestamp</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -448,6 +514,7 @@ async fn status_handler(
 </html>"#,
         connected_peers,
         total_miner_blocks,
+        blocks_mined_by_node,
         current_difficulty,
         current_epoch,
         cumulative_difficulty,
@@ -462,6 +529,7 @@ async fn status_handler(
         block_0_html,
         peers_html,
         blocks_html,
+        first_blocks_html,
     );
 
     Ok(warp::reply::html(html))

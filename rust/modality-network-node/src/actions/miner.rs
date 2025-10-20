@@ -471,7 +471,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
 /// This is called when we detect an orphan block from a peer
 /// 
 /// Uses the efficient find_ancestor reqres route to find common ancestor via binary search
-async fn request_chain_info_impl(
+pub async fn request_chain_info_impl(
     peer_id: libp2p::PeerId,
     peer_addr: String,
     swarm: std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,

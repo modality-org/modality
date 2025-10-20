@@ -1,7 +1,7 @@
 # Modality 🦀 + ⲙ
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/modality-org/modality-rust/main/docs/static/img/modality_banner.jpg" alt="Modality Banner" width="50%" />
+  <img src="https://raw.githubusercontent.com/modality-org/modality/main/docs/static/img/modality_banner.jpg" alt="Modality Banner" width="50%" />
 </div>
 
 <div align="center">
