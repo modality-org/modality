@@ -90,19 +90,6 @@ async fn mine_and_gossip_block(
 ) -> Result<()> {
     use modality_network_mining::{Blockchain, ChainConfig};
     
-    // Get previous block if exists
-    let previous_hash = {
-        let ds = datastore.lock().await;
-        if index == 0 {
-            "0".to_string()
-        } else {
-            match MinerBlock::find_canonical_by_index(&ds, index - 1).await? {
-                Some(prev) => prev.hash.clone(),
-                None => "0".to_string(),
-            }
-        }
-    };
-
     // Determine the nominee to use for this block
     let nominated_peer_id = match miner_nominees {
         Some(nominees) if !nominees.is_empty() => {
@@ -118,15 +105,39 @@ async fn mine_and_gossip_block(
 
     log::info!("Mining block {} with nominated peer: {}", index, nominated_peer_id);
 
-    // Create a temporary blockchain for mining this single block
-    let mut chain = Blockchain::new(ChainConfig::default(), peer_id.to_string());
+    // Load blockchain from datastore with all historical blocks for proper difficulty calculation
+    let mut chain = {
+        let ds_guard = datastore.lock().await;
+        // Create a new Arc wrapper around a reference to the datastore
+        // We need to use the persistence loading approach
+        use modality_network_mining::persistence::BlockchainPersistence;
+        
+        let loaded_blocks = ds_guard.load_canonical_blocks().await?;
+        drop(ds_guard); // Release the lock
+        
+        if loaded_blocks.is_empty() {
+            // No existing blocks, create genesis
+            Blockchain::new(ChainConfig::default(), peer_id.to_string())
+        } else {
+            // Create a blockchain from the loaded blocks
+            // We need to reconstruct the blockchain state
+            let mut chain = Blockchain::new(ChainConfig::default(), peer_id.to_string());
+            
+            // Skip genesis (first block) if it's already there, add the rest
+            for block in loaded_blocks.into_iter().skip(1) {
+                chain.add_block(block)?;
+            }
+            
+            chain
+        }
+    };
     
-    // If this isn't genesis, mine the next block
+    // Mine the next block (difficulty will be calculated based on loaded blockchain state)
     let mined_block = if index == 0 {
-        // Return genesis block
+        // Return genesis block (should already exist in loaded chain)
         chain.blocks[0].clone()
     } else {
-        // Mine next block
+        // Mine next block with proper difficulty adjustment
         let miner_number = rand::random::<u64>();
         chain.mine_block(nominated_peer_id.clone(), miner_number)?
     };
@@ -137,7 +148,7 @@ async fn mine_and_gossip_block(
         index, // Use the passed index
         index / 40, // Assuming 40 blocks per epoch
         mined_block.header.timestamp.timestamp(),
-        if index == 0 { "0".to_string() } else { previous_hash },
+        mined_block.header.previous_hash.clone(),
         mined_block.header.data_hash.clone(),
         mined_block.header.nonce,
         mined_block.header.difficulty,
