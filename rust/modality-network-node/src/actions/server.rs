@@ -6,6 +6,7 @@ use crate::gossip;
 pub async fn run(node: &mut Node) -> Result<()> {
     gossip::add_sequencer_event_listeners(node).await?;
 
+    node.start_status_server().await?;
     node.start_networking().await?;
     node.start_autoupgrade().await?;
     node.wait_for_connections().await?;

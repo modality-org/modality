@@ -39,7 +39,9 @@ pub struct Node {
     networking_task: Option<tokio::task::JoinHandle<Result<()>>>,
     consensus_task: Option<tokio::task::JoinHandle<Result<()>>>,
     autoupgrade_task: Option<tokio::task::JoinHandle<Result<()>>>,
+    status_server_task: Option<tokio::task::JoinHandle<()>>,
     pub autoupgrade_config: Option<crate::autoupgrade::AutoupgradeConfig>,
+    pub status_port: Option<u16>,
     consensus_tx: mpsc::Sender<ConsensusMessage>,
     consensus_rx: Option<mpsc::Receiver<ConsensusMessage>>,
     shutdown_tx: tokio::sync::broadcast::Sender<()>,
@@ -79,6 +81,7 @@ impl Node {
         let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
         let (consensus_tx, consensus_rx) = mpsc::channel(100);
         let miner_nominees = config.miner_nominees.clone();
+        let status_port = config.status_port;
         let node = Self {
             peerid,
             node_keypair,
@@ -90,7 +93,9 @@ impl Node {
             networking_task: None,
             consensus_task: None,
             autoupgrade_task: None,
+            status_server_task: None,
             autoupgrade_config,
+            status_port,
             consensus_tx,
             consensus_rx: Some(consensus_rx),
             shutdown_tx,
@@ -310,6 +315,21 @@ impl Node {
     
         self.shutdown().await?;
         log::info!("Node shutdown complete");
+        Ok(())
+    }
+
+    pub async fn start_status_server(&mut self) -> Result<()> {
+        if let Some(port) = self.status_port {
+            log::info!("Starting HTTP status server on port {}", port);
+            let handle = crate::status_server::start_status_server(
+                port,
+                self.peerid,
+                self.datastore.clone(),
+                self.listeners.clone(),
+            )
+            .await?;
+            self.status_server_task = Some(handle);
+        }
         Ok(())
     }
 

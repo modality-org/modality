@@ -27,6 +27,7 @@ pub struct Config {
     pub autoupgrade_check_interval_secs: Option<u64>,
     pub noop_mode: Option<bool>,
     pub miner_nominees: Option<Vec<String>>,
+    pub status_port: Option<u16>,
 }
 
 impl Config {
