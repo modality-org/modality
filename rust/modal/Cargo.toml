@@ -1,0 +1,18 @@
+[package]
+name = "modal"
+version = "0.1.0"
+edition = "2021"
+description = "Modal CLI utility"
+license = "MIT"
+documentation = "https://docs.rs/modal"
+repository = "https://github.com/modality-org/modality"
+homepage = "https://www.modality.org"
+readme = "../README.md"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.1.11", features = ["cargo", "derive", "env"] }
+tokio = { version = "1.42.0", features = ["full"] }
+

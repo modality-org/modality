@@ -9,7 +9,8 @@ members = [
 , 'modality-network-node'
 , "modality-utils"
 , "modality"
-, "modality-lang"]
+, "modality-lang"
+, "modal"]
 
 [profile.release]
 strip = true
