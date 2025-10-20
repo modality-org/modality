@@ -64,7 +64,7 @@ impl MinerBlockGossip {
 
 /// Handler for incoming miner block gossip messages
 pub async fn handler(data: String, datastore: &mut NetworkDatastore) -> Result<()> {
-    log::info!("Received miner block gossip");
+    log::debug!("Received miner block gossip");
     
     // Parse the gossip message
     let gossip_msg: MinerBlockGossip = serde_json::from_str(&data)?;
@@ -76,6 +76,44 @@ pub async fn handler(data: String, datastore: &mut NetworkDatastore) -> Result<(
     if let Ok(Some(_)) = MinerBlock::find_by_hash(datastore, &miner_block.hash).await {
         log::debug!("Block with hash {} already exists, skipping", &miner_block.hash[..16]);
         return Ok(());
+    }
+    
+    // Validate we have the parent block (chain continuity)
+    if miner_block.index > 0 {
+        match MinerBlock::find_by_hash(datastore, &miner_block.previous_hash).await? {
+            None => {
+                log::warn!(
+                    "Received block {} but missing parent block (prev_hash: {}). Orphan block detected - need to sync!",
+                    miner_block.index, 
+                    &miner_block.previous_hash[..16]
+                );
+                
+                // Don't save orphan blocks - they can't be validated
+                // The node should sync to get missing blocks
+                return Ok(());
+            }
+            Some(parent) => {
+                // Validate parent is canonical
+                if !parent.is_canonical {
+                    log::warn!("Parent block {} is not canonical, rejecting gossiped block {}", 
+                        parent.index, miner_block.index);
+                    return Ok(());
+                }
+                
+                // Validate parent is at expected index
+                if parent.index != miner_block.index - 1 {
+                    log::warn!(
+                        "Parent block index mismatch: expected {}, got {}. Rejecting block {}",
+                        miner_block.index - 1,
+                        parent.index,
+                        miner_block.index
+                    );
+                    return Ok(());
+                }
+                
+                log::debug!("Parent block validated for block {}", miner_block.index);
+            }
+        }
     }
     
     // Check if a block exists at this index (fork choice)
@@ -96,14 +134,14 @@ pub async fn handler(data: String, datastore: &mut NetworkDatastore) -> Result<(
                 
                 // Save new block as canonical
                 miner_block.save(datastore).await?;
-                log::info!("Saved gossiped block {} at index {}", &miner_block.hash[..16], miner_block.index);
+                log::info!("Accepted gossiped block {} at index {}", &miner_block.hash[..16], miner_block.index);
             } else {
                 log::debug!("Existing block {} has equal or harder hash, keeping it", miner_block.index);
             }
         }
         None => {
             // No block at this index, save it
-            log::info!("Saving new gossiped block {} at index {}", &miner_block.hash[..16], miner_block.index);
+            log::info!("Accepting new gossiped block {} at index {}", &miner_block.hash[..16], miner_block.index);
             miner_block.save(datastore).await?;
         }
     }

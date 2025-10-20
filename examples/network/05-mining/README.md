@@ -42,7 +42,26 @@ This will:
 - **Blocks mined too slow** (> 110% of target time) → Difficulty decreases
 - **Within target range** → Difficulty stays the same
 
-### Step 2: Inspect Blocks
+### Step 2: View Status Page
+
+While mining is running, view the real-time status dashboard:
+
+```bash
+./04-view-status-page.sh
+```
+
+Or visit directly in your browser: **http://localhost:8080**
+
+The status page shows:
+- **Connected Peers**: Number of active peer connections
+- **Miner Blocks**: Total canonical blocks mined
+- **Current Difficulty**: Mining difficulty from latest block
+- **Current Epoch**: Current epoch number
+- **Recent Blocks Table**: Last 80 blocks with index, epoch, hash, and nominee
+
+The page auto-refreshes every 10 seconds with the latest data from the running node.
+
+### Step 3: Inspect Blocks
 
 While mining is running (or after stopping with Ctrl+C), inspect the blocks:
 
@@ -57,7 +76,7 @@ This shows:
 - Time range
 - Current difficulty
 
-### Step 3: Clean Storage (Optional)
+### Step 4: Clean Storage (Optional)
 
 To start fresh:
 
@@ -172,6 +191,8 @@ Make sure you've mined more than 40 blocks. Difficulty only adjusts after comple
 | `00-clean-storage.sh` | Remove all mined blocks and start fresh |
 | `01-mine-blocks.sh` | Start the miner node |
 | `02-inspect-blocks.sh` | View storage statistics and blocks |
+| `03-view-difficulty-progression.sh` | View difficulty changes over time |
+| `04-view-status-page.sh` | Open the HTTP status dashboard |
 
 ## Architecture
 

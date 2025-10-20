@@ -20,6 +20,12 @@ pub async fn run(node: &mut Node) -> Result<()> {
     if !node.bootstrappers.is_empty() {
         log::info!("Waiting for peer connections...");
         node.wait_for_connections().await?;
+        
+        // Sync from peers before starting to mine
+        log::info!("Syncing blockchain state from peers...");
+        if let Err(e) = sync_from_peers(node).await {
+            log::warn!("Failed to sync from peers: {:?}. Starting with local chain.", e);
+        }
     } else {
         log::info!("No bootstrappers configured - mining in solo mode");
     }
@@ -85,6 +91,32 @@ pub async fn run(node: &mut Node) -> Result<()> {
     // Wait for shutdown signal
     node.wait_for_shutdown().await?;
 
+    Ok(())
+}
+
+/// Sync blockchain state from connected peers before mining
+async fn sync_from_peers(node: &Node) -> Result<()> {
+    use modality_network_datastore::Model;
+    
+    // Get our current chain height
+    let local_height = {
+        let datastore = node.datastore.lock().await;
+        let blocks = MinerBlock::find_all_canonical(&datastore).await?;
+        blocks.len() as u64
+    };
+    
+    log::info!("Local chain height: {} blocks", local_height);
+    
+    // Query peers for their chain heights via gossip or request-response
+    // For now, just log that we should sync
+    // TODO: Implement peer chain height discovery and selective sync
+    
+    if local_height == 0 {
+        log::info!("No local blocks. Waiting to receive blocks via gossip...");
+        // Wait a bit for initial gossip to populate
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    }
+    
     Ok(())
 }
 
