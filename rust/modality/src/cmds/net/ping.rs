@@ -5,14 +5,19 @@ use std::path::PathBuf;
 use std::time::Instant;
 use modality_network_node::actions;
 use modality_network_node::node::Node;
-use modality_network_node::config::Config;
+use modality_network_node::config_resolution::load_config_with_node_dir;
 use rand::Rng;
 
 #[derive(Debug, Parser)]
 #[command(about = "Ping a Modality Network node")]
 pub struct Opts {
+    /// Path to node configuration file
     #[clap(long)]
-    config: PathBuf,
+    config: Option<PathBuf>,
+
+    /// Node directory containing config.json (defaults to current directory)
+    #[clap(long)]
+    dir: Option<PathBuf>,
 
     #[clap(long)]
     target: String,
@@ -22,9 +27,17 @@ pub struct Opts {
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
+    // If neither config nor dir is provided, default to current directory
+    let dir = if opts.config.is_none() && opts.dir.is_none() {
+        Some(std::env::current_dir()?)
+    } else {
+        opts.dir.clone()
+    };
+    
+    let config = load_config_with_node_dir(opts.config.clone(), dir)?;
+    
     let times_to_ping = opts.times;
-    let config = Config::from_filepath(&opts.config)?;
-    let mut node = Node::from_config_filepath(opts.config.clone()).await?;
+    let mut node = Node::from_config(config.clone()).await?;
     log::info!("Running node as {:?}", node.peerid);
     node.setup(&config).await?;
     let target = opts.target.clone();

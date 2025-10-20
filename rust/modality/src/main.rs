@@ -66,9 +66,6 @@ enum PassfileCommands {
 
 #[derive(Subcommand)]
 enum NetworkCommands {
-    #[clap(name = "ping")]
-    Ping(cmds::net::ping::Opts),
-
     #[command(about = "Inspect network datastore and show statistics")]
     Storage(cmds::net::storage::Opts),
 
@@ -95,6 +92,9 @@ enum NodeCommands {
 
     #[command(about = "Run a noop node (only autoupgrade, no network operations)")]
     RunNoop(cmds::net::run_noop::Opts),
+
+    #[command(about = "Ping a Modality Network node")]
+    Ping(cmds::net::ping::Opts),
 }
 
 #[derive(Subcommand)]
@@ -134,11 +134,11 @@ async fn main() -> Result<()> {
                 NodeCommands::Run(opts) => cmds::net::run_node::run(opts).await?,
                 NodeCommands::RunMiner(opts) => cmds::net::run_miner::run(opts).await?,
                 NodeCommands::RunNoop(opts) => cmds::net::run_noop::run(opts).await?,
+                NodeCommands::Ping(opts) => cmds::net::ping::run(opts).await?,
             }
         }
         Commands::Net { command } => {
             match command {
-                NetworkCommands::Ping(opts) => cmds::net::ping::run(opts).await?,
                 NetworkCommands::Storage(opts) => cmds::net::storage::run(opts).await?,
                 NetworkCommands::Mining { command } => {
                     match command {
