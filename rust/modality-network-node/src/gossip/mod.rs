@@ -36,7 +36,12 @@ pub async fn add_miner_event_listeners(node: &mut Node) -> Result<()> {
   Ok(())
 }
 
-pub async fn handle_event(message: Message, datastore: &mut NetworkDatastore, consensus_tx: mpsc::Sender<ConsensusMessage>) -> Result<()> {
+pub async fn handle_event(
+    message: Message, 
+    datastore: &mut NetworkDatastore, 
+    consensus_tx: mpsc::Sender<ConsensusMessage>,
+    sync_trigger_tx: Option<tokio::sync::broadcast::Sender<u64>>,
+) -> Result<()> {
   log::info!("handling gossip: {:?}", message);
   let data = String::from_utf8_lossy(&message.data).to_string();
   let topic = message.topic.to_string();
@@ -46,7 +51,7 @@ pub async fn handle_event(message: Message, datastore: &mut NetworkDatastore, co
   } else if &topic == consensus::block::cert::TOPIC {
     consensus::block::cert::handler(data, datastore, consensus_tx).await?;
   } else if &topic == miner::block::TOPIC {
-    miner::block::handler(data, datastore).await?;
+    miner::block::handler(data, datastore, sync_trigger_tx).await?;
   } else {
     log::warn!("Unknown gossip topic: {}", topic);
   }

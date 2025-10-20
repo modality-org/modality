@@ -45,6 +45,7 @@ pub struct Node {
     consensus_tx: mpsc::Sender<ConsensusMessage>,
     consensus_rx: Option<mpsc::Receiver<ConsensusMessage>>,
     shutdown_tx: tokio::sync::broadcast::Sender<()>,
+    pub sync_trigger_tx: tokio::sync::broadcast::Sender<u64>,
 }
 
 impl Node {
@@ -80,6 +81,7 @@ impl Node {
         }
         let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
         let (consensus_tx, consensus_rx) = mpsc::channel(100);
+        let (sync_trigger_tx, _sync_trigger_rx) = tokio::sync::broadcast::channel(100);
         let miner_nominees = config.miner_nominees.clone();
         let status_port = config.status_port;
         let node = Self {
@@ -100,6 +102,7 @@ impl Node {
             consensus_rx: Some(consensus_rx),
             shutdown_tx,
             consensus_runner: None,
+            sync_trigger_tx,
         };
         Ok(node)
     }
@@ -344,6 +347,7 @@ impl Node {
 
         let datastore = self.datastore.clone();
         let consensus_tx = self.consensus_tx.clone();
+        let sync_trigger_tx = Some(self.sync_trigger_tx.clone());
 
         self.networking_task = Some(tokio::spawn(async move {
             loop {
@@ -406,7 +410,7 @@ impl Node {
                             )) => {
                                 log::info!("Gossip received {:?}", message.topic.to_string());
                                 let mut datastore = datastore.lock().await;
-                                gossip::handle_event(message, &mut *datastore, consensus_tx.clone()).await?;
+                                gossip::handle_event(message, &mut *datastore, consensus_tx.clone(), sync_trigger_tx.clone()).await?;
                             }
                             SwarmEvent::Behaviour(event) => {
                                 log::info!("SwarmEvent::Behaviour event {:?}", event);

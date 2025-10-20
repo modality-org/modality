@@ -63,7 +63,11 @@ impl MinerBlockGossip {
 }
 
 /// Handler for incoming miner block gossip messages
-pub async fn handler(data: String, datastore: &mut NetworkDatastore) -> Result<()> {
+pub async fn handler(
+    data: String, 
+    datastore: &mut NetworkDatastore,
+    sync_trigger_tx: Option<tokio::sync::broadcast::Sender<u64>>,
+) -> Result<()> {
     log::debug!("Received miner block gossip");
     
     // Parse the gossip message
@@ -83,13 +87,21 @@ pub async fn handler(data: String, datastore: &mut NetworkDatastore) -> Result<(
         match MinerBlock::find_by_hash(datastore, &miner_block.previous_hash).await? {
             None => {
                 log::warn!(
-                    "Received block {} but missing parent block (prev_hash: {}). Orphan block detected - need to sync!",
+                    "Received block {} but missing parent block (prev_hash: {}). Orphan block detected - triggering sync!",
                     miner_block.index, 
                     &miner_block.previous_hash[..16]
                 );
                 
+                // Trigger sync to get missing blocks
+                if let Some(tx) = sync_trigger_tx {
+                    if let Err(e) = tx.send(miner_block.index) {
+                        log::warn!("Failed to trigger sync: {}", e);
+                    } else {
+                        log::info!("🔄 Sync triggered for missing blocks up to index {}", miner_block.index);
+                    }
+                }
+                
                 // Don't save orphan blocks - they can't be validated
-                // The node should sync to get missing blocks
                 return Ok(());
             }
             Some(parent) => {

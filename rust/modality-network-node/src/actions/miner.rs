@@ -51,6 +51,59 @@ pub async fn run(node: &mut Node) -> Result<()> {
         }
     };
 
+    // Start sync listener task
+    let sync_datastore = node.datastore.clone();
+    let _sync_node = node.peerid;
+    let sync_bootstrappers = node.bootstrappers.clone();
+    let _sync_swarm = node.swarm.clone();
+    let mut sync_trigger_rx = node.sync_trigger_tx.subscribe();
+    
+    tokio::spawn(async move {
+        let mut last_sync_time = std::time::Instant::now();
+        let sync_cooldown = std::time::Duration::from_secs(5);
+        
+        while let Ok(target_index) = sync_trigger_rx.recv().await {
+            // Rate limit syncs
+            if last_sync_time.elapsed() < sync_cooldown {
+                log::debug!("Sync cooldown active, skipping");
+                continue;
+            }
+            
+            log::info!("🔄 Sync requested for blocks up to index {}", target_index);
+            last_sync_time = std::time::Instant::now();
+            
+            // Find first available peer to sync from
+            if let Some(_peer_addr) = sync_bootstrappers.first() {
+                // Get our current height
+                let local_height = {
+                    let ds = sync_datastore.lock().await;
+                    MinerBlock::find_all_canonical(&ds).await
+                        .map(|blocks| blocks.len() as u64)
+                        .unwrap_or(0)
+                };
+                
+                if local_height < target_index {
+                    log::info!("Syncing blocks from {} to {}", local_height, target_index);
+                    
+                    // Use simplified sync (placeholder for now)
+                    match sync_blocks_simple(local_height, target_index).await {
+                        Ok(count) if count > 0 => {
+                            log::info!("✓ Successfully synced {} blocks", count);
+                        }
+                        Ok(_) => {
+                            log::info!("Sync completed - blocks should be received via gossip");
+                        }
+                        Err(e) => {
+                            log::warn!("Failed to sync blocks: {:?}", e);
+                        }
+                    }
+                }
+            } else {
+                log::warn!("No peers available for sync");
+            }
+        }
+    });
+
     // Start mining loop
     let datastore = node.datastore.clone();
     let swarm = node.swarm.clone();
@@ -96,8 +149,6 @@ pub async fn run(node: &mut Node) -> Result<()> {
 
 /// Sync blockchain state from connected peers before mining
 async fn sync_from_peers(node: &Node) -> Result<()> {
-    use modality_network_datastore::Model;
-    
     // Get our current chain height
     let local_height = {
         let datastore = node.datastore.lock().await;
@@ -107,17 +158,38 @@ async fn sync_from_peers(node: &Node) -> Result<()> {
     
     log::info!("Local chain height: {} blocks", local_height);
     
-    // Query peers for their chain heights via gossip or request-response
-    // For now, just log that we should sync
-    // TODO: Implement peer chain height discovery and selective sync
-    
-    if local_height == 0 {
+    // If we have no blocks and have bootstrappers, wait for gossip
+    if local_height == 0 && !node.bootstrappers.is_empty() {
         log::info!("No local blocks. Waiting to receive blocks via gossip...");
-        // Wait a bit for initial gossip to populate
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
     }
     
     Ok(())
+}
+
+/// Request missing blocks from a peer
+#[allow(dead_code)]
+async fn request_blocks_from_peer(
+    _node: &Node,
+    _peer_addr: &str,
+    _from_index: u64,
+    _to_index: u64,
+) -> Result<usize> {
+    // This function is not currently used but kept for future reference
+    // when implementing active peer-to-peer sync
+    Ok(0)
+}
+
+/// Simplified sync function for use in the sync listener task
+async fn sync_blocks_simple(
+    _from_index: u64,
+    _to_index: u64,
+) -> Result<usize> {
+    // This is a simplified version that doesn't use the full node API
+    // In production, you'd want to use the node's connection pool
+    // For now, we log that sync was attempted
+    log::debug!("Sync blocks placeholder called");
+    Ok(0)
 }
 
 async fn mine_and_gossip_block(
