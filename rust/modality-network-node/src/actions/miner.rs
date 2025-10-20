@@ -493,8 +493,8 @@ pub async fn request_chain_info_impl(
     log::info!("🔄 Syncing with peer {} using efficient find_ancestor", peer_id);
     
     // Step 1: Find common ancestor using efficient binary search
-    let common_ancestor = match find_common_ancestor_efficient(&swarm, peer_addr.clone(), &datastore, &reqres_response_txs).await {
-        Ok(ancestor) => ancestor,
+    let (common_ancestor, peer_chain_length, peer_cumulative_difficulty) = match find_common_ancestor_efficient(&swarm, peer_addr.clone(), &datastore, &reqres_response_txs).await {
+        Ok(info) => info,
         Err(e) => {
             log::warn!("Failed to find common ancestor with peer {}: {}", peer_id, e);
             return Ok(());
@@ -539,7 +539,7 @@ pub async fn request_chain_info_impl(
         return Ok(());
     };
     
-    let mut all_blocks = Vec::new();
+    let mut all_blocks: Vec<MinerBlock> = Vec::new();
     let mut current_from = from_index;
     let chunk_size = 50; // Reduced from 100 for faster responses
     
@@ -629,18 +629,24 @@ pub async fn request_chain_info_impl(
     
     log::info!("Total blocks received: {}", all_blocks.len());
     
-    // Step 4: Calculate and verify cumulative difficulty
-    let peer_cumulative_difficulty = MinerBlock::calculate_cumulative_difficulty(&all_blocks)?;
-    
+    // Step 4: Compare using peer's FULL chain cumulative difficulty (not just the fetched blocks)
     log::info!(
-        "Chain comparison: Local (length: {}, difficulty: {}) vs Peer (length: {}, difficulty: {})",
+        "Chain comparison: Local (length: {}, difficulty: {}) vs Peer FULL chain (length: {}, difficulty: {})",
         local_chain_length, local_cumulative_difficulty,
-        all_blocks.len(), peer_cumulative_difficulty
+        peer_chain_length, peer_cumulative_difficulty
     );
     
-    // Compare cumulative difficulty
-    if peer_cumulative_difficulty <= local_cumulative_difficulty {
-        log::info!("Our chain has equal or higher cumulative difficulty, keeping it");
+    // Compare cumulative difficulty, using chain length as tiebreaker
+    let should_adopt_peer = peer_cumulative_difficulty > local_cumulative_difficulty ||
+        (peer_cumulative_difficulty == local_cumulative_difficulty && 
+         peer_chain_length > local_chain_length);
+    
+    if !should_adopt_peer {
+        log::info!(
+            "Keeping local chain (difficulty: {}, length: {}) over peer (difficulty: {}, length: {})",
+            local_cumulative_difficulty, local_chain_length,
+            peer_cumulative_difficulty, peer_chain_length
+        );
         // Clean up pending blocks
         let ds = datastore.lock().await;
         let _ = MinerBlock::delete_all_pending(&ds).await;
@@ -1504,12 +1510,13 @@ async fn mine_and_gossip_block(
 /// * `Ok(Some(index))` - The index of the common ancestor
 /// * `Ok(None)` - No common ancestor found (different genesis)
 /// * `Err(_)` - Error during the search
+/// Returns (ancestor_index, peer_chain_length, peer_cumulative_difficulty)
 pub async fn find_common_ancestor_efficient(
     swarm: &std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
     peer_addr: String,
     datastore: &std::sync::Arc<tokio::sync::Mutex<modality_network_datastore::NetworkDatastore>>,
     reqres_response_txs: &std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<crate::reqres::Response>>>>,
-) -> Result<Option<u64>> {
+) -> Result<(Option<u64>, u64, u128)> {
     use libp2p::multiaddr::Multiaddr;
     
     log::info!("🔍 Finding common ancestor with peer using efficient binary search");
@@ -1522,7 +1529,7 @@ pub async fn find_common_ancestor_efficient(
     
     if local_blocks.is_empty() {
         log::info!("Local chain is empty, no common ancestor");
-        return Ok(None);
+        return Ok((None, 0, 0));
     }
     
     let local_chain_length = local_blocks.len() as u64;
@@ -1600,13 +1607,18 @@ pub async fn find_common_ancestor_efficient(
     let highest_match = data.get("highest_match").and_then(|v| v.as_u64());
     let remote_chain_length = data.get("chain_length").and_then(|v| v.as_u64())
         .ok_or_else(|| anyhow::anyhow!("Missing chain_length in response"))?;
+    let remote_cumulative_difficulty = data.get("cumulative_difficulty")
+        .and_then(|v| v.as_str())
+        .and_then(|s| s.parse::<u128>().ok())
+        .ok_or_else(|| anyhow::anyhow!("Missing or invalid cumulative_difficulty in response"))?;
     
-    log::info!("Remote chain length: {}, Initial highest match: {:?}", remote_chain_length, highest_match);
+    log::info!("Remote chain length: {}, cumulative difficulty: {}, Initial highest match: {:?}", 
+        remote_chain_length, remote_cumulative_difficulty, highest_match);
     
     // If no match at all, chains have no common ancestor
     if highest_match.is_none() {
         log::warn!("No common blocks found - chains have completely diverged (different genesis?)");
-        return Ok(None);
+        return Ok((None, remote_chain_length, remote_cumulative_difficulty));
     }
     
     let mut highest_match_idx = highest_match.unwrap();
@@ -1698,7 +1710,7 @@ pub async fn find_common_ancestor_efficient(
     }
     
     log::info!("✅ Found common ancestor at block index {}", highest_match_idx);
-    Ok(Some(highest_match_idx))
+    Ok((Some(highest_match_idx), remote_chain_length, remote_cumulative_difficulty))
 }
 
 
