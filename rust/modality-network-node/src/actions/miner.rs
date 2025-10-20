@@ -1298,19 +1298,57 @@ async fn mine_and_gossip_block(
                 loaded_blocks[0].header.index,
                 loaded_blocks[0].header.hash);
             
-            // Add all subsequent blocks (add_block will handle block_index updates)
+            // Add all subsequent blocks, validating chain continuity
+            // If we encounter a block that doesn't match, we simply stop there
+            // and continue with the longest valid chain we can build
+            let mut last_valid_index = 0;
+            let mut stopped_at_index = None;
+            
             for (i, block) in loaded_blocks.into_iter().skip(1).enumerate() {
                 log::debug!("Adding block {} (index: {}, prev_hash: {}, hash: {})", 
                     i + 1,
                     block.header.index,
                     &block.header.previous_hash[..16],
                     &block.header.hash[..16]);
-                chain.add_block(block)?;
+                
+                // Try to add the block
+                match chain.add_block(block.clone()) {
+                    Ok(()) => {
+                        last_valid_index = block.header.index;
+                    }
+                    Err(e) => {
+                        // Block doesn't fit in this chain - this could be a fork
+                        // Stop here and let the mining logic continue from the valid chain
+                        log::warn!("⚠️  Block {} doesn't fit in chain: {}. Stopping reconstruction here.", 
+                            block.header.index, e);
+                        log::info!("Chain will continue from last valid block at index {}", last_valid_index);
+                        stopped_at_index = Some(block.header.index);
+                        break;
+                    }
+                }
             }
             
-            log::info!("Reconstructed chain with {} blocks (height: {})", 
-                chain.blocks.len(),
-                chain.height());
+            // Log information about the reconstruction
+            if let Some(stopped_index) = stopped_at_index {
+                log::warn!("⚠️  Chain reconstruction stopped at index {} due to discontinuity", stopped_index);
+                log::info!("Built chain with {} valid blocks (height: {})", 
+                    chain.blocks.len(),
+                    chain.height());
+                
+                // If we're trying to mine a block but our chain has a discontinuity,
+                // it means we might be behind. Return an error to trigger retry/sync.
+                if index > chain.height() + 1 {
+                    drop(ds_guard);
+                    return Err(anyhow::anyhow!(
+                        "Chain has discontinuity at index {}. Need to sync with peers to resolve. Current chain height: {}, trying to mine: {}",
+                        stopped_index, chain.height(), index
+                    ));
+                }
+            } else {
+                log::info!("Reconstructed complete chain with {} blocks (height: {})", 
+                    chain.blocks.len(),
+                    chain.height());
+            }
             
             drop(ds_guard); // Release the lock
             chain

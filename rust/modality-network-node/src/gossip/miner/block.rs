@@ -159,6 +159,8 @@ pub async fn handler(
     // **SECOND**: Validate we have the parent block (chain continuity)
     if miner_block.index > 0 {
         let ds = datastore.lock().await;
+        
+        // Check if the parent exists by hash
         match MinerBlock::find_by_hash(&ds, &miner_block.previous_hash).await? {
             None => {
                 log::warn!(
@@ -227,6 +229,21 @@ pub async fn handler(
                         miner_block.index
                     );
                     return Ok(());
+                }
+                
+                // CRITICAL: Also check if there's a DIFFERENT canonical block at index-1
+                // This prevents accepting a block that builds on an orphaned parent
+                if let Ok(Some(canonical_at_parent_index)) = MinerBlock::find_canonical_by_index(&ds, miner_block.index - 1).await {
+                    if canonical_at_parent_index.hash != miner_block.previous_hash {
+                        log::warn!(
+                            "⚠️  Block {} builds on orphaned parent. Canonical block at index {} has hash {}, but this block expects {}. Rejecting.",
+                            miner_block.index,
+                            miner_block.index - 1,
+                            &canonical_at_parent_index.hash[..16],
+                            &miner_block.previous_hash[..16]
+                        );
+                        return Ok(());
+                    }
                 }
                 
                 log::debug!("Parent block validated for block {}", miner_block.index);
