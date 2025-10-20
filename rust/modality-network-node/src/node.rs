@@ -46,6 +46,8 @@ pub struct Node {
     pub ignored_peers: Arc<Mutex<HashMap<PeerId, IgnoredPeerInfo>>>,
     pub sync_request_tx: Option<mpsc::UnboundedSender<(PeerId, String)>>, // Set later in miner run
     pub mining_update_tx: Option<mpsc::UnboundedSender<u64>>, // Set in miner run to notify of chain tip updates
+    // Response channels for reqres requests - networking task forwards responses here
+    pub reqres_response_txs: Arc<Mutex<HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<crate::reqres::Response>>>>,
     consensus_runner: Option<modality_network_consensus::runner::Runner>,
     networking_task: Option<tokio::task::JoinHandle<Result<()>>>,
     consensus_task: Option<tokio::task::JoinHandle<Result<()>>>,
@@ -106,6 +108,7 @@ impl Node {
             ignored_peers: Arc::new(Mutex::new(HashMap::new())),
             sync_request_tx: None, // Will be set in miner run()
             mining_update_tx: None, // Will be set in miner run()
+            reqres_response_txs: Arc::new(Mutex::new(HashMap::new())),
             networking_task: None,
             consensus_task: None,
             autoupgrade_task: None,
@@ -364,6 +367,7 @@ impl Node {
         let sync_request_tx = self.sync_request_tx.clone();
         let mining_update_tx = self.mining_update_tx.clone();
         let bootstrappers = self.bootstrappers.clone();
+        let reqres_response_txs = self.reqres_response_txs.clone();
 
         self.networking_task = Some(tokio::spawn(async move {
             loop {
@@ -413,8 +417,16 @@ impl Node {
                                     swarm_lock.behaviour_mut().reqres.send_response(channel, res)
                                         .expect("failed to respond")
                                 }
-                                request_response::Message::Response { .. } => {
-                                    log::info!("reqres response")
+                                request_response::Message::Response { request_id, response } => {
+                                    log::debug!("reqres response received for request {:?}", request_id);
+                                    // Forward response to the waiting caller via channel
+                                    let mut txs = reqres_response_txs.lock().await;
+                                    if let Some(tx) = txs.remove(&request_id) {
+                                        log::debug!("Forwarding response to caller");
+                                        let _ = tx.send(response); // Ignore error if receiver dropped
+                                    } else {
+                                        log::warn!("Received response for unknown request {:?}", request_id);
+                                    }
                                 }
                             }
                             SwarmEvent::Behaviour(crate::swarm::NodeBehaviourEvent::Gossipsub(

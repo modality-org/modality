@@ -36,6 +36,7 @@ pub async fn create_swarm(local_key: identity::Keypair) -> Result<NodeSwarm> {
     let reqres_behaviour = reqres::Behaviour::new(
         [(swarm::StreamProtocol::new(reqres::PROTOCOL), request_response::ProtocolSupport::Full)],
         request_response::Config::default()
+            .with_request_timeout(Duration::from_secs(60)) // Longer timeout for large transfers
     );
 
 

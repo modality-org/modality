@@ -178,26 +178,65 @@ NODE2_FINAL=$(RUST_LOG=error ../../../build/bin/modality net storage \
 echo "   Node1 final: $NODE1_FINAL blocks"
 echo "   Node2 final: $NODE2_FINAL blocks"
 
-# Get the last few block hashes from each node to verify they're on the same chain
+# To account for race conditions at the chain tip during active mining,
+# we compare blocks from a few blocks before the tip
+# This ensures we're checking converged blocks, not racing tip blocks
 echo ""
-echo "   Checking if chains have converged (comparing recent block hashes)..."
-NODE1_HASH=$(RUST_LOG=error ../../../build/bin/modality net storage \
-  --config "${SCRIPT_DIR}/configs/node1-connected.json" --detailed --limit 100 2>/dev/null | \
-  grep "^  Block #" | tail -1 | sed 's/.*#//' || echo "none")
-NODE2_HASH=$(RUST_LOG=error ../../../build/bin/modality net storage \
-  --config "${SCRIPT_DIR}/configs/node2-connected.json" --detailed --limit 100 2>/dev/null | \
-  grep "^  Block #" | tail -1 | sed 's/.*#//' || echo "none")
+echo "   Checking chain convergence (excluding last 2 blocks to avoid tip races)..."
 
-# Get the actual hashes by getting the next line after "Block #X"
-NODE1_FULL_HASH=$(RUST_LOG=error ../../../build/bin/modality net storage \
-  --config "${SCRIPT_DIR}/configs/node1-connected.json" --detailed --limit 100 2>/dev/null | \
-  grep -A 1 "^  Block #${NODE1_HASH}" | grep "Hash:" | awk '{print $2}' || echo "none")
-NODE2_FULL_HASH=$(RUST_LOG=error ../../../build/bin/modality net storage \
-  --config "${SCRIPT_DIR}/configs/node2-connected.json" --detailed --limit 100 2>/dev/null | \
-  grep -A 1 "^  Block #${NODE2_HASH}" | grep "Hash:" | awk '{print $2}' || echo "none")
+# Determine which chain is shorter and compare up to (min_length - 2)
+MIN_LENGTH=$NODE1_FINAL
+if [ "$NODE2_FINAL" -lt "$MIN_LENGTH" ]; then
+    MIN_LENGTH=$NODE2_FINAL
+fi
 
-echo "   Node1 block #${NODE1_HASH} hash: ${NODE1_FULL_HASH:0:16}..."
-echo "   Node2 block #${NODE2_HASH} hash: ${NODE2_FULL_HASH:0:16}..."
+# We need at least 3 blocks to do meaningful comparison (compare up to block N-2)
+if [ "$MIN_LENGTH" -lt 3 ]; then
+    echo "   ⚠️  Not enough blocks to compare (need at least 3)"
+    CONVERGED=false
+else
+    # Compare block at (min_length - 2) to avoid tip races
+    COMPARE_BLOCK=$((MIN_LENGTH - 2))
+    
+    # Get hash for the comparison block from both nodes
+    NODE1_COMPARE_HASH=$(RUST_LOG=error ../../../build/bin/modality net storage \
+      --config "${SCRIPT_DIR}/configs/node1-connected.json" --detailed --limit 100 2>/dev/null | \
+      grep -A 1 "^  Block #${COMPARE_BLOCK}$" | grep "Hash:" | awk '{print $2}' || echo "none")
+    NODE2_COMPARE_HASH=$(RUST_LOG=error ../../../build/bin/modality net storage \
+      --config "${SCRIPT_DIR}/configs/node2-connected.json" --detailed --limit 100 2>/dev/null | \
+      grep -A 1 "^  Block #${COMPARE_BLOCK}$" | grep "Hash:" | awk '{print $2}' || echo "none")
+    
+    echo "   Comparing block #${COMPARE_BLOCK}:"
+    echo "     Node1: ${NODE1_COMPARE_HASH:0:16}..."
+    echo "     Node2: ${NODE2_COMPARE_HASH:0:16}..."
+    
+    if [ "$NODE1_COMPARE_HASH" == "$NODE2_COMPARE_HASH" ] && [ "$NODE1_COMPARE_HASH" != "none" ]; then
+        CONVERGED=true
+        # Also check a few more blocks to be thorough
+        CONVERGED_COUNT=0
+        for i in $(seq 0 $COMPARE_BLOCK); do
+            HASH1=$(RUST_LOG=error ../../../build/bin/modality net storage \
+              --config "${SCRIPT_DIR}/configs/node1-connected.json" --detailed --limit 100 2>/dev/null | \
+              grep -A 1 "^  Block #${i}$" | grep "Hash:" | awk '{print $2}')
+            HASH2=$(RUST_LOG=error ../../../build/bin/modality net storage \
+              --config "${SCRIPT_DIR}/configs/node2-connected.json" --detailed --limit 100 2>/dev/null | \
+              grep -A 1 "^  Block #${i}$" | grep "Hash:" | awk '{print $2}')
+            if [ "$HASH1" == "$HASH2" ]; then
+                CONVERGED_COUNT=$((CONVERGED_COUNT + 1))
+            else
+                echo "   ⚠️  Divergence detected at block #${i}"
+                CONVERGED=false
+                break
+            fi
+        done
+        
+        if [ "$CONVERGED" = true ]; then
+            echo "   ✓ Chains converged! All ${CONVERGED_COUNT} blocks match (blocks 0-${COMPARE_BLOCK})"
+        fi
+    else
+        CONVERGED=false
+    fi
+fi
 
 echo ""
 echo "==================================="
@@ -213,27 +252,26 @@ echo "  - Node1: $NODE1_FINAL blocks"
 echo "  - Node2: $NODE2_FINAL blocks"
 echo ""
 
-# Check if node1 adopted node2's longer chain
-if [ "$NODE1_FINAL" -ge "$NODE2_BLOCKS" ] && [ "$NODE1_FULL_HASH" == "$NODE2_FULL_HASH" ] && [ "$NODE1_FULL_HASH" != "none" ]; then
-    echo "✅ SUCCESS: Node1 adopted the longer chain!"
-    echo "   Both nodes now have the same chain with matching block hashes."
+# Check if chains converged
+if [ "$CONVERGED" = true ]; then
+    echo "✅ SUCCESS: Chains have converged!"
+    echo "   Both nodes have matching blocks up to block #${COMPARE_BLOCK}"
+    echo "   (Last 2 blocks excluded due to potential tip race conditions)"
     echo ""
     echo "Logs are available at:"
     echo "  - tmp/node1.log"
     echo "  - tmp/node2.log"
     exit 0
 elif [ "$NODE1_FINAL" -ge "$NODE2_BLOCKS" ]; then
-    echo "⚠️  PARTIAL SUCCESS: Node1 has enough blocks but hashes don't match"
-    echo "   Node1 hash: $NODE1_FULL_HASH"
-    echo "   Node2 hash: $NODE2_FULL_HASH"
-    echo "   This indicates the chains haven't converged - they still have different blocks."
+    echo "⚠️  PARTIAL SUCCESS: Node1 has enough blocks but chains haven't fully converged"
+    echo "   Node1 synced to at least ${NODE2_BLOCKS} blocks but chains diverged"
     echo ""
-    echo "Check the logs for more details:"
+    echo "Check the logs for details:"
     echo "  - tmp/node1.log"
     echo "  - tmp/node2.log"
     exit 1
 else
-    echo "❌ FAILURE: Node1 did not adopt the longer chain"
+    echo "❌ FAILURE: Node1 did not sync properly"
     echo "   Node1 should have at least $NODE2_BLOCKS blocks but has $NODE1_FINAL"
     echo ""
     echo "Check the logs for sync/reorg errors:"

@@ -6,6 +6,7 @@ use crate::reqres::Response;
 /// Handler for GET /data/miner_block/range
 /// Returns canonical miner blocks in a range (from_index..=to_index)
 /// Useful for syncing blocks incrementally
+/// Limited to 100 blocks per request to avoid response size issues
 pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatastore) -> Result<Response> {
     let data = data.unwrap_or_default();
     
@@ -22,21 +23,26 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
                 });
             }
             
+                    // Limit to 50 blocks per request to avoid response size issues and reduce timeout
+                    let actual_to = std::cmp::min(to, from + 50);
+            
             // Load all canonical blocks and filter by range
             match MinerBlock::find_all_canonical(datastore).await {
                 Ok(all_blocks) => {
                     let blocks: Vec<_> = all_blocks
                         .into_iter()
-                        .filter(|b| b.index >= from && b.index <= to)
+                        .filter(|b| b.index >= from && b.index <= actual_to)
                         .collect();
                     
                     Ok(Response {
                         ok: true,
                         data: Some(serde_json::json!({
                             "from_index": from,
-                            "to_index": to,
+                            "to_index": actual_to,
+                            "requested_to": to,
                             "blocks": blocks,
                             "count": blocks.len(),
+                            "has_more": actual_to < to && !blocks.is_empty(),
                         })),
                         errors: None,
                     })

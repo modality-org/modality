@@ -3,6 +3,7 @@ use libp2p::gossipsub::IdentTopic;
 use modality_network_datastore::Model;
 use modality_network_datastore::models::MinerBlock;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::Mutex;
 
 use crate::node::Node;
@@ -30,13 +31,35 @@ pub async fn run(node: &mut Node) -> Result<()> {
     let sync_node_datastore = node.datastore.clone();
     let sync_node_swarm = node.swarm.clone();
     let sync_node_ignored_peers = node.ignored_peers.clone();
+    let sync_node_reqres_txs = node.reqres_response_txs.clone();
     let (sync_request_tx, mut sync_request_rx) = tokio::sync::mpsc::unbounded_channel();
     // Set the node's channel so gossip handler can send to our new receiver
     node.sync_request_tx = Some(sync_request_tx);
     let mining_update_tx_for_sync = mining_update_tx.clone();
     
+    // Shared flag to pause mining during sync
+    let sync_in_progress = Arc::new(AtomicBool::new(false));
+    let sync_in_progress_for_request = sync_in_progress.clone();
+    
+    // Track which peers are currently being synced to avoid duplicate requests
+    let syncing_peers = Arc::new(Mutex::new(std::collections::HashSet::<libp2p::PeerId>::new()));
+    let syncing_peers_clone = syncing_peers.clone();
+    
     tokio::spawn(async move {
         while let Some((peer_id, peer_addr)) = sync_request_rx.recv().await {
+            // Check if we're already syncing with this peer
+            {
+                let mut peers = syncing_peers_clone.lock().await;
+                if peers.contains(&peer_id) {
+                    log::debug!("Sync already in progress for peer {}, skipping duplicate request", peer_id);
+                    continue;
+                }
+                peers.insert(peer_id);
+            }
+            
+            // Signal mining to pause during sync
+            sync_in_progress_for_request.store(true, Ordering::Relaxed);
+            
             log::info!("🔄 Processing sync request for peer {}", peer_id);
             
             // Create a temporary mutable node-like structure for request_chain_info
@@ -47,6 +70,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 sync_node_swarm.clone(),
                 sync_node_datastore.clone(),
                 sync_node_ignored_peers.clone(),
+                sync_node_reqres_txs.clone(),
             ).await;
             
             match result {
@@ -70,6 +94,13 @@ pub async fn run(node: &mut Node) -> Result<()> {
                     log::warn!("Chain sync failed for peer {}: {}", peer_id, e);
                 }
             }
+            
+            // Remove peer from syncing set and resume mining
+            {
+                let mut peers = syncing_peers_clone.lock().await;
+                peers.remove(&peer_id);
+            }
+            sync_in_progress_for_request.store(false, Ordering::Relaxed);
         }
     });
 
@@ -106,19 +137,28 @@ pub async fn run(node: &mut Node) -> Result<()> {
     let sync_datastore = node.datastore.clone();
     let sync_swarm = node.swarm.clone();
     let sync_bootstrappers = node.bootstrappers.clone();
+    let sync_reqres_txs = node.reqres_response_txs.clone();
     let mut sync_trigger_rx = node.sync_trigger_tx.subscribe();
     let mining_update_tx_clone = mining_update_tx.clone();
     
+    // Use the same sync flag for the background sync listener
+    let sync_in_progress_clone = sync_in_progress.clone();
+    
     tokio::spawn(async move {
         let mut last_sync_time = std::time::Instant::now();
-        let sync_cooldown = std::time::Duration::from_secs(5);
+        // Reduced from 5s to 500ms for faster convergence during active mining
+        let sync_cooldown = std::time::Duration::from_millis(500);
         
         while let Ok(target_index) = sync_trigger_rx.recv().await {
-            // Rate limit syncs
+            // Rate limit syncs (but much faster than before)
             if last_sync_time.elapsed() < sync_cooldown {
-                log::debug!("Sync cooldown active, skipping");
+                log::debug!("Sync cooldown active ({}ms remaining)", 
+                    sync_cooldown.as_millis().saturating_sub(last_sync_time.elapsed().as_millis()));
                 continue;
             }
+            
+            // Signal mining to pause
+            sync_in_progress_clone.store(true, Ordering::Relaxed);
             
             log::info!("🔄 Sync requested for blocks up to index {}", target_index);
             last_sync_time = std::time::Instant::now();
@@ -246,7 +286,8 @@ pub async fn run(node: &mut Node) -> Result<()> {
                     peer_addr.to_string(),
                     first_index,
                     target_index,
-                    &sync_datastore
+                    &sync_datastore,
+                    &sync_reqres_txs
                 ).await {
                     Ok(count) if count > 0 => {
                         log::info!("✓ Successfully synced {} blocks!", count);
@@ -274,6 +315,9 @@ pub async fn run(node: &mut Node) -> Result<()> {
             } else {
                 log::warn!("No peers available for sync");
             }
+            
+            // Resume mining after sync completes
+            sync_in_progress_clone.store(false, Ordering::Relaxed);
         }
     });
 
@@ -294,6 +338,13 @@ pub async fn run(node: &mut Node) -> Result<()> {
         let mut current_index = starting_index;
         
         loop {
+            // Check if sync is in progress and pause mining if so
+            if sync_in_progress.load(Ordering::Relaxed) {
+                log::debug!("⏸️  Mining paused - sync in progress");
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                continue;
+            }
+            
             // Non-blocking check for view updates from sync/gossip
             while let Ok(new_tip_index) = mining_update_rx.try_recv() {
                 let next_index = new_tip_index + 1;
@@ -418,15 +469,16 @@ pub async fn run(node: &mut Node) -> Result<()> {
 
 /// Request chain info from a peer and perform sync if their chain has higher cumulative difficulty
 /// This is called when we detect an orphan block from a peer
+/// 
+/// Uses the efficient find_ancestor reqres route to find common ancestor via binary search
 async fn request_chain_info_impl(
     peer_id: libp2p::PeerId,
     peer_addr: String,
     swarm: std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
     datastore: std::sync::Arc<tokio::sync::Mutex<modality_network_datastore::NetworkDatastore>>,
     ignored_peers: std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<libp2p::PeerId, crate::node::IgnoredPeerInfo>>>,
+    reqres_response_txs: std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<crate::reqres::Response>>>>,
 ) -> Result<()> {
-    use libp2p::multiaddr::Multiaddr;
-    
     // Check if peer is ignored
     {
         let ignored = ignored_peers.lock().await;
@@ -438,73 +490,30 @@ async fn request_chain_info_impl(
         }
     }
     
-    log::info!("🔄 Requesting chain info from peer {}", peer_id);
+    log::info!("🔄 Syncing with peer {} using efficient find_ancestor", peer_id);
     
-    // Get our local block hashes for common ancestor detection
-    let local_hashes = {
-        let ds = datastore.lock().await;
-        let blocks = MinerBlock::find_all_canonical(&ds).await?;
-        blocks.iter().map(|b| b.hash.clone()).collect::<Vec<String>>()
-    };
-    
-    let ma: Multiaddr = peer_addr.parse()?;
-    let Some(libp2p::multiaddr::Protocol::P2p(target_peer_id)) = ma.iter().last() else {
-        anyhow::bail!("Invalid peer address - missing PeerID");
-    };
-    
-    // Request chain info WITH blocks in a single batched request
-    let request = crate::reqres::Request {
-        path: "/data/miner_block/chain_info".to_string(),
-        data: Some(serde_json::json!({
-            "local_block_hashes": local_hashes,
-            "include_blocks": true,  // Get blocks immediately
-        })),
-    };
-    
-    let request_id = {
-        let mut swarm_lock = swarm.lock().await;
-        swarm_lock.behaviour_mut().reqres.send_request(&target_peer_id, request)
-    };
-    
-    log::debug!("Sent chain info request (id: {:?}) to peer {}", request_id, peer_id);
-    
-    // Wait for response with timeout
-    let response = match tokio::time::timeout(
-        std::time::Duration::from_secs(30),
-        wait_for_reqres_response(&swarm, request_id)
-    ).await {
-        Ok(Ok(resp)) => resp,
-        Ok(Err(e)) => {
-            log::warn!("Failed to get response from peer {}: {}", peer_id, e);
-            return Ok(());
-        }
-        Err(_) => {
-            log::warn!("Request to peer {} timed out", peer_id);
+    // Step 1: Find common ancestor using efficient binary search
+    let common_ancestor = match find_common_ancestor_efficient(&swarm, peer_addr.clone(), &datastore, &reqres_response_txs).await {
+        Ok(ancestor) => ancestor,
+        Err(e) => {
+            log::warn!("Failed to find common ancestor with peer {}: {}", peer_id, e);
             return Ok(());
         }
     };
     
-    if !response.ok {
-        log::warn!("Peer returned error for chain info: {:?}", response.errors);
-        return Ok(());
-    }
-    
-    let Some(ref data) = response.data else {
-        log::warn!("Peer returned no data for chain info");
-        return Ok(());
+    // Step 2: Determine which blocks to request
+    let from_index = match common_ancestor {
+        Some(ancestor_index) => {
+            log::info!("✓ Found common ancestor at index {}", ancestor_index);
+            ancestor_index + 1 // Request blocks after the common ancestor
+        }
+        None => {
+            log::warn!("⚠️  No common ancestor found - chains completely diverged");
+            0 // Request full chain from genesis
+        }
     };
     
-    // Parse chain info
-    let peer_cumulative_difficulty_str = data.get("cumulative_difficulty")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("Missing cumulative_difficulty"))?;
-    let peer_cumulative_difficulty: u128 = peer_cumulative_difficulty_str.parse()?;
-    
-    let peer_chain_length = data.get("chain_length")
-        .and_then(|v| v.as_u64())
-        .ok_or_else(|| anyhow::anyhow!("Missing chain_length"))?;
-    
-    // Calculate our cumulative difficulty
+    // Get our local chain info for comparison
     let (local_cumulative_difficulty, local_chain_length) = {
         let ds = datastore.lock().await;
         let blocks = MinerBlock::find_all_canonical(&ds).await?;
@@ -512,139 +521,212 @@ async fn request_chain_info_impl(
         (local_difficulty, blocks.len() as u64)
     };
     
+    // Step 3: Request blocks from peer starting from the divergence point
+    // Request in chunks of 100 blocks to avoid response size issues
+    log::info!("📥 Requesting blocks from index {} onwards from peer", from_index);
+    
+    use libp2p::multiaddr::Multiaddr;
+    let ma: Multiaddr = match peer_addr.parse() {
+        Ok(addr) => addr,
+        Err(e) => {
+            log::error!("Failed to parse peer address '{}': {}", peer_addr, e);
+            return Ok(());
+        }
+    };
+    
+    let Some(libp2p::multiaddr::Protocol::P2p(target_peer_id)) = ma.iter().last() else {
+        log::error!("Invalid peer address - missing PeerID: {}", peer_addr);
+        return Ok(());
+    };
+    
+    let mut all_blocks = Vec::new();
+    let mut current_from = from_index;
+    let chunk_size = 50; // Reduced from 100 for faster responses
+    
+    // Request blocks in chunks
+    loop {
+        log::debug!("Requesting blocks {}..{} from peer", current_from, current_from + chunk_size);
+        
+        let request = crate::reqres::Request {
+            path: "/data/miner_block/range".to_string(),
+            data: Some(serde_json::json!({
+                "from_index": current_from,
+                "to_index": current_from + chunk_size
+            })),
+        };
+        
+        let request_id = {
+            let mut swarm_lock = swarm.lock().await;
+            swarm_lock.behaviour_mut().reqres.send_request(&target_peer_id, request)
+        };
+        
+        log::debug!("Block range request sent with ID: {:?}", request_id);
+        
+        // Wait for response with timeout (60s to account for networking task contention)
+        let response = match tokio::time::timeout(
+            std::time::Duration::from_secs(60),
+            wait_for_reqres_response(&reqres_response_txs, request_id)
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                log::warn!("Failed to get block range from peer {}: {}", peer_id, e);
+                break;
+            }
+            Err(_) => {
+                log::warn!("Block range request to peer {} timed out", peer_id);
+                break;
+            }
+        };
+        
+        if !response.ok {
+            log::warn!("Peer returned error for block range: {:?}", response.errors);
+            break;
+        }
+        
+        let Some(ref data) = response.data else {
+            log::warn!("Peer returned no data for block range");
+            break;
+        };
+        
+        // Parse blocks from response
+        let Some(blocks_json) = data.get("blocks").and_then(|b| b.as_array()) else {
+            log::warn!("No blocks array in response");
+            break;
+        };
+        
+        if blocks_json.is_empty() {
+            log::info!("No more blocks available from peer");
+            break;
+        }
+        
+        log::info!("Received {} blocks from peer (indices {}..{})", 
+            blocks_json.len(), current_from, current_from + blocks_json.len() as u64);
+        
+        // Parse and add blocks
+        for block_json in blocks_json {
+            match serde_json::from_value(block_json.clone()) {
+                Ok(block) => all_blocks.push(block),
+                Err(e) => {
+                    log::warn!("Failed to parse block: {}", e);
+                }
+            }
+        }
+        
+        // Check if there are more blocks to fetch
+        let has_more = data.get("has_more").and_then(|v| v.as_bool()).unwrap_or(false);
+        if !has_more {
+            log::info!("Received all available blocks from peer");
+            break;
+        }
+        
+        current_from += blocks_json.len() as u64;
+    }
+    
+    if all_blocks.is_empty() {
+        log::info!("No blocks received from peer");
+        return Ok(());
+    }
+    
+    log::info!("Total blocks received: {}", all_blocks.len());
+    
+    // Step 4: Calculate and verify cumulative difficulty
+    let peer_cumulative_difficulty = MinerBlock::calculate_cumulative_difficulty(&all_blocks)?;
+    
     log::info!(
         "Chain comparison: Local (length: {}, difficulty: {}) vs Peer (length: {}, difficulty: {})",
         local_chain_length, local_cumulative_difficulty,
-        peer_chain_length, peer_cumulative_difficulty
+        all_blocks.len(), peer_cumulative_difficulty
     );
     
     // Compare cumulative difficulty
     if peer_cumulative_difficulty <= local_cumulative_difficulty {
         log::info!("Our chain has equal or higher cumulative difficulty, keeping it");
+        // Clean up pending blocks
+        let ds = datastore.lock().await;
+        let _ = MinerBlock::delete_all_pending(&ds).await;
         return Ok(());
     }
     
-    // Peer has higher cumulative difficulty - process blocks
-    log::info!("✅ Peer has higher cumulative difficulty - processing blocks");
+    log::info!("✅ Peer chain has higher cumulative difficulty - adopting it");
     
-    let Some(blocks_array) = data.get("blocks").and_then(|b| b.as_array()) else {
-        log::warn!("No blocks array in response");
-        return Ok(());
-    };
-    
-    if blocks_array.is_empty() {
-        log::info!("No new blocks to sync");
-        return Ok(());
-    }
-    
-    log::info!("Received {} blocks from peer - saving as pending", blocks_array.len());
-    
-    // Parse and save blocks as pending (non-canonical)
-    let mut pending_blocks = Vec::new();
+    // Step 5: Save blocks as pending first
     {
         let ds = datastore.lock().await;
-        
-        for block_json in blocks_array {
-            let block: MinerBlock = serde_json::from_value(block_json.clone())?;
+        for block in &all_blocks {
             block.save_as_pending(&ds).await?;
-            pending_blocks.push(block);
         }
+        log::debug!("Saved {} blocks as pending for verification", all_blocks.len());
     }
     
-    // Verify cumulative difficulty
-    let verified_cumulative_difficulty = MinerBlock::calculate_cumulative_difficulty(&pending_blocks)?;
-    
-    log::info!(
-        "Verifying: Calculated {} from {} blocks (peer claimed {})",
-        verified_cumulative_difficulty, pending_blocks.len(), peer_cumulative_difficulty
-    );
-    
-    // The verified difficulty should be reasonable
-    if verified_cumulative_difficulty == 0 || verified_cumulative_difficulty > peer_cumulative_difficulty * 2 {
-        log::error!(
-            "⚠️  VERIFICATION FAILED: Unexpected cumulative difficulty"
-        );
-        
-        {
+    // Step 6: Verify blocks form a valid chain
+    // Ensure blocks are consecutive and properly linked
+    all_blocks.sort_by_key(|b| b.index);
+    for i in 1..all_blocks.len() {
+        if all_blocks[i].index != all_blocks[i-1].index + 1 {
+            log::error!("⚠️  Blocks not consecutive: gap between {} and {}", 
+                all_blocks[i-1].index, all_blocks[i].index);
             let ds = datastore.lock().await;
-            MinerBlock::delete_all_pending(&ds).await?;
+            let _ = MinerBlock::delete_all_pending(&ds).await;
+            return Ok(());
         }
-        
-        // Ignore peer with exponential backoff
-        let mut ignored = ignored_peers.lock().await;
-        let (new_count, duration_secs) = if let Some(existing) = ignored.get(&peer_id) {
-            let new_count = existing.ignore_count + 1;
-            (new_count, 60 * (1 << new_count.min(10)))
-        } else {
-            (0, 60)
-        };
-        ignored.insert(peer_id, crate::node::IgnoredPeerInfo {
-            ignore_until: std::time::Instant::now() + std::time::Duration::from_secs(duration_secs),
-            ignore_count: new_count,
-        });
-        log::warn!("Ignoring dishonest peer {} for {} seconds", peer_id, duration_secs);
-        
-        return Ok(());
+        if all_blocks[i].previous_hash != all_blocks[i-1].hash {
+            log::error!("⚠️  Invalid chain: block {} prev_hash doesn't match block {} hash",
+                all_blocks[i].index, all_blocks[i-1].index);
+            let ds = datastore.lock().await;
+            let _ = MinerBlock::delete_all_pending(&ds).await;
+            return Ok(());
+        }
     }
     
-    // Verification passed - canonize pending blocks and orphan competing local blocks
-    log::info!("✅ Verification passed - adopting peer's chain");
+    log::info!("✓ Peer chain validation passed");
     
+    // Step 7: Orphan competing local blocks and canonize peer blocks
     {
         let ds = datastore.lock().await;
         
-        // Find local blocks that compete
+        // Find local blocks that compete with peer blocks
         let local_blocks = MinerBlock::find_all_canonical(&ds).await?;
         
-        for pending in &pending_blocks {
-            if let Some(local) = local_blocks.iter().find(|b| b.index == pending.index && b.hash != pending.hash) {
+        for block in &all_blocks {
+            if let Some(local) = local_blocks.iter().find(|b| b.index == block.index && b.hash != block.hash) {
                 log::info!("Orphaning local block {} at index {}", &local.hash[..16], local.index);
                 let mut orphaned = local.clone();
                 orphaned.mark_as_orphaned(
-                    format!("Replaced by peer chain with higher cumulative difficulty"),
-                    Some(pending.hash.clone())
+                    format!("Replaced by peer chain with higher cumulative difficulty ({} vs {})", 
+                        peer_cumulative_difficulty, local_cumulative_difficulty),
+                    Some(block.hash.clone())
                 );
                 orphaned.save(&ds).await?;
             }
         }
         
         // Canonize all pending blocks
-        for mut pending in pending_blocks {
-            pending.canonize(&ds).await?;
+        for block in &mut all_blocks {
+            block.canonize(&ds).await?;
         }
     }
     
-    log::info!("🎉 Successfully adopted peer's chain!");
+    log::info!("🎉 Successfully adopted peer's chain with {} blocks!", all_blocks.len());
     
     Ok(())
 }
 
-/// Helper to wait for a reqres response
+/// Helper to wait for a reqres response using channels (no swarm lock contention)
 async fn wait_for_reqres_response(
-    swarm: &std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
+    node_reqres_txs: &std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<crate::reqres::Response>>>>,
     request_id: libp2p::request_response::OutboundRequestId,
 ) -> Result<crate::reqres::Response> {
-    use futures::StreamExt;
+    // Create a oneshot channel for this request
+    let (tx, rx) = tokio::sync::oneshot::channel();
     
-    loop {
-        let event = {
-            let mut swarm_lock = swarm.lock().await;
-            swarm_lock.select_next_some().await
-        };
-        
-        if let libp2p::swarm::SwarmEvent::Behaviour(
-            crate::swarm::NodeBehaviourEvent::Reqres(
-                libp2p::request_response::Event::Message {
-                    message: libp2p::request_response::Message::Response { request_id: rid, response },
-                    ..
-                }
-            )
-        ) = event {
-            if rid == request_id {
-                return Ok(response);
-            }
-        }
+    // Register the channel
+    {
+        let mut txs = node_reqres_txs.lock().await;
+        txs.insert(request_id, tx);
     }
+    
+    // Wait for the response from the networking task
+    rx.await.map_err(|_| anyhow::anyhow!("Response channel closed"))
 }
 
 /// Announce our chain tip to connected peers
@@ -726,6 +808,7 @@ async fn request_block_range_from_peer(
     from_index: u64,
     to_index: u64,
     datastore: &std::sync::Arc<tokio::sync::Mutex<modality_network_datastore::NetworkDatastore>>,
+    reqres_response_txs: &std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<crate::reqres::Response>>>>,
 ) -> Result<usize> {
     use libp2p::multiaddr::Multiaddr;
     use crate::reqres;
@@ -754,10 +837,10 @@ async fn request_block_range_from_peer(
     
     log::debug!("Request sent with ID: {:?}", request_id);
     
-    // Wait for response (with timeout)
+    // Wait for response (with timeout - 60s to handle networking task contention)
     let response = tokio::time::timeout(
-        std::time::Duration::from_secs(10),
-        wait_for_reqres_response(swarm, request_id)
+        std::time::Duration::from_secs(60),
+        wait_for_reqres_response(&reqres_response_txs, request_id)
     ).await??;
     
     if !response.ok {
@@ -1366,6 +1449,7 @@ pub async fn find_common_ancestor_efficient(
     swarm: &std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
     peer_addr: String,
     datastore: &std::sync::Arc<tokio::sync::Mutex<modality_network_datastore::NetworkDatastore>>,
+    reqres_response_txs: &std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<crate::reqres::Response>>>>,
 ) -> Result<Option<u64>> {
     use libp2p::multiaddr::Multiaddr;
     
@@ -1441,8 +1525,8 @@ pub async fn find_common_ancestor_efficient(
     };
     
     let response = match tokio::time::timeout(
-        std::time::Duration::from_secs(10),
-        wait_for_reqres_response(swarm, request_id)
+        std::time::Duration::from_secs(60),
+        wait_for_reqres_response(&reqres_response_txs, request_id)
     ).await {
         Ok(Ok(resp)) => resp,
         Ok(Err(e)) => return Err(e),
@@ -1522,8 +1606,8 @@ pub async fn find_common_ancestor_efficient(
         };
         
         let response = match tokio::time::timeout(
-            std::time::Duration::from_secs(10),
-            wait_for_reqres_response(swarm, request_id)
+            std::time::Duration::from_secs(60),
+            wait_for_reqres_response(&reqres_response_txs, request_id)
         ).await {
             Ok(Ok(resp)) => resp,
             Ok(Err(e)) => return Err(e),

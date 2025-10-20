@@ -88,7 +88,75 @@ pub async fn handler(
         }
     }
     
-    // Validate we have the parent block (chain continuity)
+    // Track if we save a new block or update the chain tip
+    let mut chain_tip_updated = false;
+    let mut new_tip_index = None;
+    
+    // **FIRST**: Check if a block exists at this index (fork choice)
+    // This must happen BEFORE parent validation to handle competing blocks correctly
+    {
+        let mut ds = datastore.lock().await;
+        if let Some(existing) = MinerBlock::find_canonical_by_index(&ds, miner_block.index).await? {
+            // We have a different block at the same index - this is a fork!
+            // Apply fork choice: higher difficulty wins, lower hash breaks ties
+            let new_difficulty = miner_block.get_difficulty_u128()?;
+            let existing_difficulty = existing.get_difficulty_u128()?;
+            
+            let should_replace = if new_difficulty > existing_difficulty {
+                true
+            } else if new_difficulty == existing_difficulty {
+                // Tiebreaker: lower hash wins (lexicographic comparison)
+                miner_block.hash < existing.hash
+            } else {
+                false
+            };
+            
+            if should_replace {
+                log::info!("Fork choice: Replacing existing block {} (difficulty: {}, hash: {}) with gossiped block (difficulty: {}, hash: {})",
+                    miner_block.index, existing_difficulty, &existing.hash[..16], new_difficulty, &miner_block.hash[..16]);
+                
+                // Mark old block as orphaned
+                let mut orphaned = existing.clone();
+                orphaned.mark_as_orphaned(
+                    format!("Replaced by gossiped block (difficulty: {}, hash: {})", new_difficulty, &miner_block.hash[..16]),
+                    Some(miner_block.hash.clone())
+                );
+                orphaned.save(&mut ds).await?;
+                
+                // Save new block as canonical
+                miner_block.save(&mut ds).await?;
+                log::info!("Accepted gossiped block {} at index {}", &miner_block.hash[..16], miner_block.index);
+                
+                // Check if this updates the chain tip
+                let current_tip = MinerBlock::find_all_canonical(&ds).await?
+                    .into_iter()
+                    .max_by_key(|b| b.index)
+                    .map(|b| b.index);
+                
+                if let Some(tip) = current_tip {
+                    chain_tip_updated = true;
+                    new_tip_index = Some(tip);
+                }
+            } else {
+                log::debug!("Existing block {} wins fork choice (existing difficulty: {}, hash: {} vs new difficulty: {}, hash: {})", 
+                    miner_block.index, existing_difficulty, &existing.hash[..16], new_difficulty, &miner_block.hash[..16]);
+            }
+            
+            // Fork handled - notify if needed and return
+            drop(ds);
+            if chain_tip_updated {
+                if let Some(tip) = new_tip_index {
+                    if let Some(ref tx) = mining_update_tx {
+                        log::info!("📡 Chain tip updated to {} via gossip fork choice, notifying mining loop", tip);
+                        let _ = tx.send(tip);
+                    }
+                }
+            }
+            return Ok(());
+        }
+    }
+    
+    // **SECOND**: Validate we have the parent block (chain continuity)
     if miner_block.index > 0 {
         let ds = datastore.lock().await;
         match MinerBlock::find_by_hash(&ds, &miner_block.previous_hash).await? {
@@ -123,7 +191,11 @@ pub async fn handler(
                             .map(|addr| addr.to_string());
                         
                         if let Some(addr) = peer_addr {
-                            log::info!("📡 Orphan detected from peer {} - requesting chain sync", peer_id);
+                            // Add random delay (100-500ms) to avoid simultaneous sync attempts from both nodes
+                            let delay_ms = 100 + (rand::random::<u64>() % 400);
+                            tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
+                            
+                            log::info!("📡 Orphan detected from peer {} - requesting chain sync (after {}ms delay)", peer_id, delay_ms);
                             if let Err(e) = tx.send((peer_id, addr)) {
                                 log::warn!("Failed to send sync request: {}", e);
                             }
@@ -163,74 +235,22 @@ pub async fn handler(
         drop(ds); // Release lock
     }
     
-    // Track if we save a new block or update the chain tip
-    let mut chain_tip_updated = false;
-    let mut new_tip_index = None;
-    
-    // Check if a block exists at this index (fork choice)
+    // At this point, we've validated the block has a valid parent and doesn't conflict with existing blocks
+    // Save it and notify the mining loop
     {
         let mut ds = datastore.lock().await;
-        match MinerBlock::find_canonical_by_index(&ds, miner_block.index).await? {
-            Some(existing) => {
-                // Apply fork choice: higher difficulty (more work) wins
-                let new_difficulty = miner_block.get_difficulty_u128()?;
-                let existing_difficulty = existing.get_difficulty_u128()?;
-                
-                if new_difficulty > existing_difficulty {
-                    log::info!("Fork choice: Replacing existing block {} (difficulty: {}) with gossiped block (difficulty: {})",
-                        miner_block.index, existing_difficulty, new_difficulty);
-                    
-                    // Mark old block as orphaned
-                    let mut orphaned = existing.clone();
-                    orphaned.mark_as_orphaned(
-                        format!("Replaced by gossiped block with higher difficulty ({} vs {})", new_difficulty, existing_difficulty),
-                        Some(miner_block.hash.clone())
-                    );
-                    orphaned.save(&mut ds).await?;
-                    
-                    // Save new block as canonical
-                    miner_block.save(&mut ds).await?;
-                    log::info!("Accepted gossiped block {} at index {}", &miner_block.hash[..16], miner_block.index);
-                    
-                    // Check if this updates the chain tip
-                    let current_tip = MinerBlock::find_all_canonical(&ds).await?
-                        .into_iter()
-                        .max_by_key(|b| b.index)
-                        .map(|b| b.index);
-                    
-                    if let Some(tip) = current_tip {
-                        chain_tip_updated = true;
-                        new_tip_index = Some(tip);
-                    }
-                } else {
-                    log::debug!("Existing block {} has equal or higher difficulty (existing: {}, new: {}), keeping it", 
-                        miner_block.index, existing_difficulty, new_difficulty);
-                }
-            }
-            None => {
-                // No block at this index, save it
-                log::info!("Accepting new gossiped block {} at index {}", &miner_block.hash[..16], miner_block.index);
-                miner_block.save(&mut ds).await?;
-                
-                // Check if this extends the chain tip
-                let current_tip = MinerBlock::find_all_canonical(&ds).await?
-                    .into_iter()
-                    .max_by_key(|b| b.index)
-                    .map(|b| b.index);
-                
-                if let Some(tip) = current_tip {
-                    chain_tip_updated = true;
-                    new_tip_index = Some(tip);
-                }
-            }
-        }
-    }
-    
-    // Notify mining loop if chain tip was updated
-    if chain_tip_updated {
-        if let Some(tip) = new_tip_index {
+        log::info!("Accepting new gossiped block {} at index {}", &miner_block.hash[..16], miner_block.index);
+        miner_block.save(&mut ds).await?;
+        
+        // Check if this extends the chain tip
+        let current_tip = MinerBlock::find_all_canonical(&ds).await?
+            .into_iter()
+            .max_by_key(|b| b.index)
+            .map(|b| b.index);
+        
+        if let Some(tip) = current_tip {
             if let Some(ref tx) = mining_update_tx {
-                log::info!("📡 Chain tip updated to {} via gossip, notifying mining loop", tip);
+                log::info!("📡 Chain tip extended to {} via gossip, notifying mining loop", tip);
                 let _ = tx.send(tip);
             }
         }
