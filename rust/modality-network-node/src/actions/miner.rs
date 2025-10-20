@@ -71,20 +71,32 @@ pub async fn run(node: &mut Node) -> Result<()> {
             log::info!("🔄 Sync requested for blocks up to index {}", target_index);
             last_sync_time = std::time::Instant::now();
             
-            // Get our current height
-            let local_height = {
+            // Find the actual range of blocks we need
+            let (first_index, last_index) = {
                 let ds = sync_datastore.lock().await;
-                MinerBlock::find_all_canonical(&ds).await
-                    .map(|blocks| blocks.len() as u64)
-                    .unwrap_or(0)
+                match MinerBlock::find_all_canonical(&ds).await {
+                    Ok(blocks) => {
+                        if blocks.is_empty() {
+                            (0, target_index)
+                        } else {
+                            let min_index = blocks.iter().map(|b| b.index).min().unwrap_or(0);
+                            let max_index = blocks.iter().map(|b| b.index).max().unwrap_or(0);
+                            
+                            // If we're missing genesis (block 0), start from 0
+                            let start = if min_index > 0 { 0 } else { max_index + 1 };
+                            (start, target_index)
+                        }
+                    }
+                    Err(_) => (0, target_index)
+                }
             };
             
-            if local_height >= target_index {
-                log::debug!("Already have block {}, no sync needed", target_index);
+            if first_index > target_index {
+                log::debug!("Already have all blocks up to {}, no sync needed", target_index);
                 continue;
             }
             
-            log::info!("Requesting blocks from {} to {} from peers", local_height, target_index);
+            log::info!("Requesting blocks from {} to {} from peers", first_index, target_index);
             
             // Try to get blocks from the first available peer
             if let Some(peer_addr) = sync_bootstrappers.first() {
@@ -92,7 +104,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 match request_block_range_from_peer(
                     &sync_swarm,
                     peer_addr.to_string(),
-                    local_height,
+                    first_index,
                     target_index,
                     &sync_datastore
                 ).await {
