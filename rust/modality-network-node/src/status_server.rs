@@ -89,6 +89,12 @@ async fn status_handler(
         .unwrap_or_else(|| "0".to_string());
     let current_epoch = latest_block.map(|b| b.epoch).unwrap_or(0);
     
+    // Calculate cumulative difficulty
+    let cumulative_difficulty: u128 = miner_blocks
+        .iter()
+        .filter_map(|block| block.difficulty.parse::<u128>().ok())
+        .sum();
+    
     // Get Block 0 (genesis block)
     let block_0 = MinerBlock::find_canonical_by_index(&ds, 0).await.ok().flatten();
     
@@ -359,6 +365,10 @@ async fn status_handler(
             <div class="stat-label">Current Epoch</div>
             <div class="stat-value">{}</div>
         </div>
+        <div class="stat-box">
+            <div class="stat-label">Cumulative Difficulty</div>
+            <div class="stat-value">{}</div>
+        </div>
     </div>
     
     <div class="status-card">
@@ -440,6 +450,7 @@ async fn status_handler(
         total_miner_blocks,
         current_difficulty,
         current_epoch,
+        cumulative_difficulty,
         peerid,
         listeners
             .iter()
