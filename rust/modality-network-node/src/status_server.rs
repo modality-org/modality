@@ -66,11 +66,12 @@ async fn status_handler(
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     listeners: Vec<libp2p::Multiaddr>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    // Get connected peers count
-    let connected_peers = {
+    // Get connected peers information
+    let peer_info = {
         let swarm_lock = swarm.lock().await;
-        swarm_lock.connected_peers().count()
+        swarm_lock.connected_peers().cloned().collect::<Vec<_>>()
     };
+    let connected_peers = peer_info.len();
     
     // Get node status information
     let ds = datastore.lock().await;
@@ -87,6 +88,9 @@ async fn status_handler(
         .map(|b| b.difficulty.clone())
         .unwrap_or_else(|| "0".to_string());
     let current_epoch = latest_block.map(|b| b.epoch).unwrap_or(0);
+    
+    // Get Block 0 (genesis block)
+    let block_0 = MinerBlock::find_canonical_by_index(&ds, 0).await.ok().flatten();
     
     // Get last 80 blocks (sorted by index descending)
     let mut recent_blocks = miner_blocks.clone();
@@ -116,6 +120,72 @@ async fn status_handler(
                     } else {
                         block.nominated_peer_id.clone()
                     }
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n                    ")
+    };
+
+    // Build Block 0 HTML
+    let block_0_html = if let Some(block) = &block_0 {
+        format!(
+            r#"<div class="status-item">
+            <span class="label">Index:</span>
+            <span class="value">{}</span>
+        </div>
+        <div class="status-item">
+            <span class="label">Hash:</span>
+            <span class="value"><code>{}</code></span>
+        </div>
+        <div class="status-item">
+            <span class="label">Epoch:</span>
+            <span class="value">{}</span>
+        </div>
+        <div class="status-item">
+            <span class="label">Timestamp:</span>
+            <span class="value">{}</span>
+        </div>
+        <div class="status-item">
+            <span class="label">Previous Hash:</span>
+            <span class="value"><code>{}</code></span>
+        </div>
+        <div class="status-item">
+            <span class="label">Data Hash:</span>
+            <span class="value"><code>{}</code></span>
+        </div>
+        <div class="status-item">
+            <span class="label">Difficulty:</span>
+            <span class="value">{}</span>
+        </div>
+        <div class="status-item">
+            <span class="label">Nominated Peer:</span>
+            <span class="value"><code>{}</code></span>
+        </div>"#,
+            block.index,
+            block.hash,
+            block.epoch,
+            block.timestamp,
+            block.previous_hash,
+            block.data_hash,
+            block.difficulty,
+            block.nominated_peer_id
+        )
+    } else {
+        r#"<div class="status-item">
+            <span class="label" style="color: #666;">Block 0 not found</span>
+        </div>"#.to_string()
+    };
+
+    // Build peers list HTML
+    let peers_html = if peer_info.is_empty() {
+        "<tr><td style='text-align: center; padding: 20px; color: #666;'>No connected peers</td></tr>".to_string()
+    } else {
+        peer_info
+            .iter()
+            .map(|peer_id| {
+                format!(
+                    "<tr><td><code>{}</code></td></tr>",
+                    peer_id
                 )
             })
             .collect::<Vec<_>>()
@@ -320,6 +390,27 @@ async fn status_handler(
     </div>
 
     <div class="status-card">
+        <h2>Genesis Block (Block 0)</h2>
+        {}
+    </div>
+
+    <div class="status-card">
+        <h2>Connected Peers</h2>
+        <div class="blocks-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Peer ID</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="status-card">
         <h2>Recent Blocks (Last 80)</h2>
         <div class="blocks-container">
             <table>
@@ -357,6 +448,8 @@ async fn status_handler(
             .join("\n                    "),
         current_round,
         latest_round,
+        block_0_html,
+        peers_html,
         blocks_html,
     );
 
