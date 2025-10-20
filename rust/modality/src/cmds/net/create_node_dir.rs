@@ -4,6 +4,7 @@ use serde_json::json;
 use std::path::PathBuf;
 
 use modality_utils::keypair::Keypair;
+use crate::constants::{TESTNET_BOOTSTRAPPERS, DEFAULT_AUTOUPGRADE_BASE_URL, DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS};
 
 #[derive(Debug, Parser)]
 #[command(about = "Create a new node directory with config.json and node.passfile")]
@@ -227,35 +228,34 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Resolve network configuration
     let (network_bootstrappers, autoupgrade_config) = if opts.testnet {
-        // Testnet mode: load testnet config and enable autoupgrade
-        let network_config_path = std::env::current_exe()?
-            .parent()
-            .ok_or_else(|| anyhow::anyhow!("Cannot determine binary directory"))?
-            .join("../../../fixtures/network-configs/testnet/config.json")
-            .canonicalize()?;
-        let config_content = std::fs::read_to_string(&network_config_path)
-            .with_context(|| format!("Failed to read testnet config at {}", network_config_path.display()))?;
-        let network_config: serde_json::Value = serde_json::from_str(&config_content)?;
-        
-        let bootstrappers = network_config["bootstrappers"]
-            .as_array()
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
-            .unwrap_or_default();
+        // Testnet mode: use embedded testnet config and enable autoupgrade
+        let bootstrappers = TESTNET_BOOTSTRAPPERS.iter().map(|s| s.to_string()).collect();
         
         let autoupgrade = Some((
-            "http://packages.modality.org".to_string(),
+            DEFAULT_AUTOUPGRADE_BASE_URL.to_string(),
             "testnet".to_string(),
-            3600u64
+            DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS
         ));
         
         (bootstrappers, autoupgrade)
     } else if let Some(network) = &opts.network {
-        // Network preset mode: just load bootstrappers
+        // Network preset mode: load bootstrappers from fixture files (development only)
+        // Try to find the network config file relative to the binary location
         let network_config_path = std::env::current_exe()?
             .parent()
             .ok_or_else(|| anyhow::anyhow!("Cannot determine binary directory"))?
-            .join(format!("../../../fixtures/network-configs/{}/config.json", network))
-            .canonicalize()?;
+            .join(format!("../../../fixtures/network-configs/{}/config.json", network));
+        
+        // Check if the file exists before trying to canonicalize it
+        if !network_config_path.exists() {
+            return Err(anyhow::anyhow!(
+                "Network preset '{}' not found. The --network flag is for development use only.\n\
+                For production networks, use --testnet or provide bootstrappers manually with --bootstrappers.",
+                network
+            ));
+        }
+        
+        let network_config_path = network_config_path.canonicalize()?;
         let config_content = std::fs::read_to_string(&network_config_path)
             .with_context(|| format!("Failed to read {} network config at {}", network, network_config_path.display()))?;
         let network_config: serde_json::Value = serde_json::from_str(&config_content)?;
@@ -268,10 +268,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
         // Enable autoupgrade if --enable-autoupgrade is specified
         let autoupgrade = if opts.enable_autoupgrade {
             let base_url = opts.autoupgrade_base_url.clone()
-                .unwrap_or_else(|| "http://packages.modality.org".to_string());
+                .unwrap_or_else(|| DEFAULT_AUTOUPGRADE_BASE_URL.to_string());
             let branch = opts.autoupgrade_branch.clone()
                 .unwrap_or_else(|| network.clone());
-            Some((base_url, branch, opts.autoupgrade_check_interval_secs.unwrap_or(3600)))
+            Some((base_url, branch, opts.autoupgrade_check_interval_secs.unwrap_or(DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS)))
         } else {
             None
         };
