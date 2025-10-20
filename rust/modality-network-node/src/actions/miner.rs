@@ -51,11 +51,10 @@ pub async fn run(node: &mut Node) -> Result<()> {
         }
     };
 
-    // Start sync listener task
+    // Start sync listener task that actually requests missing blocks
     let sync_datastore = node.datastore.clone();
-    let _sync_node = node.peerid;
+    let sync_swarm = node.swarm.clone();
     let sync_bootstrappers = node.bootstrappers.clone();
-    let _sync_swarm = node.swarm.clone();
     let mut sync_trigger_rx = node.sync_trigger_tx.subscribe();
     
     tokio::spawn(async move {
@@ -72,30 +71,39 @@ pub async fn run(node: &mut Node) -> Result<()> {
             log::info!("🔄 Sync requested for blocks up to index {}", target_index);
             last_sync_time = std::time::Instant::now();
             
-            // Find first available peer to sync from
-            if let Some(_peer_addr) = sync_bootstrappers.first() {
-                // Get our current height
-                let local_height = {
-                    let ds = sync_datastore.lock().await;
-                    MinerBlock::find_all_canonical(&ds).await
-                        .map(|blocks| blocks.len() as u64)
-                        .unwrap_or(0)
-                };
-                
-                if local_height < target_index {
-                    log::info!("Syncing blocks from {} to {}", local_height, target_index);
-                    
-                    // Use simplified sync (placeholder for now)
-                    match sync_blocks_simple(local_height, target_index).await {
-                        Ok(count) if count > 0 => {
-                            log::info!("✓ Successfully synced {} blocks", count);
-                        }
-                        Ok(_) => {
-                            log::info!("Sync completed - blocks should be received via gossip");
-                        }
-                        Err(e) => {
-                            log::warn!("Failed to sync blocks: {:?}", e);
-                        }
+            // Get our current height
+            let local_height = {
+                let ds = sync_datastore.lock().await;
+                MinerBlock::find_all_canonical(&ds).await
+                    .map(|blocks| blocks.len() as u64)
+                    .unwrap_or(0)
+            };
+            
+            if local_height >= target_index {
+                log::debug!("Already have block {}, no sync needed", target_index);
+                continue;
+            }
+            
+            log::info!("Requesting blocks from {} to {} from peers", local_height, target_index);
+            
+            // Try to get blocks from the first available peer
+            if let Some(peer_addr) = sync_bootstrappers.first() {
+                // Use reqres protocol to request block range
+                match request_block_range_from_peer(
+                    &sync_swarm,
+                    peer_addr.to_string(),
+                    local_height,
+                    target_index,
+                    &sync_datastore
+                ).await {
+                    Ok(count) if count > 0 => {
+                        log::info!("✓ Successfully synced {} blocks!", count);
+                    }
+                    Ok(_) => {
+                        log::warn!("Sync request succeeded but no new blocks received");
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to sync blocks: {:?}", e);
                     }
                 }
             } else {
@@ -178,6 +186,111 @@ async fn request_blocks_from_peer(
     // This function is not currently used but kept for future reference
     // when implementing active peer-to-peer sync
     Ok(0)
+}
+
+/// Request a range of blocks from a peer using the reqres protocol
+async fn request_block_range_from_peer(
+    swarm: &std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
+    peer_addr: String,
+    from_index: u64,
+    to_index: u64,
+    datastore: &std::sync::Arc<tokio::sync::Mutex<modality_network_datastore::NetworkDatastore>>,
+) -> Result<usize> {
+    use libp2p::multiaddr::Multiaddr;
+    use crate::reqres;
+    
+    let ma: Multiaddr = peer_addr.parse()?;
+    let Some(libp2p::multiaddr::Protocol::P2p(target_peer_id)) = ma.iter().last() else {
+        anyhow::bail!("Invalid peer address - missing PeerID");
+    };
+    
+    // Prepare the request
+    let request = reqres::Request {
+        path: "/data/miner_block/range".to_string(),
+        data: Some(serde_json::json!({
+            "from_index": from_index,
+            "to_index": to_index
+        })),
+    };
+    
+    log::debug!("Sending block range request to {}", target_peer_id);
+    
+    // Send the request through swarm
+    let request_id = {
+        let mut swarm_lock = swarm.lock().await;
+        swarm_lock.behaviour_mut().reqres.send_request(&target_peer_id, request)
+    };
+    
+    log::debug!("Request sent with ID: {:?}", request_id);
+    
+    // Wait for response (with timeout)
+    let response = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        wait_for_response(swarm, request_id)
+    ).await??;
+    
+    if !response.ok {
+        anyhow::bail!("Peer returned error: {:?}", response.errors);
+    }
+    
+    // Save the blocks
+    let saved_count = if let Some(ref data) = response.data {
+        if let Some(blocks_array) = data.get("blocks").and_then(|b| b.as_array()) {
+            let mut ds = datastore.lock().await;
+            let mut count = 0;
+            
+            for block_json in blocks_array {
+                let block: MinerBlock = serde_json::from_value(block_json.clone())?;
+                
+                // Check if we already have this block
+                if MinerBlock::find_by_hash(&*ds, &block.hash).await?.is_none() {
+                    // Validate parent exists (except for genesis)
+                    if block.index == 0 || MinerBlock::find_by_hash(&*ds, &block.previous_hash).await?.is_some() {
+                        block.save(&*ds).await?;
+                        count += 1;
+                        log::debug!("Saved synced block {} (index: {})", &block.hash[..16], block.index);
+                    } else {
+                        log::warn!("Cannot save block {} - missing parent", block.index);
+                    }
+                }
+            }
+            count
+        } else {
+            0
+        }
+    } else {
+        0
+    };
+    
+    Ok(saved_count)
+}
+
+/// Wait for a response from a request-response query
+async fn wait_for_response(
+    swarm: &std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
+    request_id: libp2p::request_response::OutboundRequestId,
+) -> Result<crate::reqres::Response> {
+    use futures::StreamExt;
+    
+    loop {
+        let event = {
+            let mut swarm_lock = swarm.lock().await;
+            swarm_lock.select_next_some().await
+        };
+        
+        if let libp2p::swarm::SwarmEvent::Behaviour(
+            crate::swarm::NodeBehaviourEvent::Reqres(
+                libp2p::request_response::Event::Message {
+                    message: libp2p::request_response::Message::Response { request_id: rid, response },
+                    ..
+                }
+            )
+        ) = event {
+            if rid == request_id {
+                return Ok(response);
+            }
+        }
+    }
 }
 
 /// Simplified sync function for use in the sync listener task
