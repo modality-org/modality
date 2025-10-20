@@ -68,6 +68,7 @@ pub async fn handler(
     source_peer: Option<libp2p::PeerId>,
     datastore: std::sync::Arc<tokio::sync::Mutex<NetworkDatastore>>,
     sync_request_tx: Option<tokio::sync::mpsc::UnboundedSender<(libp2p::PeerId, String)>>,
+    mining_update_tx: Option<tokio::sync::mpsc::UnboundedSender<u64>>,
     bootstrappers: Vec<libp2p::Multiaddr>,
 ) -> Result<()> {
     log::debug!("Received miner block gossip");
@@ -162,6 +163,10 @@ pub async fn handler(
         drop(ds); // Release lock
     }
     
+    // Track if we save a new block or update the chain tip
+    let mut chain_tip_updated = false;
+    let mut new_tip_index = None;
+    
     // Check if a block exists at this index (fork choice)
     {
         let mut ds = datastore.lock().await;
@@ -186,6 +191,17 @@ pub async fn handler(
                     // Save new block as canonical
                     miner_block.save(&mut ds).await?;
                     log::info!("Accepted gossiped block {} at index {}", &miner_block.hash[..16], miner_block.index);
+                    
+                    // Check if this updates the chain tip
+                    let current_tip = MinerBlock::find_all_canonical(&ds).await?
+                        .into_iter()
+                        .max_by_key(|b| b.index)
+                        .map(|b| b.index);
+                    
+                    if let Some(tip) = current_tip {
+                        chain_tip_updated = true;
+                        new_tip_index = Some(tip);
+                    }
                 } else {
                     log::debug!("Existing block {} has equal or higher difficulty (existing: {}, new: {}), keeping it", 
                         miner_block.index, existing_difficulty, new_difficulty);
@@ -195,6 +211,27 @@ pub async fn handler(
                 // No block at this index, save it
                 log::info!("Accepting new gossiped block {} at index {}", &miner_block.hash[..16], miner_block.index);
                 miner_block.save(&mut ds).await?;
+                
+                // Check if this extends the chain tip
+                let current_tip = MinerBlock::find_all_canonical(&ds).await?
+                    .into_iter()
+                    .max_by_key(|b| b.index)
+                    .map(|b| b.index);
+                
+                if let Some(tip) = current_tip {
+                    chain_tip_updated = true;
+                    new_tip_index = Some(tip);
+                }
+            }
+        }
+    }
+    
+    // Notify mining loop if chain tip was updated
+    if chain_tip_updated {
+        if let Some(tip) = new_tip_index {
+            if let Some(ref tx) = mining_update_tx {
+                log::info!("📡 Chain tip updated to {} via gossip, notifying mining loop", tip);
+                let _ = tx.send(tip);
             }
         }
     }

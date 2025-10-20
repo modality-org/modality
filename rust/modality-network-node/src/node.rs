@@ -45,6 +45,7 @@ pub struct Node {
     pub miner_nominees: Option<Vec<String>>,
     pub ignored_peers: Arc<Mutex<HashMap<PeerId, IgnoredPeerInfo>>>,
     pub sync_request_tx: Option<mpsc::UnboundedSender<(PeerId, String)>>, // Set later in miner run
+    pub mining_update_tx: Option<mpsc::UnboundedSender<u64>>, // Set in miner run to notify of chain tip updates
     consensus_runner: Option<modality_network_consensus::runner::Runner>,
     networking_task: Option<tokio::task::JoinHandle<Result<()>>>,
     consensus_task: Option<tokio::task::JoinHandle<Result<()>>>,
@@ -104,6 +105,7 @@ impl Node {
             miner_nominees,
             ignored_peers: Arc::new(Mutex::new(HashMap::new())),
             sync_request_tx: None, // Will be set in miner run()
+            mining_update_tx: None, // Will be set in miner run()
             networking_task: None,
             consensus_task: None,
             autoupgrade_task: None,
@@ -360,6 +362,7 @@ impl Node {
         let datastore = self.datastore.clone();
         let consensus_tx = self.consensus_tx.clone();
         let sync_request_tx = self.sync_request_tx.clone();
+        let mining_update_tx = self.mining_update_tx.clone();
         let bootstrappers = self.bootstrappers.clone();
 
         self.networking_task = Some(tokio::spawn(async move {
@@ -422,7 +425,7 @@ impl Node {
                                 },
                             )) => {
                                 log::info!("Gossip received {:?}", message.topic.to_string());
-                                gossip::handle_event(message, datastore.clone(), consensus_tx.clone(), sync_request_tx.clone(), bootstrappers.clone()).await?;
+                                gossip::handle_event(message, datastore.clone(), consensus_tx.clone(), sync_request_tx.clone(), mining_update_tx.clone(), bootstrappers.clone()).await?;
                             }
                             SwarmEvent::Behaviour(event) => {
                                 log::info!("SwarmEvent::Behaviour event {:?}", event);

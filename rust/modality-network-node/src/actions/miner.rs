@@ -2,12 +2,29 @@ use anyhow::Result;
 use libp2p::gossipsub::IdentTopic;
 use modality_network_datastore::Model;
 use modality_network_datastore::models::MinerBlock;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use crate::node::Node;
 use crate::gossip;
 
+/// Shared state for coordinating mining with sync operations
+#[derive(Clone, Debug)]
+struct MiningState {
+    /// The index we're currently mining at
+    current_mining_index: u64,
+    /// Set to true to signal mining loop to update its view
+    needs_update: bool,
+}
+
 /// Run a mining node that continuously mines and gossips blocks
 pub async fn run(node: &mut Node) -> Result<()> {
+    // Create a channel to signal mining view updates
+    // This must be created FIRST so we can clone it for various tasks
+    let (mining_update_tx, mut mining_update_rx) = tokio::sync::mpsc::unbounded_channel::<u64>();
+    
+    // Store the mining update channel in node so gossip/networking handlers can use it
+    node.mining_update_tx = Some(mining_update_tx.clone());
     // Start sync request handler task BEFORE gossip is active
     // This handles chain comparison requests triggered by orphan detection
     let sync_node_datastore = node.datastore.clone();
@@ -16,6 +33,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     let (sync_request_tx, mut sync_request_rx) = tokio::sync::mpsc::unbounded_channel();
     // Set the node's channel so gossip handler can send to our new receiver
     node.sync_request_tx = Some(sync_request_tx);
+    let mining_update_tx_for_sync = mining_update_tx.clone();
     
     tokio::spawn(async move {
         while let Some((peer_id, peer_addr)) = sync_request_rx.recv().await {
@@ -31,8 +49,26 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 sync_node_ignored_peers.clone(),
             ).await;
             
-            if let Err(e) = result {
-                log::warn!("Chain sync failed for peer {}: {}", peer_id, e);
+            match result {
+                Ok(()) => {
+                    // After successful chain sync, notify mining loop to update view
+                    let new_tip = {
+                        let ds = sync_node_datastore.lock().await;
+                        match MinerBlock::find_all_canonical(&ds).await {
+                            Ok(blocks) if !blocks.is_empty() => {
+                                blocks.iter().map(|b| b.index).max()
+                            }
+                            _ => None
+                        }
+                    };
+                    if let Some(tip) = new_tip {
+                        log::info!("📡 Chain sync completed, notifying mining loop (new tip: {})", tip);
+                        let _ = mining_update_tx_for_sync.send(tip);
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Chain sync failed for peer {}: {}", peer_id, e);
+                }
             }
         }
     });
@@ -66,10 +102,12 @@ pub async fn run(node: &mut Node) -> Result<()> {
 
     // Start sync listener task BEFORE we wait for connections
     // This ensures it's ready to handle sync triggers from gossip
+    // This task also handles chain cleanup/reorg in the background
     let sync_datastore = node.datastore.clone();
     let sync_swarm = node.swarm.clone();
     let sync_bootstrappers = node.bootstrappers.clone();
     let mut sync_trigger_rx = node.sync_trigger_tx.subscribe();
+    let mining_update_tx_clone = mining_update_tx.clone();
     
     tokio::spawn(async move {
         let mut last_sync_time = std::time::Instant::now();
@@ -85,6 +123,81 @@ pub async fn run(node: &mut Node) -> Result<()> {
             log::info!("🔄 Sync requested for blocks up to index {}", target_index);
             last_sync_time = std::time::Instant::now();
             
+            // Step 1: Validate and clean up local chain if needed
+            // This runs in background and doesn't block mining
+            {
+                let mut ds = sync_datastore.lock().await;
+                
+                if let Ok(all_blocks) = MinerBlock::find_all_canonical(&ds).await {
+                    if !all_blocks.is_empty() {
+                        let max_index = all_blocks.iter().map(|b| b.index).max().unwrap_or(0);
+                        
+                        // Quick chain validation
+                        let mut last_valid_index = 0;
+                        let mut chain_is_valid = true;
+                        
+                        // Check if we have block 0 (genesis)
+                        if all_blocks.iter().find(|b| b.index == 0).is_none() {
+                            log::warn!("⚠️  Missing genesis block during sync validation");
+                            chain_is_valid = false;
+                        } else {
+                            // Validate chain continuity
+                            for i in 1..=max_index {
+                                if let Some(block) = all_blocks.iter().find(|b| b.index == i) {
+                                    if let Some(prev_block) = all_blocks.iter().find(|b| b.index == i - 1) {
+                                        if block.previous_hash != prev_block.hash {
+                                            log::warn!(
+                                                "⚠️  Chain break at block {}: prev_hash {} doesn't match block {}'s hash {}",
+                                                i, &block.previous_hash[..16], i - 1, &prev_block.hash[..16]
+                                            );
+                                            chain_is_valid = false;
+                                            break;
+                                        }
+                                        last_valid_index = i;
+                                    } else {
+                                        log::warn!("⚠️  Missing block {} (gap in chain)", i - 1);
+                                        chain_is_valid = false;
+                                        break;
+                                    }
+                                } else {
+                                    log::warn!("⚠️  Missing block {} (gap in chain)", i);
+                                    chain_is_valid = false;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // Clean up invalid blocks if needed
+                        if !chain_is_valid {
+                            log::info!("🔧 Cleaning up invalid chain in background (last valid: {})", last_valid_index);
+                            
+                            let mut orphaned_count = 0;
+                            for block in all_blocks.iter() {
+                                if block.index > last_valid_index {
+                                    let mut orphaned = block.clone();
+                                    orphaned.mark_as_orphaned(
+                                        format!("Background chain cleanup: removing blocks after index {}", last_valid_index),
+                                        None
+                                    );
+                                    if let Err(e) = orphaned.save(&mut *ds).await {
+                                        log::error!("Failed to orphan block {}: {}", block.index, e);
+                                    } else {
+                                        orphaned_count += 1;
+                                    }
+                                }
+                            }
+                            
+                            if orphaned_count > 0 {
+                                log::info!("✓ Cleaned up {} invalid blocks in background", orphaned_count);
+                                // Notify mining loop to update its view
+                                let _ = mining_update_tx_clone.send(last_valid_index);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Step 2: Sync missing blocks from peers
             // Find the actual range of blocks we need
             let (first_index, _last_index) = {
                 let ds = sync_datastore.lock().await;
@@ -137,6 +250,19 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 ).await {
                     Ok(count) if count > 0 => {
                         log::info!("✓ Successfully synced {} blocks!", count);
+                        // Notify mining loop that chain tip may have changed
+                        let new_tip = {
+                            let ds = sync_datastore.lock().await;
+                            match MinerBlock::find_all_canonical(&ds).await {
+                                Ok(blocks) if !blocks.is_empty() => {
+                                    blocks.iter().map(|b| b.index).max()
+                                }
+                                _ => None
+                            }
+                        };
+                        if let Some(tip) = new_tip {
+                            let _ = mining_update_tx_clone.send(tip);
+                        }
                     }
                     Ok(_) => {
                         log::warn!("Sync request succeeded but no new blocks received");
@@ -151,38 +277,63 @@ pub async fn run(node: &mut Node) -> Result<()> {
         }
     });
 
-    // Start mining loop
+    // Start mining loop - this runs CONTINUOUSLY without blocking
     let datastore = node.datastore.clone();
     let swarm = node.swarm.clone();
     let peerid_str = node.peerid.to_string();
     let miner_nominees = node.miner_nominees.clone();
     
+    // Create shared mining state
+    let mining_state = Arc::new(Mutex::new(MiningState {
+        current_mining_index: starting_index,
+        needs_update: false,
+    }));
+    let mining_state_clone = mining_state.clone();
+    
     tokio::spawn(async move {
         let mut current_index = starting_index;
         
         loop {
-            // Check if we have newer blocks from gossip before mining
-            let latest_canonical = {
-                let ds = datastore.lock().await;
-                if let Ok(blocks) = MinerBlock::find_all_canonical(&ds).await {
-                    blocks.into_iter().max_by_key(|b| b.index)
-                } else {
-                    None
-                }
-            };
-            
-            if let Some(latest) = latest_canonical {
-                if latest.index >= current_index {
-                    log::info!("📥 Detected newer blocks via gossip, updating mining index from {} to {}", 
-                        current_index, latest.index + 1);
-                    current_index = latest.index + 1;
+            // Non-blocking check for view updates from sync/gossip
+            while let Ok(new_tip_index) = mining_update_rx.try_recv() {
+                let next_index = new_tip_index + 1;
+                if next_index > current_index {
+                    log::info!("⛏️  Mining view updated: switching from block {} to block {}", 
+                        current_index, next_index);
+                    current_index = next_index;
+                } else if next_index < current_index {
+                    log::warn!("⛏️  Mining view updated: reorg detected, switching from block {} to block {}", 
+                        current_index, next_index);
+                    current_index = next_index;
                 }
             }
             
-            log::info!("Mining block at index {}...", current_index);
+            // Always get the latest canonical view before mining
+            // This is a quick check that doesn't block
+            let latest_tip_index = {
+                let ds = datastore.lock().await;
+                match MinerBlock::find_all_canonical(&ds).await {
+                    Ok(blocks) if !blocks.is_empty() => {
+                        blocks.into_iter().max_by_key(|b| b.index).map(|b| b.index)
+                    }
+                    _ => None
+                }
+            };
             
-            // Mine a block (this is a simplified version - in production you'd use the full mining chain)
-            // For now, we'll just create a basic block structure
+            // Update mining index if we see a newer tip
+            if let Some(tip_index) = latest_tip_index {
+                let next_index = tip_index + 1;
+                if next_index > current_index {
+                    log::info!("⛏️  Detected newer chain tip via datastore check: updating from {} to {}", 
+                        current_index, next_index);
+                    current_index = next_index;
+                }
+            }
+            
+            log::info!("⛏️  Mining block at index {}...", current_index);
+            
+            // Mine a block - if this fails, we simply retry on the next iteration
+            // We don't block or do complex error handling here
             match mine_and_gossip_block(
                 current_index,
                 &peerid_str,
@@ -191,130 +342,48 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 swarm.clone(),
             ).await {
                 Ok(()) => {
-                    log::info!("Successfully mined and gossipped block {}", current_index);
+                    log::info!("✅ Successfully mined and gossipped block {}", current_index);
+                    // Move to next block
                     current_index += 1;
+                    
+                    // Update shared state
+                    let mut state = mining_state_clone.lock().await;
+                    state.current_mining_index = current_index;
                 }
-                    Err(e) => {
-                        let error_msg = e.to_string();
-                        log::error!("Error mining block {}: {:?}", current_index, e);
-                        
-                        // Check if this is a chain divergence error
-                        if error_msg.contains("Previous hash doesn't match") || 
-                           error_msg.contains("Invalid block index") {
-                            log::warn!("⚠️  Chain divergence detected at block {}! Validating chain...", current_index);
-                            
-                            // Acquire lock once for all operations
-                            let mut ds = datastore.lock().await;
-                            
-                            if let Ok(all_blocks) = MinerBlock::find_all_canonical(&ds).await {
-                                let max_index = all_blocks.iter().map(|b| b.index).max().unwrap_or(0);
-                                
-                                log::info!("Chain validation: have {} blocks, max index: {}, trying to mine: {}", 
-                                    all_blocks.len(), max_index, current_index);
-                                
-                                // Validate the chain by checking if each block's previous_hash matches
-                                // the hash of the actual previous block
-                                let mut last_valid_index = 0;
-                                let mut chain_is_valid = true;
-                                
-                                // First, check if we have block 0 (genesis)
-                                if all_blocks.iter().find(|b| b.index == 0).is_none() {
-                                    log::error!("❌ Missing genesis block (block 0)!");
-                                    chain_is_valid = false;
-                                    // last_valid_index stays at 0, meaning we have no valid chain
-                                }
-                                
-                                for i in 1..=max_index {
-                                    if let Some(block) = all_blocks.iter().find(|b| b.index == i) {
-                                        if let Some(prev_block) = all_blocks.iter().find(|b| b.index == i - 1) {
-                                            if block.previous_hash != prev_block.hash {
-                                                log::error!(
-                                                    "❌ Chain break detected at block {}: prev_hash {} doesn't match block {}'s hash {}",
-                                                    i, &block.previous_hash[..16], i - 1, &prev_block.hash[..16]
-                                                );
-                                                chain_is_valid = false;
-                                                break;
-                                            }
-                                            last_valid_index = i;
-                                        } else {
-                                            log::error!("❌ Missing block {} (gap in chain)", i - 1);
-                                            chain_is_valid = false;
-                                            break;
-                                        }
-                                    } else {
-                                        log::error!("❌ Missing block {} (gap in chain)", i);
-                                        chain_is_valid = false;
-                                        break;
-                                    }
-                                }
-                                
-                                if !chain_is_valid || last_valid_index < max_index {
-                                    log::error!(
-                                        "❌ INVALID CHAIN DETECTED: Last valid block is {}, but have blocks up to {}",
-                                        last_valid_index, max_index
-                                    );
-                                    
-                                    // Special case: if we're missing genesis (block 0), orphan everything
-                                    if last_valid_index == 0 && all_blocks.iter().find(|b| b.index == 0).is_none() {
-                                        log::error!("❌ CRITICAL: Missing genesis block! Orphaning entire invalid chain...");
-                                        let mut orphaned_count = 0;
-                                        for block in all_blocks.iter() {
-                                            log::info!("Orphaning block {} (hash: {}) - no valid genesis", 
-                                                block.index, &block.hash[..16]);
-                                            let mut orphaned = block.clone();
-                                            orphaned.mark_as_orphaned(
-                                                "Missing genesis block - orphaning entire chain".to_string(),
-                                                None
-                                            );
-                                            if let Err(e) = orphaned.save(&mut *ds).await {
-                                                log::error!("Failed to orphan block {}: {}", block.index, e);
-                                            } else {
-                                                orphaned_count += 1;
-                                            }
-                                        }
-                                        log::info!("✓ Orphaned {} blocks. Will need to sync from genesis.", orphaned_count);
-                                        current_index = 0;
-                                    } else {
-                                        log::info!("Cleaning up invalid chain by orphaning blocks after {}...", last_valid_index);
-                                        
-                                        // Orphan all blocks after the last valid one
-                                        let mut orphaned_count = 0;
-                                        for block in all_blocks.iter() {
-                                            if block.index > last_valid_index {
-                                                log::info!("Orphaning invalid block {} (hash: {})", 
-                                                    block.index, &block.hash[..16]);
-                                                let mut orphaned = block.clone();
-                                                orphaned.mark_as_orphaned(
-                                                    format!("Chain validation failed: removing blocks after index {}", last_valid_index),
-                                                    None
-                                                );
-                                                if let Err(e) = orphaned.save(&mut *ds).await {
-                                                    log::error!("Failed to orphan block {}: {}", block.index, e);
-                                                } else {
-                                                    orphaned_count += 1;
-                                                }
-                                            }
-                                        }
-                                        
-                                        log::info!("✓ Cleaned up {} invalid blocks. Restarting from block {}", 
-                                            orphaned_count, last_valid_index + 1);
-                                        current_index = last_valid_index + 1;
-                                    }
-                                } else {
-                                    log::warn!("Chain appears valid up to block {}, but mining still failed. This shouldn't happen!", 
-                                        last_valid_index);
-                                }
+                Err(e) => {
+                    // Log error but don't block - we'll retry on next iteration
+                    // The sync/gossip handlers running in parallel will fix any chain issues
+                    log::warn!("⚠️  Failed to mine block {} ({}), will retry with updated view", 
+                        current_index, e);
+                    
+                    // Brief pause before retrying - give sync handlers time to update view
+                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                    
+                    // Check if we need to adjust our view
+                    // This happens when our local chain has issues
+                    let corrected_index = {
+                        let ds = datastore.lock().await;
+                        match MinerBlock::find_all_canonical(&ds).await {
+                            Ok(blocks) if !blocks.is_empty() => {
+                                let max_index = blocks.iter().map(|b| b.index).max().unwrap_or(0);
+                                Some(max_index + 1)
                             }
-                            drop(ds);
+                            _ => Some(0) // Start from genesis if no valid blocks
                         }
-                        
-                        // Wait before retrying
-                        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    };
+                    
+                    if let Some(corrected) = corrected_index {
+                        if corrected != current_index {
+                            log::info!("⛏️  Correcting mining index from {} to {} after error", 
+                                current_index, corrected);
+                            current_index = corrected;
+                        }
                     }
+                }
             }
             
-            // Small delay between blocks
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            // Small delay between mining attempts
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
     });
 

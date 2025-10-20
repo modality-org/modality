@@ -41,6 +41,7 @@ pub async fn handle_event(
     datastore: std::sync::Arc<tokio::sync::Mutex<NetworkDatastore>>,
     consensus_tx: mpsc::Sender<ConsensusMessage>,
     sync_request_tx: Option<mpsc::UnboundedSender<(libp2p::PeerId, String)>>,
+    mining_update_tx: Option<mpsc::UnboundedSender<u64>>,
     bootstrappers: Vec<libp2p::Multiaddr>,
 ) -> Result<()> {
   log::info!("handling gossip: {:?}", message);
@@ -55,7 +56,7 @@ pub async fn handle_event(
     let mut ds = datastore.lock().await;
     consensus::block::cert::handler(data, &mut ds, consensus_tx).await?;
   } else if &topic == miner::block::TOPIC {
-    miner::block::handler(data, source_peer, datastore, sync_request_tx, bootstrappers).await?;
+    miner::block::handler(data, source_peer, datastore, sync_request_tx, mining_update_tx, bootstrappers).await?;
   } else {
     log::warn!("Unknown gossip topic: {}", topic);
   }
