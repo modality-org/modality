@@ -187,9 +187,9 @@ An **epoch** is a period of 40 blocks. At the end of each epoch:
 
 ### Difficulty Adjustment
 
-- If blocks are mined **faster** than target → difficulty **increases** (up to 2x)
-- If blocks are mined **slower** than target → difficulty **decreases** (down to 0.5x)
-- Smoothed using exponential moving average
+- If blocks are mined **faster** than target → difficulty **increases** (up to 8x per epoch)
+- If blocks are mined **slower** than target → difficulty **decreases** (minimum 0.5x/halve per epoch)
+- Adjustment scales based on how far off the actual time is from expected time
 
 ### Nomination Shuffling
 

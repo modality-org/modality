@@ -115,17 +115,32 @@ async fn status_handler(
     first_blocks.sort_by(|a, b| a.index.cmp(&b.index));
     first_blocks.truncate(40);
     
+    // Create a map of block index to block for quick parent lookup
+    let block_map: std::collections::HashMap<u64, &MinerBlock> = miner_blocks
+        .iter()
+        .map(|block| (block.index, block))
+        .collect();
+    
     drop(ds);
 
     // Build blocks table HTML for recent blocks (last 80)
     let blocks_html = if recent_blocks.is_empty() {
-        "<tr><td colspan='5' style='text-align: center; padding: 20px; color: #666;'>No blocks yet</td></tr>".to_string()
+        "<tr><td colspan='6' style='text-align: center; padding: 20px; color: #666;'>No blocks yet</td></tr>".to_string()
     } else {
         recent_blocks
             .iter()
             .map(|block| {
+                // Calculate time delta from parent block
+                let time_delta = if block.index == 0 {
+                    "-".to_string()
+                } else if let Some(parent) = block_map.get(&(block.index - 1)) {
+                    (block.timestamp - parent.timestamp).to_string()
+                } else {
+                    "N/A".to_string()
+                };
+                
                 format!(
-                    "<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td><td>{}</td></tr>",
+                    "<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td><td>{}</td><td>{}</td></tr>",
                     block.index,
                     block.epoch,
                     if block.hash.len() > 16 {
@@ -138,7 +153,8 @@ async fn status_handler(
                     } else {
                         block.nominated_peer_id.clone()
                     },
-                    block.timestamp
+                    block.timestamp,
+                    time_delta
                 )
             })
             .collect::<Vec<_>>()
@@ -147,13 +163,22 @@ async fn status_handler(
 
     // Build blocks table HTML for first 40 blocks
     let first_blocks_html = if first_blocks.is_empty() {
-        "<tr><td colspan='5' style='text-align: center; padding: 20px; color: #666;'>No blocks yet</td></tr>".to_string()
+        "<tr><td colspan='6' style='text-align: center; padding: 20px; color: #666;'>No blocks yet</td></tr>".to_string()
     } else {
         first_blocks
             .iter()
             .map(|block| {
+                // Calculate time delta from parent block
+                let time_delta = if block.index == 0 {
+                    "-".to_string()
+                } else if let Some(parent) = block_map.get(&(block.index - 1)) {
+                    (block.timestamp - parent.timestamp).to_string()
+                } else {
+                    "N/A".to_string()
+                };
+                
                 format!(
-                    "<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td><td>{}</td></tr>",
+                    "<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td><td>{}</td><td>{}</td></tr>",
                     block.index,
                     block.epoch,
                     if block.hash.len() > 16 {
@@ -166,7 +191,8 @@ async fn status_handler(
                     } else {
                         block.nominated_peer_id.clone()
                     },
-                    block.timestamp
+                    block.timestamp,
+                    time_delta
                 )
             })
             .collect::<Vec<_>>()
@@ -476,6 +502,7 @@ async fn status_handler(
                         <th>Hash</th>
                         <th>Nominee</th>
                         <th>Timestamp</th>
+                        <th>Time Delta (s)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -496,6 +523,7 @@ async fn status_handler(
                         <th>Hash</th>
                         <th>Nominee</th>
                         <th>Timestamp</th>
+                        <th>Time Delta (s)</th>
                     </tr>
                 </thead>
                 <tbody>

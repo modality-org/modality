@@ -96,12 +96,14 @@ Actual Time = Time between first and last block in epoch
 
 Ratio = Actual Time / Expected Time
 
-If ratio < 0.5:   Difficulty × 2    (blocks too fast, double difficulty)
-If ratio < 0.75:  Difficulty × 1.5  (blocks fast, increase 50%)
-If ratio < 0.9:   Difficulty × 1.1  (blocks slightly fast, increase 10%)
-If ratio > 2.0:   Difficulty ÷ 2    (blocks too slow, halve difficulty)
-If ratio > 1.5:   Difficulty × 0.67 (blocks slow, decrease 33%)
-If ratio > 1.1:   Difficulty × 0.9  (blocks slightly slow, decrease 10%)
+If ratio < 0.125: Difficulty × 8    (extremely fast, 8x increase - MAX INCREASE)
+If ratio < 0.25:  Difficulty × 4    (much too fast, 4x increase)
+If ratio < 0.5:   Difficulty × 2    (too fast, double difficulty)
+If ratio < 0.75:  Difficulty × 1.5  (fast, increase 50%)
+If ratio < 0.9:   Difficulty × 1.1  (slightly fast, increase 10%)
+If ratio > 2.0:   Difficulty ÷ 2    (too slow, halve difficulty - MAX DECREASE)
+If ratio > 1.5:   Difficulty × 0.67 (slow, decrease 33%)
+If ratio > 1.1:   Difficulty × 0.9  (slightly slow, decrease 10%)
 Otherwise:        No change
 ```
 

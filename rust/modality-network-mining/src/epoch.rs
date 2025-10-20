@@ -81,12 +81,18 @@ impl EpochManager {
         let expected_time_secs = self.target_block_time_secs * self.blocks_per_epoch;
         
         // Adjust difficulty based on ratio of actual to expected time
-        // If blocks were mined too quickly, increase difficulty
-        // If blocks were mined too slowly, decrease difficulty
+        // If blocks were mined too quickly, increase difficulty (max 8x)
+        // If blocks were mined too slowly, decrease difficulty (min 0.5x/halve)
         let ratio = (actual_time_secs as f64) / (expected_time_secs as f64);
         
-        let new_difficulty = if ratio < 0.5 {
-            // Much too fast, double difficulty
+        let new_difficulty = if ratio < 0.125 {
+            // Extremely too fast (8x faster), increase difficulty by 8x
+            current_difficulty.saturating_mul(8)
+        } else if ratio < 0.25 {
+            // Much too fast (4x faster), quadruple difficulty
+            current_difficulty.saturating_mul(4)
+        } else if ratio < 0.5 {
+            // Too fast (2x faster), double difficulty
             current_difficulty.saturating_mul(2)
         } else if ratio < 0.75 {
             // Too fast, increase by 50%
@@ -95,7 +101,7 @@ impl EpochManager {
             // Slightly fast, increase by 10%
             current_difficulty.saturating_mul(11) / 10
         } else if ratio > 2.0 {
-            // Much too slow, halve difficulty
+            // Much too slow, halve difficulty (max decrease is 0.5x)
             current_difficulty / 2
         } else if ratio > 1.5 {
             // Too slow, decrease by 33%
@@ -287,6 +293,97 @@ mod tests {
         
         // Difficulty should decrease when blocks are mined too slowly
         assert!(new_difficulty < 1000);
+    }
+    
+    #[test]
+    fn test_difficulty_adjustment_8x_max_increase() {
+        use crate::block::BlockData;
+        
+        let manager = EpochManager::default();
+        
+        // Create blocks that were mined extremely fast (8x faster than target)
+        // Target: 60 seconds per block, Actual: 7.5 seconds per block
+        // Ratio = 300 / 2400 = 0.125
+        let mut blocks = vec![];
+        let start_time = chrono::Utc::now();
+        
+        for i in 0..40 {
+            let data = BlockData::new(format!("peer_id_{}", i), i);
+            let mut block = Block::new(
+                i,
+                format!("prev_{}", i),
+                data,
+                1000,
+            );
+            // Blocks mined in 1/8th the expected time (7.5 seconds instead of 60)
+            block.header.timestamp = start_time + Duration::milliseconds((i as i64) * 7500);
+            blocks.push(block);
+        }
+        
+        let new_difficulty = manager.calculate_next_difficulty(&blocks, 1000);
+        
+        // Difficulty should be 8x (max increase)
+        assert_eq!(new_difficulty, 8000);
+    }
+    
+    #[test]
+    fn test_difficulty_adjustment_4x_increase() {
+        use crate::block::BlockData;
+        
+        let manager = EpochManager::default();
+        
+        // Create blocks mined 4x faster than target
+        // Ratio = 600 / 2400 = 0.25
+        let mut blocks = vec![];
+        let start_time = chrono::Utc::now();
+        
+        for i in 0..40 {
+            let data = BlockData::new(format!("peer_id_{}", i), i);
+            let mut block = Block::new(
+                i,
+                format!("prev_{}", i),
+                data,
+                1000,
+            );
+            // Blocks mined in 1/4th the expected time (15 seconds instead of 60)
+            block.header.timestamp = start_time + Duration::seconds((i as i64) * 15);
+            blocks.push(block);
+        }
+        
+        let new_difficulty = manager.calculate_next_difficulty(&blocks, 1000);
+        
+        // Difficulty should be 4x
+        assert_eq!(new_difficulty, 4000);
+    }
+    
+    #[test]
+    fn test_difficulty_adjustment_half_min_decrease() {
+        use crate::block::BlockData;
+        
+        let manager = EpochManager::default();
+        
+        // Create blocks mined much too slowly (> 2x slower than target)
+        // Ratio > 2.0 should result in halving (max decrease)
+        let mut blocks = vec![];
+        let start_time = chrono::Utc::now();
+        
+        for i in 0..40 {
+            let data = BlockData::new(format!("peer_id_{}", i), i);
+            let mut block = Block::new(
+                i,
+                format!("prev_{}", i),
+                data,
+                1000,
+            );
+            // Blocks mined in 3x the expected time (180 seconds instead of 60)
+            block.header.timestamp = start_time + Duration::seconds((i as i64) * 180);
+            blocks.push(block);
+        }
+        
+        let new_difficulty = manager.calculate_next_difficulty(&blocks, 1000);
+        
+        // Difficulty should be halved (min decrease is 0.5x)
+        assert_eq!(new_difficulty, 500);
     }
     
     #[test]
