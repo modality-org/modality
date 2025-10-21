@@ -93,6 +93,9 @@ enum NodeCommands {
     #[command(about = "Run a sequencer node (observes mining, does not mine)")]
     RunSequencer(cmds::net::run_sequencer::Opts),
 
+    #[command(about = "Run an observer node (observes mining, does not mine)")]
+    RunObserver(cmds::net::run_observer::Opts),
+
     #[command(about = "Run a noop node (only autoupgrade, no network operations)")]
     RunNoop(cmds::net::run_noop::Opts),
 
@@ -137,6 +140,7 @@ async fn main() -> Result<()> {
                 NodeCommands::Run(opts) => cmds::net::run_node::run(opts).await?,
                 NodeCommands::RunMiner(opts) => cmds::net::run_miner::run(opts).await?,
                 NodeCommands::RunSequencer(opts) => cmds::net::run_sequencer::run(opts).await?,
+                NodeCommands::RunObserver(opts) => cmds::net::run_observer::run(opts).await?,
                 NodeCommands::RunNoop(opts) => cmds::net::run_noop::run(opts).await?,
                 NodeCommands::Ping(opts) => cmds::net::ping::run(opts).await?,
             }

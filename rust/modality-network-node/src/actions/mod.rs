@@ -1,6 +1,7 @@
 // pub mod ping;
 pub mod miner;
 pub mod noop;
+pub mod observer;
 pub mod request;
 pub mod sequencer;
 pub mod server;
