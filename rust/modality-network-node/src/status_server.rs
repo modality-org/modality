@@ -121,6 +121,52 @@ async fn status_handler(
         .map(|block| (block.index, block))
         .collect();
     
+    // Calculate epoch nominees with shuffle order for previous epochs
+    const BLOCKS_PER_EPOCH: u64 = 40;
+    let mut epoch_nominees_data: Vec<(u64, Vec<(usize, String, String, u64)>)> = Vec::new();
+    
+    if current_epoch > 0 {
+        // Show up to 5 previous epochs
+        let epochs_to_show = std::cmp::min(5, current_epoch);
+        for epoch_offset in 1..=epochs_to_show {
+            let epoch = current_epoch - epoch_offset;
+            let epoch_start = epoch * BLOCKS_PER_EPOCH;
+            let epoch_end = epoch_start + BLOCKS_PER_EPOCH;
+            
+            // Get all blocks from this epoch
+            let epoch_blocks: Vec<&MinerBlock> = miner_blocks
+                .iter()
+                .filter(|b| b.index >= epoch_start && b.index < epoch_end)
+                .collect();
+            
+            // Only process complete epochs
+            if epoch_blocks.len() == BLOCKS_PER_EPOCH as usize {
+                // Calculate XOR seed from all nonces
+                let mut seed = 0u64;
+                for block in &epoch_blocks {
+                    if let Ok(nonce) = block.nonce.parse::<u128>() {
+                        seed ^= nonce as u64;
+                    }
+                }
+                
+                // Get shuffled indices using Fisher-Yates
+                let shuffled_indices = modality_utils::shuffle::fisher_yates_shuffle(seed, epoch_blocks.len());
+                
+                // Map shuffled indices to (shuffle_rank, block_hash, nominated_peer_id, block_index)
+                let shuffled_nominees: Vec<(usize, String, String, u64)> = shuffled_indices
+                    .into_iter()
+                    .enumerate()
+                    .map(|(rank, original_idx)| {
+                        let block = epoch_blocks[original_idx];
+                        (rank, block.hash.clone(), block.nominated_peer_id.clone(), block.index)
+                    })
+                    .collect();
+                
+                epoch_nominees_data.push((epoch, shuffled_nominees));
+            }
+        }
+    }
+    
     drop(ds);
 
     // Build blocks table HTML for recent blocks (last 80)
@@ -265,6 +311,65 @@ async fn status_handler(
             .join("\n                    ")
     };
 
+    // Build epoch nominees HTML sections
+    let epoch_nominees_sections = if epoch_nominees_data.is_empty() {
+        String::new()
+    } else {
+        epoch_nominees_data
+            .iter()
+            .map(|(epoch, nominees)| {
+                let nominees_html = nominees
+                    .iter()
+                    .map(|(rank, block_hash, peer_id, block_idx)| {
+                        let truncated_hash = if block_hash.len() > 16 {
+                            format!("{}...{}", &block_hash[..8], &block_hash[block_hash.len()-8..])
+                        } else {
+                            block_hash.clone()
+                        };
+                        let truncated_peer = if peer_id.len() > 20 {
+                            format!("{}...{}", &peer_id[..10], &peer_id[peer_id.len()-10..])
+                        } else {
+                            peer_id.clone()
+                        };
+                        format!(
+                            "<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td></tr>",
+                            rank + 1, // Display rank as 1-indexed
+                            block_idx,
+                            truncated_hash,
+                            truncated_peer
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n                    ");
+
+                format!(
+                    r#"
+    <div class="status-card">
+        <h2>Epoch {} Nominees (Shuffled Order)</h2>
+        <div class="blocks-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Shuffle Rank</th>
+                        <th>Block Index</th>
+                        <th>Nominating Block Hash</th>
+                        <th>Nominated Peer</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {}
+                </tbody>
+            </table>
+        </div>
+    </div>"#,
+                    epoch,
+                    nominees_html
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+
     // Build HTML response
     let html = format!(
         r#"<!DOCTYPE html>
@@ -401,8 +506,71 @@ async fn status_handler(
         .blocks-container::-webkit-scrollbar-thumb:hover {{
             background: #444;
         }}
+        
+        /* Tab Styles */
+        .tabs {{
+            display: flex;
+            gap: 10px;
+            border-bottom: 2px solid #333;
+            margin-bottom: 30px;
+        }}
+        .tab {{
+            padding: 12px 24px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            color: #888;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }}
+        .tab:hover {{
+            background: #252525;
+            color: #e0e0e0;
+        }}
+        .tab.active {{
+            background: #0f0f0f;
+            color: #4a9eff;
+            border-bottom: 2px solid #4a9eff;
+            margin-bottom: -2px;
+        }}
+        .tab-content {{
+            display: none;
+        }}
+        .tab-content.active {{
+            display: block;
+        }}
     </style>
     <script>
+        // Tab switching
+        function switchTab(tabName) {{
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(function(content) {{
+                content.classList.remove('active');
+            }});
+            
+            // Deactivate all tabs
+            document.querySelectorAll('.tab').forEach(function(tab) {{
+                tab.classList.remove('active');
+            }});
+            
+            // Show selected tab content
+            document.getElementById(tabName + '-content').classList.add('active');
+            
+            // Activate selected tab
+            document.querySelector('[data-tab="' + tabName + '"]').classList.add('active');
+            
+            // Save active tab to localStorage
+            localStorage.setItem('activeTab', tabName);
+        }}
+        
+        // Restore active tab on page load
+        window.addEventListener('DOMContentLoaded', function() {{
+            const savedTab = localStorage.getItem('activeTab') || 'overview';
+            switchTab(savedTab);
+        }});
+        
         // Auto-refresh every 10 seconds
         setTimeout(function() {{
             location.reload();
@@ -415,122 +583,158 @@ async fn status_handler(
         <p class="status-online">Status: ONLINE</p>
     </div>
     
-    <div class="status-grid">
-        <div class="stat-box">
-            <div class="stat-label">Connected Peers</div>
-            <div class="stat-value">{}</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-label">Block Height</div>
-            <div class="stat-value">{}</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-label">Blocks Mined by Node</div>
-            <div class="stat-value">{}</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-label">Current Difficulty</div>
-            <div class="stat-value">{}</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-label">Current Epoch</div>
-            <div class="stat-value">{}</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-label">Cumulative Difficulty</div>
-            <div class="stat-value">{}</div>
-        </div>
+    <!-- Tabs Navigation -->
+    <div class="tabs">
+        <div class="tab active" data-tab="overview" onclick="switchTab('overview')">Overview</div>
+        <div class="tab" data-tab="mining" onclick="switchTab('mining')">Mining</div>
+        <div class="tab" data-tab="sequencing" onclick="switchTab('sequencing')">Sequencing</div>
     </div>
     
-    <div class="status-card">
-        <h2>Node Information</h2>
-        <div class="status-item">
-            <span class="label">Peer ID:</span>
-            <span class="value">{}</span>
+    <!-- Overview Tab -->
+    <div id="overview-content" class="tab-content active">
+        <div class="status-grid">
+            <div class="stat-box">
+                <div class="stat-label">Connected Peers</div>
+                <div class="stat-value">{}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Block Height</div>
+                <div class="stat-value">{}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Cumulative Difficulty</div>
+                <div class="stat-value">{}</div>
+            </div>
         </div>
-        <div class="status-item">
-            <span class="label">Listeners:</span>
-            <div class="value">
-                <ul class="listeners">
-                    {}
-                </ul>
+        
+        <div class="status-card">
+            <h2>Node Information</h2>
+            <div class="status-item">
+                <span class="label">Peer ID:</span>
+                <span class="value">{}</span>
+            </div>
+            <div class="status-item">
+                <span class="label">Listeners:</span>
+                <div class="value">
+                    <ul class="listeners">
+                        {}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="status-card">
+            <h2>Blockchain Status</h2>
+            <div class="status-item">
+                <span class="label">Current Round:</span>
+                <span class="value">{}</span>
+            </div>
+            <div class="status-item">
+                <span class="label">Latest Block Round:</span>
+                <span class="value">{}</span>
+            </div>
+        </div>
+
+        <div class="status-card">
+            <h2>Genesis Block (Block 0)</h2>
+            {}
+        </div>
+
+        <div class="status-card">
+            <h2>Connected Peers</h2>
+            <div class="blocks-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Peer ID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
-
-    <div class="status-card">
-        <h2>Blockchain Status</h2>
-        <div class="status-item">
-            <span class="label">Current Round:</span>
-            <span class="value">{}</span>
+    
+    <!-- Mining Tab -->
+    <div id="mining-content" class="tab-content">
+        <div class="status-grid">
+            <div class="stat-box">
+                <div class="stat-label">Block Height</div>
+                <div class="stat-value">{}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Blocks Mined by Node</div>
+                <div class="stat-value">{}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Current Difficulty</div>
+                <div class="stat-value">{}</div>
+            </div>
         </div>
-        <div class="status-item">
-            <span class="label">Latest Block Round:</span>
-            <span class="value">{}</span>
+
+        <div class="status-card">
+            <h2>Recent Blocks (Last 80)</h2>
+            <div class="blocks-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Index</th>
+                            <th>Epoch</th>
+                            <th>Hash</th>
+                            <th>Nominee</th>
+                            <th>Timestamp</th>
+                            <th>Time Delta (s)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="status-card">
+            <h2>First 40 Blocks</h2>
+            <div class="blocks-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Index</th>
+                            <th>Epoch</th>
+                            <th>Hash</th>
+                            <th>Nominee</th>
+                            <th>Timestamp</th>
+                            <th>Time Delta (s)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
+    
+    <!-- Sequencing Tab -->
+    <div id="sequencing-content" class="tab-content">
+        <div class="status-grid">
+            <div class="stat-box">
+                <div class="stat-label">Current Epoch</div>
+                <div class="stat-value">{}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Block Height</div>
+                <div class="stat-value">{}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Completed Epochs</div>
+                <div class="stat-value">{}</div>
+            </div>
+        </div>
 
-    <div class="status-card">
-        <h2>Genesis Block (Block 0)</h2>
         {}
-    </div>
-
-    <div class="status-card">
-        <h2>Connected Peers</h2>
-        <div class="blocks-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Peer ID</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="status-card">
-        <h2>Recent Blocks (Last 80)</h2>
-        <div class="blocks-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Index</th>
-                        <th>Epoch</th>
-                        <th>Hash</th>
-                        <th>Nominee</th>
-                        <th>Timestamp</th>
-                        <th>Time Delta (s)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="status-card">
-        <h2>First 40 Blocks</h2>
-        <div class="blocks-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Index</th>
-                        <th>Epoch</th>
-                        <th>Hash</th>
-                        <th>Nominee</th>
-                        <th>Timestamp</th>
-                        <th>Time Delta (s)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {}
-                </tbody>
-            </table>
-        </div>
     </div>
 
     <div class="status-card">
@@ -540,11 +744,9 @@ async fn status_handler(
     </div>
 </body>
 </html>"#,
+        // Overview tab
         connected_peers,
         total_miner_blocks,
-        blocks_mined_by_node,
-        current_difficulty,
-        current_epoch,
         cumulative_difficulty,
         peerid,
         listeners
@@ -556,8 +758,17 @@ async fn status_handler(
         latest_round,
         block_0_html,
         peers_html,
+        // Mining tab
+        total_miner_blocks,
+        blocks_mined_by_node,
+        current_difficulty,
         blocks_html,
         first_blocks_html,
+        // Sequencing tab
+        current_epoch,
+        total_miner_blocks,
+        current_epoch, // completed epochs (same as current epoch for now)
+        epoch_nominees_sections,
     );
 
     Ok(warp::reply::html(html))
