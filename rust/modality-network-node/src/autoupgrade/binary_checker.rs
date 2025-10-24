@@ -57,7 +57,7 @@ mod tests {
     #[tokio::test]
     #[ignore] // Only run manually as it requires network access
     async fn test_fetch_manifest() {
-        let base_url = "http://packages.modality.org";
+        let base_url = "http://get.modal.money";
         let branch = "testnet";
         
         let manifest = fetch_manifest(base_url, branch).await.unwrap();
@@ -69,7 +69,7 @@ mod tests {
     #[tokio::test]
     #[ignore] // Only run manually as it requires network access
     async fn test_get_current_version() {
-        let base_url = "http://packages.modality.org";
+        let base_url = "http://get.modal.money";
         let branch = "testnet";
         
         let version = get_current_version(base_url, branch).await.unwrap();

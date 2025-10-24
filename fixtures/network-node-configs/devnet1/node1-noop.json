@@ -2,7 +2,7 @@
   "passfile_path": "../../passfiles/node1.mod_passfile",
   "storage_path": "../../../tmp/storage/node1",
   "autoupgrade_enabled": true,
-  "autoupgrade_registry_url": "http://packages.modality.org/testnet/latest/cargo-registry/index/",
+  "autoupgrade_registry_url": "http://get.modal.money/testnet/latest/cargo-registry/index/",
   "autoupgrade_check_interval_secs": 300,
   "noop_mode": true
 }

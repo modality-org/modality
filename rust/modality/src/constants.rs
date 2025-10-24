@@ -8,7 +8,7 @@ pub const TESTNET_BOOTSTRAPPERS: &[&str] = &[
 ];
 
 /// Default autoupgrade base URL
-pub const DEFAULT_AUTOUPGRADE_BASE_URL: &str = "http://packages.modality.org";
+pub const DEFAULT_AUTOUPGRADE_BASE_URL: &str = "http://get.modal.money";
 
 /// Default autoupgrade check interval in seconds
 pub const DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS: u64 = 3600;

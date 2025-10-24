@@ -89,7 +89,7 @@ pub struct Opts {
     #[clap(long)]
     pub enable_autoupgrade: bool,
 
-    /// Autoupgrade base URL (optional, default: http://packages.modality.org)
+    /// Autoupgrade base URL (optional, default: http://get.modal.money)
     #[clap(long)]
     pub autoupgrade_base_url: Option<String>,
 

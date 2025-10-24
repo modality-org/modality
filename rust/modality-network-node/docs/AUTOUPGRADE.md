@@ -9,7 +9,7 @@ Add the following fields to your node configuration JSON file:
 ```json
 {
   "autoupgrade_enabled": true,
-  "autoupgrade_base_url": "http://packages.modality.org",
+  "autoupgrade_base_url": "http://get.modal.money",
   "autoupgrade_branch": "testnet",
   "autoupgrade_check_interval_secs": 3600
 }
@@ -18,7 +18,7 @@ Add the following fields to your node configuration JSON file:
 ### Configuration Options
 
 - **`autoupgrade_enabled`** (optional, boolean): Enable or disable the autoupgrade feature. Default: `false`
-- **`autoupgrade_base_url`** (optional, string): The base URL of the package server. Default: `http://packages.modality.org`
+- **`autoupgrade_base_url`** (optional, string): The base URL of the package server. Default: `http://get.modal.money`
 - **`autoupgrade_branch`** (optional, string): The branch to upgrade from (e.g., "testnet" or "mainnet"). Default: `testnet`
 - **`autoupgrade_check_interval_secs`** (optional, number): How often to check for updates in seconds. Default: `3600` (1 hour)
 
@@ -62,7 +62,7 @@ If you were previously using the registry-based autoupgrade (with `autoupgrade_r
 ```json
 {
   "autoupgrade_enabled": true,
-  "autoupgrade_registry_url": "http://packages.modality.org/testnet/latest/cargo-registry/index/"
+  "autoupgrade_registry_url": "http://get.modal.money/testnet/latest/cargo-registry/index/"
 }
 ```
 
@@ -70,7 +70,7 @@ If you were previously using the registry-based autoupgrade (with `autoupgrade_r
 ```json
 {
   "autoupgrade_enabled": true,
-  "autoupgrade_base_url": "http://packages.modality.org",
+  "autoupgrade_base_url": "http://get.modal.money",
   "autoupgrade_branch": "testnet"
 }
 ```

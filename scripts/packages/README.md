@@ -112,16 +112,16 @@ Users can install with a single command:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf \
-  https://packages.modality.org/testnet/latest/install.sh | sh
+  https://get.modal.money/testnet/latest/install.sh | sh
 ```
 
 ### Method 2: Direct Download
 
 Users can download binaries directly:
 
-- **Linux x86_64**: `https://packages.modality.org/testnet/latest/binaries/linux-x86_64/modality`
-- **macOS ARM64**: `https://packages.modality.org/testnet/latest/binaries/darwin-aarch64/modality`
-- **Windows**: `https://packages.modality.org/testnet/latest/binaries/windows-x86_64/modality.exe`
+- **Linux x86_64**: `https://get.modal.money/testnet/latest/binaries/linux-x86_64/modality`
+- **macOS ARM64**: `https://get.modal.money/testnet/latest/binaries/darwin-aarch64/modality`
+- **Windows**: `https://get.modal.money/testnet/latest/binaries/windows-x86_64/modality.exe`
 
 ### Method 3: Cargo Install
 
@@ -129,7 +129,7 @@ Users with Rust can build from source:
 
 ```bash
 cargo install --index \
-  sparse+https://packages.modality.org/testnet/latest/cargo-registry/index/ \
+  sparse+https://get.modal.money/testnet/latest/cargo-registry/index/ \
   modality
 ```
 
@@ -194,7 +194,7 @@ If you want to set up GitHub Actions instead, let me know!
 Uploads are organized as:
 
 ```
-s3://packages.modality.org/
+s3://get.modal.money/
   ├── testnet/
   │   ├── latest/ → (symlink to most recent version)
   │   └── 20251018_143022-a1b2c3d/

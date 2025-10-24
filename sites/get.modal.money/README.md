@@ -1,6 +1,6 @@
 # Modality Package Registry
 
-This directory contains the build system for the Modality Cargo registry hosted at `packages.modality.org`.
+This directory contains the build system for the Modality Cargo registry hosted at `get.modal.money`.
 
 ## Overview
 
@@ -9,7 +9,7 @@ The Modality package registry is a [Cargo sparse registry](https://doc.rust-lang
 ## Structure
 
 ```
-sites/packages.modality.org/
+sites/get.modal.money/
 ├── build-registry.sh       # Script to build the registry
 ├── registry/               # Generated registry files (gitignored)
 │   ├── index/
@@ -42,14 +42,14 @@ Users can install packages from this registry in two ways:
 
 ### Method 1: Direct Index URL
 ```bash
-cargo install --index sparse+http://packages.modality.org/index/ modality
+cargo install --index sparse+http://get.modal.money/index/ modality
 ```
 
 ### Method 2: Registry Configuration
 Add to `~/.cargo/config.toml`:
 ```toml
 [registries.modality]
-index = "sparse+http://packages.modality.org/index/"
+index = "sparse+http://get.modal.money/index/"
 ```
 
 Then install with:
@@ -66,9 +66,9 @@ cargo install --registry modality modality
 
 ## Registry URLs
 
-- **Registry Index**: `http://packages.modality.org/index/`
-- **Package Downloads**: `http://packages.modality.org/{crate}-{version}.crate`
-- **Browseable**: `http://packages.modality.org/index.html`
+- **Registry Index**: `http://get.modal.money/index/`
+- **Package Downloads**: `http://get.modal.money/{crate}-{version}.crate`
+- **Browseable**: `http://get.modal.money/index.html`
 
 ## Integration with Main Build Script
 

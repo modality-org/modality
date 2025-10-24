@@ -14,7 +14,7 @@ pub struct Opts {
     #[arg(long, help = "Specific version to upgrade to (default: latest)")]
     pub version: Option<String>,
     
-    #[arg(long, default_value = "http://packages.modality.org", help = "Base URL for package downloads")]
+    #[arg(long, default_value = "http://get.modal.money", help = "Base URL for package downloads")]
     pub base_url: String,
     
     #[arg(long, help = "Force upgrade even if already on latest version")]

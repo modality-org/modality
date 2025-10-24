@@ -1,0 +1,4 @@
+{
+    "dl": "http://packages.modality.org/testnet/latest/cargo-registry/{crate}-{version}.crate",
+    "api": "http://packages.modality.org/testnet/latest/cargo-registry/"
+}

@@ -14,7 +14,7 @@ modality upgrade
 
 This will:
 1. Detect your platform automatically
-2. Fetch the latest version from `http://packages.modality.org`
+2. Fetch the latest version from `http://get.modal.money`
 3. Download the appropriate binary
 4. Replace your current binary with the new one
 5. Confirm the upgrade was successful
@@ -73,16 +73,16 @@ $ modality upgrade
 
 🖥️  Platform: darwin-aarch64
 📍 Current binary: /Users/username/.modality/bin/modality
-📡 Fetching manifest from: http://packages.modality.org/testnet/latest/manifest.json
+📡 Fetching manifest from: http://get.modal.money/testnet/latest/manifest.json
 📦 Latest version: 20251018_182116-3a00ac0
 🌿 Branch: testnet
 🔖 Commit: 3a00ac0
 
 ⚠️  About to upgrade to version 20251018_182116-3a00ac0
-   Binary: http://packages.modality.org/testnet/latest/binaries/darwin-aarch64/modality
+   Binary: http://get.modal.money/testnet/latest/binaries/darwin-aarch64/modality
 
 Continue? [y/N]: y
-⬇️  Downloading: http://packages.modality.org/testnet/latest/binaries/darwin-aarch64/modality
+⬇️  Downloading: http://get.modal.money/testnet/latest/binaries/darwin-aarch64/modality
 ✅ Downloaded successfully
 
 🔄 Replacing binary...
@@ -130,7 +130,7 @@ If you compiled from source, it might be elsewhere in your PATH.
 
 If the download fails, check:
 1. Your internet connection
-2. The package server is accessible: `curl http://packages.modality.org/testnet/latest/manifest.json`
+2. The package server is accessible: `curl http://get.modal.money/testnet/latest/manifest.json`
 3. Your platform is supported
 
 ## Security
@@ -146,7 +146,7 @@ The upgrade feature works seamlessly with the one-line installer:
 
 ```bash
 # Initial install
-curl -fsSL http://packages.modality.org/testnet/latest/install.sh | sh
+curl -fsSL http://get.modal.money/testnet/latest/install.sh | sh
 
 # Later, upgrade
 modality upgrade

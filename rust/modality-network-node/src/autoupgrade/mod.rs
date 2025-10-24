@@ -9,7 +9,7 @@ use tokio::sync::broadcast;
 use crate::config::Config;
 
 const DEFAULT_CHECK_INTERVAL_SECS: u64 = 3600;
-const DEFAULT_BASE_URL: &str = "http://packages.modality.org";
+const DEFAULT_BASE_URL: &str = "http://get.modal.money";
 const DEFAULT_BRANCH: &str = "testnet";
 
 /// Configuration for autoupgrade

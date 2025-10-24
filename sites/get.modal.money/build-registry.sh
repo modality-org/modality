@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Build Cargo Registry for packages.modality.org
+# Build Cargo Registry for get.modal.money
 # This script creates a proper sparse registry with all workspace packages
 
 set -e
 
-# Get the project root (assuming this script is in sites/packages.modality.org/)
+# Get the project root (assuming this script is in sites/get.modal.money/)
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 REGISTRY_DIR="$(cd "$(dirname "$0")" && pwd)/registry"
 
@@ -395,8 +395,8 @@ done
 log_info "Creating registry config.json..."
 cat > "$REGISTRY_DIR/index/config.json" << EOF
 {
-    "dl": "http://packages.modality.org/testnet/latest/cargo-registry/{crate}-{version}.crate",
-    "api": "http://packages.modality.org/testnet/latest/cargo-registry/"
+    "dl": "http://get.modal.money/testnet/latest/cargo-registry/{crate}-{version}.crate",
+    "api": "http://get.modal.money/testnet/latest/cargo-registry/"
 }
 EOF
 
@@ -507,27 +507,27 @@ cat >> "$REGISTRY_DIR/index.html" << 'EOF_MAIN2'
         <div class="install-section">
             <h3>Option 1: Pre-built Binary (Fast & Easy)</h3>
             <p>Install the pre-compiled binary with a single command:</p>
-            <pre>curl -fsSL http://packages.modality.org/testnet/latest/install.sh | sh</pre>
+            <pre>curl -fsSL http://get.modal.money/testnet/latest/install.sh | sh</pre>
             <p>Supports: Linux x86_64 • macOS Apple Silicon</p>
             
             <h3>Option 2: Direct Download</h3>
             <p>Download binaries directly:</p>
             <ul>
-                <li><a href="http://packages.modality.org/testnet/latest/binaries/linux-x86_64/modality">Linux x86_64</a></li>
-                <li><a href="http://packages.modality.org/testnet/latest/binaries/darwin-aarch64/modality">macOS Apple Silicon</a></li>
+                <li><a href="http://get.modal.money/testnet/latest/binaries/linux-x86_64/modality">Linux x86_64</a></li>
+                <li><a href="http://get.modal.money/testnet/latest/binaries/darwin-aarch64/modality">macOS Apple Silicon</a></li>
             </ul>
         </div>
         
         <h2>Build from Source (Cargo)</h2>
         <div class="install-section">
             <p>To build and install from this registry:</p>
-            <pre>cargo install --index sparse+http://packages.modality.org/testnet/latest/cargo-registry/index/ modality</pre>
+            <pre>cargo install --index sparse+http://get.modal.money/testnet/latest/cargo-registry/index/ modality</pre>
         </div>
         
         <h2>Registry Configuration</h2>
         <p>Add to <code>~/.cargo/config.toml</code>:</p>
         <pre>[registries.modality]
-index = "sparse+http://packages.modality.org/testnet/latest/cargo-registry/index/"</pre>
+index = "sparse+http://get.modal.money/testnet/latest/cargo-registry/index/"</pre>
         <p>Then install with:</p>
         <pre>cargo install --registry modality modality</pre>
         

@@ -23,7 +23,7 @@ if [[ ! " ${ALLOWED_BRANCHES[@]} " =~ " ${GIT_BRANCH} " ]]; then
 fi
 
 # Default values
-S3_BUCKET="packages.modality.org"
+S3_BUCKET="get.modal.money"
 S3_PREFIX=""
 AWS_REGION="us-east-1"
 SKIP_BUILD=false
@@ -64,7 +64,7 @@ USAGE:
     $0 [OPTIONS]
 
 OPTIONS:
-    --bucket BUCKET         S3 bucket name for uploads (default: packages.modality.org)
+    --bucket BUCKET         S3 bucket name for uploads (default: get.modal.money)
     --prefix PREFIX         S3 prefix for uploads (default: empty)
     --version VERSION       Package version (default: TIMESTAMP-GITCOMMIT)
     --region REGION         AWS region (default: us-east-1)
@@ -79,7 +79,7 @@ ENVIRONMENT VARIABLES:
     AWS_PROFILE            AWS profile to use
 
 EXAMPLES:
-    $0                                    # Uses default bucket: packages.modality.org
+    $0                                    # Uses default bucket: get.modal.money
     $0 --bucket my-bucket                 # Use custom bucket
     $0 --prefix modality-packages/        # Add prefix to path
     $0 --version custom-version --region us-west-2
@@ -87,13 +87,13 @@ EXAMPLES:
 
 S3 PATH STRUCTURE:
     Uploads will be organized as: s3://BUCKET/PREFIX/BRANCH/VERSION/
-    Default: s3://packages.modality.org/BRANCH/VERSION/
-    Example: s3://packages.modality.org/testnet/20251018_143022-a1b2c3d/
+    Default: s3://get.modal.money/BRANCH/VERSION/
+    Example: s3://get.modal.money/testnet/20251018_143022-a1b2c3d/
 
 CARGO REGISTRY:
     The script also publishes to a Cargo sparse registry for easy installation:
-    cargo install --index sparse+https://packages.modality.org/BRANCH/VERSION/cargo-registry/index/ modality
-    Registry URL: https://packages.modality.org
+    cargo install --index sparse+https://get.modal.money/BRANCH/VERSION/cargo-registry/index/ modality
+    Registry URL: https://get.modal.money
 
 EOF
 }
@@ -162,7 +162,7 @@ if [[ "$SKIP_BUILD" == false ]]; then
     log_info "S3 path: $S3_PREFIX$GIT_BRANCH/$VERSION/"
     log_info "AWS region: $AWS_REGION"
     if [[ "$SKIP_CARGO_REGISTRY" == false ]]; then
-        log_info "Cargo registry: https://packages.modality.org"
+        log_info "Cargo registry: https://get.modal.money"
     fi
 fi
 
@@ -385,7 +385,7 @@ detect_platform() {
 
 # Installation
 PLATFORM=$(detect_platform)
-BASE_URL="${MODALITY_INSTALL_URL:-http://packages.modality.org/BRANCH/VERSION}"
+BASE_URL="${MODALITY_INSTALL_URL:-http://get.modal.money/BRANCH/VERSION}"
 INSTALL_DIR="${MODALITY_INSTALL_DIR:-$HOME/.modality/bin}"
 BINARY_NAME="modality"
 
@@ -473,7 +473,7 @@ INSTALL_SCRIPT_EOF
     <p>Built: <code>$(date)</code></p>
     
     <h2>Quick Installation</h2>
-    <pre>curl -fsSL http://packages.modality.org/$GIT_BRANCH/$VERSION/install.sh | sh</pre>
+    <pre>curl -fsSL http://get.modal.money/$GIT_BRANCH/$VERSION/install.sh | sh</pre>
     
     <h2>Available Binaries</h2>
     <div class="package">
@@ -497,18 +497,18 @@ INSTALL_SCRIPT_EOF
     <h2>Installation Methods</h2>
     
     <h3>Method 1: Install Script (Recommended)</h3>
-    <pre>curl -fsSL http://packages.modality.org/$GIT_BRANCH/$VERSION/install.sh | sh</pre>
+    <pre>curl -fsSL http://get.modal.money/$GIT_BRANCH/$VERSION/install.sh | sh</pre>
     
     <h3>Method 2: Manual Download</h3>
     <p>Download the binary for your platform above and add it to your PATH.</p>
     
     <h3>Method 3: Build from Source (Cargo Registry)</h3>
-    <pre>cargo install --index sparse+https://packages.modality.org/$GIT_BRANCH/$VERSION/cargo-registry/index/ modality</pre>
+    <pre>cargo install --index sparse+https://get.modal.money/$GIT_BRANCH/$VERSION/cargo-registry/index/ modality</pre>
     
     <h3>Registry Configuration</h3>
     <p>Or add to <code>~/.cargo/config.toml</code>:</p>
     <pre>[registries.modality]
-index = "sparse+https://packages.modality.org/$GIT_BRANCH/$VERSION/cargo-registry/index/"</pre>
+index = "sparse+https://get.modal.money/$GIT_BRANCH/$VERSION/cargo-registry/index/"</pre>
     <p>Then install with:</p>
     <pre>cargo install --registry modality modality</pre>
 </body>
@@ -618,11 +618,11 @@ publish_to_cargo_registry() {
     
     # Build registry using dedicated script
     log_info "Building registry with dedicated script..."
-    "$PROJECT_ROOT/sites/packages.modality.org/build-registry.sh"
+    "$PROJECT_ROOT/sites/get.modal.money/build-registry.sh"
     
     # Upload registry to S3
     log_info "Uploading registry to S3..."
-    aws s3 sync "$PROJECT_ROOT/sites/packages.modality.org/registry/" "s3://$S3_BUCKET/$CARGO_REGISTRY_PATH" \
+    aws s3 sync "$PROJECT_ROOT/sites/get.modal.money/registry/" "s3://$S3_BUCKET/$CARGO_REGISTRY_PATH" \
         --region "$AWS_REGION" \
         --exclude "*.DS_Store" \
         --exclude "*.git*" \
@@ -635,7 +635,7 @@ publish_to_cargo_registry() {
         --delete
     
     # Create registry config
-    REGISTRY_CONFIG_URL="https://packages.modality.org"
+    REGISTRY_CONFIG_URL="https://get.modal.money"
     REGISTRY_INDEX_URL="$REGISTRY_CONFIG_URL/$GIT_BRANCH/$VERSION/cargo-registry/index"
     
     log_success "Cargo registry published successfully!"
@@ -654,7 +654,7 @@ EOF
     log_info "  index = \"$REGISTRY_INDEX_URL\""
     log_info ""
     log_info "Then install with:"
-    log_info "  cargo install --index sparse+http://packages.modality.org/$GIT_BRANCH/$VERSION/cargo-registry/index/ modality"
+    log_info "  cargo install --index sparse+http://get.modal.money/$GIT_BRANCH/$VERSION/cargo-registry/index/ modality"
 }
 
 # Main execution

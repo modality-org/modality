@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Upload Modality Installation Page to S3
-# This script uploads the index.html file to the registry.modality.org S3 bucket
+# This script uploads the index.html file to the get.modal.money S3 bucket
 
 set -e  # Exit on any error
 
@@ -11,7 +11,7 @@ STATIC_DIR="$(dirname "$SCRIPT_DIR")/static"
 INDEX_FILE="$STATIC_DIR/index.html"
 
 # Default values
-S3_BUCKET="packages.modality.org"
+S3_BUCKET="get.modal.money"
 AWS_REGION="us-east-1"
 DRY_RUN=false
 
@@ -47,7 +47,7 @@ USAGE:
     $0 [OPTIONS]
 
 OPTIONS:
-    --bucket BUCKET         S3 bucket name (default: registry.modality.org)
+    --bucket BUCKET         S3 bucket name (default: get.modal.money)
     --region REGION         AWS region (default: us-east-1)
     --dry-run               Show what would be uploaded without actually uploading
     -h, --help              Show this help message
