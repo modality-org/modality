@@ -71,25 +71,25 @@ enum NetworkCommands {
 #[derive(Subcommand)]
 enum NodeCommands {
     #[command(about = "Create a new node directory with config.json and node.passfile")]
-    Create(cmds::net::create_node_dir::Opts),
+    Create(cmds::node::create::Opts),
 
     #[command(alias = "run_node", about = "Run a Modality Network node")]
-    Run(cmds::net::run_node::Opts),
+    Run(cmds::node::run::Opts),
 
     #[command(about = "Run a mining node")]
-    RunMiner(cmds::net::run_miner::Opts),
+    RunMiner(cmds::node::run_miner::Opts),
 
     #[command(about = "Run a sequencer node (observes mining, does not mine)")]
-    RunSequencer(cmds::net::run_sequencer::Opts),
+    RunSequencer(cmds::node::run_sequencer::Opts),
 
     #[command(about = "Run an observer node (observes mining, does not mine)")]
-    RunObserver(cmds::net::run_observer::Opts),
+    RunObserver(cmds::node::run_observer::Opts),
 
     #[command(about = "Run a noop node (only autoupgrade, no network operations)")]
-    RunNoop(cmds::net::run_noop::Opts),
+    RunNoop(cmds::node::run_noop::Opts),
 
     #[command(about = "Ping a Modality Network node")]
-    Ping(cmds::net::ping::Opts),
+    Ping(cmds::node::ping::Opts),
 }
 
 #[derive(Subcommand)]
@@ -116,13 +116,13 @@ async fn main() -> Result<()> {
         }
         Commands::Node { command } => {
             match command {
-                NodeCommands::Create(opts) => cmds::net::create_node_dir::run(opts).await?,
-                NodeCommands::Run(opts) => cmds::net::run_node::run(opts).await?,
-                NodeCommands::RunMiner(opts) => cmds::net::run_miner::run(opts).await?,
-                NodeCommands::RunSequencer(opts) => cmds::net::run_sequencer::run(opts).await?,
-                NodeCommands::RunObserver(opts) => cmds::net::run_observer::run(opts).await?,
-                NodeCommands::RunNoop(opts) => cmds::net::run_noop::run(opts).await?,
-                NodeCommands::Ping(opts) => cmds::net::ping::run(opts).await?,
+                NodeCommands::Create(opts) => cmds::node::create::run(opts).await?,
+                NodeCommands::Run(opts) => cmds::node::run::run(opts).await?,
+                NodeCommands::RunMiner(opts) => cmds::node::run_miner::run(opts).await?,
+                NodeCommands::RunSequencer(opts) => cmds::node::run_sequencer::run(opts).await?,
+                NodeCommands::RunObserver(opts) => cmds::node::run_observer::run(opts).await?,
+                NodeCommands::RunNoop(opts) => cmds::node::run_noop::run(opts).await?,
+                NodeCommands::Ping(opts) => cmds::node::ping::run(opts).await?,
             }
         }
         Commands::Net { command } => {
