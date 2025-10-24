@@ -53,8 +53,10 @@ pub struct Node {
     consensus_task: Option<tokio::task::JoinHandle<Result<()>>>,
     autoupgrade_task: Option<tokio::task::JoinHandle<Result<()>>>,
     status_server_task: Option<tokio::task::JoinHandle<()>>,
+    status_html_writer_task: Option<tokio::task::JoinHandle<()>>,
     pub autoupgrade_config: Option<crate::autoupgrade::AutoupgradeConfig>,
     pub status_port: Option<u16>,
+    pub status_html_dir: Option<PathBuf>,
     consensus_tx: mpsc::Sender<ConsensusMessage>,
     consensus_rx: Option<mpsc::Receiver<ConsensusMessage>>,
     shutdown_tx: tokio::sync::broadcast::Sender<()>,
@@ -97,6 +99,7 @@ impl Node {
         let (sync_trigger_tx, _sync_trigger_rx) = tokio::sync::broadcast::channel(100);
         let miner_nominees = config.miner_nominees.clone();
         let status_port = config.status_port;
+        let status_html_dir = config.status_html_dir.clone();
         let node = Self {
             peerid,
             node_keypair,
@@ -113,8 +116,10 @@ impl Node {
             consensus_task: None,
             autoupgrade_task: None,
             status_server_task: None,
+            status_html_writer_task: None,
             autoupgrade_config,
             status_port,
+            status_html_dir,
             consensus_tx,
             consensus_rx: Some(consensus_rx),
             shutdown_tx,
@@ -332,6 +337,12 @@ impl Node {
             handle.await??;
             log::info!("Networking task shutdown complete");
         }
+
+        if let Some(handle) = self.status_html_writer_task.take() {
+            log::info!("Awaiting status HTML writer task shutdown...");
+            handle.await.ok();
+            log::info!("Status HTML writer task shutdown complete");
+        }
     
         self.shutdown().await?;
         log::info!("Node shutdown complete");
@@ -350,6 +361,23 @@ impl Node {
             )
             .await?;
             self.status_server_task = Some(handle);
+        }
+        Ok(())
+    }
+
+    pub async fn start_status_html_writer(&mut self) -> Result<()> {
+        if let Some(ref dir) = self.status_html_dir {
+            log::info!("Starting status HTML writer to directory: {}", dir.display());
+            let handle = crate::status_server::start_status_html_writer(
+                dir.clone(),
+                self.peerid,
+                self.datastore.clone(),
+                self.swarm.clone(),
+                self.listeners.clone(),
+                self.shutdown_tx.subscribe(),
+            )
+            .await?;
+            self.status_html_writer_task = Some(handle);
         }
         Ok(())
     }

@@ -94,6 +94,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     
     // Start status server
     node.start_status_server().await?;
+    node.start_status_html_writer().await?;
     
     // Start networking
     node.start_networking().await?;

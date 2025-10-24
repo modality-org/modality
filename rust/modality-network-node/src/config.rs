@@ -29,6 +29,7 @@ pub struct Config {
     pub run_miner: Option<bool>,
     pub miner_nominees: Option<Vec<String>>,
     pub status_port: Option<u16>,
+    pub status_html_dir: Option<PathBuf>,
 }
 
 impl Config {
@@ -62,6 +63,12 @@ impl Config {
             let network_config_path = network_config_path_buf.as_path();
             let abs_network_config_path = to_absolute_path(config_dir, network_config_path)?;
             config.network_config_path = Some(abs_network_config_path);
+        }
+
+        if let Some(status_html_dir_buf) = config.status_html_dir {
+            let status_html_dir = status_html_dir_buf.as_path();
+            let abs_status_html_dir = to_absolute_path(config_dir, status_html_dir)?;
+            config.status_html_dir = Some(abs_status_html_dir);
         }
     
         Ok(config)

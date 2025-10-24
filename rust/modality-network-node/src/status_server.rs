@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::path::PathBuf;
 use tokio::sync::Mutex;
 use warp::Filter;
 
@@ -60,12 +61,13 @@ fn with_listeners(
     warp::any().map(move || listeners.clone())
 }
 
-async fn status_handler(
+/// Generate status HTML content
+pub async fn generate_status_html(
     peerid: libp2p_identity::PeerId,
     datastore: Arc<Mutex<NetworkDatastore>>,
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     listeners: Vec<libp2p::Multiaddr>,
-) -> Result<impl warp::Reply, warp::Rejection> {
+) -> Result<String, anyhow::Error> {
     // Get connected peers information
     let peer_info = {
         let swarm_lock = swarm.lock().await;
@@ -771,6 +773,67 @@ async fn status_handler(
         epoch_nominees_sections,
     );
 
+    Ok(html)
+}
+
+async fn status_handler(
+    peerid: libp2p_identity::PeerId,
+    datastore: Arc<Mutex<NetworkDatastore>>,
+    swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
+    listeners: Vec<libp2p::Multiaddr>,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let html = generate_status_html(peerid, datastore, swarm, listeners)
+        .await
+        .map_err(|_| warp::reject::not_found())?;
     Ok(warp::reply::html(html))
+}
+
+/// Start status HTML writer task that periodically writes HTML to a directory
+pub async fn start_status_html_writer(
+    dir: PathBuf,
+    peerid: libp2p_identity::PeerId,
+    datastore: Arc<Mutex<NetworkDatastore>>,
+    swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
+    listeners: Vec<libp2p::Multiaddr>,
+    mut shutdown_rx: tokio::sync::broadcast::Receiver<()>,
+) -> Result<tokio::task::JoinHandle<()>, anyhow::Error> {
+    // Create the directory if it doesn't exist
+    std::fs::create_dir_all(&dir)?;
+
+    let handle = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(10));
+        
+        loop {
+            tokio::select! {
+                _ = interval.tick() => {
+                    // Generate and write HTML
+                    match generate_status_html(
+                        peerid,
+                        datastore.clone(),
+                        swarm.clone(),
+                        listeners.clone()
+                    ).await {
+                        Ok(html) => {
+                            let index_path = dir.join("index.html");
+                            if let Err(e) = tokio::fs::write(&index_path, html).await {
+                                log::error!("Failed to write status HTML to {}: {}", index_path.display(), e);
+                            } else {
+                                log::debug!("Status HTML written to {}", index_path.display());
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Failed to generate status HTML: {}", e);
+                        }
+                    }
+                }
+                _ = shutdown_rx.recv() => {
+                    log::info!("Status HTML writer task shutting down");
+                    break;
+                }
+            }
+        }
+    });
+
+    Ok(handle)
 }
 
