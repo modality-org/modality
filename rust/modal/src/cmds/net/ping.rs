@@ -69,3 +69,4 @@ fn generate_random_hex_string() -> String {
         .map(|b| format!("{:02x}", b))
         .collect::<String>()
 }
+

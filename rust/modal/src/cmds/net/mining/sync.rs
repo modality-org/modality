@@ -203,3 +203,4 @@ fn print_summary(data: &serde_json::Value, mode: &str, duration: std::time::Dura
     Ok(())
 }
 
+
