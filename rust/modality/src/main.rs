@@ -28,19 +28,6 @@ enum Commands {
         command: PassfileCommands,
     },
 
-    #[command(about = "Node related commands")]
-    Node {
-        #[command(subcommand)]
-        command: NodeCommands,
-    },
-
-    #[command(alias = "network")]
-    #[command(about = "Network related commands")]
-    Net {
-        #[command(subcommand)]
-        command: NetworkCommands,
-    },
-
     #[command(about = "Model related commands")]
     Model {
         #[command(subcommand)]
@@ -62,51 +49,6 @@ enum PassfileCommands {
     Decrypt(cmds::passfile::decrypt::Opts),
 
     Encrypt(cmds::passfile::encrypt::Opts),
-}
-
-#[derive(Subcommand)]
-enum NetworkCommands {
-    #[command(about = "Inspect network datastore and show statistics")]
-    Storage(cmds::net::storage::Opts),
-
-    #[command(about = "Mining related commands")]
-    Mining {
-        #[command(subcommand)]
-        command: MiningCommands,
-    },
-
-    // #[clap(name = "request")]
-    // Request(cmds::node::request::Opts)
-}
-
-#[derive(Subcommand)]
-enum NodeCommands {
-    #[command(about = "Create a new node directory with config.json and node.passfile")]
-    Create(cmds::net::create_node_dir::Opts),
-
-    #[command(alias = "run_node", about = "Run a Modality Network node")]
-    Run(cmds::net::run_node::Opts),
-
-    #[command(about = "Run a mining node")]
-    RunMiner(cmds::net::run_miner::Opts),
-
-    #[command(about = "Run a sequencer node (observes mining, does not mine)")]
-    RunSequencer(cmds::net::run_sequencer::Opts),
-
-    #[command(about = "Run an observer node (observes mining, does not mine)")]
-    RunObserver(cmds::net::run_observer::Opts),
-
-    #[command(about = "Run a noop node (only autoupgrade, no network operations)")]
-    RunNoop(cmds::net::run_noop::Opts),
-
-    #[command(about = "Ping a Modality Network node")]
-    Ping(cmds::net::ping::Opts),
-}
-
-#[derive(Subcommand)]
-enum MiningCommands {
-    #[command(about = "Sync miner blocks from a specified node")]
-    Sync(cmds::net::mining::sync::Opts),
 }
 
 #[derive(Subcommand)]
@@ -132,27 +74,6 @@ async fn main() -> Result<()> {
             match command {
                 PassfileCommands::Decrypt(opts) => cmds::passfile::decrypt::run(opts).await?,
                 PassfileCommands::Encrypt(opts) => cmds::passfile::encrypt::run(opts).await?,
-            }
-        }
-        Commands::Node { command } => {
-            match command {
-                NodeCommands::Create(opts) => cmds::net::create_node_dir::run(opts).await?,
-                NodeCommands::Run(opts) => cmds::net::run_node::run(opts).await?,
-                NodeCommands::RunMiner(opts) => cmds::net::run_miner::run(opts).await?,
-                NodeCommands::RunSequencer(opts) => cmds::net::run_sequencer::run(opts).await?,
-                NodeCommands::RunObserver(opts) => cmds::net::run_observer::run(opts).await?,
-                NodeCommands::RunNoop(opts) => cmds::net::run_noop::run(opts).await?,
-                NodeCommands::Ping(opts) => cmds::net::ping::run(opts).await?,
-            }
-        }
-        Commands::Net { command } => {
-            match command {
-                NetworkCommands::Storage(opts) => cmds::net::storage::run(opts).await?,
-                NetworkCommands::Mining { command } => {
-                    match command {
-                        MiningCommands::Sync(opts) => cmds::net::mining::sync::run(opts).await?,
-                    }
-                }
             }
         }
         Commands::Model { command } => {
