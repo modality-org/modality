@@ -1,4 +1,5 @@
 pub mod create;
+pub mod info;
 pub mod ping;
 pub mod run;
 pub mod run_miner;

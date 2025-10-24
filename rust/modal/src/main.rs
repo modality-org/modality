@@ -73,6 +73,9 @@ enum NodeCommands {
     #[command(about = "Create a new node directory with config.json and node.passfile")]
     Create(cmds::node::create::Opts),
 
+    #[command(about = "Display information about a node")]
+    Info(cmds::node::info::Opts),
+
     #[command(alias = "run_node", about = "Run a Modality Network node")]
     Run(cmds::node::run::Opts),
 
@@ -117,6 +120,7 @@ async fn main() -> Result<()> {
         Commands::Node { command } => {
             match command {
                 NodeCommands::Create(opts) => cmds::node::create::run(opts).await?,
+                NodeCommands::Info(opts) => cmds::node::info::run(opts).await?,
                 NodeCommands::Run(opts) => cmds::node::run::run(opts).await?,
                 NodeCommands::RunMiner(opts) => cmds::node::run_miner::run(opts).await?,
                 NodeCommands::RunSequencer(opts) => cmds::node::run_sequencer::run(opts).await?,
