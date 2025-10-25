@@ -2,9 +2,9 @@
 mod tests {
     use modality_utils::keypair::Keypair;
     use anyhow::{Result};
-    use modality_network_datastore::NetworkDatastore;
-    use modality_network_datastore::Model;
-    use modality_network_datastore::models::block::Block;
+    use modal_datastore::NetworkDatastore;
+    use modal_datastore::Model;
+    use modal_datastore::models::block::Block;
 
     #[tokio::test]
     async fn test_page() -> Result<()> {

@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 
 use modality_network_node::config::Config;
-use modality_network_datastore::NetworkDatastore;
-use modality_network_datastore::models::MinerBlock;
+use modal_datastore::NetworkDatastore;
+use modal_datastore::models::MinerBlock;
 
 #[derive(Debug, Parser)]
 #[command(about = "Inspect network datastore and show miner block statistics")]

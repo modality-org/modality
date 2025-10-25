@@ -10,7 +10,7 @@ use crate::error::MiningError;
 #[cfg(feature = "persistence")]
 use async_trait::async_trait;
 #[cfg(feature = "persistence")]
-use modality_network_datastore::{Model, NetworkDatastore, models::MinerBlock};
+use modal_datastore::{Model, NetworkDatastore, models::MinerBlock};
 
 #[cfg(feature = "persistence")]
 /// Trait for blockchain persistence operations
@@ -38,7 +38,7 @@ pub trait BlockchainPersistence {
 #[async_trait]
 impl BlockchainPersistence for NetworkDatastore {
     async fn save_block(&self, block: &Block, epoch: u64) -> Result<(), MiningError> {
-        use modality_network_datastore::Model;
+        use modal_datastore::Model;
         
         let miner_block = MinerBlock::new_canonical(
             block.header.hash.clone(),
@@ -171,7 +171,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_load_epoch_blocks() {
-        use modality_network_datastore::Model;
+        use modal_datastore::Model;
         let datastore = NetworkDatastore::create_in_memory().unwrap();
         
         // Save blocks directly using MinerBlock model for testing

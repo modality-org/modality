@@ -4,8 +4,8 @@ use tokio::sync::Mutex;
 // use std::sync::Mutex;
 
 use modality_network_consensus::communication::Communication;
-use modality_network_datastore::models::block::Block;
-use modality_network_datastore::models::block::Ack;
+use modal_datastore::models::block::Block;
+use modal_datastore::models::block::Ack;
 
 use crate::node::Node;
 use crate::gossip::consensus::block::draft::TOPIC as BLOCK_DRAFT_TOPIC;

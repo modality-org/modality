@@ -9,9 +9,9 @@ mod tests {
     use modality_network_consensus::election;
     use modality_network_consensus::runner::*;
     use modality_network_consensus::sequencing::static_authority::StaticAuthority;
-    // use modality_network_datastore::models::block::Block;
-    // use modality_network_datastore::Model;
-    use modality_network_datastore::NetworkDatastore;
+    // use modal_datastore::models::block::Block;
+    // use modal_datastore::Model;
+    use modal_datastore::NetworkDatastore;
     use modality_network_devnet::Devnet;
 
     #[tokio::test]

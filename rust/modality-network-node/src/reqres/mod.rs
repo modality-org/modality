@@ -6,7 +6,7 @@ mod data;
 use data as reqres_data;
 use tokio::sync::mpsc;
 
-use modality_network_datastore::NetworkDatastore;
+use modal_datastore::NetworkDatastore;
 use modality_network_consensus::communication::Message as ConsensusMessage;
 
 #[allow(dead_code)]

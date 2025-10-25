@@ -2,8 +2,8 @@ use crate::reqres;
 use crate::node::Node;
 use anyhow::Result;
 use libp2p::multiaddr::Multiaddr;
-use modality_network_datastore::models::MinerBlock;
-use modality_network_datastore::Model;
+use modal_datastore::models::MinerBlock;
+use modal_datastore::Model;
 
 /// Sync blocks from a remote node with optional persistence
 pub async fn run(
@@ -64,7 +64,7 @@ pub struct SyncResult {
 /// Persist synced blocks to the datastore
 async fn persist_blocks(
     data: &serde_json::Value,
-    datastore: &std::sync::Arc<tokio::sync::Mutex<modality_network_datastore::NetworkDatastore>>,
+    datastore: &std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
 ) -> Result<(usize, usize)> {
     let blocks = data
         .get("blocks")

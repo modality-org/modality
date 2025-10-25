@@ -2,7 +2,7 @@
 cd $(dirname -- "$0")
 
 # Create 3 epochs of test miner blocks in node1's datastore
-# This uses the Rust example from modality-network-datastore
+# This uses the Rust example from modal-datastore
 
 echo "Setting up node1 with 3 epochs of miner blocks (120 blocks total)..."
 echo ""
@@ -18,7 +18,7 @@ ABS_STORAGE_PATH=$(cd "$STORAGE_PATH" && pwd)
 cd ../../../rust
 
 echo "Running create_test_blocks example..."
-cargo run --package modality-network-datastore --example create_test_blocks --quiet -- "$ABS_STORAGE_PATH" 120
+cargo run --package modal-datastore --example create_test_blocks --quiet -- "$ABS_STORAGE_PATH" 120
 
 cd - > /dev/null
 

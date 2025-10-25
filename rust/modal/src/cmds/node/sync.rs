@@ -5,8 +5,8 @@ use std::time::Instant;
 
 use modality_network_node::config_resolution::load_config_with_node_dir;
 use modality_network_node::node::Node;
-use modality_network_datastore::models::miner_block::MinerBlock;
-use modality_network_datastore::Model;
+use modal_datastore::models::miner_block::MinerBlock;
+use modal_datastore::Model;
 use libp2p::{Multiaddr, PeerId};
 
 #[derive(Debug, Parser)]

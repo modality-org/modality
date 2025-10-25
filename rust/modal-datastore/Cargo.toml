@@ -1,5 +1,5 @@
 [package]
-name = "modality-network-datastore"
+name = "modal-datastore"
 version = "0.1.0"
 edition = "2021"
 description = "Network datastore for Modality"

@@ -18,7 +18,7 @@ use libp2p::swarm::SwarmEvent;
 use libp2p::{Multiaddr, PeerId};
 
 use modality_network_consensus::communication::Message as ConsensusMessage;
-use modality_network_datastore::NetworkDatastore;
+use modal_datastore::NetworkDatastore;
 use modality_utils::multiaddr_list::resolve_dns_multiaddrs;
 
 use crate::config::Config;

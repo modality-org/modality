@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, Weak};
 use tokio::sync::mpsc;
 
-use modality_network_datastore::models::block::Ack;
-use modality_network_datastore::models::Block;
-// use modality_network_datastore::Model;
-// use modality_network_datastore::NetworkDatastore;
+use modal_datastore::models::block::Ack;
+use modal_datastore::models::Block;
+// use modal_datastore::Model;
+// use modal_datastore::NetworkDatastore;
 
 use crate::communication::Message;
 use crate::communication::Communication;

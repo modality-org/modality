@@ -1,6 +1,6 @@
 use anyhow::Result;
-use modality_network_datastore::NetworkDatastore;
-use modality_network_datastore::models::MinerBlock;
+use modal_datastore::NetworkDatastore;
+use modal_datastore::models::MinerBlock;
 use crate::reqres::Response;
 
 /// Handler for GET /data/miner_block/canonical

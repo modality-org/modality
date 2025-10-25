@@ -1,7 +1,7 @@
 use anyhow::Result;
 use libp2p::gossipsub::IdentTopic;
-use modality_network_datastore::Model;
-use modality_network_datastore::models::MinerBlock;
+use modal_datastore::Model;
+use modal_datastore::models::MinerBlock;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::Mutex;
@@ -476,7 +476,7 @@ pub async fn request_chain_info_impl(
     peer_id: libp2p::PeerId,
     peer_addr: String,
     swarm: std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
-    datastore: std::sync::Arc<tokio::sync::Mutex<modality_network_datastore::NetworkDatastore>>,
+    datastore: std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
     ignored_peers: std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<libp2p::PeerId, crate::node::IgnoredPeerInfo>>>,
     reqres_response_txs: std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<crate::reqres::Response>>>>,
 ) -> Result<()> {
@@ -814,7 +814,7 @@ async fn request_block_range_from_peer(
     peer_addr: String,
     from_index: u64,
     to_index: u64,
-    datastore: &std::sync::Arc<tokio::sync::Mutex<modality_network_datastore::NetworkDatastore>>,
+    datastore: &std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
     reqres_response_txs: &std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<crate::reqres::Response>>>>,
 ) -> Result<usize> {
     use libp2p::multiaddr::Multiaddr;
@@ -1008,11 +1008,11 @@ async fn request_block_range_from_peer(
 
 /// Attempt to reorganize the chain when divergence is detected
 async fn attempt_chain_reorg(
-    ds: &mut modality_network_datastore::NetworkDatastore,
+    ds: &mut modal_datastore::NetworkDatastore,
     peer_blocks: &[serde_json::Value],
     start_index: u64,
 ) -> Result<()> {
-    use modality_network_datastore::Model;
+    use modal_datastore::Model;
     
     log::info!("Starting chain reorganization from index {}", start_index);
     
@@ -1240,7 +1240,7 @@ async fn mine_and_gossip_block(
     index: u64,
     peer_id: &str,
     miner_nominees: &Option<Vec<String>>,
-    datastore: std::sync::Arc<tokio::sync::Mutex<modality_network_datastore::NetworkDatastore>>,
+    datastore: std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
     swarm: std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
 ) -> Result<()> {
     use modality_network_mining::{Blockchain, ChainConfig};
@@ -1515,7 +1515,7 @@ async fn mine_and_gossip_block(
 pub async fn find_common_ancestor_efficient(
     swarm: &std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
     peer_addr: String,
-    datastore: &std::sync::Arc<tokio::sync::Mutex<modality_network_datastore::NetworkDatastore>>,
+    datastore: &std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
     reqres_response_txs: &std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<crate::reqres::Response>>>>,
 ) -> Result<(Option<u64>, u64, u128)> {
     use libp2p::multiaddr::Multiaddr;

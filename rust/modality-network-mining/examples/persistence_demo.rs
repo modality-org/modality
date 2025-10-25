@@ -7,7 +7,7 @@
 /// - Query persisted blocks
 
 use modality_network_mining::{Blockchain, ChainConfig, BlockchainPersistence};
-use modality_network_datastore::NetworkDatastore;
+use modal_datastore::NetworkDatastore;
 use std::sync::Arc;
 
 #[tokio::main]

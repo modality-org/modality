@@ -7,8 +7,8 @@ use tokio::sync::mpsc;
 use libp2p_identity::PeerId;
 
 use modality_network_consensus::communication::Communication;
-use modality_network_datastore::models::block::Ack;
-use modality_network_datastore::models::block::Block;
+use modal_datastore::models::block::Ack;
+use modal_datastore::models::block::Block;
 use modality_network_consensus::communication::Message as ConsensusMessage;
 
 use crate::gossip::consensus::block::cert::TOPIC as BLOCK_CERT_TOPIC;

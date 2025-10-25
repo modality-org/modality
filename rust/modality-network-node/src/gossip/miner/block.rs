@@ -1,7 +1,7 @@
 use anyhow::Result;
-use modality_network_datastore::Model;
-use modality_network_datastore::NetworkDatastore;
-use modality_network_datastore::models::MinerBlock;
+use modal_datastore::Model;
+use modal_datastore::NetworkDatastore;
+use modal_datastore::models::MinerBlock;
 use serde::{Deserialize, Serialize};
 
 pub const TOPIC: &str = "/miner/block";

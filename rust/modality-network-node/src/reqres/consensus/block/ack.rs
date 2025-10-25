@@ -3,9 +3,9 @@ use anyhow::anyhow;
 use serde_json;
 use tokio::sync::mpsc;
 
-use modality_network_datastore::NetworkDatastore;
-use modality_network_datastore::models::Block;
-use modality_network_datastore::models::block::Ack;
+use modal_datastore::NetworkDatastore;
+use modal_datastore::models::Block;
+use modal_datastore::models::block::Ack;
 use modality_network_consensus::communication::Message as ConsensusMessage;
 
 use crate::reqres::Response;

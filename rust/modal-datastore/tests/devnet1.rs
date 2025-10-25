@@ -5,8 +5,8 @@ use zip::ZipArchive;
 use anyhow::{anyhow, Context, Result};
 use std::path::PathBuf;
 
-use modality_network_datastore::network_datastore::NetworkDatastore;
-use modality_network_datastore::models::block::prelude::*;
+use modal_datastore::network_datastore::NetworkDatastore;
+use modal_datastore::models::block::prelude::*;
 
 // TODO update fixture
 #[ignore]

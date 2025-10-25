@@ -363,7 +363,7 @@ The sync protocol integrates with `modality-network-mining`:
 
 ## Related Documentation
 
-- [Miner Block Model](../../modality-network-datastore/docs/MINER_BLOCK.md)
+- [Miner Block Model](../../modal-datastore/docs/MINER_BLOCK.md)
 - [Mining Package](../../modality-network-mining/README.md)
 - [Request-Response Protocol](./REQRES.md)
 

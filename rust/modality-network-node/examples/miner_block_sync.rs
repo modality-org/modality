@@ -12,8 +12,8 @@ use anyhow::Result;
 use futures::StreamExt;
 use libp2p::{Multiaddr, Swarm};
 use libp2p::swarm::SwarmEvent;
-use modality_network_datastore::models::MinerBlock;
-use modality_network_datastore::Model;
+use modal_datastore::models::MinerBlock;
+use modal_datastore::Model;
 use modality_network_node::config::Config;
 use modality_network_node::reqres::{Request, Response};
 use modality_network_node::swarm;
@@ -31,11 +31,11 @@ async fn main() -> Result<()> {
     
     let temp_dir1 = tempfile::tempdir()?;
     let storage_path1 = temp_dir1.path().join("node1_data");
-    let mut datastore1 = modality_network_datastore::NetworkDatastore::create_in_directory(&storage_path1)?;
+    let mut datastore1 = modal_datastore::NetworkDatastore::create_in_directory(&storage_path1)?;
     
     let temp_dir2 = tempfile::tempdir()?;
     let storage_path2 = temp_dir2.path().join("node2_data");
-    let mut datastore2 = modality_network_datastore::NetworkDatastore::create_in_directory(&storage_path2)?;
+    let mut datastore2 = modal_datastore::NetworkDatastore::create_in_directory(&storage_path2)?;
     
     println!("  ✓ Datastores created\n");
     
@@ -302,8 +302,8 @@ async fn wait_for_connection_both(
 async fn handle_sync(
     node1_swarm: &mut Swarm<swarm::NodeBehaviour>,
     node2_swarm: &mut Swarm<swarm::NodeBehaviour>,
-    datastore1: &mut modality_network_datastore::NetworkDatastore,
-    datastore2: &mut modality_network_datastore::NetworkDatastore,
+    datastore1: &mut modal_datastore::NetworkDatastore,
+    datastore2: &mut modal_datastore::NetworkDatastore,
     request_id: libp2p::request_response::OutboundRequestId,
 ) -> Result<Response> {
     use libp2p::request_response;

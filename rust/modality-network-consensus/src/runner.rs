@@ -11,9 +11,9 @@ use crate::election;
 use crate::sequencing::static_authority::StaticAuthority;
 use crate::sequencing::Sequencing;
 
-use modality_network_datastore::models::block::Ack;
-use modality_network_datastore::models::{Block, BlockMessage, Transaction};
-use modality_network_datastore::{Model, NetworkDatastore};
+use modal_datastore::models::block::Ack;
+use modal_datastore::models::{Block, BlockMessage, Transaction};
+use modal_datastore::{Model, NetworkDatastore};
 use modality_utils::keypair::{self, Keypair};
 
 // const INTRA_ROUND_WAIT_TIME_MS: u64 = 50;

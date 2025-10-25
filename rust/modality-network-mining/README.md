@@ -78,7 +78,7 @@ println!("Mined block {}: {}", block.header.index, block.header.hash);
 
 ```rust
 use modality_network_mining::{Blockchain, ChainConfig, BlockchainPersistence};
-use modality_network_datastore::NetworkDatastore;
+use modal_datastore::NetworkDatastore;
 use std::sync::Arc;
 
 #[tokio::main]
@@ -206,7 +206,7 @@ This can be used for:
 
 ## Persistence
 
-The optional `persistence` feature integrates with `modality-network-datastore`:
+The optional `persistence` feature integrates with `modal-datastore`:
 
 ```bash
 # Build with persistence
@@ -334,7 +334,7 @@ cargo test test_full_blockchain_lifecycle
 - `serde`/`serde_json`: Serialization
 - `thiserror`: Error handling
 - `modality-utils`: Fisher-Yates shuffle and utilities
-- `modality-network-datastore`: Optional persistence (feature-gated)
+- `modal-datastore`: Optional persistence (feature-gated)
 - `async-trait`, `tokio`: Optional async support (feature-gated)
 
 ## License
@@ -347,6 +347,6 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md)
 
 ## Related Packages
 
-- `modality-network-datastore`: Persistent storage for blockchain data
+- `modal-datastore`: Persistent storage for blockchain data
 - `modality-network-consensus`: Consensus mechanisms using mining data
 - `modality-utils`: Shared utilities including crypto functions

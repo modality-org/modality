@@ -5,7 +5,7 @@ pub mod inclusions;
 use anyhow::Result;
 use serde_json;
 
-use modality_network_datastore::NetworkDatastore;
+use modal_datastore::NetworkDatastore;
 
 use crate::reqres::Response;
 

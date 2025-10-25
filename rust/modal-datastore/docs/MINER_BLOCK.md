@@ -42,7 +42,7 @@ The `MinerBlock` model stores proof-of-work mining blocks in the datastore, incl
 ### Canonical Block
 
 ```rust
-use modality_network_datastore::models::MinerBlock;
+use modal_datastore::models::MinerBlock;
 
 let block = MinerBlock::new_canonical(
     "block_hash_123".to_string(),
@@ -80,7 +80,7 @@ let orphaned = MinerBlock::new_orphaned(
 ## Saving and Loading
 
 ```rust
-use modality_network_datastore::{NetworkDatastore, Model};
+use modal_datastore::{NetworkDatastore, Model};
 use std::collections::HashMap;
 
 // Save a block
@@ -157,7 +157,7 @@ To convert from a `modality-network-mining` block to a `MinerBlock`:
 
 ```rust
 use modality_network_mining::Block as MiningBlock;
-use modality_network_datastore::models::MinerBlock;
+use modal_datastore::models::MinerBlock;
 
 fn convert_mining_block(mining_block: &MiningBlock, epoch: u64) -> MinerBlock {
     MinerBlock::new_canonical(
@@ -244,6 +244,6 @@ for (epoch, orphans) in orphans_by_epoch {
 See `examples/miner_block_usage.rs` for a complete working example:
 
 ```bash
-cargo run --package modality-network-datastore --example miner_block_usage
+cargo run --package modal-datastore --example miner_block_usage
 ```
 

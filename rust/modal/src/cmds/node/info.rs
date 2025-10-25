@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use modality_network_node::config_resolution::load_config_with_node_dir;
 use modality_network_node::node::Node;
-use modality_network_datastore::models::miner_block::MinerBlock;
+use modal_datastore::models::miner_block::MinerBlock;
 
 #[derive(Debug, Parser)]
 #[command(about = "Display information about a node")]

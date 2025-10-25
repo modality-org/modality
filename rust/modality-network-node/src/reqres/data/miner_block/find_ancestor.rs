@@ -1,6 +1,6 @@
 use anyhow::Result;
-use modality_network_datastore::NetworkDatastore;
-use modality_network_datastore::models::MinerBlock;
+use modal_datastore::NetworkDatastore;
+use modal_datastore::models::MinerBlock;
 use crate::reqres::Response;
 
 /// Handler for POST /data/miner_block/find_ancestor
@@ -168,7 +168,7 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
 #[cfg(test)]
 mod tests {
     use super::*;
-    use modality_network_datastore::Model;
+    use modal_datastore::Model;
     
     #[tokio::test]
     async fn test_find_ancestor_basic() {

@@ -252,7 +252,7 @@ cd "$PROJECT_ROOT/rust"
 # This ensures dependencies are packaged before dependents
 WORKSPACE_MEMBERS=(
     "modality-utils"
-    "modality-network-datastore"
+    "modal-datastore"
     "modality-network-consensus"
     "modality-network-mining"
     "modality-network-devnet"

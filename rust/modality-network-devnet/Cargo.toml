@@ -15,7 +15,7 @@ serde_json = "1.0"
 lazy_static = "1.4"
 regex = "1.5" 
 modality-utils = { path = "../modality-utils", version = "0.1.6" }
-modality-network-datastore = { path = "../modality-network-datastore", version = "0.1.0" }
+modal-datastore = { path = "../modal-datastore", version = "0.1.0" }
 
 [dev-dependencies]
 tempfile = "3.5"

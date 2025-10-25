@@ -18,7 +18,7 @@ Add the feature to your `Cargo.toml`:
 ```toml
 [dependencies]
 modality-network-mining = { path = "../modality-network-mining", features = ["persistence"] }
-modality-network-datastore = { path = "../modality-network-datastore" }
+modal-datastore = { path = "../modal-datastore" }
 tokio = { version = "1", features = ["rt", "macros"] }
 ```
 
@@ -134,7 +134,7 @@ impl Blockchain {
 
 ```rust
 use modality_network_mining::{Blockchain, ChainConfig, BlockchainPersistence};
-use modality_network_datastore::NetworkDatastore;
+use modal_datastore::NetworkDatastore;
 use std::sync::Arc;
 
 #[tokio::main]
@@ -364,6 +364,6 @@ cargo run --example persistence_demo --features persistence
 ## Related Documentation
 
 - [README.md](./README.md) - Main package documentation
-- [NetworkDatastore Documentation](../modality-network-datastore/README.md)
-- [MinerBlock Model](../modality-network-datastore/docs/MINER_BLOCK.md)
+- [NetworkDatastore Documentation](../modal-datastore/README.md)
+- [MinerBlock Model](../modal-datastore/docs/MINER_BLOCK.md)
 

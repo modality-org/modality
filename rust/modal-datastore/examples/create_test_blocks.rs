@@ -3,8 +3,8 @@
 /// Usage:
 ///   cargo run --example create_test_blocks -- <storage_path> [num_blocks]
 
-use modality_network_datastore::{NetworkDatastore, Model};
-use modality_network_datastore::models::MinerBlock;
+use modal_datastore::{NetworkDatastore, Model};
+use modal_datastore::models::MinerBlock;
 use std::env;
 
 #[tokio::main]

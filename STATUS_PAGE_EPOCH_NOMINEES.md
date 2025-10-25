@@ -155,6 +155,6 @@ cd examples/network/05-mining
 
 - `rust/modality-network-node/src/status_server.rs` - Main implementation
 - `rust/modality-utils/src/shuffle.rs` - Fisher-Yates shuffle implementation
-- `rust/modality-network-datastore/src/models/sequencer_selection.rs` - Sequencer selection logic
+- `rust/modal-datastore/src/models/sequencer_selection.rs` - Sequencer selection logic
 - `rust/modality-network-mining/src/epoch.rs` - Epoch management and shuffle calculation
 

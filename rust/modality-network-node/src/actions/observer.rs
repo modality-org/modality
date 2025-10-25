@@ -1,5 +1,5 @@
 use anyhow::Result;
-use modality_network_datastore::models::MinerBlock;
+use modal_datastore::models::MinerBlock;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -244,7 +244,7 @@ async fn sync_from_peers(node: &Node) -> Result<()> {
 /// Handle a sync request from a specific peer
 async fn handle_sync_from_peer(
     peer_addr: String,
-    datastore: Arc<Mutex<modality_network_datastore::NetworkDatastore>>,
+    datastore: Arc<Mutex<modal_datastore::NetworkDatastore>>,
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     ignored_peers: Arc<Mutex<std::collections::HashMap<libp2p::PeerId, crate::node::IgnoredPeerInfo>>>,
     reqres_txs: Arc<Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<crate::reqres::Response>>>>,

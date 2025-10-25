@@ -6,8 +6,8 @@ mod tests {
     use modality_network_consensus::communication::same_process::*;
     use modality_network_consensus::runner::ConsensusRunner;
     use std::sync::Arc;
-    use modality_network_datastore::models::block::Block;
-    use modality_network_datastore::models::block::Ack;
+    use modal_datastore::models::block::Block;
+    use modal_datastore::models::block::Ack;
 
     struct MockConsensusRunner {
         peerid: String,

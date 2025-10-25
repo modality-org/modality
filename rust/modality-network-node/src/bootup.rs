@@ -1,6 +1,6 @@
 use anyhow::Result;
 use log::{info, warn, error};
-use modality_network_datastore::{NetworkDatastore, models::miner_block::MinerBlock, Model};
+use modal_datastore::{NetworkDatastore, models::miner_block::MinerBlock, Model};
 
 /// Configuration for bootup tasks
 #[derive(Debug, Clone)]

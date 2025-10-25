@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use tokio::sync::Mutex;
 use warp::Filter;
 
-use modality_network_datastore::NetworkDatastore;
-use modality_network_datastore::models::MinerBlock;
+use modal_datastore::NetworkDatastore;
+use modal_datastore::models::MinerBlock;
 
 /// Start HTTP status server on the specified port
 pub async fn start_status_server(

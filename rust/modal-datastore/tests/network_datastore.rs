@@ -1,5 +1,5 @@
-use modality_network_datastore::NetworkDatastore;
-// use modality_network_datastore::{Error};
+use modal_datastore::NetworkDatastore;
+// use modal_datastore::{Error};
 use anyhow::{anyhow, Context, Result};
 use std::path::PathBuf;
 

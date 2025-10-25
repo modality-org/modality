@@ -16,7 +16,7 @@ This example demonstrates how to synchronize miner blocks between Modality netwo
    ```
 
 2. Node1 will automatically be set up with 3 epochs of test blocks (120 blocks) when you first run it.
-   - The setup uses the `create_test_blocks` example from `modality-network-datastore`
+   - The setup uses the `create_test_blocks` example from `modal-datastore`
    - Blocks are persisted to `./tmp/storage/node1`
    - Setup runs automatically if the datastore is empty
 

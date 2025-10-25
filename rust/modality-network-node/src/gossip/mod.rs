@@ -2,7 +2,7 @@ use anyhow::Result;
 use libp2p::gossipsub::{self, Message};
 use tokio::sync::mpsc;
 
-use modality_network_datastore::NetworkDatastore;
+use modal_datastore::NetworkDatastore;
 use modality_network_consensus::communication::Message as ConsensusMessage;
 
 use crate::node::Node;

@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use modality_network_datastore::models::block_header::{self, prelude::*};
-    use modality_network_datastore::models::block::prelude::*;
+    use modal_datastore::models::block_header::{self, prelude::*};
+    use modal_datastore::models::block::prelude::*;
     use modality_network_devnet::Devnet;
 
     #[tokio::test]

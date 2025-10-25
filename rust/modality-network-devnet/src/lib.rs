@@ -1,7 +1,7 @@
 use anyhow::Result;
 use lazy_static::lazy_static;
-use modality_network_datastore::models::Block;
-use modality_network_datastore::{Model, NetworkDatastore};
+use modal_datastore::models::Block;
+use modal_datastore::{Model, NetworkDatastore};
 use serde_json::{self, Value};
 use std::collections::HashMap;
 

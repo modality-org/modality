@@ -2,8 +2,8 @@ pub mod same_process;
 
 use anyhow::Result;
 
-use modality_network_datastore::models::block::Block;
-use modality_network_datastore::models::block::Ack;
+use modal_datastore::models::block::Block;
+use modal_datastore::models::block::Ack;
 
 #[async_trait::async_trait]
 pub trait Communication: Send + Sync {

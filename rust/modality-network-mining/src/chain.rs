@@ -32,7 +32,7 @@ pub struct Blockchain {
     block_index: HashMap<String, usize>, // hash -> index mapping
     
     #[cfg(feature = "persistence")]
-    datastore: Option<std::sync::Arc<modality_network_datastore::NetworkDatastore>>,
+    datastore: Option<std::sync::Arc<modal_datastore::NetworkDatastore>>,
 }
 
 impl Blockchain {
@@ -70,7 +70,7 @@ impl Blockchain {
     pub fn new_with_datastore(
         config: ChainConfig,
         genesis_peer_id: String,
-        datastore: std::sync::Arc<modality_network_datastore::NetworkDatastore>,
+        datastore: std::sync::Arc<modal_datastore::NetworkDatastore>,
     ) -> Self {
         let epoch_manager = EpochManager::new(
             40, // BLOCKS_PER_EPOCH
@@ -98,7 +98,7 @@ impl Blockchain {
     pub async fn load_or_create(
         config: ChainConfig,
         genesis_peer_id: String,
-        datastore: std::sync::Arc<modality_network_datastore::NetworkDatastore>,
+        datastore: std::sync::Arc<modal_datastore::NetworkDatastore>,
     ) -> Result<Self, MiningError> {
         use crate::persistence::BlockchainPersistence;
         
@@ -143,7 +143,7 @@ impl Blockchain {
     /// Set the datastore for persistence
     pub fn with_datastore(
         mut self,
-        datastore: std::sync::Arc<modality_network_datastore::NetworkDatastore>,
+        datastore: std::sync::Arc<modal_datastore::NetworkDatastore>,
     ) -> Self {
         self.datastore = Some(datastore);
         self

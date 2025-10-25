@@ -3,8 +3,8 @@
 // mod tests {
 //     use anyhow::Result;
 //     use modality_network_devnet::Devnet;
-//     use modality_network_datastore::{Model, NetworkDatastore};
-//     use modality_network_datastore::models::block::Block;
+//     use modal_datastore::{Model, NetworkDatastore};
+//     use modal_datastore::models::block::Block;
 //     use modality_network_consensus::sequencing::static_authority::StaticAuthority;
 //     use modality_network_consensus::election;
 //     use modality_network_consensus::runner::*;

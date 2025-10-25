@@ -1,11 +1,11 @@
 use anyhow::Result;
 use anyhow::anyhow;
-use modality_network_datastore::Model;
+use modal_datastore::Model;
 use serde_json;
 use tokio::sync::mpsc;
 
-use modality_network_datastore::NetworkDatastore;
-use modality_network_datastore::models::Block;
+use modal_datastore::NetworkDatastore;
+use modal_datastore::models::Block;
 use modality_network_consensus::communication::Message as ConsensusMessage;
 
 pub const TOPIC: &str = "/consensus/block/cert";
