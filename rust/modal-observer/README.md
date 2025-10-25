@@ -1,4 +1,4 @@
-# modality-network-sequencing
+# modal-observer
 
 Sequencing and chain observation for Modality network consensus.
 
@@ -22,7 +22,7 @@ Sequencers have several key responsibilities:
 The `ChainObserver` struct provides an API for tracking the canonical mining chain:
 
 ```rust
-use modality_network_sequencing::ChainObserver;
+use modal_observer::ChainObserver;
 
 let observer = ChainObserver::new(datastore);
 observer.initialize().await?;
@@ -63,6 +63,6 @@ modality net run-sequencer --config /path/to/config.json
 Run tests:
 
 ```bash
-cargo test -p modality-network-sequencing
+cargo test -p modal-observer
 ```
 

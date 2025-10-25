@@ -7,7 +7,7 @@ members = [
 , 'modality-network-devnet'
 , 'modal-mining'
 , 'modality-network-node'
-, 'modality-network-sequencing'
+, 'modal-observer'
 , "modality-utils"
 , "modality"
 , "modality-lang"

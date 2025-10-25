@@ -1,5 +1,5 @@
 [package]
-name = "modality-network-sequencing"
+name = "modal-observer"
 version = "0.1.0"
 edition = "2021"
 description = "Sequencing and chain observation for Modality network consensus"
