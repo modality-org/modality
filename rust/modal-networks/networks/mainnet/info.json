@@ -1,0 +1,7 @@
+{
+  "name": "mainnet",
+  "description": "the main Modality Network",
+  "bootstrappers": [
+  ]
+}
+

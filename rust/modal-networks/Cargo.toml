@@ -1,0 +1,22 @@
+[package]
+name = "modal-networks"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+aws-sdk-route53 = "1.5"
+aws-config = "1.0"
+tokio = { version = "1", features = ["full"] }
+anyhow = "1.0"
+clap = { version = "4.4", features = ["derive"] }
+
+[lib]
+name = "modal_networks"
+path = "src/lib.rs"
+
+[[bin]]
+name = "modal-networks"
+path = "src/main.rs"
+

@@ -11,7 +11,8 @@ members = [
 , "modality-utils"
 , "modality"
 , "modality-lang"
-, "modal"]
+, "modal"
+, "modal-networks"]
 
 [profile.release]
 strip = true

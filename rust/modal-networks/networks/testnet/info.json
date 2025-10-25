@@ -1,0 +1,10 @@
+{
+  "name": "testnet",
+  "description": "a test network for testing upcoming features",
+  "bootstrappers": [
+    "/ip4/3.125.46.158/tcp/4040/ws/p2p/12D3KooWBGR3m1JmVFm2aZYR7TZXicjA7HSVSWi2fama5cPpgQiX",
+    "/ip4/18.217.58.253/tcp/4040/ws/p2p/12D3KooWEA6dRWvK1vutRDxKfdPZZr7ycHvQNWrDGZZQbiE6YibZ",
+    "/ip4/43.207.233.31/tcp/4040/ws/p2p/12D3KooWDGLGJhoUfkjG4P5MBaoRFVLMLRu4bEHQb9yy1XtHsH5h"
+  ]
+}
+
