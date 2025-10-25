@@ -1243,7 +1243,7 @@ async fn mine_and_gossip_block(
     datastore: std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
     swarm: std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
 ) -> Result<()> {
-    use modal_mining::{Blockchain, ChainConfig};
+    use modal_miner::{Blockchain, ChainConfig};
     
     // Determine the nominee to use for this block
     let nominated_peer_id = match miner_nominees {
@@ -1263,7 +1263,7 @@ async fn mine_and_gossip_block(
     // Load blockchain from datastore with all historical blocks for proper difficulty calculation
     let mut chain = {
         let mut ds_guard = datastore.lock().await;
-        use modal_mining::persistence::BlockchainPersistence;
+        use modal_miner::persistence::BlockchainPersistence;
         
         let loaded_blocks = ds_guard.load_canonical_blocks().await?;
         

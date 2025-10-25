@@ -1,4 +1,4 @@
-use modal_mining::{Blockchain, ChainConfig};
+use modal_miner::{Blockchain, ChainConfig};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Modality Network Mining Example ===\n");

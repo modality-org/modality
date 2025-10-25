@@ -386,5 +386,5 @@ modality net storage --config ./node.json
 
 - [Miner Block Model](../../modal-datastore/docs/MINER_BLOCK.md)
 - [Network Datastore](../../modal-datastore/README.md)
-- [Mining Package](../../modal-mining/README.md)
+- [Mining Package](../../modal-miner/README.md)
 

@@ -1,5 +1,5 @@
 [package]
-name = "modal-mining"
+name = "modal-miner"
 version = "0.1.0"
 edition = "2021"
 description = "Proof-of-work blockchain mining for Modality"

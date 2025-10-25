@@ -4,7 +4,7 @@ The `MinerBlock` model stores proof-of-work mining blocks in the datastore, incl
 
 ## Overview
 
-`MinerBlock` is designed to persist mining block data from the `modal-mining` package. It tracks:
+`MinerBlock` is designed to persist mining block data from the `modal-miner` package. It tracks:
 - **Canonical blocks**: Blocks that are part of the main blockchain
 - **Orphaned blocks**: Blocks that were mined but didn't make it into the main chain (due to chain reorganizations, competing blocks, etc.)
 
@@ -151,12 +151,12 @@ Blocks are stored with the key pattern:
 
 This allows efficient lookup by hash and prefix-based iteration over all blocks.
 
-## Integration with modal-mining
+## Integration with modal-miner
 
-To convert from a `modal-mining` block to a `MinerBlock`:
+To convert from a `modal-miner` block to a `MinerBlock`:
 
 ```rust
-use modal_mining::Block as MiningBlock;
+use modal_miner::Block as MiningBlock;
 use modal_datastore::models::MinerBlock;
 
 fn convert_mining_block(mining_block: &MiningBlock, epoch: u64) -> MinerBlock {

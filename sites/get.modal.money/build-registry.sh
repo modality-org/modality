@@ -254,7 +254,7 @@ WORKSPACE_MEMBERS=(
     "modality-utils"
     "modal-datastore"
     "modality-network-consensus"
-    "modal-mining"
+    "modal-miner"
     "modality-network-devnet"
     "modality-network-node"
     "modality-lang"
