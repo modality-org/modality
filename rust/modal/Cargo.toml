@@ -16,6 +16,7 @@ modality = { path = "../modality", version = "0.1.7" }
 modality-utils = { path = "../modality-utils", version = "0.1.7" }
 modality-network-node = { path = "../modality-network-node", version = "0.1.7" }
 modality-network-datastore = { path = "../modality-network-datastore", version = "0.1.0" }
+modal-networks = { path = "../modal-networks", version = "0.1.0" }
 anyhow = "1.0"
 clap = { version = "4.1.11", features = ["cargo", "derive", "env"] }
 tokio = { version = "1.42.0", features = ["full"] }

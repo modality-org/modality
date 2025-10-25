@@ -58,6 +58,9 @@ enum PassfileCommands {
 
 #[derive(Subcommand)]
 enum NetworkCommands {
+    #[command(about = "Display information about a Modality network")]
+    Info(cmds::net::info::Opts),
+
     #[command(about = "Inspect network datastore and show statistics")]
     Storage(cmds::net::storage::Opts),
 
@@ -135,6 +138,7 @@ async fn main() -> Result<()> {
         }
         Commands::Net { command } => {
             match command {
+                NetworkCommands::Info(opts) => cmds::net::info::run(opts).await?,
                 NetworkCommands::Storage(opts) => cmds::net::storage::run(opts).await?,
                 NetworkCommands::Mining { command } => {
                     match command {
