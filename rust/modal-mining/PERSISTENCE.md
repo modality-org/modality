@@ -1,6 +1,6 @@
 # Blockchain Persistence with NetworkDatastore
 
-This document describes the persistence feature for the modality-network-mining blockchain.
+This document describes the persistence feature for the modal-mining blockchain.
 
 ## Overview
 
@@ -17,7 +17,7 @@ Add the feature to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-modality-network-mining = { path = "../modality-network-mining", features = ["persistence"] }
+modal-mining = { path = "../modal-mining", features = ["persistence"] }
 modal-datastore = { path = "../modal-datastore" }
 tokio = { version = "1", features = ["rt", "macros"] }
 ```
@@ -133,7 +133,7 @@ impl Blockchain {
 ### Basic Usage
 
 ```rust
-use modality_network_mining::{Blockchain, ChainConfig, BlockchainPersistence};
+use modal_mining::{Blockchain, ChainConfig, BlockchainPersistence};
 use modal_datastore::NetworkDatastore;
 use std::sync::Arc;
 
@@ -281,7 +281,7 @@ let blocks = datastore.load_canonical_blocks().await?;
 ## Error Handling
 
 ```rust
-use modality_network_mining::MiningError;
+use modal_mining::MiningError;
 
 match chain.mine_block_with_persistence(peer_id, number).await {
     Ok(block) => println!("Mined: {}", block.header.hash),

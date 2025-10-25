@@ -6,7 +6,7 @@
 /// - Load an existing blockchain from the datastore
 /// - Query persisted blocks
 
-use modality_network_mining::{Blockchain, ChainConfig, BlockchainPersistence};
+use modal_mining::{Blockchain, ChainConfig, BlockchainPersistence};
 use modal_datastore::NetworkDatastore;
 use std::sync::Arc;
 

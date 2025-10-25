@@ -44,10 +44,10 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-modality-network-mining = { path = "../modality-network-mining" }
+modal-mining = { path = "../modal-mining" }
 
 # With persistence support
-modality-network-mining = { path = "../modality-network-mining", features = ["persistence"] }
+modal-mining = { path = "../modal-mining", features = ["persistence"] }
 ```
 
 ## Usage
@@ -55,7 +55,7 @@ modality-network-mining = { path = "../modality-network-mining", features = ["pe
 ### Basic Mining (Without Persistence)
 
 ```rust
-use modality_network_mining::{Blockchain, ChainConfig};
+use modal_mining::{Blockchain, ChainConfig};
 
 // Create a new blockchain
 let config = ChainConfig {
@@ -77,7 +77,7 @@ println!("Mined block {}: {}", block.header.index, block.header.hash);
 ### With Persistence
 
 ```rust
-use modality_network_mining::{Blockchain, ChainConfig, BlockchainPersistence};
+use modal_mining::{Blockchain, ChainConfig, BlockchainPersistence};
 use modal_datastore::NetworkDatastore;
 use std::sync::Arc;
 
@@ -167,7 +167,7 @@ match chain.validate_chain() {
 }
 
 // Direct mining with validation
-use modality_network_mining::{Block, BlockData, Miner};
+use modal_mining::{Block, BlockData, Miner};
 
 let miner = Miner::new_default();
 let data = BlockData::new("QmMiner...".to_string(), 999);

@@ -1,4 +1,4 @@
-use modality_network_mining::{
+use modal_mining::{
     Block, BlockData, Blockchain, ChainConfig, EpochManager, Miner, MinerConfig,
     BLOCKS_PER_EPOCH,
 };

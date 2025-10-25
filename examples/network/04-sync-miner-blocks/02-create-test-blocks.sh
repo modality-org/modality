@@ -7,8 +7,8 @@ set -x
 
 echo "This example requires test miner blocks to be created."
 echo "You can either:"
-echo "  1. Run the persistence_demo example from modality-network-mining:"
-echo "     cd ../../rust/modality-network-mining"
+echo "  1. Run the persistence_demo example from modal-mining:"
+echo "     cd ../../rust/modal-mining"
 echo "     cargo run --example persistence_demo --features persistence"
 echo ""
 echo "  2. Create blocks programmatically using the mining package with persistence"

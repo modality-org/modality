@@ -1,4 +1,4 @@
-use modality_network_mining::{Blockchain, ChainConfig};
+use modal_mining::{Blockchain, ChainConfig};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Epoch Nomination Shuffling Demo ===\n");
