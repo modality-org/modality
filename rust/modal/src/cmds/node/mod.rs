@@ -6,4 +6,5 @@ pub mod run_miner;
 pub mod run_noop;
 pub mod run_observer;
 pub mod run_sequencer;
+pub mod sync;
 

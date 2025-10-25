@@ -93,6 +93,9 @@ enum NodeCommands {
 
     #[command(about = "Ping a Modality Network node")]
     Ping(cmds::node::ping::Opts),
+
+    #[command(about = "Sync blockchain from network peers")]
+    Sync(cmds::node::sync::Opts),
 }
 
 #[derive(Subcommand)]
@@ -127,6 +130,7 @@ async fn main() -> Result<()> {
                 NodeCommands::RunObserver(opts) => cmds::node::run_observer::run(opts).await?,
                 NodeCommands::RunNoop(opts) => cmds::node::run_noop::run(opts).await?,
                 NodeCommands::Ping(opts) => cmds::node::ping::run(opts).await?,
+                NodeCommands::Sync(opts) => cmds::node::sync::run(opts).await?,
             }
         }
         Commands::Net { command } => {
