@@ -9,6 +9,7 @@
 use modal_miner::{Blockchain, ChainConfig, BlockchainPersistence};
 use modal_datastore::NetworkDatastore;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -21,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📦 Creating datastore at: {}\n", datastore_path.display());
     
     // Initialize datastore
-    let datastore = Arc::new(NetworkDatastore::create_in_directory(&datastore_path)?);
+    let datastore = Arc::new(Mutex::new(NetworkDatastore::create_in_directory(&datastore_path)?));
     
     // Configuration
     let config = ChainConfig {
@@ -96,11 +97,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📊 Querying persisted blocks...\n");
     
     // Load all canonical blocks
-    let canonical = datastore.load_canonical_blocks().await?;
+    let ds = datastore.lock().await;
+    let canonical = ds.load_canonical_blocks().await?;
     println!("  Canonical blocks: {}", canonical.len());
     
     // Load epoch 0 blocks
-    let epoch_0 = datastore.load_epoch_blocks(0).await?;
+    let epoch_0 = ds.load_epoch_blocks(0).await?;
+    drop(ds);
     println!("  Epoch 0 blocks: {}", epoch_0.len());
     
     for (i, block) in epoch_0.iter().enumerate() {
@@ -133,7 +136,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Final chain height: {}", resumed_chain.height());
     
     // Final verification
-    let final_loaded = datastore.load_canonical_blocks().await?;
+    let ds = datastore.lock().await;
+    let final_loaded = ds.load_canonical_blocks().await?;
+    drop(ds);
     println!("  Total persisted blocks: {}", final_loaded.len());
     
     println!("\n📋 Summary:");

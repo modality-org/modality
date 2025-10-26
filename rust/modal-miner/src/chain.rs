@@ -32,7 +32,10 @@ pub struct Blockchain {
     block_index: HashMap<String, usize>, // hash -> index mapping
     
     #[cfg(feature = "persistence")]
-    datastore: Option<std::sync::Arc<modal_datastore::NetworkDatastore>>,
+    datastore: Option<std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>>,
+    
+    #[cfg(feature = "persistence")]
+    fork_choice: Option<std::sync::Arc<crate::fork_choice::MinerForkChoice>>,
 }
 
 impl Blockchain {
@@ -57,6 +60,8 @@ impl Blockchain {
             block_index,
             #[cfg(feature = "persistence")]
             datastore: None,
+            #[cfg(feature = "persistence")]
+            fork_choice: None,
         }
     }
     
@@ -70,7 +75,7 @@ impl Blockchain {
     pub fn new_with_datastore(
         config: ChainConfig,
         genesis_peer_id: String,
-        datastore: std::sync::Arc<modal_datastore::NetworkDatastore>,
+        datastore: std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
     ) -> Self {
         let epoch_manager = EpochManager::new(
             40, // BLOCKS_PER_EPOCH
@@ -82,6 +87,9 @@ impl Blockchain {
         let mut block_index = HashMap::new();
         block_index.insert(genesis.header.hash.clone(), 0);
         
+        // Initialize fork choice with the datastore
+        let fork_choice = std::sync::Arc::new(crate::fork_choice::MinerForkChoice::new(datastore.clone()));
+        
         Self {
             blocks: vec![genesis],
             epoch_manager,
@@ -90,6 +98,7 @@ impl Blockchain {
             genesis_peer_id,
             block_index,
             datastore: Some(datastore),
+            fork_choice: Some(fork_choice),
         }
     }
     
@@ -98,12 +107,17 @@ impl Blockchain {
     pub async fn load_or_create(
         config: ChainConfig,
         genesis_peer_id: String,
-        datastore: std::sync::Arc<modal_datastore::NetworkDatastore>,
+        datastore: std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
     ) -> Result<Self, MiningError> {
         use crate::persistence::BlockchainPersistence;
         
         // Try to load existing blocks
-        let loaded_blocks = datastore.load_canonical_blocks().await?;
+        let ds = datastore.lock().await;
+        let loaded_blocks = ds.load_canonical_blocks().await?;
+        drop(ds);
+        
+        // Initialize fork choice with the datastore
+        let fork_choice = std::sync::Arc::new(crate::fork_choice::MinerForkChoice::new(datastore.clone()));
         
         if loaded_blocks.is_empty() {
             // No existing blocks, create genesis
@@ -111,7 +125,9 @@ impl Blockchain {
             
             // Save genesis block
             let genesis = chain.blocks[0].clone();
-            datastore.save_block(&genesis, 0).await?;
+            let ds = datastore.lock().await;
+            ds.save_block(&genesis, 0).await?;
+            drop(ds);
             
             Ok(chain)
         } else {
@@ -135,6 +151,7 @@ impl Blockchain {
                 genesis_peer_id,
                 block_index,
                 datastore: Some(datastore),
+                fork_choice: Some(fork_choice),
             })
         }
     }
@@ -143,9 +160,11 @@ impl Blockchain {
     /// Set the datastore for persistence
     pub fn with_datastore(
         mut self,
-        datastore: std::sync::Arc<modal_datastore::NetworkDatastore>,
+        datastore: std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
     ) -> Self {
+        let fork_choice = std::sync::Arc::new(crate::fork_choice::MinerForkChoice::new(datastore.clone()));
         self.datastore = Some(datastore);
+        self.fork_choice = Some(fork_choice);
         self
     }
     
@@ -230,8 +249,8 @@ impl Blockchain {
         // Mine the block
         let mined_block = self.miner.mine_block(block)?;
         
-        // Add to chain with persistence
-        self.add_block_with_persistence(mined_block.clone()).await?;
+        // Add to chain with persistence using fork choice
+        self.add_block_with_fork_choice(mined_block.clone()).await?;
         
         Ok(mined_block)
     }
@@ -261,7 +280,9 @@ impl Blockchain {
         if let Some(ref datastore) = self.datastore {
             use crate::persistence::BlockchainPersistence;
             let epoch = self.epoch_manager.get_epoch(block.header.index);
-            datastore.save_block(&block, epoch).await?;
+            let ds = datastore.lock().await;
+            ds.save_block(&block, epoch).await?;
+            drop(ds);
         }
         
         // Add to index
@@ -272,6 +293,109 @@ impl Blockchain {
         self.blocks.push(block);
         
         Ok(())
+    }
+    
+    #[cfg(feature = "persistence")]
+    /// Add a block using the observer's fork choice logic
+    /// 
+    /// This method uses the observer's sophisticated fork choice rules
+    /// to properly handle chain reorganizations and competing forks.
+    pub async fn add_block_with_fork_choice(&mut self, block: Block) -> Result<(), MiningError> {
+        // If we have fork choice enabled, use it
+        if let Some(ref fork_choice) = self.fork_choice {
+            // Process through fork choice (this handles all the complexity)
+            fork_choice.process_mined_block(block.clone()).await?;
+            
+            // Reload canonical chain from datastore to ensure we're in sync
+            if let Some(ref datastore) = self.datastore {
+                use crate::persistence::BlockchainPersistence;
+                let ds = datastore.lock().await;
+                let canonical_blocks = ds.load_canonical_blocks().await?;
+                drop(ds);
+                
+                // Update our in-memory state
+                self.blocks = canonical_blocks;
+                
+                // Rebuild block index
+                self.block_index.clear();
+                for (idx, block) in self.blocks.iter().enumerate() {
+                    self.block_index.insert(block.header.hash.clone(), idx);
+                }
+            }
+            
+            Ok(())
+        } else {
+            // Fall back to old behavior if fork choice not available
+            self.add_block_with_persistence(block).await
+        }
+    }
+    
+    #[cfg(feature = "persistence")]
+    /// Process a gossiped block from the network using fork choice logic
+    /// 
+    /// This method uses the observer's fork choice rules to:
+    /// - Detect competing forks
+    /// - Calculate cumulative difficulty
+    /// - Perform chain reorganizations if necessary
+    /// - Handle orphaned blocks
+    /// 
+    /// Returns Ok(true) if the block was accepted, Ok(false) if rejected
+    pub async fn process_gossiped_block(&mut self, block: Block) -> Result<bool, MiningError> {
+        if let Some(ref fork_choice) = self.fork_choice {
+            // Convert Block to MinerBlock
+            let epoch = self.epoch_manager.get_epoch(block.header.index);
+            let miner_block = modal_datastore::models::MinerBlock::new_canonical(
+                block.header.hash.clone(),
+                block.header.index,
+                epoch,
+                block.header.timestamp.timestamp(),
+                block.header.previous_hash.clone(),
+                block.header.data_hash.clone(),
+                block.header.nonce,
+                block.header.difficulty,
+                block.data.nominated_peer_id.clone(),
+                block.data.miner_number,
+            );
+            
+            // Process through fork choice
+            let accepted = fork_choice.process_gossiped_block(miner_block).await?;
+            
+            if accepted {
+                // Reload canonical chain from datastore
+                if let Some(ref datastore) = self.datastore {
+                    use crate::persistence::BlockchainPersistence;
+                    let ds = datastore.lock().await;
+                    let canonical_blocks = ds.load_canonical_blocks().await?;
+                    drop(ds);
+                    
+                    // Update our in-memory state
+                    self.blocks = canonical_blocks;
+                    
+                    // Rebuild block index
+                    self.block_index.clear();
+                    for (idx, block) in self.blocks.iter().enumerate() {
+                        self.block_index.insert(block.header.hash.clone(), idx);
+                    }
+                }
+            }
+            
+            Ok(accepted)
+        } else {
+            // Fall back to simple validation if fork choice not available
+            match self.validate_block(&block) {
+                Ok(_) => {
+                    self.add_block_with_persistence(block).await?;
+                    Ok(true)
+                }
+                Err(_) => Ok(false),
+            }
+        }
+    }
+    
+    #[cfg(feature = "persistence")]
+    /// Get access to the fork choice handler
+    pub fn fork_choice(&self) -> Option<&crate::fork_choice::MinerForkChoice> {
+        self.fork_choice.as_ref().map(|fc| fc.as_ref())
     }
     
     /// Validate a block before adding to chain

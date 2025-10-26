@@ -110,7 +110,7 @@ impl BlockchainPersistence for NetworkDatastore {
 /// Convert a MinerBlock from the datastore to a Block
 fn miner_block_to_block(mb: &MinerBlock) -> Result<Block, MiningError> {
     use crate::block::{BlockData, BlockHeader};
-    use chrono::{DateTime, Utc, TimeZone};
+    use chrono::{DateTime, Utc};
     use sha2::{Sha256, Digest};
     
     let nonce = mb.get_nonce_u128()
