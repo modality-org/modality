@@ -19,4 +19,5 @@ modal-datastore = { path = "../modal-datastore", version = "0.1.0" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "macros", "test-util"] }
+chrono = "0.4"
 

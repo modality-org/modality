@@ -12,6 +12,6 @@
 pub mod chain_observer;
 pub mod error;
 
-pub use chain_observer::ChainObserver;
+pub use chain_observer::{ChainObserver, ForkConfig};
 pub use error::{Result, SequencingError};
 
