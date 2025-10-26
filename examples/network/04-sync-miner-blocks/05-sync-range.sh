@@ -11,7 +11,7 @@ TO_INDEX=${2:-10}
 
 echo "Syncing miner blocks from index $FROM_INDEX to $TO_INDEX..."
 
-modality net mining sync \
+modal net mining sync \
   --config ./configs/node2.json \
   --target /ip4/127.0.0.1/tcp/10201/ws/p2p/$NODE1_PEER_ID \
   --mode range \

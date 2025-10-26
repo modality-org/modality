@@ -2,4 +2,4 @@
 cd $(dirname -- "$0")
 set -x
 
-modality node run --config ../../../fixtures/network-node-configs/devnet3/node2.json
+modal node run --config ../../../fixtures/network-node-configs/devnet3/node2.json

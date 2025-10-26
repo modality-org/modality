@@ -11,5 +11,5 @@ fi
 
 # Run node1 which will have miner blocks
 echo "Starting node1 with miner blocks..."
-modality node run --config ./configs/node1.json
+modal node run --config ./configs/node1.json
 

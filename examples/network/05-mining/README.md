@@ -11,10 +11,10 @@ This example demonstrates mining blocks with automatic difficulty adjustment in 
 
 ## Prerequisites
 
-1. Build the `modality` CLI:
+1. Build the `modal` CLI:
    ```bash
    cd ../../../rust
-   cargo build --package modality --release
+   cargo build --package modal --release
    ```
 
 ## Running the Example

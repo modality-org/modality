@@ -9,7 +9,7 @@ NODE1_PEER_ID="12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
 
 echo "Fetching blocks in JSON format..."
 
-modality net mining sync \
+modal net mining sync \
   --config ./configs/node2.json \
   --target /ip4/127.0.0.1/tcp/10201/ws/p2p/$NODE1_PEER_ID \
   --mode all \

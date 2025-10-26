@@ -10,7 +10,7 @@ EPOCH=${1:-0}
 
 echo "Syncing miner blocks from epoch $EPOCH..."
 
-modality net mining sync \
+modal net mining sync \
   --config ./configs/node2.json \
   --target /ip4/127.0.0.1/tcp/10201/ws/p2p/$NODE1_PEER_ID \
   --mode epoch \

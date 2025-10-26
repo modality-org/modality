@@ -11,13 +11,13 @@ if [ ! -d "./tmp/storage/miner" ]; then
     exit 1
 fi
 
-# Build the modality CLI if needed
-if [ ! -f "../../../rust/target/debug/modality" ]; then
-    echo "Building modality CLI..."
+# Build the modal CLI if needed
+if [ ! -f "../../../rust/target/debug/modal" ]; then
+    echo "Building modal CLI..."
     cd ../../../rust
-    cargo build --package modality
+    cargo build --package modal
     cd - > /dev/null
 fi
 
-../../../rust/target/debug/modality net storage --config ./configs/miner.json --detailed
+../../../rust/target/debug/modal net storage --config ./configs/miner.json --detailed
 

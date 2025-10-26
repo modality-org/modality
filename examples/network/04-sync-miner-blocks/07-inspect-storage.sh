@@ -7,5 +7,5 @@ set -x
 echo "Inspecting node1's datastore..."
 echo ""
 
-modality net storage --config ./configs/node1.json
+modal net storage --config ./configs/node1.json
 

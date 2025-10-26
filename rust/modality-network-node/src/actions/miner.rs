@@ -1260,128 +1260,16 @@ async fn mine_and_gossip_block(
 
     log::info!("Mining block {} with nominated peer: {}", index, nominated_peer_id);
 
-    // Load blockchain from datastore with all historical blocks for proper difficulty calculation
-    let mut chain = {
-        let mut ds_guard = datastore.lock().await;
-        use modal_miner::persistence::BlockchainPersistence;
-        
-        let loaded_blocks = ds_guard.load_canonical_blocks().await?;
-        
-        log::info!("Loaded {} blocks from datastore", loaded_blocks.len());
-        
-        if loaded_blocks.is_empty() {
-            // No existing blocks, create genesis
-            let chain = Blockchain::new(ChainConfig::default(), peer_id.to_string());
-            
-            // Save genesis block to datastore
-            let genesis = &chain.blocks[0];
-            let genesis_miner_block = MinerBlock::new_canonical(
-                genesis.header.hash.clone(),
-                genesis.header.index,
-                0, // epoch 0
-                genesis.header.timestamp.timestamp(),
-                genesis.header.previous_hash.clone(),
-                genesis.header.data_hash.clone(),
-                genesis.header.nonce,
-                genesis.header.difficulty,
-                genesis.data.nominated_peer_id.clone(),
-                genesis.data.miner_number,
-            );
-            genesis_miner_block.save(&mut ds_guard).await?;
-            log::info!("Saved genesis block (index: 0) to datastore");
-            
-            drop(ds_guard); // Release the lock
-            chain
-        } else {
-            // Reconstruct blockchain from loaded blocks
-            // Start with a fresh chain and replace genesis, then add remaining blocks
-            let mut chain = Blockchain::new(ChainConfig::default(), peer_id.to_string());
-            
-            // Replace the auto-generated genesis with the loaded one
-            chain.blocks.clear();
-            chain.blocks.push(loaded_blocks[0].clone());
-            
-            log::info!("Set genesis block (index: {}, hash: {})", 
-                loaded_blocks[0].header.index,
-                loaded_blocks[0].header.hash);
-            
-            // Add all subsequent blocks, validating chain continuity
-            // If we encounter a block that doesn't match, we simply stop there
-            // and continue with the longest valid chain we can build
-            let mut last_valid_index = 0;
-            let mut stopped_at_index = None;
-            
-            for (i, block) in loaded_blocks.into_iter().skip(1).enumerate() {
-                log::debug!("Adding block {} (index: {}, prev_hash: {}, hash: {})", 
-                    i + 1,
-                    block.header.index,
-                    &block.header.previous_hash[..16],
-                    &block.header.hash[..16]);
-                
-                // Try to add the block
-                match chain.add_block(block.clone()) {
-                    Ok(()) => {
-                        last_valid_index = block.header.index;
-                    }
-                    Err(e) => {
-                        // Block doesn't fit in this chain - this could be a fork
-                        // Stop here and let the mining logic continue from the valid chain
-                        log::warn!("⚠️  Block {} doesn't fit in chain: {}. Stopping reconstruction here.", 
-                            block.header.index, e);
-                        log::info!("Chain will continue from last valid block at index {}", last_valid_index);
-                        stopped_at_index = Some(block.header.index);
-                        break;
-                    }
-                }
-            }
-            
-            // Log information about the reconstruction
-            if let Some(stopped_index) = stopped_at_index {
-                log::warn!("⚠️  Chain reconstruction stopped at index {} due to discontinuity", stopped_index);
-                log::info!("Built chain with {} valid blocks (height: {})", 
-                    chain.blocks.len(),
-                    chain.height());
-                
-                // Orphan all blocks from the discontinuity point onwards
-                // This prevents the node from getting stuck trying to mine ahead of the valid chain
-                log::info!("Orphaning blocks from index {} onwards to resolve discontinuity", stopped_index);
-                let all_canonical = MinerBlock::find_all_canonical(&*ds_guard).await.unwrap_or_default();
-                let mut orphaned_count = 0;
-                for mut block in all_canonical {
-                    if block.index >= stopped_index {
-                        block.mark_as_orphaned(
-                            format!("Chain discontinuity detected at index {} - block doesn't fit in canonical chain", stopped_index),
-                            None
-                        );
-                        if let Err(e) = block.save(&mut ds_guard).await {
-                            log::warn!("Failed to orphan block {}: {}", block.index, e);
-                        } else {
-                            orphaned_count += 1;
-                            log::debug!("Orphaned block {} (hash: {})", block.index, &block.hash[..16]);
-                        }
-                    }
-                }
-                log::info!("Orphaned {} blocks starting from index {}", orphaned_count, stopped_index);
-                
-                // If we're trying to mine a block but our chain has a discontinuity,
-                // return an error so the mining loop can adjust to the correct index
-                if index > chain.height() + 1 {
-                    drop(ds_guard);
-                    return Err(anyhow::anyhow!(
-                        "Chain had discontinuity at index {}. Orphaned {} blocks. Mine from index {} instead.",
-                        stopped_index, orphaned_count, chain.height() + 1
-                    ));
-                }
-            } else {
-                log::info!("Reconstructed complete chain with {} blocks (height: {})", 
-                    chain.blocks.len(),
-                    chain.height());
-            }
-            
-            drop(ds_guard); // Release the lock
-            chain
-        }
-    };
+    // Load blockchain from datastore using the new load_or_create API with fork choice
+    let mut chain = Blockchain::load_or_create(
+        ChainConfig::default(),
+        peer_id.to_string(),
+        datastore.clone(),
+    ).await?;
+    
+    log::info!("Loaded chain with {} blocks (height: {})", 
+        chain.blocks.len(),
+        chain.height());
     
     // Check if we're trying to mine a block that already exists
     if index < chain.height() + 1 && index < chain.blocks.len() as u64 {
@@ -1399,9 +1287,12 @@ async fn mine_and_gossip_block(
     
     log::info!("Chain ready for mining. Height: {}, Mining next index: {}", chain.height(), index);
     
-    // Mine the next block (difficulty will be calculated based on loaded blockchain state)
+    // Mine the next block with persistence and fork choice
     let miner_number = rand::random::<u64>();
-    let mined_block = chain.mine_block(nominated_peer_id.clone(), miner_number)?;
+    let mined_block = chain.mine_block_with_persistence(
+        nominated_peer_id.clone(), 
+        miner_number
+    ).await?;
     
     // Verify the mined block has the expected index
     if mined_block.header.index != index {
@@ -1409,10 +1300,10 @@ async fn mine_and_gossip_block(
         return Err(anyhow::anyhow!("Mined block index mismatch"));
     }
 
-    // Convert to MinerBlock for datastore
+    // Convert to MinerBlock for gossip
     let miner_block = MinerBlock::new_canonical(
         mined_block.header.hash.clone(),
-        index, // Use the passed index
+        index,
         index / 40, // Assuming 40 blocks per epoch
         mined_block.header.timestamp.timestamp(),
         mined_block.header.previous_hash.clone(),
@@ -1422,44 +1313,6 @@ async fn mine_and_gossip_block(
         mined_block.data.nominated_peer_id.clone(),
         mined_block.data.miner_number,
     );
-
-    // Save to datastore with duplicate checking and fork choice
-    {
-        let mut ds = datastore.lock().await;
-        
-        // Check if a block already exists at this index
-        match MinerBlock::find_canonical_by_index(&ds, index).await? {
-            Some(existing) => {
-                // Block exists - apply fork choice (higher difficulty = more work = wins)
-                let new_difficulty = mined_block.header.difficulty;
-                let existing_difficulty = existing.get_difficulty_u128()?;
-                
-                if new_difficulty > existing_difficulty {
-                    log::info!("Fork choice: Replacing existing block {} (difficulty: {}) with new block (difficulty: {})",
-                        index, existing_difficulty, new_difficulty);
-                    
-                    // Mark old block as orphaned
-                    let mut orphaned = existing.clone();
-                    orphaned.mark_as_orphaned(
-                        format!("Replaced by block with higher difficulty ({} vs {})", new_difficulty, existing_difficulty),
-                        Some(miner_block.hash.clone())
-                    );
-                    orphaned.save(&mut ds).await?;
-                    
-                    // Save new block as canonical
-                    miner_block.save(&mut ds).await?;
-                } else {
-                    log::info!("Block {} already exists with equal or higher difficulty (existing: {}, new: {}), skipping save",
-                        index, existing_difficulty, new_difficulty);
-                }
-            }
-            None => {
-                // No existing block at this index, save normally
-                log::info!("Saving block {} (hash: {}) to datastore", miner_block.index, &miner_block.hash[..16]);
-                miner_block.save(&mut ds).await?;
-            }
-        }
-    }
 
     // Gossip the block
     let gossip_msg = gossip::miner::block::MinerBlockGossip::from_miner_block(&miner_block);
