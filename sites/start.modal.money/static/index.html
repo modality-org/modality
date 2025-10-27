@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modal Money - Installation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            background: #0a0a0a;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        /* Animated gradient background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 20% 50%, rgba(250, 76, 20, 0.08) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 80%, rgba(250, 76, 20, 0.06) 0%, transparent 50%),
+                        radial-gradient(circle at 40% 20%, rgba(250, 120, 60, 0.04) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        /* Grid pattern overlay */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        .container {
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            padding: 3rem;
+            max-width: 900px;
+            width: 90%;
+            margin: 2rem;
+            position: relative;
+            z-index: 1;
+            backdrop-filter: blur(20px);
+        }
+        
+        h1 {
+            color: #ffffff;
+            text-align: center;
+            margin-bottom: 0.5rem;
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #b4b4b4;
+            margin-bottom: 3rem;
+            font-size: 1.1rem;
+        }
+        
+        .install-section {
+            margin-bottom: 2.5rem;
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid;
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(10px);
+        }
+        
+        .mainnet {
+            border-color: rgba(250, 76, 20, 0.3);
+            background: rgba(250, 76, 20, 0.05);
+        }
+        
+        .testnet {
+            border-color: rgba(255, 193, 7, 0.3);
+            background: rgba(255, 193, 7, 0.05);
+        }
+        
+        .install-section h2 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .mainnet h2 {
+            color: rgb(250, 76, 20);
+        }
+        
+        .testnet h2 {
+            color: #ffc107;
+        }
+        
+        h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .testnet h3 {
+            color: #ffc107;
+        }
+        
+        .command {
+            background-color: #1a1a1a;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #e2e8f0;
+            padding: 1rem 1rem 1rem 1rem;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.95rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+            position: relative;
+            transition: border-color 0.3s ease;
+        }
+        
+        .command:hover {
+            border-color: rgba(250, 76, 20, 0.3);
+        }
+        
+        .copy-btn {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            background: rgba(250, 76, 20, 0.8);
+            color: white;
+            border: none;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .copy-btn:hover {
+            background: rgb(250, 76, 20);
+            transform: translateY(-1px);
+        }
+        
+        .copy-btn.copied {
+            background: #38a169;
+        }
+        
+        .description {
+            color: #9ca3af;
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+        
+        .note {
+            background: rgba(250, 76, 20, 0.08);
+            border: 1px solid rgba(250, 76, 20, 0.2);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 2rem;
+            color: #d1d5db;
+        }
+        
+        .note strong {
+            color: rgb(250, 76, 20);
+        }
+        
+        .note a {
+            color: rgb(250, 76, 20);
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+        
+        .note a:hover {
+            opacity: 0.8;
+            text-decoration: underline;
+        }
+        
+        ul {
+            margin-left: 1.5rem;
+            color: #9ca3af;
+        }
+        
+        ul li {
+            margin-bottom: 0.5rem;
+        }
+        
+        ul li a {
+            color: rgb(250, 76, 20);
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+        
+        ul li a:hover {
+            opacity: 0.8;
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 2rem;
+                margin: 1rem;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .command {
+                font-size: 0.85rem;
+                padding-right: 4rem;
+            }
+            
+            .copy-btn {
+                top: 0.5rem;
+                right: 0.5rem;
+                padding: 0.3rem 0.6rem;
+                font-size: 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Modal Money</h1>
+        <p class="subtitle">Installation Instructions</p>
+        
+        <div class="install-section mainnet">
+            <h2>🚀 Mainnet Installation</h2>
+            <p class="description">Install the stable version of Modal Money for mainnet usage:</p>
+            <div class="command">
+                <button class="copy-btn" onclick="copyToClipboard(this)">Copy</button>
+                cargo install modal
+            </div>
+        </div>
+        
+        <div class="install-section testnet">
+            <h2>🧪 Testnet Installation</h2>
+            
+            <h3>Option 1: Pre-built Binary (Recommended)</h3>
+            <p class="description">Fast and easy - install the pre-compiled binary with a single command:</p>
+            <div class="command">
+                <button class="copy-btn" onclick="copyToClipboard(this)">Copy</button>
+                curl -fsSL http://start.modal.money/testnet/latest/install.sh | sh
+            </div>
+            <p class="description" style="font-size: 0.9rem; margin-top: 0.5rem;">Supports: Linux x86_64 • macOS Apple Silicon</p>
+            
+            <h3>Option 2: Direct Download</h3>
+            <p class="description">Download binaries directly:</p>
+            <ul>
+                <li><a href="http://start.modal.money/testnet/latest/binaries/linux-x86_64/modality">Linux x86_64</a></li>
+                <li><a href="http://start.modal.money/testnet/latest/binaries/darwin-aarch64/modality">macOS Apple Silicon</a></li>
+            </ul>
+            
+            <h3>Option 3: Build from Source</h3>
+            <p class="description">Compile from source using Cargo:</p>
+            <div class="command">
+                <button class="copy-btn" onclick="copyToClipboard(this)">Copy</button>
+                cargo install --index sparse+http://start.modal.money/testnet/latest/cargo-registry/index/ modality
+            </div>
+        </div>
+        
+        <div class="note">
+            <strong>Quick Start:</strong> The pre-built binary is the fastest way to get started. Just run the install script and follow the instructions to add Modal Money to your PATH.
+        </div>
+        
+        <div class="note" style="margin-top: 1rem; background: rgba(255, 255, 255, 0.03); border-color: rgba(255, 255, 255, 0.1);">
+            <strong>Building from Source:</strong> Make sure you have Rust and Cargo installed on your system. If you don't have Rust installed, you can get it from <a href="https://rustup.rs/" target="_blank">rustup.rs</a>.
+        </div>
+    </div>
+
+    <script>
+        function copyToClipboard(button) {
+            const command = button.parentElement.textContent.trim();
+            navigator.clipboard.writeText(command).then(() => {
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                button.classList.add('copied');
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('copied');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = command;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                button.classList.add('copied');
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('copied');
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
+
