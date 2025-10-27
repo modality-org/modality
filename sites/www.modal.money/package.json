@@ -1,0 +1,28 @@
+{
+  "name": "www-modal-money-infrastructure",
+  "version": "1.0.0",
+  "description": "AWS CDK infrastructure for modal.money static website",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "cdk": "cdk",
+    "deploy": "cdk deploy --all",
+    "diff": "cdk diff",
+    "synth": "cdk synth",
+    "destroy": "cdk destroy --all"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "aws-cdk": "^2.110.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.110.0",
+    "constructs": "^10.0.0"
+  }
+}
+
