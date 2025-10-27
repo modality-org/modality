@@ -1,3 +1,5 @@
 tmp
 build
 sites/packages.modality.org/registry/
+
+.DS_Store
