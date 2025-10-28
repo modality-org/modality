@@ -327,6 +327,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     let miner_nominees = node.miner_nominees.clone();
     let fork_config = node.fork_config.clone();
     let mining_metrics = node.mining_metrics.clone();
+    let initial_difficulty = node.initial_difficulty;
     
     // Create shared mining state
     let mining_state = Arc::new(Mutex::new(MiningState {
