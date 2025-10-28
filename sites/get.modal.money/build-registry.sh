@@ -259,6 +259,7 @@ WORKSPACE_MEMBERS=(
     "modality-network-node"
     "modality-lang"
     "modality"
+    "modal"
 )
 
 log_info "Processing ${#WORKSPACE_MEMBERS[@]} workspace members in dependency order"

@@ -18,6 +18,10 @@ sites/get.modal.money/
 │   │   └── index.html      # Browseable index
 │   ├── modality-0.1.6.crate # Source package tarball
 │   └── index.html          # Main registry page
+├── bin/                    # CDK app entry point
+├── lib/                    # CDK stack definition
+├── cdk.json                # CDK configuration
+├── deploy.sh               # Deployment script
 └── README.md               # This file
 ```
 
@@ -70,9 +74,58 @@ cargo install --registry modality modality
 - **Package Downloads**: `http://get.modal.money/{crate}-{version}.crate`
 - **Browseable**: `http://get.modal.money/index.html`
 
+## AWS Infrastructure (CDK)
+
+This site uses AWS CDK to manage infrastructure:
+
+### Components
+- **S3 Bucket**: Secure private bucket for hosting registry content
+- **CloudFront**: Global CDN with HTTPS/TLS 1.2
+- **ACM Certificate**: SSL/TLS certificate for get.modal.money
+- **Route53**: DNS records (A and AAAA for IPv6)
+
+### Deployment
+
+1. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+2. **Build the registry**:
+   ```bash
+   ./build-registry.sh
+   ```
+
+3. **Deploy infrastructure**:
+   ```bash
+   ./deploy.sh
+   ```
+   
+   Or manually:
+   ```bash
+   npm run synth   # Preview CloudFormation template
+   npm run diff    # See what changes will be made
+   npm run deploy  # Deploy to AWS
+   ```
+
+4. **Update registry content**:
+   After modifying the registry, simply run `npm run deploy` to update.
+
+### Prerequisites
+- Node.js 18.x or later
+- AWS CLI configured with credentials
+- AWS account with Route53 hosted zone for modal.money
+- CDK bootstrapped in us-east-1 (deployment script handles this)
+
+### Outputs
+After deployment, CDK exports:
+- `GetModalMoneyBucketName`: S3 bucket name
+- `GetModalMoneyDistributionId`: CloudFront distribution ID
+- `GetModalMoneyCertificateArn`: SSL certificate ARN
+
 ## Integration with Main Build Script
 
-The main build script (`scripts/packages/build-and-upload.sh`) calls this script to generate the registry, then uploads the `registry/` directory to S3.
+The main build script (`scripts/packages/build-and-upload.sh`) calls `build-registry.sh` to generate the registry, then can use CDK deploy to upload the `registry/` directory to S3.
 
 ## Notes
 
