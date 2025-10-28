@@ -54,15 +54,9 @@ impl BlockHeader {
     
     /// Calculate hash of header with given nonce
     pub fn calculate_hash(&self, nonce: u128) -> String {
-        let data = format!("{}{}", self.mining_data(), nonce);
-        // Use RandomX for hashing
+        // Use RandomX for hashing - no fallback
         hash_tax::hash_with_nonce(&self.mining_data(), nonce, "randomx")
-            .unwrap_or_else(|_| {
-                // Fallback to SHA256 if RandomX fails
-                let mut hasher = Sha256::new();
-                hasher.update(data.as_bytes());
-                format!("{:x}", hasher.finalize())
-            })
+            .expect("RandomX hashing failed - this should not happen in production")
     }
 }
 

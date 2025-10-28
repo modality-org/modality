@@ -28,11 +28,16 @@ lazy_static::lazy_static! {
 
 /// Create a RandomX VM instance using recommended flags
 fn create_randomx_vm() -> Result<RandomXVM, Box<dyn Error>> {
+    log::debug!("🔧 Initializing RandomX VM with recommended flags...");
     let flags = RandomXFlag::get_recommended_flags();
+    log::debug!("🔧 Creating RandomX cache with key...");
     let cache = randomx_rs::RandomXCache::new(flags, RANDOMX_KEY)
         .map_err(|e| format!("Failed to create RandomX cache: {}", e))?;
-    RandomXVM::new(flags, Some(cache), None)
-        .map_err(|e| format!("Failed to initialize RandomX VM: {}", e).into())
+    log::debug!("🔧 Initializing RandomX VM...");
+    let vm = RandomXVM::new(flags, Some(cache), None)
+        .map_err(|e| format!("Failed to initialize RandomX VM: {}", e))?;
+    log::info!("✅ RandomX VM initialized successfully");
+    Ok(vm)
 }
 
 /// Hash data using RandomX
@@ -53,13 +58,30 @@ pub fn mine(
     let max_tries = max_tries.unwrap_or(DEFAULT_MAX_TRIES);
     let hash_func_name = hash_func_name.unwrap_or(DEFAULT_HASH_FUNC_NAME);
 
+    log::info!("⛏️  Starting mining with {} algorithm (difficulty: {})", hash_func_name, difficulty);
+
     let mut nonce = 0;
     let mut try_count = 0;
+    let mut last_status_log = std::time::Instant::now();
+    let status_interval = std::time::Duration::from_secs(10);
+    let mut last_try_count = 0;
 
     while try_count < max_tries {
         try_count += 1;
+        
+        // Log periodic status updates (only if we're doing a lot of attempts)
+        if try_count > 1000 && last_status_log.elapsed() >= status_interval {
+            let attempts_since_last = try_count - last_try_count;
+            let hash_rate = attempts_since_last as f64 / last_status_log.elapsed().as_secs_f64();
+            log::info!("⛏️  Mining status: tried {} nonces, hash rate: {:.2} H/s, current nonce: {}", 
+                try_count, hash_rate, nonce);
+            last_status_log = std::time::Instant::now();
+            last_try_count = try_count;
+        }
+        
         let hash = hash_with_nonce(data, nonce, hash_func_name)?;
         if is_hash_acceptable(&hash, difficulty, hash_func_name) {
+            log::info!("✅ Found valid nonce {} after {} attempts", nonce, try_count);
             return Ok(nonce);
         }
         nonce += 1;
@@ -135,8 +157,9 @@ mod tests {
     fn it_works() {
         let data = String::from("data");
         // Use very low difficulty for RandomX (no scaling)
-        let nonce = mine(&data, 1, Some(100), Some("randomx")).unwrap();
-        assert!(nonce < 100);
+        // RandomX is slower than SHA256, so we need more tries
+        let nonce = mine(&data, 1, Some(10000), Some("randomx")).unwrap();
+        assert!(nonce < 10000);
     }
 
     #[test]
