@@ -1381,19 +1381,63 @@ pub async fn find_common_ancestor_efficient(
         MinerBlock::find_all_canonical(&ds).await?
     };
     
-    if local_blocks.is_empty() {
-        log::info!("Local chain is empty, no common ancestor");
-        return Ok((None, 0, 0));
-    }
-    
-    let local_chain_length = local_blocks.len() as u64;
-    log::debug!("Local chain length: {}", local_chain_length);
-    
-    // Parse peer address
+    // Parse peer address early so we can use it in both branches
     let ma: Multiaddr = peer_addr.parse()?;
     let Some(libp2p::multiaddr::Protocol::P2p(target_peer_id)) = ma.iter().last() else {
         anyhow::bail!("Invalid peer address - missing PeerID");
     };
+    
+    if local_blocks.is_empty() {
+        log::info!("Local chain is empty, no common ancestor");
+        
+        // Still need to get the peer's chain info
+        // Request chain info from peer
+        let request = crate::reqres::Request {
+            path: "/data/chain_info".to_string(),
+            data: None,
+        };
+        
+        let request_id = {
+            let mut swarm_lock = swarm.lock().await;
+            swarm_lock.behaviour_mut().reqres.send_request(&target_peer_id, request)
+        };
+        
+        let response = match tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            wait_for_reqres_response(reqres_response_txs, request_id)
+        ).await {
+            Ok(Ok(response)) => response,
+            Ok(Err(e)) => {
+                log::warn!("Failed to get chain info from peer: {}", e);
+                return Ok((None, 0, 0));
+            }
+            Err(_) => {
+                log::warn!("Timeout waiting for chain info from peer");
+                return Ok((None, 0, 0));
+            }
+        };
+        
+        if !response.ok {
+            log::warn!("Peer returned error for chain info request");
+            return Ok((None, 0, 0));
+        }
+        
+        let data = response.data.ok_or_else(|| anyhow::anyhow!("No data in chain info response"))?;
+        let peer_chain_length = data.get("chain_length")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let peer_cumulative_difficulty = data.get("cumulative_difficulty")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse::<u128>().ok())
+            .unwrap_or(0);
+        
+        log::info!("Peer chain: {} blocks, cumulative difficulty: {}", peer_chain_length, peer_cumulative_difficulty);
+        
+        return Ok((None, peer_chain_length, peer_cumulative_difficulty));
+    }
+    
+    let local_chain_length = local_blocks.len() as u64;
+    log::debug!("Local chain length: {}", local_chain_length);
     
     // Step 1: Exponential search to find an upper bound
     // Check blocks at indices: [tip, tip-1, tip-2, tip-4, tip-8, tip-16, ...]
