@@ -52,6 +52,7 @@ pub struct Node {
     pub fork_config: modal_observer::ForkConfig, // Fork configuration for forced blocks and timestamp validation
     pub initial_difficulty: Option<u128>, // Initial mining difficulty (defaults to 1000 if not specified)
     pub mining_metrics: crate::mining_metrics::SharedMiningMetrics, // Mining hashrate metrics
+    pub mining_shutdown: Option<Arc<std::sync::atomic::AtomicBool>>, // Shutdown flag for mining loop
     consensus_runner: Option<modality_network_consensus::runner::Runner>,
     networking_task: Option<tokio::task::JoinHandle<Result<()>>>,
     consensus_task: Option<tokio::task::JoinHandle<Result<()>>>,
@@ -123,6 +124,7 @@ impl Node {
             fork_config,
             initial_difficulty,
             mining_metrics: crate::mining_metrics::create_shared_metrics(),
+            mining_shutdown: None, // Will be set in miner run()
             networking_task: None,
             consensus_task: None,
             autoupgrade_task: None,
@@ -320,10 +322,17 @@ impl Node {
 
     pub async fn wait_for_shutdown(&mut self) -> Result<()> {
         let shutdown_tx = self.shutdown_tx.clone();
+        let mining_shutdown = self.mining_shutdown.clone();
     
         tokio::spawn(async move {
             tokio::signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
             log::info!("Received Ctrl-C, initiating shutdown...");
+            
+            // Set mining shutdown flag if it exists
+            if let Some(ref flag) = mining_shutdown {
+                flag.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+            
             let _ = shutdown_tx.send(());
         });
     

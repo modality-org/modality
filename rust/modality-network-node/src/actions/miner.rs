@@ -17,7 +17,24 @@ struct MiningState {
 }
 
 /// Run a mining node that continuously mines and gossips blocks
+/// This function will run until a shutdown signal is received (Ctrl-C)
 pub async fn run(node: &mut Node) -> Result<()> {
+    // Set up Ctrl-C handler for graceful shutdown
+    let shutdown = Arc::new(AtomicBool::new(false));
+    let shutdown_clone = shutdown.clone();
+    
+    tokio::spawn(async move {
+        match tokio::signal::ctrl_c().await {
+            Ok(()) => {
+                log::info!("🛑 Received Ctrl-C signal, initiating graceful shutdown...");
+                shutdown_clone.store(true, Ordering::Relaxed);
+            }
+            Err(err) => {
+                log::error!("Failed to listen for Ctrl-C signal: {}", err);
+            }
+        }
+    });
+    
     // Create a channel to signal mining view updates
     // This must be created FIRST so we can clone it for various tasks
     let (mining_update_tx, mut mining_update_rx) = tokio::sync::mpsc::unbounded_channel::<u64>();
@@ -335,10 +352,19 @@ pub async fn run(node: &mut Node) -> Result<()> {
     }));
     let mining_state_clone = mining_state.clone();
     
+    // Clone shutdown flag for mining loop
+    let shutdown_for_mining = shutdown.clone();
+    
     tokio::spawn(async move {
         let mut current_index = starting_index;
         
         loop {
+            // Check for shutdown signal
+            if shutdown_for_mining.load(Ordering::Relaxed) {
+                log::info!("🛑 Mining loop shutting down gracefully...");
+                break;
+            }
+            
             // Check if sync is in progress and pause mining if so
             if sync_in_progress.load(Ordering::Relaxed) {
                 log::debug!("⏸️  Mining paused - sync in progress");
@@ -465,8 +491,13 @@ pub async fn run(node: &mut Node) -> Result<()> {
 
     log::info!("Starting miner...");
 
+    // Store shutdown flag in node so wait_for_shutdown can check it
+    node.mining_shutdown = Some(shutdown.clone());
+
     // Wait for shutdown signal
     node.wait_for_shutdown().await?;
+    
+    log::info!("🛑 Miner shutdown complete");
 
     Ok(())
 }
