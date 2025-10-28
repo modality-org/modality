@@ -1341,10 +1341,15 @@ async fn mine_and_gossip_block(
     // Update mining metrics if we got stats
     if let Some(stats) = mining_stats {
         let mut metrics = mining_metrics.write().await;
-        metrics.record_block_mined(stats.attempts as u64);
+        metrics.record_block_mined(stats.attempts as u64, stats.duration_secs);
         
-        log::info!("⛏️  Block {} mined: {} attempts, {:.2} H/s", 
-            index, stats.attempts, stats.hashrate());
+        let avg_hashrate = metrics.average_hashrate();
+        let total_blocks = metrics.blocks_mined;
+        
+        log::info!("⛏️  Block {} mined: {} attempts in {:.2}s, instant: {:.2} H/s", 
+            index, stats.attempts, stats.duration_secs, stats.hashrate());
+        log::info!("📊 Miner Stats: avg_hashrate={:.2} H/s, total_blocks={}, total_hashes={}", 
+            avg_hashrate, total_blocks, metrics.total_hashes);
     }
     
     // Verify the mined block has the expected index

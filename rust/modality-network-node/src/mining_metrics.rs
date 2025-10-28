@@ -29,18 +29,17 @@ impl MiningMetrics {
         }
     }
     
-    /// Record that a block was mined with the given number of hash attempts
-    pub fn record_block_mined(&mut self, hash_attempts: u64) {
+    /// Record that a block was mined with the given number of hash attempts and duration
+    pub fn record_block_mined(&mut self, hash_attempts: u64, mining_duration_secs: f64) {
         self.total_hashes += hash_attempts;
         self.blocks_mined += 1;
         
         let now = Instant::now();
-        let elapsed = now.duration_since(self.last_update).as_secs_f64();
         
-        // Calculate hashrate as a rolling average
-        // Update every second or more
-        if elapsed >= 1.0 {
-            self.current_hashrate = hash_attempts as f64 / elapsed;
+        // Calculate hashrate based on the actual time it took to mine this block
+        // This gives an accurate instantaneous hashrate for this mining attempt
+        if mining_duration_secs > 0.0 {
+            self.current_hashrate = hash_attempts as f64 / mining_duration_secs;
             self.last_update = now;
         }
     }

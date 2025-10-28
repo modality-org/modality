@@ -1,3 +1,4 @@
+pub mod clear;
 pub mod clear_storage;
 pub mod create;
 pub mod info;

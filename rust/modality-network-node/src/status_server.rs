@@ -116,10 +116,10 @@ pub async fn generate_status_html(
     // Calculate network hashrate from recent blocks
     let network_hashrate = calculate_network_hashrate(&miner_blocks);
     
-    // Get miner hashrate
+    // Get miner hashrate (average over all mining activity)
     let miner_hashrate = {
         let metrics = mining_metrics.read().await;
-        metrics.current_hashrate()
+        metrics.average_hashrate()
     };
     
     // Get Block 0 (genesis block)
