@@ -7,6 +7,8 @@ pre-build = [
 [target.x86_64-unknown-linux-gnu.env]
 passthrough = [
     "CARGO_HOME",
+    "MODAL_GIT_BRANCH",
+    "MODAL_GIT_COMMIT",
 ]
 OPENSSL_STATIC = "true"
 OPENSSL_LIB_DIR = "/usr/lib/x86_64-linux-gnu"
