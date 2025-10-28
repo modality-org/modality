@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# Build and Upload Modality Packages
-# This script builds the modality packages and uploads them to AWS S3
+# Build and Upload Modal Packages
+# This script builds the modal packages and uploads them to AWS S3
 
 set -e  # Exit on any error
 
@@ -23,13 +23,13 @@ if [[ ! " ${ALLOWED_BRANCHES[@]} " =~ " ${GIT_BRANCH} " ]]; then
 fi
 
 # Default values
-S3_BUCKET="get.modal.money"
+S3_BUCKET="get.modal.money-content"
 S3_PREFIX=""
 AWS_REGION="us-east-1"
 SKIP_BUILD=false
 SKIP_UPLOAD=false
-SKIP_JS=false
-SKIP_CARGO_REGISTRY=false
+SKIP_JS=true
+SKIP_CARGO_REGISTRY=true
 CLEAN_BUILD=false
 
 # Colors for output
@@ -81,7 +81,7 @@ ENVIRONMENT VARIABLES:
 EXAMPLES:
     $0                                    # Uses default bucket: get.modal.money
     $0 --bucket my-bucket                 # Use custom bucket
-    $0 --prefix modality-packages/        # Add prefix to path
+    $0 --prefix modal-packages/           # Add prefix to path
     $0 --version custom-version --region us-west-2
     $0 --skip-build                       # Only upload existing build
 
@@ -92,7 +92,7 @@ S3 PATH STRUCTURE:
 
 CARGO REGISTRY:
     The script also publishes to a Cargo sparse registry for easy installation:
-    cargo install --index sparse+https://get.modal.money/BRANCH/VERSION/cargo-registry/index/ modality
+    cargo install --index sparse+https://get.modal.money/BRANCH/VERSION/cargo-registry/index/ modal
     Registry URL: https://get.modal.money
 
 EOF
@@ -212,11 +212,11 @@ build_packages() {
         case "$target" in
             x86_64-unknown-linux-gnu)
                 platform="linux-x86_64"
-                binary_name="modality"
+                binary_name="modal"
                 ;;
             aarch64-apple-darwin)
                 platform="darwin-aarch64"
-                binary_name="modality"
+                binary_name="modal"
                 ;;
         esac
         
@@ -304,14 +304,14 @@ build_packages() {
     "packages": {
         "binaries": {
             "linux-x86_64": {
-                "name": "modality",
-                "path": "binaries/linux-x86_64/modality",
+                "name": "modal",
+                "path": "binaries/linux-x86_64/modal",
                 "platform": "linux",
                 "arch": "x86_64"
             },
             "darwin-aarch64": {
-                "name": "modality",
-                "path": "binaries/darwin-aarch64/modality",
+                "name": "modal",
+                "path": "binaries/darwin-aarch64/modal",
                 "platform": "darwin",
                 "arch": "aarch64"
             }
@@ -387,10 +387,10 @@ detect_platform() {
 PLATFORM=$(detect_platform)
 BASE_URL="${MODALITY_INSTALL_URL:-http://get.modal.money/BRANCH/VERSION}"
 INSTALL_DIR="${MODALITY_INSTALL_DIR:-$HOME/.modality/bin}"
-BINARY_NAME="modality"
+BINARY_NAME="modal"
 
 if [ "$PLATFORM" = "windows-x86_64" ]; then
-    BINARY_NAME="modality.exe"
+    BINARY_NAME="modal.exe"
 fi
 
 log_info "Detected platform: $PLATFORM"
@@ -425,7 +425,7 @@ case ":$PATH:" in
         ;;
     *)
         printf "\n"
-        log_info "To use modality, add it to your PATH:"
+        log_info "To use modal, add it to your PATH:"
         log_info "  export PATH=\"\$PATH:$INSTALL_DIR\""
         printf "\n"
         log_info "Add this line to your shell profile (~/.bashrc, ~/.zshrc, etc.)"
@@ -433,7 +433,7 @@ case ":$PATH:" in
 esac
 
 # Test installation
-if command -v modality > /dev/null 2>&1 || [ -x "$INSTALL_DIR/$BINARY_NAME" ]; then
+if command -v modal > /dev/null 2>&1 || [ -x "$INSTALL_DIR/$BINARY_NAME" ]; then
     log_success "Installation verified!"
 else
     log_error "Installation failed. Binary not found or not executable."
@@ -480,8 +480,8 @@ INSTALL_SCRIPT_EOF
         <h3>Pre-built Binaries</h3>
         <p>Download directly for your platform:</p>
         <ul>
-            <li><span class="platform">Linux x86_64</span> <a href="binaries/linux-x86_64/modality">Download</a></li>
-            <li><span class="platform">macOS Apple Silicon</span> <a href="binaries/darwin-aarch64/modality">Download</a></li>
+            <li><span class="platform">Linux x86_64</span> <a href="binaries/linux-x86_64/modal">Download</a></li>
+            <li><span class="platform">macOS Apple Silicon</span> <a href="binaries/darwin-aarch64/modal">Download</a></li>
         </ul>
     </div>
     
@@ -503,14 +503,14 @@ INSTALL_SCRIPT_EOF
     <p>Download the binary for your platform above and add it to your PATH.</p>
     
     <h3>Method 3: Build from Source (Cargo Registry)</h3>
-    <pre>cargo install --index sparse+https://get.modal.money/$GIT_BRANCH/$VERSION/cargo-registry/index/ modality</pre>
+    <pre>cargo install --index sparse+https://get.modal.money/$GIT_BRANCH/$VERSION/cargo-registry/index/ modal</pre>
     
     <h3>Registry Configuration</h3>
     <p>Or add to <code>~/.cargo/config.toml</code>:</p>
-    <pre>[registries.modality]
+    <pre>[registries.modal]
 index = "sparse+https://get.modal.money/$GIT_BRANCH/$VERSION/cargo-registry/index/"</pre>
     <p>Then install with:</p>
-    <pre>cargo install --registry modality modality</pre>
+    <pre>cargo install --registry modal modal</pre>
 </body>
 </html>
 EOF
@@ -535,14 +535,14 @@ EOF
     <div class="platform">
         <h3>Linux x86_64</h3>
         <ul>
-            <li><a href="linux-x86_64/modality">modality</a></li>
+            <li><a href="linux-x86_64/modal">modal</a></li>
         </ul>
     </div>
     
     <div class="platform">
         <h3>macOS Apple Silicon (ARM64)</h3>
         <ul>
-            <li><a href="darwin-aarch64/modality">modality</a></li>
+            <li><a href="darwin-aarch64/modal">modal</a></li>
         </ul>
     </div>
 </body>
@@ -645,16 +645,16 @@ publish_to_cargo_registry() {
     
     # Create registry configuration file
     cat > "$BUILD_DIR/cargo-registry-config.toml" << EOF
-[registries.modality]
+[registries.modal]
 index = "$REGISTRY_INDEX_URL"
 EOF
     
     log_info "To use this registry, add to ~/.cargo/config.toml:"
-    log_info "  [registries.modality]"
+    log_info "  [registries.modal]"
     log_info "  index = \"$REGISTRY_INDEX_URL\""
     log_info ""
     log_info "Then install with:"
-    log_info "  cargo install --index sparse+http://get.modal.money/$GIT_BRANCH/$VERSION/cargo-registry/index/ modality"
+    log_info "  cargo install --index sparse+http://get.modal.money/$GIT_BRANCH/$VERSION/cargo-registry/index/ modal"
 }
 
 # Main execution
