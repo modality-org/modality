@@ -114,6 +114,9 @@ enum NodeCommands {
 
     #[command(about = "Sync blockchain from network peers")]
     Sync(cmds::node::sync::Opts),
+
+    #[command(about = "Clear all values from node storage")]
+    ClearStorage(cmds::node::clear_storage::Opts),
 }
 
 #[derive(Subcommand)]
@@ -158,6 +161,7 @@ async fn main() -> Result<()> {
                 NodeCommands::RunNoop(opts) => cmds::node::run_noop::run(opts).await?,
                 NodeCommands::Ping(opts) => cmds::node::ping::run(opts).await?,
                 NodeCommands::Sync(opts) => cmds::node::sync::run(opts).await?,
+                NodeCommands::ClearStorage(opts) => cmds::node::clear_storage::run(opts).await?,
             }
         }
         Commands::Net { command } => {

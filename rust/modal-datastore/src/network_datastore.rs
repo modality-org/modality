@@ -233,6 +233,25 @@ impl NetworkDatastore {
         }
         Ok(keys)
     }
+
+    /// Clear all keys from the datastore
+    pub async fn clear_all(&self) -> Result<u64> {
+        let mut count = 0u64;
+        // Collect all keys first to avoid iterator invalidation
+        let keys: Vec<Vec<u8>> = self.db.iterator(IteratorMode::Start)
+            .filter_map(|result| {
+                result.ok().map(|(key, _)| key.to_vec())
+            })
+            .collect();
+        
+        // Delete each key
+        for key in keys {
+            self.db.delete(&key)?;
+            count += 1;
+        }
+        
+        Ok(count)
+    }
 }
 
 impl Drop for NetworkDatastore {

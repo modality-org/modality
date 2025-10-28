@@ -202,10 +202,10 @@ build_packages() {
         if [[ "$target" == *"darwin"* ]] && [[ "$(uname -s)" == "Darwin" ]]; then
             # On macOS, use native cargo for macOS targets
             rustup target add "$target" 2>/dev/null || true
-            cargo build --release --target "$target"
+            MODAL_GIT_BRANCH="$GIT_BRANCH" MODAL_GIT_COMMIT="$GIT_COMMIT" cargo build --release --target "$target"
         else
             # Use cross for other platforms with static OpenSSL
-            cross build --release --target "$target"
+            MODAL_GIT_BRANCH="$GIT_BRANCH" MODAL_GIT_COMMIT="$GIT_COMMIT" cross build --release --target "$target"
         fi
         
         # Determine platform name and binary extension
