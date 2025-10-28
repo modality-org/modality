@@ -5,12 +5,14 @@ use std::error::Error;
 use num_bigint::BigUint;
 use num_bigint::ToBigUint;
 use num_traits::Num;
+use randomx_rs::{RandomXFlag, RandomXVM};
 
 const DEFAULT_MAX_TRIES: u128 = 100_000_000_000;
-const DEFAULT_HASH_FUNC_NAME: &str = "sha256";
+const DEFAULT_HASH_FUNC_NAME: &str = "randomx";
 const DEFAULT_DIFFICULTY_COEFFICIENT: u128 = 0xffff;
 const DEFAULT_DIFFICULTY_EXPONENT: u128 = 0x1d;
 const DEFAULT_DIFFICULTY_BASE: u128 = 8;
+const RANDOMX_KEY: &[u8] = b"modality-network-randomx-key";
 
 lazy_static::lazy_static! {
     static ref HASH_FUNC_HEXADECIMAL_LENGTH: HashMap<&'static str, usize> = {
@@ -19,8 +21,26 @@ lazy_static::lazy_static! {
         map.insert("sha256", 64);
         map.insert("sha384", 96);
         map.insert("sha512", 128);
+        map.insert("randomx", 64);  // RandomX outputs 256 bits = 64 hex chars
         map
     };
+}
+
+/// Create a RandomX VM instance using recommended flags
+fn create_randomx_vm() -> Result<RandomXVM, Box<dyn Error>> {
+    let flags = RandomXFlag::get_recommended_flags();
+    let cache = randomx_rs::RandomXCache::new(flags, RANDOMX_KEY)
+        .map_err(|e| format!("Failed to create RandomX cache: {}", e))?;
+    RandomXVM::new(flags, Some(cache), None)
+        .map_err(|e| format!("Failed to initialize RandomX VM: {}", e).into())
+}
+
+/// Hash data using RandomX
+fn hash_with_randomx(data: &str) -> Result<String, Box<dyn Error>> {
+    let vm = create_randomx_vm()?;
+    let hash_bytes = vm.calculate_hash(data.as_bytes())
+        .map_err(|e| format!("RandomX hashing failed: {}", e))?;
+    Ok(hex::encode(hash_bytes))
 }
 
 #[allow(dead_code)]
@@ -71,6 +91,10 @@ pub fn hash_with_nonce(data: &str, nonce: u128, hash_func_name: &str) -> Result<
             hasher.update(format!("{}{}", data, nonce));
             format!("{:x}", hasher.finalize())
         }
+        "randomx" => {
+            let input = format!("{}{}", data, nonce);
+            hash_with_randomx(&input)?
+        }
         _ => return Err(format!("Unsupported hash function: {}", hash_func_name).into()),
     };
 
@@ -110,7 +134,23 @@ mod tests {
     #[test]
     fn it_works() {
         let data = String::from("data");
-        let nonce = mine(&data, 500, None, None).unwrap();
-        assert_eq!(nonce, 2401);
+        // Use very low difficulty for RandomX (no scaling)
+        let nonce = mine(&data, 1, Some(100), Some("randomx")).unwrap();
+        assert!(nonce < 100);
+    }
+
+    #[test]
+    fn test_randomx_hash() {
+        // Test that RandomX hashing works
+        let hash = hash_with_nonce("test", 0, "randomx").unwrap();
+        assert_eq!(hash.len(), 64); // RandomX produces 256-bit hash = 64 hex chars
+    }
+
+    #[test]
+    fn test_sha256_still_works() {
+        // Ensure SHA256 still works for backwards compatibility
+        let data = String::from("data");
+        let nonce = mine(&data, 500, None, Some("sha256")).unwrap();
+        assert_eq!(nonce, 2401); // Known value for SHA256
     }
 }

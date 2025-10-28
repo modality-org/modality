@@ -13,7 +13,7 @@ impl Default for MinerConfig {
     fn default() -> Self {
         Self {
             max_tries: None,
-            hash_func_name: Some("sha256"),
+            hash_func_name: Some("randomx"),
         }
     }
 }

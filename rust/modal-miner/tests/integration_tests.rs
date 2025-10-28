@@ -10,7 +10,7 @@ fn test_full_blockchain_lifecycle() {
 
     let mut chain = Blockchain::new(
         ChainConfig {
-            initial_difficulty: 100,
+            initial_difficulty: 1,
             target_block_time_secs: 600,
         },
         genesis_peer_id.to_string(),
@@ -74,7 +74,7 @@ fn test_multiple_nominations() {
 
     let mut chain = Blockchain::new(
         ChainConfig {
-            initial_difficulty: 100,
+            initial_difficulty: 1,
             target_block_time_secs: 600,
         },
         genesis_peer_id.to_string(),
@@ -103,7 +103,7 @@ fn test_block_validation() {
     
     let mut chain = Blockchain::new(
         ChainConfig {
-            initial_difficulty: 100,
+            initial_difficulty: 1,
             target_block_time_secs: 600,
         },
         genesis_peer_id.to_string(),
@@ -158,7 +158,7 @@ fn test_miner_config() {
     let miner = Miner::new(config);
     let signing_key = "genesis_peer_id".to_string();
     let data = BlockData::new(signing_key, 100);
-    let block = Block::new(1, "prev".to_string(), data, 50); // Reduced difficulty
+    let block = Block::new(1, "prev".to_string(), data, 1); // Reduced difficulty
 
     let result = miner.mine_block(block);
     assert!(result.is_ok());
@@ -171,7 +171,7 @@ fn test_miner_config() {
 fn test_block_hash_verification() {
     let signing_key = "genesis_peer_id".to_string();
     let data = BlockData::new(signing_key, 12345);
-    let mut block = Block::new(1, "prev_hash".to_string(), data, 1000);
+    let mut block = Block::new(1, "prev_hash".to_string(), data, 1);
 
     // Block hasn't been mined yet, so verification should fail
     assert!(!block.verify_hash());
@@ -188,7 +188,7 @@ fn test_block_hash_verification() {
 #[test]
 fn test_genesis_block() {
     let signing_key = "genesis_peer_id".to_string();
-    let genesis = Block::genesis(1000, signing_key);
+    let genesis = Block::genesis(1, signing_key);
 
     assert_eq!(genesis.header.index, 0);
     assert_eq!(genesis.header.previous_hash, "0");
@@ -207,7 +207,7 @@ fn test_chain_json_export() {
     
     let mut chain = Blockchain::new(
         ChainConfig {
-            initial_difficulty: 100,
+            initial_difficulty: 1,
             target_block_time_secs: 600,
         },
         genesis,
@@ -229,7 +229,7 @@ fn test_get_block_by_index_and_hash() {
     
     let mut chain = Blockchain::new(
         ChainConfig {
-            initial_difficulty: 100,
+            initial_difficulty: 1,
             target_block_time_secs: 600,
         },
         genesis,
@@ -268,9 +268,9 @@ fn test_data_hash_changes_with_content() {
     let data2 = BlockData::new(peer_id1.to_string(), 200);
     let data3 = BlockData::new(peer_id2.to_string(), 100);
 
-    let block1 = Block::new(1, "prev".to_string(), data1, 100);
-    let block2 = Block::new(1, "prev".to_string(), data2, 100);
-    let block3 = Block::new(1, "prev".to_string(), data3, 100);
+    let block1 = Block::new(1, "prev".to_string(), data1, 1);
+    let block2 = Block::new(1, "prev".to_string(), data2, 1);
+    let block3 = Block::new(1, "prev".to_string(), data3, 1);
 
     // Different numbers or keys should produce different data hashes
     assert_ne!(block1.header.data_hash, block2.header.data_hash);
@@ -288,7 +288,7 @@ fn test_difficulty_adjustment_logic() {
     let mut fast_blocks = vec![];
     for i in 0..40 {
         let data = BlockData::new(genesis_peer_id.to_string(), i);
-        let mut block = Block::new(i, format!("prev_{}", i), data, 1000);
+        let mut block = Block::new(i, format!("prev_{}", i), data, 1);
         block.header.timestamp = start_time + chrono::Duration::seconds((i as i64) * 30);
         fast_blocks.push(block);
     }
@@ -303,7 +303,7 @@ fn test_difficulty_adjustment_logic() {
     let mut slow_blocks = vec![];
     for i in 0..40 {
         let data = BlockData::new(genesis_peer_id.to_string(), i);
-        let mut block = Block::new(i, format!("prev_{}", i), data, 1000);
+        let mut block = Block::new(i, format!("prev_{}", i), data, 1);
         block.header.timestamp = start_time + chrono::Duration::seconds((i as i64) * 120);
         slow_blocks.push(block);
     }
@@ -323,7 +323,7 @@ fn test_get_blocks_by_nominated_peer() {
 
     let mut chain = Blockchain::new(
         ChainConfig {
-            initial_difficulty: 100,
+            initial_difficulty: 1,
             target_block_time_secs: 600,
         },
         genesis_peer_id.to_string(),

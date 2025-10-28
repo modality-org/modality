@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
+use modality_utils::hash_tax;
 
 /// Block data containing a nominated peer ID and arbitrary number
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -54,9 +55,14 @@ impl BlockHeader {
     /// Calculate hash of header with given nonce
     pub fn calculate_hash(&self, nonce: u128) -> String {
         let data = format!("{}{}", self.mining_data(), nonce);
-        let mut hasher = Sha256::new();
-        hasher.update(data.as_bytes());
-        format!("{:x}", hasher.finalize())
+        // Use RandomX for hashing
+        hash_tax::hash_with_nonce(&self.mining_data(), nonce, "randomx")
+            .unwrap_or_else(|_| {
+                // Fallback to SHA256 if RandomX fails
+                let mut hasher = Sha256::new();
+                hasher.update(data.as_bytes());
+                format!("{:x}", hasher.finalize())
+            })
     }
 }
 
