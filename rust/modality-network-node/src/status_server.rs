@@ -13,6 +13,7 @@ pub async fn start_status_server(
     datastore: Arc<Mutex<NetworkDatastore>>,
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     listeners: Vec<libp2p::Multiaddr>,
+    mining_metrics: crate::mining_metrics::SharedMiningMetrics,
 ) -> Result<tokio::task::JoinHandle<()>, anyhow::Error> {
     let status_route = warp::path::end()
         .and(warp::get())
@@ -20,6 +21,7 @@ pub async fn start_status_server(
         .and(with_datastore(datastore.clone()))
         .and(with_swarm(swarm.clone()))
         .and(with_listeners(listeners.clone()))
+        .and(with_mining_metrics(mining_metrics.clone()))
         .and_then(status_handler);
 
     let routes = status_route;
@@ -33,6 +35,12 @@ pub async fn start_status_server(
     });
 
     Ok(handle)
+}
+
+fn with_mining_metrics(
+    mining_metrics: crate::mining_metrics::SharedMiningMetrics,
+) -> impl Filter<Extract = (crate::mining_metrics::SharedMiningMetrics,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || mining_metrics.clone())
 }
 
 fn with_peerid(
@@ -67,6 +75,7 @@ pub async fn generate_status_html(
     datastore: Arc<Mutex<NetworkDatastore>>,
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     listeners: Vec<libp2p::Multiaddr>,
+    mining_metrics: crate::mining_metrics::SharedMiningMetrics,
 ) -> Result<String, anyhow::Error> {
     // Get connected peers information
     let peer_info = {
@@ -103,6 +112,15 @@ pub async fn generate_status_html(
         .iter()
         .filter(|block| block.nominated_peer_id == peerid_str)
         .count();
+    
+    // Calculate network hashrate from recent blocks
+    let network_hashrate = calculate_network_hashrate(&miner_blocks);
+    
+    // Get miner hashrate
+    let miner_hashrate = {
+        let metrics = mining_metrics.read().await;
+        metrics.current_hashrate()
+    };
     
     // Get Block 0 (genesis block)
     let block_0 = MinerBlock::find_canonical_by_index(&ds, 0).await.ok().flatten();
@@ -675,6 +693,20 @@ pub async fn generate_status_html(
                 <div class="stat-value">{}</div>
             </div>
         </div>
+        
+        <!-- Hashrate Statistics Row -->
+        <div class="status-grid">
+            <div class="stat-box">
+                <div class="stat-label">Miner Hashrate</div>
+                <div class="stat-value">{}</div>
+                <div style="font-size: 0.7em; color: #888; margin-top: 8px;">H/s</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Network Hashrate</div>
+                <div class="stat-value">{}</div>
+                <div style="font-size: 0.7em; color: #888; margin-top: 8px;">H/s (implied)</div>
+            </div>
+        </div>
 
         <div class="status-card">
             <h2>Recent Blocks (Last 80)</h2>
@@ -764,6 +796,8 @@ pub async fn generate_status_html(
         total_miner_blocks,
         blocks_mined_by_node,
         current_difficulty,
+        format_hashrate(miner_hashrate),
+        format_hashrate(network_hashrate),
         blocks_html,
         first_blocks_html,
         // Sequencing tab
@@ -781,11 +815,78 @@ async fn status_handler(
     datastore: Arc<Mutex<NetworkDatastore>>,
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     listeners: Vec<libp2p::Multiaddr>,
+    mining_metrics: crate::mining_metrics::SharedMiningMetrics,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    let html = generate_status_html(peerid, datastore, swarm, listeners)
+    let html = generate_status_html(peerid, datastore, swarm, listeners, mining_metrics)
         .await
         .map_err(|_| warp::reject::not_found())?;
     Ok(warp::reply::html(html))
+}
+
+/// Calculate network hashrate based on recent blocks
+/// Uses the difficulty and block times to estimate the network's total mining power
+fn calculate_network_hashrate(miner_blocks: &[MinerBlock]) -> f64 {
+    if miner_blocks.len() < 2 {
+        return 0.0;
+    }
+    
+    // Use last 10 blocks for more stable estimate
+    let recent_count = std::cmp::min(10, miner_blocks.len());
+    let recent_blocks: Vec<_> = {
+        let mut sorted = miner_blocks.to_vec();
+        sorted.sort_by_key(|b| b.index);
+        sorted.into_iter().rev().take(recent_count).collect()
+    };
+    
+    if recent_blocks.len() < 2 {
+        return 0.0;
+    }
+    
+    // Calculate average time between blocks
+    let oldest_block = recent_blocks.last().unwrap();
+    let newest_block = recent_blocks.first().unwrap();
+    let time_span = (newest_block.timestamp - oldest_block.timestamp) as f64;
+    let num_intervals = (newest_block.index - oldest_block.index) as f64;
+    
+    if time_span <= 0.0 || num_intervals <= 0.0 {
+        return 0.0;
+    }
+    
+    let avg_block_time = time_span / num_intervals;
+    
+    // Calculate average difficulty across recent blocks
+    let total_difficulty: u128 = recent_blocks
+        .iter()
+        .filter_map(|b| b.difficulty.parse::<u128>().ok())
+        .sum();
+    let avg_difficulty = total_difficulty as f64 / recent_blocks.len() as f64;
+    
+    // Network hashrate = difficulty / block_time
+    // This gives an estimate of how many hashes per second the network is doing
+    if avg_block_time > 0.0 {
+        avg_difficulty / avg_block_time
+    } else {
+        0.0
+    }
+}
+
+/// Format hashrate for display (with K, M, G, T suffixes)
+fn format_hashrate(hashrate: f64) -> String {
+    if hashrate == 0.0 {
+        return "0".to_string();
+    }
+    
+    if hashrate < 1_000.0 {
+        format!("{:.2}", hashrate)
+    } else if hashrate < 1_000_000.0 {
+        format!("{:.2} K", hashrate / 1_000.0)
+    } else if hashrate < 1_000_000_000.0 {
+        format!("{:.2} M", hashrate / 1_000_000.0)
+    } else if hashrate < 1_000_000_000_000.0 {
+        format!("{:.2} G", hashrate / 1_000_000_000.0)
+    } else {
+        format!("{:.2} T", hashrate / 1_000_000_000_000.0)
+    }
 }
 
 /// Start status HTML writer task that periodically writes HTML to a directory
@@ -795,6 +896,7 @@ pub async fn start_status_html_writer(
     datastore: Arc<Mutex<NetworkDatastore>>,
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     listeners: Vec<libp2p::Multiaddr>,
+    mining_metrics: crate::mining_metrics::SharedMiningMetrics,
     mut shutdown_rx: tokio::sync::broadcast::Receiver<()>,
 ) -> Result<tokio::task::JoinHandle<()>, anyhow::Error> {
     // Create the directory if it doesn't exist
@@ -811,7 +913,8 @@ pub async fn start_status_html_writer(
                         peerid,
                         datastore.clone(),
                         swarm.clone(),
-                        listeners.clone()
+                        listeners.clone(),
+                        mining_metrics.clone(),
                     ).await {
                         Ok(html) => {
                             let index_path = dir.join("index.html");

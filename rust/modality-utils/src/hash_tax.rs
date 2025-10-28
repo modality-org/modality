@@ -96,6 +96,24 @@ fn hash_with_randomx(data: &str) -> Result<String, Box<dyn Error>> {
     })
 }
 
+/// Mining result including nonce and stats
+#[derive(Debug, Clone)]
+pub struct MiningResult {
+    pub nonce: u128,
+    pub attempts: u128,
+    pub duration_secs: f64,
+}
+
+impl MiningResult {
+    pub fn hashrate(&self) -> f64 {
+        if self.duration_secs > 0.0 {
+            self.attempts as f64 / self.duration_secs
+        } else {
+            0.0
+        }
+    }
+}
+
 #[allow(dead_code)]
 pub fn mine(
     data: &str,
@@ -103,11 +121,24 @@ pub fn mine(
     max_tries: Option<u128>,
     hash_func_name: Option<&str>,
 ) -> Result<u128, Box<dyn Error>> {
+    mine_with_stats(data, difficulty, max_tries, hash_func_name)
+        .map(|result| result.nonce)
+}
+
+/// Mine with detailed statistics
+#[allow(dead_code)]
+pub fn mine_with_stats(
+    data: &str,
+    difficulty: u128,
+    max_tries: Option<u128>,
+    hash_func_name: Option<&str>,
+) -> Result<MiningResult, Box<dyn Error>> {
     let max_tries = max_tries.unwrap_or(DEFAULT_MAX_TRIES);
     let hash_func_name = hash_func_name.unwrap_or(DEFAULT_HASH_FUNC_NAME);
 
     log::info!("⛏️  Starting mining with {} algorithm (difficulty: {})", hash_func_name, difficulty);
 
+    let start_time = std::time::Instant::now();
     let mut nonce = 0;
     let mut try_count = 0;
     let mut last_status_log = std::time::Instant::now();
@@ -135,8 +166,13 @@ pub fn mine(
         
         let hash = hash_with_nonce(data, nonce, hash_func_name)?;
         if is_hash_acceptable(&hash, difficulty, hash_func_name) {
+            let duration = start_time.elapsed();
             log::info!("✅ Found valid nonce {} after {} attempts", nonce, try_count);
-            return Ok(nonce);
+            return Ok(MiningResult {
+                nonce,
+                attempts: try_count,
+                duration_secs: duration.as_secs_f64(),
+            });
         }
         nonce += 1;
     }

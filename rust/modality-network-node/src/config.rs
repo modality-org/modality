@@ -34,6 +34,7 @@ pub struct Config {
     pub fork_name: Option<String>, // Predefined fork configuration (e.g., "testnet/pepi")
     pub minimum_block_timestamp: Option<i64>, // Reject blocks mined before this Unix timestamp (overrides fork_name)
     pub forced_blocks: Option<HashMap<u64, String>>, // Map of block_height -> required_block_hash for forced fork specification (overrides fork_name)
+    pub initial_difficulty: Option<u128>, // Initial mining difficulty (testnet: 1, other networks: 10 if not specified)
 }
 
 impl Config {
@@ -153,6 +154,39 @@ impl Config {
         }
 
         Ok(config)
+    }
+
+    /// Get initial difficulty, using network-specific defaults
+    /// - Testnet: 1 (for easy testing)
+    /// - Other networks: 10 (devnets, mainnet)
+    pub fn get_initial_difficulty(&self) -> Option<u128> {
+        // If explicitly set, use that value
+        if self.initial_difficulty.is_some() {
+            return self.initial_difficulty;
+        }
+
+        // Auto-detect testnet from bootstrappers and set difficulty to 1
+        if let Some(ref bootstrappers) = self.bootstrappers {
+            let testnet_bootstrappers = [
+                "12D3KooWBGR3m1JmVFm2aZYR7TZXicjA7HSVSWi2fama5cPpgQiX",
+                "12D3KooWEA6dRWvK1vutRDxKfdPZZr7ycHvQNWrDGZZQbiE6YibZ",
+                "12D3KooWDGLGJhoUfkjG4P5MBaoRFVLMLRu4bEHQb9yy1XtHsH5h",
+            ];
+            
+            for bootstrapper in bootstrappers {
+                let bootstrapper_str = bootstrapper.to_string();
+                for testnet_peer_id in &testnet_bootstrappers {
+                    if bootstrapper_str.contains(testnet_peer_id) {
+                        log::info!("Detected testnet network, using initial_difficulty = 1");
+                        return Some(1);
+                    }
+                }
+            }
+        }
+
+        // Default for other networks (devnets, mainnet)
+        log::info!("Using default initial_difficulty = 10");
+        Some(10)
     }
 }
 

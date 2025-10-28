@@ -50,6 +50,8 @@ pub struct Node {
     pub reqres_response_txs: Arc<Mutex<HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<crate::reqres::Response>>>>,
     pub minimum_block_timestamp: Option<i64>, // Reject blocks mined before this Unix timestamp
     pub fork_config: modal_observer::ForkConfig, // Fork configuration for forced blocks and timestamp validation
+    pub initial_difficulty: Option<u128>, // Initial mining difficulty (defaults to 1000 if not specified)
+    pub mining_metrics: crate::mining_metrics::SharedMiningMetrics, // Mining hashrate metrics
     consensus_runner: Option<modality_network_consensus::runner::Runner>,
     networking_task: Option<tokio::task::JoinHandle<Result<()>>>,
     consensus_task: Option<tokio::task::JoinHandle<Result<()>>>,
@@ -80,6 +82,7 @@ impl Node {
         let status_html_dir = config.status_html_dir.clone();
         let minimum_block_timestamp = config.minimum_block_timestamp;
         let fork_config = config.get_fork_config();
+        let initial_difficulty = config.get_initial_difficulty();
         let listeners = config.listeners.clone().unwrap_or_default();
         let resolved_bootstrappers =
             resolve_dns_multiaddrs(config.bootstrappers.unwrap_or_default()).await?;
@@ -118,6 +121,8 @@ impl Node {
             reqres_response_txs: Arc::new(Mutex::new(HashMap::new())),
             minimum_block_timestamp,
             fork_config,
+            initial_difficulty,
+            mining_metrics: crate::mining_metrics::create_shared_metrics(),
             networking_task: None,
             consensus_task: None,
             autoupgrade_task: None,
@@ -364,6 +369,7 @@ impl Node {
                 self.datastore.clone(),
                 self.swarm.clone(),
                 self.listeners.clone(),
+                self.mining_metrics.clone(),
             )
             .await?;
             self.status_server_task = Some(handle);
@@ -380,6 +386,7 @@ impl Node {
                 self.datastore.clone(),
                 self.swarm.clone(),
                 self.listeners.clone(),
+                self.mining_metrics.clone(),
                 self.shutdown_tx.subscribe(),
             )
             .await?;

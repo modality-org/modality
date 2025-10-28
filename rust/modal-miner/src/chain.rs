@@ -237,11 +237,12 @@ impl Blockchain {
     
     #[cfg(feature = "persistence")]
     /// Mine a new block and persist it to the datastore
+    /// Returns (Block, MiningStats) where MiningStats contains hashrate information
     pub async fn mine_block_with_persistence(
         &mut self,
         nominated_peer_id: String,
         miner_number: u64,
-    ) -> Result<Block, MiningError> {
+    ) -> Result<(Block, Option<modality_utils::hash_tax::MiningResult>), MiningError> {
         let next_index = self.height() + 1;
         let next_difficulty = self.get_next_difficulty();
         let previous_hash = self.latest_block().header.hash.clone();
@@ -257,13 +258,15 @@ impl Blockchain {
             next_difficulty,
         );
         
-        // Mine the block
-        let mined_block = self.miner.mine_block(block)?;
+        // Mine the block with stats
+        let result = self.miner.mine_block_with_stats(block)?;
+        let mined_block = result.block.clone();
+        let mining_stats = result.mining_stats.clone();
         
         // Add to chain with persistence using fork choice
         self.add_block_with_fork_choice(mined_block.clone()).await?;
         
-        Ok(mined_block)
+        Ok((mined_block, Some(mining_stats)))
     }
     
     /// Add a pre-mined block to the chain

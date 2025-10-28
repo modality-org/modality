@@ -7,6 +7,7 @@ pub mod bootup;
 pub mod swarm;
 pub mod node;
 pub mod status_server;
+pub mod mining_metrics;
 
 pub mod actions;
 pub mod consensus;

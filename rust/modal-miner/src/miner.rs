@@ -24,6 +24,13 @@ pub struct Miner {
     config: MinerConfig,
 }
 
+/// Result from mining a block
+#[derive(Debug, Clone)]
+pub struct MinedBlockResult {
+    pub block: Block,
+    pub mining_stats: hash_tax::MiningResult,
+}
+
 impl Miner {
     pub fn new(config: MinerConfig) -> Self {
         Self { config }
@@ -34,12 +41,18 @@ impl Miner {
     }
     
     /// Mine a block by finding a valid nonce
-    pub fn mine_block(&self, mut block: Block) -> Result<Block, MiningError> {
+    pub fn mine_block(&self, block: Block) -> Result<Block, MiningError> {
+        self.mine_block_with_stats(block)
+            .map(|result| result.block)
+    }
+    
+    /// Mine a block and return mining statistics
+    pub fn mine_block_with_stats(&self, block: Block) -> Result<MinedBlockResult, MiningError> {
         let mining_data = block.mining_data();
         let difficulty = block.header.difficulty;
         
-        // Use hash_tax to find a valid nonce
-        let nonce = hash_tax::mine(
+        // Use hash_tax to find a valid nonce with stats
+        let mining_result = hash_tax::mine_with_stats(
             &mining_data,
             difficulty,
             self.config.max_tries,
@@ -48,10 +61,14 @@ impl Miner {
         .map_err(|e| MiningError::MiningFailed(e.to_string()))?;
         
         // Update block with found nonce and hash
-        block.header.nonce = nonce;
-        block.header.hash = block.header.calculate_hash(nonce);
+        let mut mined_block = block;
+        mined_block.header.nonce = mining_result.nonce;
+        mined_block.header.hash = mined_block.header.calculate_hash(mining_result.nonce);
         
-        Ok(block)
+        Ok(MinedBlockResult {
+            block: mined_block,
+            mining_stats: mining_result,
+        })
     }
     
     /// Verify a mined block's nonce is valid

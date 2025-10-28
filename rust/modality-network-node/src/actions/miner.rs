@@ -14,8 +14,6 @@ use crate::gossip;
 struct MiningState {
     /// The index we're currently mining at
     current_mining_index: u64,
-    /// Set to true to signal mining loop to update its view
-    needs_update: bool,
 }
 
 /// Run a mining node that continuously mines and gossips blocks
@@ -328,11 +326,11 @@ pub async fn run(node: &mut Node) -> Result<()> {
     let peerid_str = node.peerid.to_string();
     let miner_nominees = node.miner_nominees.clone();
     let fork_config = node.fork_config.clone();
+    let mining_metrics = node.mining_metrics.clone();
     
     // Create shared mining state
     let mining_state = Arc::new(Mutex::new(MiningState {
         current_mining_index: starting_index,
-        needs_update: false,
     }));
     let mining_state_clone = mining_state.clone();
     
@@ -394,6 +392,8 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 datastore.clone(),
                 swarm.clone(),
                 fork_config.clone(),
+                mining_metrics.clone(),
+                initial_difficulty,
             ).await {
                 Ok(()) => {
                     log::info!("✅ Successfully mined and gossipped block {}", current_index);
@@ -1245,6 +1245,8 @@ async fn mine_and_gossip_block(
     datastore: std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
     swarm: std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
     fork_config: modal_observer::ForkConfig,
+    mining_metrics: crate::mining_metrics::SharedMiningMetrics,
+    initial_difficulty: Option<u128>,
 ) -> Result<()> {
     use modal_miner::{Blockchain, ChainConfig};
     
@@ -1263,9 +1265,15 @@ async fn mine_and_gossip_block(
 
     log::info!("Mining block {} with nominated peer: {}", index, nominated_peer_id);
 
+    // Create ChainConfig with custom initial_difficulty if provided
+    let chain_config = ChainConfig {
+        initial_difficulty: initial_difficulty.unwrap_or(1000),
+        target_block_time_secs: 60,
+    };
+
     // Load blockchain from datastore using the load_or_create_with_fork_config API
     let mut chain = Blockchain::load_or_create_with_fork_config(
-        ChainConfig::default(),
+        chain_config,
         peer_id.to_string(),
         datastore.clone(),
         fork_config,
@@ -1293,10 +1301,19 @@ async fn mine_and_gossip_block(
     
     // Mine the next block with persistence and fork choice
     let miner_number = rand::random::<u64>();
-    let mined_block = chain.mine_block_with_persistence(
+    let (mined_block, mining_stats) = chain.mine_block_with_persistence(
         nominated_peer_id.clone(), 
         miner_number
     ).await?;
+    
+    // Update mining metrics if we got stats
+    if let Some(stats) = mining_stats {
+        let mut metrics = mining_metrics.write().await;
+        metrics.record_block_mined(stats.attempts as u64);
+        
+        log::info!("⛏️  Block {} mined: {} attempts, {:.2} H/s", 
+            index, stats.attempts, stats.hashrate());
+    }
     
     // Verify the mined block has the expected index
     if mined_block.header.index != index {
