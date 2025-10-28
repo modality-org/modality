@@ -12,6 +12,8 @@ pub struct ForkConfig {
     /// Map of block_height -> required_block_hash
     /// If a block at this height doesn't match the hash, it will be rejected
     pub forced_blocks: HashMap<u64, String>,
+    /// Reject blocks with timestamps before this Unix timestamp
+    pub minimum_block_timestamp: Option<i64>,
 }
 
 impl ForkConfig {
@@ -19,6 +21,7 @@ impl ForkConfig {
     pub fn new() -> Self {
         Self {
             forced_blocks: HashMap::new(),
+            minimum_block_timestamp: None,
         }
     }
     
@@ -26,7 +29,14 @@ impl ForkConfig {
     pub fn from_pairs(pairs: Vec<(u64, String)>) -> Self {
         Self {
             forced_blocks: pairs.into_iter().collect(),
+            minimum_block_timestamp: None,
         }
+    }
+    
+    /// Create a fork config with minimum block timestamp
+    pub fn with_minimum_timestamp(mut self, timestamp: i64) -> Self {
+        self.minimum_block_timestamp = Some(timestamp);
+        self
     }
     
     /// Check if a block is required at this height
@@ -45,6 +55,15 @@ impl ForkConfig {
             &block.hash == required_hash
         } else {
             true // No requirement at this height
+        }
+    }
+    
+    /// Check if a block's timestamp is valid (not before minimum)
+    pub fn is_timestamp_valid(&self, block: &MinerBlock) -> bool {
+        if let Some(min_timestamp) = self.minimum_block_timestamp {
+            block.timestamp >= min_timestamp
+        } else {
+            true // No timestamp requirement
         }
     }
 }
@@ -221,6 +240,27 @@ impl ChainObserver {
     /// Returns Ok(true) if block was accepted, Ok(false) if rejected
     pub async fn process_gossiped_block(&self, new_block: MinerBlock) -> Result<bool> {
         let mut ds = self.datastore.lock().await;
+        
+        // Check if this block violates timestamp requirements
+        if !self.fork_config.is_timestamp_valid(&new_block) {
+            let min_timestamp = self.fork_config.minimum_block_timestamp.unwrap();
+            log::warn!(
+                "Block {} at height {} rejected: timestamp {} is before minimum allowed timestamp {}",
+                &new_block.hash, new_block.index, new_block.timestamp, min_timestamp
+            );
+            
+            // Store as orphan with timestamp rejection reason
+            let mut orphaned = new_block;
+            orphaned.is_canonical = false;
+            orphaned.is_orphaned = true;
+            orphaned.orphan_reason = Some(format!(
+                "Rejected: timestamp {} is before minimum allowed timestamp {}",
+                orphaned.timestamp, min_timestamp
+            ));
+            orphaned.save(&mut ds).await?;
+            
+            return Ok(false);
+        }
         
         // Check if this block violates forced fork specification
         if self.fork_config.is_forced_at(new_block.index) {
@@ -426,6 +466,17 @@ impl ChainObserver {
     pub async fn process_competing_chain(&self, competing_blocks: Vec<MinerBlock>) -> Result<bool> {
         if competing_blocks.is_empty() {
             return Ok(false);
+        }
+        
+        // Check if any blocks violate timestamp requirements
+        for block in &competing_blocks {
+            if !self.fork_config.is_timestamp_valid(block) {
+                let min_timestamp = self.fork_config.minimum_block_timestamp.unwrap();
+                anyhow::bail!(
+                    "Competing chain rejected: block {} at height {} has timestamp {} before minimum allowed timestamp {}",
+                    block.hash, block.index, block.timestamp, min_timestamp
+                );
+            }
         }
         
         // Check if any blocks violate forced fork specification

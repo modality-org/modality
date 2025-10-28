@@ -109,6 +109,16 @@ impl Blockchain {
         genesis_peer_id: String,
         datastore: std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
     ) -> Result<Self, MiningError> {
+        Self::load_or_create_with_fork_config(config, genesis_peer_id, datastore, modal_observer::ForkConfig::new()).await
+    }
+    
+    /// Load blockchain from datastore with fork configuration, or create genesis if empty
+    pub async fn load_or_create_with_fork_config(
+        config: ChainConfig,
+        genesis_peer_id: String,
+        datastore: std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
+        fork_config: modal_observer::ForkConfig,
+    ) -> Result<Self, MiningError> {
         use crate::persistence::BlockchainPersistence;
         
         // Try to load existing blocks
@@ -116,8 +126,8 @@ impl Blockchain {
         let loaded_blocks = ds.load_canonical_blocks().await?;
         drop(ds);
         
-        // Initialize fork choice with the datastore
-        let fork_choice = std::sync::Arc::new(crate::fork_choice::MinerForkChoice::new(datastore.clone()));
+        // Initialize fork choice with the datastore and fork config
+        let fork_choice = std::sync::Arc::new(crate::fork_choice::MinerForkChoice::new_with_fork_config(datastore.clone(), fork_config));
         
         if loaded_blocks.is_empty() {
             // No existing blocks, create genesis

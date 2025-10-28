@@ -70,6 +70,7 @@ pub async fn handler(
     sync_request_tx: Option<tokio::sync::mpsc::UnboundedSender<(libp2p::PeerId, String)>>,
     mining_update_tx: Option<tokio::sync::mpsc::UnboundedSender<u64>>,
     bootstrappers: Vec<libp2p::Multiaddr>,
+    minimum_block_timestamp: Option<i64>,
 ) -> Result<()> {
     log::debug!("Received miner block gossip");
     
@@ -78,6 +79,17 @@ pub async fn handler(
     let miner_block = gossip_msg.to_miner_block();
     
     log::debug!("Gossip block: index={}, hash={}", miner_block.index, &miner_block.hash[..16]);
+    
+    // Check if block timestamp is before the minimum allowed timestamp
+    if let Some(min_timestamp) = minimum_block_timestamp {
+        if miner_block.timestamp < min_timestamp {
+            log::warn!(
+                "Block {} at height {} rejected: timestamp {} is before minimum allowed timestamp {}",
+                &miner_block.hash[..16], miner_block.index, miner_block.timestamp, min_timestamp
+            );
+            return Ok(());
+        }
+    }
     
     // Check if we already have this exact block (by hash)
     {

@@ -43,6 +43,7 @@ pub async fn handle_event(
     sync_request_tx: Option<mpsc::UnboundedSender<(libp2p::PeerId, String)>>,
     mining_update_tx: Option<mpsc::UnboundedSender<u64>>,
     bootstrappers: Vec<libp2p::Multiaddr>,
+    minimum_block_timestamp: Option<i64>,
 ) -> Result<()> {
   log::info!("handling gossip: {:?}", message);
   let data = String::from_utf8_lossy(&message.data).to_string();
@@ -56,7 +57,7 @@ pub async fn handle_event(
     let mut ds = datastore.lock().await;
     consensus::block::cert::handler(data, &mut ds, consensus_tx).await?;
   } else if &topic == miner::block::TOPIC {
-    miner::block::handler(data, source_peer, datastore, sync_request_tx, mining_update_tx, bootstrappers).await?;
+    miner::block::handler(data, source_peer, datastore, sync_request_tx, mining_update_tx, bootstrappers, minimum_block_timestamp).await?;
   } else {
     log::warn!("Unknown gossip topic: {}", topic);
   }

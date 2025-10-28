@@ -48,6 +48,8 @@ pub struct Node {
     pub mining_update_tx: Option<mpsc::UnboundedSender<u64>>, // Set in miner run to notify of chain tip updates
     // Response channels for reqres requests - networking task forwards responses here
     pub reqres_response_txs: Arc<Mutex<HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<crate::reqres::Response>>>>,
+    pub minimum_block_timestamp: Option<i64>, // Reject blocks mined before this Unix timestamp
+    pub fork_config: modal_observer::ForkConfig, // Fork configuration for forced blocks and timestamp validation
     consensus_runner: Option<modality_network_consensus::runner::Runner>,
     networking_task: Option<tokio::task::JoinHandle<Result<()>>>,
     consensus_task: Option<tokio::task::JoinHandle<Result<()>>>,
@@ -74,6 +76,11 @@ impl Node {
         let peerid = node_keypair.public().to_peer_id();
         let autoupgrade_config = crate::autoupgrade::AutoupgradeConfig::from_node_config(&config);
         let listeners = config.listeners.unwrap_or_default();
+        let miner_nominees = config.miner_nominees.clone();
+        let status_port = config.status_port;
+        let status_html_dir = config.status_html_dir.clone();
+        let minimum_block_timestamp = config.minimum_block_timestamp;
+        let fork_config = config.get_fork_config();
         let resolved_bootstrappers =
             resolve_dns_multiaddrs(config.bootstrappers.unwrap_or_default()).await?;
         let bootstrappers = exclude_multiaddresses_with_peerid(resolved_bootstrappers, peerid);
@@ -97,9 +104,6 @@ impl Node {
         let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
         let (consensus_tx, consensus_rx) = mpsc::channel(100);
         let (sync_trigger_tx, _sync_trigger_rx) = tokio::sync::broadcast::channel(100);
-        let miner_nominees = config.miner_nominees.clone();
-        let status_port = config.status_port;
-        let status_html_dir = config.status_html_dir.clone();
         let node = Self {
             peerid,
             node_keypair,
@@ -112,6 +116,8 @@ impl Node {
             sync_request_tx: None, // Will be set in miner run()
             mining_update_tx: None, // Will be set in miner run()
             reqres_response_txs: Arc::new(Mutex::new(HashMap::new())),
+            minimum_block_timestamp,
+            fork_config,
             networking_task: None,
             consensus_task: None,
             autoupgrade_task: None,
@@ -396,6 +402,7 @@ impl Node {
         let mining_update_tx = self.mining_update_tx.clone();
         let bootstrappers = self.bootstrappers.clone();
         let reqres_response_txs = self.reqres_response_txs.clone();
+        let minimum_block_timestamp = self.minimum_block_timestamp;
 
         self.networking_task = Some(tokio::spawn(async move {
             loop {
@@ -465,7 +472,7 @@ impl Node {
                                 },
                             )) => {
                                 log::info!("Gossip received {:?}", message.topic.to_string());
-                                gossip::handle_event(message, datastore.clone(), consensus_tx.clone(), sync_request_tx.clone(), mining_update_tx.clone(), bootstrappers.clone()).await?;
+                                gossip::handle_event(message, datastore.clone(), consensus_tx.clone(), sync_request_tx.clone(), mining_update_tx.clone(), bootstrappers.clone(), minimum_block_timestamp).await?;
                             }
                             SwarmEvent::Behaviour(event) => {
                                 log::info!("SwarmEvent::Behaviour event {:?}", event);

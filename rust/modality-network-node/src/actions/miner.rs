@@ -327,6 +327,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     let swarm = node.swarm.clone();
     let peerid_str = node.peerid.to_string();
     let miner_nominees = node.miner_nominees.clone();
+    let fork_config = node.fork_config.clone();
     
     // Create shared mining state
     let mining_state = Arc::new(Mutex::new(MiningState {
@@ -392,6 +393,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 &miner_nominees,
                 datastore.clone(),
                 swarm.clone(),
+                fork_config.clone(),
             ).await {
                 Ok(()) => {
                     log::info!("✅ Successfully mined and gossipped block {}", current_index);
@@ -1242,6 +1244,7 @@ async fn mine_and_gossip_block(
     miner_nominees: &Option<Vec<String>>,
     datastore: std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
     swarm: std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
+    fork_config: modal_observer::ForkConfig,
 ) -> Result<()> {
     use modal_miner::{Blockchain, ChainConfig};
     
@@ -1260,11 +1263,12 @@ async fn mine_and_gossip_block(
 
     log::info!("Mining block {} with nominated peer: {}", index, nominated_peer_id);
 
-    // Load blockchain from datastore using the new load_or_create API with fork choice
-    let mut chain = Blockchain::load_or_create(
+    // Load blockchain from datastore using the load_or_create_with_fork_config API
+    let mut chain = Blockchain::load_or_create_with_fork_config(
         ChainConfig::default(),
         peer_id.to_string(),
         datastore.clone(),
+        fork_config,
     ).await?;
     
     log::info!("Loaded chain with {} blocks (height: {})", 

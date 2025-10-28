@@ -5,6 +5,7 @@ use std::fs;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use libp2p::identity::Keypair;
+use std::collections::HashMap;
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 pub struct Config {
@@ -30,6 +31,9 @@ pub struct Config {
     pub miner_nominees: Option<Vec<String>>,
     pub status_port: Option<u16>,
     pub status_html_dir: Option<PathBuf>,
+    pub fork_name: Option<String>, // Predefined fork configuration (e.g., "testnet/pepi")
+    pub minimum_block_timestamp: Option<i64>, // Reject blocks mined before this Unix timestamp (overrides fork_name)
+    pub forced_blocks: Option<HashMap<u64, String>>, // Map of block_height -> required_block_hash for forced fork specification (overrides fork_name)
 }
 
 impl Config {
@@ -78,6 +82,58 @@ impl Config {
         let passfile = modality_utils::passfile::Passfile::load_file(self.passfile_path.clone().unwrap(), true).await?;
         let node_keypair = modality_utils::libp2p_identity_keypair::libp2p_identity_from_private_key(passfile.keypair.private_key().as_str()).await?;
         Ok(node_keypair)
+    }
+
+    /// Get hardcoded fork configuration by name
+    fn get_named_fork_config(fork_name: &str) -> Option<(Option<i64>, Option<HashMap<u64, String>>)> {
+        match fork_name {
+            "testnet/pepi" => {
+                // Unix timestamp for 2025-10-28 00:00:00 UTC
+                let timestamp = 1761609600i64;
+                Some((Some(timestamp), None))
+            }
+            _ => None,
+        }
+    }
+
+    /// Build a ForkConfig from node configuration
+    /// Merges hardcoded fork settings (from fork_name) with user-provided settings
+    /// User-provided settings override fork_name defaults
+    pub fn get_fork_config(&self) -> modal_observer::ForkConfig {
+        let mut fork_config = modal_observer::ForkConfig::new();
+        
+        // First, apply named fork configuration if specified
+        if let Some(ref fork_name) = self.fork_name {
+            if let Some((timestamp, forced_blocks)) = Self::get_named_fork_config(fork_name) {
+                log::info!("Applying fork configuration: {}", fork_name);
+                
+                if let Some(ts) = timestamp {
+                    fork_config.minimum_block_timestamp = Some(ts);
+                    log::info!("  - minimum_block_timestamp: {}", ts);
+                }
+                
+                if let Some(blocks) = forced_blocks {
+                    fork_config.forced_blocks = blocks;
+                    log::info!("  - forced_blocks: {} entries", fork_config.forced_blocks.len());
+                }
+            } else {
+                log::warn!("Unknown fork_name '{}', ignoring", fork_name);
+            }
+        }
+        
+        // Then, override with user-provided forced blocks if specified
+        if let Some(ref forced_blocks) = self.forced_blocks {
+            log::info!("Overriding forced_blocks with user configuration ({} entries)", forced_blocks.len());
+            fork_config.forced_blocks = forced_blocks.clone();
+        }
+        
+        // Finally, override with user-provided minimum block timestamp if specified
+        if let Some(timestamp) = self.minimum_block_timestamp {
+            log::info!("Overriding minimum_block_timestamp with user configuration: {}", timestamp);
+            fork_config.minimum_block_timestamp = Some(timestamp);
+        }
+        
+        fork_config
     }
 
     /// Get bootup configuration
