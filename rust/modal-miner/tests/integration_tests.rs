@@ -3,6 +3,11 @@ use modal_miner::{
     BLOCKS_PER_EPOCH,
 };
 
+#[cfg(feature = "persistence")]
+use modal_datastore::{Model, NetworkDatastore};
+#[cfg(feature = "persistence")]
+use modal_datastore::models::MinerBlock;
+
 #[test]
 fn test_full_blockchain_lifecycle() {
     let genesis_peer_id = "genesis_peer_id";
@@ -360,3 +365,202 @@ fn test_block_data_serialization() {
     assert_eq!(deserialized.miner_number, 42);
     assert_eq!(deserialized.nominated_peer_id, peer_id);
 }
+
+/// Test that simulates two nodes mining sequentially after syncing
+/// This test verifies:
+/// 1. Node 1 mines block 1
+/// 2. Node 2 syncs and receives block 1
+/// 3. Node 2 can then mine block 2 on top of the synced chain
+/// 4. Node 1 syncs and receives block 2
+/// 5. Both nodes have the same chain view
+#[cfg(feature = "persistence")]
+#[tokio::test]
+async fn test_sequential_mining_after_sync() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    
+    println!("\n=== Testing Sequential Mining After Sync ===\n");
+    
+    // Setup two separate datastores for two nodes
+    let temp_dir1 = tempfile::tempdir().unwrap();
+    let storage_path1 = temp_dir1.path().join("node1_data");
+    let datastore1 = NetworkDatastore::create_in_directory(&storage_path1).unwrap();
+    let datastore1 = std::sync::Arc::new(tokio::sync::Mutex::new(datastore1));
+    
+    let temp_dir2 = tempfile::tempdir().unwrap();
+    let storage_path2 = temp_dir2.path().join("node2_data");
+    let datastore2 = NetworkDatastore::create_in_directory(&storage_path2).unwrap();
+    let datastore2 = std::sync::Arc::new(tokio::sync::Mutex::new(datastore2));
+    
+    let peer_id1 = "node1_peer_id".to_string();
+    let peer_id2 = "node2_peer_id".to_string();
+    
+    let config = ChainConfig {
+        initial_difficulty: 1,
+        target_block_time_secs: 600,
+    };
+    
+    // Step 1: Node 1 mines block 1
+    println!("📦 Step 1: Node 1 mining block 1...");
+    let mut chain1 = Blockchain::load_or_create(
+        config.clone(),
+        peer_id1.clone(),
+        datastore1.clone(),
+    ).await.unwrap();
+    
+    let block1 = chain1.mine_block_with_persistence(peer_id1.clone(), 1000).await.unwrap();
+    println!("✅ Node 1 mined block {} with hash {}", block1.header.index, &block1.header.hash[..16]);
+    assert_eq!(block1.header.index, 1);
+    assert_eq!(chain1.height(), 1);
+    
+    // Verify block 1 is in node1's datastore
+    {
+        let ds = datastore1.lock().await;
+        let blocks = MinerBlock::find_all_canonical(&ds).await.unwrap();
+        assert_eq!(blocks.len(), 2); // Genesis + block 1
+        println!("✅ Node 1 has {} blocks in datastore", blocks.len());
+    }
+    
+    // Step 2: Node 2 syncs and receives block 1
+    println!("\n📡 Step 2: Node 2 syncing from Node 1...");
+    
+    // Simulate sync by copying block from node1's datastore to node2's datastore
+    {
+        let ds1 = datastore1.lock().await;
+        let mut ds2 = datastore2.lock().await;
+        
+        let blocks_from_node1 = MinerBlock::find_all_canonical(&ds1).await.unwrap();
+        
+        for block in blocks_from_node1 {
+            let mut synced_block = block.clone();
+            synced_block.save(&mut *ds2).await.unwrap();
+            println!("  📥 Synced block {} from Node 1", synced_block.index);
+        }
+    }
+    
+    // Load chain on node 2 after sync
+    let mut chain2 = Blockchain::load_or_create(
+        config.clone(),
+        peer_id2.clone(),
+        datastore2.clone(),
+    ).await.unwrap();
+    
+    println!("✅ Node 2 synced successfully, chain height: {}", chain2.height());
+    assert_eq!(chain2.height(), 1, "Node 2 should have block 1 after sync");
+    assert_eq!(chain2.blocks.len(), 2, "Node 2 should have genesis + block 1");
+    
+    // Verify block hashes match
+    let node1_block1_hash = chain1.blocks[1].header.hash.clone();
+    let node2_block1_hash = chain2.blocks[1].header.hash.clone();
+    assert_eq!(node1_block1_hash, node2_block1_hash, "Block 1 hash should match between nodes");
+    println!("✅ Block 1 hash matches on both nodes: {}", &node1_block1_hash[..16]);
+    
+    // Step 3: Node 2 mines block 2 on top of synced chain
+    println!("\n⛏️  Step 3: Node 2 mining block 2...");
+    let block2 = chain2.mine_block_with_persistence(peer_id2.clone(), 2000).await.unwrap();
+    println!("✅ Node 2 mined block {} with hash {}", block2.header.index, &block2.header.hash[..16]);
+    assert_eq!(block2.header.index, 2);
+    assert_eq!(block2.header.previous_hash, node1_block1_hash, "Block 2 should reference block 1's hash");
+    assert_eq!(chain2.height(), 2);
+    
+    // Verify block 2 is in node2's datastore
+    {
+        let ds = datastore2.lock().await;
+        let blocks = MinerBlock::find_all_canonical(&ds).await.unwrap();
+        assert_eq!(blocks.len(), 3); // Genesis + block 1 + block 2
+        println!("✅ Node 2 has {} blocks in datastore", blocks.len());
+    }
+    
+    // Step 4: Node 1 syncs and receives block 2
+    println!("\n📡 Step 4: Node 1 syncing block 2 from Node 2...");
+    
+    // Simulate sync by copying block 2 from node2's datastore to node1's datastore
+    {
+        let ds2 = datastore2.lock().await;
+        let mut ds1 = datastore1.lock().await;
+        
+        let blocks_from_node2 = MinerBlock::find_all_canonical(&ds2).await.unwrap();
+        let block2_data = blocks_from_node2.iter()
+            .find(|b| b.index == 2)
+            .expect("Block 2 should exist on node2");
+        
+        let mut synced_block = block2_data.clone();
+        synced_block.save(&mut *ds1).await.unwrap();
+        println!("  📥 Synced block {} from Node 2", synced_block.index);
+    }
+    
+    // Reload chain on node 1 after sync
+    chain1 = Blockchain::load_or_create(
+        config.clone(),
+        peer_id1.clone(),
+        datastore1.clone(),
+    ).await.unwrap();
+    
+    println!("✅ Node 1 synced successfully, chain height: {}", chain1.height());
+    assert_eq!(chain1.height(), 2, "Node 1 should have block 2 after sync");
+    assert_eq!(chain1.blocks.len(), 3, "Node 1 should have genesis + block 1 + block 2");
+    
+    // Step 5: Verify both nodes have the same chain view
+    println!("\n🔍 Step 5: Verifying chain consistency between nodes...");
+    
+    assert_eq!(chain1.height(), chain2.height(), "Both nodes should have same chain height");
+    assert_eq!(chain1.blocks.len(), chain2.blocks.len(), "Both nodes should have same number of blocks");
+    
+    // Verify all block hashes match
+    for i in 0..chain1.blocks.len() {
+        let hash1 = &chain1.blocks[i].header.hash;
+        let hash2 = &chain2.blocks[i].header.hash;
+        assert_eq!(hash1, hash2, "Block {} hash should match between nodes", i);
+        println!("  ✅ Block {} hash matches: {}", i, &hash1[..16]);
+    }
+    
+    // Verify chain is valid on both nodes
+    assert!(chain1.validate_chain().is_ok(), "Node 1 chain should be valid");
+    assert!(chain2.validate_chain().is_ok(), "Node 2 chain should be valid");
+    
+    println!("\n✅ Test passed! Both nodes successfully mined sequentially after syncing");
+    println!("   - Node 1 mined block 1");
+    println!("   - Node 2 synced and mined block 2");
+    println!("   - Node 1 synced block 2");
+    println!("   - Both nodes have identical valid chains");
+}
+
+/// Test that verifies mining with RandomX hash function
+/// This ensures the RandomX algorithm is working correctly for mining
+#[test]
+fn test_mining_with_randomx() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    
+    println!("\n=== Testing Mining with RandomX ===\n");
+    
+    let genesis_peer_id = "genesis_peer_id";
+    let miner_peer_id = "miner_peer_1";
+    
+    // Create miner with RandomX configuration
+    let config = MinerConfig {
+        max_tries: Some(100_000),
+        hash_func_name: Some("randomx"),
+    };
+    
+    let miner = Miner::new(config);
+    
+    // Create a test block
+    let data = BlockData::new(miner_peer_id.to_string(), 12345);
+    let block = Block::new(1, "prev_hash".to_string(), data, 1); // Very low difficulty
+    
+    println!("⛏️  Mining block with RandomX...");
+    let result = miner.mine_block(block);
+    
+    assert!(result.is_ok(), "Mining with RandomX should succeed");
+    
+    let mined_block = result.unwrap();
+    println!("✅ Successfully mined block with nonce: {}", mined_block.header.nonce);
+    println!("   Hash: {}", &mined_block.header.hash[..32]);
+    
+    // Verify the mined block
+    assert!(miner.verify_block(&mined_block).unwrap(), "Mined block should be valid");
+    assert!(mined_block.verify_hash(), "Block hash should be correct");
+    assert!(mined_block.verify_data_hash(), "Block data hash should be correct");
+    
+    println!("✅ RandomX mining test passed!");
+}
+

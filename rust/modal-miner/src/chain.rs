@@ -112,6 +112,7 @@ impl Blockchain {
         Self::load_or_create_with_fork_config(config, genesis_peer_id, datastore, modal_observer::ForkConfig::new()).await
     }
     
+    #[cfg(feature = "persistence")]
     /// Load blockchain from datastore with fork configuration, or create genesis if empty
     pub async fn load_or_create_with_fork_config(
         config: ChainConfig,
