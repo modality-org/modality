@@ -1446,7 +1446,7 @@ pub async fn find_common_ancestor_efficient(
         // Still need to get the peer's chain info
         // Request chain info from peer
         let request = crate::reqres::Request {
-            path: "/data/chain_info".to_string(),
+            path: "/data/miner_block/chain_info".to_string(),
             data: None,
         };
         

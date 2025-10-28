@@ -138,6 +138,38 @@
             transform: translateY(-1px);
         }
         
+        .cta-buttons {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .secondary-button {
+            display: inline-block;
+            padding: 1rem 3rem;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            color: #E0FF79;
+            background: rgba(224, 255, 121, 0.1);
+            border-radius: 60px;
+            border: 2px solid #E0FF79;
+            box-shadow: 0 5px 20px rgba(224, 255, 121, 0.2);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeInUp 0.8s ease-out 0.7s backwards;
+        }
+        
+        .secondary-button:hover {
+            transform: translateY(-3px);
+            background: rgba(224, 255, 121, 0.15);
+            box-shadow: 0 15px 40px rgba(224, 255, 121, 0.3);
+        }
+        
+        .secondary-button:active {
+            transform: translateY(-1px);
+        }
+        
         .features {
             margin-top: 5rem;
             display: grid;
@@ -215,6 +247,11 @@
                 font-size: 1rem;
             }
             
+            .secondary-button {
+                padding: 0.875rem 2.25rem;
+                font-size: 0.95rem;
+            }
+            
             .features {
                 margin-top: 3rem;
                 gap: 1.5rem;
@@ -238,7 +275,10 @@
             <h1>Modal Money</h1>
         </div>
         <p class="tagline">Money for <span class="tagline-accent">Self-Rule</span></p>
-        <a href="https://start.modal.money" class="cta-button">Get Started</a>
+        <div class="cta-buttons">
+            <a href="https://start.modal.money" class="cta-button">Get Started</a>
+            <a href="http://testnet.modal.money" class="secondary-button">Join Testnet</a>
+        </div>
         
         <div class="features">
             <div class="feature">
