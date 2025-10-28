@@ -206,7 +206,7 @@ pub async fn generate_status_html(
                 };
                 
                 format!(
-                    "<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                    "<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td><td class=\"timestamp\" data-timestamp=\"{}\" onclick=\"toggleTimestamp(this)\" style=\"cursor: pointer;\" title=\"Click to toggle local time\">{}</td><td>{}</td></tr>",
                     block.index,
                     block.epoch,
                     if block.hash.len() > 16 {
@@ -219,6 +219,7 @@ pub async fn generate_status_html(
                     } else {
                         block.nominated_peer_id.clone()
                     },
+                    block.timestamp,
                     block.timestamp,
                     time_delta
                 )
@@ -244,7 +245,7 @@ pub async fn generate_status_html(
                 };
                 
                 format!(
-                    "<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                    "<tr><td>{}</td><td>{}</td><td><code>{}</code></td><td>{}</td><td class=\"timestamp\" data-timestamp=\"{}\" onclick=\"toggleTimestamp(this)\" style=\"cursor: pointer;\" title=\"Click to toggle local time\">{}</td><td>{}</td></tr>",
                     block.index,
                     block.epoch,
                     if block.hash.len() > 16 {
@@ -257,6 +258,7 @@ pub async fn generate_status_html(
                     } else {
                         block.nominated_peer_id.clone()
                     },
+                    block.timestamp,
                     block.timestamp,
                     time_delta
                 )
@@ -397,7 +399,7 @@ pub async fn generate_status_html(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modality Node Status</title>
+    <title>Modal Money Node Status</title>
     <style>
         body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -591,6 +593,25 @@ pub async fn generate_status_html(
             switchTab(savedTab);
         }});
         
+        // Toggle timestamp between Unix time and local time
+        function toggleTimestamp(element) {{
+            const timestamp = parseInt(element.getAttribute('data-timestamp'));
+            const currentText = element.textContent;
+            
+            // Check if currently showing Unix timestamp
+            if (currentText === timestamp.toString()) {{
+                // Convert to local time
+                const date = new Date(timestamp * 1000);
+                const localTime = date.toLocaleString();
+                element.textContent = localTime;
+                element.style.color = '#4a9eff';
+            }} else {{
+                // Show Unix timestamp
+                element.textContent = timestamp;
+                element.style.color = '#e0e0e0';
+            }}
+        }}
+        
         // Auto-refresh every 10 seconds
         setTimeout(function() {{
             location.reload();
@@ -599,7 +620,7 @@ pub async fn generate_status_html(
 </head>
 <body>
     <div class="header">
-        <h1>🟢 Modality Network Node</h1>
+        <h1>🟢 Modal Money Node</h1>
         <p class="status-online">Status: ONLINE</p>
     </div>
     
