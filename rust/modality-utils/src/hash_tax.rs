@@ -6,6 +6,7 @@ use num_bigint::BigUint;
 use num_bigint::ToBigUint;
 use num_traits::Num;
 use randomx_rs::{RandomXFlag, RandomXVM};
+use std::cell::RefCell;
 
 const DEFAULT_MAX_TRIES: u128 = 100_000_000_000;
 const DEFAULT_HASH_FUNC_NAME: &str = "randomx";
@@ -26,26 +27,45 @@ lazy_static::lazy_static! {
     };
 }
 
-/// Create a RandomX VM instance using recommended flags
-fn create_randomx_vm() -> Result<RandomXVM, Box<dyn Error>> {
-    log::debug!("🔧 Initializing RandomX VM with recommended flags...");
-    let flags = RandomXFlag::get_recommended_flags();
-    log::debug!("🔧 Creating RandomX cache with key...");
-    let cache = randomx_rs::RandomXCache::new(flags, RANDOMX_KEY)
-        .map_err(|e| format!("Failed to create RandomX cache: {}", e))?;
-    log::debug!("🔧 Initializing RandomX VM...");
-    let vm = RandomXVM::new(flags, Some(cache), None)
-        .map_err(|e| format!("Failed to initialize RandomX VM: {}", e))?;
-    log::info!("✅ RandomX VM initialized successfully");
-    Ok(vm)
+thread_local! {
+    /// Thread-local RandomX VM instance that is initialized once per thread and reused
+    /// This avoids the expensive initialization cost (2-3 seconds) for every hash
+    static RANDOMX_VM: RefCell<Option<RandomXVM>> = RefCell::new(None);
 }
 
-/// Hash data using RandomX
+/// Get or create the thread-local RandomX VM instance
+fn with_randomx_vm<F, R>(f: F) -> Result<R, Box<dyn Error>>
+where
+    F: FnOnce(&RandomXVM) -> Result<R, Box<dyn Error>>,
+{
+    RANDOMX_VM.with(|vm_cell| {
+        let mut vm_opt = vm_cell.borrow_mut();
+        
+        if vm_opt.is_none() {
+            log::info!("🔧 Initializing RandomX VM (one-time setup)...");
+            let flags = RandomXFlag::get_recommended_flags();
+            log::debug!("🔧 Creating RandomX cache with key...");
+            let cache = randomx_rs::RandomXCache::new(flags, RANDOMX_KEY)
+                .map_err(|e| format!("Failed to create RandomX cache: {}", e))?;
+            log::debug!("🔧 Creating RandomX VM...");
+            let vm = RandomXVM::new(flags, Some(cache), None)
+                .map_err(|e| format!("Failed to initialize RandomX VM: {}", e))?;
+            log::info!("✅ RandomX VM initialized successfully (ready for mining)");
+            *vm_opt = Some(vm);
+        }
+        
+        let vm = vm_opt.as_ref().unwrap();
+        f(vm)
+    })
+}
+
+/// Hash data using RandomX (uses thread-local VM for efficiency)
 fn hash_with_randomx(data: &str) -> Result<String, Box<dyn Error>> {
-    let vm = create_randomx_vm()?;
-    let hash_bytes = vm.calculate_hash(data.as_bytes())
-        .map_err(|e| format!("RandomX hashing failed: {}", e))?;
-    Ok(hex::encode(hash_bytes))
+    with_randomx_vm(|vm| {
+        let hash_bytes = vm.calculate_hash(data.as_bytes())
+            .map_err(|e| format!("RandomX hashing failed: {}", e))?;
+        Ok(hex::encode(hash_bytes))
+    })
 }
 
 #[allow(dead_code)]
