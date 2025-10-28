@@ -7,6 +7,8 @@ use num_bigint::ToBigUint;
 use num_traits::Num;
 use randomx_rs::{RandomXFlag, RandomXVM};
 use std::cell::RefCell;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 const DEFAULT_MAX_TRIES: u128 = 100_000_000_000;
 const DEFAULT_HASH_FUNC_NAME: &str = "randomx";
@@ -24,6 +26,32 @@ lazy_static::lazy_static! {
         map.insert("sha512", 128);
         map.insert("randomx", 64);  // RandomX outputs 256 bits = 64 hex chars
         map
+    };
+    
+    /// Global flag to signal mining should stop (e.g., on Ctrl-C)
+    static ref MINING_SHOULD_STOP: Arc<AtomicBool> = {
+        let flag = Arc::new(AtomicBool::new(false));
+        let flag_clone = flag.clone();
+        
+        // Set up signal handler for graceful shutdown
+        #[cfg(unix)]
+        {
+            use std::sync::Mutex;
+            static HANDLER_INSTALLED: Mutex<bool> = Mutex::new(false);
+            
+            let mut installed = HANDLER_INSTALLED.lock().unwrap();
+            if !*installed {
+                if let Err(e) = ctrlc::set_handler(move || {
+                    log::info!("🛑 Received shutdown signal (Ctrl-C), stopping mining...");
+                    flag_clone.store(true, Ordering::Relaxed);
+                }) {
+                    log::warn!("Failed to set Ctrl-C handler: {}", e);
+                }
+                *installed = true;
+            }
+        }
+        
+        flag
     };
 }
 
@@ -87,6 +115,12 @@ pub fn mine(
     let mut last_try_count = 0;
 
     while try_count < max_tries {
+        // Check if we should stop mining (e.g., Ctrl-C was pressed)
+        if MINING_SHOULD_STOP.load(Ordering::Relaxed) {
+            log::info!("🛑 Mining stopped by shutdown signal after {} attempts", try_count);
+            return Err("Mining interrupted by shutdown signal".into());
+        }
+        
         try_count += 1;
         
         // Log periodic status updates (only if we're doing a lot of attempts)
