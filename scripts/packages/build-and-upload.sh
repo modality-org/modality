@@ -118,11 +118,11 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --skip-build)
-            SKIP_BUILD=true
+            SKIP_BUILD=false
             shift
             ;;
         --skip-upload)
-            SKIP_UPLOAD=true
+            SKIP_UPLOAD=false
             shift
             ;;
         --skip-js)
@@ -572,6 +572,47 @@ EOF
     log_success "All packages built successfully!"
 }
 
+# Invalidate CloudFront cache function
+invalidate_cloudfront_cache() {
+    log_info "Invalidating CloudFront cache..."
+    
+    # Get the CloudFront distribution ID from CDK exports, or use default
+    # The CDK stack exports this as "GetModalMoneyDistributionId"
+    DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+        --region "$AWS_REGION" \
+        --query "Stacks[?StackName=='GetModalMoneyStack'].Outputs[?ExportName=='GetModalMoneyDistributionId'].OutputValue" \
+        --output text 2>/dev/null)
+    
+    # Use default distribution ID if not found in CloudFormation
+    if [[ -z "$DISTRIBUTION_ID" || "$DISTRIBUTION_ID" == "None" ]]; then
+        log_info "CloudFront distribution ID not found in CloudFormation exports"
+        DISTRIBUTION_ID="EAB0G50HTKF8I"
+        log_info "Using default distribution ID: $DISTRIBUTION_ID"
+    fi
+    
+    log_info "Found CloudFront distribution: $DISTRIBUTION_ID"
+    
+    # Invalidate paths for the uploaded version and latest symlink
+    INVALIDATION_PATHS="/$GIT_BRANCH/$VERSION/* /$GIT_BRANCH/latest/*"
+    
+    log_info "Creating invalidation for paths: $INVALIDATION_PATHS"
+    
+    INVALIDATION_ID=$(aws cloudfront create-invalidation \
+        --distribution-id "$DISTRIBUTION_ID" \
+        --paths $INVALIDATION_PATHS \
+        --region "$AWS_REGION" \
+        --query 'Invalidation.Id' \
+        --output text 2>&1)
+    
+    if [[ $? -eq 0 && -n "$INVALIDATION_ID" && "$INVALIDATION_ID" != "None" ]]; then
+        log_success "CloudFront cache invalidation created: $INVALIDATION_ID"
+        log_info "Cache invalidation is in progress. It may take a few minutes to complete."
+    else
+        log_warning "Failed to create CloudFront invalidation: $INVALIDATION_ID"
+        log_warning "Cache will expire naturally based on CloudFront TTL settings."
+    fi
+}
+
 # Upload to S3 function
 upload_to_s3() {
     log_info "Uploading packages to S3..."
@@ -602,6 +643,9 @@ upload_to_s3() {
     log_info "  Latest:  s3://$S3_BUCKET/$S3_PREFIX$GIT_BRANCH/latest/"
     log_info "  Branch:  $GIT_BRANCH"
     log_info "  Commit:  $GIT_COMMIT"
+    
+    # Invalidate CloudFront cache
+    invalidate_cloudfront_cache
 }
 
 # Cargo registry publishing function
@@ -655,6 +699,9 @@ EOF
     log_info ""
     log_info "Then install with:"
     log_info "  cargo install --index sparse+http://get.modal.money/$GIT_BRANCH/$VERSION/cargo-registry/index/ modal"
+    
+    # Invalidate CloudFront cache for registry paths
+    invalidate_cloudfront_cache
 }
 
 # Main execution
