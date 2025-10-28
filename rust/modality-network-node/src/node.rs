@@ -75,12 +75,12 @@ impl Node {
         let node_keypair = config.get_libp2p_keypair().await?;
         let peerid = node_keypair.public().to_peer_id();
         let autoupgrade_config = crate::autoupgrade::AutoupgradeConfig::from_node_config(&config);
-        let listeners = config.listeners.unwrap_or_default();
         let miner_nominees = config.miner_nominees.clone();
         let status_port = config.status_port;
         let status_html_dir = config.status_html_dir.clone();
         let minimum_block_timestamp = config.minimum_block_timestamp;
         let fork_config = config.get_fork_config();
+        let listeners = config.listeners.clone().unwrap_or_default();
         let resolved_bootstrappers =
             resolve_dns_multiaddrs(config.bootstrappers.unwrap_or_default()).await?;
         let bootstrappers = exclude_multiaddresses_with_peerid(resolved_bootstrappers, peerid);
