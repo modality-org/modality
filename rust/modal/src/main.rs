@@ -3,9 +3,18 @@ mod cmds;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+const VERSION: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    " (",
+    env!("GIT_BRANCH"),
+    "@",
+    env!("GIT_COMMIT"),
+    ")"
+);
+
 #[derive(Parser)]
 #[command(name = "modal")]
-#[command(version = "0.1.0")]
+#[command(version = VERSION)]
 #[command(about = "Modal CLI utility for Modality Network operations", long_about = None)]
 struct Cli {
     #[command(subcommand)]
@@ -38,6 +47,12 @@ enum Commands {
     Net {
         #[command(subcommand)]
         command: NetworkCommands,
+    },
+
+    #[command(about = "Run node shortcuts")]
+    Run {
+        #[command(subcommand)]
+        command: RunCommands,
     },
 
     #[command(about = "Upgrade modal to the latest version")]
@@ -107,6 +122,15 @@ enum MiningCommands {
     Sync(cmds::net::mining::sync::Opts),
 }
 
+#[derive(Subcommand)]
+enum RunCommands {
+    #[command(about = "Run a mining node")]
+    Miner(cmds::node::run_miner::Opts),
+
+    #[command(about = "Run an observer node (observes mining, does not mine)")]
+    Observer(cmds::node::run_observer::Opts),
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -145,6 +169,12 @@ async fn main() -> Result<()> {
                         MiningCommands::Sync(opts) => cmds::net::mining::sync::run(opts).await?,
                     }
                 }
+            }
+        }
+        Commands::Run { command } => {
+            match command {
+                RunCommands::Miner(opts) => cmds::node::run_miner::run(opts).await?,
+                RunCommands::Observer(opts) => cmds::node::run_observer::run(opts).await?,
             }
         }
         Commands::Upgrade(opts) => modality::cmds::upgrade::run(opts).await?,
