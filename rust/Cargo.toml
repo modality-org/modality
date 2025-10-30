@@ -2,7 +2,7 @@
 resolver = "2"
 
 members = [
-  'modality-network-consensus'
+  'modal-sequencer-consensus'
 , 'modal-datastore'
 , 'modal-devnet'
 , 'modal-miner'

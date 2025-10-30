@@ -4,11 +4,11 @@ mod tests {
     use std::sync::Arc;
     use tokio::sync::Mutex;
 
-    use modality_network_consensus::communication::same_process::SameProcess;
-    use modality_network_consensus::communication::Communication;
-    use modality_network_consensus::election;
-    use modality_network_consensus::runner::*;
-    use modality_network_consensus::sequencing::static_authority::StaticAuthority;
+    use modal_sequencer_consensus::communication::same_process::SameProcess;
+    use modal_sequencer_consensus::communication::Communication;
+    use modal_sequencer_consensus::election;
+    use modal_sequencer_consensus::runner::*;
+    use modal_sequencer_consensus::sequencing::static_authority::StaticAuthority;
     // use modal_datastore::models::block::Block;
     // use modal_datastore::Model;
     use modal_datastore::NetworkDatastore;

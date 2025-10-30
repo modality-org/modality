@@ -2,8 +2,8 @@ use anyhow::Result;
 use futures::prelude::*;
 use libp2p::gossipsub::IdentTopic;
 use libp2p::request_response::OutboundRequestId;
-use modality_network_consensus::runner::create_runner_props_from_datastore;
-use modality_network_consensus::runner::ConsensusRunner;
+use modal_sequencer_consensus::runner::create_runner_props_from_datastore;
+use modal_sequencer_consensus::runner::ConsensusRunner;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -17,7 +17,7 @@ use libp2p::request_response;
 use libp2p::swarm::SwarmEvent;
 use libp2p::{Multiaddr, PeerId};
 
-use modality_network_consensus::communication::Message as ConsensusMessage;
+use modal_sequencer_consensus::communication::Message as ConsensusMessage;
 use modal_datastore::NetworkDatastore;
 use modality_utils::multiaddr_list::resolve_dns_multiaddrs;
 
@@ -53,7 +53,7 @@ pub struct Node {
     pub initial_difficulty: Option<u128>, // Initial mining difficulty (defaults to 1000 if not specified)
     pub mining_metrics: crate::mining_metrics::SharedMiningMetrics, // Mining hashrate metrics
     pub mining_shutdown: Option<Arc<std::sync::atomic::AtomicBool>>, // Shutdown flag for mining loop
-    consensus_runner: Option<modality_network_consensus::runner::Runner>,
+    consensus_runner: Option<modal_sequencer_consensus::runner::Runner>,
     networking_task: Option<tokio::task::JoinHandle<Result<()>>>,
     consensus_task: Option<tokio::task::JoinHandle<Result<()>>>,
     autoupgrade_task: Option<tokio::task::JoinHandle<Result<()>>>,
@@ -521,7 +521,7 @@ impl Node {
             swarm: self.swarm.clone(),
             consensus_tx: self.consensus_tx.clone(),
         })));
-        let runner = modality_network_consensus::runner::Runner::create(runner_props);
+        let runner = modal_sequencer_consensus::runner::Runner::create(runner_props);
         self.consensus_runner = Some(runner.clone());
     
         let mut shutdown_rx = self.shutdown_tx.subscribe();

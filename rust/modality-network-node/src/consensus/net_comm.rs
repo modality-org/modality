@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 // use std::sync::Mutex;
 
-use modality_network_consensus::communication::Communication;
+use modal_sequencer_consensus::communication::Communication;
 use modal_datastore::models::block::Block;
 use modal_datastore::models::block::Ack;
 

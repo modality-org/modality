@@ -5,9 +5,9 @@
 //     use modal_devnet::Devnet;
 //     use modal_datastore::{Model, NetworkDatastore};
 //     use modal_datastore::models::block::Block;
-//     use modality_network_consensus::sequencing::static_authority::StaticAuthority;
-//     use modality_network_consensus::election;
-//     use modality_network_consensus::runner::*;
+//     use modal_sequencer_consensus::sequencing::static_authority::StaticAuthority;
+//     use modal_sequencer_consensus::election;
+//     use modal_sequencer_consensus::runner::*;
 //     use std::sync::Arc;
 
 //     #[tokio::test]

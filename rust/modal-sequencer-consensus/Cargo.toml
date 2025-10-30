@@ -1,5 +1,5 @@
 [package]
-name = "modality-network-consensus"
+name = "modal-sequencer-consensus"
 version = "0.1.0"
 edition = "2021"
 description = "Network consensus for Modality"

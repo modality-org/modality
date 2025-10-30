@@ -59,7 +59,7 @@ zeroize = "1.7.0"
 ctrlc = "3.4.5"
 # libp2p-stream = "0.1.0-alpha"
 modality-utils = { path = "../modality-utils", version = "0.1.6" }
-modality-network-consensus = { path = "../modality-network-consensus", version = "0.1.0" }
+modal-sequencer-consensus = { path = "../modal-sequencer-consensus", version = "0.1.0" }
 modal-datastore = { path = "../modal-datastore", version = "0.1.0" }
 modal-miner = { path = "../modal-miner", version = "0.1.0", features = ["persistence"] }
 modal-observer = { path = "../modal-observer", version = "0.1.0" }

@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 
 use modal_datastore::NetworkDatastore;
 use modal_datastore::models::Block;
-use modality_network_consensus::communication::Message as ConsensusMessage;
+use modal_sequencer_consensus::communication::Message as ConsensusMessage;
 
 pub const TOPIC: &str = "/consensus/block/draft";
 

@@ -253,7 +253,7 @@ cd "$PROJECT_ROOT/rust"
 WORKSPACE_MEMBERS=(
     "modality-utils"
     "modal-datastore"
-    "modality-network-consensus"
+    "modal-sequencer-consensus"
     "modal-miner"
     "modal-devnet"
     "modality-network-node"
