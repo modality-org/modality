@@ -2,7 +2,7 @@
 // #[cfg(test)]
 // mod tests {
 //     use anyhow::Result;
-//     use modality_network_devnet::Devnet;
+//     use modal_devnet::Devnet;
 //     use modal_datastore::{Model, NetworkDatastore};
 //     use modal_datastore::models::block::Block;
 //     use modality_network_consensus::sequencing::static_authority::StaticAuthority;

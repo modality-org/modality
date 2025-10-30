@@ -1,5 +1,5 @@
 [package]
-name = "modality-network-devnet"
+name = "modal-devnet"
 version = "0.1.0"
 edition = "2021"
 description = "Network devnet for Modality"

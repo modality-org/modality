@@ -12,7 +12,7 @@ mod tests {
     // use modal_datastore::models::block::Block;
     // use modal_datastore::Model;
     use modal_datastore::NetworkDatastore;
-    use modality_network_devnet::Devnet;
+    use modal_devnet::Devnet;
 
     #[tokio::test]
     async fn test_runners() -> Result<()> {

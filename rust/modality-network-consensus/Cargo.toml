@@ -29,4 +29,4 @@ tempfile = "3.5"
 tokio-test = "0.4"
 tokio = { version = "1.42", features = ["full", "test-util"] }
 zip = "0.6"
-modality-network-devnet = { path = "../modality-network-devnet" }
+modal-devnet = { path = "../modal-devnet" }
