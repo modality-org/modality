@@ -5,7 +5,7 @@ use modal_datastore::{Model, NetworkDatastore};
 use serde_json::{self, Value};
 use std::collections::HashMap;
 
-use modality_utils::keypair::Keypair;
+use modal_common::keypair::Keypair;
 
 pub const KEYPAIRS_JSON: &str = include_str!("../keypairs.json");
 

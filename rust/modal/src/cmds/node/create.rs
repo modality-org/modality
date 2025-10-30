@@ -3,7 +3,7 @@ use clap::Parser;
 use serde_json::json;
 use std::path::PathBuf;
 
-use modality_utils::keypair::Keypair;
+use modal_common::keypair::Keypair;
 use modality::constants::{TESTNET_BOOTSTRAPPERS, DEFAULT_AUTOUPGRADE_BASE_URL, DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS};
 
 #[derive(Debug, Parser)]

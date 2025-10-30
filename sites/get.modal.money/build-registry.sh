@@ -251,7 +251,7 @@ cd "$PROJECT_ROOT/rust"
 # Define packages in dependency order (least dependent first)
 # This ensures dependencies are packaged before dependents
 WORKSPACE_MEMBERS=(
-    "modality-utils"
+    "modal-common"
     "modal-datastore"
     "modal-sequencer-consensus"
     "modal-miner"

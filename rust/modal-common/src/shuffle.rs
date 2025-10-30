@@ -12,7 +12,7 @@ use sha2::{Sha256, Digest};
 ///
 /// # Example
 /// ```
-/// use modality_utils::shuffle::fisher_yates_shuffle;
+/// use modal_common::shuffle::fisher_yates_shuffle;
 ///
 /// let shuffled = fisher_yates_shuffle(12345, 10);
 /// assert_eq!(shuffled.len(), 10);

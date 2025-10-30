@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use modality_utils::keypair::Keypair;
+    use modal_common::keypair::Keypair;
     use anyhow::{Result};
     use modal_datastore::NetworkDatastore;
     use modal_datastore::Model;

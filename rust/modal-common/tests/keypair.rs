@@ -1,5 +1,5 @@
 use anyhow::Result;
-use modality_utils::keypair::Keypair;
+use modal_common::keypair::Keypair;
 #[cfg(test)]
 mod tests {
     use super::*;

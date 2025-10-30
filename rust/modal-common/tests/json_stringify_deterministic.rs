@@ -1,5 +1,5 @@
 use serde_json::json;
-use modality_utils::json_stringify_deterministic::stringify_deterministic;
+use modal_common::json_stringify_deterministic::stringify_deterministic;
 
 #[cfg(test)]
 mod tests {

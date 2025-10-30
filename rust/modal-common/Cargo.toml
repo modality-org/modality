@@ -1,5 +1,5 @@
 [package]
-name = "modality-utils"
+name = "modal-common"
 version = "0.1.7"
 edition = "2021"
 description = "Common utilities shared across Modality packages"

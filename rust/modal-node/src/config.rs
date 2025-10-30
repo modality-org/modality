@@ -80,8 +80,8 @@ impl Config {
     }
 
     pub async fn get_libp2p_keypair(&self) -> Result<Keypair>{
-        let passfile = modality_utils::passfile::Passfile::load_file(self.passfile_path.clone().unwrap(), true).await?;
-        let node_keypair = modality_utils::libp2p_identity_keypair::libp2p_identity_from_private_key(passfile.keypair.private_key().as_str()).await?;
+        let passfile = modal_common::passfile::Passfile::load_file(self.passfile_path.clone().unwrap(), true).await?;
+        let node_keypair = modal_common::libp2p_identity_keypair::libp2p_identity_from_private_key(passfile.keypair.private_key().as_str()).await?;
         Ok(node_keypair)
     }
 

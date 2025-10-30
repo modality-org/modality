@@ -1,4 +1,4 @@
-use modality_utils::shuffle::fisher_yates_shuffle;
+use modal_common::shuffle::fisher_yates_shuffle;
 
 fn main() {
     println!("=== Fisher-Yates Shuffle Demo ===\n");

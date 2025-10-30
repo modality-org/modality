@@ -14,7 +14,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 lazy_static = "1.4"
 regex = "1.5" 
-modality-utils = { path = "../modality-utils", version = "0.1.6" }
+modal-common = { path = "../modal-common", version = "0.1.6" }
 modal-datastore = { path = "../modal-datastore", version = "0.1.0" }
 
 [dev-dependencies]

@@ -187,7 +187,7 @@ impl EpochManager {
         let seed = self.calculate_epoch_seed(epoch_blocks);
         
         // Get the shuffled indices
-        let shuffled_indices = modality_utils::shuffle::fisher_yates_shuffle(seed, epoch_blocks.len());
+        let shuffled_indices = modal_common::shuffle::fisher_yates_shuffle(seed, epoch_blocks.len());
         
         // Map shuffled indices to (original_index, nominated_peer_id) tuples
         shuffled_indices

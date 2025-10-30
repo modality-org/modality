@@ -14,7 +14,7 @@ use crate::sequencing::Sequencing;
 use modal_datastore::models::block::Ack;
 use modal_datastore::models::{Block, BlockMessage, Transaction};
 use modal_datastore::{Model, NetworkDatastore};
-use modality_utils::keypair::{self, Keypair};
+use modal_common::keypair::{self, Keypair};
 
 // const INTRA_ROUND_WAIT_TIME_MS: u64 = 50;
 // const NO_EVENTS_ROUND_WAIT_TIME_MS: u64 = 15000;

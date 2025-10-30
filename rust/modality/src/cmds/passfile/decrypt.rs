@@ -5,7 +5,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-use modality_utils::keypair::Keypair;
+use modal_common::keypair::Keypair;
 
 #[derive(Debug, Parser)]
 #[command(about = "Decrypt Modality passfile file in place")]

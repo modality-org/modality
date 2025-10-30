@@ -8,7 +8,7 @@ members = [
 , 'modal-miner'
 , 'modal-node'
 , 'modal-observer'
-, "modality-utils"
+, "modal-common"
 , "modality"
 , "modality-lang"
 , "modal"

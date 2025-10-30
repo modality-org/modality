@@ -1,6 +1,6 @@
 use crate::block::Block;
 use crate::error::MiningError;
-use modality_utils::hash_tax;
+use modal_common::hash_tax;
 
 /// Configuration for the miner
 #[derive(Debug, Clone)]

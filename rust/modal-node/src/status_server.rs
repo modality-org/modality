@@ -170,7 +170,7 @@ pub async fn generate_status_html(
                 }
                 
                 // Get shuffled indices using Fisher-Yates
-                let shuffled_indices = modality_utils::shuffle::fisher_yates_shuffle(seed, epoch_blocks.len());
+                let shuffled_indices = modal_common::shuffle::fisher_yates_shuffle(seed, epoch_blocks.len());
                 
                 // Map shuffled indices to (shuffle_rank, block_hash, nominated_peer_id, block_index)
                 let shuffled_nominees: Vec<(usize, String, String, u64)> = shuffled_indices

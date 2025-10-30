@@ -19,7 +19,7 @@ use libp2p::{Multiaddr, PeerId};
 
 use modal_sequencer_consensus::communication::Message as ConsensusMessage;
 use modal_datastore::NetworkDatastore;
-use modality_utils::multiaddr_list::resolve_dns_multiaddrs;
+use modal_common::multiaddr_list::resolve_dns_multiaddrs;
 
 use crate::config::Config;
 use crate::consensus::net_comm::NetComm;
@@ -514,7 +514,7 @@ impl Node {
     pub async fn start_consensus(&mut self) -> Result<()> {
         let mut runner_props = create_runner_props_from_datastore(self.datastore.clone()).await?;
         runner_props.peerid = Some(self.peerid.to_string());
-        runner_props.keypair = Some(modality_utils::keypair::Keypair::from_libp2p_keypair(
+        runner_props.keypair = Some(modal_common::keypair::Keypair::from_libp2p_keypair(
             self.node_keypair.clone(),
         )?);
         runner_props.communication = Some(Arc::new(Mutex::new(NodeCommunication {

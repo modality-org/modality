@@ -18,7 +18,7 @@ serde_json = "1.0"
 rocksdb = "0.20"
 regex = "1.5" 
 chrono = { version = "0.4", features = ["serde"] }
-modality-utils = { path = "../modality-utils", version = "0.1.5" }
+modal-common = { path = "../modal-common", version = "0.1.5" }
 uuid = { version = "1.10.0", features = ["v4"] }
 tempfile = "3.5"
 log = "0.4.17"

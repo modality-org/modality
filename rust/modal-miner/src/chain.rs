@@ -242,7 +242,7 @@ impl Blockchain {
         &mut self,
         nominated_peer_id: String,
         miner_number: u64,
-    ) -> Result<(Block, Option<modality_utils::hash_tax::MiningResult>), MiningError> {
+    ) -> Result<(Block, Option<modal_common::hash_tax::MiningResult>), MiningError> {
         let next_index = self.height() + 1;
         let next_difficulty = self.get_next_difficulty();
         let previous_hash = self.latest_block().header.hash.clone();

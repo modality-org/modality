@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
-use modality_utils::hash_tax;
+use modal_common::hash_tax;
 
 /// Block data containing a nominated peer ID and arbitrary number
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

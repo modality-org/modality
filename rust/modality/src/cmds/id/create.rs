@@ -3,7 +3,7 @@ use clap::Parser;
 use rpassword::read_password;
 use std::path::PathBuf;
 
-use modality_utils::keypair::Keypair;
+use modal_common::keypair::Keypair;
 
 #[derive(Debug, Parser)]
 #[command(about = "Create a new Modality ID and associated passfile file")]

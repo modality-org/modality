@@ -81,7 +81,7 @@ fn calculate_epoch_seed(blocks: &[MinerBlock]) -> u64 {
 
 /// Shuffle peer IDs using Fisher-Yates algorithm with a seed
 fn shuffle_peer_ids(seed: u64, peer_ids: &[String]) -> Vec<String> {
-    let indices = modality_utils::shuffle::fisher_yates_shuffle(seed, peer_ids.len());
+    let indices = modal_common::shuffle::fisher_yates_shuffle(seed, peer_ids.len());
     indices.into_iter().map(|i| peer_ids[i].clone()).collect()
 }
 

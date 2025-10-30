@@ -2,7 +2,7 @@ use crate::model::Model;
 use crate::NetworkDatastore;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
-use modality_utils::keypair::Keypair;
+use modal_common::keypair::Keypair;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Debug;
