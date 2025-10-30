@@ -133,6 +133,9 @@ enum RunCommands {
     #[command(about = "Run a mining node")]
     Miner(cmds::node::run_miner::Opts),
 
+    #[command(about = "Run a sequencer node (observes mining, does not mine)")]
+    Sequencer(cmds::node::run_sequencer::Opts),
+
     #[command(about = "Run an observer node (observes mining, does not mine)")]
     Observer(cmds::node::run_observer::Opts),
 }
@@ -182,6 +185,7 @@ async fn main() -> Result<()> {
         Commands::Run { command } => {
             match command {
                 RunCommands::Miner(opts) => cmds::node::run_miner::run(opts).await?,
+                RunCommands::Sequencer(opts) => cmds::node::run_sequencer::run(opts).await?,
                 RunCommands::Observer(opts) => cmds::node::run_observer::run(opts).await?,
             }
         }
