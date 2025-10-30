@@ -3,7 +3,7 @@ use clap::Parser;
 use std::path::PathBuf;
 use std::collections::HashMap;
 
-use modality_network_node::config::Config;
+use modal_node::config::Config;
 use modal_datastore::NetworkDatastore;
 use modal_datastore::models::MinerBlock;
 

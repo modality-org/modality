@@ -6,7 +6,7 @@ members = [
 , 'modal-datastore'
 , 'modal-devnet'
 , 'modal-miner'
-, 'modality-network-node'
+, 'modal-node'
 , 'modal-observer'
 , "modality-utils"
 , "modality"

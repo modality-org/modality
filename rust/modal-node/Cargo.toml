@@ -1,5 +1,5 @@
 [package]
-name = "modality-network-node"
+name = "modal-node"
 version = "0.1.7"
 edition = "2021"
 description = "Modality network node lib"

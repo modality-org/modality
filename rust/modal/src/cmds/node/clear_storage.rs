@@ -2,8 +2,8 @@ use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
 
-use modality_network_node::config_resolution::load_config_with_node_dir;
-use modality_network_node::node::Node;
+use modal_node::config_resolution::load_config_with_node_dir;
+use modal_node::node::Node;
 
 #[derive(Debug, Parser)]
 #[command(about = "Clear all values from node storage")]

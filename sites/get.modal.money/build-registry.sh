@@ -256,7 +256,7 @@ WORKSPACE_MEMBERS=(
     "modal-sequencer-consensus"
     "modal-miner"
     "modal-devnet"
-    "modality-network-node"
+    "modal-node"
     "modality-lang"
     "modality"
     "modal"

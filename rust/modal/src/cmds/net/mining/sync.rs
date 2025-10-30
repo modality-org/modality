@@ -3,9 +3,9 @@ use clap::Parser;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use modality_network_node::actions;
-use modality_network_node::node::Node;
-use modality_network_node::config::Config;
+use modal_node::actions;
+use modal_node::node::Node;
+use modal_node::config::Config;
 
 #[derive(Debug, Parser)]
 #[command(about = "Sync miner blocks from a specified node")]

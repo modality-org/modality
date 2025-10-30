@@ -14,9 +14,9 @@ use libp2p::{Multiaddr, Swarm};
 use libp2p::swarm::SwarmEvent;
 use modal_datastore::models::MinerBlock;
 use modal_datastore::Model;
-use modality_network_node::config::Config;
-use modality_network_node::reqres::{Request, Response};
-use modality_network_node::swarm;
+use modal_node::config::Config;
+use modal_node::reqres::{Request, Response};
+use modal_node::swarm;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -328,7 +328,7 @@ async fn handle_sync(
                     }
                 )) = event1 {
                     // Handle request on Node 1
-                    let response = modality_network_node::reqres::handle_request(request, datastore1, tx.clone()).await?;
+                    let response = modal_node::reqres::handle_request(request, datastore1, tx.clone()).await?;
                     node1_swarm.behaviour_mut().reqres.send_response(channel, response).ok();
                 }
             }

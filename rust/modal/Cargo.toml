@@ -14,7 +14,7 @@ readme = "../README.md"
 [dependencies]
 modality = { path = "../modality", version = "0.1.7" }
 modality-utils = { path = "../modality-utils", version = "0.1.7" }
-modality-network-node = { path = "../modality-network-node", version = "0.1.7" }
+modal-node = { path = "../modal-node", version = "0.1.7" }
 modal-datastore = { path = "../modal-datastore", version = "0.1.0" }
 modal-networks = { path = "../modal-networks", version = "0.1.0" }
 anyhow = "1.0"

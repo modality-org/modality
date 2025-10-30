@@ -2,9 +2,9 @@ use anyhow::{Result};
 use clap::Parser;
 use std::path::PathBuf;
 
-use modality_network_node::node::Node;
-use modality_network_node::config_resolution::load_config_with_node_dir;
-use modality_network_node::logging;
+use modal_node::node::Node;
+use modal_node::config_resolution::load_config_with_node_dir;
+use modal_node::logging;
 
 #[derive(Debug, Parser)]
 #[command(about = "Run a Modality Network node")]
@@ -41,10 +41,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Check if we should run as a miner
     if config.run_miner.unwrap_or(false) {
         log::info!("Running node in miner mode");
-        modality_network_node::actions::miner::run(&mut node).await?;
+        modal_node::actions::miner::run(&mut node).await?;
     } else {
         log::info!("Running node in server mode");
-        modality_network_node::actions::server::run(&mut node).await?;
+        modal_node::actions::server::run(&mut node).await?;
     }
 
     Ok(())
