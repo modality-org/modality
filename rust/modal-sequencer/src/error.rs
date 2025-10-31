@@ -13,6 +13,9 @@ pub enum SequencerError {
     
     #[error("Chain observation failed: {0}")]
     ObservationFailed(String),
+    
+    #[error("Consensus error: {0}")]
+    ConsensusError(#[from] anyhow::Error),
 }
 
 pub type Result<T> = std::result::Result<T, SequencerError>;
