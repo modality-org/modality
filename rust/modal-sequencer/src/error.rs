@@ -14,6 +14,9 @@ pub enum SequencerError {
     #[error("Chain observation failed: {0}")]
     ObservationFailed(String),
     
+    #[error("{0}")]
+    Custom(String),
+    
     #[error("Consensus error: {0}")]
     ConsensusError(#[from] anyhow::Error),
 }

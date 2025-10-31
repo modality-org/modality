@@ -6,3 +6,4 @@ pub mod request;
 pub mod sequencer;
 pub mod server;
 pub mod sync_blocks;
+pub mod dag_sync;

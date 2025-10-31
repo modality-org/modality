@@ -2,6 +2,7 @@ use crate::error::{Result, SequencerError};
 use modal_datastore::NetworkDatastore;
 use modal_sequencer_consensus::narwhal::{
     Batch, Certificate, Committee, Header, Primary, PublicKey, Transaction, Validator, Worker,
+    SyncClient, SyncRequest, SyncResponse,
 };
 use modal_sequencer_consensus::narwhal::dag::DAG;
 use modal_sequencer_consensus::shoal::{ReputationConfig, ReputationState};
@@ -118,6 +119,9 @@ pub struct ShoalSequencer {
     
     /// Ordering engine
     ordering: OrderingEngine,
+    
+    /// Sync client for DAG synchronization
+    sync_client: SyncClient,
 }
 
 impl ShoalSequencer {
@@ -199,6 +203,9 @@ impl ShoalSequencer {
         // Create ordering engine
         let ordering = OrderingEngine::new(dag.clone());
         
+        // Create sync client
+        let sync_client = SyncClient::new(dag.clone());
+        
         log::info!(
             "created Shoal sequencer for validator {:?}",
             config.validator_key
@@ -212,6 +219,7 @@ impl ShoalSequencer {
             workers,
             consensus,
             ordering,
+            sync_client,
         })
     }
     
@@ -384,6 +392,82 @@ impl ShoalSequencer {
             total += worker.pending_count();
         }
         total
+    }
+    
+    // Sync methods for DAG synchronization
+    
+    /// Handle sync request from another node
+    pub async fn handle_sync_request(&self, request: SyncRequest) -> SyncResponse {
+        let dag = self.dag.read().await;
+        dag.handle_sync_request(request)
+    }
+    
+    /// Sync DAG with a peer using a request function
+    /// The request_fn should send requests to the peer and return responses
+    pub async fn sync_with_peer<F, Fut>(&self, request_fn: F) -> Result<modal_sequencer_consensus::narwhal::SyncStats>
+    where
+        F: Fn(SyncRequest) -> Fut,
+        Fut: std::future::Future<Output = anyhow::Result<SyncResponse>>,
+    {
+        self.sync_client.sync_with_peer(request_fn).await.map_err(|e| e.into())
+    }
+    
+    /// Request specific certificates from a peer
+    pub async fn request_certificates<F, Fut>(
+        &self,
+        digests: Vec<modal_sequencer_consensus::narwhal::CertificateDigest>,
+        request_fn: F,
+    ) -> Result<Vec<Certificate>>
+    where
+        F: Fn(SyncRequest) -> Fut,
+        Fut: std::future::Future<Output = anyhow::Result<SyncResponse>>,
+    {
+        self.sync_client.request_certificates(digests, request_fn).await.map_err(|e| e.into())
+    }
+    
+    /// Sync missing parents for a certificate before processing it
+    pub async fn sync_and_process_certificate<F, Fut>(
+        &self,
+        cert: Certificate,
+        request_fn: F,
+    ) -> Result<Vec<Transaction>>
+    where
+        F: Fn(SyncRequest) -> Fut,
+        Fut: std::future::Future<Output = anyhow::Result<SyncResponse>>,
+    {
+        // Check if we have all parents
+        let has_parents = {
+            let dag = self.dag.read().await;
+            dag.has_all_parents(&cert)
+        };
+        
+        if !has_parents {
+            log::info!("Certificate has missing parents, syncing...");
+            let synced = self.sync_client.sync_missing_parents(&cert, request_fn).await
+                .map_err(|e| anyhow::Error::from(e))?;
+            
+            if !synced {
+                return Err(SequencerError::Custom(
+                    "Failed to sync all parents for certificate".to_string()
+                ).into());
+            }
+        }
+        
+        // Now process the certificate
+        self.process_certificate(cert).await
+    }
+    
+    /// Get the highest round in our DAG
+    pub async fn get_highest_round(&self) -> u64 {
+        let dag = self.dag.read().await;
+        dag.highest_round()
+    }
+    
+    /// Check if we have all certificates in a round
+    pub async fn has_complete_round(&self, round: u64) -> bool {
+        let dag = self.dag.read().await;
+        let quorum_threshold = self.config.committee.quorum_threshold();
+        dag.round_size(round) >= quorum_threshold as usize
     }
 }
 

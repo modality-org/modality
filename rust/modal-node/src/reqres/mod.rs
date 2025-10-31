@@ -3,6 +3,7 @@ use libp2p::request_response;
 mod consensus;
 mod ping;
 mod data;
+mod dag;
 use data as reqres_data;
 use tokio::sync::mpsc;
 
@@ -76,6 +77,9 @@ pub async fn handle_request(req: Request, datastore: &mut NetworkDatastore, cons
         }
         "/data/miner_block/find_ancestor" => {
             reqres_data::miner_block::find_ancestor::handler(Some(data.clone()), datastore).await?
+        }
+        "/dag/sync" => {
+            dag::sync::handler(Some(data.clone()), datastore).await?
         }
         _ => {
             Response {

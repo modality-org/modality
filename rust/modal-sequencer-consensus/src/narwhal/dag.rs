@@ -184,6 +184,158 @@ impl DAG {
         self.get(digest)
     }
 
+    // Sync methods for DAG synchronization between nodes
+    
+    /// Handle a sync request and return the appropriate response
+    pub fn handle_sync_request(&self, request: crate::narwhal::sync::SyncRequest) -> crate::narwhal::sync::SyncResponse {
+        use crate::narwhal::sync::{SyncRequest, SyncResponse};
+        
+        match request {
+            SyncRequest::GetCertificates { digests } => {
+                let mut certificates = Vec::new();
+                for digest in digests {
+                    if let Some(cert) = self.get(&digest) {
+                        certificates.push(cert.clone());
+                    }
+                }
+                
+                if certificates.is_empty() {
+                    SyncResponse::Empty
+                } else {
+                    SyncResponse::Certificates {
+                        certificates,
+                        has_more: false,
+                    }
+                }
+            }
+            
+            SyncRequest::GetCertificatesInRound { round } => {
+                let certificates = self.get_round(round)
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                
+                if certificates.is_empty() {
+                    SyncResponse::Empty
+                } else {
+                    SyncResponse::Certificates {
+                        certificates,
+                        has_more: false,
+                    }
+                }
+            }
+            
+            SyncRequest::GetCertificatesInRange { start_round, end_round } => {
+                let mut certificates = Vec::new();
+                let max_certs_per_response = 1000; // Limit response size
+                
+                for round in start_round..=end_round {
+                    for cert in self.get_round(round) {
+                        if certificates.len() >= max_certs_per_response {
+                            return SyncResponse::Certificates {
+                                certificates,
+                                has_more: true,
+                            };
+                        }
+                        certificates.push(cert.clone());
+                    }
+                }
+                
+                if certificates.is_empty() {
+                    SyncResponse::Empty
+                } else {
+                    SyncResponse::Certificates {
+                        certificates,
+                        has_more: false,
+                    }
+                }
+            }
+            
+            SyncRequest::GetHighestRound => {
+                SyncResponse::HighestRound {
+                    round: self.highest_round(),
+                }
+            }
+            
+            SyncRequest::GetMissingCertificates { known_digests, up_to_round } => {
+                let known_set: std::collections::HashSet<_> = known_digests.into_iter().collect();
+                let mut missing = Vec::new();
+                let max_certs_per_response = 1000;
+                
+                // Iterate through rounds up to the specified limit
+                for round in 0..=up_to_round.min(self.highest_round()) {
+                    for cert in self.get_round(round) {
+                        let digest = cert.digest();
+                        if !known_set.contains(&digest) {
+                            if missing.len() >= max_certs_per_response {
+                                return SyncResponse::Certificates {
+                                    certificates: missing,
+                                    has_more: true,
+                                };
+                            }
+                            missing.push(cert.clone());
+                        }
+                    }
+                }
+                
+                if missing.is_empty() {
+                    SyncResponse::Empty
+                } else {
+                    SyncResponse::Certificates {
+                        certificates: missing,
+                        has_more: false,
+                    }
+                }
+            }
+            
+            // Batches are not stored in DAG, return error
+            SyncRequest::GetBatch { .. } | SyncRequest::GetBatches { .. } => {
+                SyncResponse::Error {
+                    message: "Batch requests should be handled by Worker nodes".to_string(),
+                }
+            }
+        }
+    }
+    
+    /// Get missing parents for a certificate
+    /// Returns list of parent digests that are not in the DAG
+    pub fn get_missing_parents(&self, cert: &Certificate) -> Vec<CertificateDigest> {
+        cert.header.parents
+            .iter()
+            .filter(|parent| !self.certificates.contains_key(*parent))
+            .copied()
+            .collect()
+    }
+    
+    /// Check if we have all parents for a certificate
+    pub fn has_all_parents(&self, cert: &Certificate) -> bool {
+        if cert.header.round == 0 {
+            return true; // Genesis has no parents
+        }
+        
+        cert.header.parents
+            .iter()
+            .all(|parent| self.certificates.contains_key(parent))
+    }
+    
+    /// Get all certificates we're missing up to a certain round
+    /// This checks for gaps in our DAG by looking at parent references
+    pub fn get_missing_certificates_up_to_round(&self, up_to_round: u64) -> Vec<CertificateDigest> {
+        let mut missing = std::collections::HashSet::new();
+        
+        for round in 0..=up_to_round.min(self.highest_round()) {
+            for cert in self.get_round(round) {
+                for parent in &cert.header.parents {
+                    if !self.certificates.contains_key(parent) {
+                        missing.insert(*parent);
+                    }
+                }
+            }
+        }
+        
+        missing.into_iter().collect()
+    }
+
     // Persistence methods
     #[cfg(feature = "persistence")]
     pub async fn persist_certificate(
