@@ -6,7 +6,14 @@
     "/ip4/127.0.0.1/tcp/10502/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
     "/ip4/127.0.0.1/tcp/10503/ws/p2p/12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se",
     "/ip4/127.0.0.1/tcp/10504/ws/p2p/12D3KooW9qNFNGM5KJauVtyrCxnqPuvCF14zPE7gDTg1hamswzry",
-    "/ip4/127.0.0.1/tcp/10505/ws/p2p/12D3KooW9qnrANTWdi8VwL3zfSFSvdSQvKk5AtRE3nuEdinmbR1H" 
+    "/ip4/127.0.0.1/tcp/10505/ws/p2p/12D3KooW9qnrANTWdi8VwL3zfSFSvdSQvKk5AtRE3nuEdinmbR1H"
+  ],
+  "validators": [
+    "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
+    "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
+    "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se",
+    "12D3KooW9qNFNGM5KJauVtyrCxnqPuvCF14zPE7gDTg1hamswzry",
+    "12D3KooW9qnrANTWdi8VwL3zfSFSvdSQvKk5AtRE3nuEdinmbR1H"
   ]
 }
 

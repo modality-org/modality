@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum SequencingError {
+pub enum ValidationError {
     #[error("Chain observation error: {0}")]
     ChainObservation(String),
     
@@ -15,5 +15,5 @@ pub enum SequencingError {
     Sync(String),
 }
 
-pub type Result<T> = std::result::Result<T, SequencingError>;
+pub type Result<T> = std::result::Result<T, ValidationError>;
 

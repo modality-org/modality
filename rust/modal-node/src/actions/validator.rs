@@ -6,17 +6,17 @@ use tokio::sync::Mutex;
 use crate::node::Node;
 use crate::gossip;
 
-/// Run a sequencer node that observes mining events and maintains the canonical chain
+/// Run a validator node that observes mining events and maintains the canonical chain
 /// without mining blocks itself.
 /// 
-/// Sequencers:
+/// Validators:
 /// - Subscribe to mining block gossip
 /// - Maintain the heaviest/canonical chain via fork choice
 /// - Sync from peers on startup
 /// - Can participate in consensus
 /// - Do NOT mine blocks
 pub async fn run(node: &mut Node) -> Result<()> {
-    log::info!("Starting sequencer node");
+    log::info!("Starting validator node");
     
     // Create a channel to receive mining chain updates
     let (mining_update_tx, mut mining_update_rx) = tokio::sync::mpsc::unbounded_channel::<u64>();
@@ -169,7 +169,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
         }
     });
     
-    log::info!("Sequencer node running - observing mining chain");
+    log::info!("Validator node running - observing mining chain");
     
     // Wait for shutdown signal
     node.wait_for_shutdown().await?;

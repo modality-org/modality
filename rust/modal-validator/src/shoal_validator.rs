@@ -95,6 +95,54 @@ impl ShoalValidatorConfig {
             reputation_config: ReputationConfig::default(),
         }
     }
+
+    /// Create configuration from a list of peer ID strings
+    /// 
+    /// This is useful for creating a committee from static validator configuration.
+    /// All validators will have equal stake (1) and placeholder network addresses.
+    pub fn from_peer_ids(
+        peer_id_strings: Vec<String>,
+        validator_index: usize,
+    ) -> Result<Self> {
+        if validator_index >= peer_id_strings.len() {
+            return Err(ValidatorError::InitializationFailed(
+                format!("validator_index {} out of range for {} validators", 
+                        validator_index, peer_id_strings.len())
+            ));
+        }
+        
+        // Parse all peer IDs
+        let mut validators = Vec::new();
+        for (i, peer_id_str) in peer_id_strings.iter().enumerate() {
+            let peer_id: PublicKey = peer_id_str.parse()
+                .map_err(|e| ValidatorError::InitializationFailed(
+                    format!("invalid peer ID '{}': {}", peer_id_str, e)
+                ))?;
+            
+            validators.push(Validator {
+                public_key: peer_id,
+                stake: 1,
+                network_address: format!("127.0.0.1:800{}", i)
+                    .parse::<SocketAddr>()
+                    .unwrap(),
+            });
+        }
+        
+        // Get this validator's key
+        let validator_key = peer_id_strings[validator_index].parse()
+            .map_err(|e| ValidatorError::InitializationFailed(
+                format!("invalid validator peer ID: {}", e)
+            ))?;
+        
+        let committee = Committee::new(validators);
+        
+        Ok(Self {
+            validator_key,
+            committee,
+            narwhal_config: NarwhalConfig::default(),
+            reputation_config: ReputationConfig::default(),
+        })
+    }
 }
 
 /// Shoal-based validator implementation
@@ -495,6 +543,44 @@ mod tests {
         
         assert_eq!(validator.get_current_round().await, 0);
         assert_eq!(validator.get_chain_tip().await, 0);
+    }
+    
+    #[tokio::test]
+    async fn test_shoal_validator_from_peer_ids() {
+        // Test creating a validator configuration from peer IDs
+        let peer_ids = vec![
+            "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd".to_string(),
+            "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB".to_string(),
+            "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se".to_string(),
+        ];
+        
+        // Create config with validator at index 1
+        let config = ShoalValidatorConfig::from_peer_ids(peer_ids.clone(), 1).unwrap();
+        
+        // Verify committee has all validators
+        assert_eq!(config.committee.size(), 3);
+        
+        // Verify validator key is correct
+        let expected_key: libp2p_identity::PeerId = peer_ids[1].parse().unwrap();
+        assert_eq!(config.validator_key, expected_key);
+        
+        // Verify all peer IDs are in the committee
+        for peer_id_str in peer_ids {
+            let peer_id: libp2p_identity::PeerId = peer_id_str.parse().unwrap();
+            assert!(config.committee.contains(&peer_id));
+        }
+    }
+    
+    #[tokio::test]
+    async fn test_shoal_validator_from_peer_ids_invalid_index() {
+        let peer_ids = vec![
+            "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd".to_string(),
+            "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB".to_string(),
+        ];
+        
+        // Try to create config with out-of-bounds index
+        let result = ShoalValidatorConfig::from_peer_ids(peer_ids, 5);
+        assert!(result.is_err());
     }
     
     #[tokio::test]

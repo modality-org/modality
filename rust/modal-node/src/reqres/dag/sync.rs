@@ -8,7 +8,7 @@ use serde_json::Value;
 /// Path: /dag/sync
 /// 
 /// This handler enables nodes to sync their DAG state by responding to sync requests.
-/// It's designed to work with the Narwhal DAG used by the Shoal sequencer.
+/// It's designed to work with the Narwhal DAG used by the Shoal validator.
 pub async fn handler(data: Option<Value>, _datastore: &mut NetworkDatastore) -> Result<Response> {
     let Some(data) = data else {
         return Ok(Response {

@@ -197,6 +197,17 @@ impl NetworkDatastore {
     }
 
     pub async fn load_network_config(&self, network_config: &serde_json::Value) -> Result<()> {
+        // Load static validators if present
+        if let Some(validators) = network_config.get("validators") {
+            if let Some(validators_array) = validators.as_array() {
+                let validator_peer_ids: Vec<String> = validators_array
+                    .iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect();
+                self.set_static_validators(&validator_peer_ids).await?;
+            }
+        }
+        
         if let Some(rounds) = network_config.get("rounds").and_then(|v| v.as_object()) {
             for (round_id_str, round_data) in rounds {
                 let round_id = round_id_str.parse::<u64>()?;
@@ -221,6 +232,23 @@ impl NetworkDatastore {
             }
         }
         Ok(())
+    }
+
+    /// Set the static validators for this network
+    pub async fn set_static_validators(&self, validators: &[String]) -> Result<()> {
+        let json_value = serde_json::to_string(validators)?;
+        self.set_data_by_key("network:static_validators", json_value.as_bytes()).await
+    }
+
+    /// Get the static validators for this network, if configured
+    pub async fn get_static_validators(&self) -> Result<Option<Vec<String>>> {
+        match self.get_data_by_key("network:static_validators").await? {
+            Some(data) => {
+                let validators: Vec<String> = serde_json::from_slice(&data)?;
+                Ok(Some(validators))
+            }
+            None => Ok(None)
+        }
     }
 
     pub async fn get_keys(&self, prefix: &str) -> Result<Vec<String>> {

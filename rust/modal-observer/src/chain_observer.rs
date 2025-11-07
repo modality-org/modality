@@ -76,7 +76,7 @@ impl Default for ForkConfig {
 
 /// ChainObserver tracks the canonical mining chain without participating in mining
 /// 
-/// This is used by sequencer nodes that need to observe the mining chain
+/// This is used by validator nodes that need to observe the mining chain
 /// to perform consensus operations but do not mine blocks themselves.
 pub struct ChainObserver {
     datastore: Arc<Mutex<NetworkDatastore>>,

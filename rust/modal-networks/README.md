@@ -149,6 +149,33 @@ Each network is defined in a JSON file with the following structure:
 }
 ```
 
+### Static Validators (Optional)
+
+Networks can optionally specify a static set of validators. If the `validators` field is present, the network will use these validators for consensus. If absent, validators are selected dynamically from mining epochs.
+
+```json
+{
+  "name": "devnet3",
+  "description": "a dev network controlled by 3 nodes on localhost",
+  "bootstrappers": [
+    "/ip4/127.0.0.1/tcp/10301/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
+    "/ip4/127.0.0.1/tcp/10302/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
+    "/ip4/127.0.0.1/tcp/10303/ws/p2p/12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
+  ],
+  "validators": [
+    "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
+    "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
+    "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
+  ]
+}
+```
+
+**Fields:**
+- `name` (required): Unique identifier for the network
+- `description` (required): Human-readable description
+- `bootstrappers` (required): List of multiaddresses for network bootstrapping
+- `validators` (optional): List of peer IDs that form the static validator set. If present, all validators have equal stake. If absent, validators are selected dynamically from mining epochs.
+
 ## Building
 
 ```bash

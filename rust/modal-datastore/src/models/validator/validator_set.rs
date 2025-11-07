@@ -104,7 +104,7 @@ impl ValidatorSet {
         datastore: &NetworkDatastore,
         mining_epoch: u64,
     ) -> Result<Option<Self>> {
-        // Sequencer sets are created from the previous mining epoch
+        // Validator sets are created from the previous mining epoch
         // So mining epoch N uses validator set from epoch N-1
         if mining_epoch == 0 {
             return Ok(None);

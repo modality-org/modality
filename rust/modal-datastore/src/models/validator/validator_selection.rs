@@ -2,6 +2,32 @@ use crate::NetworkDatastore;
 use crate::models::{miner::MinerBlock, validator::ValidatorSet};
 use anyhow::Result;
 
+/// Get validator set for an epoch, checking static validators first
+/// 
+/// This function:
+/// 1. Checks if static validators are configured in the network
+/// 2. If yes, creates a ValidatorSet from static validators
+/// 3. If no, falls back to dynamic validator selection from mining epochs
+pub async fn get_validator_set_for_epoch(
+    datastore: &NetworkDatastore,
+    epoch: u64,
+) -> Result<ValidatorSet> {
+    // Check if static validators are configured
+    if let Some(static_validators) = datastore.get_static_validators().await? {
+        // Create validator set from static validators
+        return Ok(ValidatorSet::new(
+            epoch,
+            epoch + 1, // This set will be used for the next mining epoch
+            static_validators, // All validators are "nominated"
+            Vec::new(), // No staked validators
+            Vec::new(), // No alternate validators
+        ));
+    }
+    
+    // Fall back to dynamic validator selection from mining epochs
+    generate_validator_set_from_epoch(datastore, epoch).await
+}
+
 /// Generate a validator set from a completed mining epoch
 /// 
 /// This function:
@@ -145,6 +171,43 @@ mod tests {
         // Different seed should produce different result (with high probability)
         let shuffled3 = shuffle_peer_ids(999, &peer_ids);
         assert_ne!(shuffled1, shuffled3);
+    }
+
+    #[tokio::test]
+    async fn test_get_validator_set_for_epoch_with_static_validators() {
+        // Create a datastore with static validators
+        let datastore = NetworkDatastore::create_in_memory().unwrap();
+        let static_validators = vec![
+            "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd".to_string(),
+            "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB".to_string(),
+            "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se".to_string(),
+        ];
+        datastore.set_static_validators(&static_validators).await.unwrap();
+        
+        // Get validator set for epoch 0
+        let validator_set = get_validator_set_for_epoch(&datastore, 0).await.unwrap();
+        
+        // Verify it uses the static validators
+        assert_eq!(validator_set.epoch, 0);
+        assert_eq!(validator_set.mining_epoch, 1);
+        assert_eq!(validator_set.nominated_validators.len(), 3);
+        assert_eq!(validator_set.staked_validators.len(), 0);
+        assert_eq!(validator_set.alternate_validators.len(), 0);
+        
+        // Verify all static validators are present
+        for validator in &static_validators {
+            assert!(validator_set.nominated_validators.contains(validator));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_validator_set_for_epoch_without_static_validators() {
+        // Create a datastore without static validators
+        let datastore = NetworkDatastore::create_in_memory().unwrap();
+        
+        // This should fail since there are no blocks for dynamic selection
+        let result = get_validator_set_for_epoch(&datastore, 0).await;
+        assert!(result.is_err());
     }
 }
 

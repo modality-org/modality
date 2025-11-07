@@ -348,5 +348,5 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md)
 ## Related Packages
 
 - `modal-datastore`: Persistent storage for blockchain data
-- `modal-sequencer-consensus`: Consensus mechanisms using mining data
+- `modal-validator-consensus`: Consensus mechanisms using mining data
 - `modality-utils`: Shared utilities including crypto functions

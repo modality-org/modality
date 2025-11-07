@@ -14,6 +14,7 @@ pub use block_header::ValidatorBlockHeader;
 pub use block_message::ValidatorBlockMessage;
 pub use block::ValidatorBlock;
 pub use validator_set::ValidatorSet;
+pub use validator_selection::get_validator_set_for_epoch;
 
 // Export DAG models
 pub use certificate::Certificate as DAGCertificate;
