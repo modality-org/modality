@@ -7,8 +7,7 @@ use std::collections::HashMap;
 use anyhow;
 
 use crate::model::Model;
-use crate::models::block::Block;
-use crate::models::block_header::BlockHeader;
+use crate::models::validator::{ValidatorBlock, ValidatorBlockHeader};
 
 #[derive(Debug)]
 pub struct NetworkDatastore {
@@ -158,8 +157,8 @@ impl NetworkDatastore {
         }
     }
 
-    pub async fn get_timely_cert_blocks_at_round(&self, round_id: u64) -> anyhow::Result<HashMap<String, Block>> {
-        let blocks = Block::find_all_in_round(self, round_id).await?;
+    pub async fn get_timely_cert_blocks_at_round(&self, round_id: u64) -> anyhow::Result<HashMap<String, ValidatorBlock>> {
+        let blocks = ValidatorBlock::find_all_in_round(self, round_id).await?;
         
         Ok(blocks
             .into_iter()
@@ -169,7 +168,7 @@ impl NetworkDatastore {
     }
 
     pub async fn get_timely_certs_at_round(&self, round_id: u64) -> anyhow::Result<HashMap<String, String>> {
-        let blocks = Block::find_all_in_round(self, round_id).await?;
+        let blocks = ValidatorBlock::find_all_in_round(self, round_id).await?;
 
         Ok(blocks
             .into_iter()
@@ -185,7 +184,7 @@ impl NetworkDatastore {
     }
 
     pub async fn get_timely_cert_sigs_at_round(&self, round_id: u64) -> anyhow::Result<Vec<String>> {
-        let blocks = Block::find_all_in_round(self, round_id).await?;
+        let blocks = ValidatorBlock::find_all_in_round(self, round_id).await?;
     
         let cert_map: std::collections::HashMap<String, String> = blocks
             .into_iter()
@@ -204,12 +203,12 @@ impl NetworkDatastore {
                 
                 if let Some(round_obj) = round_data.as_object() {
                     for block_data in round_obj.values() {
-                        // Create and save Block
-                        let block = Block::create_from_json(block_data.clone())?;
+                        // Create and save ValidatorBlock
+                        let block = ValidatorBlock::create_from_json(block_data.clone())?;
                         block.save(self).await?;
 
-                        // Create and save BlockHeader
-                        let block_header = BlockHeader::create_from_json(block_data.clone())?;
+                        // Create and save ValidatorBlockHeader
+                        let block_header = ValidatorBlockHeader::create_from_json(block_data.clone())?;
                         block_header.save(self).await?;
                     }
 

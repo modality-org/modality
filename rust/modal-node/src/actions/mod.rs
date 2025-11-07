@@ -3,7 +3,7 @@ pub mod miner;
 pub mod noop;
 pub mod observer;
 pub mod request;
-pub mod sequencer;
+pub mod validator;
 pub mod server;
 pub mod sync_blocks;
 pub mod dag_sync;

@@ -8,7 +8,7 @@ use data as reqres_data;
 use tokio::sync::mpsc;
 
 use modal_datastore::NetworkDatastore;
-use modal_sequencer_consensus::communication::Message as ConsensusMessage;
+use modal_validator_consensus::communication::Message as ConsensusMessage;
 
 #[allow(dead_code)]
 pub const PROTOCOL: &str = "/modality-network/reqres/0.0.1";

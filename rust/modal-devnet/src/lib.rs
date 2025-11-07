@@ -1,6 +1,6 @@
 use anyhow::Result;
 use lazy_static::lazy_static;
-use modal_datastore::models::Block;
+use modal_datastore::models::ValidatorBlock;
 use modal_datastore::{Model, NetworkDatastore};
 use serde_json::{self, Value};
 use std::collections::HashMap;
@@ -120,7 +120,7 @@ impl Devnet {
             } else {
                 HashMap::new()
             };
-            let mut block = Block::create_from_json(serde_json::json!({
+            let mut block = ValidatorBlock::create_from_json(serde_json::json!({
                 "peer_id": peer_id_str,
                 "round_id": round_id,
                 "events": [],

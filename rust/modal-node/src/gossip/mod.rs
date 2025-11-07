@@ -3,14 +3,14 @@ use libp2p::gossipsub::{self, Message};
 use tokio::sync::mpsc;
 
 use modal_datastore::NetworkDatastore;
-use modal_sequencer_consensus::communication::Message as ConsensusMessage;
+use modal_validator_consensus::communication::Message as ConsensusMessage;
 
 use crate::node::Node;
 
 pub mod consensus;
 pub mod miner;
 
-pub async fn add_sequencer_event_listeners(node: &mut Node) -> Result<()> {
+pub async fn add_validator_event_listeners(node: &mut Node) -> Result<()> {
   {
     let mut swarm = node.swarm.lock().await;
 

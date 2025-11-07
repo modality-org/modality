@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use modal_node::config_resolution::load_config_with_node_dir;
 use modal_node::node::Node;
-use modal_datastore::models::miner_block::MinerBlock;
+use modal_datastore::models::miner::MinerBlock;
 
 #[derive(Debug, Parser)]
 #[command(about = "Display information about a node")]

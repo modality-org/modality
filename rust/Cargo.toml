@@ -2,13 +2,13 @@
 resolver = "2"
 
 members = [
-  'modal-sequencer-consensus'
+  'modal-validator-consensus'
 , 'modal-datastore'
 , 'modal-devnet'
 , 'modal-miner'
 , 'modal-node'
 , 'modal-observer'
-, 'modal-sequencer'
+, 'modal-validator'
 , "modal-common"
 , "modality"
 , "modality-lang"

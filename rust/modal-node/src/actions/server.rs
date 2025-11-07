@@ -4,7 +4,7 @@ use crate::node::Node;
 use crate::gossip;
 
 pub async fn run(node: &mut Node) -> Result<()> {
-    gossip::add_sequencer_event_listeners(node).await?;
+    gossip::add_validator_event_listeners(node).await?;
 
     node.start_status_server().await?;
     node.start_status_html_writer().await?;

@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use libp2p::PeerId;
-use modal_sequencer_consensus::narwhal::{SyncRequest, SyncResponse};
+use modal_validator_consensus::narwhal::{SyncRequest, SyncResponse};
 use crate::node::Node;
 
 /// Make a DAG sync request to a peer
@@ -43,7 +43,7 @@ pub async fn sync_request(
 /// 
 /// ```no_run
 /// use modal_node::actions::dag_sync;
-/// use modal_sequencer_consensus::narwhal::SyncRequest;
+/// use modal_validator_consensus::narwhal::SyncRequest;
 /// 
 /// async fn example(node: &mut Node, peer_id: PeerId) -> Result<()> {
 ///     // Get peer's highest round

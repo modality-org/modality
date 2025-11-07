@@ -307,7 +307,7 @@ async fn handle_sync(
     request_id: libp2p::request_response::OutboundRequestId,
 ) -> Result<Response> {
     use libp2p::request_response;
-    use modal_sequencer_consensus::communication::Message as ConsensusMessage;
+    use modal_validator_consensus::communication::Message as ConsensusMessage;
     
     let timeout = Duration::from_secs(30);
     let start = std::time::Instant::now();

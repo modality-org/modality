@@ -4,9 +4,9 @@ use serde_json;
 use tokio::sync::mpsc;
 
 use modal_datastore::NetworkDatastore;
-use modal_datastore::models::Block;
-use modal_datastore::models::block::Ack;
-use modal_sequencer_consensus::communication::Message as ConsensusMessage;
+use modal_datastore::models::ValidatorBlock;
+use modal_datastore::models::validator::block::Ack;
+use modal_validator_consensus::communication::Message as ConsensusMessage;
 
 use crate::reqres::Response;
 
@@ -56,7 +56,7 @@ pub async fn handler(data: Option<serde_json::Value>, _datastore: &NetworkDatast
       .map_err(|_| anyhow!("round_id must be a valid u64"))?;
     let ack = Ack { peer_id: peer_id.clone(), round_id, closing_sig, acker: acker.clone(), acker_sig };
   
-    let msg = ConsensusMessage::BlockAck { from: acker, to: peer_id, ack: ack };
+    let msg = ConsensusMessage::ValidatorBlockAck { from: acker, to: peer_id, ack: ack };
     consensus_tx.send(msg).await?;
 
     Ok(response)

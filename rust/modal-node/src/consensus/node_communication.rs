@@ -6,10 +6,10 @@ use tokio::sync::mpsc;
 
 use libp2p_identity::PeerId;
 
-use modal_sequencer_consensus::communication::Communication;
-use modal_datastore::models::block::Ack;
-use modal_datastore::models::block::Block;
-use modal_sequencer_consensus::communication::Message as ConsensusMessage;
+use modal_validator_consensus::communication::Communication;
+use modal_datastore::models::validator::block::Ack;
+use modal_datastore::models::validator::block::ValidatorBlock;
+use modal_validator_consensus::communication::Message as ConsensusMessage;
 
 use crate::gossip::consensus::block::cert::TOPIC as BLOCK_CERT_TOPIC;
 use crate::gossip::consensus::block::draft::TOPIC as BLOCK_DRAFT_TOPIC;
@@ -22,8 +22,8 @@ pub struct NodeCommunication {
 
 #[async_trait::async_trait]
 impl Communication for NodeCommunication {
-    async fn broadcast_draft_block(&mut self, from_peer: &str, block: &Block) -> Result<()> {
-        let msg = ConsensusMessage::DraftBlock {
+    async fn broadcast_draft_block(&mut self, from_peer: &str, block: &ValidatorBlock) -> Result<()> {
+        let msg = ConsensusMessage::DraftValidatorBlock {
             from: from_peer.to_string(),
             to: String::new(),
             block: block.clone(),
@@ -39,8 +39,8 @@ impl Communication for NodeCommunication {
         Ok(())
     }
 
-    async fn broadcast_certified_block(&mut self, from_peer: &str, block: &Block) -> Result<()> {
-        let msg = ConsensusMessage::CertifiedBlock {
+    async fn broadcast_certified_block(&mut self, from_peer: &str, block: &ValidatorBlock) -> Result<()> {
+        let msg = ConsensusMessage::CertifiedValidatorBlock {
             from: from_peer.to_string(),
             to: String::new(),
             block: block.clone(),
@@ -63,7 +63,7 @@ impl Communication for NodeCommunication {
             data: Some(serde_json::json!(ack)),
         };
         if ack.peer_id == ack.acker {
-            let msg = ConsensusMessage::BlockAck {
+            let msg = ConsensusMessage::ValidatorBlockAck {
                 from: from_peer.to_string(),
                 to: String::new(),
                 ack: ack.clone(),
@@ -96,7 +96,7 @@ impl Communication for NodeCommunication {
         to_peer: &str,
         scribe_peer: &str,
         round: u64,
-    ) -> Result<Option<Block>> {
+    ) -> Result<Option<ValidatorBlock>> {
         Ok(None)
         // let target_peer = PeerId::from_str(to_peer)?;
         // let request = crate::reqres::Request {

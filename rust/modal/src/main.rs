@@ -100,8 +100,8 @@ enum NodeCommands {
     #[command(about = "Run a mining node")]
     RunMiner(cmds::node::run_miner::Opts),
 
-    #[command(about = "Run a sequencer node (observes mining, does not mine)")]
-    RunSequencer(cmds::node::run_sequencer::Opts),
+    #[command(about = "Run a validator node (observes mining, does not mine)")]
+    RunValidator(cmds::node::run_validator::Opts),
 
     #[command(about = "Run an observer node (observes mining, does not mine)")]
     RunObserver(cmds::node::run_observer::Opts),
@@ -133,8 +133,8 @@ enum RunCommands {
     #[command(about = "Run a mining node")]
     Miner(cmds::node::run_miner::Opts),
 
-    #[command(about = "Run a sequencer node (observes mining, does not mine)")]
-    Sequencer(cmds::node::run_sequencer::Opts),
+    #[command(about = "Run a validator node (observes mining, does not mine)")]
+    Validator(cmds::node::run_validator::Opts),
 
     #[command(about = "Run an observer node (observes mining, does not mine)")]
     Observer(cmds::node::run_observer::Opts),
@@ -162,7 +162,7 @@ async fn main() -> Result<()> {
                 NodeCommands::Info(opts) => cmds::node::info::run(opts).await?,
                 NodeCommands::Run(opts) => cmds::node::run::run(opts).await?,
                 NodeCommands::RunMiner(opts) => cmds::node::run_miner::run(opts).await?,
-                NodeCommands::RunSequencer(opts) => cmds::node::run_sequencer::run(opts).await?,
+                NodeCommands::RunValidator(opts) => cmds::node::run_validator::run(opts).await?,
                 NodeCommands::RunObserver(opts) => cmds::node::run_observer::run(opts).await?,
                 NodeCommands::RunNoop(opts) => cmds::node::run_noop::run(opts).await?,
                 NodeCommands::Ping(opts) => cmds::node::ping::run(opts).await?,
@@ -185,7 +185,7 @@ async fn main() -> Result<()> {
         Commands::Run { command } => {
             match command {
                 RunCommands::Miner(opts) => cmds::node::run_miner::run(opts).await?,
-                RunCommands::Sequencer(opts) => cmds::node::run_sequencer::run(opts).await?,
+                RunCommands::Validator(opts) => cmds::node::run_validator::run(opts).await?,
                 RunCommands::Observer(opts) => cmds::node::run_observer::run(opts).await?,
             }
         }

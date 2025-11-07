@@ -1,7 +1,7 @@
 use crate::reqres::Response;
 use anyhow::Result;
 use modal_datastore::NetworkDatastore;
-use modal_sequencer_consensus::narwhal::{SyncRequest, SyncResponse};
+use modal_validator_consensus::narwhal::{SyncRequest, SyncResponse};
 use serde_json::Value;
 
 /// Handler for DAG sync requests
@@ -32,14 +32,14 @@ pub async fn handler(data: Option<Value>, _datastore: &mut NetworkDatastore) -> 
     
     log::debug!("Handling DAG sync request: {:?}", sync_request);
     
-    // TODO: Once ShoalSequencer is integrated into modal-node:
+    // TODO: Once ShoalValidator is integrated into modal-node:
     // 1. Add a dag_sync_handler: Arc<Mutex<dyn DagSyncHandler>> to Node struct
     // 2. Pass it through to handle_request()
     // 3. Call dag_sync_handler.handle_sync_request(sync_request).await
     //
     // Example implementation:
     /*
-    use modal_sequencer_consensus::narwhal::dag::DAG;
+    use modal_validator_consensus::narwhal::dag::DAG;
     use std::sync::Arc;
     use tokio::sync::RwLock;
     
@@ -66,8 +66,8 @@ pub async fn handler(data: Option<Value>, _datastore: &mut NetworkDatastore) -> 
         ok: false,
         data: None,
         errors: Some(serde_json::json!({
-            "error": "DAG sync endpoint available but Shoal sequencer not yet integrated",
-            "note": "This endpoint will be functional once ShoalSequencer replaces the current consensus runner"
+            "error": "DAG sync endpoint available but Shoal validator not yet integrated",
+            "note": "This endpoint will be functional once ShoalValidator replaces the current consensus runner"
         })),
     })
 }
@@ -75,7 +75,7 @@ pub async fn handler(data: Option<Value>, _datastore: &mut NetworkDatastore) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use modal_sequencer_consensus::narwhal::SyncRequest;
+    use modal_validator_consensus::narwhal::SyncRequest;
     
     #[tokio::test]
     async fn test_dag_sync_handler_receives_request() {

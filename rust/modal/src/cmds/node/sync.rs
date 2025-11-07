@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use modal_node::config_resolution::load_config_with_node_dir;
 use modal_node::node::Node;
-use modal_datastore::models::miner_block::MinerBlock;
+use modal_datastore::models::miner::MinerBlock;
 use modal_datastore::Model;
 use libp2p::{Multiaddr, PeerId};
 
