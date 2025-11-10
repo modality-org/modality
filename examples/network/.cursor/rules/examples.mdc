@@ -3,3 +3,6 @@ alwaysApply: true
 ---
 
 - assume that command `modal` is available in the path, do not explicitly reference a path to find it
+- when creating new tests, follow the pattern of the existing tests. 01-ping-node/, 04-sync-miner-blocks/, etc. Use a test.sh file to run all the tests in the example. Each test should be modular and self-contained but valuable to sequentially test the entire example suite. 
+- tmp/ is a temporary directory for the tests to use. It is gitignored. It is used to store the nodes and other resources for the tests.
+- while creating a node, use the modal node create command to create the node. It will create a node in the tmp/ directory.
