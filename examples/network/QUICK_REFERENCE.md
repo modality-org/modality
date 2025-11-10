@@ -49,8 +49,13 @@ cd 01-ping-node && ./test.sh
 ls -la test-logs/
 cat test-logs/01-ping-node.log
 
-# Clean up logs
+# Clean up logs (they're gitignored)
 rm -rf test-logs/
+
+# Note: Log files are automatically ignored by .gitignore
+# - test-logs/ directory
+# - *.log files
+# - */tmp/ directories
 ```
 
 ## CI/CD Integration

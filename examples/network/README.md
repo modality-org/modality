@@ -234,6 +234,17 @@ examples/network/
 5. **Idempotent**: Tests should be runnable multiple times
 6. **Isolated**: Tests shouldn't depend on each other
 
+## Git Ignore
+
+The `.gitignore` file in this directory excludes:
+- `test-logs/` - All test log files
+- `*.log` - Individual log files
+- `*/tmp/` - Temporary storage directories
+- `test-results/` - Test result files
+- `*.pid` - Process ID files
+
+This ensures test artifacts don't clutter the repository.
+
 ## Troubleshooting
 
 ### Tests Hanging

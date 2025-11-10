@@ -1,0 +1,30 @@
+# Test logs and output
+test-logs/
+*.log
+
+# Test results and reports
+test-results/
+test-report.html
+test-output.txt
+
+# Storage directories (RocksDB datastores)
+*/tmp/
+*/configs/tmp/
+
+# Background process PIDs
+*.pid
+
+# Coverage and profiling
+*.profraw
+*.profdata
+
+# macOS
+.DS_Store
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
