@@ -1,6 +1,0 @@
-# Ignore validator storage directories
-tmp/storage/
-
-# Ignore log files
-tmp/*.log
-
