@@ -1,5 +1,5 @@
 # Test logs and output
-test-logs/
+tmp/test-logs/
 *.log
 
 # Test results and reports

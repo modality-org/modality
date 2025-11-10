@@ -46,14 +46,14 @@ cd 01-ping-node && ./test.sh
 
 ```bash
 # View test logs
-ls -la test-logs/
-cat test-logs/01-ping-node.log
+ls -la tmp/test-logs/
+cat tmp/test-logs/01-ping-node.log
 
 # Clean up logs (they're gitignored)
-rm -rf test-logs/
+rm -rf tmp/test-logs/
 
 # Note: Log files are automatically ignored by .gitignore
-# - test-logs/ directory
+# - tmp/test-logs/ directory
 # - *.log files
 # - */tmp/ directories
 ```
@@ -155,7 +155,7 @@ exit $?
 - Check ports: `lsof -i :10101`
 
 **Tests failing?**
-- Check logs: `cat test-logs/*.log`
+- Check logs: `cat tmp/test-logs/*.log`
 - Run manually: `cd 01-ping-node && ./01-run-node1.sh`
 - Enable debug: `export RUST_LOG=debug`
 

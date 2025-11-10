@@ -160,7 +160,7 @@ The existing `.gitignore` already covers the new structure:
 
 ```gitignore
 # Test logs and output
-test-logs/
+tmp/test-logs/
 *.log
 
 # Storage directories (RocksDB datastores)

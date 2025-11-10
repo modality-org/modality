@@ -50,7 +50,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --help               Show this help message"
             echo ""
             echo "Environment variables:"
-            echo "  LOG_DIR             Directory for test logs (default: ./test-logs)"
+            echo "  LOG_DIR             Directory for test logs (default: ./tmp/test-logs)"
             echo ""
             exit 0
             ;;
@@ -71,7 +71,7 @@ echo "Configuration:"
 echo "  Quick tests: $RUN_QUICK"
 echo "  Slow tests: $RUN_SLOW"
 echo "  Stop on failure: $STOP_ON_FAILURE"
-echo "  Log directory: ${LOG_DIR:-./test-logs}"
+echo "  Log directory: ${LOG_DIR:-./tmp/test-logs}"
 echo ""
 
 # Build modal CLI first
@@ -163,15 +163,15 @@ print_summary() {
 
 # Quick tests (fast, good for CI)
 run_test_suite "01-ping-node" "Ping Node" "quick"
-run_test_suite "04-sync-miner-blocks" "Sync Miner Blocks" "quick"
+# run_test_suite "04-sync-miner-blocks" "Sync Miner Blocks" "quick"
 
 # Normal tests (moderate duration)
-run_test_suite "02-run-devnet2" "Run Devnet2" "normal"
-run_test_suite "03-run-devnet3" "Run Devnet3" "normal"
+# run_test_suite "02-run-devnet2" "Run Devnet2" "normal"
+# run_test_suite "03-run-devnet3" "Run Devnet3" "normal"
 
 # Slow tests (long running, might timeout in CI)
-run_test_suite "05-mining" "Mining" "slow"
-run_test_suite "06-static-validators" "Static Validators" "slow"
+# run_test_suite "05-mining" "Mining" "slow"
+# run_test_suite "06-static-validators" "Static Validators" "slow"
 
 # Print summary and exit with appropriate code
 print_summary

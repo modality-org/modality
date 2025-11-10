@@ -6,6 +6,7 @@ use std::time::Instant;
 use modal_node::actions;
 use modal_node::node::Node;
 use modal_node::config_resolution::load_config_with_node_dir;
+use modal_node::logging;
 use rand::Rng;
 
 #[derive(Debug, Parser)]
@@ -27,6 +28,10 @@ pub struct Opts {
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
+    // Initialize console logging for ping output
+    // Use None for log_level to allow RUST_LOG env var to control verbosity
+    logging::init_logging(None, Some(false), None)?;
+    
     // If neither config nor dir is provided, default to current directory
     let dir = if opts.config.is_none() && opts.dir.is_none() {
         Some(std::env::current_dir()?)
@@ -38,7 +43,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     
     let times_to_ping = opts.times;
     let mut node = Node::from_config(config.clone()).await?;
-    log::info!("Running node as {:?}", node.peerid);
+    log::info!("Pinging from node: {:?}", node.peerid);
     node.setup(&config).await?;
     let target = opts.target.clone();
 
@@ -46,16 +51,33 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     let random_hex = generate_random_hex_string();
 
-    for _times_pinged in 0..times_to_ping {
+    log::info!("Pinging {} {} time(s)...", target, times_to_ping);
+    
+    for i in 0..times_to_ping {
         let path = String::from("/ping");
         let data = serde_json::json!({
             "random": random_hex
         }).to_string();
-        actions::request::run(&mut node, target.clone(), path, data).await?;
+        
+        let ping_start = Instant::now();
+        match actions::request::run(&mut node, target.clone(), path, data).await {
+            Ok(_) => {
+                let ping_duration = ping_start.elapsed();
+                log::info!("Ping {} successful: {:?}", i + 1, ping_duration);
+            }
+            Err(e) => {
+                log::error!("Ping {} failed: {}", i + 1, e);
+                return Err(e);
+            }
+        }
     }
+    
     let duration = start.elapsed();
-    log::info!("Time taken to ping {} times: {:?}", times_to_ping, duration);
-    log::info!("Average time taken to ping: {:?}", duration / times_to_ping as u32);
+    log::info!("");
+    log::info!("--- Ping Statistics ---");
+    log::info!("Total pings: {}", times_to_ping);
+    log::info!("Total time: {:?}", duration);
+    log::info!("Average time: {:?}", duration / times_to_ping as u32);
 
     Ok(())
 }

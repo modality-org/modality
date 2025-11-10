@@ -124,7 +124,7 @@ cd 04-sync-miner-blocks
 
 Tests provide:
 - Clear pass/fail status
-- Detailed logs in `test-logs/`
+- Detailed logs in `tmp/test-logs/`
 - Exit code 0 for success, 1 for failure
 - Automatic cleanup of resources
 
@@ -285,7 +285,7 @@ When CLI changes:
 
 ### Debugging Failures
 
-1. Check `test-logs/` for detailed output
+1. Check `tmp/test-logs/` for detailed output
 2. Run test individually: `cd XX-example && ./test.sh`
 3. Run scripts manually to reproduce
 4. Add more logging if needed

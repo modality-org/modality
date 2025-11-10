@@ -37,7 +37,7 @@ assert_file_exists "./tmp/node1/storage" "Node1 storage directory should exist"
 # Test 3: Verify node1 has the standard peer ID
 echo ""
 echo "Test 3: Verifying node1 has standard peer ID..."
-NODE1_PEER_ID=$(../../../rust/target/debug/modal node info --dir ./tmp/node1 2>&1 | grep "Node ID" | awk '{print $3}')
+NODE1_PEER_ID=$(../../../rust/target/debug/modal node info --dir ./tmp/node1 2>&1 | grep "Peer ID" | awk '{print $3}')
 echo "Node1 Peer ID: $NODE1_PEER_ID" >> "$CURRENT_LOG"
 assert_success "[ '$NODE1_PEER_ID' = '12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd' ]" "Should have standard devnet1/node1 peer ID"
 
@@ -74,7 +74,7 @@ echo ""
 echo "Test 7: Pinging node1 from node2..."
 assert_output_contains \
     "../../../rust/target/debug/modal node ping --dir ./tmp/node2 --target /ip4/127.0.0.1/tcp/10101/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd --times 3" \
-    "Ping successful" \
+    "successful" \
     "Ping should succeed"
 
 # Test 8: Verify ping response time is reasonable

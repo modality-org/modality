@@ -77,7 +77,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: test-logs-quick
-          path: examples/network/test-logs/
+          path: examples/network/tmp/test-logs/
           retention-days: 7
 
   network-tests-full:
@@ -119,7 +119,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: test-logs-full
-          path: examples/network/test-logs/
+          path: examples/network/tmp/test-logs/
           retention-days: 7
 ```
 
@@ -175,7 +175,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: logs-ping
-          path: examples/network/test-logs/
+          path: examples/network/tmp/test-logs/
 
   test-sync:
     name: Test - Sync Miner Blocks
@@ -194,7 +194,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: logs-sync
-          path: examples/network/test-logs/
+          path: examples/network/tmp/test-logs/
 ```
 
 ## GitLab CI
@@ -241,7 +241,7 @@ test:network:quick:
   artifacts:
     when: on_failure
     paths:
-      - examples/network/test-logs/
+      - examples/network/tmp/test-logs/
     expire_in: 1 week
 
 test:network:full:
@@ -258,7 +258,7 @@ test:network:full:
   artifacts:
     when: always
     paths:
-      - examples/network/test-logs/
+      - examples/network/tmp/test-logs/
     expire_in: 1 week
   timeout: 30m
 ```
@@ -336,7 +336,7 @@ jobs:
           name: Run Quick Tests
           command: cd examples/network && ./run-tests.sh --quick
       - store_artifacts:
-          path: examples/network/test-logs
+          path: examples/network/tmp/test-logs
           destination: test-logs
 
   test-full:
@@ -351,7 +351,7 @@ jobs:
           command: cd examples/network && ./run-tests.sh --all
           no_output_timeout: 30m
       - store_artifacts:
-          path: examples/network/test-logs
+          path: examples/network/tmp/test-logs
           destination: test-logs
 
 workflows:
@@ -427,7 +427,7 @@ pipeline {
     
     post {
         always {
-            archiveArtifacts artifacts: 'examples/network/test-logs/**/*.log', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'examples/network/tmp/test-logs/**/*.log', allowEmptyArchive: true
         }
         failure {
             emailext (
@@ -488,7 +488,7 @@ docker run --rm modality-network-tests --quick
 docker run --rm modality-network-tests --all
 
 # Run with custom log directory
-docker run --rm -v $(pwd)/logs:/app/examples/network/test-logs modality-network-tests --quick
+docker run --rm -v $(pwd)/logs:/app/examples/network/tmp/test-logs modality-network-tests --quick
 ```
 
 ## Test Reports
@@ -543,7 +543,7 @@ cat > test-report.html << 'EOF'
 </head>
 <body>
     <h1>Network Integration Test Report</h1>
-    <pre>$(cat test-logs/*.log)</pre>
+    <pre>$(cat tmp/test-logs/*.log)</pre>
 </body>
 </html>
 EOF
@@ -741,7 +741,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: test-logs-${{ matrix.test-suite }}
-          path: examples/network/test-logs/
+          path: examples/network/tmp/test-logs/
 ```
 
 ## Summary

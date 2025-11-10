@@ -19,7 +19,7 @@ CURRENT_TEST=""
 PIDS=()
 
 # Logging
-LOG_DIR="${LOG_DIR:-./test-logs}"
+LOG_DIR="${LOG_DIR:-./tmp/test-logs}"
 CURRENT_LOG=""
 
 # Initialize test environment

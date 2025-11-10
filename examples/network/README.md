@@ -157,7 +157,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: test-logs
-          path: examples/network/test-logs/
+          path: examples/network/tmp/test-logs/
 ```
 
 ### GitLab CI
@@ -171,7 +171,7 @@ test:network-quick:
   artifacts:
     when: on_failure
     paths:
-      - examples/network/test-logs/
+      - examples/network/tmp/test-logs/
 
 test:network-full:
   stage: test
@@ -184,7 +184,7 @@ test:network-full:
   artifacts:
     when: on_failure
     paths:
-      - examples/network/test-logs/
+      - examples/network/tmp/test-logs/
 ```
 
 ## Directory Structure
@@ -237,7 +237,7 @@ examples/network/
 ## Git Ignore
 
 The `.gitignore` file in this directory excludes:
-- `test-logs/` - All test log files
+- `tmp/test-logs/` - All test log files
 - `*.log` - Individual log files
 - `*/tmp/` - Temporary storage directories
 - `test-results/` - Test result files
@@ -264,8 +264,8 @@ pkill -f "modality-js"
 
 1. Check the test logs:
 ```bash
-ls -la test-logs/
-cat test-logs/my-example.log
+ls -la tmp/test-logs/
+cat tmp/test-logs/my-example.log
 ```
 
 2. Run the example manually to reproduce:
@@ -347,7 +347,7 @@ Test the framework itself:
 ./run-tests.sh --quick --stop-on-failure
 
 # Set custom log directory
-LOG_DIR=/tmp/test-logs ./run-tests.sh --quick
+LOG_DIR=/tmp/network-test-logs ./run-tests.sh --quick
 ```
 
 ## Related Documentation
