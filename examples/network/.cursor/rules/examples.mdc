@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+
+- assume that command `modal` is available in the path, do not explicitly reference a path to find it
