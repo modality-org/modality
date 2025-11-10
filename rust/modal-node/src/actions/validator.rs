@@ -114,6 +114,65 @@ pub async fn run(node: &mut Node) -> Result<()> {
         }
     }
     
+    // Check if this node is part of static validators and start consensus if so
+    let static_validators = {
+        let ds = node.datastore.lock().await;
+        ds.get_static_validators().await.ok().flatten()
+    };
+
+    if let Some(validators) = static_validators {
+        let node_peer_id_str = node.peerid.to_string();
+        if validators.contains(&node_peer_id_str) {
+            log::info!("🏛️  This node is a static validator - starting Shoal consensus");
+            
+            // Create ShoalValidator configuration from peer IDs
+            let my_index = validators.iter().position(|v| v == &node_peer_id_str)
+                .expect("validator position in list");
+            
+            log::info!("📋 Validator index: {}/{}", my_index, validators.len());
+            log::info!("📋 Static validators: {:?}", validators);
+            
+            match modal_validator::ShoalValidatorConfig::from_peer_ids(
+                validators.clone(), 
+                my_index
+            ) {
+                Ok(config) => {
+                    // Create and initialize ShoalValidator
+                    match modal_validator::ShoalValidator::new(
+                        node.datastore.clone(), 
+                        config
+                    ).await {
+                        Ok(shoal_validator) => {
+                            match shoal_validator.initialize().await {
+                                Ok(()) => {
+                                    log::info!("✅ ShoalValidator initialized successfully");
+                                    
+                                    // Start consensus loop
+                                    if let Err(e) = spawn_consensus_loop(shoal_validator).await {
+                                        log::error!("Failed to spawn consensus loop: {}", e);
+                                    }
+                                }
+                                Err(e) => {
+                                    log::error!("Failed to initialize ShoalValidator: {}", e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Failed to create ShoalValidator: {}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("Failed to create ShoalValidatorConfig: {}", e);
+                }
+            }
+        } else {
+            log::info!("This node is not in the static validators list");
+        }
+    } else {
+        log::info!("No static validators configured - consensus not enabled");
+    }
+    
     // Get the starting chain tip
     let starting_index = {
         let ds = node.datastore.lock().await;
@@ -280,5 +339,32 @@ async fn handle_sync_from_peer(
         }
         Err(e) => Err(e),
     }
+}
+
+/// Spawn a background task to run the Shoal consensus loop
+async fn spawn_consensus_loop(
+    _shoal_validator: modal_validator::ShoalValidator,
+) -> Result<()> {
+    tokio::spawn(async move {
+        log::info!("🚀 Starting Shoal consensus loop");
+        let mut round = 0u64;
+        
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+            
+            // TODO: Submit transactions from mempool
+            // TODO: Create batch and propose header
+            // TODO: Exchange certificates with other validators via gossip
+            // TODO: Run consensus on certificates
+            // TODO: Commit ordered transactions to datastore
+            
+            round += 1;
+            if round % 10 == 0 {
+                log::info!("⚙️  Consensus round: {}", round);
+            }
+        }
+    });
+    
+    Ok(())
 }
 

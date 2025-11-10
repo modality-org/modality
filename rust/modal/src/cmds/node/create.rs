@@ -116,7 +116,7 @@ pub struct Opts {
 
 pub async fn run(opts: &Opts) -> Result<()> {
     // Handle --from-template by loading passfile and config from modal-networks
-    let (template_passfile_content, template_config_content) = if let Some(template) = &opts.from_template {
+    let (template_passfile_content, template_config_content, template_network) = if let Some(template) = &opts.from_template {
         println!("📦 Loading template: {}", template);
         
         let tmpl = modal_networks::templates::get(template)
@@ -130,9 +130,14 @@ pub async fn run(opts: &Opts) -> Result<()> {
             })?;
         
         println!("✅ Loaded template: {}", template);
-        (Some(tmpl.passfile.to_string()), Some(tmpl.config.to_string()))
+        
+        // Extract network name from template path (e.g., "devnet3/node1" -> "devnet3")
+        let network_name = template.split('/').next()
+            .ok_or_else(|| anyhow::anyhow!("Invalid template format: {}", template))?;
+        
+        (Some(tmpl.passfile.to_string()), Some(tmpl.config.to_string()), Some(network_name.to_string()))
     } else {
-        (None, None)
+        (None, None, None)
     };
     
     // Determine the node directory
@@ -391,10 +396,16 @@ pub async fn run(opts: &Opts) -> Result<()> {
         obj.insert("id".to_string(), json!(peer_id));
         obj.insert("passfile_path".to_string(), json!("./node.passfile"));
         
-        // Override with CLI options if provided
-        if !opts.storage_path.is_empty() && opts.storage_path != "./storage" {
+        // Only override storage_path if explicitly provided (not default)
+        // The default is "./storage" from clap, but we don't want to override template configs with it
+        // Check if storage_path was actually provided by user (not just the default)
+        // Since we can't distinguish default vs user-provided easily, only override if it's different from default
+        // AND we're not using a template (templates should keep their storage_path)
+        if template_config_content.is_none() && !opts.storage_path.is_empty() {
             obj.insert("storage_path".to_string(), json!(opts.storage_path));
         }
+        
+        // Override with CLI options if provided
         if opts.logs_enabled.is_some() {
             obj.insert("logs_enabled".to_string(), json!(opts.logs_enabled.unwrap()));
         }
@@ -409,6 +420,20 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
         if opts.bootup_prune_old_genesis_blocks.is_some() {
             obj.insert("bootup_prune_old_genesis_blocks".to_string(), json!(opts.bootup_prune_old_genesis_blocks.unwrap()));
+        }
+        
+        // Preserve network_config_path and other fields from template - don't override them unless specified
+        // This ensures template configs keep all their fields like network_config_path, listeners, etc.
+        
+        // If using a template, inject network_config_path based on the network name
+        // This allows templates to work with embedded network configs from modal-networks
+        if let Some(network_name) = &template_network {
+            // Verify the network exists in modal-networks
+            if modal_networks::networks::by_name(network_name).is_some() {
+                // Use a special marker that the node will recognize to load from embedded configs
+                obj.insert("network_config_path".to_string(), json!(format!("modal-networks://{}", network_name)));
+                println!("📋 Network config: {} (from modal-networks)", network_name);
+            }
         }
     }
     

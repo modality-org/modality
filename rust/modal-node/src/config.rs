@@ -66,8 +66,15 @@ impl Config {
 
         if let Some(network_config_path_buf) = config.network_config_path {
             let network_config_path = network_config_path_buf.as_path();
-            let abs_network_config_path = to_absolute_path(config_dir, network_config_path)?;
-            config.network_config_path = Some(abs_network_config_path);
+            // Don't convert modal-networks:// URIs to absolute paths
+            if network_config_path.to_string_lossy().starts_with("modal-networks://") {
+                // Keep the URI as-is
+                config.network_config_path = Some(network_config_path_buf);
+            } else {
+                // Convert relative paths to absolute
+                let abs_network_config_path = to_absolute_path(config_dir, network_config_path)?;
+                config.network_config_path = Some(abs_network_config_path);
+            }
         }
 
         if let Some(status_html_dir_buf) = config.status_html_dir {

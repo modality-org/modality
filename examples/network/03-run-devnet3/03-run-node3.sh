@@ -7,10 +7,11 @@ set -x
 if [ ! -f "./tmp/node3/config.json" ]; then
     echo "Creating node3 with standard devnet3/node3 identity..."
 
-    # Create node using template
+    # Create node using template with local bootstrappers for local devnet
     modal node create \
         --dir "${SCRIPT_DIR}/tmp/node3" \
-        --from-template devnet3/node3
+        --from-template devnet3/node3 \
+        --bootstrappers "/ip4/127.0.0.1/tcp/10301/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd,/ip4/127.0.0.1/tcp/10302/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
 fi
 
 modal node clear-storage --dir ./tmp/node3 --yes

@@ -93,8 +93,38 @@ impl Node {
             Arc::new(Mutex::new(NetworkDatastore::create_in_memory()?))
         };
         if let Some(network_config_path) = config.network_config_path {
-            let config_str = std::fs::read_to_string(network_config_path)?;
-            let network_config = serde_json::from_str(&config_str)?;
+            // Check if this is a modal-networks:// URI or a file path
+            let network_config = if let Some(network_name) = network_config_path.to_string_lossy().strip_prefix("modal-networks://") {
+                // Load from embedded modal-networks package
+                log::info!("Loading network config from modal-networks: {}", network_name);
+                let network_info = modal_networks::networks::by_name(network_name)
+                    .ok_or_else(|| anyhow::anyhow!("Network '{}' not found in modal-networks", network_name))?;
+                
+                // Convert NetworkInfo to the format expected by load_network_config
+                // This includes validators, bootstrappers, and rounds (though rounds will be empty for now)
+                let mut config_json = serde_json::json!({
+                    "name": network_info.name,
+                    "description": network_info.description,
+                    "bootstrappers": network_info.bootstrappers,
+                });
+                
+                if let Some(validators) = network_info.validators {
+                    log::info!("📋 Found {} static validators in network config", validators.len());
+                    config_json["validators"] = serde_json::json!(validators);
+                }
+                
+                // Add empty rounds object - will be populated by genesis or mining
+                config_json["rounds"] = serde_json::json!({});
+                
+                log::debug!("Network config JSON: {}", serde_json::to_string_pretty(&config_json).unwrap_or_default());
+                
+                config_json
+            } else {
+                // Load from file path
+                let config_str = std::fs::read_to_string(network_config_path)?;
+                serde_json::from_str(&config_str)?
+            };
+            
             datastore
                 .lock()
                 .await
