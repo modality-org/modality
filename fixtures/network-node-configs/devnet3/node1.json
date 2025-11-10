@@ -2,6 +2,9 @@
   "passfile_path": "../../passfiles/node1.mod_passfile",
   "storage_path": "../../../tmp/storage/node1",
   "listeners": ["/ip4/0.0.0.0/tcp/10301/ws"],
-  "bootstrappers": ["/dnsaddr/devnet3.modality.network"],
+  "bootstrappers": [
+    "/ip4/127.0.0.1/tcp/10302/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
+    "/ip4/127.0.0.1/tcp/10303/ws/p2p/12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
+  ],
   "network_config_path": "../../network-configs/devnet3/config.json"
 }

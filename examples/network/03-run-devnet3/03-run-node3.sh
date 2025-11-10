@@ -13,6 +13,5 @@ if [ ! -f "./tmp/node3/config.json" ]; then
         --from-template devnet3/node3
 fi
 
-cd "./tmp/node3"
-modal node clear-storage --yes
-modal node run
+modal node clear-storage --dir ./tmp/node3 --yes
+modal node run-validator --dir ./tmp/node3
