@@ -7,6 +7,8 @@ This guide covers local setup, building, testing, and common developer workflows
 - pnpm 9.x (repo pins `pnpm@9.3.0`)
 - Rust (stable toolchain; install via `rustup`)
 - macOS or Linux (Windows via WSL)
+- CMake (required for native crates like `randomx-rs`)
+- Xcode Command Line Tools on macOS (`xcode-select --install`)
 
 Recommended:
 - corepack (ships with Node 16.13+)
@@ -168,6 +170,19 @@ pnpm run test
 ---
 
 ## Troubleshooting
+- `cmake` not found (e.g. building `randomx-rs` on macOS):
+  ```bash
+  # Ensure Xcode Command Line Tools are installed
+  xcode-select --install
+
+  # Install cmake
+  brew install cmake
+
+  # Verify
+  cmake --version
+
+  # Rebuild
+  cd rust && cargo build --release
 
 - pnpm version mismatch:
   ```bash
