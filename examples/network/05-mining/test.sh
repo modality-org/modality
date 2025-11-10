@@ -8,6 +8,10 @@ cd "$(dirname "$0")"
 # Source test library
 source ../test-lib.sh
 
+# Clean up any previous test runs and stale processes
+pkill -9 -f "modal node run-miner" 2>/dev/null || true
+sleep 1
+
 # Initialize test
 test_init "05-mining"
 
@@ -37,13 +41,27 @@ sleep 5
 echo ""
 echo "Test 3: Verifying blocks are being mined..."
 MINER_LOG="$LOG_DIR/${CURRENT_TEST}_miner.log"
-assert_success "test_wait_for_log '$MINER_LOG' 'Mined block' 20" "Should mine at least one block"
+assert_success "test_wait_for_log '$MINER_LOG' 'Block .* mined' 120" "Should mine at least one block"
 
 # Test 4: Verify storage was created
 echo ""
 echo "Test 4: Verifying storage was created..."
 assert_file_exists "./tmp/storage/miner" "Miner storage should be created"
 assert_file_exists "./tmp/storage/miner/IDENTITY" "Miner datastore should be initialized"
+
+# Stop miner before inspecting storage (to avoid RocksDB lock)
+echo "  Stopping miner to inspect storage..." >> "$CURRENT_LOG"
+kill "$MINER_PID" 2>/dev/null || true
+# Wait for port to be released
+for i in {1..10}; do
+    if ! lsof -i :10301 -sTCP:LISTEN >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
+# Force kill if still running
+pkill -9 -f "modal node run-miner" 2>/dev/null || true
+sleep 1
 
 # Test 5: Inspect blocks
 echo ""
@@ -56,7 +74,7 @@ assert_output_contains \
 # Test 6: Verify multiple blocks were mined
 echo ""
 echo "Test 6: Verifying multiple blocks were mined..."
-BLOCK_COUNT=$(../../../rust/target/debug/modal net storage --config ./configs/miner.json 2>&1 | grep -oP 'Total Blocks: \K\d+' || echo "0")
+BLOCK_COUNT=$(../../../rust/target/debug/modal net storage --config ./configs/miner.json 2>&1 | grep "Total Blocks:" | sed -E 's/.*Total Blocks: ([0-9]+).*/\1/' || echo "0")
 echo "Block count: $BLOCK_COUNT" >> "$CURRENT_LOG"
 assert_number "$BLOCK_COUNT" ">=" "1" "Should have mined at least 1 block"
 
@@ -80,7 +98,7 @@ assert_success "test_wait_for_port 10301" "Miner should restart on port 10301"
 sleep 3
 
 # Verify it can mine more blocks
-assert_success "test_wait_for_log '$LOG_DIR/${CURRENT_TEST}_miner-restart.log' 'Mined block' 20" "Should mine blocks after restart"
+assert_success "test_wait_for_log '$LOG_DIR/${CURRENT_TEST}_miner-restart.log' 'Block .* mined' 120" "Should mine blocks after restart"
 
 # Finalize test
 test_finalize

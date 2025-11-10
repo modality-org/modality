@@ -87,19 +87,19 @@ else
     echo -e "  ${RED}✗${NC} Config should use port 10202"
 fi
 
-# Test 9: Start node1
+# Test 9: Start node1 as validator
 echo ""
-echo "Test 9: Starting node1..."
-NODE1_PID=$(test_start_process "cd ./tmp/node1 && PATH=../../../../../rust/target/debug:\$PATH modal node run --enable-consensus" "node1")
+echo "Test 9: Starting node1 as validator..."
+NODE1_PID=$(test_start_process "cd ./tmp/node1 && PATH=../../../../../rust/target/debug:\$PATH modal node run-validator" "node1")
 
 # Wait for node1 to be ready on port 10201
 assert_success "test_wait_for_port 10201" "Node1 should start on port 10201"
 sleep 2  # Give it a moment to fully initialize
 
-# Test 10: Start node2
+# Test 10: Start node2 as validator
 echo ""
-echo "Test 10: Starting node2..."
-NODE2_PID=$(test_start_process "cd ./tmp/node2 && PATH=../../../../../rust/target/debug:\$PATH modal node run --enable-consensus" "node2")
+echo "Test 10: Starting node2 as validator..."
+NODE2_PID=$(test_start_process "cd ./tmp/node2 && PATH=../../../../../rust/target/debug:\$PATH modal node run-validator" "node2")
 
 # Wait for node2 to be ready on port 10202
 assert_success "test_wait_for_port 10202" "Node2 should start on port 10202"

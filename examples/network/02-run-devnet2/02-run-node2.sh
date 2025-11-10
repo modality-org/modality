@@ -15,4 +15,4 @@ fi
 
 cd "./tmp/node2"
 modal node clear-storage --yes
-modal node run --enable-consensus
+modal node run-validator
