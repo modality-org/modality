@@ -53,6 +53,7 @@ The goal of [Modality Rust](/rust) is to provide portable system level libraries
 - **[Modality Language Semantics](docs/modality-semantics.md)**: Comprehensive guide to the Modality language and model checking
 - **[Quick Reference](docs/quick-reference.md)**: Fast reference for developers using Modality
 - **[Developer Guide](docs/developer-guide.md)**: Implementation details and extension guide
+- **[Developer Setup & Build](DEVELOPMENT.md)**: Local setup, build, test for Rust & JS
 
 
 ## 🌍 Community & Support
