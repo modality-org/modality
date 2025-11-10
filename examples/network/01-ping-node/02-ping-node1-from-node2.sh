@@ -15,4 +15,4 @@ NODE1_PEER_ID="12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
 modal node ping \
   --dir ./tmp/node2 \
   --target /ip4/127.0.0.1/tcp/10101/ws/p2p/$NODE1_PEER_ID \
-  --times 100
+  --times 20

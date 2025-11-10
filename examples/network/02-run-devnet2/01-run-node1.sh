@@ -1,5 +1,18 @@
 #!/usr/bin/env bash
 cd $(dirname -- "$0")
+SCRIPT_DIR=$(pwd)
 set -x
 
-modality-js net run-node --config ../../../fixtures/network-node-configs/devnet2/node1.json --enable-consensus
+# Create node1 if it doesn't exist
+if [ ! -f "./tmp/node1/config.json" ]; then
+    echo "Creating node1 with standard devnet2/node1 identity..."
+
+    # Create node using template
+    modal node create \
+        --dir "${SCRIPT_DIR}/tmp/node1" \
+        --from-template devnet2/node1
+fi
+
+cd "./tmp/node1"
+modal node clear-storage --yes
+modal node run --enable-consensus
