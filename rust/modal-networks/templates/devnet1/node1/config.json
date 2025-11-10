@@ -1,0 +1,9 @@
+{
+  "passfile_path": "./node.passfile",
+  "storage_path": "./storage",
+  "listeners": ["/ip4/0.0.0.0/tcp/10101/ws"],
+  "bootstrappers": ["/dnsaddr/devnet1.modality.network"],
+  "logs_path": "./logs",
+  "logs_enabled": true,
+  "log_level": "info"
+}

@@ -80,7 +80,28 @@ impl Config {
     }
 
     pub async fn get_libp2p_keypair(&self) -> Result<Keypair>{
-        let passfile = modal_common::passfile::Passfile::load_file(self.passfile_path.clone().unwrap(), true).await?;
+        let passfile_path = self.passfile_path.clone()
+            .ok_or_else(|| anyhow::anyhow!(
+                "Passfile path not configured. Please ensure config.json has a 'passfile_path' field."
+            ))?;
+        
+        let passfile = modal_common::passfile::Passfile::load_file(passfile_path.clone(), true)
+            .await
+            .with_context(|| format!(
+                "Failed to load passfile from: {}\n\
+                \n\
+                💡 Possible causes:\n\
+                   1. The passfile doesn't exist at this path\n\
+                   2. The file path in config.json is incorrect\n\
+                   3. The node was not created properly\n\
+                \n\
+                💡 To fix:\n\
+                   - If using a node directory, ensure node.passfile exists\n\
+                   - If the node is new, run 'modal node create --dir <dir>' first\n\
+                   - Check that config.json has the correct 'passfile_path'",
+                passfile_path.display()
+            ))?;
+        
         let node_keypair = modal_common::libp2p_identity_keypair::libp2p_identity_from_private_key(passfile.keypair.private_key().as_str()).await?;
         Ok(node_keypair)
     }

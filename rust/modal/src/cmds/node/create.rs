@@ -100,9 +100,41 @@ pub struct Opts {
     /// Autoupgrade check interval in seconds (default: 3600)
     #[clap(long)]
     pub autoupgrade_check_interval_secs: Option<u64>,
+
+    /// Import configuration from an existing config.json file (will merge with other options)
+    #[clap(long)]
+    pub from_config: Option<PathBuf>,
+
+    /// Import passfile from an existing passfile (instead of generating a new keypair)
+    #[clap(long)]
+    pub from_passfile: Option<PathBuf>,
+
+    /// Use a node template (e.g., "devnet1/node1") which includes both passfile and config
+    #[clap(long)]
+    pub from_template: Option<String>,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
+    // Handle --from-template by loading passfile and config from modal-networks
+    let (template_passfile_content, template_config_content) = if let Some(template) = &opts.from_template {
+        println!("📦 Loading template: {}", template);
+        
+        let tmpl = modal_networks::templates::get(template)
+            .ok_or_else(|| {
+                let available = modal_networks::templates::list().join(", ");
+                anyhow::anyhow!(
+                    "Template '{}' not found. Available templates: {}",
+                    template,
+                    available
+                )
+            })?;
+        
+        println!("✅ Loaded template: {}", template);
+        (Some(tmpl.passfile.to_string()), Some(tmpl.config.to_string()))
+    } else {
+        (None, None)
+    };
+    
     // Determine the node directory
     let node_dir = if let Some(dir) = &opts.dir {
         dir.clone()
@@ -142,7 +174,33 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let existing_passfile = passfile_path.exists();
 
     // Load existing keypair or generate a new one
-    let (keypair, mnemonic_phrase, derivation_path, loaded_from_existing) = if existing_passfile {
+    let (keypair, mnemonic_phrase, derivation_path, loaded_from_existing) = if let Some(passfile_content) = &template_passfile_content {
+        // Load from template passfile content
+        println!("📂 Loading identity from template...");
+        
+        let kp = Keypair::from_json_string(passfile_content)
+            .context("Failed to load keypair from template")?;
+        
+        println!("✅ Loaded identity: {}", kp.as_public_address());
+        
+        // When loading from template, we need to SAVE the passfile (not loaded from existing file)
+        (kp, None, None, false)
+    } else if let Some(from_passfile) = &opts.from_passfile {
+        // Import from specified passfile
+        println!("📂 Importing passfile from {}...", from_passfile.display());
+        
+        let kp = Keypair::from_json_file(
+            from_passfile.to_str().ok_or_else(|| {
+                anyhow::anyhow!("Invalid passfile path: contains non-Unicode characters")
+            })?
+        )
+        .with_context(|| format!("Failed to load keypair from {}", from_passfile.display()))?;
+        
+        println!("✅ Loaded identity: {}", kp.as_public_address());
+        
+        // When loading from imported passfile, we don't generate new mnemonic info
+        (kp, None, None, true)
+    } else if existing_passfile {
         // Load existing passfile
         println!("📂 Found existing node.passfile, loading identity...");
         let passfile_str = passfile_path.to_str().ok_or_else(|| {
@@ -299,6 +357,61 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Create config.json
     let config_path = node_dir.join("config.json");
     
+    // Load base config from template, --from-config, or use defaults
+    let mut config: serde_json::Value = if let Some(config_content) = &template_config_content {
+        println!("📂 Loading configuration from template...");
+        serde_json::from_str(config_content)
+            .context("Failed to parse config from template")?
+    } else if let Some(from_config_path) = &opts.from_config {
+        println!("📂 Importing configuration from {}...", from_config_path.display());
+        let config_content = std::fs::read_to_string(from_config_path)
+            .with_context(|| format!("Failed to read config from {}", from_config_path.display()))?;
+        serde_json::from_str(&config_content)
+            .with_context(|| format!("Failed to parse config from {}", from_config_path.display()))?
+    } else {
+        // Start with default config
+        json!({
+            "id": peer_id,
+            "passfile_path": "./node.passfile",
+            "storage_path": opts.storage_path,
+            "logs_path": "./logs",
+            "logs_enabled": opts.logs_enabled.unwrap_or(true),
+            "log_level": opts.log_level,
+            "bootup_enabled": opts.bootup_enabled.unwrap_or(true),
+            "bootup_minimum_genesis_timestamp": opts.bootup_minimum_genesis_timestamp,
+            "bootup_prune_old_genesis_blocks": opts.bootup_prune_old_genesis_blocks.unwrap_or(false),
+            "listeners": ["/ip4/0.0.0.0/tcp/4040/ws"],
+            "bootstrappers": vec![] as Vec<String>
+        })
+    };
+    
+    // Override/merge with command line options
+    if let Some(obj) = config.as_object_mut() {
+        // Always update the ID to match the keypair
+        obj.insert("id".to_string(), json!(peer_id));
+        obj.insert("passfile_path".to_string(), json!("./node.passfile"));
+        
+        // Override with CLI options if provided
+        if !opts.storage_path.is_empty() && opts.storage_path != "./storage" {
+            obj.insert("storage_path".to_string(), json!(opts.storage_path));
+        }
+        if opts.logs_enabled.is_some() {
+            obj.insert("logs_enabled".to_string(), json!(opts.logs_enabled.unwrap()));
+        }
+        if !opts.log_level.is_empty() && opts.log_level != "info" {
+            obj.insert("log_level".to_string(), json!(opts.log_level));
+        }
+        if opts.bootup_enabled.is_some() {
+            obj.insert("bootup_enabled".to_string(), json!(opts.bootup_enabled.unwrap()));
+        }
+        if opts.bootup_minimum_genesis_timestamp.is_some() {
+            obj.insert("bootup_minimum_genesis_timestamp".to_string(), json!(opts.bootup_minimum_genesis_timestamp));
+        }
+        if opts.bootup_prune_old_genesis_blocks.is_some() {
+            obj.insert("bootup_prune_old_genesis_blocks".to_string(), json!(opts.bootup_prune_old_genesis_blocks.unwrap()));
+        }
+    }
+    
     // Parse bootstrappers - merge network and manual bootstrappers
     let mut bootstrappers = network_bootstrappers;
     if let Some(bootstrappers_str) = &opts.bootstrappers {
@@ -309,20 +422,13 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 .filter(|s| !s.is_empty())
         );
     }
-
-    let mut config = json!({
-        "id": peer_id,
-        "passfile_path": "./node.passfile",
-        "storage_path": opts.storage_path,
-        "logs_path": "./logs",
-        "logs_enabled": opts.logs_enabled.unwrap_or(true),
-        "log_level": opts.log_level,
-        "bootup_enabled": opts.bootup_enabled.unwrap_or(true),
-        "bootup_minimum_genesis_timestamp": opts.bootup_minimum_genesis_timestamp,
-        "bootup_prune_old_genesis_blocks": opts.bootup_prune_old_genesis_blocks.unwrap_or(false),
-        "listeners": ["/ip4/0.0.0.0/tcp/4040/ws"],
-        "bootstrappers": bootstrappers
-    });
+    
+    // Update bootstrappers if any were specified
+    if !bootstrappers.is_empty() {
+        if let Some(obj) = config.as_object_mut() {
+            obj.insert("bootstrappers".to_string(), json!(bootstrappers));
+        }
+    }
 
     // Add autoupgrade config if enabled
     if let Some((base_url, branch, check_interval)) = &autoupgrade_config {

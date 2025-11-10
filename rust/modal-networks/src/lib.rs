@@ -79,6 +79,34 @@ pub mod networks {
     }
 }
 
+/// Node templates for creating pre-configured nodes
+pub mod templates {
+    /// Represents a node template with passfile and config
+    #[derive(Debug, Clone)]
+    pub struct NodeTemplate {
+        pub passfile: &'static str,
+        pub config: &'static str,
+    }
+    
+    /// Get a node template by path (e.g., "devnet1/node1")
+    pub fn get(path: &str) -> Option<NodeTemplate> {
+        match path {
+            "devnet1/node1" => Some(NodeTemplate {
+                passfile: include_str!("../templates/devnet1/node1/node.passfile"),
+                config: include_str!("../templates/devnet1/node1/config.json"),
+            }),
+            _ => None,
+        }
+    }
+    
+    /// List all available templates
+    pub fn list() -> Vec<&'static str> {
+        vec![
+            "devnet1/node1",
+        ]
+    }
+}
+
 pub mod dns;
 
 #[cfg(test)]
