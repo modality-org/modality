@@ -1,0 +1,13 @@
+{
+  "id": "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se",
+  "passfile_path": "./node.passfile",
+  "storage_path": "./storage",
+  "logs_path": "./logs",
+  "logs_enabled": true,
+  "log_level": "info",
+  "bootup_enabled": true,
+  "bootup_prune_old_genesis_blocks": false,
+  "listeners": ["/ip4/0.0.0.0/tcp/10303/ws"],
+  "bootstrappers": ["/dnsaddr/devnet3.modality.network"]
+}
+

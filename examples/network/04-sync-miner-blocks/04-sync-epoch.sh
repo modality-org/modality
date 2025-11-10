@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 cd $(dirname -- "$0")
-set -x
+set -ex
 
 # Sync blocks from a specific epoch
 # Requires node1 to be running (see 01-run-node1.sh)

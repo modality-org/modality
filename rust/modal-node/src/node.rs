@@ -198,9 +198,15 @@ impl Node {
         path: String,
         data: String,
     ) -> Result<OutboundRequestId> {
+        let data_value = if data.is_empty() {
+            None
+        } else {
+            Some(serde_json::from_str(&data)?)
+        };
+        
         let request = reqres::Request {
             path: path.clone().to_string(),
-            data: Some(serde_json::json!(data.clone())),
+            data: data_value,
         };
         let req_id = {
             let mut swarm = self.swarm.lock().await;

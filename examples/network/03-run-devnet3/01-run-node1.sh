@@ -1,5 +1,18 @@
 #!/usr/bin/env bash
 cd $(dirname -- "$0")
+SCRIPT_DIR=$(pwd)
 set -x
 
-modal node run --config ../../../fixtures/network-node-configs/devnet3/node1.json
+# Create node1 if it doesn't exist
+if [ ! -f "./tmp/node1/config.json" ]; then
+    echo "Creating node1 with standard devnet3/node1 identity..."
+
+    # Create node using template
+    modal node create \
+        --dir "${SCRIPT_DIR}/tmp/node1" \
+        --from-template devnet3/node1
+fi
+
+cd "./tmp/node1"
+modal node clear-storage --yes
+modal node run

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 cd $(dirname -- "$0")
-set -x
+set -ex
 
 # Sync all canonical miner blocks from node1 to node2
 # Requires node1 to be running (see 01-run-node1.sh)

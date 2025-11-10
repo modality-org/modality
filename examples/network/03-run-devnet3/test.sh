@@ -8,33 +8,39 @@ cd "$(dirname "$0")"
 # Source test library
 source ../test-lib.sh
 
-# Initialize test
-test_init "03-run-devnet3"
-
 # Build modal CLI if needed
 if [ ! -f "../../../rust/target/debug/modal" ]; then
     echo "Building modal CLI..."
     (cd ../../../rust && cargo build --package modal)
 fi
 
+# Add modal to PATH for this test
+export PATH="../../../rust/target/debug:$PATH"
+
+# Clean up any previous test nodes
+rm -rf ./tmp
+
+# Initialize test (after cleanup so logs directory is created fresh)
+test_init "03-run-devnet3"
+
 # Test 1: Start node1
 echo ""
 echo "Test 1: Starting node1..."
-NODE1_PID=$(test_start_process "./01-run-node1.sh" "node1")
+NODE1_PID=$(test_start_process "cd $(pwd) && PATH=../../../rust/target/debug:\$PATH ./01-run-node1.sh" "node1")
 assert_success "test_wait_for_port 10301" "Node1 should start on port 10301"
 sleep 2
 
 # Test 2: Start node2
 echo ""
 echo "Test 2: Starting node2..."
-NODE2_PID=$(test_start_process "./02-run-node2.sh" "node2")
+NODE2_PID=$(test_start_process "cd $(pwd) && PATH=../../../rust/target/debug:\$PATH ./02-run-node2.sh" "node2")
 assert_success "test_wait_for_port 10302" "Node2 should start on port 10302"
 sleep 2
 
 # Test 3: Start node3
 echo ""
 echo "Test 3: Starting node3..."
-NODE3_PID=$(test_start_process "./03-run-node3.sh" "node3")
+NODE3_PID=$(test_start_process "cd $(pwd) && PATH=../../../rust/target/debug:\$PATH ./03-run-node3.sh" "node3")
 assert_success "test_wait_for_port 10303" "Node3 should start on port 10303"
 sleep 3
 

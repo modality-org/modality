@@ -103,6 +103,18 @@ pub mod templates {
                 passfile: include_str!("../templates/devnet2/node2/node.passfile"),
                 config: include_str!("../templates/devnet2/node2/config.json"),
             }),
+            "devnet3/node1" => Some(NodeTemplate {
+                passfile: include_str!("../templates/devnet3/node1/node.passfile"),
+                config: include_str!("../templates/devnet3/node1/config.json"),
+            }),
+            "devnet3/node2" => Some(NodeTemplate {
+                passfile: include_str!("../templates/devnet3/node2/node.passfile"),
+                config: include_str!("../templates/devnet3/node2/config.json"),
+            }),
+            "devnet3/node3" => Some(NodeTemplate {
+                passfile: include_str!("../templates/devnet3/node3/node.passfile"),
+                config: include_str!("../templates/devnet3/node3/config.json"),
+            }),
             _ => None,
         }
     }
@@ -113,6 +125,9 @@ pub mod templates {
             "devnet1/node1",
             "devnet2/node1",
             "devnet2/node2",
+            "devnet3/node1",
+            "devnet3/node2",
+            "devnet3/node3",
         ]
     }
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 cd $(dirname -- "$0")
-set -x
+set -ex
 
 # Sync a range of blocks
 # Requires node1 to be running (see 01-run-node1.sh)
