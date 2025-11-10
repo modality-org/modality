@@ -1,0 +1,14 @@
+=== Test: 01-ping-node ===
+  Starting node1...
+  Command: ../../../rust/target/debug/modal node run --config ../../../fixtures/network-node-configs/devnet1/node1.json
+  PID: 12589
+  Test: Node1 should start on port 10101
+  Command: test_wait_for_port 10101
+  Waiting for port 10101...
+  Port 10101 ready after 1s
+  Result: PASS
+  Test: Ping should succeed
+  Command: ../../../rust/target/debug/modal node ping --config ./configs/node2.json --target /ip4/127.0.0.1/tcp/10101/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd --times 3
+  Expected pattern: Ping successful
+  Output: 
+  Result: FAIL (pattern not found)

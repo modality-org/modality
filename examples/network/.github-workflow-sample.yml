@@ -1,0 +1,167 @@
+# Sample GitHub Actions workflow for network integration tests
+# Copy this to .github/workflows/network-tests.yml
+
+name: Network Integration Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  # Run daily at 2 AM UTC
+  schedule:
+    - cron: '0 2 * * *'
+
+env:
+  RUST_LOG: info
+  LOG_DIR: test-logs
+
+jobs:
+  # Quick tests run on every PR
+  quick-tests:
+    name: Quick Network Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+      
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            rust/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      
+      - name: Build modal CLI
+        working-directory: rust
+        run: cargo build --package modal
+      
+      - name: Run quick tests
+        working-directory: examples/network
+        run: ./run-tests.sh --quick
+      
+      - name: Upload test logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: quick-test-logs
+          path: examples/network/test-logs/
+          retention-days: 7
+  
+  # Full tests run on main branch only
+  full-tests:
+    name: Full Network Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Only run on main branch, develop, or manual trigger
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            rust/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      
+      - name: Build modal CLI
+        working-directory: rust
+        run: cargo build --package modal
+      
+      - name: Run all tests
+        working-directory: examples/network
+        run: ./run-tests.sh --all
+      
+      - name: Upload test logs (always)
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: full-test-logs
+          path: examples/network/test-logs/
+          retention-days: 14
+
+  # Optional: Test across different Rust versions
+  matrix-tests:
+    name: Network Tests (Rust ${{ matrix.rust }})
+    runs-on: ${{ matrix.os }}
+    # Only run on schedule or manual trigger to save CI time
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 15
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        rust: [stable, beta]
+        exclude:
+          # Skip beta on macOS to save time
+          - os: macos-latest
+            rust: beta
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Install Rust ${{ matrix.rust }}
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+      
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/
+            rust/target/
+          key: ${{ matrix.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Build modal CLI
+        working-directory: rust
+        run: cargo build --package modal
+      
+      - name: Run quick tests
+        working-directory: examples/network
+        run: ./run-tests.sh --quick
+      
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-logs-${{ matrix.os }}-${{ matrix.rust }}
+          path: examples/network/test-logs/
+          retention-days: 7
+
