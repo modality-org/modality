@@ -2,8 +2,6 @@ use anyhow::Result;
 use futures::prelude::*;
 use libp2p::gossipsub::IdentTopic;
 use libp2p::request_response::OutboundRequestId;
-use modal_validator_consensus::runner::create_runner_props_from_datastore;
-use modal_validator_consensus::runner::ConsensusRunner;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -53,9 +51,7 @@ pub struct Node {
     pub initial_difficulty: Option<u128>, // Initial mining difficulty (defaults to 1000 if not specified)
     pub mining_metrics: crate::mining_metrics::SharedMiningMetrics, // Mining hashrate metrics
     pub mining_shutdown: Option<Arc<std::sync::atomic::AtomicBool>>, // Shutdown flag for mining loop
-    consensus_runner: Option<modal_validator_consensus::runner::Runner>,
     networking_task: Option<tokio::task::JoinHandle<Result<()>>>,
-    consensus_task: Option<tokio::task::JoinHandle<Result<()>>>,
     autoupgrade_task: Option<tokio::task::JoinHandle<Result<()>>>,
     status_server_task: Option<tokio::task::JoinHandle<()>>,
     status_html_writer_task: Option<tokio::task::JoinHandle<()>>,
@@ -126,7 +122,6 @@ impl Node {
             mining_metrics: crate::mining_metrics::create_shared_metrics(),
             mining_shutdown: None, // Will be set in miner run()
             networking_task: None,
-            consensus_task: None,
             autoupgrade_task: None,
             status_server_task: None,
             status_html_writer_task: None,
@@ -136,7 +131,6 @@ impl Node {
             consensus_tx,
             consensus_rx: Some(consensus_rx),
             shutdown_tx,
-            consensus_runner: None,
             sync_trigger_tx,
         };
         Ok(node)
@@ -346,12 +340,6 @@ impl Node {
             log::info!("Autoupgrade task shutdown complete");
         }
     
-        if let Some(handle) = self.consensus_task.take() {
-            log::info!("Awaiting consensus task shutdown...");
-            handle.await??;
-            log::info!("Consensus task shutdown complete");
-        }
-    
         if let Some(handle) = self.networking_task.take() {
             log::info!("Awaiting networking task shutdown...");
             handle.await??;
@@ -509,108 +497,6 @@ impl Node {
 
         self.shutdown().await?;
 
-        Ok(())
-    }
-    pub async fn start_consensus(&mut self) -> Result<()> {
-        let mut runner_props = create_runner_props_from_datastore(self.datastore.clone()).await?;
-        runner_props.peerid = Some(self.peerid.to_string());
-        runner_props.keypair = Some(modal_common::keypair::Keypair::from_libp2p_keypair(
-            self.node_keypair.clone(),
-        )?);
-        runner_props.communication = Some(Arc::new(Mutex::new(NodeCommunication {
-            swarm: self.swarm.clone(),
-            consensus_tx: self.consensus_tx.clone(),
-        })));
-        let runner = modal_validator_consensus::runner::Runner::create(runner_props);
-        self.consensus_runner = Some(runner.clone());
-    
-        let mut shutdown_rx = self.shutdown_tx.subscribe();
-        log::info!("Consensus task started and listening for shutdown signal");
-        let mut consensus_rx = self
-            .consensus_rx
-            .take()
-            .expect("Consensus receiver should be available");
-    
-        let token = Arc::new(tokio_util::sync::CancellationToken::new());
-        let runner = Arc::new(Mutex::new(runner));
-        let runner_clone = runner.clone();
-        let token_clone = token.clone();
-    
-        let (round_tx, mut round_rx) = tokio::sync::mpsc::channel::<()>(1);
-    
-        self.consensus_task = Some(tokio::spawn(async move {
-            let mut round_handle: Option<tokio::task::JoinHandle<()>> = None;
-    
-            if !token_clone.is_cancelled() {
-                log::info!("Starting initial consensus round");
-                let round_tx_clone = round_tx.clone();
-                let runner_clone_inner = runner_clone.clone();
-                let token_inner = token_clone.clone();
-                round_handle = Some(tokio::spawn(async move {
-                    let mut runner_lock = runner_clone_inner.lock().await;
-                    if let Ok(_) = runner_lock.run_round(Some(token_inner)).await {
-                        let _ = round_tx_clone.send(()).await;
-                    }
-                }));
-            } else {
-                log::warn!("Consensus task started but token already cancelled");
-            }
-    
-            loop {
-                tokio::select! {
-                    _ = shutdown_rx.recv() => {
-                        log::info!("Shutdown signal received in consensus task");
-                        token.cancel();
-                        log::info!("Cancellation token triggered");
-                        if let Some(handle) = round_handle.take() {
-                            log::info!("Aborting round handle");
-                            handle.abort();
-                            if let Err(e) = handle.await {
-                                log::warn!("Round handle await failed: {:?}", e);
-                            }
-                        }
-                        break;
-                    }
-                    Some(msg) = consensus_rx.recv() => {
-                        log::info!("Received consensus message: {:?}", msg);
-                        let runner = runner_clone.lock().await;
-                        match msg {
-                            ConsensusMessage::DraftValidatorBlock { from: _, to: _, block } => {
-                                let _ = runner.on_receive_draft_block(&block).await;
-                            }
-                            ConsensusMessage::ValidatorBlockAck { from: _, to: _, ack } => {
-                                let _ = runner.on_receive_block_ack(&ack).await;
-                            }
-                            ConsensusMessage::ValidatorBlockLateAck { from: _, to: _, ack } => {
-                                let _ = runner.on_receive_block_late_ack(&ack).await;
-                            }
-                            ConsensusMessage::CertifiedValidatorBlock { from: _, to: _, block } => {
-                                let _ = runner.on_receive_certified_block(&block).await;
-                            }
-                        }
-                    }
-                    Some(_) = round_rx.recv() => {
-                        log::info!("Round completed, starting new round");
-                        if token_clone.is_cancelled() {
-                            log::info!("Token cancelled, stopping consensus");
-                            break;
-                        }
-                        let round_tx_clone = round_tx.clone();
-                        let runner_clone_inner = runner_clone.clone();
-                        let token_inner = token_clone.clone();
-                        round_handle = Some(tokio::spawn(async move {
-                            let mut runner_lock = runner_clone_inner.lock().await;
-                            if let Ok(_) = runner_lock.run_round(Some(token_inner)).await {
-                                let _ = round_tx_clone.send(()).await;
-                            }
-                        }));
-                    }
-                }
-            }
-            log::info!("Consensus task fully terminated");
-            Ok(())
-        }));
-    
         Ok(())
     }
     

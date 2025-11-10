@@ -15,8 +15,13 @@ const VERSION: &str = concat!(
 #[derive(Parser)]
 #[command(name = "modal")]
 #[command(version = VERSION)]
+#[command(disable_version_flag = true)]
 #[command(about = "Modal CLI utility for Modality Network operations", long_about = None)]
 struct Cli {
+    /// Print version information
+    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    version: Option<bool>,
+
     #[command(subcommand)]
     command: Commands,
 }

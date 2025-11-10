@@ -1,5 +1,3 @@
-pub mod same_process;
-
 use anyhow::Result;
 
 use modal_datastore::models::validator::block::ValidatorBlock;

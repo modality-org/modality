@@ -3,7 +3,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum ValidatorError {
     #[error("Observer error: {0}")]
-    ObserverError(#[from] modal_observer::SequencingError),
+    ObserverError(#[from] modal_observer::ValidationError),
     
     #[error("Datastore error: {0}")]
     DatastoreError(#[from] modal_datastore::Error),
