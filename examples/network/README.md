@@ -15,6 +15,7 @@ This directory contains dual-purpose examples that serve as:
 | [03-run-devnet3](./03-run-devnet3/) | Three-validator static network | Normal | Multi-node mesh network |
 | [04-sync-miner-blocks](./04-sync-miner-blocks/) | Block synchronization | Quick | Sync modes, persistence, idempotency |
 | [05-mining](./05-mining/) | Mining with difficulty adjustment | Slow | Mining, difficulty, persistence |
+| [06-contract-lifecycle](./06-contract-lifecycle/) | Contract creation and management | Quick | Create, commit, status, push, pull |
 | [06-static-validators](./06-static-validators/) | Static validator set | Slow | Validator connections, genesis round |
 
 ## Quick Start

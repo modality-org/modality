@@ -1,0 +1,14 @@
+# Temporary test files and directories
+tmp/
+
+# Contract directories created during testing
+my-contract/
+test-contract/
+test-contract-clone/
+
+# JSON output files from tests
+*.json
+
+# Log files
+*.log
+

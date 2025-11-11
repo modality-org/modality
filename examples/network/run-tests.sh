@@ -166,6 +166,7 @@ run_test_suite "01-ping-node" "Ping Node" "quick"
 run_test_suite "02-run-devnet1" "Run Devnet1" "quick"
 run_test_suite "02-run-devnet2" "Run Devnet2" "quick"
 run_test_suite "04-sync-miner-blocks" "Sync Miner Blocks" "quick"
+run_test_suite "06-contract-lifecycle" "Contract Lifecycle" "quick"
 
 # Normal tests (moderate duration)
 run_test_suite "03-run-devnet3" "Run Devnet3" "normal"
