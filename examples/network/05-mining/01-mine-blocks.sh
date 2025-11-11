@@ -15,11 +15,12 @@ echo "Press Ctrl+C to stop mining"
 echo ""
 
 # Build the modal CLI if needed
-if [ ! -f "../../../rust/target/debug/modal" ]; then
+if ! command -v modal &> /dev/null; then
     echo "Building modal CLI..."
     cd ../../../rust
     cargo build --package modal
     cd - > /dev/null
+    export PATH="$(cd ../../../rust/target/debug && pwd):$PATH"
 fi
 
 # Clean up old storage if requested
@@ -31,5 +32,5 @@ fi
 
 # Run the miner
 export RUST_LOG=info,modality_network_node=info
-../../../rust/target/debug/modal node run-miner --config ./configs/miner.json
+modal node run-miner --config ./configs/miner.json
 

@@ -9,14 +9,11 @@ cd "$(dirname "$0")"
 source ../test-lib.sh
 
 # Build modal CLI if needed
-if [ ! -f "../../../rust/target/debug/modal" ]; then
+if ! command -v modal &> /dev/null; then
     echo "Building modal CLI..."
     (cd ../../../rust && cargo build --package modal)
+    export PATH="../../../rust/target/debug:$PATH"
 fi
-
-# Add modal to PATH for this test
-MODAL_BIN="$(cd ../../../rust/target/debug && pwd)/modal"
-export PATH="$(dirname "$MODAL_BIN"):$PATH"
 
 # Clean up any previous test nodes
 rm -rf ./tmp
@@ -85,12 +82,11 @@ else
     echo -e "  ${RED}✗${NC} Node1 should be running as a static validator"
 fi
 
-# Test 8: Create a local contract
 echo ""
 echo "Test 8: Creating a local contract..."
 rm -rf ./tmp/test-contract
 mkdir -p ./tmp/test-contract
-CONTRACT_OUTPUT=$(cd ./tmp/test-contract && $MODAL_BIN contract create --output json 2>&1)
+CONTRACT_OUTPUT=$(cd ./tmp/test-contract && modal contract create --output json 2>&1)
 if [ $? -eq 0 ]; then
     CONTRACT_ID=$(echo "$CONTRACT_OUTPUT" | grep '"contract_id"' | head -1 | sed 's/.*: "\(.*\)".*/\1/')
     echo "Contract ID: $CONTRACT_ID" >> "$CURRENT_LOG"
@@ -105,13 +101,11 @@ else
     CONTRACT_ID=""
 fi
 
-# Test 9: Create a local commit
-echo ""
 echo "Test 9: Creating a local commit..."
 if [ -n "$CONTRACT_ID" ]; then
     echo "DEBUG: CONTRACT_ID=$CONTRACT_ID" >> "$CURRENT_LOG"
     
-    COMMIT_OUTPUT=$(cd ./tmp/test-contract && $MODAL_BIN contract commit --path "/test.txt" --value "hello world" --output json 2>&1)
+    COMMIT_OUTPUT=$(cd ./tmp/test-contract && modal contract commit --path "/test.txt" --value "hello world" --output json 2>&1)
     if [ $? -eq 0 ]; then
         COMMIT_ID=$(echo "$COMMIT_OUTPUT" | grep '"commit_id"' | sed 's/.*: "\(.*\)".*/\1/')
         echo "Commit ID: $COMMIT_ID" >> "$CURRENT_LOG"
@@ -129,11 +123,9 @@ else
     echo -e "  ${YELLOW}⊘${NC} Skipping (no contract ID)"
 fi
 
-# Test 10: Check contract status
-echo ""
 echo "Test 10: Checking contract status..."
 if [ -n "$CONTRACT_ID" ]; then
-    STATUS_OUTPUT=$(cd ./tmp/test-contract && $MODAL_BIN contract status 2>&1)
+    STATUS_OUTPUT=$(cd ./tmp/test-contract && modal contract status 2>&1)
     if [ $? -eq 0 ] && echo "$STATUS_OUTPUT" | grep -q "Contract ID"; then
         echo "Status output: $STATUS_OUTPUT" >> "$CURRENT_LOG"
         TESTS_RUN=$((TESTS_RUN + 1))

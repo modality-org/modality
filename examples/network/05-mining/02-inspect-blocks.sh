@@ -12,12 +12,13 @@ if [ ! -d "./tmp/storage/miner" ]; then
 fi
 
 # Build the modal CLI if needed
-if [ ! -f "../../../rust/target/debug/modal" ]; then
+if ! command -v modal &> /dev/null; then
     echo "Building modal CLI..."
     cd ../../../rust
     cargo build --package modal
     cd - > /dev/null
+    export PATH="$(cd ../../../rust/target/debug && pwd):$PATH"
 fi
 
-../../../rust/target/debug/modal net storage --config ./configs/miner.json --detailed
+modal net storage --config ./configs/miner.json --detailed
 

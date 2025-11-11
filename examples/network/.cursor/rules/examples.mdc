@@ -11,3 +11,4 @@ alwaysApply: true
 - tmp/ is a temporary directory for the tests to use. It is gitignored. It is used to store the nodes and other resources for the tests.
 - while creating a node, use the modal node create command to create the node. It will create a node in the tmp/ directory.
 - use devnet1 as the default network for all examples unless otherwise specified.
+- prefer `modal node inspect` over stopping a node and then querying the datastore directly. when a `modal node inspect` method isn't available to fetch the data needed, implement it.

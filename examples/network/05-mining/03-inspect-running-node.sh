@@ -18,26 +18,27 @@ echo "✅ Miner is running"
 echo ""
 
 # Build the modal CLI if needed
-if [ ! -f "../../../rust/target/debug/modal" ]; then
+if ! command -v modal &> /dev/null; then
     echo "Building modal CLI..."
     cd ../../../rust
     cargo build --package modal
     cd - > /dev/null
+    export PATH="$(cd ../../../rust/target/debug && pwd):$PATH"
 fi
 
 echo "📊 Basic Inspection (default level)"
 echo "------------------------------------"
-../../../rust/target/debug/modal node inspect --config ./configs/miner.json
+modal node inspect --config ./configs/miner.json
 echo ""
 
 echo "📊 Detailed Datastore Inspection"
 echo "------------------------------------"
-../../../rust/target/debug/modal node inspect --config ./configs/miner.json --level datastore
+modal node inspect --config ./configs/miner.json --level datastore
 echo ""
 
 echo "⛏️  Mining Information"
 echo "------------------------------------"
-../../../rust/target/debug/modal node inspect --config ./configs/miner.json --level mining
+modal node inspect --config ./configs/miner.json --level mining
 echo ""
 
 echo "💡 TIP: The node keeps running while being inspected!"

@@ -52,7 +52,7 @@ echo ""
 
 # Start node1 in solo mode
 echo "2. Starting node1 in solo mode to mine 10 blocks..."
-RUST_LOG=info ../../../build/bin/modal node run-miner \
+RUST_LOG=info modal node run-miner \
   --config configs/node1.json &
 NODE1_PID=$!
 echo "   Node1 PID: $NODE1_PID"
@@ -70,13 +70,13 @@ sleep 2
 # Check node1's block count
 echo ""
 echo "   Checking node1's blockchain:"
-NODE1_BLOCKS=$(RUST_LOG=error ../../../build/bin/modal net storage \
+NODE1_BLOCKS=$(RUST_LOG=error modal net storage \
   --config "${SCRIPT_DIR}/configs/node1.json" --detailed 2>/dev/null | grep "^  Block #" | wc -l | tr -d ' ')
 echo "   Node1 has mined: $NODE1_BLOCKS blocks"
 
 echo ""
 echo "3. Starting node2 in solo mode to mine 20 blocks..."
-RUST_LOG=info ../../../build/bin/modal node run-miner \
+RUST_LOG=info modal node run-miner \
   --config configs/node2.json &
 NODE2_PID=$!
 echo "   Node2 PID: $NODE2_PID"
@@ -94,7 +94,7 @@ sleep 2
 # Check node2's block count
 echo ""
 echo "   Checking node2's blockchain:"
-NODE2_BLOCKS=$(RUST_LOG=error ../../../build/bin/modal net storage \
+NODE2_BLOCKS=$(RUST_LOG=error modal net storage \
   --config "${SCRIPT_DIR}/configs/node2.json" --detailed 2>/dev/null | grep "^  Block #" | wc -l | tr -d ' ')
 echo "   Node2 has mined: $NODE2_BLOCKS blocks"
 
@@ -139,7 +139,7 @@ EOF
 
 # Start both nodes connected
 echo "   Starting node2 (longer chain)..."
-RUST_LOG=info ../../../build/bin/modal node run-miner \
+RUST_LOG=info modal node run-miner \
   --config configs/node2-connected.json > tmp/node2.log 2>&1 &
 NODE2_PID=$!
 echo "   Node2 PID: $NODE2_PID"
@@ -147,7 +147,7 @@ echo "   Node2 PID: $NODE2_PID"
 sleep 2
 
 echo "   Starting node1 (shorter chain)..."
-RUST_LOG=info ../../../build/bin/modal node run-miner \
+RUST_LOG=info modal node run-miner \
   --config configs/node1-connected.json > tmp/node1.log 2>&1 &
 NODE1_PID=$!
 echo "   Node1 PID: $NODE1_PID"
@@ -170,9 +170,9 @@ echo ""
 echo "7. Checking final blockchain state:"
 echo ""
 
-NODE1_FINAL=$(RUST_LOG=error ../../../build/bin/modal net storage \
+NODE1_FINAL=$(RUST_LOG=error modal net storage \
   --config "${SCRIPT_DIR}/configs/node1-connected.json" --detailed 2>/dev/null | grep "^  Block #" | wc -l | tr -d ' ')
-NODE2_FINAL=$(RUST_LOG=error ../../../build/bin/modal net storage \
+NODE2_FINAL=$(RUST_LOG=error modal net storage \
   --config "${SCRIPT_DIR}/configs/node2-connected.json" --detailed 2>/dev/null | grep "^  Block #" | wc -l | tr -d ' ')
 
 echo "   Node1 final: $NODE1_FINAL blocks"
@@ -199,10 +199,10 @@ else
     COMPARE_BLOCK=$((MIN_LENGTH - 2))
     
     # Get hash for the comparison block from both nodes
-    NODE1_COMPARE_HASH=$(RUST_LOG=error ../../../build/bin/modal net storage \
+    NODE1_COMPARE_HASH=$(RUST_LOG=error modal net storage \
       --config "${SCRIPT_DIR}/configs/node1-connected.json" --detailed --limit 100 2>/dev/null | \
       grep -A 1 "^  Block #${COMPARE_BLOCK}$" | grep "Hash:" | awk '{print $2}' || echo "none")
-    NODE2_COMPARE_HASH=$(RUST_LOG=error ../../../build/bin/modal net storage \
+    NODE2_COMPARE_HASH=$(RUST_LOG=error modal net storage \
       --config "${SCRIPT_DIR}/configs/node2-connected.json" --detailed --limit 100 2>/dev/null | \
       grep -A 1 "^  Block #${COMPARE_BLOCK}$" | grep "Hash:" | awk '{print $2}' || echo "none")
     
@@ -215,10 +215,10 @@ else
         # Also check a few more blocks to be thorough
         CONVERGED_COUNT=0
         for i in $(seq 0 $COMPARE_BLOCK); do
-            HASH1=$(RUST_LOG=error ../../../build/bin/modal net storage \
+            HASH1=$(RUST_LOG=error modal net storage \
               --config "${SCRIPT_DIR}/configs/node1-connected.json" --detailed --limit 100 2>/dev/null | \
               grep -A 1 "^  Block #${i}$" | grep "Hash:" | awk '{print $2}')
-            HASH2=$(RUST_LOG=error ../../../build/bin/modal net storage \
+            HASH2=$(RUST_LOG=error modal net storage \
               --config "${SCRIPT_DIR}/configs/node2-connected.json" --detailed --limit 100 2>/dev/null | \
               grep -A 1 "^  Block #${i}$" | grep "Hash:" | awk '{print $2}')
             if [ "$HASH1" == "$HASH2" ]; then
