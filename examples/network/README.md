@@ -10,8 +10,9 @@ This directory contains dual-purpose examples that serve as:
 | Example | Description | Category | Features Tested |
 |---------|-------------|----------|-----------------|
 | [01-ping-node](./01-ping-node/) | Basic node connectivity | Quick | Node startup, ping command |
-| [02-run-devnet2](./02-run-devnet2/) | Two-node development network | Normal | Multi-node setup (JS + Rust) |
-| [03-run-devnet3](./03-run-devnet3/) | Three-node development network | Normal | Multi-node mesh network |
+| [02-run-devnet1](./02-run-devnet1/) | Single-validator static network | Quick | Single validator, Shoal consensus |
+| [02-run-devnet2](./02-run-devnet2/) | Two-validator static network | Quick | Multi-validator consensus |
+| [03-run-devnet3](./03-run-devnet3/) | Three-validator static network | Normal | Multi-node mesh network |
 | [04-sync-miner-blocks](./04-sync-miner-blocks/) | Block synchronization | Quick | Sync modes, persistence, idempotency |
 | [05-mining](./05-mining/) | Mining with difficulty adjustment | Slow | Mining, difficulty, persistence |
 | [06-static-validators](./06-static-validators/) | Static validator set | Slow | Validator connections, genesis round |
@@ -285,7 +286,8 @@ export RUST_LOG=debug
 
 Each example uses specific ports:
 - 01-ping-node: 10101
-- 02-run-devnet2: 10101-10102
+- 02-run-devnet1: 10101
+- 02-run-devnet2: 10201-10202
 - 03-run-devnet3: 10301-10303
 - 04-sync-miner-blocks: 10201-10202
 - 05-mining: 10301
