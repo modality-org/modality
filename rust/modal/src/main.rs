@@ -159,6 +159,9 @@ enum ContractCommands {
     
     #[command(about = "Get contract or commit information")]
     Get(cmds::contract::get::Opts),
+    
+    #[command(about = "Manage contract assets")]
+    Assets(cmds::contract::assets::Opts),
 }
 
 #[derive(Subcommand)]
@@ -223,6 +226,7 @@ async fn main() -> Result<()> {
                 ContractCommands::Pull(opts) => cmds::contract::pull::run(opts).await?,
                 ContractCommands::Status(opts) => cmds::contract::status::run(opts).await?,
                 ContractCommands::Get(opts) => cmds::contract::get::run(opts).await?,
+                ContractCommands::Assets(opts) => cmds::contract::assets::run(opts).await?,
             }
         }
         Commands::Run { command } => {

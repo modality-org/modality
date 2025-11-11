@@ -133,3 +133,188 @@ impl Commit {
     }
 }
 
+/// An asset created within a contract
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ContractAsset {
+    pub contract_id: String,
+    pub asset_id: String,
+    pub quantity: u64,
+    pub divisibility: u64,
+    pub created_at: u64,
+    pub creator_commit_id: String,
+}
+
+#[async_trait]
+impl Model for ContractAsset {
+    const ID_PATH: &'static str = "/assets/${contract_id}/${asset_id}";
+    const FIELDS: &'static [&'static str] = &[
+        "contract_id",
+        "asset_id",
+        "quantity",
+        "divisibility",
+        "created_at",
+        "creator_commit_id"
+    ];
+    const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
+
+    fn set_field(&mut self, field: &str, value: serde_json::Value) {
+        match field {
+            "contract_id" => self.contract_id = value.as_str().unwrap_or_default().to_string(),
+            "asset_id" => self.asset_id = value.as_str().unwrap_or_default().to_string(),
+            "quantity" => self.quantity = value.as_u64().unwrap_or_default(),
+            "divisibility" => self.divisibility = value.as_u64().unwrap_or_default(),
+            "created_at" => self.created_at = value.as_u64().unwrap_or_default(),
+            "creator_commit_id" => self.creator_commit_id = value.as_str().unwrap_or_default().to_string(),
+            _ => {},
+        }
+    }
+
+    fn get_id_keys(&self) -> HashMap<String, String> {
+        let mut keys = HashMap::new();
+        keys.insert("contract_id".to_string(), self.contract_id.clone());
+        keys.insert("asset_id".to_string(), self.asset_id.clone());
+        keys
+    }
+}
+
+impl ContractAsset {
+    pub async fn find_by_contract(
+        datastore: &NetworkDatastore,
+        contract_id: &str,
+    ) -> Result<Vec<Self>> {
+        let prefix = format!("/assets/{}/", contract_id);
+        let mut assets = Vec::new();
+        
+        let iterator = datastore.iterator(&prefix);
+        for result in iterator {
+            let (key, _) = result?;
+            let key_str = String::from_utf8(key.to_vec())?;
+            
+            // Parse key to extract contract_id and asset_id
+            let parts: Vec<&str> = key_str.split('/').collect();
+            if parts.len() >= 4 {
+                if let (Some(cid), Some(aid)) = (parts.get(2), parts.get(3)) {
+                    let keys = [
+                        ("contract_id".to_string(), cid.to_string()),
+                        ("asset_id".to_string(), aid.to_string()),
+                    ].into_iter().collect();
+                    
+                    if let Some(asset) = Self::find_one(datastore, keys).await? {
+                        assets.push(asset);
+                    }
+                }
+            }
+        }
+        
+        Ok(assets)
+    }
+}
+
+/// Tracks asset balance for a contract (who owns how much of an asset)
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AssetBalance {
+    pub contract_id: String,
+    pub asset_id: String,
+    pub owner_contract_id: String,
+    pub balance: u64,
+}
+
+#[async_trait]
+impl Model for AssetBalance {
+    const ID_PATH: &'static str = "/balances/${contract_id}/${asset_id}/${owner_contract_id}";
+    const FIELDS: &'static [&'static str] = &[
+        "contract_id",
+        "asset_id",
+        "owner_contract_id",
+        "balance"
+    ];
+    const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
+
+    fn set_field(&mut self, field: &str, value: serde_json::Value) {
+        match field {
+            "contract_id" => self.contract_id = value.as_str().unwrap_or_default().to_string(),
+            "asset_id" => self.asset_id = value.as_str().unwrap_or_default().to_string(),
+            "owner_contract_id" => self.owner_contract_id = value.as_str().unwrap_or_default().to_string(),
+            "balance" => self.balance = value.as_u64().unwrap_or_default(),
+            _ => {},
+        }
+    }
+
+    fn get_id_keys(&self) -> HashMap<String, String> {
+        let mut keys = HashMap::new();
+        keys.insert("contract_id".to_string(), self.contract_id.clone());
+        keys.insert("asset_id".to_string(), self.asset_id.clone());
+        keys.insert("owner_contract_id".to_string(), self.owner_contract_id.clone());
+        keys
+    }
+}
+
+impl AssetBalance {
+    pub async fn find_by_owner(
+        datastore: &NetworkDatastore,
+        owner_contract_id: &str,
+    ) -> Result<Vec<Self>> {
+        let prefix = "/balances/";
+        let mut balances = Vec::new();
+        
+        let iterator = datastore.iterator(prefix);
+        for result in iterator {
+            let (key, _) = result?;
+            let key_str = String::from_utf8(key.to_vec())?;
+            
+            // Parse key to extract all IDs
+            let parts: Vec<&str> = key_str.split('/').collect();
+            if parts.len() >= 5 {
+                if let (Some(cid), Some(aid), Some(oid)) = (parts.get(2), parts.get(3), parts.get(4)) {
+                    if *oid == owner_contract_id {
+                        let keys = [
+                            ("contract_id".to_string(), cid.to_string()),
+                            ("asset_id".to_string(), aid.to_string()),
+                            ("owner_contract_id".to_string(), oid.to_string()),
+                        ].into_iter().collect();
+                        
+                        if let Some(balance) = Self::find_one(datastore, keys).await? {
+                            balances.push(balance);
+                        }
+                    }
+                }
+            }
+        }
+        
+        Ok(balances)
+    }
+
+    pub async fn find_by_asset(
+        datastore: &NetworkDatastore,
+        contract_id: &str,
+        asset_id: &str,
+    ) -> Result<Vec<Self>> {
+        let prefix = format!("/balances/{}/{}/", contract_id, asset_id);
+        let mut balances = Vec::new();
+        
+        let iterator = datastore.iterator(&prefix);
+        for result in iterator {
+            let (key, _) = result?;
+            let key_str = String::from_utf8(key.to_vec())?;
+            
+            // Parse key to extract all IDs
+            let parts: Vec<&str> = key_str.split('/').collect();
+            if parts.len() >= 5 {
+                if let (Some(cid), Some(aid), Some(oid)) = (parts.get(2), parts.get(3), parts.get(4)) {
+                    let keys = [
+                        ("contract_id".to_string(), cid.to_string()),
+                        ("asset_id".to_string(), aid.to_string()),
+                        ("owner_contract_id".to_string(), oid.to_string()),
+                    ].into_iter().collect();
+                    
+                    if let Some(balance) = Self::find_one(datastore, keys).await? {
+                        balances.push(balance);
+                    }
+                }
+            }
+        }
+        
+        Ok(balances)
+    }
+}
+

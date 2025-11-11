@@ -17,6 +17,7 @@ modal-observer = { path = "../modal-observer", version = "0.1.0" }
 modal-datastore = { path = "../modal-datastore", version = "0.1.0" }
 modal-validator-consensus = { path = "../modal-validator-consensus", version = "0.1.0" }
 libp2p-identity = { version = "0.2", features = ["serde"] }
+serde_json = "1.0"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "macros", "test-util"] }

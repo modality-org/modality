@@ -17,4 +17,4 @@ pub use validator::{
 
 pub use miner::MinerBlock;
 pub use transaction::Transaction;
-pub use contract::{Contract, Commit};
+pub use contract::{Contract, Commit, ContractAsset, AssetBalance};

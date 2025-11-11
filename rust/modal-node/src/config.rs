@@ -87,10 +87,14 @@ impl Config {
     }
 
     pub async fn get_libp2p_keypair(&self) -> Result<Keypair>{
-        let passfile_path = self.passfile_path.clone()
-            .ok_or_else(|| anyhow::anyhow!(
-                "Passfile path not configured. Please ensure config.json has a 'passfile_path' field."
-            ))?;
+        // If no passfile is configured, generate a random keypair (useful for temporary clients)
+        let passfile_path = match &self.passfile_path {
+            Some(path) => path,
+            None => {
+                log::debug!("No passfile configured, generating random libp2p keypair");
+                return Ok(libp2p::identity::Keypair::generate_ed25519());
+            }
+        };
         
         let passfile = modal_common::passfile::Passfile::load_file(passfile_path.clone(), true)
             .await

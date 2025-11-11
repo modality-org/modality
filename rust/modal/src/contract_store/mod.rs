@@ -2,6 +2,9 @@ pub mod config;
 pub mod commit_file;
 pub mod refs;
 
+#[cfg(test)]
+mod tests;
+
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 
