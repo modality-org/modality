@@ -195,6 +195,7 @@ impl Config {
     pub fn get_initial_difficulty(&self) -> Option<u128> {
         // If explicitly set, use that value
         if self.initial_difficulty.is_some() {
+            log::info!("Using explicitly configured initial_difficulty = {}", self.initial_difficulty.unwrap());
             return self.initial_difficulty;
         }
 
