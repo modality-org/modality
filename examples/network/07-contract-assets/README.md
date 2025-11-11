@@ -107,6 +107,24 @@ Clean shutdown of the validator node:
 ./07-stop-validator.sh
 ```
 
+### Step 8: Invalid Double-Send Example
+
+Demonstrates validator rejection of insufficient balance:
+
+```bash
+./08-invalid-double-send.sh
+```
+
+**What it does**:
+- Attempts to send 1,500,000 tokens when Alice only has ~990,000
+- Shows that validators reject the SEND at consensus level
+- Demonstrates balance validation and double-spend prevention
+
+**Expected result**:
+- Local commit may be created
+- Validator rejects with: `"Insufficient balance: have 990000, need 1500000"`
+- Asset balances remain unchanged
+
 ## Running the Full Test
 
 ### Local Mode
@@ -117,12 +135,13 @@ Run the complete test suite locally (fast, no network needed):
 ./test.sh
 ```
 
-**Status**: ✅ All 26 tests pass
+**Status**: ✅ All 27 tests pass
 
 This demonstrates:
 - Asset creation, sending, and receiving
 - Local validation and balance tracking
 - Commit structure verification
+- Invalid operation handling (insufficient balance)
 
 ### Network Mode (devnet1)
 
@@ -167,6 +186,40 @@ This example demonstrates:
 - **Port**: 10101
 - **Peer ID**: `12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd`
 - **Template**: `devnet1/node1`
+
+## Validation Examples
+
+The example includes demonstrations of consensus-level validation:
+
+### Valid Operations
+- **CREATE**: Alice creates 1,000,000 tokens with divisibility 100
+- **SEND**: Alice sends 10,000 tokens to Bob (has sufficient balance)
+- **RECV**: Bob receives the tokens (is the intended recipient)
+
+### Invalid Operations (Rejected by Validators)
+
+#### Invalid SEND - Insufficient Balance
+```bash
+./08-invalid-double-send.sh
+```
+
+Demonstrates what happens when trying to send more than you have:
+- Alice tries to send 1,500,000 tokens
+- Alice only has 990,000 tokens remaining
+- **Result**: Validator rejects with `"Insufficient balance: have 990000, need 1500000"`
+
+This prevents:
+- Double-spending attacks
+- Creating assets from nothing
+- Balance going negative
+
+#### Invalid RECV - Wrong Recipient
+If a contract tries to receive a SEND intended for someone else:
+- **Result**: Validator rejects with `"RECV rejected: not the intended recipient"`
+
+#### Invalid RECV - Double Receive
+If a contract tries to receive the same SEND twice:
+- **Result**: Validator rejects with `"SEND already received by contract X"`
 
 ## Asset Types
 

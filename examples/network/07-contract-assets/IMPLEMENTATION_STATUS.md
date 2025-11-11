@@ -7,11 +7,12 @@ Successfully implemented a comprehensive example demonstrating CREATE, SEND, and
 ## What Works ✅
 
 ### Local Mode (Fully Functional)
-- **Test Suite**: `./test.sh` - All 26 tests passing
+- **Test Suite**: `./test.sh` - All 27 tests passing
 - **Features Demonstrated**:
   - Alice creates 1,000,000 tokens with CREATE action
   - Alice sends 10,000 tokens to Bob with SEND action
   - Bob receives tokens with RECV action
+  - Invalid double-send is rejected (insufficient balance)
   - Local balance tracking and validation
   - Complete commit structure verification
 
@@ -38,7 +39,7 @@ Successfully implemented a comprehensive example demonstrating CREATE, SEND, and
 
 **Core Example**:
 - README.md - Complete tutorial
-- 7 shell scripts - Step-by-step execution
+- 8 shell scripts - Step-by-step execution (including invalid-send demo)
 - test.sh - Local integration test (✅ working)
 - test-devnet1.sh - Network integration test (✅ working)
 - .gitignore - Ignore data/ and tmp/
@@ -47,6 +48,19 @@ Successfully implemented a comprehensive example demonstrating CREATE, SEND, and
 - 00-setup-devnet1.sh - Setup with validator dirs
 - 00b-start-validator.sh - Start devnet1 node
 - 07-stop-validator.sh - Clean validator shutdown
+
+### Scripts Included
+1. `00-setup.sh` - Initialize directories
+2. `01-create-alice.sh` - Create Alice's contract
+3. `02-create-token.sh` - Alice creates tokens (CREATE)
+4. `03-create-bob.sh` - Create Bob's contract
+5. `04-alice-sends-tokens.sh` - Alice sends to Bob (SEND)
+6. `05-bob-receives-tokens.sh` - Bob receives (RECV)
+7. `06-query-balances.sh` - Query asset states
+8. `08-invalid-double-send.sh` - Demonstrate insufficient balance rejection
+9. `00-setup-devnet1.sh` - Setup with validator
+10. `00b-start-validator.sh` - Start validator
+11. `07-stop-validator.sh` - Stop validator
 
 ## Usage
 
@@ -80,9 +94,14 @@ cd examples/network/07-contract-assets
 **Local Test**:
 ```
 ✅ All tests passed!
-Passed: 26
+Passed: 27
 Failed: 0
 ```
+
+Tests:
+- 7 step executions (including invalid double-send)
+- 10 validations
+- 10 commit structure checks
 
 **Network Test**:
 ```

@@ -318,3 +318,41 @@ impl AssetBalance {
     }
 }
 
+/// Tracks which SEND commits have been received to prevent double-receiving
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ReceivedSend {
+    pub send_commit_id: String,
+    pub recv_contract_id: String,
+    pub recv_commit_id: String,
+    pub received_at: u64,
+}
+
+#[async_trait]
+impl Model for ReceivedSend {
+    const ID_PATH: &'static str = "/received_sends/${send_commit_id}";
+    const FIELDS: &'static [&'static str] = &[
+        "send_commit_id",
+        "recv_contract_id",
+        "recv_commit_id",
+        "received_at"
+    ];
+    const FIELD_DEFAULTS: &'static [(&'static str, serde_json::Value)] = &[];
+
+    fn set_field(&mut self, field: &str, value: serde_json::Value) {
+        match field {
+            "send_commit_id" => self.send_commit_id = value.as_str().unwrap_or_default().to_string(),
+            "recv_contract_id" => self.recv_contract_id = value.as_str().unwrap_or_default().to_string(),
+            "recv_commit_id" => self.recv_commit_id = value.as_str().unwrap_or_default().to_string(),
+            "received_at" => self.received_at = value.as_u64().unwrap_or_default(),
+            _ => {},
+        }
+    }
+
+    fn get_id_keys(&self) -> HashMap<String, String> {
+        let mut keys = HashMap::new();
+        keys.insert("send_commit_id".to_string(), self.send_commit_id.clone());
+        keys
+    }
+}
+
+

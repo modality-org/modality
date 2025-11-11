@@ -91,6 +91,9 @@ validate "RECV commit file exists" "[ -f data/bob/recv-tokens.json ]"
 # Step 6: Query balances
 run_step "Step 6: Query Balances" "./06-query-balances.sh" || exit 1
 
+# Step 7: Invalid double-send example
+run_step "Step 7: Invalid Double-Send" "./08-invalid-double-send.sh" || exit 1
+
 # Verify commit structure
 echo ""
 echo "Verifying commit structure..."

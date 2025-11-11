@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use modal_datastore::NetworkDatastore;
-use modal_datastore::models::{ContractAsset, AssetBalance, Commit};
+use modal_datastore::models::{ContractAsset, AssetBalance, Commit, ReceivedSend};
 use modal_datastore::model::Model;
 use serde_json::Value;
 
@@ -42,12 +42,34 @@ impl ContractProcessor {
     }
 
     /// Process a commit during consensus ordering
+    /// 
+    /// This method:
+    /// 1. Saves the commit to the datastore for future reference
+    /// 2. Processes all actions in the commit
+    /// 3. Returns state changes that occurred
     pub async fn process_commit(
         &self,
         contract_id: &str,
         commit_id: &str,
         commit_data: &str,
     ) -> Result<Vec<StateChange>> {
+        // Save the commit to the datastore so it can be referenced by RECV actions
+        {
+            let ds = self.datastore.lock().await;
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_secs();
+            
+            let commit = Commit {
+                contract_id: contract_id.to_string(),
+                commit_id: commit_id.to_string(),
+                commit_data: commit_data.to_string(),
+                timestamp,
+                in_batch: None,
+            };
+            commit.save(&ds).await?;
+        }
+
         let commit: serde_json::Value = serde_json::from_str(commit_data)?;
         let body = commit.get("body")
             .and_then(|v| v.as_array())
@@ -145,6 +167,16 @@ impl ContractProcessor {
         })
     }
 
+    /// Process a SEND action during consensus
+    /// 
+    /// Validates:
+    /// - Asset exists in the sending contract
+    /// - Amount is divisible by asset divisibility
+    /// - Sender has sufficient balance (balance >= amount)
+    /// 
+    /// If validation passes:
+    /// - Deducts amount from sender's balance
+    /// - Records the SEND (but doesn't transfer until RECV)
     async fn process_send(
         &self,
         contract_id: &str,
@@ -205,10 +237,20 @@ impl ContractProcessor {
         })
     }
 
+    /// Process a RECV action during consensus
+    /// 
+    /// Validates:
+    /// - SEND commit exists and contains a valid SEND action
+    /// - SEND has not already been received (prevents double-receive)
+    /// - RECV is by the intended recipient (to_contract matches)
+    /// 
+    /// If validation passes:
+    /// - Marks the SEND as received (in ReceivedSend table)
+    /// - Credits the amount to receiver's balance
     async fn process_recv(
         &self,
         contract_id: &str,
-        _commit_id: &str,
+        commit_id: &str,
         value: &Value,
     ) -> Result<StateChange> {
         let send_commit_id = value.get("send_commit_id")
@@ -217,11 +259,20 @@ impl ContractProcessor {
 
         let ds = self.datastore.lock().await;
 
-        // Find the SEND commit
-        // We need to search for the commit by ID across all contracts
-        // For now, we'll need to know the source contract ID from the SEND action itself
+        // Check if this SEND has already been received
+        let mut received_keys = std::collections::HashMap::new();
+        received_keys.insert("send_commit_id".to_string(), send_commit_id.to_string());
+        
+        if let Some(existing) = ReceivedSend::find_one(&ds, received_keys).await? {
+            anyhow::bail!(
+                "SEND commit {} already received by contract {} in commit {}",
+                send_commit_id,
+                existing.recv_contract_id,
+                existing.recv_commit_id
+            );
+        }
 
-        // Parse the SEND commit to get details
+        // Find the SEND commit
         let send_commit_data = self.find_commit_by_id(&ds, send_commit_id).await?;
         
         let send_commit: serde_json::Value = serde_json::from_str(&send_commit_data.commit_data)?;
@@ -255,14 +306,27 @@ impl ContractProcessor {
             .and_then(|v| v.as_u64())
             .ok_or_else(|| anyhow::anyhow!("SEND action missing amount"))?;
 
-        // Verify this RECV is for this contract
+        // Verify this RECV is for the correct recipient contract
         if to_contract_in_send != contract_id {
-            anyhow::bail!("RECV in contract {} but SEND was to {}", contract_id, to_contract_in_send);
+            anyhow::bail!(
+                "RECV rejected: contract {} is not the intended recipient. SEND was to {}",
+                contract_id,
+                to_contract_in_send
+            );
         }
 
-        // Check if already received (prevent double-receive)
-        // We could track this with a separate table, but for now we'll check balance changes
-        // In a full implementation, we'd have a "received_sends" table
+        // Mark this SEND as received
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_secs();
+
+        let received_send = ReceivedSend {
+            send_commit_id: send_commit_id.to_string(),
+            recv_contract_id: contract_id.to_string(),
+            recv_commit_id: commit_id.to_string(),
+            received_at: timestamp,
+        };
+        received_send.save(&ds).await?;
 
         // Get or create balance for receiving contract
         let mut balance_keys = std::collections::HashMap::new();
@@ -297,29 +361,40 @@ impl ContractProcessor {
     }
 
     async fn find_commit_by_id(&self, ds: &NetworkDatastore, commit_id: &str) -> Result<Commit> {
-        // We need to search all contracts for this commit
-        // This is inefficient, but for now we'll iterate
-        let prefix = "/commits/";
-        let iterator = ds.iterator(prefix);
+        // Since we don't know the contract_id, we need to search all contracts
+        // This is inefficient - in production we'd want to index commits by ID
         
-        for result in iterator {
-            let (key, _) = result?;
-            let key_str = String::from_utf8(key.to_vec())?;
-            
-            // Parse key to extract contract_id and commit_id
-            let parts: Vec<&str> = key_str.split('/').collect();
-            if parts.len() >= 4 {
-                if let (Some(cid), Some(cmid)) = (parts.get(2), parts.get(3)) {
-                    if *cmid == commit_id {
-                        let keys = [
-                            ("contract_id".to_string(), cid.to_string()),
-                            ("commit_id".to_string(), cmid.to_string()),
-                        ].into_iter().collect();
-                        
-                        if let Some(commit) = Commit::find_one(ds, keys).await? {
-                            return Ok(commit);
+        // Iterate through all keys (empty prefix) and filter for commits
+        // Note: Using a specific prefix like "/commits/" doesn't work with the iterator
+        let iter = ds.iterator("");
+        
+        for result in iter {
+            match result {
+                Ok((key, _value)) => {
+                    let key_str = String::from_utf8_lossy(&key);
+                    
+                    // Filter for commit keys: /commits/${contract_id}/${commit_id}
+                    if key_str.starts_with("/commits/") {
+                        let parts: Vec<&str> = key_str.split('/').collect();
+                        if parts.len() >= 4 {
+                            let found_contract_id = parts[2];
+                            let found_commit_id = parts[3];
+                            
+                            if found_commit_id == commit_id {
+                                // Found it! Now fetch using Model::find_one
+                                let mut keys = std::collections::HashMap::new();
+                                keys.insert("contract_id".to_string(), found_contract_id.to_string());
+                                keys.insert("commit_id".to_string(), commit_id.to_string());
+                                
+                                if let Some(commit) = Commit::find_one(ds, keys).await? {
+                                    return Ok(commit);
+                                }
+                            }
                         }
                     }
+                }
+                Err(e) => {
+                    return Err(e.into());
                 }
             }
         }
