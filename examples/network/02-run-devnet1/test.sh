@@ -84,6 +84,76 @@ else
     echo -e "  ${RED}✗${NC} Node1 should be running as a static validator"
 fi
 
+# Test 8: Create a contract
+echo ""
+echo "Test 8: Creating a contract..."
+CONTRACT_OUTPUT=$(PATH=../../../rust/target/debug:$PATH modal contract create --output json 2>&1)
+if [ $? -eq 0 ]; then
+    CONTRACT_ID=$(echo "$CONTRACT_OUTPUT" | grep '"contract_id"' | head -1 | sed 's/.*: "\(.*\)".*/\1/')
+    echo "Contract ID: $CONTRACT_ID" >> "$CURRENT_LOG"
+    TESTS_RUN=$((TESTS_RUN + 1))
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+    echo -e "  ${GREEN}✓${NC} Contract created successfully"
+else
+    TESTS_RUN=$((TESTS_RUN + 1))
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo -e "  ${RED}✗${NC} Failed to create contract"
+    echo "Error: $CONTRACT_OUTPUT" >> "$CURRENT_LOG"
+    CONTRACT_ID=""
+fi
+
+# Test 9: Submit a commit to the contract (direct storage)
+echo ""
+echo "Test 9: Submitting a commit to the contract (stopping node first)..."
+if [ -n "$CONTRACT_ID" ]; then
+    echo "DEBUG: CONTRACT_ID=$CONTRACT_ID" >> "$CURRENT_LOG"
+    # Stop node to access storage
+    echo "DEBUG: Killing PID $NODE1_PID" >> "$CURRENT_LOG"
+    kill -9 $NODE1_PID 2>/dev/null || true
+    sleep 3  # Give RocksDB time to release locks
+    echo "DEBUG: About to run commit command" >> "$CURRENT_LOG"
+    
+    COMMIT_OUTPUT=$(timeout 10 bash -c 'PATH=../../../rust/target/debug:$PATH modal contract commit --contract-id "'$CONTRACT_ID'" --path "/test.txt" --value "hello world" --dir ./tmp/node1 --output json' 2>&1)
+    if [ $? -eq 0 ]; then
+        COMMIT_ID=$(echo "$COMMIT_OUTPUT" | grep '"commit_id"' | sed 's/.*: "\(.*\)".*/\1/')
+        echo "Commit ID: $COMMIT_ID" >> "$CURRENT_LOG"
+        TESTS_RUN=$((TESTS_RUN + 1))
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        echo -e "  ${GREEN}✓${NC} Commit submitted successfully"
+        
+        # Wait a moment for the commit to be stored
+        sleep 1
+    else
+        TESTS_RUN=$((TESTS_RUN + 1))
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        echo -e "  ${RED}✗${NC} Failed to submit commit"
+        echo "Error: $COMMIT_OUTPUT" >> "$CURRENT_LOG"
+        COMMIT_ID=""
+    fi
+else
+    echo -e "  ${YELLOW}⊘${NC} Skipping (no contract ID)"
+fi
+
+# Test 10: Retrieve the commit from storage
+echo ""
+echo "Test 10: Retrieving commit from storage..."
+if [ -n "$CONTRACT_ID" ] && [ -n "$COMMIT_ID" ]; then
+    GET_OUTPUT=$(PATH=../../../rust/target/debug:$PATH modal contract get --contract-id "$CONTRACT_ID" --commit-id "$COMMIT_ID" --dir ./tmp/node1 --output json 2>&1)
+    if [ $? -eq 0 ]; then
+        echo "Retrieved commit: $GET_OUTPUT" >> "$CURRENT_LOG"
+        TESTS_RUN=$((TESTS_RUN + 1))
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        echo -e "  ${GREEN}✓${NC} Commit retrieved successfully"
+    else
+        TESTS_RUN=$((TESTS_RUN + 1))
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        echo -e "  ${RED}✗${NC} Failed to retrieve commit"
+        echo "Error: $GET_OUTPUT" >> "$CURRENT_LOG"
+    fi
+else
+    echo -e "  ${YELLOW}⊘${NC} Skipping (no contract or commit ID)"
+fi
+
 # Finalize test
 test_finalize
 exit $?

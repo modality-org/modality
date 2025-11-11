@@ -54,6 +54,12 @@ enum Commands {
         command: NetworkCommands,
     },
 
+    #[command(about = "Contract related commands")]
+    Contract {
+        #[command(subcommand)]
+        command: ContractCommands,
+    },
+
     #[command(about = "Run node shortcuts")]
     Run {
         #[command(subcommand)]
@@ -134,6 +140,18 @@ enum MiningCommands {
 }
 
 #[derive(Subcommand)]
+enum ContractCommands {
+    #[command(about = "Create a new contract")]
+    Create(cmds::contract::create::Opts),
+    
+    #[command(about = "Submit a commit to a contract")]
+    Commit(cmds::contract::commit::Opts),
+    
+    #[command(about = "Get contract or commit information")]
+    Get(cmds::contract::get::Opts),
+}
+
+#[derive(Subcommand)]
 enum RunCommands {
     #[command(about = "Run a mining node")]
     Miner(cmds::node::run_miner::Opts),
@@ -185,6 +203,13 @@ async fn main() -> Result<()> {
                         MiningCommands::Sync(opts) => cmds::net::mining::sync::run(opts).await?,
                     }
                 }
+            }
+        }
+        Commands::Contract { command } => {
+            match command {
+                ContractCommands::Create(opts) => cmds::contract::create::run(opts).await?,
+                ContractCommands::Commit(opts) => cmds::contract::commit::run(opts).await?,
+                ContractCommands::Get(opts) => cmds::contract::get::run(opts).await?,
             }
         }
         Commands::Run { command } => {

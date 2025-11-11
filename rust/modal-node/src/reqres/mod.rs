@@ -4,6 +4,7 @@ mod consensus;
 mod ping;
 mod data;
 mod dag;
+mod contract;
 use data as reqres_data;
 use tokio::sync::mpsc;
 
@@ -80,6 +81,9 @@ pub async fn handle_request(req: Request, datastore: &mut NetworkDatastore, cons
         }
         "/dag/sync" => {
             dag::sync::handler(Some(data.clone()), datastore).await?
+        }
+        "/contract/submit" => {
+            contract::submit::handler(Some(data.clone()), datastore, consensus_tx).await?
         }
         _ => {
             Response {
