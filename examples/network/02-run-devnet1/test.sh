@@ -59,7 +59,7 @@ fi
 # Test 5: Start node1 as validator
 echo ""
 echo "Test 5: Starting node1 as validator..."
-NODE1_PID=$(test_start_process "cd ./tmp/node1 && PATH=../../../../../rust/target/debug:\$PATH modal node run-validator" "node1")
+NODE1_PID=$(test_start_process "cd ./tmp/node1 && modal node run-validator" "node1")
 
 # Wait for node1 to be ready on port 10101
 assert_success "test_wait_for_port 10101" "Node1 should start on port 10101"

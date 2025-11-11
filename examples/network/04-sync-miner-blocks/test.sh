@@ -41,7 +41,7 @@ assert_output_contains \
 # Test 3: Start node1
 echo ""
 echo "Test 3: Starting node1..."
-NODE1_PID=$(test_start_process "cd $(pwd) && PATH=../../../rust/target/debug:\$PATH ./01-run-node1.sh" "node1")
+NODE1_PID=$(test_start_process "cd $(pwd) && ./01-run-node1.sh" "node1")
 assert_success "test_wait_for_port 10201" "Node1 should start on port 10201"
 sleep 5  # Give it time to fully initialize networking and load blocks
 
