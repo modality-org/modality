@@ -1,0 +1,26 @@
+{
+  "name": "@modalmoney/sdk",
+  "version": "0.0.0",
+  "description": "Modal Money JavaScript SDK for web applications",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "rimraf ./dist && tsc && npx prettier ./dist --write",
+    "test": "NODE_OPTIONS=--experimental-vm-modules npx jest --passWithNoTests"
+  },
+  "author": "Foy Savas",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "src",
+    "src/*",
+    "!src/**/*.test.js"
+  ],
+  "exports": {
+    ".": "./src/index.js",
+    "./*": "./src/*.js"
+  },
+  "dependencies": {
+    "debug": "^4.3.4"
+  }
+}
+
