@@ -5,6 +5,7 @@ mod ping;
 mod data;
 mod dag;
 mod contract;
+pub mod inspect;
 use data as reqres_data;
 use tokio::sync::mpsc;
 
@@ -42,6 +43,9 @@ pub async fn handle_request(req: Request, datastore: &mut NetworkDatastore, cons
     let response = match path.as_str() {
         "/ping" => {
             ping::handler(Some(data.clone())).await?
+        },
+        "/inspect" => {
+            inspect::handler(Some(data.clone()), datastore).await?
         },
         "/data/block" => {
             reqres_data::block::handler(Some(data.clone()), datastore).await?

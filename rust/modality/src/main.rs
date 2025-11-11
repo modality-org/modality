@@ -34,6 +34,12 @@ enum Commands {
         command: ModelCommands,
     },
 
+    #[command(about = "Node related commands")]
+    Node {
+        #[command(subcommand)]
+        command: NodeCommands,
+    },
+
     #[command(about = "Upgrade modality to the latest version")]
     Upgrade(cmds::upgrade::Opts),
 }
@@ -60,6 +66,12 @@ enum ModelCommands {
     Check(cmds::check::Opts),
 }
 
+#[derive(Subcommand)]
+enum NodeCommands {
+    #[command(about = "Inspect a Modality node's state")]
+    Inspect(cmds::inspect::Opts),
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -80,6 +92,11 @@ async fn main() -> Result<()> {
             match command {
                 ModelCommands::Mermaid(opts) => cmds::mermaid::run(opts).await?,
                 ModelCommands::Check(opts) => cmds::check::run(opts).await?,
+            }
+        }
+        Commands::Node { command } => {
+            match command {
+                NodeCommands::Inspect(opts) => cmds::inspect::run(opts).await?,
             }
         }
         Commands::Upgrade(opts) => cmds::upgrade::run(opts).await?,

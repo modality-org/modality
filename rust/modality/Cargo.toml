@@ -17,6 +17,8 @@ path = "src/lib.rs"
 
 [dependencies]
 modal-common = { path = "../modal-common", version = "0.1.7" }
+modal-node = { path = "../modal-node" }
+modal-datastore = { path = "../modal-datastore" }
 modality-lang = { path = "../modality-lang", version = "0.1.7" }
 anyhow = "1.0"
 clap = { version = "4.1.11", features = ["cargo", "derive", "env"] }
@@ -30,3 +32,4 @@ log = "0.4.17"
 reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
 self-replace = "1.3"
 openssl = { version = "0.10", features = ["vendored"] }
+libp2p = { version = "0.54.1" }

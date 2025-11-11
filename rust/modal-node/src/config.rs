@@ -35,6 +35,7 @@ pub struct Config {
     pub minimum_block_timestamp: Option<i64>, // Reject blocks mined before this Unix timestamp (overrides fork_name)
     pub forced_blocks: Option<HashMap<u64, String>>, // Map of block_height -> required_block_hash for forced fork specification (overrides fork_name)
     pub initial_difficulty: Option<u128>, // Initial mining difficulty (testnet: 1, other networks: 10 if not specified)
+    pub inspect_whitelist: Option<Vec<String>>, // Peer IDs allowed to inspect this node via reqres. None = only self, empty vec = reject all, populated = allow those peers
 }
 
 impl Config {
