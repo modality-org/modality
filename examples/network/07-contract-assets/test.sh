@@ -55,6 +55,9 @@ validate() {
 echo "Starting integration test..."
 echo ""
 
+# Set flag to skip network push in local mode
+export SKIP_PUSH=1
+
 # Step 0: Setup
 run_step "Step 0: Setup" "./00-setup.sh" || exit 1
 
