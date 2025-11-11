@@ -3,14 +3,17 @@
 This guide covers local setup, building, testing, and common developer workflows for Modality across Rust and JavaScript workspaces.
 
 ### Prerequisites
+
 - Node.js ≥ 18.1 (recommend using `fnm`, `nvm`, or `asdf`)
 - pnpm 9.x (repo pins `pnpm@9.3.0`)
 - Rust (stable toolchain; install via `rustup`)
 - macOS or Linux (Windows via WSL)
 - CMake (required for native crates like `randomx-rs`)
 - Xcode Command Line Tools on macOS (`xcode-select --install`)
+- GNU coreutils on macOS (for `timeout` command in network example tests)
 
 Recommended:
+
 - corepack (ships with Node 16.13+)
 
 Enable pnpm via corepack to match the repo’s pinned version:
@@ -21,6 +24,7 @@ corepack prepare pnpm@9.3.0 --activate
 ```
 
 ### Repository Layout (high level)
+
 - `rust/` Rust workspace: core language, CLI, node, validator, etc.
 - `js/` JavaScript monorepo: network, node, datastore, viewer, CLI, etc.
 - `examples/` runnable examples (language, network, mining)
@@ -83,6 +87,7 @@ rust/scripts/test    # cargo test
 ```
 
 Artifacts:
+
 - CLI binary (after release build): `rust/target/release/modality`
 
 ---
@@ -106,6 +111,7 @@ js/scripts/test     # pnpm i -r && pnpm run -r test --passWithNoTests
 ```
 
 Notes:
+
 - Engines: Node ≥ 18.1, pnpm ≥ 8.14.1 (repo pins pnpm 9.3.0).
 - Use `pnpm run -r <script>` to execute a script across all packages.
 - Individual packages can be built/tested with filters, e.g.:
@@ -152,6 +158,7 @@ Use these fixtures with the JS node commands or Rust node tools as needed.
 ## Formatting, Linting, Testing
 
 Rust:
+
 ```bash
 cd rust
 cargo fmt --all
@@ -160,6 +167,7 @@ cargo test
 ```
 
 JavaScript:
+
 ```bash
 cd js
 pnpm run lint
@@ -170,7 +178,9 @@ pnpm run test
 ---
 
 ## Troubleshooting
+
 - `cmake` not found (e.g. building `randomx-rs` on macOS):
+
   ```bash
   # Ensure Xcode Command Line Tools are installed
   xcode-select --install
@@ -183,18 +193,31 @@ pnpm run test
 
   # Rebuild
   cd rust && cargo build --release
+  ```
+- `timeout` command not found (running network example tests on macOS):
 
+  ```bash
+  # The timeout command is part of GNU coreutils, not included on macOS by default
+  # Install via Homebrew
+  brew install coreutils
+
+  # Verify (GNU timeout is installed as gtimeout)
+  gtimeout --version
+  ```
 - pnpm version mismatch:
+
   ```bash
   corepack enable
   corepack prepare pnpm@9.3.0 --activate
   ```
 - Build errors after branch switch: clean and rebuild
+
   ```bash
   cd rust && cargo clean && cargo build
   cd ../js && rm -rf node_modules && pnpm i -r && pnpm run build
   ```
 - macOS permissions for scripts:
+
   ```bash
   chmod +x rust/scripts/* js/scripts/* examples/**/**/*.sh
   ```
@@ -202,9 +225,8 @@ pnpm run test
 ---
 
 ## Useful Links
+
 - Root README: `README.md`
 - Developer Guide (architecture/extension): `docs/developer-guide.md`
 - Quick Reference: `docs/quick-reference.md`
 - Language semantics: `docs/modality-semantics.md`
-
-
