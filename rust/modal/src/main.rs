@@ -1,4 +1,5 @@
 mod cmds;
+mod contract_store;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -144,8 +145,17 @@ enum ContractCommands {
     #[command(about = "Create a new contract")]
     Create(cmds::contract::create::Opts),
     
-    #[command(about = "Submit a commit to a contract")]
+    #[command(about = "Add a commit to a local contract")]
     Commit(cmds::contract::commit::Opts),
+    
+    #[command(about = "Push commits to chain validators")]
+    Push(cmds::contract::push::Opts),
+    
+    #[command(about = "Pull commits from the chain")]
+    Pull(cmds::contract::pull::Opts),
+    
+    #[command(about = "Show contract status")]
+    Status(cmds::contract::status::Opts),
     
     #[command(about = "Get contract or commit information")]
     Get(cmds::contract::get::Opts),
@@ -209,6 +219,9 @@ async fn main() -> Result<()> {
             match command {
                 ContractCommands::Create(opts) => cmds::contract::create::run(opts).await?,
                 ContractCommands::Commit(opts) => cmds::contract::commit::run(opts).await?,
+                ContractCommands::Push(opts) => cmds::contract::push::run(opts).await?,
+                ContractCommands::Pull(opts) => cmds::contract::pull::run(opts).await?,
+                ContractCommands::Status(opts) => cmds::contract::status::run(opts).await?,
                 ContractCommands::Get(opts) => cmds::contract::get::run(opts).await?,
             }
         }

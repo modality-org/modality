@@ -83,7 +83,16 @@ pub async fn handle_request(req: Request, datastore: &mut NetworkDatastore, cons
             dag::sync::handler(Some(data.clone()), datastore).await?
         }
         "/contract/submit" => {
-            contract::submit::handler(Some(data.clone()), datastore, consensus_tx).await?
+            contract::submit::handler(Some(data.clone()), datastore, consensus_tx.clone()).await?
+        }
+        "/contract/push" => {
+            contract::push::handler(Some(data.clone()), datastore, consensus_tx.clone()).await?
+        }
+        "/contract/pull" => {
+            contract::pull::handler(Some(data.clone()), datastore, consensus_tx.clone()).await?
+        }
+        "/contract/list" => {
+            contract::list::handler(Some(data.clone()), datastore, consensus_tx).await?
         }
         _ => {
             Response {

@@ -1,19 +1,16 @@
 use anyhow::Result;
 use clap::Parser;
-use serde_json::json;
 use std::path::PathBuf;
-use sha2::{Sha256, Digest};
 
-use modal_datastore::NetworkDatastore;
-use modal_datastore::models::Contract;
-use modal_datastore::model::Model;
+use modal_common::keypair::Keypair;
+use crate::contract_store::{ContractStore, CommitFile};
 
 #[derive(Debug, Parser)]
-#[command(about = "Create a new contract with a genesis")]
+#[command(about = "Create a new contract in a directory")]
 pub struct Opts {
-    /// Node directory containing storage (defaults to current directory)
-    #[clap(long)]
-    dir: Option<PathBuf>,
+    /// Directory path where the contract will be created (defaults to current directory)
+    #[clap(value_name = "PATH")]
+    path: Option<PathBuf>,
     
     /// Output format (json or text)
     #[clap(long, default_value = "text")]
@@ -21,66 +18,64 @@ pub struct Opts {
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
-    // Generate a unique contract ID
-    let mut hasher = Sha256::new();
-    hasher.update(format!("{:?}", std::time::SystemTime::now()).as_bytes());
-    let contract_id = format!("{:x}", hasher.finalize());
-    
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)?
-        .as_secs();
-    
-    // Create genesis structure
-    let genesis = json!({
-        "contract_id": contract_id.clone(),
-        "created_at": timestamp,
-    });
-    
-    let contract = Contract {
-        contract_id: contract_id.clone(),
-        genesis: serde_json::to_string(&genesis)?,
-        created_at: timestamp,
-    };
-    
-    // If dir is provided, save to datastore
-    if let Some(dir) = &opts.dir {
-        let storage_path = dir.join("storage");
-        if !storage_path.exists() {
-            anyhow::bail!("Storage directory not found: {}", storage_path.display());
-        }
-        
-        let datastore = NetworkDatastore::new(&storage_path)?;
-        contract.save(&datastore).await?;
-        
-        if opts.output == "json" {
-            println!("{}", serde_json::to_string_pretty(&json!({
-                "contract_id": contract_id,
-                "genesis": genesis,
-                "saved_to": storage_path.display().to_string(),
-            }))?);
-        } else {
-            println!("✅ Contract created successfully!");
-            println!("   Contract ID: {}", contract_id);
-            println!("   Saved to: {}", storage_path.display());
-        }
+    // Determine the contract directory
+    let dir = if let Some(path) = &opts.path {
+        path.clone()
     } else {
-        // Just output the contract info without saving
-        if opts.output == "json" {
-            println!("{}", serde_json::to_string_pretty(&json!({
-                "contract_id": contract_id,
-                "genesis": genesis,
-            }))?);
-        } else {
-            println!("✅ Contract created!");
-            println!("   Contract ID: {}", contract_id);
-            println!();
-            println!("   Genesis:");
-            println!("{}", serde_json::to_string_pretty(&genesis)?);
-            println!();
-            println!("   Use --dir to save to a node's storage");
+        std::env::current_dir()?
+    };
+
+    // Generate a keypair for the contract
+    let keypair = Keypair::generate()?;
+    let contract_id = keypair.as_public_address();
+
+    // Initialize the contract store
+    let store = ContractStore::init(&dir, contract_id.clone())?;
+
+    // Create genesis commit
+    let genesis = serde_json::json!({
+        "genesis": {
+            "contract_id": contract_id.clone(),
+            "created_at": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_secs(),
+            "public_key": keypair.public_key_as_base58_identity()
         }
-    }
+    });
+
+    // Save genesis
+    store.save_genesis(&genesis)?;
+
+    // Create initial genesis commit as HEAD
+    let mut genesis_commit = CommitFile::new();
+    genesis_commit.add_action(
+        "genesis".to_string(),
+        None,
+        genesis.clone()
+    );
     
+    let genesis_commit_id = genesis_commit.compute_id()?;
+    store.save_commit(&genesis_commit_id, &genesis_commit)?;
+    store.set_head(&genesis_commit_id)?;
+
+    // Output
+    if opts.output == "json" {
+        println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+            "contract_id": contract_id,
+            "directory": dir.display().to_string(),
+            "genesis_commit_id": genesis_commit_id,
+        }))?);
+    } else {
+        println!("✅ Contract created successfully!");
+        println!("   Contract ID: {}", contract_id);
+        println!("   Directory: {}", dir.display());
+        println!("   Genesis commit: {}", genesis_commit_id);
+        println!();
+        println!("Next steps:");
+        println!("  1. cd {}", dir.display());
+        println!("  2. modal contract commit --path /data --value 'hello'");
+        println!("  3. modal contract push --remote <node-multiaddr>");
+    }
+
     Ok(())
 }
-

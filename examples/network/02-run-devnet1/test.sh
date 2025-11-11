@@ -15,7 +15,8 @@ if [ ! -f "../../../rust/target/debug/modal" ]; then
 fi
 
 # Add modal to PATH for this test
-export PATH="../../../rust/target/debug:$PATH"
+MODAL_BIN="$(cd ../../../rust/target/debug && pwd)/modal"
+export PATH="$(dirname "$MODAL_BIN"):$PATH"
 
 # Clean up any previous test nodes
 rm -rf ./tmp
@@ -84,49 +85,43 @@ else
     echo -e "  ${RED}✗${NC} Node1 should be running as a static validator"
 fi
 
-# Test 8: Create a contract
+# Test 8: Create a local contract
 echo ""
-echo "Test 8: Creating a contract..."
-CONTRACT_OUTPUT=$(PATH=../../../rust/target/debug:$PATH modal contract create --output json 2>&1)
+echo "Test 8: Creating a local contract..."
+rm -rf ./tmp/test-contract
+mkdir -p ./tmp/test-contract
+CONTRACT_OUTPUT=$(cd ./tmp/test-contract && $MODAL_BIN contract create --output json 2>&1)
 if [ $? -eq 0 ]; then
     CONTRACT_ID=$(echo "$CONTRACT_OUTPUT" | grep '"contract_id"' | head -1 | sed 's/.*: "\(.*\)".*/\1/')
     echo "Contract ID: $CONTRACT_ID" >> "$CURRENT_LOG"
     TESTS_RUN=$((TESTS_RUN + 1))
     TESTS_PASSED=$((TESTS_PASSED + 1))
-    echo -e "  ${GREEN}✓${NC} Contract created successfully"
+    echo -e "  ${GREEN}✓${NC} Local contract created successfully"
 else
     TESTS_RUN=$((TESTS_RUN + 1))
     TESTS_FAILED=$((TESTS_FAILED + 1))
-    echo -e "  ${RED}✗${NC} Failed to create contract"
+    echo -e "  ${RED}✗${NC} Failed to create local contract"
     echo "Error: $CONTRACT_OUTPUT" >> "$CURRENT_LOG"
     CONTRACT_ID=""
 fi
 
-# Test 9: Submit a commit to the contract (direct storage)
+# Test 9: Create a local commit
 echo ""
-echo "Test 9: Submitting a commit to the contract (stopping node first)..."
+echo "Test 9: Creating a local commit..."
 if [ -n "$CONTRACT_ID" ]; then
     echo "DEBUG: CONTRACT_ID=$CONTRACT_ID" >> "$CURRENT_LOG"
-    # Stop node to access storage
-    echo "DEBUG: Killing PID $NODE1_PID" >> "$CURRENT_LOG"
-    kill -9 $NODE1_PID 2>/dev/null || true
-    sleep 3  # Give RocksDB time to release locks
-    echo "DEBUG: About to run commit command" >> "$CURRENT_LOG"
     
-    COMMIT_OUTPUT=$(timeout 10 bash -c 'PATH=../../../rust/target/debug:$PATH modal contract commit --contract-id "'$CONTRACT_ID'" --path "/test.txt" --value "hello world" --dir ./tmp/node1 --output json' 2>&1)
+    COMMIT_OUTPUT=$(cd ./tmp/test-contract && $MODAL_BIN contract commit --path "/test.txt" --value "hello world" --output json 2>&1)
     if [ $? -eq 0 ]; then
         COMMIT_ID=$(echo "$COMMIT_OUTPUT" | grep '"commit_id"' | sed 's/.*: "\(.*\)".*/\1/')
         echo "Commit ID: $COMMIT_ID" >> "$CURRENT_LOG"
         TESTS_RUN=$((TESTS_RUN + 1))
         TESTS_PASSED=$((TESTS_PASSED + 1))
-        echo -e "  ${GREEN}✓${NC} Commit submitted successfully"
-        
-        # Wait a moment for the commit to be stored
-        sleep 1
+        echo -e "  ${GREEN}✓${NC} Local commit created successfully"
     else
         TESTS_RUN=$((TESTS_RUN + 1))
         TESTS_FAILED=$((TESTS_FAILED + 1))
-        echo -e "  ${RED}✗${NC} Failed to submit commit"
+        echo -e "  ${RED}✗${NC} Failed to create local commit"
         echo "Error: $COMMIT_OUTPUT" >> "$CURRENT_LOG"
         COMMIT_ID=""
     fi
@@ -134,24 +129,24 @@ else
     echo -e "  ${YELLOW}⊘${NC} Skipping (no contract ID)"
 fi
 
-# Test 10: Retrieve the commit from storage
+# Test 10: Check contract status
 echo ""
-echo "Test 10: Retrieving commit from storage..."
-if [ -n "$CONTRACT_ID" ] && [ -n "$COMMIT_ID" ]; then
-    GET_OUTPUT=$(PATH=../../../rust/target/debug:$PATH modal contract get --contract-id "$CONTRACT_ID" --commit-id "$COMMIT_ID" --dir ./tmp/node1 --output json 2>&1)
-    if [ $? -eq 0 ]; then
-        echo "Retrieved commit: $GET_OUTPUT" >> "$CURRENT_LOG"
+echo "Test 10: Checking contract status..."
+if [ -n "$CONTRACT_ID" ]; then
+    STATUS_OUTPUT=$(cd ./tmp/test-contract && $MODAL_BIN contract status 2>&1)
+    if [ $? -eq 0 ] && echo "$STATUS_OUTPUT" | grep -q "Contract ID"; then
+        echo "Status output: $STATUS_OUTPUT" >> "$CURRENT_LOG"
         TESTS_RUN=$((TESTS_RUN + 1))
         TESTS_PASSED=$((TESTS_PASSED + 1))
-        echo -e "  ${GREEN}✓${NC} Commit retrieved successfully"
+        echo -e "  ${GREEN}✓${NC} Contract status retrieved successfully"
     else
         TESTS_RUN=$((TESTS_RUN + 1))
         TESTS_FAILED=$((TESTS_FAILED + 1))
-        echo -e "  ${RED}✗${NC} Failed to retrieve commit"
-        echo "Error: $GET_OUTPUT" >> "$CURRENT_LOG"
+        echo -e "  ${RED}✗${NC} Failed to get contract status"
+        echo "Error: $STATUS_OUTPUT" >> "$CURRENT_LOG"
     fi
 else
-    echo -e "  ${YELLOW}⊘${NC} Skipping (no contract or commit ID)"
+    echo -e "  ${YELLOW}⊘${NC} Skipping (no contract ID)"
 fi
 
 # Finalize test
