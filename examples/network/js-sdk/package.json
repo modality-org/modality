@@ -1,0 +1,16 @@
+{
+  "name": "modalmoney-js-sdk-example",
+  "version": "1.0.0",
+  "description": "Example of using the Modal Money JavaScript SDK with devnet1",
+  "type": "module",
+  "scripts": {
+    "start": "node 03-connect-sdk.js",
+    "test": "./test.sh"
+  },
+  "dependencies": {
+    "@modalmoney/sdk": "workspace:^"
+  },
+  "author": "Foy Savas",
+  "license": "MIT"
+}
+
