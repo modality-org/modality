@@ -20,7 +20,20 @@
     "./*": "./src/*.js"
   },
   "dependencies": {
-    "debug": "^4.3.4"
+    "@chainsafe/libp2p-noise": "^16.0.0",
+    "@chainsafe/libp2p-yamux": "^6.0.2",
+    "@libp2p/identify": "^3.0.15",
+    "@libp2p/interface": "^2.4.0",
+    "@libp2p/websockets": "^8.2.0",
+    "@multiformats/multiaddr": "^12.2.1",
+    "debug": "^4.3.4",
+    "it-pipe": "^3.0.1",
+    "libp2p": "^2.5.0",
+    "uint8arrays": "^3.1.1"
+  },
+  "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "jest": "^29.7"
   }
 }
 

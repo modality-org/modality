@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Modal Money SDK - Browser Demo</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #0f0f0f;
+      color: #e0e0e0;
+    }
+    
+    h1 {
+      color: #4a9eff;
+    }
+    
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    
+    input, button {
+      padding: 10px;
+      font-size: 14px;
+      border-radius: 4px;
+      border: 1px solid #333;
+    }
+    
+    input {
+      width: 100%;
+      background: #252525;
+      color: #e0e0e0;
+      margin: 10px 0;
+    }
+    
+    button {
+      background: #4a9eff;
+      color: white;
+      cursor: pointer;
+      border: none;
+      margin-right: 10px;
+    }
+    
+    button:hover {
+      background: #3a8eef;
+    }
+    
+    button:disabled {
+      background: #666;
+      cursor: not-allowed;
+    }
+    
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    
+    .status.success {
+      background: #1a3a1a;
+      border: 1px solid #4ade80;
+      color: #4ade80;
+    }
+    
+    .status.error {
+      background: #3a1a1a;
+      border: 1px solid #ef4444;
+      color: #ef4444;
+    }
+    
+    .status.info {
+      background: #1a2a3a;
+      border: 1px solid #4a9eff;
+      color: #4a9eff;
+    }
+    
+    pre {
+      background: #252525;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      border: 1px solid #333;
+    }
+    
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>🌐 Modal Money SDK - Browser Demo</h1>
+  
+  <div class="card">
+    <h2>Connection</h2>
+    <input 
+      type="text" 
+      id="multiaddr" 
+      placeholder="/ip4/127.0.0.1/tcp/10001/ws/p2p/12D3KooW..."
+      value="/ip4/127.0.0.1/tcp/10001/ws/p2p/12D3KooWPBRNBzgceXh7Z27wGoyYYz9ggwaYg2dWiwXXe8ieyFCN"
+    />
+    <button id="connect-btn">Connect</button>
+    <button id="disconnect-btn" disabled>Disconnect</button>
+    <div id="connection-status"></div>
+  </div>
+  
+  <div class="card">
+    <h2>Actions</h2>
+    <button id="ping-btn" disabled>Ping Node</button>
+    <button id="inspect-btn" disabled>Inspect Node</button>
+    <div id="action-status"></div>
+  </div>
+  
+  <div class="card" id="results-card" class="hidden">
+    <h2>Results</h2>
+    <pre id="results"></pre>
+  </div>
+
+  <script type="module">
+    // Import SDK from local source
+    // In production, you would import from node_modules or CDN
+    import { ModalClient, ConnectionError, TimeoutError } from '../src/index.js';
+    
+    // State
+    let client = null;
+    
+    // DOM elements
+    const multiaddrInput = document.getElementById('multiaddr');
+    const connectBtn = document.getElementById('connect-btn');
+    const disconnectBtn = document.getElementById('disconnect-btn');
+    const pingBtn = document.getElementById('ping-btn');
+    const inspectBtn = document.getElementById('inspect-btn');
+    const connectionStatus = document.getElementById('connection-status');
+    const actionStatus = document.getElementById('action-status');
+    const resultsCard = document.getElementById('results-card');
+    const resultsEl = document.getElementById('results');
+    
+    // Helper to show status
+    function showStatus(element, message, type = 'info') {
+      element.innerHTML = `<div class="status ${type}">${message}</div>`;
+    }
+    
+    // Helper to show results
+    function showResults(data) {
+      resultsCard.classList.remove('hidden');
+      resultsEl.textContent = JSON.stringify(data, null, 2);
+    }
+    
+    // Update button states
+    function updateButtonStates(connected) {
+      connectBtn.disabled = connected;
+      disconnectBtn.disabled = !connected;
+      pingBtn.disabled = !connected;
+      inspectBtn.disabled = !connected;
+      multiaddrInput.disabled = connected;
+    }
+    
+    // Connect button
+    connectBtn.addEventListener('click', async () => {
+      const multiaddr = multiaddrInput.value.trim();
+      
+      if (!multiaddr) {
+        showStatus(connectionStatus, 'Please enter a multiaddr', 'error');
+        return;
+      }
+      
+      try {
+        showStatus(connectionStatus, 'Connecting...', 'info');
+        
+        client = new ModalClient({ timeout: 10000 });
+        await client.connect(multiaddr);
+        
+        showStatus(connectionStatus, `✓ Connected to ${client.getConnectedPeer()}`, 'success');
+        updateButtonStates(true);
+        
+      } catch (error) {
+        let message = `✗ Connection failed: ${error.message}`;
+        
+        if (error instanceof ConnectionError) {
+          message += `\n\nTips:\n- Ensure node is running\n- Check multiaddr is correct\n- Verify node has WebSocket listener enabled`;
+        }
+        
+        showStatus(connectionStatus, message, 'error');
+        updateButtonStates(false);
+      }
+    });
+    
+    // Disconnect button
+    disconnectBtn.addEventListener('click', async () => {
+      if (client) {
+        await client.close();
+        client = null;
+        showStatus(connectionStatus, 'Disconnected', 'info');
+        updateButtonStates(false);
+        actionStatus.innerHTML = '';
+      }
+    });
+    
+    // Ping button
+    pingBtn.addEventListener('click', async () => {
+      try {
+        showStatus(actionStatus, 'Sending ping...', 'info');
+        
+        const result = await client.ping({
+          message: 'hello from browser',
+          timestamp: Date.now(),
+        });
+        
+        showStatus(actionStatus, '✓ Ping successful', 'success');
+        showResults(result);
+        
+      } catch (error) {
+        showStatus(actionStatus, `✗ Ping failed: ${error.message}`, 'error');
+      }
+    });
+    
+    // Inspect button
+    inspectBtn.addEventListener('click', async () => {
+      try {
+        showStatus(actionStatus, 'Inspecting node...', 'info');
+        
+        const result = await client.inspect({ level: 'basic' });
+        
+        showStatus(actionStatus, '✓ Inspection successful', 'success');
+        showResults(result);
+        
+      } catch (error) {
+        showStatus(actionStatus, `✗ Inspection failed: ${error.message}`, 'error');
+      }
+    });
+    
+    // Initial state
+    updateButtonStates(false);
+    showStatus(connectionStatus, 'Not connected', 'info');
+    
+    console.log('Modal Money SDK Browser Demo loaded');
+    console.log('Open browser console for additional debug output');
+  </script>
+</body>
+</html>
+
