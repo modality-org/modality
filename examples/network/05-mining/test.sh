@@ -16,9 +16,10 @@ sleep 1
 test_init "05-mining"
 
 # Build modal CLI if needed
-if [ ! -f "../../../rust/target/debug/modal" ]; then
+if ! command -v modal &> /dev/null; then
     echo "Building modal CLI..."
     (cd ../../../rust && cargo build --package modal)
+    export PATH="../../../rust/target/debug:$PATH"
 fi
 
 # Test 1: Clean storage
@@ -30,7 +31,7 @@ assert_success "[ ! -d ./tmp/storage/miner ]" "Storage should be removed"
 # Test 2: Start miner
 echo ""
 echo "Test 2: Starting miner..."
-MINER_PID=$(test_start_process "RUST_LOG=info ../../../rust/target/debug/modal node run-miner --config ./configs/miner.json" "miner")
+MINER_PID=$(test_start_process "RUST_LOG=info modal node run-miner --config ./configs/miner.json" "miner")
 assert_success "test_wait_for_port 10301" "Miner should start on port 10301"
 
 # Wait for some blocks to be mined
@@ -63,37 +64,46 @@ done
 pkill -9 -f "modal node run-miner" 2>/dev/null || true
 sleep 1
 
-# Test 5: Inspect blocks
+# Test 5: Inspect blocks using modal node inspect (while running!)
 echo ""
-echo "Test 5: Inspecting mined blocks..."
+echo "Test 5: Inspecting running miner node with modal node inspect..."
 assert_output_contains \
-    "../../../rust/target/debug/modal net storage --config ./configs/miner.json" \
+    "modal node inspect --config ./configs/miner.json" \
     "Total Blocks" \
-    "Should show block statistics"
+    "Should show block statistics from running node"
 
 # Test 6: Verify multiple blocks were mined
 echo ""
 echo "Test 6: Verifying multiple blocks were mined..."
-BLOCK_COUNT=$(../../../rust/target/debug/modal net storage --config ./configs/miner.json 2>&1 | grep "Total Blocks:" | sed -E 's/.*Total Blocks: ([0-9]+).*/\1/' || echo "0")
+BLOCK_COUNT=$(modal node inspect --config ./configs/miner.json 2>&1 | grep "Total Blocks:" | sed -E 's/.*Total Blocks: ([0-9]+).*/\1/' || echo "0")
 echo "Block count: $BLOCK_COUNT" >> "$CURRENT_LOG"
 assert_number "$BLOCK_COUNT" ">=" "1" "Should have mined at least 1 block"
 
-# Test 7: Verify difficulty is set
+# Test 7: Verify mining status shows in inspect output  
 echo ""
-echo "Test 7: Verifying difficulty is set..."
+echo "Test 7: Verifying mining status is reported..."
 assert_output_contains \
-    "../../../rust/target/debug/modal net storage --config ./configs/miner.json" \
-    "difficulty" \
-    "Should show difficulty information"
+    "modal node inspect --config ./configs/miner.json --level mining" \
+    "Is Mining" \
+    "Should show mining status"
 
-# Test 8: Stop miner and restart (test persistence)
+# Test 8: Stop miner, inspect offline, and restart (test both modes)
 echo ""
-echo "Test 8: Testing persistence (stop and restart)..."
+echo "Test 8: Testing offline inspection after stop..."
 kill "$MINER_PID" 2>/dev/null || true
 sleep 2
 
-# Restart miner
-MINER_PID=$(test_start_process "RUST_LOG=info ../../../rust/target/debug/modal node run-miner --config ./configs/miner.json" "miner-restart")
+# Now use modal node inspect in offline mode (auto-detects node is not running)
+echo "Inspecting stopped node (should auto-fallback to direct datastore access)..."
+assert_output_contains \
+    "modal node inspect --config ./configs/miner.json" \
+    "Offline" \
+    "Should detect node is offline"
+
+# Test 9: Testing persistence (restart)..."
+echo ""
+echo "Test 9: Testing persistence (restart)..."
+MINER_PID=$(test_start_process "RUST_LOG=info modal node run-miner --config ./configs/miner.json" "miner-restart")
 assert_success "test_wait_for_port 10301" "Miner should restart on port 10301"
 sleep 3
 

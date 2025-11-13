@@ -106,6 +106,9 @@ enum NodeCommands {
     #[command(about = "Display information about a node")]
     Info(cmds::node::info::Opts),
 
+    #[command(about = "Inspect a node's state (running or offline)")]
+    Inspect(cmds::node::inspect::Opts),
+
     #[command(alias = "run_node", about = "Run a Modality Network node")]
     Run(cmds::node::run::Opts),
 
@@ -159,6 +162,9 @@ enum ContractCommands {
     
     #[command(about = "Get contract or commit information")]
     Get(cmds::contract::get::Opts),
+    
+    #[command(about = "Manage contract assets")]
+    Assets(cmds::contract::assets::Opts),
 }
 
 #[derive(Subcommand)]
@@ -193,6 +199,7 @@ async fn main() -> Result<()> {
             match command {
                 NodeCommands::Create(opts) => cmds::node::create::run(opts).await?,
                 NodeCommands::Info(opts) => cmds::node::info::run(opts).await?,
+                NodeCommands::Inspect(opts) => cmds::node::inspect::run(opts).await?,
                 NodeCommands::Run(opts) => cmds::node::run::run(opts).await?,
                 NodeCommands::RunMiner(opts) => cmds::node::run_miner::run(opts).await?,
                 NodeCommands::RunValidator(opts) => cmds::node::run_validator::run(opts).await?,
@@ -223,6 +230,7 @@ async fn main() -> Result<()> {
                 ContractCommands::Pull(opts) => cmds::contract::pull::run(opts).await?,
                 ContractCommands::Status(opts) => cmds::contract::status::run(opts).await?,
                 ContractCommands::Get(opts) => cmds::contract::get::run(opts).await?,
+                ContractCommands::Assets(opts) => cmds::contract::assets::run(opts).await?,
             }
         }
         Commands::Run { command } => {

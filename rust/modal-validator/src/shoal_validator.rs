@@ -393,6 +393,57 @@ impl ShoalValidator {
                 .order_certificates(&consensus_state.committed)
                 .await?;
             
+            // Process contract commits for asset state updates
+            use crate::contract_processor::ContractProcessor;
+            let contract_processor = ContractProcessor::new(self.datastore.clone());
+            
+            for tx in &transactions {
+                // Parse transaction to see if it contains a contract commit
+                if let Ok(tx_str) = std::str::from_utf8(&tx.data) {
+                    if let Ok(tx_json) = serde_json::from_str::<serde_json::Value>(tx_str) {
+                        // Check if this is a contract push transaction
+                        if let Some(req_type) = tx_json.get("type").and_then(|v| v.as_str()) {
+                            if req_type == "contract_push" {
+                                // Extract contract data
+                                if let Some(data) = tx_json.get("data") {
+                                    if let (Some(contract_id), Some(commits)) = (
+                                        data.get("contract_id").and_then(|v| v.as_str()),
+                                        data.get("commits").and_then(|v| v.as_array())
+                                    ) {
+                                        // Process each commit
+                                        for commit_entry in commits {
+                                            if let (Some(commit_id), Some(commit_data_obj)) = (
+                                                commit_entry.get("commit_id").and_then(|v| v.as_str()),
+                                                commit_entry.get("body")
+                                            ) {
+                                                // Reconstruct commit data string
+                                                let commit_data = serde_json::json!({
+                                                    "body": commit_data_obj,
+                                                    "head": commit_entry.get("head")
+                                                });
+                                                let commit_data_str = serde_json::to_string(&commit_data).unwrap_or_default();
+                                                
+                                                // Process the commit
+                                                match contract_processor.process_commit(contract_id, commit_id, &commit_data_str).await {
+                                                    Ok(state_changes) => {
+                                                        log::info!("Processed commit {} for contract {}: {} state changes", 
+                                                            commit_id, contract_id, state_changes.len());
+                                                    }
+                                                    Err(e) => {
+                                                        log::warn!("Failed to process commit {} for contract {}: {}", 
+                                                            commit_id, contract_id, e);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
             return Ok(transactions);
         }
         

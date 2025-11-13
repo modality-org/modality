@@ -35,6 +35,7 @@ pub struct Config {
     pub minimum_block_timestamp: Option<i64>, // Reject blocks mined before this Unix timestamp (overrides fork_name)
     pub forced_blocks: Option<HashMap<u64, String>>, // Map of block_height -> required_block_hash for forced fork specification (overrides fork_name)
     pub initial_difficulty: Option<u128>, // Initial mining difficulty (testnet: 1, other networks: 10 if not specified)
+    pub inspect_whitelist: Option<Vec<String>>, // Peer IDs allowed to inspect this node via reqres. None = only self, empty vec = reject all, populated = allow those peers
 }
 
 impl Config {
@@ -87,10 +88,14 @@ impl Config {
     }
 
     pub async fn get_libp2p_keypair(&self) -> Result<Keypair>{
-        let passfile_path = self.passfile_path.clone()
-            .ok_or_else(|| anyhow::anyhow!(
-                "Passfile path not configured. Please ensure config.json has a 'passfile_path' field."
-            ))?;
+        // If no passfile is configured, generate a random keypair (useful for temporary clients)
+        let passfile_path = match &self.passfile_path {
+            Some(path) => path,
+            None => {
+                log::debug!("No passfile configured, generating random libp2p keypair");
+                return Ok(libp2p::identity::Keypair::generate_ed25519());
+            }
+        };
         
         let passfile = modal_common::passfile::Passfile::load_file(passfile_path.clone(), true)
             .await
@@ -190,6 +195,7 @@ impl Config {
     pub fn get_initial_difficulty(&self) -> Option<u128> {
         // If explicitly set, use that value
         if self.initial_difficulty.is_some() {
+            log::info!("Using explicitly configured initial_difficulty = {}", self.initial_difficulty.unwrap());
             return self.initial_difficulty;
         }
 

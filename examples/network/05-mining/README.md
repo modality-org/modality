@@ -61,13 +61,28 @@ The status page shows:
 
 The page auto-refreshes every 10 seconds with the latest data from the running node.
 
-### Step 3: Inspect Blocks
+### Step 3: Inspect Running Node
 
-While mining is running (or after stopping with Ctrl+C), inspect the blocks:
+**NEW**: While mining is running, inspect the node's state **without stopping it**:
+
+```bash
+./03-inspect-running-node.sh
+```
+
+This demonstrates the new `modal node inspect` command that can query a running node via reqres, showing:
+- Block statistics (total blocks, chain tip, epochs)
+- Mining status (hashrate, total hashes, nominees)
+- All without interrupting the mining process
+
+### Step 4: Inspect Blocks (Offline)
+
+Alternatively, you can inspect blocks by directly reading the datastore (works whether node is running or stopped):
 
 ```bash
 ./02-inspect-blocks.sh
 ```
+
+This uses `modal net storage` for direct datastore access.
 
 This shows:
 - Total number of blocks

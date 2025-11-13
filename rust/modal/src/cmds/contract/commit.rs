@@ -27,6 +27,33 @@ pub struct Opts {
     /// Output format (json or text)
     #[clap(long, default_value = "text")]
     output: String,
+    
+    // CREATE action fields
+    /// Asset ID to create (for CREATE method)
+    #[clap(long)]
+    asset_id: Option<String>,
+    
+    /// Asset quantity (for CREATE method)
+    #[clap(long)]
+    quantity: Option<u64>,
+    
+    /// Asset divisibility (for CREATE method)
+    #[clap(long)]
+    divisibility: Option<u64>,
+    
+    // SEND action fields
+    /// Destination contract ID (for SEND method)
+    #[clap(long)]
+    to_contract: Option<String>,
+    
+    /// Amount to send (for SEND method)
+    #[clap(long)]
+    amount: Option<u64>,
+    
+    // RECV action fields
+    /// SEND commit ID to receive from (for RECV method)
+    #[clap(long)]
+    send_commit_id: Option<String>,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
@@ -51,20 +78,32 @@ pub async fn run(opts: &Opts) -> Result<()> {
         CommitFile::new()
     };
 
+    // Build the action value based on method
+    let value = match opts.method.as_str() {
+        "create" => build_create_value(opts)?,
+        "send" => build_send_value(opts)?,
+        "recv" => build_recv_value(opts)?,
+        _ => {
+            // For other methods (post, rule), use the --value flag
+            if let Some(value_str) = &opts.value {
+                // Try to parse as JSON, fallback to string
+                serde_json::from_str(value_str)
+                    .unwrap_or_else(|_| Value::String(value_str.clone()))
+            } else {
+                anyhow::bail!("--value is required for method '{}'", opts.method);
+            }
+        }
+    };
+
     // Add action
-    if let Some(value_str) = &opts.value {
-        // Try to parse as JSON, fallback to string
-        let value: Value = serde_json::from_str(value_str)
-            .unwrap_or_else(|_| Value::String(value_str.clone()));
-        
-        commit.add_action(
-            opts.method.clone(),
-            opts.path.clone(),
-            value
-        );
-    } else {
-        anyhow::bail!("--value is required");
-    }
+    commit.add_action(
+        opts.method.clone(),
+        opts.path.clone(),
+        value
+    );
+
+    // Validate the commit
+    commit.validate()?;
 
     // Compute commit ID
     let commit_id = commit.compute_id()?;
@@ -97,4 +136,44 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn build_create_value(opts: &Opts) -> Result<Value> {
+    let asset_id = opts.asset_id.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("--asset-id is required for CREATE method"))?;
+    let quantity = opts.quantity
+        .ok_or_else(|| anyhow::anyhow!("--quantity is required for CREATE method"))?;
+    let divisibility = opts.divisibility
+        .ok_or_else(|| anyhow::anyhow!("--divisibility is required for CREATE method"))?;
+
+    Ok(serde_json::json!({
+        "asset_id": asset_id,
+        "quantity": quantity,
+        "divisibility": divisibility
+    }))
+}
+
+fn build_send_value(opts: &Opts) -> Result<Value> {
+    let asset_id = opts.asset_id.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("--asset-id is required for SEND method"))?;
+    let to_contract = opts.to_contract.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("--to-contract is required for SEND method"))?;
+    let amount = opts.amount
+        .ok_or_else(|| anyhow::anyhow!("--amount is required for SEND method"))?;
+
+    Ok(serde_json::json!({
+        "asset_id": asset_id,
+        "to_contract": to_contract,
+        "amount": amount,
+        "identifier": null
+    }))
+}
+
+fn build_recv_value(opts: &Opts) -> Result<Value> {
+    let send_commit_id = opts.send_commit_id.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("--send-commit-id is required for RECV method"))?;
+
+    Ok(serde_json::json!({
+        "send_commit_id": send_commit_id
+    }))
 }

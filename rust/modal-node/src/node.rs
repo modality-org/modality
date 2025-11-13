@@ -21,7 +21,6 @@ use modal_common::multiaddr_list::resolve_dns_multiaddrs;
 
 use crate::config::Config;
 use crate::consensus::net_comm::NetComm;
-use crate::consensus::node_communication::NodeCommunication;
 use crate::gossip;
 use crate::reqres;
 use crate::swarm;
@@ -336,6 +335,91 @@ impl Node {
             .gossipsub
             .publish(IdentTopic::new(topic), data)?;
         Ok(())
+    }
+
+    /// Get inspection data about this node
+    pub async fn get_inspection_data(&self, level: crate::inspection::InspectionLevel) -> Result<crate::inspection::InspectionData> {
+        use crate::inspection::*;
+        use modal_datastore::models::MinerBlock;
+        
+        let peer_id = self.peerid.to_string();
+        let mut data = InspectionData::new_basic(peer_id, NodeStatus::Running);
+        
+        // Network information
+        if InspectionData::should_include_network(level) {
+            let swarm = self.swarm.lock().await;
+            let connected_peers: Vec<_> = swarm.connected_peers().cloned().collect();
+            let connected_peer_list = if InspectionData::should_include_detailed_peers(level) {
+                Some(connected_peers.iter().map(|p| p.to_string()).collect())
+            } else {
+                None
+            };
+            
+            data.network = Some(NetworkInfo {
+                listeners: self.listeners.iter().map(|a| a.to_string()).collect(),
+                connected_peers: connected_peers.len(),
+                connected_peer_list,
+                bootstrappers: self.bootstrappers.iter().map(|a| a.to_string()).collect(),
+            });
+        }
+        
+        // Datastore information
+        if InspectionData::should_include_datastore(level) {
+            let datastore = self.datastore.lock().await;
+            let blocks = MinerBlock::find_all_canonical(&*datastore).await?;
+            
+            let block_range = if !blocks.is_empty() {
+                Some((blocks.first().unwrap().index, blocks.last().unwrap().index))
+            } else {
+                None
+            };
+            
+            let chain_tip_height = blocks.last().map(|b| b.index);
+            let chain_tip_hash = blocks.last().map(|b| b.hash.clone());
+            
+            // Count unique epochs
+            let mut epochs_set = std::collections::HashSet::new();
+            for block in &blocks {
+                epochs_set.insert(block.epoch);
+            }
+            
+            // Count unique miners
+            let mut miners_set = std::collections::HashSet::new();
+            for block in &blocks {
+                miners_set.insert(&block.nominated_peer_id);
+            }
+            
+            data.datastore = Some(DatastoreInfo {
+                total_blocks: blocks.len(),
+                block_range,
+                chain_tip_height,
+                chain_tip_hash,
+                epochs: Some(epochs_set.len()),
+                unique_miners: Some(miners_set.len()),
+            });
+        }
+        
+        // Mining information
+        if InspectionData::should_include_mining(level) {
+            let is_mining = self.mining_shutdown.is_some();
+            let nominees = self.miner_nominees.clone();
+            
+            let metrics = self.mining_metrics.read().await;
+            let (current_hashrate, total_hashes) = if is_mining {
+                (Some(metrics.current_hashrate), Some(metrics.total_hashes))
+            } else {
+                (None, None)
+            };
+            
+            data.mining = Some(MiningInfo {
+                is_mining,
+                nominees,
+                current_hashrate,
+                total_hashes,
+            });
+        }
+        
+        Ok(data)
     }
 
     pub async fn shutdown(&mut self) -> Result<()> {
