@@ -48,6 +48,12 @@ enum Commands {
         command: NodeCommands,
     },
 
+    #[command(about = "Local development commands")]
+    Local {
+        #[command(subcommand)]
+        command: LocalCommands,
+    },
+
     #[command(alias = "network")]
     #[command(about = "Network related commands")]
     Net {
@@ -96,6 +102,15 @@ enum NetworkCommands {
         #[command(subcommand)]
         command: MiningCommands,
     },
+}
+
+#[derive(Subcommand)]
+enum LocalCommands {
+    #[command(about = "Find all running modal node processes")]
+    Nodes(cmds::local::nodes::Opts),
+
+    #[command(about = "Kill all running modal node processes")]
+    KillallNodes(cmds::local::killall_nodes::Opts),
 }
 
 #[derive(Subcommand)]
@@ -221,6 +236,12 @@ async fn main() -> Result<()> {
                 NodeCommands::Sync(opts) => cmds::node::sync::run(opts).await?,
                 NodeCommands::Clear(opts) => cmds::node::clear::run(opts).await?,
                 NodeCommands::ClearStorage(opts) => cmds::node::clear_storage::run(opts).await?,
+            }
+        }
+        Commands::Local { command } => {
+            match command {
+                LocalCommands::Nodes(opts) => cmds::local::nodes::run(opts).await?,
+                LocalCommands::KillallNodes(opts) => cmds::local::killall_nodes::run(opts).await?,
             }
         }
         Commands::Net { command } => {
