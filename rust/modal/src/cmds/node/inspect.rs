@@ -32,19 +32,20 @@ pub async fn run(opts: &Opts) -> Result<()> {
     
     let config = load_config_with_node_dir(opts.config.clone(), dir)?;
     
-    // Try to connect to running node via reqres first
-    // For now, we'll just do offline mode (direct datastore access)
-    // TODO: Implement online inspection via reqres
-    
-    println!("🔍 Inspecting node (Offline mode - direct datastore access)");
+    // Use read-only mode to allow inspection while node is running
+    println!("🔍 Inspecting node (Read-only mode - safe for running nodes)");
     println!();
     
-    // Open datastore
+    // Show node identity first
+    inspect_identity(&config)?;
+    println!();
+    
+    // Open datastore in read-only mode
     let storage_path = config.storage_path.as_ref()
         .context("No storage_path in config")?;
     
-    let datastore = NetworkDatastore::create_in_directory(&storage_path)
-        .context("Failed to open datastore")?;
+    let datastore = NetworkDatastore::create_in_directory_readonly(&storage_path)
+        .context("Failed to open datastore in read-only mode")?;
     
     match opts.level.as_str() {
         "general" | "blocks" => {
@@ -56,6 +57,36 @@ pub async fn run(opts: &Opts) -> Result<()> {
         _ => {
             println!("Unknown inspection level: {}", opts.level);
             println!("Available levels: general, mining, blocks");
+        }
+    }
+    
+    Ok(())
+}
+
+fn inspect_identity(config: &modal_node::config::Config) -> Result<()> {
+    println!("🆔  Node Identity");
+    println!("==================");
+    println!();
+    
+    if let Some(id) = &config.id {
+        println!("Peer ID: {}", id);
+    }
+    
+    if let Some(listeners) = &config.listeners {
+        if !listeners.is_empty() {
+            println!("Listeners:");
+            for listener in listeners {
+                println!("  • {}", listener);
+            }
+        }
+    }
+    
+    if let Some(bootstrappers) = &config.bootstrappers {
+        if !bootstrappers.is_empty() {
+            println!("Bootstrappers:");
+            for bootstrapper in bootstrappers {
+                println!("  • {}", bootstrapper);
+            }
         }
     }
     

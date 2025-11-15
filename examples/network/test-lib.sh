@@ -63,6 +63,17 @@ test_start_process() {
     local pid=$!
     PIDS+=("$pid")
     
+    # Wait a moment for the actual command to start and get its PID
+    sleep 0.5
+    # Find the actual modal process (child of the shell)
+    local modal_pid=$(pgrep -P $pid modal 2>/dev/null || echo $pid)
+    if [ "$modal_pid" != "$pid" ]; then
+        echo "  Shell PID: $pid, Modal PID: $modal_pid" >> "$CURRENT_LOG"
+        # Replace the shell PID with the actual modal PID in our tracking
+        PIDS=("${PIDS[@]/$pid/$modal_pid}")
+        pid=$modal_pid
+    fi
+    
     echo "  PID: $pid" >> "$CURRENT_LOG"
     echo "$pid"
 }

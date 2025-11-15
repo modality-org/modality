@@ -1,9 +1,9 @@
-use anyhow::Result;
+use anyhow::{Result, Context};
 use clap::Parser;
 use std::path::PathBuf;
 
 use modal_node::config_resolution::load_config_with_node_dir;
-use modal_node::node::Node;
+use modal_datastore::NetworkDatastore;
 use modal_datastore::models::miner::MinerBlock;
 
 #[derive(Debug, Parser)]
@@ -31,23 +31,27 @@ pub async fn run(opts: &Opts) -> Result<()> {
     };
     
     let config = load_config_with_node_dir(opts.config.clone(), dir.clone())?;
-    let node = Node::from_config(config.clone()).await?;
+    
+    // Open datastore in read-only mode (safe for running nodes)
+    let storage_path = config.storage_path.as_ref()
+        .context("No storage_path in config")?;
+    
+    let datastore = NetworkDatastore::create_in_directory_readonly(&storage_path)
+        .context("Failed to open datastore in read-only mode")?;
     
     // Get mining statistics from datastore
-    let datastore = node.datastore.lock().await;
     let canonical_blocks = MinerBlock::find_all_canonical(&datastore).await?;
     let chain_tip = canonical_blocks.last();
     let genesis_block = canonical_blocks.first();
     
     // Count blocks mined by this node
-    let node_peer_id = node.peerid.to_string();
+    let node_peer_id = config.id.as_ref()
+        .context("No peer ID in config")?
+        .to_string();
     let blocks_mined_by_node = canonical_blocks
         .iter()
         .filter(|b| b.nominated_peer_id == node_peer_id)
         .count();
-    
-    // Release the datastore lock
-    drop(datastore);
     
     // Print basic node information
     println!("╭─────────────────────────────────────────────────────────────╮");
@@ -57,27 +61,35 @@ pub async fn run(opts: &Opts) -> Result<()> {
     
     // Node Identity
     println!("🆔  Node Identity");
-    println!("    Peer ID: {}", node.peerid);
-    if let Some(id) = config.id {
+    if let Some(id) = &config.id {
+        println!("    Peer ID: {}", id);
         println!("    Config ID: {}", id);
     }
     println!();
     
     // Network Configuration
     println!("🌐  Network Configuration");
-    if !node.listeners.is_empty() {
-        println!("    Listeners:");
-        for listener in &node.listeners {
-            println!("      • {}", listener);
+    if let Some(listeners) = &config.listeners {
+        if !listeners.is_empty() {
+            println!("    Listeners:");
+            for listener in listeners {
+                println!("      • {}", listener);
+            }
+        } else {
+            println!("    Listeners: None configured");
         }
     } else {
         println!("    Listeners: None configured");
     }
     
-    if !node.bootstrappers.is_empty() {
-        println!("    Bootstrappers:");
-        for bootstrapper in &node.bootstrappers {
-            println!("      • {}", bootstrapper);
+    if let Some(bootstrappers) = &config.bootstrappers {
+        if !bootstrappers.is_empty() {
+            println!("    Bootstrappers:");
+            for bootstrapper in bootstrappers {
+                println!("      • {}", bootstrapper);
+            }
+        } else {
+            println!("    Bootstrappers: None configured");
         }
     } else {
         println!("    Bootstrappers: None configured");
@@ -159,10 +171,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
     
     // Mining Configuration
-    if config.run_miner.unwrap_or(false) || node.miner_nominees.is_some() {
+    if config.run_miner.unwrap_or(false) || config.miner_nominees.is_some() {
         println!("⚙️   Mining Configuration");
         println!("    Miner: {}", if config.run_miner.unwrap_or(false) { "Enabled" } else { "Disabled" });
-        if let Some(ref nominees) = node.miner_nominees {
+        if let Some(ref nominees) = config.miner_nominees {
             println!("    Nominees ({}):", nominees.len());
             for nominee in nominees {
                 println!("      • {}", nominee);
@@ -172,23 +184,27 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
     
     // Autoupgrade Configuration
-    if let Some(ref autoupgrade_config) = node.autoupgrade_config {
+    if config.autoupgrade_enabled.unwrap_or(false) {
         println!("⬆️   Autoupgrade");
-        println!("    Enabled: {}", autoupgrade_config.enabled);
-        if autoupgrade_config.enabled {
-            println!("    Base URL: {}", autoupgrade_config.base_url);
-            println!("    Branch: {}", autoupgrade_config.branch);
-            println!("    Check Interval: {} seconds", autoupgrade_config.check_interval.as_secs());
+        println!("    Enabled: {}", config.autoupgrade_enabled.unwrap_or(false));
+        if let Some(ref base_url) = config.autoupgrade_base_url {
+            println!("    Base URL: {}", base_url);
+        }
+        if let Some(ref branch) = config.autoupgrade_branch {
+            println!("    Branch: {}", branch);
+        }
+        if let Some(check_interval) = config.autoupgrade_check_interval_secs {
+            println!("    Check Interval: {} seconds", check_interval);
         }
         println!();
     }
     
     // Status Server
-    if let Some(port) = node.status_port {
+    if let Some(port) = config.status_port {
         println!("📊  Status Server");
         println!("    Port: {}", port);
         println!("    URL: http://localhost:{}", port);
-        if let Some(ref html_dir) = node.status_html_dir {
+        if let Some(ref html_dir) = config.status_html_dir {
             println!("    HTML Directory: {}", html_dir.display());
         }
         println!();

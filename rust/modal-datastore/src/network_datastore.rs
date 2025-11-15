@@ -27,6 +27,13 @@ impl NetworkDatastore {
         Ok(Self { db, path: path.to_path_buf() })
     }
 
+    /// Open database in read-only mode (allows multiple readers, safe for running nodes)
+    pub fn create_in_directory_readonly(path: &Path) -> Result<Self> {
+        let mut opts = Options::default();
+        let db = DB::open_for_read_only(&opts, path, false)?;
+        Ok(Self { db, path: path.to_path_buf() })
+    }
+
     // "in-memory" database
     pub fn create_in_memory() -> Result<Self> {
         let mut opts = Options::default();
