@@ -3,6 +3,7 @@ pub mod clear_storage;
 pub mod create;
 pub mod info;
 pub mod inspect;
+pub mod kill;
 pub mod ping;
 pub mod run;
 pub mod run_miner;

@@ -109,6 +109,9 @@ enum NodeCommands {
     #[command(about = "Inspect a node's state (running or offline)")]
     Inspect(cmds::node::inspect::Opts),
 
+    #[command(about = "Kill a running node process")]
+    Kill(cmds::node::kill::Opts),
+
     #[command(alias = "run_node", about = "Run a Modality Network node")]
     Run(cmds::node::run::Opts),
 
@@ -200,6 +203,7 @@ async fn main() -> Result<()> {
                 NodeCommands::Create(opts) => cmds::node::create::run(opts).await?,
                 NodeCommands::Info(opts) => cmds::node::info::run(opts).await?,
                 NodeCommands::Inspect(opts) => cmds::node::inspect::run(opts).await?,
+                NodeCommands::Kill(opts) => cmds::node::kill::run(opts).await?,
                 NodeCommands::Run(opts) => cmds::node::run::run(opts).await?,
                 NodeCommands::RunMiner(opts) => cmds::node::run_miner::run(opts).await?,
                 NodeCommands::RunValidator(opts) => cmds::node::run_validator::run(opts).await?,

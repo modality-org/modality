@@ -9,6 +9,7 @@ pub mod node;
 pub mod status_server;
 pub mod mining_metrics;
 pub mod inspection;
+pub mod pid;
 
 pub mod actions;
 pub mod consensus;

@@ -27,17 +27,27 @@ pub async fn run(opts: &Opts) -> Result<()> {
         opts.dir.clone()
     };
     
-    let config = load_config_with_node_dir(opts.config.clone(), dir)?;
+    let config = load_config_with_node_dir(opts.config.clone(), dir.clone())?;
     
     // Initialize logging with the logs_path from config
     logging::init_logging(config.logs_path.clone(), config.logs_enabled, config.log_level.clone())?;
     
     log::info!("Starting mining node with config loaded from node directory or config file");
     
+    // Write PID file if we have a node directory
+    if let Some(ref node_dir) = dir {
+        modal_node::pid::write_pid_file(node_dir)?;
+    }
+    
     let mut node = Node::from_config(config.clone()).await?;
     node.setup(&config).await?;
     
     actions::miner::run(&mut node).await?;
+    
+    // Clean up PID file on exit
+    if let Some(ref node_dir) = dir {
+        modal_node::pid::remove_pid_file(node_dir)?;
+    }
     
     Ok(())
 }
