@@ -100,6 +100,9 @@ enum NetworkCommands {
 
 #[derive(Subcommand)]
 enum NodeCommands {
+    #[command(about = "Display the listening addresses of a node")]
+    Address(cmds::node::address::Opts),
+
     #[command(about = "Create a new node directory with config.json and node.passfile")]
     Create(cmds::node::create::Opts),
 
@@ -203,6 +206,7 @@ async fn main() -> Result<()> {
         }
         Commands::Node { command } => {
             match command {
+                NodeCommands::Address(opts) => cmds::node::address::run(opts).await?,
                 NodeCommands::Create(opts) => cmds::node::create::run(opts).await?,
                 NodeCommands::Info(opts) => cmds::node::info::run(opts).await?,
                 NodeCommands::Inspect(opts) => cmds::node::inspect::run(opts).await?,
