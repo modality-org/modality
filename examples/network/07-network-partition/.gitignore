@@ -1,0 +1,13 @@
+# Temporary test data
+tmp/
+
+# Test logs
+*.log
+
+# Node storage and state
+storage/
+datastore/
+
+# OS files
+.DS_Store
+
