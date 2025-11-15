@@ -6,6 +6,13 @@ echo "Step 7: Stop Validator"
 echo "================================================"
 echo ""
 
+# Try using modal node kill first if the node directory exists
+if [ -d "tmp/validator-node" ] && command -v modal &> /dev/null; then
+    echo "Stopping validator using modal node kill..."
+    modal node kill --dir tmp/validator-node 2>/dev/null && echo "✅ Validator stopped" && exit 0 || echo "Trying alternative methods..."
+fi
+
+# Fallback to PID file method
 if [ -f "tmp/validator.pid" ]; then
     VALIDATOR_PID=$(cat tmp/validator.pid)
     echo "Stopping validator (PID: $VALIDATOR_PID)..."

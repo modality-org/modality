@@ -5,21 +5,36 @@
 cd $(dirname -- "$0")
 set -e
 
-if [ -z "$1" ] || [ -z "$2" ]; then
-    echo "Usage: $0 <node3_pid> <node4_pid>"
-    echo "Example: $0 12345 12346"
-    exit 1
-fi
-
-NODE3_PID=$1
-NODE4_PID=$2
-
 echo "=== Simulating two-node partition ==="
-echo "Killing node3 (PID: $NODE3_PID)..."
-kill -9 "$NODE3_PID" 2>/dev/null || true
 
-echo "Killing node4 (PID: $NODE4_PID)..."
-kill -9 "$NODE4_PID" 2>/dev/null || true
+# Use modal node kill if available, fall back to PID-based killing
+if command -v modal &> /dev/null; then
+    if [ -d "./tmp/node3" ]; then
+        echo "Killing node3 using modal node kill..."
+        modal node kill --dir ./tmp/node3 --force 2>/dev/null || echo "Node3 may not be running"
+    fi
+    
+    if [ -d "./tmp/node4" ]; then
+        echo "Killing node4 using modal node kill..."
+        modal node kill --dir ./tmp/node4 --force 2>/dev/null || echo "Node4 may not be running"
+    fi
+else
+    # Fallback to PID-based killing
+    if [ -z "$1" ] || [ -z "$2" ]; then
+        echo "Usage: $0 <node3_pid> <node4_pid>"
+        echo "Example: $0 12345 12346"
+        exit 1
+    fi
+    
+    NODE3_PID=$1
+    NODE4_PID=$2
+    
+    echo "Killing node3 (PID: $NODE3_PID)..."
+    kill -9 "$NODE3_PID" 2>/dev/null || true
+    
+    echo "Killing node4 (PID: $NODE4_PID)..."
+    kill -9 "$NODE4_PID" 2>/dev/null || true
+fi
 
 echo ""
 echo "Two nodes partitioned. Network now has only 2 validators."

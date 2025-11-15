@@ -3,6 +3,12 @@ cd $(dirname -- "$0")
 SCRIPT_DIR=$(pwd)
 set -x
 
+# Try using modal node kill first if the node directory exists
+if [ -d "./tmp/node1" ] && command -v modal &> /dev/null; then
+    echo "Stopping node1 using modal node kill..."
+    modal node kill --dir ./tmp/node1 2>/dev/null && echo "✓ Node1 stopped" && rm -f ./tmp/node1.pid && echo "✓ Cleanup complete" && exit 0 || echo "Trying alternative methods..."
+fi
+
 # Check if node1 PID file exists
 if [ ! -f "./tmp/node1.pid" ]; then
     echo "No node1 PID file found. Node may not be running."

@@ -4,6 +4,7 @@ pub mod create;
 pub mod info;
 pub mod inspect;
 pub mod kill;
+pub mod pid;
 pub mod ping;
 pub mod run;
 pub mod run_miner;

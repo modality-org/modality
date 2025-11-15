@@ -14,8 +14,10 @@ echo ""
 cleanup() {
     echo "Cleaning up..."
     
-    # Stop node if running
-    if [ -f "./tmp/node1.pid" ]; then
+    # Stop node if running - try modal node kill first
+    if [ -d "./tmp/node1" ] && command -v modal &> /dev/null; then
+        modal node kill --dir ./tmp/node1 2>/dev/null || true
+    elif [ -f "./tmp/node1.pid" ]; then
         NODE_PID=$(cat ./tmp/node1.pid)
         if ps -p ${NODE_PID} > /dev/null 2>&1; then
             kill ${NODE_PID} 2>/dev/null || true
