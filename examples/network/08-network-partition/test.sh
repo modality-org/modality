@@ -21,7 +21,7 @@ export PATH="../../../rust/target/debug:$PATH"
 rm -rf ./tmp
 
 # Initialize test (after cleanup so logs directory is created fresh)
-test_init "07-network-partition"
+test_init "08-network-partition"
 
 echo ""
 echo "=========================================="
