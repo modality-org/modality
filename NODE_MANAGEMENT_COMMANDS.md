@@ -49,7 +49,7 @@ Discovers and displays all running modal node processes on the system.
 **Features:**
 - Process scanning using `pgrep`
 - PID file discovery in common directories
-- Displays PID, directory, peer ID, and listening addresses
+- Displays PID, directory, peer ID, network config, and listening addresses
 - `--verbose` flag for full paths
 - Deduplicates nodes found through multiple methods
 

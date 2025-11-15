@@ -14,6 +14,14 @@ pub struct Opts {
     /// Show verbose output with full paths
     #[clap(long, short)]
     pub verbose: bool,
+
+    /// Filter by network config path (supports wildcards, e.g., "devnet*", "testnet")
+    #[clap(long)]
+    pub network: Option<String>,
+
+    /// Shorthand for --network "devnet*"
+    #[clap(long)]
+    pub devnet: bool,
 }
 
 #[derive(Debug)]
@@ -22,13 +30,29 @@ pub struct NodeInfo {
     pub dir: PathBuf,
     pub peer_id: Option<String>,
     pub listeners: Option<Vec<String>>,
+    pub network_config: Option<String>,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
-    let nodes = discover_running_nodes()?;
+    let mut nodes = discover_running_nodes()?;
+    
+    // Apply network filter if specified
+    let filter = if opts.devnet {
+        Some("devnet*".to_string())
+    } else {
+        opts.network.clone()
+    };
+    
+    if let Some(filter) = &filter {
+        nodes = filter_nodes_by_network(nodes, filter);
+    }
     
     if nodes.is_empty() {
-        println!("No running modal nodes found.");
+        if filter.is_some() {
+            println!("No running modal nodes found matching network filter.");
+        } else {
+            println!("No running modal nodes found.");
+        }
         return Ok(());
     }
     
@@ -50,6 +74,34 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
 pub fn discover_running_nodes() -> Result<Vec<NodeInfo>> {
     find_running_nodes()
+}
+
+pub fn filter_nodes_by_network(nodes: Vec<NodeInfo>, filter: &str) -> Vec<NodeInfo> {
+    nodes.into_iter()
+        .filter(|node| {
+            if let Some(network_config) = &node.network_config {
+                matches_network_filter(network_config, filter)
+            } else {
+                false
+            }
+        })
+        .collect()
+}
+
+fn matches_network_filter(network_config: &str, filter: &str) -> bool {
+    // Extract the network name from the path
+    // e.g., "modal-networks://devnet3" -> "devnet3"
+    let network_name = network_config
+        .strip_prefix("modal-networks://")
+        .unwrap_or(network_config);
+    
+    // Support simple wildcard matching
+    if filter.ends_with('*') {
+        let prefix = filter.trim_end_matches('*');
+        network_name.starts_with(prefix)
+    } else {
+        network_name == filter
+    }
 }
 
 fn find_running_nodes() -> Result<Vec<NodeInfo>> {
@@ -204,7 +256,7 @@ fn get_node_info_from_dir(dir: &std::path::Path, pid: u32) -> Option<NodeInfo> {
         .ok()
         .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok());
     
-    let (peer_id, listeners) = if let Some(config) = config_result {
+    let (peer_id, listeners, network_config) = if let Some(config) = config_result {
         let peer_id = config.get("id")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
@@ -217,9 +269,14 @@ fn get_node_info_from_dir(dir: &std::path::Path, pid: u32) -> Option<NodeInfo> {
                     .collect()
             });
         
-        (peer_id, listeners)
+        // Extract network_config_path
+        let network_config = config.get("network_config_path")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        
+        (peer_id, listeners, network_config)
     } else {
-        (None, None)
+        (None, None, None)
     };
     
     Some(NodeInfo {
@@ -227,6 +284,7 @@ fn get_node_info_from_dir(dir: &std::path::Path, pid: u32) -> Option<NodeInfo> {
         dir: dir.to_path_buf(),
         peer_id,
         listeners,
+        network_config,
     })
 }
 
@@ -250,6 +308,10 @@ fn print_node_info(node: &NodeInfo, verbose: bool) -> Result<()> {
     
     if let Some(peer_id) = &node.peer_id {
         println!("Peer ID: {}", peer_id);
+    }
+    
+    if let Some(network_config) = &node.network_config {
+        println!("Network: {}", network_config);
     }
     
     if let Some(listeners) = &node.listeners {

@@ -151,6 +151,8 @@ modal local nodes [OPTIONS]
 
 **Options:**
 - `--verbose`, `-v` - Show verbose output with full paths
+- `--network <FILTER>` - Filter by network config path (supports wildcards)
+- `--devnet` - Shorthand for `--network "devnet*"`
 
 **Examples:**
 ```bash
@@ -159,6 +161,18 @@ modal local nodes
 
 # Show full paths
 modal local nodes --verbose
+
+# Filter to only devnet nodes (using wildcard)
+modal local nodes --network "devnet*"
+
+# Shorthand for devnet filter
+modal local nodes --devnet
+
+# Filter to specific network
+modal local nodes --network "devnet3"
+
+# Filter to testnet nodes
+modal local nodes --network "testnet*"
 
 # Count running nodes
 modal local nodes | grep "^PID:" | wc -l
@@ -175,12 +189,14 @@ Running Modal Nodes:
 PID: 12345
 Directory: ./tmp/node1
 Peer ID: 12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd
+Network: modal-networks://devnet3
 Listening addresses:
   • /ip4/0.0.0.0/tcp/10101/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd
 
 PID: 12346
 Directory: ./tmp/node2
 Peer ID: 12D3KooWTest456789012345678901234567890123456789012
+Network: modal-networks://devnet3
 Listening addresses:
   • /ip4/0.0.0.0/tcp/10102/ws/p2p/12D3KooWTest456789012345678901234567890123456789012
 
@@ -191,7 +207,7 @@ Found 2 running node(s)
 - Uses `pgrep` to find modal processes running with `run` commands
 - Scans common directories for `node.pid` files
 - Reads config.json from discovered node directories
-- Displays PID, directory, peer ID, and listening addresses
+- Displays PID, directory, peer ID, network config, and listening addresses
 - Deduplicates nodes found through multiple methods
 
 **Discovery methods:**
@@ -216,6 +232,8 @@ modal local killall-nodes [OPTIONS]
 **Options:**
 - `--force`, `-f` - Force kill (SIGKILL) instead of graceful shutdown (SIGTERM)
 - `--dry-run` - Show what would be killed without actually killing
+- `--network <FILTER>` - Filter by network config path (supports wildcards)
+- `--devnet` - Shorthand for `--network "devnet*"`
 
 **Examples:**
 ```bash
@@ -227,6 +245,19 @@ modal local killall-nodes --force
 
 # Preview what would be killed without doing it
 modal local killall-nodes --dry-run
+
+# Kill only devnet nodes (using wildcard)
+modal local killall-nodes --network "devnet*"
+
+# Shorthand for killing devnet nodes
+modal local killall-nodes --devnet
+
+# Kill only specific network nodes
+modal local killall-nodes --network "devnet3" --force
+
+# Kill testnet nodes with dry-run first
+modal local killall-nodes --network "testnet*" --dry-run
+modal local killall-nodes --network "testnet*"
 
 # Use in cleanup scripts
 cleanup() {
@@ -252,10 +283,17 @@ Summary:
 
 **How it works:**
 - Uses the same discovery mechanism as `modal local nodes`
+- Optionally filters nodes by network config pattern
 - Sends SIGTERM (graceful) or SIGKILL (force) to each process
 - Cleans up PID files automatically
 - Handles stale processes gracefully
 - Shows summary of operations
+
+**Network Filtering:**
+- Supports exact matches: `--network "devnet3"`
+- Supports wildcards: `--network "devnet*"` matches devnet1, devnet2, devnet3, etc.
+- Extracts network name from `modal-networks://` URLs
+- Only matches nodes that have a `network_config_path` configured
 
 **Safety Features:**
 - Dry-run mode for testing
@@ -310,19 +348,24 @@ modal node kill --dir ./tmp/node1
 
 ### 1. Development and Testing
 ```bash
-# Start multiple nodes
-modal node run-validator --dir ./node1 &
-modal node run-validator --dir ./node2 &
-modal node run-validator --dir ./node3 &
+# Start multiple nodes on different networks
+modal node run-validator --dir ./devnet1-node --network devnet1 &
+modal node run-validator --dir ./devnet3-node --network devnet3 &
+modal node run-validator --dir ./testnet-node --network testnet &
 
 # Check what's running
 modal local nodes
 
-# Get address of a node to connect another peer
-BOOTSTRAP=$(modal node address --dir ./node1 --one)
-modal node run-validator --dir ./node4 --bootstrapper "$BOOTSTRAP" &
+# Check only devnet nodes (shorthand)
+modal local nodes --devnet
 
-# Clean up everything at once
+# Check only devnet nodes (explicit)
+modal local nodes --network "devnet*"
+
+# Clean up only devnet nodes (shorthand)
+modal local killall-nodes --devnet
+
+# Clean up everything
 modal local killall-nodes
 ```
 
@@ -360,12 +403,41 @@ trap cleanup EXIT
 
 ### 5. Quick Reset During Development
 ```bash
+# Kill only devnet nodes and restart (shorthand)
+modal local killall-nodes --devnet --force
+./scripts/setup-devnet.sh
+
+# Kill only devnet nodes and restart (explicit)
+modal local killall-nodes --network "devnet*" --force
+./scripts/setup-devnet.sh
+
 # Nuclear option - kill everything and start fresh
 modal local killall-nodes --force
 rm -rf ./tmp/node*
 
 # Start clean nodes
 ./setup-test-network.sh
+```
+
+### 6. Network-Specific Operations
+```bash
+# Check if any devnet nodes are running (shorthand)
+if modal local nodes --devnet | grep -q "PID:"; then
+    echo "Devnet nodes are running"
+fi
+
+# Check if any devnet nodes are running (explicit)
+if modal local nodes --network "devnet*" | grep -q "PID:"; then
+    echo "Devnet nodes are running"
+fi
+
+# Restart all testnet nodes
+modal local killall-nodes --network "testnet*"
+sleep 2
+./scripts/start-testnet-nodes.sh
+
+# Kill devnet nodes but keep testnet running (shorthand)
+modal local killall-nodes --devnet --force
 ```
 
 ## See Also

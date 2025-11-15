@@ -17,14 +17,37 @@ pub struct Opts {
     /// Dry run - show what would be killed without actually killing
     #[clap(long)]
     pub dry_run: bool,
+
+    /// Filter by network config path (supports wildcards, e.g., "devnet*", "testnet")
+    #[clap(long)]
+    pub network: Option<String>,
+
+    /// Shorthand for --network "devnet*"
+    #[clap(long)]
+    pub devnet: bool,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
     // Reuse the node discovery from the nodes command
-    let nodes = super::nodes::discover_running_nodes()?;
+    let mut nodes = super::nodes::discover_running_nodes()?;
+    
+    // Apply network filter if specified
+    let filter = if opts.devnet {
+        Some("devnet*".to_string())
+    } else {
+        opts.network.clone()
+    };
+    
+    if let Some(filter) = &filter {
+        nodes = super::nodes::filter_nodes_by_network(nodes, filter);
+    }
     
     if nodes.is_empty() {
-        println!("No running modal nodes found.");
+        if filter.is_some() {
+            println!("No running modal nodes found matching network filter.");
+        } else {
+            println!("No running modal nodes found.");
+        }
         return Ok(());
     }
     
