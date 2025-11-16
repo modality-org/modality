@@ -31,6 +31,7 @@ log = "0.4.17"
 sha2 = "0.10"
 hex = "0.4"
 base64 = "0.22"
+colored = "2.1"
 libp2p = { version = "0.54.1", features = ["macros", "tokio", "tcp", "noise", "yamux", "gossipsub", "request-response", "kad", "ping", "identify", "rendezvous", "relay", "dns", "websocket"] }
 
 [target.'cfg(unix)'.dependencies]

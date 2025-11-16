@@ -18,6 +18,59 @@ import Block from "@modality-dev/network-datastore/data/Block";
 import Contract from "@modality-dev/contract/Contract";
 import Commit from "@modality-dev/contract/Commit";
 import crypto from "crypto";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Standard predicates to include in network genesis contract
+const STANDARD_PREDICATES = [
+  { name: "signed_by", description: "Verify cryptographic signatures" },
+  { name: "amount_in_range", description: "Check numeric bounds" },
+  { name: "has_property", description: "Check JSON property existence" },
+  { name: "timestamp_valid", description: "Validate timestamp constraints" },
+  { name: "post_to_path", description: "Verify commit actions" },
+];
+
+/**
+ * Add standard WASM predicates to the genesis contract
+ * These predicates are available network-wide at /_code/modal/*.wasm
+ */
+async function addStandardPredicates(commit) {
+  // Path to compiled predicates
+  const predicatesDir = path.join(__dirname, "../../../../../build/wasm/predicates");
+  
+  // Check if predicates directory exists
+  if (!fs.existsSync(predicatesDir)) {
+    console.log("⚠️  Standard predicates not found. Run build-predicates.sh to compile them.");
+    console.log(`   Expected location: ${predicatesDir}`);
+    return;
+  }
+  
+  let addedCount = 0;
+  
+  for (const predicate of STANDARD_PREDICATES) {
+    const wasmPath = path.join(predicatesDir, `${predicate.name}.wasm`);
+    
+    if (fs.existsSync(wasmPath)) {
+      const wasmBytes = fs.readFileSync(wasmPath);
+      const wasmBase64 = wasmBytes.toString("base64");
+      
+      // Add predicate as POST action to /_code/modal/{name}.wasm
+      commit.addPost(`/_code/modal/${predicate.name}.wasm`, wasmBase64);
+      
+      console.log(`  ✓ Added predicate: ${predicate.name} (${predicate.description})`);
+      addedCount++;
+    } else {
+      console.log(`  ⚠️  Predicate not found: ${predicate.name}.wasm`);
+    }
+  }
+  
+  if (addedCount > 0) {
+    console.log(`✓ Added ${addedCount} standard predicates to genesis contract`);
+  }
+}
 
 async function createNetworkGenesisContract(networkInfo) {
   // Generate a genesis contract for the network parameters
@@ -42,6 +95,10 @@ async function createNetworkGenesisContract(networkInfo) {
       commit.addPost(`/network/validators/${index}.text`, validator);
     });
   }
+  
+  // Add standard predicates to /_code/modal/ (if available)
+  // These are compiled WASM modules that provide standard validation logic
+  await addStandardPredicates(commit);
   
   // Note: Bootstrappers are NOT included in the genesis contract
   // They are operational/networking config only, kept in network config file

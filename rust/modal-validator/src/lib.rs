@@ -18,9 +18,11 @@ pub mod validator;
 pub mod shoal_validator;
 pub mod error;
 pub mod contract_processor;
+pub mod predicate_executor;
 
 pub use validator::{Validator, ValidatorConfig};
 pub use shoal_validator::{ShoalValidator, ShoalValidatorConfig, NarwhalConfig};
 pub use error::{Result, ValidatorError};
 pub use contract_processor::{ContractProcessor, StateChange};
+pub use predicate_executor::PredicateExecutor;
 

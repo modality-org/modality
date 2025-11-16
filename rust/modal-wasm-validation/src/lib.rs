@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 
 pub mod validators;
 pub mod wasm_bindings;
+pub mod predicates;
+pub mod predicate_bindings;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ValidationResult {
@@ -38,4 +40,5 @@ impl ValidationResult {
 
 pub use validators::*;
 pub use wasm_bindings::*;
+pub use predicates::*;
 

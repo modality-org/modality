@@ -6,7 +6,8 @@ use modal_datastore::models::{ContractAsset, AssetBalance, Commit, ReceivedSend,
 use modal_datastore::model::Model;
 use serde_json::Value;
 use modal_wasm_runtime::{WasmExecutor, DEFAULT_GAS_LIMIT};
-use modal_wasm_validation::{ValidationResult, validators};
+use modal_wasm_validation::{ValidationResult, validators, PredicateContext, PredicateResult};
+use crate::predicate_executor::PredicateExecutor;
 
 /// Represents a state change from processing a commit action
 #[derive(Debug, Clone)]
@@ -52,11 +53,16 @@ pub enum StateChange {
 /// Processes contract commits and manages asset state during consensus
 pub struct ContractProcessor {
     datastore: Arc<Mutex<NetworkDatastore>>,
+    predicate_executor: PredicateExecutor,
 }
 
 impl ContractProcessor {
     pub fn new(datastore: Arc<Mutex<NetworkDatastore>>) -> Self {
-        Self { datastore }
+        let predicate_executor = PredicateExecutor::new(
+            Arc::clone(&datastore),
+            DEFAULT_GAS_LIMIT
+        );
+        Self { datastore, predicate_executor }
     }
 
     /// Process a commit during consensus ordering
@@ -382,6 +388,40 @@ impl ContractProcessor {
             amount,
             send_commit_id: send_commit_id.to_string(),
         })
+    }
+
+    /// Evaluate a predicate and return the result as a proposition
+    /// 
+    /// This method:
+    /// 1. Parses the predicate path and arguments
+    /// 2. Executes the predicate via PredicateExecutor
+    /// 3. Returns the result as a string proposition (e.g., "+predicate_name" or "-predicate_name")
+    pub async fn evaluate_predicate(
+        &self,
+        contract_id: &str,
+        predicate_path: &str,
+        args: Value,
+        block_height: u64,
+        timestamp: u64,
+    ) -> Result<String> {
+        // Extract predicate name from path for proposition
+        let predicate_name = WasmModule::module_name_from_path(predicate_path)
+            .ok_or_else(|| anyhow::anyhow!("Invalid predicate path: {}", predicate_path))?;
+
+        // Create context for predicate execution
+        let context = PredicateContext {
+            contract_id: contract_id.to_string(),
+            block_height,
+            timestamp,
+        };
+
+        // Execute the predicate
+        let result = self.predicate_executor
+            .evaluate_predicate(contract_id, predicate_path, args, context)
+            .await?;
+
+        // Convert result to proposition string
+        Ok(PredicateExecutor::result_to_proposition(&predicate_name, &result))
     }
 
     /// Process a POST action during consensus

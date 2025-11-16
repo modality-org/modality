@@ -5,6 +5,9 @@ use serde::{Serialize, Deserialize};
 pub struct Property {
     pub sign: PropertySign,
     pub name: String,
+    /// Optional source for the property value (static or predicate)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<PropertySource>,
 }
 
 /// The sign of a property
@@ -12,6 +15,20 @@ pub struct Property {
 pub enum PropertySign {
     Plus,
     Minus,
+}
+
+/// Source of a property's value
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum PropertySource {
+    /// Static property (manually assigned)
+    Static,
+    /// Predicate-based property (computed via WASM)
+    Predicate {
+        /// Path to the WASM module (e.g., "/_code/modal/signed_by.wasm")
+        path: String,
+        /// Arguments to pass to the predicate (JSON)
+        args: serde_json::Value,
+    },
 }
 
 /// Represents a transition between nodes
@@ -149,9 +166,40 @@ impl Transition {
 }
 
 impl Property {
-    /// Create a new property
+    /// Create a new static property
     pub fn new(sign: PropertySign, name: String) -> Self {
-        Self { sign, name }
+        Self { 
+            sign, 
+            name,
+            source: Some(PropertySource::Static),
+        }
+    }
+
+    /// Create a new predicate-based property
+    pub fn new_predicate(sign: PropertySign, name: String, path: String, args: serde_json::Value) -> Self {
+        Self {
+            sign,
+            name,
+            source: Some(PropertySource::Predicate { path, args }),
+        }
+    }
+
+    /// Check if this is a static property
+    pub fn is_static(&self) -> bool {
+        matches!(self.source, Some(PropertySource::Static) | None)
+    }
+
+    /// Check if this is a predicate-based property
+    pub fn is_predicate(&self) -> bool {
+        matches!(self.source, Some(PropertySource::Predicate { .. }))
+    }
+
+    /// Get the predicate path and args if this is a predicate property
+    pub fn get_predicate(&self) -> Option<(&str, &serde_json::Value)> {
+        match &self.source {
+            Some(PropertySource::Predicate { path, args }) => Some((path.as_str(), args)),
+            _ => None,
+        }
     }
 }
 

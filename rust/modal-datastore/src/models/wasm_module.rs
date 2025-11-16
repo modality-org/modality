@@ -88,6 +88,37 @@ impl WasmModule {
             created_at,
         }
     }
+
+    /// Extract module name from a path
+    /// E.g., "/_code/my_predicate.wasm" -> "my_predicate"
+    ///       "/validators/primary.wasm" -> "primary"
+    pub fn module_name_from_path(path: &str) -> Option<String> {
+        if !path.ends_with(".wasm") {
+            return None;
+        }
+        
+        path.trim_end_matches(".wasm")
+            .split('/')
+            .last()
+            .map(|s| s.to_string())
+    }
+
+    /// Find a WASM module by contract ID and path
+    /// This is a helper for lookups by path instead of module_name
+    pub async fn find_by_contract_and_path(
+        datastore: &crate::NetworkDatastore,
+        contract_id: &str,
+        path: &str,
+    ) -> Result<Option<Self>> {
+        if let Some(module_name) = Self::module_name_from_path(path) {
+            let mut keys = HashMap::new();
+            keys.insert("contract_id".to_string(), contract_id.to_string());
+            keys.insert("module_name".to_string(), module_name);
+            Self::find_one(datastore, keys).await
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 // Helper module for serializing bytes
@@ -151,6 +182,29 @@ mod tests {
         module.wasm_bytes = vec![5, 4, 3, 2, 1];
         
         assert!(!module.verify_hash());
+    }
+
+    #[test]
+    fn test_module_name_from_path() {
+        assert_eq!(
+            WasmModule::module_name_from_path("/_code/my_predicate.wasm"),
+            Some("my_predicate".to_string())
+        );
+        
+        assert_eq!(
+            WasmModule::module_name_from_path("/validators/primary.wasm"),
+            Some("primary".to_string())
+        );
+        
+        assert_eq!(
+            WasmModule::module_name_from_path("/_code/modal/signed_by.wasm"),
+            Some("signed_by".to_string())
+        );
+        
+        assert_eq!(
+            WasmModule::module_name_from_path("/not_wasm.txt"),
+            None
+        );
     }
 }
 

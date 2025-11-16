@@ -25,4 +25,5 @@ wasm = ["wasm-bindgen"]
 
 [dev-dependencies]
 tokio = { version = "1.42.0", features = ["full", "test-util"] }
+wat = "1.0"
 

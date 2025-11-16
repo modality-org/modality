@@ -73,6 +73,12 @@ enum Commands {
         command: RunCommands,
     },
 
+    #[command(about = "Predicate management and testing")]
+    Predicate {
+        #[command(subcommand)]
+        command: PredicateCommands,
+    },
+
     #[command(about = "Upgrade modal to the latest version")]
     Upgrade(modality::cmds::upgrade::Opts),
 }
@@ -206,6 +212,18 @@ enum RunCommands {
     Observer(cmds::node::run_observer::Opts),
 }
 
+#[derive(Subcommand)]
+enum PredicateCommands {
+    #[command(about = "List available predicates")]
+    List(cmds::predicate::list::Opts),
+
+    #[command(about = "Get information about a specific predicate")]
+    Info(cmds::predicate::info::Opts),
+
+    #[command(about = "Test a predicate with sample data")]
+    Test(cmds::predicate::test::Opts),
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -275,6 +293,13 @@ async fn main() -> Result<()> {
                 RunCommands::Miner(opts) => cmds::node::run_miner::run(opts).await?,
                 RunCommands::Validator(opts) => cmds::node::run_validator::run(opts).await?,
                 RunCommands::Observer(opts) => cmds::node::run_observer::run(opts).await?,
+            }
+        }
+        Commands::Predicate { command } => {
+            match command {
+                PredicateCommands::List(opts) => cmds::predicate::list::run(opts).await?,
+                PredicateCommands::Info(opts) => cmds::predicate::info::run(opts).await?,
+                PredicateCommands::Test(opts) => cmds::predicate::test::run(opts).await?,
             }
         }
         Commands::Upgrade(opts) => modality::cmds::upgrade::run(opts).await?,
