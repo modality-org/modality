@@ -1,3 +1,17 @@
 {
-  "name": "devnet3"
+  "name": "devnet3",
+  "description": "Three validator development network",
+  "difficulty": 1,
+  "target_block_time_secs": 60,
+  "blocks_per_epoch": 40,
+  "validators": [
+    "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
+    "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
+    "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
+  ],
+  "bootstrappers": [
+    "/ip4/127.0.0.1/tcp/10301/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
+    "/ip4/127.0.0.1/tcp/10302/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
+    "/ip4/127.0.0.1/tcp/10303/ws/p2p/12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
+  ]
 }

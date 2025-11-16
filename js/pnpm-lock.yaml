@@ -22,7 +22,7 @@ importers:
         version: 8.10.0(eslint@8.57.0)
       jest:
         specifier: ^29.7
-        version: 29.7.0(@types/node@16.18.126)
+        version: 29.7.0(@types/node@20.14.1)
       lerna:
         specifier: ^8.1.2
         version: 8.1.2(encoding@0.1.13)
@@ -35,6 +35,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@modality-dev/contract':
+        specifier: workspace:^
+        version: link:../contract
       '@modality-dev/network-datastore':
         specifier: workspace:^
         version: link:../network-datastore
@@ -58,10 +61,10 @@ importers:
         version: 11.2.0
       inquirer:
         specifier: ^12.3.0
-        version: 12.3.0(@types/node@20.14.1)
+        version: 12.3.0(@types/node@16.18.126)
       jest:
         specifier: ^29.7
-        version: 29.7.0(@types/node@20.14.1)
+        version: 29.7.0(@types/node@16.18.126)
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -507,6 +510,46 @@ importers:
       uint8arrays:
         specifier: ^3.0.0
         version: 3.1.1
+
+  packages/sdk:
+    dependencies:
+      '@chainsafe/libp2p-noise':
+        specifier: ^16.0.0
+        version: 16.0.0
+      '@chainsafe/libp2p-yamux':
+        specifier: ^6.0.2
+        version: 6.0.2
+      '@libp2p/identify':
+        specifier: ^3.0.15
+        version: 3.0.15
+      '@libp2p/interface':
+        specifier: ^2.4.0
+        version: 2.4.0
+      '@libp2p/websockets':
+        specifier: ^8.2.0
+        version: 8.2.0(bufferutil@4.0.8)
+      '@multiformats/multiaddr':
+        specifier: ^12.2.1
+        version: 12.3.4
+      debug:
+        specifier: ^4.3.4
+        version: 4.3.7
+      it-pipe:
+        specifier: ^3.0.1
+        version: 3.0.1
+      libp2p:
+        specifier: ^2.5.0
+        version: 2.5.0
+      uint8arrays:
+        specifier: ^3.1.1
+        version: 3.1.1
+    devDependencies:
+      '@jest/globals':
+        specifier: ^29.7.0
+        version: 29.7.0
+      jest:
+        specifier: ^29.7
+        version: 29.7.0(@types/node@20.14.1)
 
   packages/synthesizer:
     dependencies:
@@ -6177,25 +6220,25 @@ snapshots:
 
   '@hutson/parse-repository-url@3.0.2': {}
 
-  '@inquirer/checkbox@4.0.4(@types/node@20.14.1)':
+  '@inquirer/checkbox@4.0.4(@types/node@16.18.126)':
     dependencies:
-      '@inquirer/core': 10.1.2(@types/node@20.14.1)
+      '@inquirer/core': 10.1.2(@types/node@16.18.126)
       '@inquirer/figures': 1.0.9
-      '@inquirer/type': 3.0.2(@types/node@20.14.1)
-      '@types/node': 20.14.1
+      '@inquirer/type': 3.0.2(@types/node@16.18.126)
+      '@types/node': 16.18.126
       ansi-escapes: 4.3.2
       yoctocolors-cjs: 2.1.2
 
-  '@inquirer/confirm@5.1.1(@types/node@20.14.1)':
+  '@inquirer/confirm@5.1.1(@types/node@16.18.126)':
     dependencies:
-      '@inquirer/core': 10.1.2(@types/node@20.14.1)
-      '@inquirer/type': 3.0.2(@types/node@20.14.1)
-      '@types/node': 20.14.1
+      '@inquirer/core': 10.1.2(@types/node@16.18.126)
+      '@inquirer/type': 3.0.2(@types/node@16.18.126)
+      '@types/node': 16.18.126
 
-  '@inquirer/core@10.1.2(@types/node@20.14.1)':
+  '@inquirer/core@10.1.2(@types/node@16.18.126)':
     dependencies:
       '@inquirer/figures': 1.0.9
-      '@inquirer/type': 3.0.2(@types/node@20.14.1)
+      '@inquirer/type': 3.0.2(@types/node@16.18.126)
       ansi-escapes: 4.3.2
       cli-width: 4.1.0
       mute-stream: 2.0.0
@@ -6206,82 +6249,82 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
-  '@inquirer/editor@4.2.1(@types/node@20.14.1)':
+  '@inquirer/editor@4.2.1(@types/node@16.18.126)':
     dependencies:
-      '@inquirer/core': 10.1.2(@types/node@20.14.1)
-      '@inquirer/type': 3.0.2(@types/node@20.14.1)
-      '@types/node': 20.14.1
+      '@inquirer/core': 10.1.2(@types/node@16.18.126)
+      '@inquirer/type': 3.0.2(@types/node@16.18.126)
+      '@types/node': 16.18.126
       external-editor: 3.1.0
 
-  '@inquirer/expand@4.0.4(@types/node@20.14.1)':
+  '@inquirer/expand@4.0.4(@types/node@16.18.126)':
     dependencies:
-      '@inquirer/core': 10.1.2(@types/node@20.14.1)
-      '@inquirer/type': 3.0.2(@types/node@20.14.1)
-      '@types/node': 20.14.1
+      '@inquirer/core': 10.1.2(@types/node@16.18.126)
+      '@inquirer/type': 3.0.2(@types/node@16.18.126)
+      '@types/node': 16.18.126
       yoctocolors-cjs: 2.1.2
 
   '@inquirer/figures@1.0.9': {}
 
-  '@inquirer/input@4.1.1(@types/node@20.14.1)':
+  '@inquirer/input@4.1.1(@types/node@16.18.126)':
     dependencies:
-      '@inquirer/core': 10.1.2(@types/node@20.14.1)
-      '@inquirer/type': 3.0.2(@types/node@20.14.1)
-      '@types/node': 20.14.1
+      '@inquirer/core': 10.1.2(@types/node@16.18.126)
+      '@inquirer/type': 3.0.2(@types/node@16.18.126)
+      '@types/node': 16.18.126
 
-  '@inquirer/number@3.0.4(@types/node@20.14.1)':
+  '@inquirer/number@3.0.4(@types/node@16.18.126)':
     dependencies:
-      '@inquirer/core': 10.1.2(@types/node@20.14.1)
-      '@inquirer/type': 3.0.2(@types/node@20.14.1)
-      '@types/node': 20.14.1
+      '@inquirer/core': 10.1.2(@types/node@16.18.126)
+      '@inquirer/type': 3.0.2(@types/node@16.18.126)
+      '@types/node': 16.18.126
 
-  '@inquirer/password@4.0.4(@types/node@20.14.1)':
+  '@inquirer/password@4.0.4(@types/node@16.18.126)':
     dependencies:
-      '@inquirer/core': 10.1.2(@types/node@20.14.1)
-      '@inquirer/type': 3.0.2(@types/node@20.14.1)
-      '@types/node': 20.14.1
+      '@inquirer/core': 10.1.2(@types/node@16.18.126)
+      '@inquirer/type': 3.0.2(@types/node@16.18.126)
+      '@types/node': 16.18.126
       ansi-escapes: 4.3.2
 
-  '@inquirer/prompts@7.2.1(@types/node@20.14.1)':
+  '@inquirer/prompts@7.2.1(@types/node@16.18.126)':
     dependencies:
-      '@inquirer/checkbox': 4.0.4(@types/node@20.14.1)
-      '@inquirer/confirm': 5.1.1(@types/node@20.14.1)
-      '@inquirer/editor': 4.2.1(@types/node@20.14.1)
-      '@inquirer/expand': 4.0.4(@types/node@20.14.1)
-      '@inquirer/input': 4.1.1(@types/node@20.14.1)
-      '@inquirer/number': 3.0.4(@types/node@20.14.1)
-      '@inquirer/password': 4.0.4(@types/node@20.14.1)
-      '@inquirer/rawlist': 4.0.4(@types/node@20.14.1)
-      '@inquirer/search': 3.0.4(@types/node@20.14.1)
-      '@inquirer/select': 4.0.4(@types/node@20.14.1)
-      '@types/node': 20.14.1
+      '@inquirer/checkbox': 4.0.4(@types/node@16.18.126)
+      '@inquirer/confirm': 5.1.1(@types/node@16.18.126)
+      '@inquirer/editor': 4.2.1(@types/node@16.18.126)
+      '@inquirer/expand': 4.0.4(@types/node@16.18.126)
+      '@inquirer/input': 4.1.1(@types/node@16.18.126)
+      '@inquirer/number': 3.0.4(@types/node@16.18.126)
+      '@inquirer/password': 4.0.4(@types/node@16.18.126)
+      '@inquirer/rawlist': 4.0.4(@types/node@16.18.126)
+      '@inquirer/search': 3.0.4(@types/node@16.18.126)
+      '@inquirer/select': 4.0.4(@types/node@16.18.126)
+      '@types/node': 16.18.126
 
-  '@inquirer/rawlist@4.0.4(@types/node@20.14.1)':
+  '@inquirer/rawlist@4.0.4(@types/node@16.18.126)':
     dependencies:
-      '@inquirer/core': 10.1.2(@types/node@20.14.1)
-      '@inquirer/type': 3.0.2(@types/node@20.14.1)
-      '@types/node': 20.14.1
+      '@inquirer/core': 10.1.2(@types/node@16.18.126)
+      '@inquirer/type': 3.0.2(@types/node@16.18.126)
+      '@types/node': 16.18.126
       yoctocolors-cjs: 2.1.2
 
-  '@inquirer/search@3.0.4(@types/node@20.14.1)':
+  '@inquirer/search@3.0.4(@types/node@16.18.126)':
     dependencies:
-      '@inquirer/core': 10.1.2(@types/node@20.14.1)
+      '@inquirer/core': 10.1.2(@types/node@16.18.126)
       '@inquirer/figures': 1.0.9
-      '@inquirer/type': 3.0.2(@types/node@20.14.1)
-      '@types/node': 20.14.1
+      '@inquirer/type': 3.0.2(@types/node@16.18.126)
+      '@types/node': 16.18.126
       yoctocolors-cjs: 2.1.2
 
-  '@inquirer/select@4.0.4(@types/node@20.14.1)':
+  '@inquirer/select@4.0.4(@types/node@16.18.126)':
     dependencies:
-      '@inquirer/core': 10.1.2(@types/node@20.14.1)
+      '@inquirer/core': 10.1.2(@types/node@16.18.126)
       '@inquirer/figures': 1.0.9
-      '@inquirer/type': 3.0.2(@types/node@20.14.1)
-      '@types/node': 20.14.1
+      '@inquirer/type': 3.0.2(@types/node@16.18.126)
+      '@types/node': 16.18.126
       ansi-escapes: 4.3.2
       yoctocolors-cjs: 2.1.2
 
-  '@inquirer/type@3.0.2(@types/node@20.14.1)':
+  '@inquirer/type@3.0.2(@types/node@16.18.126)':
     dependencies:
-      '@types/node': 20.14.1
+      '@types/node': 16.18.126
 
   '@isaacs/cliui@8.0.2':
     dependencies:
@@ -6738,14 +6781,14 @@ snapshots:
 
   '@libp2p/crypto@4.1.1':
     dependencies:
-      '@libp2p/interface': 1.3.1
+      '@libp2p/interface': 1.7.0
       '@noble/curves': 1.4.0
       '@noble/hashes': 1.4.0
       asn1js: 3.0.5
       multiformats: 13.3.1
       protons-runtime: 5.4.0
       uint8arraylist: 2.4.8
-      uint8arrays: 5.0.3
+      uint8arrays: 5.1.0
 
   '@libp2p/crypto@4.1.9':
     dependencies:
@@ -6789,9 +6832,9 @@ snapshots:
 
   '@libp2p/interface-internal@1.2.0':
     dependencies:
-      '@libp2p/interface': 1.3.1
+      '@libp2p/interface': 1.7.0
       '@libp2p/peer-collections': 5.2.0
-      '@multiformats/multiaddr': 12.2.1
+      '@multiformats/multiaddr': 12.3.4
       uint8arraylist: 2.4.8
     transitivePeerDependencies:
       - supports-color
@@ -6810,7 +6853,7 @@ snapshots:
 
   '@libp2p/interface@1.3.1':
     dependencies:
-      '@multiformats/multiaddr': 12.2.1
+      '@multiformats/multiaddr': 12.3.4
       it-pushable: 3.2.3
       it-stream-types: 2.0.1
       multiformats: 13.3.1
@@ -6821,9 +6864,9 @@ snapshots:
     dependencies:
       '@multiformats/multiaddr': 12.3.4
       it-pushable: 3.2.3
-      it-stream-types: 2.0.2
+      it-stream-types: 2.0.1
       multiformats: 13.3.1
-      progress-events: 1.0.1
+      progress-events: 1.0.0
       uint8arraylist: 2.4.8
 
   '@libp2p/interface@2.4.0':
@@ -6838,7 +6881,7 @@ snapshots:
   '@libp2p/logger@2.1.1':
     dependencies:
       '@libp2p/interface-peer-id': 2.0.2
-      '@multiformats/multiaddr': 12.2.1
+      '@multiformats/multiaddr': 12.3.4
       debug: 4.3.7
       interface-datastore: 8.2.11
       multiformats: 11.0.2
@@ -6847,8 +6890,8 @@ snapshots:
 
   '@libp2p/logger@4.0.12':
     dependencies:
-      '@libp2p/interface': 1.3.1
-      '@multiformats/multiaddr': 12.2.1
+      '@libp2p/interface': 1.7.0
+      '@multiformats/multiaddr': 12.3.4
       debug: 4.3.7
       interface-datastore: 8.2.11
       multiformats: 13.3.1
@@ -6885,7 +6928,7 @@ snapshots:
 
   '@libp2p/peer-collections@5.2.0':
     dependencies:
-      '@libp2p/interface': 1.3.1
+      '@libp2p/interface': 1.7.0
       '@libp2p/peer-id': 4.1.1
       '@libp2p/utils': 5.4.0
     transitivePeerDependencies:
@@ -6909,9 +6952,9 @@ snapshots:
 
   '@libp2p/peer-id@4.1.1':
     dependencies:
-      '@libp2p/interface': 1.3.1
+      '@libp2p/interface': 1.7.0
       multiformats: 13.1.0
-      uint8arrays: 5.0.3
+      uint8arrays: 5.1.0
 
   '@libp2p/peer-id@5.0.10':
     dependencies:
@@ -7002,9 +7045,9 @@ snapshots:
     dependencies:
       '@chainsafe/is-ip': 2.0.2
       '@libp2p/crypto': 4.1.1
-      '@libp2p/interface': 1.3.1
+      '@libp2p/interface': 1.7.0
       '@libp2p/logger': 4.0.12
-      '@multiformats/multiaddr': 12.2.1
+      '@multiformats/multiaddr': 12.3.4
       '@multiformats/multiaddr-matcher': 1.2.1
       '@sindresorhus/fnv1a': 3.1.0
       '@types/murmurhash3js-revisited': 3.0.3
@@ -7019,7 +7062,7 @@ snapshots:
       race-event: 1.3.0
       race-signal: 1.0.2
       uint8arraylist: 2.4.8
-      uint8arrays: 5.0.3
+      uint8arrays: 5.1.0
     transitivePeerDependencies:
       - supports-color
 
@@ -7109,16 +7152,16 @@ snapshots:
       hashlru: 2.3.0
       p-queue: 8.0.1
       progress-events: 1.0.0
-      uint8arrays: 5.0.3
+      uint8arrays: 5.1.0
 
   '@multiformats/mafmt@12.1.6':
     dependencies:
-      '@multiformats/multiaddr': 12.2.1
+      '@multiformats/multiaddr': 12.3.4
 
   '@multiformats/multiaddr-matcher@1.2.1':
     dependencies:
       '@chainsafe/is-ip': 2.0.2
-      '@multiformats/multiaddr': 12.2.1
+      '@multiformats/multiaddr': 12.3.4
       multiformats: 13.3.1
 
   '@multiformats/multiaddr-matcher@1.6.0':
@@ -7606,6 +7649,7 @@ snapshots:
   '@types/node@20.14.1':
     dependencies:
       undici-types: 5.26.5
+    optional: true
 
   '@types/normalize-package-data@2.4.4': {}
 
@@ -9433,12 +9477,12 @@ snapshots:
       validate-npm-package-license: 3.0.4
       validate-npm-package-name: 5.0.0
 
-  inquirer@12.3.0(@types/node@20.14.1):
+  inquirer@12.3.0(@types/node@16.18.126):
     dependencies:
-      '@inquirer/core': 10.1.2(@types/node@20.14.1)
-      '@inquirer/prompts': 7.2.1(@types/node@20.14.1)
-      '@inquirer/type': 3.0.2(@types/node@20.14.1)
-      '@types/node': 20.14.1
+      '@inquirer/core': 10.1.2(@types/node@16.18.126)
+      '@inquirer/prompts': 7.2.1(@types/node@16.18.126)
+      '@inquirer/type': 3.0.2(@types/node@16.18.126)
+      '@types/node': 16.18.126
       ansi-escapes: 4.3.2
       mute-stream: 2.0.0
       run-async: 3.0.0
@@ -9471,7 +9515,7 @@ snapshots:
   interface-datastore@8.2.11:
     dependencies:
       interface-store: 5.1.8
-      uint8arrays: 5.0.3
+      uint8arrays: 5.1.0
 
   interface-datastore@8.3.1:
     dependencies:
@@ -11753,7 +11797,7 @@ snapshots:
     dependencies:
       uint8-varint: 2.0.4
       uint8arraylist: 2.4.8
-      uint8arrays: 5.0.3
+      uint8arrays: 5.1.0
 
   protons-runtime@5.5.0:
     dependencies:
@@ -12457,11 +12501,11 @@ snapshots:
   uint8-varint@2.0.4:
     dependencies:
       uint8arraylist: 2.4.8
-      uint8arrays: 5.0.3
+      uint8arrays: 5.1.0
 
   uint8arraylist@2.4.8:
     dependencies:
-      uint8arrays: 5.0.3
+      uint8arrays: 5.1.0
 
   uint8arrays@3.1.1:
     dependencies:
@@ -12477,7 +12521,8 @@ snapshots:
 
   underscore@1.13.7: {}
 
-  undici-types@5.26.5: {}
+  undici-types@5.26.5:
+    optional: true
 
   unicorn-magic@0.1.0: {}
 

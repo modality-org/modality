@@ -32,26 +32,33 @@ pub async fn run(opts: &Opts) -> Result<()> {
     
     let config = load_config_with_node_dir(opts.config.clone(), dir.clone())?;
     
-    // Open datastore in read-only mode (safe for running nodes)
+    // Try to open datastore in read-only mode (safe for running nodes)
+    // If it doesn't exist yet (node never started), that's okay - we'll just show config info
     let storage_path = config.storage_path.as_ref()
         .context("No storage_path in config")?;
     
-    let datastore = NetworkDatastore::create_in_directory_readonly(&storage_path)
-        .context("Failed to open datastore in read-only mode")?;
+    let datastore_result = NetworkDatastore::create_in_directory_readonly(&storage_path);
     
-    // Get mining statistics from datastore
-    let canonical_blocks = MinerBlock::find_all_canonical(&datastore).await?;
-    let chain_tip = canonical_blocks.last();
-    let genesis_block = canonical_blocks.first();
-    
-    // Count blocks mined by this node
-    let node_peer_id = config.id.as_ref()
-        .context("No peer ID in config")?
-        .to_string();
-    let blocks_mined_by_node = canonical_blocks
-        .iter()
-        .filter(|b| b.nominated_peer_id == node_peer_id)
-        .count();
+    // Get mining statistics from datastore (if available)
+    let (canonical_blocks, chain_tip, genesis_block, blocks_mined_by_node) = if let Ok(datastore) = datastore_result {
+        let canonical_blocks = MinerBlock::find_all_canonical(&datastore).await?;
+        let chain_tip = canonical_blocks.last().cloned();
+        let genesis_block = canonical_blocks.first().cloned();
+        
+        // Count blocks mined by this node
+        let node_peer_id = config.id.as_ref()
+            .context("No peer ID in config")?
+            .to_string();
+        let blocks_mined_by_node = canonical_blocks
+            .iter()
+            .filter(|b| b.nominated_peer_id == node_peer_id)
+            .count();
+        
+        (canonical_blocks, chain_tip, genesis_block, blocks_mined_by_node)
+    } else {
+        // Datastore doesn't exist yet - node hasn't been started
+        (vec![], None, None, 0)
+    };
     
     // Print basic node information
     println!("╭─────────────────────────────────────────────────────────────╮");

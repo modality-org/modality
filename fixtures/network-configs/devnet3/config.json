@@ -1,15 +1,18 @@
 {
   "name": "devnet3",
-  "description": "A static devnet with 3 validators for testing",
-  "bootstrappers": [
-    "/ip4/127.0.0.1/tcp/10301/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
-    "/ip4/127.0.0.1/tcp/10302/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
-    "/ip4/127.0.0.1/tcp/10303/ws/p2p/12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
-  ],
+  "description": "Three validator development network",
+  "difficulty": 1,
+  "target_block_time_secs": 60,
+  "blocks_per_epoch": 40,
   "validators": [
     "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
     "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
     "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
+  ],
+  "bootstrappers": [
+    "/ip4/127.0.0.1/tcp/10301/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
+    "/ip4/127.0.0.1/tcp/10302/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
+    "/ip4/127.0.0.1/tcp/10303/ws/p2p/12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
   ],
   "rounds": {
     "0": {
@@ -18,49 +21,257 @@
         "peer_id": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
         "prev_round_certs": {},
         "opening_sig": "7uQ1Dqh4l1ZmwMgEBVAzuKka19YsxCovWQaMA+nW9lWgOspl644CDaX7WpYUlHQITcAHVx+3KGmMP3XGvZmICg==",
-        "events": [],
-        "closing_sig": "SAqrNEc7WHixMA/HoVwCGpxKAg0kkKlxsWPpkSkfypq48192A3fENZOperw7HeFPvyyVCe5so9t3FZFp7/bmCQ==",
-        "hash": "2SYKNA8BpNmL67WJV3MgN7d2mp6YJSSyYKgyg75wYBG1MibjfPZFUWHPpzbbQbBLdHznqE7Cu73zJooUSHiaeVYU",
+        "events": [
+          {
+            "type": "contract-commit",
+            "contract_id": "12D3KooWGzrC7d1eFPZ6QzGtT58VUKXFWFgXgLyzeCwaXNwsYSah",
+            "commit_id": "0291e2d6027f184b65fadcb3757693496a2697951bd6597bbe04c1ea25820abb",
+            "commit": {
+              "body": [
+                {
+                  "method": "post",
+                  "path": "/network/name.text",
+                  "value": "devnet3"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/description.text",
+                  "value": "Three validator development network"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/difficulty.number",
+                  "value": "1"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/target_block_time_secs.number",
+                  "value": "60"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/blocks_per_epoch.number",
+                  "value": "40"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/validators/0.text",
+                  "value": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/validators/1.text",
+                  "value": "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/validators/2.text",
+                  "value": "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/bootstrappers/0.text",
+                  "value": "/ip4/127.0.0.1/tcp/10301/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/bootstrappers/1.text",
+                  "value": "/ip4/127.0.0.1/tcp/10302/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/bootstrappers/2.text",
+                  "value": "/ip4/127.0.0.1/tcp/10303/ws/p2p/12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
+                }
+              ],
+              "head": {}
+            }
+          }
+        ],
+        "closing_sig": "MQKa5VWbMUf1Lg/h2D9KvdsrubJ2PX8kcBhGGm15py+vJkqRjgZ44BbnEFUdf5rEcqE9tiQ/EISb8cDpzNxgDw==",
         "acks": {
-          "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd": "DkQexYtZaWoS+uyuF1aOIHmBxkPHGHftrNnEBGlS+PRAyQsNPiJMgJRkvdoB4ut1Elktfta2M1gHvRrlfq3ECA==",
-          "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB": "63FeNbShG/RQQqtNWd3/91pr7wAwm+ARmVLeIokHpNPjNYbLN5jwA5C8AjpodaBUUAIFnLhnKVI/V2mVZ8RjAQ==",
-          "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se": "ETrcSyAISqncXDL4OoyLZvwdrurXKXqo2UNEn7BoIgKk66606m9Ob+y2DrsIDph85ukKGr92dYxLCCpELcXnBQ=="
+          "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd": "juHx4qhw0e7IB8J7mSjwzL79frz+g/8fD63Dogxv2lUxGKD19H9uZ1zy2SYlUTRjVj4qSZTwEjIa28d5JdoZDw==",
+          "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB": "89GwgLiI7f3LOqFWBml8FfQ+aD3iy5NnLKmL019iP/VdPoSJeMDF2jRWW8+ZmeuFevsO9oX0tnJ6LOiMI4WgCA==",
+          "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se": "VVj+lH4zv3xvc7FtUcLX04qYs+0xKaujuKtvABXcTof/sqRGhSKYtAkcnIafjA6ORxGtyjEu5iPvqwa7M1YyBA=="
         },
         "late_acks": [],
-        "cert": "kFAk+vKhn4GRFE2RHs/WJPucinJs2jU/GsSZ1aLktaraRvyDZNks+MzEiHPSEWrYy+Z73DBgiR/G4Riq6i5LAw=="
+        "cert": "cmPvVOS1pd7oTl/W+W5UMl0KpZe3Fjg+nyqLYX1TVdVwYRX/7o1DqleXb7Z/kTWAP3WClbX8yJGJ8oP166qeDA=="
       },
       "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB": {
         "round_id": "0",
         "peer_id": "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
         "prev_round_certs": {},
         "opening_sig": "LQyn9+HqVf6EdUHYlew/MiJdgM3hKJOwwRpJHwBTFMNT9CXlhrw55Lok8qhmO2NxHSa1IEyA9eCbKfQ0w3zkDQ==",
-        "events": [],
-        "closing_sig": "lZkACvGROYviIf7CA94X46sLyRsnuVihZpKDoQ5uRDNJcm2t48hhIm58my0idSvnlOpuP/MJhoePogKFYbymBg==",
-        "hash": "3zUWZrv6jfXELGTEx7SUrornappctWqJwf238BEo1P4GwfNuNZWKqwrweZsci66TqCHqCCUYNk2Ja2G2hCjBq8bw",
+        "events": [
+          {
+            "type": "contract-commit",
+            "contract_id": "12D3KooWCJ8JmcXxSCaUFbqFCKZEeKrKUrEcpv6Hq9Thq2iLoTWT",
+            "commit_id": "0291e2d6027f184b65fadcb3757693496a2697951bd6597bbe04c1ea25820abb",
+            "commit": {
+              "body": [
+                {
+                  "method": "post",
+                  "path": "/network/name.text",
+                  "value": "devnet3"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/description.text",
+                  "value": "Three validator development network"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/difficulty.number",
+                  "value": "1"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/target_block_time_secs.number",
+                  "value": "60"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/blocks_per_epoch.number",
+                  "value": "40"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/validators/0.text",
+                  "value": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/validators/1.text",
+                  "value": "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/validators/2.text",
+                  "value": "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/bootstrappers/0.text",
+                  "value": "/ip4/127.0.0.1/tcp/10301/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/bootstrappers/1.text",
+                  "value": "/ip4/127.0.0.1/tcp/10302/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/bootstrappers/2.text",
+                  "value": "/ip4/127.0.0.1/tcp/10303/ws/p2p/12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
+                }
+              ],
+              "head": {}
+            }
+          }
+        ],
+        "closing_sig": "jDW4xEsaOIObAMPQNKD68RNeL6DGJWg1b6JzImS9aN9ma3hobbDSZYocaPm23bKCFS/N1ecf6+aag+ei2P2+Dw==",
         "acks": {
-          "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB": "8ZtnL0mtPVG3T5d2fZNvV65QIV6tfoK/XDvoeAxbd/Ukt5nMs0ji6KQ4Uy1BjvcSRyeBOwEGX5Ckd4d3EzZMCQ==",
-          "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se": "NAN4ihY2OcHI+usWIzSgCKLNOUN6u9IoldyVjSoqdjKuBz2N14k4QFfH5av8rzeeMgkcY6RpspOwjU9bhrguAw==",
-          "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd": "s4undnVhQqBU2+1sRSok2BBhCPDG9MQM4/nvqgUF2YgyiLqGJ9n1zH05LjiBdHxbezRYVbUgTeNkuc4KcL7qCA=="
+          "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB": "E/v6Sdl6qvthugRX/Ut34gKTQGg05+TR6Hog1vQeyuCeGEvyQ53DL2OGL5/e1YIp6lnR4pfuHtbTscAXl2shAw==",
+          "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se": "MdywsWEKUB9ObopFjcUqoo1AWwQ3403dJg448f5j71T+EEU7JGzFuHuw2yZ8jPhJiHIBsdF+UOKf9Bqa0dx8Bg=="
         },
         "late_acks": [],
-        "cert": "flkG0DjK8cOAbke7yEZ7c4H9VpW4lVTMf7Tsg2mc49L0iEtQ8xRC0RSYayavVw26Hg26wdP4fM91jYLb9PH0CA=="
+        "cert": "i7BBdqzJX9veuCH+pzgvoqfFG+XKptTu6+g6OKDbwM6KwSINFUcxn0x0egVD5VuDjQnaVIod+GowKSdngEvDBQ=="
       },
       "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se": {
         "round_id": "0",
         "peer_id": "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se",
         "prev_round_certs": {},
         "opening_sig": "SlaDWtVd+GwV+JmfOrQp76tuY2QSijpzNESUzBVuV3u/GuLzVnVIRyw9DOW8IFgPNFgcB8AoQNf6yMlBNDUWDg==",
-        "events": [],
-        "closing_sig": "PtmbxDNRT4EjCuzZbEgxA/wY79aDd1osudsPj6NSl28bDFm3/AMfOp309DmSQ0mDWI9tK/14QaR1+sqQInsWCw==",
-        "hash": "2Ft7ZcQg5bMwTWLLBtieGVjfdKtQ29g7W5dMzN4yMrqBu6U5MR8PkNMxtREy867y9N8eH5QWByUAtBBVFebeN8cA",
+        "events": [
+          {
+            "type": "contract-commit",
+            "contract_id": "12D3KooWHzUBTgRpM726QytwFN9HoUFj6gu4XEdpnvN69uPjDkwg",
+            "commit_id": "0291e2d6027f184b65fadcb3757693496a2697951bd6597bbe04c1ea25820abb",
+            "commit": {
+              "body": [
+                {
+                  "method": "post",
+                  "path": "/network/name.text",
+                  "value": "devnet3"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/description.text",
+                  "value": "Three validator development network"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/difficulty.number",
+                  "value": "1"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/target_block_time_secs.number",
+                  "value": "60"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/blocks_per_epoch.number",
+                  "value": "40"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/validators/0.text",
+                  "value": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/validators/1.text",
+                  "value": "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/validators/2.text",
+                  "value": "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/bootstrappers/0.text",
+                  "value": "/ip4/127.0.0.1/tcp/10301/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/bootstrappers/1.text",
+                  "value": "/ip4/127.0.0.1/tcp/10302/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
+                },
+                {
+                  "method": "post",
+                  "path": "/network/bootstrappers/2.text",
+                  "value": "/ip4/127.0.0.1/tcp/10303/ws/p2p/12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
+                }
+              ],
+              "head": {}
+            }
+          }
+        ],
+        "closing_sig": "R9y4jkyMFeE6gZ0NtwxFs5Su/HdyaiTG/aQBucxInNzftsrFoz+qHS8FWyX8h4iF4VflYN2hC+jXiDNSYs9VCg==",
         "acks": {
-          "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se": "nA3KLcfc9WdsgENt/gVgOxrmGYR0kS1UdSDQbi+QqWfTA5Iy51mjqUyUG7oRAPTnbSZbePsBz9xGbKMNkA2rBw==",
-          "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd": "BgjbuuTmZzTDVOXqhSYDocmwf2ZpdOzLYaB3zq2Cel5zcH5COBdLyOnRjnB11dHikUV8Odc1IfO9Y4r2if5LCw==",
-          "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB": "2HJWNTTfRgV1iU1ZTy/ShoHOEevQQjqlFPJf9E2d8Jjw8tqwKe4euQaFIeIZQR06hOeqMSSD+UeT9G8qDSYyCQ=="
+          "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se": "h7UaRwlnIU+8SUVxuBICLxXx+A3AtZ8SDEJc9D8XIGFHvFfCQNe9xoUe6NnOpEASSRsNndLeLJLQD918tBpXBQ=="
         },
         "late_acks": [],
-        "cert": "zsnQDXg+60cPvGFU3Ctm5oKCKVK7kKJ1vPSpJhWT3dkRQd9AO5Vq5pqjVYcaymtD+wi7EetlPW5Gi+AIHnomAA=="
+        "cert": "QQUJ1Oz2mw8dAfKSRx2TjIKTyfmo3eg7Er0Wqcyia6YaDSGjg1kjF3CkztdWS6W3phF3oBv26m3vNjxfydxBCQ=="
       }
     }
+  },
+  "genesis_contract_id": "12D3KooWHzUBTgRpM726QytwFN9HoUFj6gu4XEdpnvN69uPjDkwg",
+  "latest_parameters": {
+    "difficulty": 1,
+    "target_block_time_secs": 60,
+    "blocks_per_epoch": 40,
+    "validators": [
+      "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
+      "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
+      "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
+    ],
+    "bootstrappers": [
+      "/ip4/127.0.0.1/tcp/10301/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
+      "/ip4/127.0.0.1/tcp/10302/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB",
+      "/ip4/127.0.0.1/tcp/10303/ws/p2p/12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
+    ]
   }
 }

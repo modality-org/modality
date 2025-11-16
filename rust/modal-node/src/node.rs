@@ -129,6 +129,34 @@ impl Node {
                 .await
                 .load_network_config(&network_config)
                 .await?;
+            
+            // Load network parameters from genesis contract if present
+            if let Some(genesis_contract_id) = network_config.get("genesis_contract_id").and_then(|v| v.as_str()) {
+                log::info!("Loading network parameters from genesis contract: {}", genesis_contract_id);
+                match datastore.lock().await.load_network_parameters_from_contract(genesis_contract_id).await {
+                    Ok(params) => {
+                        log::info!("✓ Loaded network parameters from contract:");
+                        log::info!("  Name: {}", params.name);
+                        log::info!("  Description: {}", params.description);
+                        log::info!("  Difficulty: {}", params.initial_difficulty);
+                        log::info!("  Block Time: {}s", params.target_block_time_secs);
+                        log::info!("  Blocks per Epoch: {}", params.blocks_per_epoch);
+                        log::info!("  Validators: {}", params.validators.len());
+                        log::info!("  Bootstrappers: {}", params.bootstrappers.len());
+                        
+                        // Update static validators from contract
+                        if !params.validators.is_empty() {
+                            datastore.lock().await.set_static_validators(&params.validators).await?;
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to load network parameters from contract: {}", e);
+                        log::warn!("Falling back to latest_parameters from config");
+                    }
+                }
+            } else {
+                log::info!("No genesis_contract_id found in network config");
+            }
         }
         let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
         let (consensus_tx, consensus_rx) = mpsc::channel(100);

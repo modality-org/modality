@@ -16,10 +16,18 @@ pub struct Opts {
     #[clap(long)]
     pub dir: Option<PathBuf>,
 
-    /// Inspection level (default: general)
-    /// Options: general, mining, blocks, peers
-    #[clap(long, default_value = "general")]
-    pub level: String,
+    /// Inspection level (for backward compatibility)
+    /// Options: general, mining, blocks
+    #[clap(long)]
+    pub level: Option<String>,
+
+    /// Command: general, mining, blocks, peers, or datastore-get <key>
+    #[clap(name = "COMMAND")]
+    pub command: Option<String>,
+    
+    /// Datastore key (required when command is datastore-get)
+    #[clap(name = "KEY")]
+    pub datastore_key: Option<String>,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
@@ -30,10 +38,58 @@ pub async fn run(opts: &Opts) -> Result<()> {
         opts.dir.clone()
     };
     
-    let config = load_config_with_node_dir(opts.config.clone(), dir)?;
+    let config = load_config_with_node_dir(opts.config.clone(), dir.clone())?;
+    
+    // Determine which command to run - support both --level and positional command
+    let command = if let Some(ref cmd) = opts.command {
+        cmd.as_str()
+    } else if let Some(ref level) = opts.level {
+        level.as_str()
+    } else {
+        "general"
+    };
+    
+    // Handle datastore-get command separately
+    if command == "datastore-get" {
+        let key = opts.datastore_key.as_ref()
+            .context("datastore-get requires a KEY argument")?;
+        
+        // Open datastore in read-only mode
+        let storage_path = config.storage_path.as_ref()
+            .context("No storage_path in config")?;
+        
+        let datastore = NetworkDatastore::create_in_directory_readonly(&storage_path)
+            .context("Failed to open datastore in read-only mode")?;
+        
+        // Query the key from datastore
+        match datastore.get_data_by_key(key).await {
+            Ok(Some(value)) => {
+                // Output the raw value (as string)
+                let value_str = String::from_utf8_lossy(&value);
+                println!("{}", value_str);
+                return Ok(());
+            }
+            Ok(None) => {
+                anyhow::bail!("Key not found: {}", key);
+            }
+            Err(e) => {
+                anyhow::bail!("Error querying datastore: {}", e);
+            }
+        }
+    }
+    
+    // For other commands, proceed with normal inspection
+    let node_dir = dir.clone().unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
+    
+    // Check if node is running by looking for PID file and verifying process
+    let is_running = check_node_running(&node_dir);
     
     // Use read-only mode to allow inspection while node is running
-    println!("🔍 Inspecting node (Read-only mode - safe for running nodes)");
+    if is_running {
+        println!("🔍 Inspecting node (Online - Read-only mode)");
+    } else {
+        println!("🔍 Inspecting node (Offline - Direct datastore access)");
+    }
     println!();
     
     // Show node identity first
@@ -47,7 +103,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let datastore = NetworkDatastore::create_in_directory_readonly(&storage_path)
         .context("Failed to open datastore in read-only mode")?;
     
-    match opts.level.as_str() {
+    match command {
         "general" | "blocks" => {
             inspect_blocks(&datastore).await?;
         }
@@ -55,12 +111,42 @@ pub async fn run(opts: &Opts) -> Result<()> {
             inspect_mining(&datastore, &config).await?;
         }
         _ => {
-            println!("Unknown inspection level: {}", opts.level);
-            println!("Available levels: general, mining, blocks");
+            println!("Unknown inspection command: {}", command);
+            println!("Available commands: general, mining, blocks, datastore-get <key>");
         }
     }
     
     Ok(())
+}
+
+/// Check if the node is currently running by verifying PID file and process
+fn check_node_running(node_dir: &PathBuf) -> bool {
+    // Try to read PID file
+    let pid_result = modal_node::pid::read_pid_file(node_dir);
+    
+    if let Ok(Some(pid)) = pid_result {
+        // Verify the process is actually running
+        #[cfg(unix)]
+        {
+            use nix::sys::signal;
+            use nix::unistd::Pid;
+            
+            let nix_pid = Pid::from_raw(pid as i32);
+            // Use signal 0 to check if process exists without sending a real signal
+            match signal::kill(nix_pid, None) {
+                Ok(_) => return true,
+                Err(_) => return false,
+            }
+        }
+        
+        #[cfg(not(unix))]
+        {
+            // On non-Unix systems, just check if PID file exists
+            return true;
+        }
+    }
+    
+    false
 }
 
 fn inspect_identity(config: &modal_node::config::Config) -> Result<()> {

@@ -1,0 +1,59 @@
+{
+  "round_id": "0",
+  "peer_id": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd",
+  "prev_round_certs": {},
+  "opening_sig": "7uQ1Dqh4l1ZmwMgEBVAzuKka19YsxCovWQaMA+nW9lWgOspl644CDaX7WpYUlHQITcAHVx+3KGmMP3XGvZmICg==",
+  "events": [
+    {
+      "type": "contract-commit",
+      "contract_id": "12D3KooWCqSkGcZM8SJqbwnH5hV2E4nH4DGG9upFFdYH9u11xkmT",
+      "commit_id": "1bfcfb2b6dbf866138842857cb85dacd3d7f832cdd1904bdd57cc99a9a6c5bcb",
+      "commit": {
+        "body": [
+          {
+            "method": "post",
+            "path": "/network/name.text",
+            "value": "devnet1"
+          },
+          {
+            "method": "post",
+            "path": "/network/description.text",
+            "value": "Single validator development network"
+          },
+          {
+            "method": "post",
+            "path": "/network/difficulty.number",
+            "value": "1"
+          },
+          {
+            "method": "post",
+            "path": "/network/target_block_time_secs.number",
+            "value": "60"
+          },
+          {
+            "method": "post",
+            "path": "/network/blocks_per_epoch.number",
+            "value": "40"
+          },
+          {
+            "method": "post",
+            "path": "/network/validators/0.text",
+            "value": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+          },
+          {
+            "method": "post",
+            "path": "/network/bootstrappers/0.text",
+            "value": "/ip4/127.0.0.1/tcp/10201/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+          }
+        ],
+        "head": {}
+      }
+    }
+  ],
+  "closing_sig": "gzOpdjuwescv6aY9UR6eWK3rQfn0+Dc5w0ify16Q/ZURXNkFoD8W8kGshwozd/rdhbW/H2sadqqKYrtFk7mpCw==",
+  "acks": {
+    "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd": "jH+Ti0W6F5FE4nqGPGp0gxuPXfHmu5zdLe7uM+lp8Qluv6AIq4ncaX72ci395LcrjaPF2g6zr6diyeXIfwV/Bw=="
+  },
+  "late_acks": [],
+  "cert": "KnAWWxOXfFunQvGA/zdmVzetrE+QwtuYzIRLoj6XI/6o7trVD2HG4jP622pUpPldU16i6Ic9BFU2nRjvSUkwDA=="
+}

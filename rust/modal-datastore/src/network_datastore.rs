@@ -29,7 +29,7 @@ impl NetworkDatastore {
 
     /// Open database in read-only mode (allows multiple readers, safe for running nodes)
     pub fn create_in_directory_readonly(path: &Path) -> Result<Self> {
-        let mut opts = Options::default();
+        let opts = Options::default();
         let db = DB::open_for_read_only(&opts, path, false)?;
         Ok(Self { db, path: path.to_path_buf() })
     }
@@ -203,6 +203,76 @@ impl NetworkDatastore {
         Ok(cert_map.into_values().collect())
     }
 
+    /// Load network parameters from a genesis contract
+    /// 
+    /// Reads all `/network/*` paths from the contract state and parses them into NetworkParameters.
+    /// Contract state is stored with keys like `/contracts/${contract_id}/network/${param_name}.${type}`
+    pub async fn load_network_parameters_from_contract(&self, contract_id: &str) -> Result<crate::NetworkParameters> {
+        let prefix = format!("/contracts/{}/network", contract_id);
+        
+        let mut name = String::new();
+        let mut description = String::new();
+        let mut initial_difficulty: Option<u128> = None;
+        let mut target_block_time_secs: Option<u64> = None;
+        let mut blocks_per_epoch: Option<u64> = None;
+        let mut validators = Vec::new();
+        let mut bootstrappers = Vec::new();
+        
+        // Iterate over all keys with the prefix
+        for result in self.iterator(&prefix) {
+            let (key, value) = result?;
+            let key_str = String::from_utf8(key.to_vec())?;
+            let value_str = String::from_utf8(value.to_vec())?;
+            
+            // Parse the key to extract the parameter name
+            // Format: /contracts/${contract_id}/network/${param}.${type}
+            if let Some(param_path) = key_str.strip_prefix(&format!("{}/", prefix)) {
+                match param_path {
+                    path if path.starts_with("name.") => {
+                        name = value_str;
+                    }
+                    path if path.starts_with("description.") => {
+                        description = value_str;
+                    }
+                    path if path.starts_with("difficulty.") => {
+                        initial_difficulty = Some(value_str.parse()?);
+                    }
+                    path if path.starts_with("target_block_time_secs.") => {
+                        target_block_time_secs = Some(value_str.parse()?);
+                    }
+                    path if path.starts_with("blocks_per_epoch.") => {
+                        blocks_per_epoch = Some(value_str.parse()?);
+                    }
+                    path if path.starts_with("validators/") => {
+                        // Extract index and add to validators
+                        validators.push(value_str);
+                    }
+                    path if path.starts_with("bootstrappers/") => {
+                        // Extract index and add to bootstrappers
+                        bootstrappers.push(value_str);
+                    }
+                    _ => {
+                        // Unknown parameter, skip
+                    }
+                }
+            }
+        }
+        
+        // Sort validators and bootstrappers by their indices (they may come in any order from iterator)
+        // Since we don't parse indices above, we'll just use the order from the iterator
+        // In practice, the iterator should return them in lexicographic order
+        
+        Ok(crate::NetworkParameters {
+            name,
+            description,
+            initial_difficulty: initial_difficulty.ok_or_else(|| Error::Database("Missing initial_difficulty".to_string()))?,
+            target_block_time_secs: target_block_time_secs.ok_or_else(|| Error::Database("Missing target_block_time_secs".to_string()))?,
+            blocks_per_epoch: blocks_per_epoch.ok_or_else(|| Error::Database("Missing blocks_per_epoch".to_string()))?,
+            validators,
+            bootstrappers,
+        })
+    }
+
     pub async fn load_network_config(&self, network_config: &serde_json::Value) -> Result<()> {
         // Load static validators if present
         if let Some(validators) = network_config.get("validators") {
@@ -215,11 +285,15 @@ impl NetworkDatastore {
             }
         }
         
+        // Load genesis blocks and process their events
         if let Some(rounds) = network_config.get("rounds").and_then(|v| v.as_object()) {
             for (round_id_str, round_data) in rounds {
                 let round_id = round_id_str.parse::<u64>()?;
                 
                 if let Some(round_obj) = round_data.as_object() {
+                    // Collect all contract-commit events from this round for batch processing
+                    let mut genesis_events: Vec<(String, String, serde_json::Value)> = Vec::new();
+                    
                     for block_data in round_obj.values() {
                         // Create and save ValidatorBlock
                         let block = ValidatorBlock::create_from_json(block_data.clone())?;
@@ -228,6 +302,27 @@ impl NetworkDatastore {
                         // Create and save ValidatorBlockHeader
                         let block_header = ValidatorBlockHeader::create_from_json(block_data.clone())?;
                         block_header.save(self).await?;
+                        
+                        // Extract contract-commit events for processing
+                        if let Some(events) = block_data.get("events").and_then(|e| e.as_array()) {
+                            for event in events {
+                                if let Some(event_type) = event.get("type").and_then(|t| t.as_str()) {
+                                    if event_type == "contract-commit" {
+                                        if let (Some(contract_id), Some(commit_id), Some(commit)) = (
+                                            event.get("contract_id").and_then(|v| v.as_str()),
+                                            event.get("commit_id").and_then(|v| v.as_str()),
+                                            event.get("commit")
+                                        ) {
+                                            genesis_events.push((
+                                                contract_id.to_string(),
+                                                commit_id.to_string(),
+                                                commit.clone()
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     // Update current round if necessary
@@ -235,9 +330,86 @@ impl NetworkDatastore {
                     if current_round < round_id {
                         self.set_current_round(round_id).await?;
                     }
+                    
+                    // Process all genesis contract events
+                    if !genesis_events.is_empty() {
+                        log::info!("Processing {} genesis contract events from round {}", genesis_events.len(), round_id);
+                        for (contract_id, commit_id, commit_data) in genesis_events {
+                            self.process_genesis_contract_commit(&contract_id, &commit_id, &commit_data).await?;
+                        }
+                    }
                 }
             }
         }
+        Ok(())
+    }
+    
+    /// Process a contract commit from genesis
+    /// Similar to ContractProcessor::process_commit but simplified for genesis
+    async fn process_genesis_contract_commit(
+        &self,
+        contract_id: &str,
+        commit_id: &str,
+        commit_data: &serde_json::Value,
+    ) -> Result<()> {
+        // Save the commit
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|e| Error::Database(format!("Time error: {}", e)))?
+            .as_secs();
+        
+        let commit_data_str = serde_json::to_string(commit_data)?;
+        let commit = crate::models::contract::Commit {
+            contract_id: contract_id.to_string(),
+            commit_id: commit_id.to_string(),
+            commit_data: commit_data_str.clone(),
+            timestamp,
+            in_batch: None,
+        };
+        commit.save(self).await?;
+        
+        // Process actions in the commit
+        let body = commit_data.get("body")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| Error::Database("Invalid commit structure".to_string()))?;
+        
+        for action in body {
+            let method = action.get("method")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| Error::Database("Action missing method".to_string()))?;
+            
+            match method {
+                "post" => {
+                    // Process POST action - store data in datastore
+                    let path = action.get("path")
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| Error::Database("POST action missing path".to_string()))?;
+                    let value = action.get("value")
+                        .ok_or_else(|| Error::Database("POST action missing value".to_string()))?;
+                    
+                    // Convert value to string representation
+                    let value_str = if value.is_string() {
+                        value.as_str().unwrap().to_string()
+                    } else if value.is_number() {
+                        value.to_string()
+                    } else if value.is_boolean() {
+                        value.as_bool().unwrap().to_string()
+                    } else {
+                        serde_json::to_string(value)?
+                    };
+                    
+                    // Store in datastore with key format: /contracts/{contract_id}{path}
+                    let key = format!("/contracts/{}{}", contract_id, path);
+                    self.set_data_by_key(&key, value_str.as_bytes()).await?;
+                    log::debug!("Genesis POST: {} = {}", key, value_str);
+                }
+                _ => {
+                    // Other actions (create, send, recv) don't need processing at genesis
+                    log::debug!("Skipping genesis action: {}", method);
+                }
+            }
+        }
+        
         Ok(())
     }
 

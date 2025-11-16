@@ -7,8 +7,12 @@ alwaysApply: true
 - write a README.md file in each example directory that explains the example and how to run it.
 - assume that command `modal` is available in the path, do not explicitly reference a path to find it. when testing assume that the modal binary that will take precedence in the path is the one that is in the rust/target/debug directory.
   - for example, do not write `../../../rust/target/debug/modal` in the examples, just write `modal`.
+  - use the debug binary for the tests, not the release binary.
 - when creating new tests, follow the pattern of the existing tests. 01-ping-node/, 04-sync-miner-blocks/, etc. Use a test.sh file to run all the tests in the example. Each test should be modular and self-contained but valuable to sequentially test the entire example suite. 
 - tmp/ is a temporary directory for the tests to use. It is gitignored. It is used to store the nodes and other resources for the tests.
 - while creating a node, use the modal node create command to create the node. It will create a node in the tmp/ directory.
 - use devnet1 as the default network for all examples unless otherwise specified.
 - prefer `modal node inspect` over stopping a node and then querying the datastore directly. when a `modal node inspect` method isn't available to fetch the data needed, implement it.
+- don't alter code in the numbered examples, only in the unnumbered examples, unless otherwise specified.
+- test all the numbered examples for regressions after creating a new unnumbered example. use ./test-numbered-examples.sh to test the numbered examples.
+- when creating a new example, create a new unnumbered example directory and a new test.sh file. only promote it to a numbered example if specifically asked to do so.

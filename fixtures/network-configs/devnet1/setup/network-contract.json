@@ -1,0 +1,49 @@
+{
+  "contractId": "12D3KooWCqSkGcZM8SJqbwnH5hV2E4nH4DGG9upFFdYH9u11xkmT",
+  "genesis": {
+    "genesis": {
+      "contract_id": "12D3KooWCqSkGcZM8SJqbwnH5hV2E4nH4DGG9upFFdYH9u11xkmT"
+    },
+    "genesis.signature": "M0BHS66xDCSsnFEKNViZ1hclRP22gutVa6UQqfC95lUPEuMJQgPUVNbvv+QWuhvq19CQfJyhs0UE7VQvPMprAg=="
+  },
+  "genesisCommit": {
+    "body": [
+      {
+        "method": "post",
+        "path": "/network/name.text",
+        "value": "devnet1"
+      },
+      {
+        "method": "post",
+        "path": "/network/description.text",
+        "value": "Single validator development network"
+      },
+      {
+        "method": "post",
+        "path": "/network/difficulty.number",
+        "value": "1"
+      },
+      {
+        "method": "post",
+        "path": "/network/target_block_time_secs.number",
+        "value": "60"
+      },
+      {
+        "method": "post",
+        "path": "/network/blocks_per_epoch.number",
+        "value": "40"
+      },
+      {
+        "method": "post",
+        "path": "/network/validators/0.text",
+        "value": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+      },
+      {
+        "method": "post",
+        "path": "/network/bootstrappers/0.text",
+        "value": "/ip4/127.0.0.1/tcp/10201/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+      }
+    ],
+    "head": {}
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "devnet1",
+  "description": "Single validator development network",
+  "difficulty": 1,
+  "target_block_time_secs": 60,
+  "blocks_per_epoch": 40,
+  "validators": [
+    "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+  ],
+  "bootstrappers": [
+    "/ip4/127.0.0.1/tcp/10201/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+  ]
+}
+

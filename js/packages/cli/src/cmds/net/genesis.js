@@ -15,21 +15,117 @@ export const builder = {
 import Keypair from "@modality-dev/utils/Keypair";
 import fs from "fs-extra";
 import Block from "@modality-dev/network-datastore/data/Block";
+import Contract from "@modality-dev/contract/Contract";
+import Commit from "@modality-dev/contract/Commit";
+import crypto from "crypto";
+
+async function createNetworkGenesisContract(networkInfo) {
+  // Generate a genesis contract for the network parameters
+  const genesisData = await Contract.generateGenesis();
+  const contractId = genesisData.genesis.contract_id;
+  
+  // Create a commit with all network parameters as POST actions
+  const commit = new Commit();
+  
+  // Network metadata
+  commit.addPost("/network/name.text", networkInfo.name || "network");
+  commit.addPost("/network/description.text", networkInfo.description || "");
+  
+  // Network parameters
+  commit.addPost("/network/difficulty.number", String(networkInfo.difficulty || 1));
+  commit.addPost("/network/target_block_time_secs.number", String(networkInfo.target_block_time_secs || 60));
+  commit.addPost("/network/blocks_per_epoch.number", String(networkInfo.blocks_per_epoch || 40));
+  
+  // Validators (indexed)
+  if (networkInfo.validators && networkInfo.validators.length > 0) {
+    networkInfo.validators.forEach((validator, index) => {
+      commit.addPost(`/network/validators/${index}.text`, validator);
+    });
+  }
+  
+  // Bootstrappers (indexed)
+  if (networkInfo.bootstrappers && networkInfo.bootstrappers.length > 0) {
+    networkInfo.bootstrappers.forEach((bootstrapper, index) => {
+      commit.addPost(`/network/bootstrappers/${index}.text`, bootstrapper);
+    });
+  }
+  
+  // Compute commit ID (SHA256 of the commit JSON)
+  const commitJson = JSON.stringify({ body: commit.body, head: commit.head });
+  const commitId = crypto.createHash('sha256').update(commitJson).digest('hex');
+  
+  return {
+    contractId,
+    commitId,
+    genesisData,
+    commit: { body: commit.body, head: commit.head }
+  };
+}
 
 export async function handler({ passfile, dir }) {
   const keypair = await Keypair.fromJSONFile(passfile);
   const peer_id = await keypair.asPublicAddress();
   fs.ensureDirSync(dir);
-  if (!fs.existsSync(`${dir}/setup`)) {
-    console.log("Existing ./setup directory not found");
-    console.log("Creating Round 0 with no events");
-    console.log(`If you need events within your genesis:
-  1) edit them here: ${dir}/setup/rounds/0/${peer_id}/events.json
-  2) delete the dir: ${dir}/completed/rounds/0
-  3) rerun genesis
-    `);
+  
+  // Load network info from setup/info.json
+  let networkInfo = { name: "network", description: "" };
+  if (fs.existsSync(`${dir}/setup/info.json`)) {
+    networkInfo = { ...networkInfo, ...fs.readJsonSync(`${dir}/setup/info.json`) };
+  }
+  
+  // Create network genesis contract
+  console.log("Creating network genesis contract...");
+  const networkContract = await createNetworkGenesisContract(networkInfo);
+  console.log(`Network contract ID: ${networkContract.contractId}`);
+  console.log(`Genesis commit ID: ${networkContract.commitId}`);
+  
+  // Save the network contract for reference
+  fs.ensureDirSync(`${dir}/setup`);
+  fs.writeJSONSync(`${dir}/setup/network-contract.json`, {
+    contractId: networkContract.contractId,
+    genesis: networkContract.genesisData,
+    genesisCommit: networkContract.commit
+  }, { spaces: 2 });
+  
+  // Check if events.json exists for this peer
+  const eventsPath = `${dir}/setup/rounds/0/${peer_id}/events.json`;
+  if (!fs.existsSync(eventsPath)) {
+    console.log("Creating Round 0 events.json");
     fs.ensureDirSync(`${dir}/setup/rounds/0/${peer_id}`);
-    fs.writeJSONSync(`${dir}/setup/rounds/0/${peer_id}/events.json`, []);
+    
+    // Create event for network contract genesis commit
+    const networkContractEvent = {
+      type: "contract-commit",
+      contract_id: networkContract.contractId,
+      commit_id: networkContract.commitId,
+      commit: networkContract.commit
+    };
+    
+    fs.writeJSONSync(eventsPath, [networkContractEvent], { spaces: 2 });
+  } else {
+    // If events.json exists, prepend the network contract event if not already present
+    const existingEvents = fs.readJSONSync(eventsPath);
+    
+    // Check if network contract event is already in the events
+    const hasNetworkContractEvent = existingEvents.some(e => 
+      e.type === "contract-commit" && e.contract_id === networkContract.contractId
+    );
+    
+    if (!hasNetworkContractEvent) {
+      const networkContractEvent = {
+        type: "contract-commit",
+        contract_id: networkContract.contractId,
+        commit_id: networkContract.commitId,
+        commit: networkContract.commit
+      };
+      
+      // Prepend network contract event
+      const allEvents = [networkContractEvent, ...existingEvents];
+      fs.writeJSONSync(eventsPath, allEvents, { spaces: 2 });
+      console.log("Added network contract event to existing events.json");
+    } else {
+      console.log("Network contract event already exists in events.json");
+    }
   }
 
   let network_config = { rounds: {} };
@@ -109,6 +205,17 @@ export async function handler({ passfile, dir }) {
   }
   if (all_blocks_have_certs) {
     console.log(`Outputting network config to ${dir}/config.json`);
+    
+    // Add genesis contract ID and latest parameters
+    network_config.genesis_contract_id = networkContract.contractId;
+    network_config.latest_parameters = {
+      difficulty: networkInfo.difficulty || 1,
+      target_block_time_secs: networkInfo.target_block_time_secs || 60,
+      blocks_per_epoch: networkInfo.blocks_per_epoch || 40,
+      validators: networkInfo.validators || [],
+      bootstrappers: networkInfo.bootstrappers || []
+    };
+    
     if (fs.existsSync(`${dir}/setup/info.json`)) {
       const info = fs.readJsonSync(`${dir}/setup/info.json`);
       network_config = { ...info, ...network_config };

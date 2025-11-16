@@ -34,10 +34,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
     
     log::info!("Starting mining node with config loaded from node directory or config file");
     
-    // Write PID file if we have a node directory
-    if let Some(ref node_dir) = dir {
-        modal_node::pid::write_pid_file(node_dir)?;
-    }
+    // Always write PID file - use provided dir or current directory
+    let pid_dir = dir.clone().unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory"));
+    modal_node::pid::write_pid_file(&pid_dir)?;
     
     let mut node = Node::from_config(config.clone()).await?;
     node.setup(&config).await?;
@@ -45,9 +44,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     actions::miner::run(&mut node).await?;
     
     // Clean up PID file on exit
-    if let Some(ref node_dir) = dir {
-        modal_node::pid::remove_pid_file(node_dir)?;
-    }
+    modal_node::pid::remove_pid_file(&pid_dir)?;
     
     Ok(())
 }

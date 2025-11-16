@@ -20,6 +20,7 @@
     "./*": "./src/*.js"
   },
   "dependencies": {
+    "@modality-dev/contract": "workspace:^",
     "@modality-dev/network-node": "workspace:^",
     "@modality-dev/utils": "workspace:^",
     "@modality-dev/network-datastore": "workspace:^",

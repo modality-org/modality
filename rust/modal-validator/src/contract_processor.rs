@@ -29,6 +29,11 @@ pub enum StateChange {
         amount: u64,
         send_commit_id: String,
     },
+    Posted {
+        contract_id: String,
+        path: String,
+        value: String,
+    },
 }
 
 /// Processes contract commits and manages asset state during consensus
@@ -82,21 +87,27 @@ impl ContractProcessor {
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("Action missing method"))?;
 
-            let value = action.get("value")
-                .ok_or_else(|| anyhow::anyhow!("Action missing value"))?;
-
             match method {
                 "create" => {
+                    let value = action.get("value")
+                        .ok_or_else(|| anyhow::anyhow!("Action missing value"))?;
                     state_changes.push(self.process_create(contract_id, commit_id, value).await?);
                 }
                 "send" => {
+                    let value = action.get("value")
+                        .ok_or_else(|| anyhow::anyhow!("Action missing value"))?;
                     state_changes.push(self.process_send(contract_id, commit_id, value).await?);
                 }
                 "recv" => {
+                    let value = action.get("value")
+                        .ok_or_else(|| anyhow::anyhow!("Action missing value"))?;
                     state_changes.push(self.process_recv(contract_id, commit_id, value).await?);
                 }
+                "post" => {
+                    state_changes.push(self.process_post(contract_id, action).await?);
+                }
                 _ => {
-                    // Other actions are not asset-related
+                    // Other actions are not processed
                 }
             }
         }
@@ -360,6 +371,49 @@ impl ContractProcessor {
         })
     }
 
+    /// Process a POST action during consensus
+    /// 
+    /// Stores a value at a specific path within the contract's namespace.
+    /// The value is stored in the datastore with key: /contracts/{contract_id}{path}
+    async fn process_post(
+        &self,
+        contract_id: &str,
+        action: &Value,
+    ) -> Result<StateChange> {
+        let path = action.get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("POST action missing path"))?;
+        
+        let value = action.get("value")
+            .ok_or_else(|| anyhow::anyhow!("POST action missing value"))?;
+        
+        // Convert value to string for storage
+        let value_str = if value.is_string() {
+            value.as_str().unwrap().to_string()
+        } else if value.is_number() {
+            value.to_string()
+        } else if value.is_boolean() {
+            value.as_bool().unwrap().to_string()
+        } else {
+            // For complex types, store as JSON string
+            serde_json::to_string(value)?
+        };
+        
+        // Store in datastore with key: /contracts/{contract_id}{path}
+        let key = format!("/contracts/{}{}", contract_id, path);
+        
+        let ds = self.datastore.lock().await;
+        ds.set_data_by_key(&key, value_str.as_bytes()).await?;
+        
+        log::debug!("Stored POST: {} = {}", key, value_str);
+        
+        Ok(StateChange::Posted {
+            contract_id: contract_id.to_string(),
+            path: path.to_string(),
+            value: value_str,
+        })
+    }
+
     async fn find_commit_by_id(&self, ds: &NetworkDatastore, commit_id: &str) -> Result<Commit> {
         // Since we don't know the contract_id, we need to search all contracts
         // This is inefficient - in production we'd want to index commits by ID
@@ -403,3 +457,115 @@ impl ContractProcessor {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use modal_datastore::NetworkDatastore;
+
+    #[tokio::test]
+    async fn test_post_action_processing() {
+        // Create in-memory datastore
+        let datastore = Arc::new(Mutex::new(
+            NetworkDatastore::create_in_memory().unwrap()
+        ));
+        
+        let processor = ContractProcessor::new(datastore.clone());
+        
+        // Create a commit with POST actions
+        let commit_data = serde_json::json!({
+            "body": [
+                {
+                    "method": "post",
+                    "path": "/network/name.text",
+                    "value": "testnet"
+                },
+                {
+                    "method": "post",
+                    "path": "/network/difficulty.number",
+                    "value": "100"
+                },
+                {
+                    "method": "post",
+                    "path": "/network/validators/0.text",
+                    "value": "12D3KooWTest123"
+                }
+            ],
+            "head": {}
+        });
+        
+        let commit_data_str = serde_json::to_string(&commit_data).unwrap();
+        let contract_id = "test_contract_123";
+        let commit_id = "test_commit_456";
+        
+        // Process the commit
+        let result = processor.process_commit(contract_id, commit_id, &commit_data_str).await;
+        assert!(result.is_ok(), "Failed to process commit: {:?}", result);
+        
+        let state_changes = result.unwrap();
+        assert_eq!(state_changes.len(), 3, "Should have 3 state changes");
+        
+        // Verify all state changes are Posted
+        for change in &state_changes {
+            match change {
+                StateChange::Posted { path, value, .. } => {
+                    println!("Posted: {} = {}", path, value);
+                }
+                _ => panic!("Expected Posted state change"),
+            }
+        }
+        
+        // Verify values are stored in datastore
+        let ds = datastore.lock().await;
+        
+        let name = ds.get_string(&format!("/contracts/{}/network/name.text", contract_id))
+            .await.unwrap();
+        assert_eq!(name, Some("testnet".to_string()));
+        
+        let difficulty = ds.get_string(&format!("/contracts/{}/network/difficulty.number", contract_id))
+            .await.unwrap();
+        assert_eq!(difficulty, Some("100".to_string()));
+        
+        let validator = ds.get_string(&format!("/contracts/{}/network/validators/0.text", contract_id))
+            .await.unwrap();
+        assert_eq!(validator, Some("12D3KooWTest123".to_string()));
+    }
+    
+    #[tokio::test]
+    async fn test_post_with_complex_value() {
+        let datastore = Arc::new(Mutex::new(
+            NetworkDatastore::create_in_memory().unwrap()
+        ));
+        
+        let processor = ContractProcessor::new(datastore.clone());
+        
+        // Test with complex JSON value
+        let commit_data = serde_json::json!({
+            "body": [
+                {
+                    "method": "post",
+                    "path": "/config/metadata.json",
+                    "value": {
+                        "version": "1.0",
+                        "features": ["mining", "consensus"]
+                    }
+                }
+            ],
+            "head": {}
+        });
+        
+        let commit_data_str = serde_json::to_string(&commit_data).unwrap();
+        let result = processor.process_commit("contract1", "commit1", &commit_data_str).await;
+        
+        assert!(result.is_ok());
+        
+        // Verify JSON value is stored as string
+        let ds = datastore.lock().await;
+        let value = ds.get_string("/contracts/contract1/config/metadata.json")
+            .await.unwrap();
+        
+        assert!(value.is_some());
+        let value_str = value.unwrap();
+        assert!(value_str.contains("version"));
+        assert!(value_str.contains("1.0"));
+    }
+}

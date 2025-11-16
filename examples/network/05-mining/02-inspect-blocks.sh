@@ -6,8 +6,8 @@ echo "📊 Inspecting Mined Blocks"
 echo "=========================="
 echo ""
 
-if [ ! -d "./tmp/storage/miner" ]; then
-    echo "❌ No miner storage found. Run 01-mine-blocks.sh first."
+if [ ! -d "./tmp/miner" ]; then
+    echo "❌ No miner node found. Run 01-mine-blocks.sh first."
     exit 1
 fi
 
@@ -20,5 +20,6 @@ if ! command -v modal &> /dev/null; then
     export PATH="$(cd ../../../rust/target/debug && pwd):$PATH"
 fi
 
-modal net storage --config ./configs/miner.json --detailed
+modal net storage --dir ./tmp/miner --detailed
+
 
