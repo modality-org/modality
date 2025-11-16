@@ -2,9 +2,11 @@ use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use modal_datastore::NetworkDatastore;
-use modal_datastore::models::{ContractAsset, AssetBalance, Commit, ReceivedSend};
+use modal_datastore::models::{ContractAsset, AssetBalance, Commit, ReceivedSend, WasmModule};
 use modal_datastore::model::Model;
 use serde_json::Value;
+use modal_wasm_runtime::{WasmExecutor, DEFAULT_GAS_LIMIT};
+use modal_wasm_validation::{ValidationResult, validators};
 
 /// Represents a state change from processing a commit action
 #[derive(Debug, Clone)]
@@ -33,6 +35,17 @@ pub enum StateChange {
         contract_id: String,
         path: String,
         value: String,
+    },
+    WasmUploaded {
+        contract_id: String,
+        module_name: String,
+        sha256_hash: String,
+        gas_limit: u64,
+    },
+    WasmExecuted {
+        contract_id: String,
+        module_name: String,
+        gas_used: u64,
     },
 }
 
@@ -375,6 +388,8 @@ impl ContractProcessor {
     /// 
     /// Stores a value at a specific path within the contract's namespace.
     /// The value is stored in the datastore with key: /contracts/{contract_id}{path}
+    /// 
+    /// Special handling for .wasm extensions: uploads WASM modules to the datastore
     async fn process_post(
         &self,
         contract_id: &str,
@@ -386,6 +401,11 @@ impl ContractProcessor {
         
         let value = action.get("value")
             .ok_or_else(|| anyhow::anyhow!("POST action missing value"))?;
+        
+        // Check if this is a WASM upload (path ends with .wasm)
+        if path.ends_with(".wasm") {
+            return self.process_wasm_post(contract_id, path, value).await;
+        }
         
         // Convert value to string for storage
         let value_str = if value.is_string() {
@@ -411,6 +431,84 @@ impl ContractProcessor {
             contract_id: contract_id.to_string(),
             path: path.to_string(),
             value: value_str,
+        })
+    }
+    
+    /// Process a WASM POST action (path ends with .wasm)
+    /// 
+    /// The value should be an object with:
+    /// - wasm_bytes: base64-encoded WASM binary
+    /// - gas_limit: optional gas limit (defaults to DEFAULT_GAS_LIMIT)
+    async fn process_wasm_post(
+        &self,
+        contract_id: &str,
+        path: &str,
+        value: &Value,
+    ) -> Result<StateChange> {
+        // Extract module name from path (e.g., "/validators/primary.wasm" -> "primary")
+        let module_name = path.trim_end_matches(".wasm")
+            .split('/')
+            .last()
+            .ok_or_else(|| anyhow::anyhow!("Invalid WASM path: {}", path))?;
+        
+        // Get WASM bytes (expect base64-encoded string or object with wasm_bytes field)
+        let (wasm_base64, gas_limit) = if value.is_string() {
+            // Simple string value is the base64-encoded WASM
+            (value.as_str().unwrap(), DEFAULT_GAS_LIMIT)
+        } else if value.is_object() {
+            // Object with wasm_bytes and optional gas_limit
+            let wasm_base64 = value.get("wasm_bytes")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("WASM POST missing wasm_bytes in value object"))?;
+            let gas_limit = value.get("gas_limit")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(DEFAULT_GAS_LIMIT);
+            (wasm_base64, gas_limit)
+        } else {
+            anyhow::bail!("WASM POST value must be base64 string or object with wasm_bytes");
+        };
+        
+        // Decode base64
+        let wasm_bytes = base64::decode(wasm_base64)
+            .map_err(|e| anyhow::anyhow!("Invalid base64 WASM bytes: {}", e))?;
+        
+        // Validate WASM module format
+        WasmExecutor::validate_module(&wasm_bytes)
+            .map_err(|e| anyhow::anyhow!("Invalid WASM module: {}", e))?;
+        
+        // Create timestamp
+        let created_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_secs();
+        
+        // Store WASM module in datastore
+        let wasm_module = WasmModule::new(
+            contract_id.to_string(),
+            module_name.to_string(),
+            wasm_bytes,
+            gas_limit,
+            created_at,
+        );
+        
+        let sha256_hash = wasm_module.sha256_hash.clone();
+        
+        let ds = self.datastore.lock().await;
+        wasm_module.save(&ds).await?;
+        
+        log::info!(
+            "Uploaded WASM module '{}' for contract {} via POST {}, hash: {}, gas_limit: {}",
+            module_name,
+            contract_id,
+            path,
+            &sha256_hash[..16],
+            gas_limit
+        );
+        
+        Ok(StateChange::WasmUploaded {
+            contract_id: contract_id.to_string(),
+            module_name: module_name.to_string(),
+            sha256_hash,
+            gas_limit,
         })
     }
 
@@ -567,5 +665,106 @@ mod tests {
         let value_str = value.unwrap();
         assert!(value_str.contains("version"));
         assert!(value_str.contains("1.0"));
+    }
+    
+    #[tokio::test]
+    async fn test_wasm_post_simple_string() {
+        let datastore = Arc::new(Mutex::new(
+            NetworkDatastore::create_in_memory().unwrap()
+        ));
+        
+        let processor = ContractProcessor::new(datastore.clone());
+        
+        // Create a minimal WASM module
+        let minimal_wasm = vec![
+            0x00, 0x61, 0x73, 0x6d, // Magic number
+            0x01, 0x00, 0x00, 0x00, // Version
+        ];
+        let wasm_base64 = base64::encode(&minimal_wasm);
+        
+        // Test WASM upload via POST with .wasm extension (simple string value)
+        let commit_data = serde_json::json!({
+            "body": [
+                {
+                    "method": "post",
+                    "path": "/validators/primary.wasm",
+                    "value": wasm_base64
+                }
+            ],
+            "head": {}
+        });
+        
+        let commit_data_str = serde_json::to_string(&commit_data).unwrap();
+        let result = processor.process_commit("contract1", "commit1", &commit_data_str).await;
+        
+        assert!(result.is_ok(), "Failed to process WASM POST: {:?}", result.err());
+        
+        let state_changes = result.unwrap();
+        assert_eq!(state_changes.len(), 1);
+        
+        // Verify it's a WASM uploaded state change
+        match &state_changes[0] {
+            StateChange::WasmUploaded { contract_id, module_name, sha256_hash, gas_limit } => {
+                assert_eq!(contract_id, "contract1");
+                assert_eq!(module_name, "primary");
+                assert!(!sha256_hash.is_empty());
+                assert_eq!(*gas_limit, DEFAULT_GAS_LIMIT);
+            }
+            _ => panic!("Expected WasmUploaded state change"),
+        }
+        
+        // Verify WASM module is stored in datastore
+        let ds = datastore.lock().await;
+        let mut keys = std::collections::HashMap::new();
+        keys.insert("contract_id".to_string(), "contract1".to_string());
+        keys.insert("module_name".to_string(), "primary".to_string());
+        
+        let stored_module = WasmModule::find_one(&ds, keys).await.unwrap();
+        assert!(stored_module.is_some());
+        
+        let module = stored_module.unwrap();
+        assert_eq!(module.wasm_bytes, minimal_wasm);
+        assert!(module.verify_hash());
+    }
+    
+    #[tokio::test]
+    async fn test_wasm_post_with_object() {
+        let datastore = Arc::new(Mutex::new(
+            NetworkDatastore::create_in_memory().unwrap()
+        ));
+        
+        let processor = ContractProcessor::new(datastore.clone());
+        
+        let minimal_wasm = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
+        let wasm_base64 = base64::encode(&minimal_wasm);
+        
+        // Test WASM upload via POST with object value including gas_limit
+        let commit_data = serde_json::json!({
+            "body": [
+                {
+                    "method": "post",
+                    "path": "/custom/logic.wasm",
+                    "value": {
+                        "wasm_bytes": wasm_base64,
+                        "gas_limit": 5_000_000
+                    }
+                }
+            ],
+            "head": {}
+        });
+        
+        let commit_data_str = serde_json::to_string(&commit_data).unwrap();
+        let result = processor.process_commit("contract1", "commit1", &commit_data_str).await;
+        
+        assert!(result.is_ok());
+        
+        let state_changes = result.unwrap();
+        match &state_changes[0] {
+            StateChange::WasmUploaded { module_name, gas_limit, .. } => {
+                assert_eq!(module_name, "logic");
+                assert_eq!(*gas_limit, 5_000_000);
+            }
+            _ => panic!("Expected WasmUploaded state change"),
+        }
     }
 }

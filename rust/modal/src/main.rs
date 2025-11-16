@@ -189,6 +189,9 @@ enum ContractCommands {
     
     #[command(about = "Manage contract assets")]
     Assets(cmds::contract::assets::Opts),
+    
+    #[command(about = "Upload a WASM module to a contract")]
+    WasmUpload(cmds::contract::wasm_upload::Opts),
 }
 
 #[derive(Subcommand)]
@@ -264,6 +267,7 @@ async fn main() -> Result<()> {
                 ContractCommands::Status(opts) => cmds::contract::status::run(opts).await?,
                 ContractCommands::Get(opts) => cmds::contract::get::run(opts).await?,
                 ContractCommands::Assets(opts) => cmds::contract::assets::run(opts).await?,
+                ContractCommands::WasmUpload(opts) => cmds::contract::wasm_upload::run(opts).await?,
             }
         }
         Commands::Run { command } => {

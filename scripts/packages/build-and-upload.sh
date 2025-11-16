@@ -234,9 +234,8 @@ build_packages() {
     
     log_success "Rust CLI built successfully for all platforms"
     
-    # Build WASM package
-    log_info "Building WASM package..."
-    cd "$PROJECT_ROOT/rust/modality-lang"
+    # Build WASM packages
+    log_info "Building WASM packages..."
     
     # Install wasm-pack if not available
     if ! command -v wasm-pack &> /dev/null; then
@@ -244,17 +243,35 @@ build_packages() {
         cargo install wasm-pack
     fi
     
-    # Build for different targets
+    # Build modality-lang WASM package
+    log_info "Building modality-lang WASM..."
+    cd "$PROJECT_ROOT/rust/modality-lang"
     npm run build
     npm run build-node
     npm run build-bundler
     
-    # Copy WASM builds
-    mkdir -p "$BUILD_DIR/wasm"
-    cp -r dist "$BUILD_DIR/wasm/web"
-    cp -r dist-node "$BUILD_DIR/wasm/node"
-    cp -r dist-bundler "$BUILD_DIR/wasm/bundler"
-    log_success "WASM packages built successfully"
+    # Copy modality-lang WASM builds
+    mkdir -p "$BUILD_DIR/wasm/modality-lang"
+    cp -r dist "$BUILD_DIR/wasm/modality-lang/web"
+    cp -r dist-node "$BUILD_DIR/wasm/modality-lang/node"
+    cp -r dist-bundler "$BUILD_DIR/wasm/modality-lang/bundler"
+    log_success "modality-lang WASM built"
+    
+    # Build modal-wasm-validation WASM package
+    log_info "Building modal-wasm-validation WASM..."
+    cd "$PROJECT_ROOT/rust/modal-wasm-validation"
+    npm run build
+    npm run build-node
+    npm run build-bundler
+    
+    # Copy modal-wasm-validation WASM builds
+    mkdir -p "$BUILD_DIR/wasm/modal-wasm-validation"
+    cp -r dist "$BUILD_DIR/wasm/modal-wasm-validation/web"
+    cp -r dist-node "$BUILD_DIR/wasm/modal-wasm-validation/node"
+    cp -r dist-bundler "$BUILD_DIR/wasm/modal-wasm-validation/bundler"
+    log_success "modal-wasm-validation WASM built"
+    
+    log_success "All WASM packages built successfully"
     
     # Build JavaScript packages (if not skipped)
     if [[ "$SKIP_JS" == false ]]; then

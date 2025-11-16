@@ -1,8 +1,8 @@
 [
   {
     "type": "contract-commit",
-    "contract_id": "12D3KooWHzUBTgRpM726QytwFN9HoUFj6gu4XEdpnvN69uPjDkwg",
-    "commit_id": "0291e2d6027f184b65fadcb3757693496a2697951bd6597bbe04c1ea25820abb",
+    "contract_id": "12D3KooWNJeKDwcWM3C2U6i2RBD6FNtMwtfgy6TbLNbjwLD3iFEM",
+    "commit_id": "a856d3fde096130029429970c9c4e675408d7403e8b05d73f9f3541d0344e3b4",
     "commit": {
       "body": [
         {
@@ -44,21 +44,56 @@
           "method": "post",
           "path": "/network/validators/2.text",
           "value": "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
+        }
+      ],
+      "head": {}
+    }
+  },
+  {
+    "type": "contract-commit",
+    "contract_id": "12D3KooWPNHaYyqn4oXoz7RPje2a16WGBaPJHqWaewnDQZJ6K3Jd",
+    "commit_id": "a856d3fde096130029429970c9c4e675408d7403e8b05d73f9f3541d0344e3b4",
+    "commit": {
+      "body": [
+        {
+          "method": "post",
+          "path": "/network/name.text",
+          "value": "devnet3"
         },
         {
           "method": "post",
-          "path": "/network/bootstrappers/0.text",
-          "value": "/ip4/127.0.0.1/tcp/10301/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+          "path": "/network/description.text",
+          "value": "Three validator development network"
         },
         {
           "method": "post",
-          "path": "/network/bootstrappers/1.text",
-          "value": "/ip4/127.0.0.1/tcp/10302/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
+          "path": "/network/difficulty.number",
+          "value": "1"
         },
         {
           "method": "post",
-          "path": "/network/bootstrappers/2.text",
-          "value": "/ip4/127.0.0.1/tcp/10303/ws/p2p/12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
+          "path": "/network/target_block_time_secs.number",
+          "value": "60"
+        },
+        {
+          "method": "post",
+          "path": "/network/blocks_per_epoch.number",
+          "value": "40"
+        },
+        {
+          "method": "post",
+          "path": "/network/validators/0.text",
+          "value": "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+        },
+        {
+          "method": "post",
+          "path": "/network/validators/1.text",
+          "value": "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
+        },
+        {
+          "method": "post",
+          "path": "/network/validators/2.text",
+          "value": "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
         }
       ],
       "head": {}

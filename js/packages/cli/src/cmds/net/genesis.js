@@ -43,12 +43,8 @@ async function createNetworkGenesisContract(networkInfo) {
     });
   }
   
-  // Bootstrappers (indexed)
-  if (networkInfo.bootstrappers && networkInfo.bootstrappers.length > 0) {
-    networkInfo.bootstrappers.forEach((bootstrapper, index) => {
-      commit.addPost(`/network/bootstrappers/${index}.text`, bootstrapper);
-    });
-  }
+  // Note: Bootstrappers are NOT included in the genesis contract
+  // They are operational/networking config only, kept in network config file
   
   // Compute commit ID (SHA256 of the commit JSON)
   const commitJson = JSON.stringify({ body: commit.body, head: commit.head });

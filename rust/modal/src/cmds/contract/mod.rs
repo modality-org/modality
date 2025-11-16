@@ -5,3 +5,4 @@ pub mod push;
 pub mod pull;
 pub mod status;
 pub mod assets;
+pub mod wasm_upload;

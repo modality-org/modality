@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 /// Network parameters loaded from the genesis contract
+/// Note: Bootstrappers are NOT included here - they are operational/networking
+/// config only and should be read from the network config file, not the genesis contract
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkParameters {
     pub name: String,
@@ -9,7 +11,6 @@ pub struct NetworkParameters {
     pub target_block_time_secs: u64,
     pub blocks_per_epoch: u64,
     pub validators: Vec<String>,
-    pub bootstrappers: Vec<String>,
 }
 
 impl NetworkParameters {
@@ -22,7 +23,6 @@ impl NetworkParameters {
             target_block_time_secs: 60,
             blocks_per_epoch: 40,
             validators: Vec::new(),
-            bootstrappers: Vec::new(),
         }
     }
 }

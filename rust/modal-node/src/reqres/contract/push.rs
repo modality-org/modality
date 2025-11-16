@@ -108,7 +108,7 @@ mod tests {
     #[tokio::test]
     async fn test_push_commits() {
         let datastore = NetworkDatastore::create_in_memory().unwrap();
-        let (tx, _rx) = mpsc::channel(100);
+        let (tx, _rx) = mpsc::channel::<()>(100);
 
         let commit_data = CommitData {
             commit_id: "test123".to_string(),

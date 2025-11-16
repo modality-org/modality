@@ -13,7 +13,9 @@ members = [
 , "modality"
 , "modality-lang"
 , "modal"
-, "modal-networks"]
+, "modal-networks"
+, "modal-wasm-runtime"
+, "modal-wasm-validation"]
 
 [profile.release]
 strip = true

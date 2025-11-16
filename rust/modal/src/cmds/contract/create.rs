@@ -9,8 +9,8 @@ use crate::contract_store::{ContractStore, CommitFile};
 #[command(about = "Create a new contract in a directory")]
 pub struct Opts {
     /// Directory path where the contract will be created (defaults to current directory)
-    #[clap(value_name = "PATH")]
-    path: Option<PathBuf>,
+    #[clap(long)]
+    dir: Option<PathBuf>,
     
     /// Output format (json or text)
     #[clap(long, default_value = "text")]
@@ -19,7 +19,7 @@ pub struct Opts {
 
 pub async fn run(opts: &Opts) -> Result<()> {
     // Determine the contract directory
-    let dir = if let Some(path) = &opts.path {
+    let dir = if let Some(path) = &opts.dir {
         path.clone()
     } else {
         std::env::current_dir()?

@@ -216,7 +216,6 @@ impl NetworkDatastore {
         let mut target_block_time_secs: Option<u64> = None;
         let mut blocks_per_epoch: Option<u64> = None;
         let mut validators = Vec::new();
-        let mut bootstrappers = Vec::new();
         
         // Iterate over all keys with the prefix
         for result in self.iterator(&prefix) {
@@ -247,18 +246,16 @@ impl NetworkDatastore {
                         // Extract index and add to validators
                         validators.push(value_str);
                     }
-                    path if path.starts_with("bootstrappers/") => {
-                        // Extract index and add to bootstrappers
-                        bootstrappers.push(value_str);
-                    }
                     _ => {
                         // Unknown parameter, skip
+                        // Note: bootstrappers are intentionally NOT loaded from contract
+                        // as they are operational/networking config, not consensus parameters
                     }
                 }
             }
         }
         
-        // Sort validators and bootstrappers by their indices (they may come in any order from iterator)
+        // Sort validators by their indices (they may come in any order from iterator)
         // Since we don't parse indices above, we'll just use the order from the iterator
         // In practice, the iterator should return them in lexicographic order
         
@@ -269,7 +266,6 @@ impl NetworkDatastore {
             target_block_time_secs: target_block_time_secs.ok_or_else(|| Error::Database("Missing target_block_time_secs".to_string()))?,
             blocks_per_epoch: blocks_per_epoch.ok_or_else(|| Error::Database("Missing blocks_per_epoch".to_string()))?,
             validators,
-            bootstrappers,
         })
     }
 

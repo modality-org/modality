@@ -142,7 +142,7 @@ impl Node {
                         log::info!("  Block Time: {}s", params.target_block_time_secs);
                         log::info!("  Blocks per Epoch: {}", params.blocks_per_epoch);
                         log::info!("  Validators: {}", params.validators.len());
-                        log::info!("  Bootstrappers: {}", params.bootstrappers.len());
+                        // Note: Bootstrappers are operational config, not in genesis contract
                         
                         // Update static validators from contract
                         if !params.validators.is_empty() {

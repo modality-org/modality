@@ -13,6 +13,9 @@ export { ModalClient, createClientOnlyConfig } from './client.js';
 // ReqRes client (for advanced usage)
 export { ReqResClient } from './reqres-client.js';
 
+// WASM executor for deterministic validation
+export { WasmExecutor } from './wasm-executor.js';
+
 // Utilities
 export { parseMultiaddr, extractPeerId, isValidConnectionAddr } from './utils/multiaddr.js';
 

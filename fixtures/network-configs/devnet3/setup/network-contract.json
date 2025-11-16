@@ -1,10 +1,10 @@
 {
-  "contractId": "12D3KooWHzUBTgRpM726QytwFN9HoUFj6gu4XEdpnvN69uPjDkwg",
+  "contractId": "12D3KooWNJeKDwcWM3C2U6i2RBD6FNtMwtfgy6TbLNbjwLD3iFEM",
   "genesis": {
     "genesis": {
-      "contract_id": "12D3KooWHzUBTgRpM726QytwFN9HoUFj6gu4XEdpnvN69uPjDkwg"
+      "contract_id": "12D3KooWNJeKDwcWM3C2U6i2RBD6FNtMwtfgy6TbLNbjwLD3iFEM"
     },
-    "genesis.signature": "a2V0AApxv0c7VWWeqf7cXxhusD9mzkXTZEIk8Edlt4Z4sSsVjYBQsDdyWR8dOdTS9flZx2bW4S+SkSKOCC/cCQ=="
+    "genesis.signature": "nb4cVaGAkN32x06ojIqs4z2Sv+xclLQ4lP/Q5oJqm2C/T5UDI68lNtRYLSFYdURFXfX/2JweVjf37B5xKx5MDg=="
   },
   "genesisCommit": {
     "body": [
@@ -47,21 +47,6 @@
         "method": "post",
         "path": "/network/validators/2.text",
         "value": "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
-      },
-      {
-        "method": "post",
-        "path": "/network/bootstrappers/0.text",
-        "value": "/ip4/127.0.0.1/tcp/10301/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
-      },
-      {
-        "method": "post",
-        "path": "/network/bootstrappers/1.text",
-        "value": "/ip4/127.0.0.1/tcp/10302/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"
-      },
-      {
-        "method": "post",
-        "path": "/network/bootstrappers/2.text",
-        "value": "/ip4/127.0.0.1/tcp/10303/ws/p2p/12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se"
       }
     ],
     "head": {}

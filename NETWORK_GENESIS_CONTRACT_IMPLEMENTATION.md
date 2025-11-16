@@ -16,14 +16,16 @@ Successfully implemented network parameters within genesis contracts with full P
 ### 1. Data Structures (modal-datastore)
 
 **Created:** `rust/modal-datastore/src/network_params.rs`
-- `NetworkParameters` struct holds all network parameters loaded from genesis contract
-- Fields: name, description, initial_difficulty, target_block_time_secs, blocks_per_epoch, validators, bootstrappers
+- `NetworkParameters` struct holds consensus-critical network parameters loaded from genesis contract
+- Fields: name, description, initial_difficulty, target_block_time_secs, blocks_per_epoch, validators
+- **Note:** Bootstrappers are NOT included (they are operational/networking config, read from network config file)
 
 **Updated:** `rust/modal-datastore/src/network_datastore.rs`
 - Added `load_network_parameters_from_contract()` method
-- Reads all `/network/*` paths from contract state
+- Reads consensus-critical `/network/*` paths from contract state
 - Parses parameters into NetworkParameters struct
 - Contract state stored with keys like: `/contracts/${contract_id}/network/${param}.${type}`
+- **Note:** Does not load bootstrappers from contract (intentionally operational-only config)
 
 **Updated:** `rust/modal-datastore/src/lib.rs`
 - Exported new NetworkParameters type
@@ -31,7 +33,7 @@ Successfully implemented network parameters within genesis contracts with full P
 ### 2. Genesis Contract Generation (JS)
 
 **Updated:** `js/packages/cli/src/cmds/net/genesis.js`
-- `createNetworkGenesisContract()` function generates genesis contract with all parameters
+- `createNetworkGenesisContract()` function generates genesis contract with consensus-critical parameters
 - Creates POST actions for:
   - `/network/name.text` - network name
   - `/network/description.text` - network description
@@ -39,7 +41,7 @@ Successfully implemented network parameters within genesis contracts with full P
   - `/network/target_block_time_secs.number` - target block time
   - `/network/blocks_per_epoch.number` - blocks per epoch (40)
   - `/network/validators/{index}.text` - each validator peer ID
-  - `/network/bootstrappers/{index}.text` - each bootstrapper multiaddr
+  - **Note:** Bootstrappers are NOT included in genesis contract (they are operational/networking config only)
 - Includes genesis contract event in round 0
 - Outputs `genesis_contract_id` and `latest_parameters` in network config
 
@@ -115,13 +117,14 @@ async fn process_post(&self, contract_id: &str, action: &Value) -> Result<StateC
 {
   "name": "devnet1",
   "description": "Single validator development network",
-  "genesis_contract_id": "12D3KooWCqSkGcZM8SJqbwnH5hV2E4nH4DGG9upFFdYH9u11xkmT",
+  "bootstrappers": ["..."],  // Operational config only, NOT in genesis contract
+  "genesis_contract_id": "12D3KooWRjja961jDEY1Rf1nNDr1PWaNjHTYA34mLd4VTrkEhMBq",
   "latest_parameters": {
     "difficulty": 1,
     "target_block_time_secs": 60,
     "blocks_per_epoch": 40,
     "validators": [...],
-    "bootstrappers": [...]
+    "bootstrappers": [...]  // Also in latest_parameters for convenience
   },
   "rounds": {
     "0": {
@@ -134,7 +137,8 @@ async fn process_post(&self, contract_id: &str, action: &Value) -> Result<StateC
               "body": [
                 {"method": "post", "path": "/network/name.text", "value": "devnet1"},
                 {"method": "post", "path": "/network/difficulty.number", "value": "1"},
-                ...
+                {"method": "post", "path": "/network/validators/0.text", "value": "12D3KooW..."},
+                // Note: NO bootstrappers in genesis contract
               ]
             }
           }
@@ -147,11 +151,12 @@ async fn process_post(&self, contract_id: &str, action: &Value) -> Result<StateC
 
 ## Benefits
 
-1. **Transparency**: All network parameters are on-chain from genesis
-2. **Verifiability**: Anyone can inspect the genesis contract to see parameters
+1. **Transparency**: All consensus-critical network parameters are on-chain from genesis
+2. **Verifiability**: Anyone can inspect the genesis contract to see consensus parameters
 3. **Redundancy**: `latest_parameters` provides fast access without contract reads
-4. **Extensibility**: Easy to add new parameters as `/network/*` paths
+4. **Extensibility**: Easy to add new consensus parameters as `/network/*` paths
 5. **Governance-Ready**: Foundation for future parameter updates via governance
+6. **Proper Separation**: Bootstrappers remain operational config (not consensus), allowing flexible network topology
 
 ## Testing
 
@@ -258,8 +263,9 @@ Contract parameters are stored with this key format:
 /contracts/${contract_id}/network/difficulty.number → "1"
 /contracts/${contract_id}/network/validators/0.text → "12D3KooW..."
 /contracts/${contract_id}/network/validators/1.text → "12D3KooW..."
-/contracts/${contract_id}/network/bootstrappers/0.text → "/ip4/..."
 ```
+
+**Note:** Bootstrappers are NOT stored in contract state. They remain in the network config file only as operational/networking configuration.
 
 ## Future Enhancements
 
