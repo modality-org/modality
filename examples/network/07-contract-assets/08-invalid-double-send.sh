@@ -9,7 +9,7 @@ echo "This example demonstrates that validators reject"
 echo "SEND commits when the sender lacks sufficient balance."
 echo ""
 
-cd data/alice
+cd tmp/alice
 
 echo "📊 Current State:"
 echo ""

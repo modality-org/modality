@@ -80,26 +80,24 @@ echo ""
 
 # Step 1: Create Alice's contract
 run_step "Step 1: Create Alice's Contract" "./01-create-alice.sh" || exit 1
-validate "Alice's contract file exists" "[ -f data/alice/alice-contract.json ]"
-validate "Alice has .contract directory" "[ -d data/alice/.contract ]"
+validate "Alice has .contract directory" "[ -d tmp/alice/.contract ]"
+validate "Alice's config.json exists" "[ -f tmp/alice/.contract/config.json ]"
 
 # Step 2: Create token asset
 run_step "Step 2: Create Token Asset" "./02-create-token.sh" || exit 1
-validate "Token creation commit exists" "[ -f data/alice/create-token.json ]"
 
 # Verify token was created
-ALICE_CONTRACT_ID=$(cat data/alice/alice-contract.json | python3 -c "import sys, json; print(json.load(sys.stdin)['contract_id'])")
+ALICE_CONTRACT_ID=$(cd tmp/alice && modal contract id)
 validate "Alice's contract ID is not empty" "[ -n '$ALICE_CONTRACT_ID' ]"
 
 # Step 3: Create Bob's contract
 run_step "Step 3: Create Bob's Contract" "./03-create-bob.sh" || exit 1
-validate "Bob's contract file exists" "[ -f data/bob/bob-contract.json ]"
-validate "Bob has .contract directory" "[ -d data/bob/.contract ]"
+validate "Bob has .contract directory" "[ -d tmp/bob/.contract ]"
+validate "Bob's config.json exists" "[ -f tmp/bob/.contract/config.json ]"
 
 # Step 4: Alice sends tokens (with network push)
 run_step "Step 4: Alice Sends Tokens" "./04-alice-sends-tokens.sh" || exit 1
-validate "SEND commit file exists" "[ -f data/alice/send-tokens.json ]"
-validate "SEND commit ID was saved" "[ -f data/send-commit-id.txt ]"
+validate "SEND commit ID was saved" "[ -f tmp/send-commit-id.txt ]"
 
 # Wait for network to process
 echo ""
@@ -108,7 +106,6 @@ sleep 2
 
 # Step 5: Bob receives tokens (with network push)
 run_step "Step 5: Bob Receives Tokens" "./05-bob-receives-tokens.sh" || exit 1
-validate "RECV commit file exists" "[ -f data/bob/recv-tokens.json ]"
 
 # Wait for network to process
 echo ""

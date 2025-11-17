@@ -7,8 +7,8 @@ echo "================================================"
 echo ""
 
 echo "--- Alice's Assets ---"
-cd data/alice
-ALICE_CONTRACT_ID=$(cat alice-contract.json | python3 -c "import sys, json; print(json.load(sys.stdin)['contract_id'])")
+cd tmp/alice
+ALICE_CONTRACT_ID=$(modal contract id)
 echo "Contract ID: $ALICE_CONTRACT_ID"
 echo ""
 
@@ -20,8 +20,8 @@ echo ""
 cd ../..
 
 echo "--- Bob's Assets ---"
-cd data/bob
-BOB_CONTRACT_ID=$(cat bob-contract.json | python3 -c "import sys, json; print(json.load(sys.stdin)['contract_id'])")
+cd tmp/bob
+BOB_CONTRACT_ID=$(modal contract id)
 echo "Contract ID: $BOB_CONTRACT_ID"
 echo ""
 

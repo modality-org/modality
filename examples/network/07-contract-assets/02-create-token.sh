@@ -6,9 +6,9 @@ echo "Step 2: Create Token Asset"
 echo "================================================"
 echo ""
 
-cd data/alice
+cd tmp/alice
 
-ALICE_CONTRACT_ID=$(cat alice-contract.json | python3 -c "import sys, json; print(json.load(sys.stdin)['contract_id'])")
+ALICE_CONTRACT_ID=$(modal contract id)
 
 echo "Creating fungible token asset..."
 echo "  Asset ID: my_token"
@@ -20,10 +20,9 @@ modal contract commit \
   --method create \
   --asset-id my_token \
   --quantity 1000000 \
-  --divisibility 100 \
-  --output json > create-token.json
+  --divisibility 100
 
-CREATE_COMMIT_ID=$(cat create-token.json | python3 -c "import sys, json; print(json.load(sys.stdin)['commit_id'])")
+CREATE_COMMIT_ID=$(modal contract commit-id)
 
 echo "✅ Token asset created!"
 echo ""

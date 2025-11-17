@@ -1,6 +1,8 @@
 pub mod create;
 pub mod commit;
+pub mod commit_id;
 pub mod get;
+pub mod id;
 pub mod push;
 pub mod pull;
 pub mod status;

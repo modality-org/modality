@@ -6,10 +6,10 @@ echo "Step 4: Alice Sends Tokens to Bob"
 echo "================================================"
 echo ""
 
-cd data/alice
+cd tmp/alice
 
-ALICE_CONTRACT_ID=$(cat alice-contract.json | python3 -c "import sys, json; print(json.load(sys.stdin)['contract_id'])")
-BOB_CONTRACT_ID=$(cat ../bob/bob-contract.json | python3 -c "import sys, json; print(json.load(sys.stdin)['contract_id'])")
+ALICE_CONTRACT_ID=$(modal contract id)
+BOB_CONTRACT_ID=$(cd ../bob && modal contract id)
 
 echo "Alice sending tokens to Bob..."
 echo "  Asset ID: my_token"
@@ -21,10 +21,9 @@ modal contract commit \
   --method send \
   --asset-id my_token \
   --to-contract "$BOB_CONTRACT_ID" \
-  --amount 10000 \
-  --output json > send-tokens.json
+  --amount 10000
 
-SEND_COMMIT_ID=$(cat send-tokens.json | python3 -c "import sys, json; print(json.load(sys.stdin)['commit_id'])")
+SEND_COMMIT_ID=$(modal contract commit-id)
 
 # Save the SEND commit ID for Bob to use
 echo "$SEND_COMMIT_ID" > ../send-commit-id.txt

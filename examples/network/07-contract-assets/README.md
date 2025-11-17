@@ -262,7 +262,7 @@ modal contract commit --method create \
 ├── 05-bob-receives-tokens.sh
 ├── 06-query-balances.sh
 ├── test.sh
-└── data/
+└── tmp/
     ├── alice/
     └── bob/
 ```

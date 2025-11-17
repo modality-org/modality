@@ -42,7 +42,8 @@ Successfully implemented a comprehensive example demonstrating CREATE, SEND, and
 - 8 shell scripts - Step-by-step execution (including invalid-send demo)
 - test.sh - Local integration test (✅ working)
 - test-devnet1.sh - Network integration test (✅ working)
-- .gitignore - Ignore data/ and tmp/
+
+**Data stored in tmp/ (gitignored)**
 
 **Network Scripts**:
 - 00-setup-devnet1.sh - Setup with validator dirs

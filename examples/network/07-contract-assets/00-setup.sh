@@ -8,14 +8,14 @@ echo ""
 
 # Clean up any previous state
 echo "Cleaning up previous state..."
-rm -rf data/
-mkdir -p data/alice
-mkdir -p data/bob
+rm -rf tmp/alice tmp/bob tmp/send-commit-id.txt
+mkdir -p tmp/alice
+mkdir -p tmp/bob
 
 echo "✅ Setup complete!"
 echo ""
 echo "Directories created:"
-echo "  - data/alice (Alice's contract)"
-echo "  - data/bob (Bob's contract)"
+echo "  - tmp/alice (Alice's contract)"
+echo "  - tmp/bob (Bob's contract)"
 echo ""
 

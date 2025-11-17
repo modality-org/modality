@@ -6,9 +6,9 @@ echo "Step 5: Bob Receives Tokens"
 echo "================================================"
 echo ""
 
-cd data/bob
+cd tmp/bob
 
-BOB_CONTRACT_ID=$(cat bob-contract.json | python3 -c "import sys, json; print(json.load(sys.stdin)['contract_id'])")
+BOB_CONTRACT_ID=$(modal contract id)
 SEND_COMMIT_ID=$(cat ../send-commit-id.txt)
 
 echo "Bob receiving tokens from Alice..."
@@ -17,10 +17,9 @@ echo ""
 
 modal contract commit \
   --method recv \
-  --send-commit-id "$SEND_COMMIT_ID" \
-  --output json > recv-tokens.json
+  --send-commit-id "$SEND_COMMIT_ID"
 
-RECV_COMMIT_ID=$(cat recv-tokens.json | python3 -c "import sys, json; print(json.load(sys.stdin)['commit_id'])")
+RECV_COMMIT_ID=$(modal contract commit-id)
 
 echo "✅ RECV action created!"
 echo ""
