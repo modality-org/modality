@@ -12,55 +12,77 @@ echo "Custom Predicate Example"
 echo "=========================================="
 echo ""
 
-# Step 1: Create a custom predicate in Rust
-echo "Step 1: Creating a custom predicate..."
+# Step 1: Create a custom predicate using modal CLI
+echo "Step 1: Creating a custom predicate project..."
 echo ""
 
-# Create tmp directory for the custom predicate
-mkdir -p "$SCRIPT_DIR/tmp/custom-predicate/src"
+# Remove existing directory if it exists
+rm -rf "$SCRIPT_DIR/tmp/custom-predicate"
 
-cat > "$SCRIPT_DIR/tmp/custom-predicate/Cargo.toml" << 'EOF'
-[package]
-name = "custom-predicate"
-version = "0.1.0"
-edition = "2021"
+# Use modal predicate create to scaffold the project
+modal predicate create --dir "$SCRIPT_DIR/tmp/custom-predicate" --name is_within_percent
 
-[lib]
-crate-type = ["cdylib"]
+echo ""
+echo "✓ Created predicate project with modal predicate create"
+echo ""
 
-[dependencies]
-wasm-bindgen = "0.2"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+# Step 1b: Implement custom logic
+echo "Step 1b: Implementing custom predicate logic..."
+echo ""
 
-[profile.release]
-opt-level = "z"
-lto = true
-EOF
-
+# Replace the default lib.rs with our custom implementation
 cat > "$SCRIPT_DIR/tmp/custom-predicate/src/lib.rs" << 'EOF'
 use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Input structure for predicates
 #[derive(Debug, Deserialize)]
-struct Input {
+struct PredicateInput {
     data: Value,
-    context: Context,
+    context: PredicateContext,
 }
 
+/// Context passed to predicates during evaluation
 #[derive(Debug, Deserialize)]
-struct Context {
+struct PredicateContext {
     contract_id: String,
     block_height: u64,
     timestamp: u64,
 }
 
+/// Result of predicate evaluation
 #[derive(Debug, Serialize)]
-struct Result {
+struct PredicateResult {
     valid: bool,
     gas_used: u64,
     errors: Vec<String>,
+}
+
+impl PredicateResult {
+    fn success(gas_used: u64) -> Self {
+        Self {
+            valid: true,
+            gas_used,
+            errors: Vec::new(),
+        }
+    }
+
+    fn failure(gas_used: u64, errors: Vec<String>) -> Self {
+        Self {
+            valid: false,
+            gas_used,
+            errors,
+        }
+    }
+
+    fn error(gas_used: u64, error: String) -> Self {
+        Self {
+            valid: false,
+            gas_used,
+            errors: vec![error],
+        }
+    }
 }
 
 /// Custom predicate: check if a value is within a percentage range of a target
@@ -71,14 +93,10 @@ struct Result {
 pub fn evaluate(input_json: &str) -> String {
     let gas_used = 25;
 
-    let input: Input = match serde_json::from_str(input_json) {
+    let input: PredicateInput = match serde_json::from_str(input_json) {
         Ok(i) => i,
         Err(e) => {
-            let result = Result {
-                valid: false,
-                gas_used,
-                errors: vec![format!("Invalid input: {}", e)],
-            };
+            let result = PredicateResult::error(gas_used, format!("Invalid input: {}", e));
             return serde_json::to_string(&result).unwrap();
         }
     };
@@ -87,11 +105,7 @@ pub fn evaluate(input_json: &str) -> String {
     let value = match input.data.get("value").and_then(|v| v.as_f64()) {
         Some(v) => v,
         None => {
-            let result = Result {
-                valid: false,
-                gas_used,
-                errors: vec!["Missing or invalid 'value' parameter".to_string()],
-            };
+            let result = PredicateResult::error(gas_used, "Missing or invalid 'value' parameter".to_string());
             return serde_json::to_string(&result).unwrap();
         }
     };
@@ -99,11 +113,7 @@ pub fn evaluate(input_json: &str) -> String {
     let target = match input.data.get("target").and_then(|v| v.as_f64()) {
         Some(t) => t,
         None => {
-            let result = Result {
-                valid: false,
-                gas_used,
-                errors: vec!["Missing or invalid 'target' parameter".to_string()],
-            };
+            let result = PredicateResult::error(gas_used, "Missing or invalid 'target' parameter".to_string());
             return serde_json::to_string(&result).unwrap();
         }
     };
@@ -111,11 +121,7 @@ pub fn evaluate(input_json: &str) -> String {
     let percent = match input.data.get("percent").and_then(|v| v.as_f64()) {
         Some(p) => p,
         None => {
-            let result = Result {
-                valid: false,
-                gas_used,
-                errors: vec!["Missing or invalid 'percent' parameter".to_string()],
-            };
+            let result = PredicateResult::error(gas_used, "Missing or invalid 'percent' parameter".to_string());
             return serde_json::to_string(&result).unwrap();
         }
     };
@@ -128,24 +134,23 @@ pub fn evaluate(input_json: &str) -> String {
     // Check if value is within range
     let valid = value >= min && value <= max;
 
-    let result = Result {
-        valid,
-        gas_used,
-        errors: if valid {
-            vec![]
-        } else {
+    if valid {
+        let result = PredicateResult::success(gas_used + 50);
+        serde_json::to_string(&result).unwrap()
+    } else {
+        let result = PredicateResult::failure(
+            gas_used + 50,
             vec![format!(
                 "Value {} is not within {}% of {} (range: {}-{})",
                 value, percent, target, min, max
             )]
-        },
-    };
-
-    serde_json::to_string(&result).unwrap()
+        );
+        serde_json::to_string(&result).unwrap()
+    }
 }
 EOF
 
-echo "✓ Created custom predicate: is_within_percent"
+echo "✓ Implemented custom predicate: is_within_percent"
 echo ""
 echo "Predicate logic:"
 echo "  - Checks if a value is within a percentage of a target"
@@ -158,25 +163,34 @@ echo ""
 
 cd "$SCRIPT_DIR/tmp/custom-predicate"
 
-if command -v wasm-pack &> /dev/null; then
-    echo "Building with wasm-pack..."
-    wasm-pack build --target web --release
-    
-    WASM_FILE="pkg/custom_predicate_bg.wasm"
-    
-    if [ -f "$WASM_FILE" ]; then
-        echo "✓ Built WASM module: $WASM_FILE"
-        echo "  Size: $(wc -c < "$WASM_FILE") bytes"
-        echo ""
-    else
-        echo "⚠️  WASM file not found. Build may have failed."
-        echo ""
-    fi
+# Use the generated build script
+if [ -f "./build.sh" ]; then
+    echo "Using generated build.sh script..."
+    ./build.sh
+    echo ""
 else
-    echo "⚠️  wasm-pack not installed. To build:"
-    echo "     cargo install wasm-pack"
-    echo "     cd $SCRIPT_DIR/tmp/custom-predicate"
-    echo "     wasm-pack build --target web --release"
+    echo "⚠️  build.sh not found, building manually..."
+    if command -v wasm-pack &> /dev/null; then
+        echo "Building with wasm-pack..."
+        wasm-pack build --target web --release
+    else
+        echo "Building with cargo..."
+        cargo build --target wasm32-unknown-unknown --release
+    fi
+    echo ""
+fi
+
+# Detect WASM file location (build.sh normalizes to dist/)
+if [ -f "dist/is_within_percent.wasm" ]; then
+    WASM_FILE="dist/is_within_percent.wasm"
+    echo "✓ Built WASM module: $WASM_FILE"
+else
+    echo "⚠️  WASM file not found. Build may have failed."
+    WASM_FILE=""
+fi
+
+if [ -n "$WASM_FILE" ]; then
+    echo "  Size: $(wc -c < "$WASM_FILE") bytes"
     echo ""
 fi
 
@@ -186,7 +200,7 @@ echo ""
 echo "To upload your custom predicate:"
 echo ""
 echo "  # Convert WASM to base64"
-echo "  WASM_BASE64=\$(base64 < tmp/custom-predicate/pkg/custom_predicate_bg.wasm)"
+echo "  WASM_BASE64=\$(base64 < tmp/custom-predicate/$WASM_FILE)"
 echo ""
 echo "  # Create commit with POST action"
 echo "  modal contract commit mycontract \\"
@@ -260,19 +274,30 @@ echo "Custom Predicate Example Complete!"
 echo "=========================================="
 echo ""
 echo "Summary:"
-echo "  1. ✓ Created Rust predicate with wasm-bindgen in tmp/"
-echo "  2. ✓ Built to WASM with wasm-pack"
-echo "  3. ✓ Showed how to upload to contract"
-echo "  4. ✓ Demonstrated usage in modal model"
-echo "  5. ✓ Provided test cases"
-echo "  6. ✓ Documented best practices"
+echo "  1. ✓ Created predicate project with 'modal predicate create'"
+echo "  2. ✓ Implemented custom is_within_percent logic"
+echo "  3. ✓ Built to WASM using generated build.sh"
+echo "  4. ✓ Showed how to upload to contract"
+echo "  5. ✓ Demonstrated usage in modal model"
+echo "  6. ✓ Provided test cases and best practices"
 echo ""
-echo "Files created in tmp/:"
-echo "  - tmp/custom-predicate/src/lib.rs"
-echo "  - tmp/custom-predicate/Cargo.toml"
-echo "  - tmp/custom-predicate/pkg/custom_predicate_bg.wasm (if built)"
-echo "  - tmp/custom-contract.modality"
+echo "Files created in tmp/custom-predicate/:"
+echo "  - Cargo.toml (generated)"
+echo "  - package.json (generated)"
+echo "  - build.sh (generated)"
+echo "  - README.md (generated)"
+echo "  - src/lib.rs (custom implementation)"
+echo "  - tests/lib.rs (generated)"
+if [ -n "$WASM_FILE" ]; then
+    echo "  - $WASM_FILE (built)"
+fi
+echo ""
+echo "Also created:"
+echo "  - tmp/custom-contract.modality (example usage)"
 echo ""
 echo "Your custom predicate is ready to use!"
+echo ""
+echo "To create your own predicate:"
+echo "  modal predicate create --dir my-predicate --name my_predicate"
 echo ""
 

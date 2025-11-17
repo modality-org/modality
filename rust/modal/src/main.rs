@@ -222,6 +222,9 @@ enum PredicateCommands {
 
     #[command(about = "Test a predicate with sample data")]
     Test(cmds::predicate::test::Opts),
+
+    #[command(about = "Create a new predicate project")]
+    Create(cmds::predicate::create::Opts),
 }
 
 #[tokio::main]
@@ -300,6 +303,7 @@ async fn main() -> Result<()> {
                 PredicateCommands::List(opts) => cmds::predicate::list::run(opts).await?,
                 PredicateCommands::Info(opts) => cmds::predicate::info::run(opts).await?,
                 PredicateCommands::Test(opts) => cmds::predicate::test::run(opts).await?,
+                PredicateCommands::Create(opts) => cmds::predicate::create::run(opts).await?,
             }
         }
         Commands::Upgrade(opts) => modality::cmds::upgrade::run(opts).await?,

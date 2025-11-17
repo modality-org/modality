@@ -1,0 +1,13 @@
+model payment_flow:
+  part transaction:
+    init -> pending: +created
+    pending -> validated: +amount_in_range({"amount": 100, "min": 0, "max": 1000})
+    validated -> signed: +signed_by({"message": "approve", "signature": "sig123", "public_key": "pk456"})
+    signed -> completed: +timestamp_valid({"timestamp": 1234567890, "max_age_seconds": 3600})
+    completed -> archived: +has_property({"path": "status", "required": true})
+
+formula safe_payment:
+  <+amount_in_range> <+signed_by> <+timestamp_valid> true
+
+formula complete_flow:
+  <+created> <+amount_in_range> <+signed_by> <+timestamp_valid> <+has_property> true
