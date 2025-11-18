@@ -26,7 +26,12 @@
       {
         "method": "post",
         "path": "/network/target_block_time_secs.number",
-        "value": "60"
+        "value": "5"
+      },
+      {
+        "method": "post",
+        "path": "/network/miner_hash_func.text",
+        "value": "sha256"
       },
       {
         "method": "post",

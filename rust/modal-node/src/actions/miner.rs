@@ -345,6 +345,8 @@ pub async fn run(node: &mut Node) -> Result<()> {
     let fork_config = node.fork_config.clone();
     let mining_metrics = node.mining_metrics.clone();
     let initial_difficulty = node.initial_difficulty;
+    let miner_hash_func = node.miner_hash_func.clone();
+    let miner_hash_params = node.miner_hash_params.clone();
     let epoch_transition_tx = if node.hybrid_consensus {
         Some(node.epoch_transition_tx.clone())
     } else {
@@ -426,6 +428,8 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 fork_config.clone(),
                 mining_metrics.clone(),
                 initial_difficulty,
+                miner_hash_func.clone(),
+                miner_hash_params.clone(),
                 epoch_transition_tx.clone(),
             ).await {
                 Ok(()) => {
@@ -1285,6 +1289,8 @@ async fn mine_and_gossip_block(
     fork_config: modal_observer::ForkConfig,
     mining_metrics: crate::mining_metrics::SharedMiningMetrics,
     initial_difficulty: Option<u128>,
+    miner_hash_func: Option<String>,
+    miner_hash_params: Option<serde_json::Value>,
     epoch_transition_tx: Option<tokio::sync::broadcast::Sender<u64>>,
 ) -> Result<()> {
     use modal_miner::{Blockchain, ChainConfig};
@@ -1321,6 +1327,48 @@ async fn mine_and_gossip_block(
     log::info!("Loaded chain with {} blocks (height: {})", 
         chain.blocks.len(),
         chain.height());
+    
+    // Determine hash function and params with precedence:
+    // 1. Genesis contract (if available)
+    // 2. Node config
+    // 3. Default "randomx"
+    let (final_hash_func, final_hash_params) = {
+        // Try to load from genesis contract if network has one
+        let datastore_guard = datastore.lock().await;
+        let genesis_params = datastore_guard.get_string("/network/genesis_contract_id").await.ok()
+            .flatten()
+            .and_then(|contract_id| {
+                futures::executor::block_on(async {
+                    datastore_guard.load_network_parameters_from_contract(&contract_id).await.ok()
+                })
+            });
+        drop(datastore_guard);
+        
+        if let Some(params) = genesis_params {
+            log::info!("Using miner hash configuration from genesis contract: {}", params.miner_hash_func);
+            (params.miner_hash_func, params.miner_hash_params)
+        } else {
+            let hash_func = miner_hash_func.unwrap_or_else(|| {
+                log::info!("Using default miner hash function: randomx");
+                "randomx".to_string()
+            });
+            log::info!("Using miner hash configuration from node config: {}", hash_func);
+            (hash_func, miner_hash_params)
+        }
+    };
+    
+    // Set RandomX parameters if using randomx and params are provided
+    if final_hash_func == "randomx" && final_hash_params.is_some() {
+        modal_common::hash_tax::set_randomx_params_from_json(final_hash_params.as_ref());
+        log::info!("Set custom RandomX parameters for mining");
+    }
+    
+    // Create a new Miner with the determined hash function
+    let custom_miner = modal_miner::Miner::new(modal_miner::MinerConfig {
+        max_tries: None,
+        hash_func_name: Some(final_hash_func.leak()), // Convert String to &'static str
+    });
+    chain.miner = custom_miner;
     
     // Check if we're trying to mine a block that already exists
     if index < chain.height() + 1 && index < chain.blocks.len() as u64 {

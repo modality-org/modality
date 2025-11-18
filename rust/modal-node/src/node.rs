@@ -51,6 +51,8 @@ pub struct Node {
     pub minimum_block_timestamp: Option<i64>, // Reject blocks mined before this Unix timestamp
     pub fork_config: modal_observer::ForkConfig, // Fork configuration for forced blocks and timestamp validation
     pub initial_difficulty: Option<u128>, // Initial mining difficulty (defaults to 1000 if not specified)
+    pub miner_hash_func: Option<String>, // Hash function for mining
+    pub miner_hash_params: Option<serde_json::Value>, // Hash algorithm parameters
     pub mining_metrics: crate::mining_metrics::SharedMiningMetrics, // Mining hashrate metrics
     pub mining_shutdown: Option<Arc<std::sync::atomic::AtomicBool>>, // Shutdown flag for mining loop
     networking_task: Option<tokio::task::JoinHandle<Result<()>>>,
@@ -84,6 +86,8 @@ impl Node {
         let minimum_block_timestamp = config.minimum_block_timestamp;
         let fork_config = config.get_fork_config();
         let initial_difficulty = config.get_initial_difficulty();
+        let miner_hash_func = config.miner_hash_func.clone();
+        let miner_hash_params = config.miner_hash_params.clone();
         let listeners = config.listeners.clone().unwrap_or_default();
         let resolved_bootstrappers =
             resolve_dns_multiaddrs(config.bootstrappers.unwrap_or_default()).await?;
@@ -185,6 +189,8 @@ impl Node {
             minimum_block_timestamp,
             fork_config,
             initial_difficulty,
+            miner_hash_func,
+            miner_hash_params,
             mining_metrics: crate::mining_metrics::create_shared_metrics(),
             mining_shutdown: None, // Will be set in miner run()
             networking_task: None,

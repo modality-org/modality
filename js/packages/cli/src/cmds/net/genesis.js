@@ -87,6 +87,13 @@ async function createNetworkGenesisContract(networkInfo) {
   // Network parameters
   commit.addPost("/network/difficulty.number", String(networkInfo.difficulty || 1));
   commit.addPost("/network/target_block_time_secs.number", String(networkInfo.target_block_time_secs || 60));
+  commit.addPost("/network/miner_hash_func.text", networkInfo.miner_hash_func || "randomx");
+  
+  // Add miner_hash_params if provided
+  if (networkInfo.miner_hash_params) {
+    commit.addPost("/network/miner_hash_params.json", JSON.stringify(networkInfo.miner_hash_params));
+  }
+  
   commit.addPost("/network/blocks_per_epoch.number", String(networkInfo.blocks_per_epoch || 40));
   
   // Validators (indexed)

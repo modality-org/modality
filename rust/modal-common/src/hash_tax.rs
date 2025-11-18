@@ -6,6 +6,7 @@ use num_bigint::BigUint;
 use num_bigint::ToBigUint;
 use num_traits::Num;
 use randomx_rs::{RandomXFlag, RandomXVM};
+use serde::{Deserialize};
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -16,6 +17,13 @@ const DEFAULT_DIFFICULTY_COEFFICIENT: u128 = 0xffff;
 const DEFAULT_DIFFICULTY_EXPONENT: u128 = 0x1d;
 const DEFAULT_DIFFICULTY_BASE: u128 = 8;
 const RANDOMX_KEY: &[u8] = b"modality-network-randomx-key";
+
+/// RandomX-specific hashing parameters
+#[derive(Debug, Clone, Deserialize)]
+pub struct RandomXParams {
+    pub key: Option<String>,  // Custom key (default: "modality-network-randomx-key")
+    pub flags: Option<String>, // "recommended", "light", "full", or comma-separated flags
+}
 
 lazy_static::lazy_static! {
     static ref HASH_FUNC_HEXADECIMAL_LENGTH: HashMap<&'static str, usize> = {
@@ -59,7 +67,36 @@ thread_local! {
     /// Thread-local RandomX VM instance that is initialized once per thread and reused
     /// This avoids the expensive initialization cost (2-3 seconds) for every hash
     static RANDOMX_VM: RefCell<Option<RandomXVM>> = RefCell::new(None);
+    
+    /// Thread-local RandomX parameters for custom configuration
+    static RANDOMX_PARAMS: RefCell<Option<RandomXParams>> = RefCell::new(None);
 }
+
+/// Parse RandomX flags from string
+fn parse_randomx_flags(flags_str: &str) -> RandomXFlag {
+    // For now, always use recommended flags
+    // The randomx-rs crate may not expose individual flag constants
+    log::debug!("Using RandomX recommended flags (custom flags not yet supported: {})", flags_str);
+    RandomXFlag::get_recommended_flags()
+}
+
+/// Set RandomX parameters for the current thread
+pub fn set_randomx_params(params: Option<RandomXParams>) {
+    RANDOMX_PARAMS.with(|p| {
+        *p.borrow_mut() = params;
+    });
+    // Clear the VM so it reinitializes with new params
+    RANDOMX_VM.with(|vm| {
+        *vm.borrow_mut() = None;
+    });
+}
+
+/// Set RandomX parameters from JSON value
+pub fn set_randomx_params_from_json(params_json: Option<&serde_json::Value>) {
+    let params = params_json.and_then(|v| serde_json::from_value::<RandomXParams>(v.clone()).ok());
+    set_randomx_params(params);
+}
+
 
 /// Get or create the thread-local RandomX VM instance
 fn with_randomx_vm<F, R>(f: F) -> Result<R, Box<dyn Error>>
@@ -71,9 +108,36 @@ where
         
         if vm_opt.is_none() {
             log::info!("🔧 Initializing RandomX VM (one-time setup)...");
-            let flags = RandomXFlag::get_recommended_flags();
+            
+            // Get custom params if available
+            let params = RANDOMX_PARAMS.with(|p| p.borrow().clone());
+            
+            // Determine flags
+            let flags = if let Some(ref p) = params {
+                if let Some(ref flags_str) = p.flags {
+                    log::debug!("Using custom RandomX flags: {}", flags_str);
+                    parse_randomx_flags(flags_str)
+                } else {
+                    RandomXFlag::get_recommended_flags()
+                }
+            } else {
+                RandomXFlag::get_recommended_flags()
+            };
+            
+            // Determine key
+            let key = if let Some(ref p) = params {
+                if let Some(ref custom_key) = p.key {
+                    log::debug!("Using custom RandomX key");
+                    custom_key.as_bytes()
+                } else {
+                    RANDOMX_KEY
+                }
+            } else {
+                RANDOMX_KEY
+            };
+            
             log::debug!("🔧 Creating RandomX cache with key...");
-            let cache = randomx_rs::RandomXCache::new(flags, RANDOMX_KEY)
+            let cache = randomx_rs::RandomXCache::new(flags, key)
                 .map_err(|e| format!("Failed to create RandomX cache: {}", e))?;
             log::debug!("🔧 Creating RandomX VM...");
             let vm = RandomXVM::new(flags, Some(cache), None)
