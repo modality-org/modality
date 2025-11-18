@@ -1,18 +1,63 @@
 ---
-alwaysApply: true
+description: Rules for writing examples in the examples/network directory
 ---
 
-- write each example to teach users how to use the modal CLI.
-- also make sure each example can also be run as a integration test, use test.sh in each example directory to run the tests.
-- write a README.md file in each example directory that explains the example and how to run it.
-- assume that command `modal` is available in the path, do not explicitly reference a path to find it. when testing assume that the modal binary that will take precedence in the path is the one that is in the rust/target/debug directory.
-  - for example, do not write `../../../rust/target/debug/modal` in the examples, just write `modal`.
-  - use the debug binary for the tests, not the release binary.
-- when creating new tests, follow the pattern of the existing tests. 01-ping-node/, 04-sync-miner-blocks/, etc. Use a test.sh file to run all the tests in the example. Each test should be modular and self-contained but valuable to sequentially test the entire example suite. 
-- tmp/ is a temporary directory for the tests to use. It is gitignored. It is used to store the nodes and other resources for the tests.
-- while creating a node, use the modal node create command to create the node. It will create a node in the tmp/ directory.
-- use devnet1 as the default network for all examples unless otherwise specified.
-- prefer `modal node inspect` over stopping a node and then querying the datastore directly. when a `modal node inspect` method isn't available to fetch the data needed, implement it.
-- don't alter code in the numbered examples, only in the unnumbered examples, unless otherwise specified.
-- test all the numbered examples for regressions after creating a new unnumbered example. use ./test-numbered-examples.sh to test the numbered examples.
-- when creating a new example, create a new unnumbered example directory and a new test.sh file. only promote it to a numbered example if specifically asked to do so.
+# Examples Directory Guidelines
+
+## Purpose
+- Write each example to teach users how to use the modal CLI
+- Each example should also be runnable as an integration test
+- Use test.sh in each example directory to run the tests
+
+## File Structure
+- Write a README.md file in each example directory that explains the example and how to run it
+- Use numbered directories (01-*, 02-*, etc.) for stable examples
+- Use unnumbered directories for work-in-progress examples
+- tmp/ is a temporary directory for tests to use (gitignored)
+
+## Using the Modal CLI
+
+**IMPORTANT: Always use `modal` command directly, never with explicit paths**
+
+✅ **CORRECT:**
+```bash
+modal node run --config ./configs/node1.json
+modal contract create --dir ./tmp/my-contract
+modal program create --dir ./tmp/my-program
+```
+
+❌ **INCORRECT:**
+```bash
+../../../rust/target/debug/modal node run ...
+../../rust/target/release/modal contract create ...
+```
+
+### Rationale
+- Assume that command `modal` is available in the PATH
+- When testing, the modal binary that takes precedence in the path is the one in rust/target/debug directory
+- This makes examples cleaner and more like real-world usage
+- The debug binary is used for tests, not the release binary
+
+## Network Configuration
+- Use devnet1 as the default network for all examples unless otherwise specified
+- When creating a node, use `modal node create` command to create the node in the tmp/ directory
+
+## Node Inspection
+- Prefer `modal node inspect` over stopping a node and querying the datastore directly
+- When a `modal node inspect` method isn't available to fetch the data needed, implement it
+
+## Testing
+- Each test should be modular and self-contained
+- Tests should be valuable when run sequentially to test the entire example suite
+- Use ./test-numbered-examples.sh to test all numbered examples
+- Test all numbered examples for regressions after creating a new unnumbered example
+
+## Creating New Examples
+- Create a new unnumbered example directory first
+- Create a test.sh file for the example
+- Only promote to a numbered example if specifically asked to do so
+- Follow the pattern of existing tests (01-ping-node/, 04-sync-miner-blocks/, etc.)
+
+## Code Modifications
+- Don't alter code in the numbered examples, only in the unnumbered examples, unless otherwise specified
+- This preserves stable examples that are known to work
