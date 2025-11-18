@@ -83,6 +83,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         "create" => build_create_value(opts)?,
         "send" => build_send_value(opts)?,
         "recv" => build_recv_value(opts)?,
+        "invoke" => build_invoke_value(opts)?,
         _ => {
             // For other methods (post, rule), use the --value flag
             if let Some(value_str) = &opts.value {
@@ -176,4 +177,27 @@ fn build_recv_value(opts: &Opts) -> Result<Value> {
     Ok(serde_json::json!({
         "send_commit_id": send_commit_id
     }))
+}
+
+fn build_invoke_value(opts: &Opts) -> Result<Value> {
+    // For invoke, the value should contain the args
+    // The path should point to the program
+    if opts.path.is_none() {
+        anyhow::bail!("--path is required for INVOKE method (must be /__programs__/{{name}}.wasm)");
+    }
+
+    if let Some(value_str) = &opts.value {
+        // Parse the value as JSON
+        let value: Value = serde_json::from_str(value_str)
+            .map_err(|e| anyhow::anyhow!("INVOKE value must be valid JSON: {}", e))?;
+        
+        // Ensure it has an args field
+        if !value.is_object() || !value.as_object().unwrap().contains_key("args") {
+            anyhow::bail!("INVOKE value must be an object with 'args' field");
+        }
+        
+        Ok(value)
+    } else {
+        anyhow::bail!("--value is required for INVOKE method (must contain {{\"args\": {{...}}}})");
+    }
 }

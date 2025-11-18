@@ -79,6 +79,12 @@ enum Commands {
         command: PredicateCommands,
     },
 
+    #[command(about = "Program management and creation")]
+    Program {
+        #[command(subcommand)]
+        command: ProgramCommands,
+    },
+
     #[command(about = "Upgrade modal to the latest version")]
     Upgrade(modality::cmds::upgrade::Opts),
 }
@@ -233,6 +239,21 @@ enum PredicateCommands {
     Create(cmds::predicate::create::Opts),
 }
 
+#[derive(Subcommand)]
+enum ProgramCommands {
+    #[command(about = "Create a new program project")]
+    Create(cmds::program::create::Opts),
+
+    #[command(about = "List available programs")]
+    List(cmds::program::list::Opts),
+
+    #[command(about = "Get information about a program")]
+    Info(cmds::program::info::Opts),
+
+    #[command(about = "Upload a program to a contract")]
+    Upload(cmds::program::upload::Opts),
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -312,6 +333,14 @@ async fn main() -> Result<()> {
                 PredicateCommands::Info(opts) => cmds::predicate::info::run(opts).await?,
                 PredicateCommands::Test(opts) => cmds::predicate::test::run(opts).await?,
                 PredicateCommands::Create(opts) => cmds::predicate::create::run(opts).await?,
+            }
+        }
+        Commands::Program { command } => {
+            match command {
+                ProgramCommands::Create(opts) => cmds::program::create::run(opts).await?,
+                ProgramCommands::List(opts) => cmds::program::list::run(opts).await?,
+                ProgramCommands::Info(opts) => cmds::program::info::run(opts).await?,
+                ProgramCommands::Upload(opts) => cmds::program::upload::run(opts).await?,
             }
         }
         Commands::Upgrade(opts) => modality::cmds::upgrade::run(opts).await?,

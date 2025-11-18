@@ -4,6 +4,7 @@ import { Expression as ModalityExpression } from "@modality-dev/formulas";
 export const METHODS = [
   "post",
   "rule",
+  "invoke",
   // "define",
   // "repost",
   // "create",
@@ -51,6 +52,18 @@ export default class CommitAction {
         }
       } catch (e) {
         throw new Error(`unable to parse rule: ${this.value}\n ${e}`);
+      }
+      return true;
+    } else if (this.method === "invoke") {
+      // Validate invoke action
+      if (!this.path) {
+        throw new Error("INVOKE action requires a path to the program");
+      }
+      if (!this.path.startsWith("/__programs__/") || !this.path.endsWith(".wasm")) {
+        throw new Error("INVOKE action path must be /__programs__/{name}.wasm");
+      }
+      if (typeof this.value !== "object" || !this.value.args) {
+        throw new Error("INVOKE action value must be an object with 'args' field");
       }
       return true;
     }

@@ -6,8 +6,9 @@ use modal_datastore::models::{ContractAsset, AssetBalance, Commit, ReceivedSend,
 use modal_datastore::model::Model;
 use serde_json::Value;
 use modal_wasm_runtime::{WasmExecutor, DEFAULT_GAS_LIMIT};
-use modal_wasm_validation::{ValidationResult, validators, PredicateContext, PredicateResult};
+use modal_wasm_validation::{ValidationResult, validators, PredicateContext, PredicateResult, ProgramContext};
 use crate::predicate_executor::PredicateExecutor;
+use crate::program_executor::ProgramExecutor;
 
 /// Represents a state change from processing a commit action
 #[derive(Debug, Clone)]
@@ -48,12 +49,19 @@ pub enum StateChange {
         module_name: String,
         gas_used: u64,
     },
+    ProgramInvoked {
+        contract_id: String,
+        program_name: String,
+        gas_used: u64,
+        actions_count: usize,
+    },
 }
 
 /// Processes contract commits and manages asset state during consensus
 pub struct ContractProcessor {
     datastore: Arc<Mutex<NetworkDatastore>>,
     predicate_executor: PredicateExecutor,
+    program_executor: ProgramExecutor,
 }
 
 impl ContractProcessor {
@@ -62,7 +70,11 @@ impl ContractProcessor {
             Arc::clone(&datastore),
             DEFAULT_GAS_LIMIT
         );
-        Self { datastore, predicate_executor }
+        let program_executor = ProgramExecutor::new(
+            Arc::clone(&datastore),
+            DEFAULT_GAS_LIMIT
+        );
+        Self { datastore, predicate_executor, program_executor }
     }
 
     /// Process a commit during consensus ordering
@@ -124,6 +136,11 @@ impl ContractProcessor {
                 }
                 "post" => {
                     state_changes.push(self.process_post(contract_id, action).await?);
+                }
+                "invoke" => {
+                    // Process INVOKE action - execute program and process resulting actions
+                    let invoke_changes = self.process_invoke(contract_id, commit_id, action).await?;
+                    state_changes.extend(invoke_changes);
                 }
                 _ => {
                     // Other actions are not processed
@@ -592,6 +609,123 @@ impl ContractProcessor {
         }
 
         anyhow::bail!("Commit {} not found", commit_id)
+    }
+
+    /// Process an INVOKE action - execute program and process resulting actions
+    /// 
+    /// This method:
+    /// 1. Extracts program path and args from the invoke action
+    /// 2. Executes the program using ProgramExecutor
+    /// 3. Processes each action returned by the program
+    /// 4. Returns all state changes from those actions + a ProgramInvoked change
+    async fn process_invoke(
+        &self,
+        contract_id: &str,
+        commit_id: &str,
+        action: &Value,
+    ) -> Result<Vec<StateChange>> {
+        let path = action.get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("INVOKE action missing path"))?;
+
+        let value = action.get("value")
+            .ok_or_else(|| anyhow::anyhow!("INVOKE action missing value"))?;
+
+        let args = value.get("args")
+            .ok_or_else(|| anyhow::anyhow!("INVOKE value missing 'args'"))?
+            .clone();
+
+        // Extract program name from path
+        let program_name = path.trim_end_matches(".wasm")
+            .split('/')
+            .last()
+            .ok_or_else(|| anyhow::anyhow!("Invalid program path: {}", path))?;
+
+        log::info!(
+            "Executing program '{}' for contract {} via commit {}",
+            program_name,
+            contract_id,
+            commit_id
+        );
+
+        // Create execution context
+        let context = ProgramContext {
+            contract_id: contract_id.to_string(),
+            block_height: 0, // TODO: Get from block context
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_secs(),
+            invoker: "system".to_string(), // TODO: Extract from commit signature
+        };
+
+        // Execute the program
+        let result = self.program_executor
+            .execute_program(contract_id, path, args, context)
+            .await?;
+
+        if !result.is_success() {
+            anyhow::bail!("Program execution failed: {:?}", result.errors);
+        }
+
+        log::info!(
+            "Program '{}' produced {} actions, gas used: {}",
+            program_name,
+            result.actions.len(),
+            result.gas_used
+        );
+
+        // Process each action returned by the program
+        let mut state_changes = Vec::new();
+
+        for program_action in &result.actions {
+            // Convert program action to JSON value
+            let action_value = serde_json::json!({
+                "method": program_action.method,
+                "path": program_action.path,
+                "value": program_action.value
+            });
+
+            // Process the action based on its method
+            match program_action.method.as_str() {
+                "create" => {
+                    state_changes.push(
+                        self.process_create(contract_id, commit_id, &program_action.value).await?
+                    );
+                }
+                "send" => {
+                    state_changes.push(
+                        self.process_send(contract_id, commit_id, &program_action.value).await?
+                    );
+                }
+                "recv" => {
+                    state_changes.push(
+                        self.process_recv(contract_id, commit_id, &program_action.value).await?
+                    );
+                }
+                "post" => {
+                    state_changes.push(
+                        self.process_post(contract_id, &action_value).await?
+                    );
+                }
+                "rule" => {
+                    // Rule actions don't produce state changes
+                    log::debug!("Program produced rule action (no state change)");
+                }
+                _ => {
+                    log::warn!("Program produced unknown action method: {}", program_action.method);
+                }
+            }
+        }
+
+        // Add a state change for the program invocation itself
+        state_changes.push(StateChange::ProgramInvoked {
+            contract_id: contract_id.to_string(),
+            program_name: program_name.to_string(),
+            gas_used: result.gas_used,
+            actions_count: result.actions.len(),
+        });
+
+        Ok(state_changes)
     }
 }
 

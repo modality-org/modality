@@ -89,6 +89,7 @@ impl CommitAction {
             "create" => self.validate_create(),
             "send" => self.validate_send(),
             "recv" => self.validate_recv(),
+            "invoke" => self.validate_invoke(),
             "post" | "rule" | "genesis" => Ok(()), // existing methods
             _ => Err(anyhow::anyhow!("Unknown method: {}", self.method)),
         }
@@ -173,6 +174,27 @@ impl CommitAction {
 
         // Note: We can only validate structure here, not existence
         // Full validation requires datastore access and happens at consensus level
+
+        Ok(())
+    }
+
+    fn validate_invoke(&self) -> Result<()> {
+        // Validate INVOKE action has required fields
+        let path = self.path.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("INVOKE action requires a path to the program"))?;
+
+        // Validate path points to a program
+        if !path.starts_with("/__programs__/") || !path.ends_with(".wasm") {
+            anyhow::bail!("INVOKE action path must be /__programs__/{{name}}.wasm");
+        }
+
+        // Validate value contains args
+        let value_obj = self.value.as_object()
+            .ok_or_else(|| anyhow::anyhow!("INVOKE action value must be an object"))?;
+
+        if !value_obj.contains_key("args") {
+            anyhow::bail!("INVOKE action value must contain 'args' field");
+        }
 
         Ok(())
     }
