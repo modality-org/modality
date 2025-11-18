@@ -43,6 +43,16 @@ pub mod networks {
             .expect("Failed to parse devnet5 info")
     }
     
+    pub fn devnet1_hybrid() -> NetworkInfo {
+        serde_json::from_str(include_str!("../networks/devnet1-hybrid/info.json"))
+            .expect("Failed to parse devnet1-hybrid info")
+    }
+    
+    pub fn devnet3_hybrid() -> NetworkInfo {
+        serde_json::from_str(include_str!("../networks/devnet3-hybrid/info.json"))
+            .expect("Failed to parse devnet3-hybrid info")
+    }
+    
     pub fn testnet() -> NetworkInfo {
         serde_json::from_str(include_str!("../networks/testnet/info.json"))
             .expect("Failed to parse testnet info")
@@ -60,6 +70,8 @@ pub mod networks {
             devnet2(),
             devnet3(),
             devnet5(),
+            devnet1_hybrid(),
+            devnet3_hybrid(),
             testnet(),
             mainnet(),
         ]
@@ -72,6 +84,8 @@ pub mod networks {
             "devnet2" => Some(devnet2()),
             "devnet3" => Some(devnet3()),
             "devnet5" => Some(devnet5()),
+            "devnet1-hybrid" => Some(devnet1_hybrid()),
+            "devnet3-hybrid" => Some(devnet3_hybrid()),
             "testnet" => Some(testnet()),
             "mainnet" => Some(mainnet()),
             _ => None,

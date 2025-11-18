@@ -40,9 +40,12 @@ pub struct Node {
     pub swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     pub datastore: Arc<Mutex<NetworkDatastore>>,
     pub miner_nominees: Option<Vec<String>>,
+    pub hybrid_consensus: bool, // Enable hybrid consensus mode
+    pub run_validator: bool, // Run as validator
     pub ignored_peers: Arc<Mutex<HashMap<PeerId, IgnoredPeerInfo>>>,
     pub sync_request_tx: Option<mpsc::UnboundedSender<(PeerId, String)>>, // Set later in miner run
     pub mining_update_tx: Option<mpsc::UnboundedSender<u64>>, // Set in miner run to notify of chain tip updates
+    pub epoch_transition_tx: tokio::sync::broadcast::Sender<u64>, // Broadcast epoch transitions for hybrid consensus
     // Response channels for reqres requests - networking task forwards responses here
     pub reqres_response_txs: Arc<Mutex<HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<crate::reqres::Response>>>>,
     pub minimum_block_timestamp: Option<i64>, // Reject blocks mined before this Unix timestamp
@@ -74,6 +77,8 @@ impl Node {
         let peerid = node_keypair.public().to_peer_id();
         let autoupgrade_config = crate::autoupgrade::AutoupgradeConfig::from_node_config(&config);
         let miner_nominees = config.miner_nominees.clone();
+        let hybrid_consensus = config.hybrid_consensus.unwrap_or(false);
+        let run_validator = config.run_validator.unwrap_or(false);
         let status_port = config.status_port;
         let status_html_dir = config.status_html_dir.clone();
         let minimum_block_timestamp = config.minimum_block_timestamp;
@@ -161,6 +166,7 @@ impl Node {
         let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
         let (consensus_tx, consensus_rx) = mpsc::channel(100);
         let (sync_trigger_tx, _sync_trigger_rx) = tokio::sync::broadcast::channel(100);
+        let (epoch_transition_tx, _) = tokio::sync::broadcast::channel(10); // Channel for epoch transitions
         let node = Self {
             peerid,
             node_keypair,
@@ -169,9 +175,12 @@ impl Node {
             swarm: Arc::new(Mutex::new(swarm)),
             datastore,
             miner_nominees,
+            hybrid_consensus,
+            run_validator,
             ignored_peers: Arc::new(Mutex::new(HashMap::new())),
             sync_request_tx: None, // Will be set in miner run()
             mining_update_tx: None, // Will be set in miner run()
+            epoch_transition_tx,
             reqres_response_txs: Arc::new(Mutex::new(HashMap::new())),
             minimum_block_timestamp,
             fork_config,

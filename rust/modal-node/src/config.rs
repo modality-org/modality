@@ -29,6 +29,8 @@ pub struct Config {
     pub noop_mode: Option<bool>,
     pub run_miner: Option<bool>,
     pub miner_nominees: Option<Vec<String>>,
+    pub hybrid_consensus: Option<bool>, // Enable hybrid consensus mode (validators selected from epoch N-2 mining nominations)
+    pub run_validator: Option<bool>, // Run as validator (hybrid mode: wait for epoch >= 2)
     pub status_port: Option<u16>,
     pub status_html_dir: Option<PathBuf>,
     pub fork_name: Option<String>, // Predefined fork configuration (e.g., "testnet/pepi")

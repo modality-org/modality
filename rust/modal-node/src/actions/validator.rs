@@ -170,7 +170,56 @@ pub async fn run(node: &mut Node) -> Result<()> {
             log::info!("This node is not in the static validators list");
         }
     } else {
-        log::info!("No static validators configured - consensus not enabled");
+        log::info!("No static validators configured");
+        
+        // Check if hybrid consensus is enabled
+        if node.hybrid_consensus && node.run_validator {
+            log::info!("🔄 Hybrid consensus mode enabled - validators selected from epoch N-2 mining nominations");
+            
+            // Spawn a task to monitor epoch transitions and update validator set
+            let datastore = node.datastore.clone();
+            let node_peer_id = node.peerid.to_string();
+            let mut epoch_rx = node.epoch_transition_tx.subscribe();
+            
+            tokio::spawn(async move {
+                log::info!("Hybrid consensus coordinator started, waiting for epoch >= 2...");
+                
+                // Check current epoch on startup
+                let current_epoch = {
+                    let ds = datastore.lock().await;
+                    match MinerBlock::find_all_canonical(&ds).await {
+                        Ok(blocks) if !blocks.is_empty() => {
+                            let max_index = blocks.iter().map(|b| b.index).max().unwrap_or(0);
+                            max_index / 40  // Calculate epoch from block index
+                        }
+                        _ => 0
+                    }
+                };
+                
+                if current_epoch >= 2 {
+                    log::info!("Current epoch is {}, checking validator set immediately", current_epoch);
+                    check_and_start_validator(&datastore, &node_peer_id, current_epoch).await;
+                }
+                
+                // Listen for epoch transitions
+                loop {
+                    match epoch_rx.recv().await {
+                        Ok(new_epoch) => {
+                            log::info!("🔔 Epoch transition detected: epoch {}", new_epoch);
+                            check_and_start_validator(&datastore, &node_peer_id, new_epoch).await;
+                        }
+                        Err(e) => {
+                            log::error!("Epoch transition channel closed: {}", e);
+                            break;
+                        }
+                    }
+                }
+            });
+        } else if node.hybrid_consensus {
+            log::info!("Hybrid consensus mode enabled but run_validator is false - running as miner only");
+        } else {
+            log::info!("Consensus not enabled (no static validators and hybrid consensus is off)");
+        }
     }
     
     // Get the starting chain tip
@@ -338,6 +387,89 @@ async fn handle_sync_from_peer(
             Ok(new_tip)
         }
         Err(e) => Err(e),
+    }
+}
+
+/// Check if this node should be a validator for the current epoch and start consensus if so
+async fn check_and_start_validator(
+    datastore: &Arc<Mutex<modal_datastore::NetworkDatastore>>,
+    node_peer_id: &str,
+    current_epoch: u64,
+) {
+    use modal_datastore::models::validator::get_validator_set_for_mining_epoch_hybrid;
+    
+    // Get validator set for this epoch (from epoch N-2 nominations)
+    let validator_set = {
+        let ds = datastore.lock().await;
+        match get_validator_set_for_mining_epoch_hybrid(&ds, current_epoch).await {
+            Ok(Some(set)) => {
+                log::info!("Validator set for epoch {}: {} validators", current_epoch, set.nominated_validators.len());
+                Some(set)
+            }
+            Ok(None) => {
+                log::debug!("No validator set available for epoch {} yet (need epoch >= 2)", current_epoch);
+                None
+            }
+            Err(e) => {
+                log::error!("Failed to get validator set for epoch {}: {}", current_epoch, e);
+                None
+            }
+        }
+    };
+    
+    if let Some(validator_set) = validator_set {
+        let validators = validator_set.get_active_validators();
+        
+        if validators.contains(&node_peer_id.to_string()) {
+            log::info!("🏛️  This node IS a validator for epoch {} - starting Shoal consensus", current_epoch);
+            
+            // Find our index in the validator list
+            let my_index = validators.iter().position(|v| v == node_peer_id)
+                .expect("validator position in list");
+            
+            log::info!("📋 Validator index: {}/{}", my_index, validators.len());
+            log::info!("📋 Active validators for epoch {}: {:?}", current_epoch, validators);
+            
+            // Create Shoal validator configuration
+            match modal_validator::ShoalValidatorConfig::from_peer_ids(
+                validators.clone(), 
+                my_index
+            ) {
+                Ok(config) => {
+                    log::info!("✅ ShoalValidatorConfig created for epoch {}", current_epoch);
+                    
+                    // Create and initialize ShoalValidator
+                    match modal_validator::ShoalValidator::new(
+                        datastore.clone(), 
+                        config
+                    ).await {
+                        Ok(shoal_validator) => {
+                            match shoal_validator.initialize().await {
+                                Ok(()) => {
+                                    log::info!("✅ ShoalValidator initialized successfully for epoch {}", current_epoch);
+                                    
+                                    // Start consensus loop
+                                    if let Err(e) = spawn_consensus_loop(shoal_validator).await {
+                                        log::error!("Failed to spawn consensus loop: {}", e);
+                                    }
+                                }
+                                Err(e) => {
+                                    log::error!("Failed to initialize ShoalValidator: {}", e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Failed to create ShoalValidator: {}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("Failed to create ShoalValidatorConfig: {}", e);
+                }
+            }
+        } else {
+            log::info!("This node is NOT in the validator set for epoch {}", current_epoch);
+        }
     }
 }
 

@@ -345,6 +345,11 @@ pub async fn run(node: &mut Node) -> Result<()> {
     let fork_config = node.fork_config.clone();
     let mining_metrics = node.mining_metrics.clone();
     let initial_difficulty = node.initial_difficulty;
+    let epoch_transition_tx = if node.hybrid_consensus {
+        Some(node.epoch_transition_tx.clone())
+    } else {
+        None
+    };
     
     // Create shared mining state
     let mining_state = Arc::new(Mutex::new(MiningState {
@@ -421,6 +426,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 fork_config.clone(),
                 mining_metrics.clone(),
                 initial_difficulty,
+                epoch_transition_tx.clone(),
             ).await {
                 Ok(()) => {
                     log::info!("✅ Successfully mined and gossipped block {}", current_index);
@@ -1279,6 +1285,7 @@ async fn mine_and_gossip_block(
     fork_config: modal_observer::ForkConfig,
     mining_metrics: crate::mining_metrics::SharedMiningMetrics,
     initial_difficulty: Option<u128>,
+    epoch_transition_tx: Option<tokio::sync::broadcast::Sender<u64>>,
 ) -> Result<()> {
     use modal_miner::{Blockchain, ChainConfig};
     
@@ -1402,6 +1409,15 @@ async fn mine_and_gossip_block(
     // Log epoch changes prominently
     if miner_block.index > 0 && miner_block.index % 40 == 0 {
         log::info!("🎯 EPOCH {} STARTED - New difficulty: {}", miner_block.epoch, miner_block.difficulty);
+        
+        // Broadcast epoch transition for hybrid consensus coordination
+        if let Some(tx) = epoch_transition_tx {
+            if let Err(e) = tx.send(miner_block.epoch) {
+                log::debug!("No receivers for epoch transition: {}", e);
+            } else {
+                log::info!("📡 Broadcasted epoch {} transition for validator coordination", miner_block.epoch);
+            }
+        }
     }
 
     Ok(())

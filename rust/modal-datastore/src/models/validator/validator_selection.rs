@@ -28,6 +28,53 @@ pub async fn get_validator_set_for_epoch(
     generate_validator_set_from_epoch(datastore, epoch).await
 }
 
+/// Get validator set for hybrid consensus
+/// 
+/// In hybrid consensus, validators for mining epoch N are selected from
+/// nominations in mining epoch N-2. This provides a 2-epoch lookback
+/// to ensure the validator set is stable before being activated.
+/// 
+/// Returns None if the current mining epoch is < 2 (not enough history).
+pub async fn get_validator_set_for_mining_epoch_hybrid(
+    datastore: &NetworkDatastore,
+    current_mining_epoch: u64,
+) -> Result<Option<ValidatorSet>> {
+    // Need at least 2 completed epochs of mining history
+    if current_mining_epoch < 2 {
+        log::info!(
+            "Mining epoch {} is too early for hybrid consensus (need >= 2)",
+            current_mining_epoch
+        );
+        return Ok(None);
+    }
+    
+    // Validator set for epoch N comes from nominations in epoch N-2
+    let nomination_epoch = current_mining_epoch - 2;
+    
+    log::info!(
+        "Getting validator set for mining epoch {} from nominations in epoch {}",
+        current_mining_epoch,
+        nomination_epoch
+    );
+    
+    // Generate validator set from the nomination epoch
+    match generate_validator_set_from_epoch(datastore, nomination_epoch).await {
+        Ok(mut validator_set) => {
+            // Update the mining_epoch field to reflect which epoch this set will validate
+            validator_set.mining_epoch = current_mining_epoch;
+            Ok(Some(validator_set))
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to generate validator set from epoch {}: {}",
+                nomination_epoch,
+                e
+            );
+            Err(e)
+        }
+    }
+}
+
 /// Generate a validator set from a completed mining epoch
 /// 
 /// This function:
