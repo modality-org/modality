@@ -1346,7 +1346,7 @@ async fn mine_and_gossip_block(
         
         if let Some(params) = genesis_params {
             log::info!("Using miner hash configuration from genesis contract: {}", params.miner_hash_func);
-            (params.miner_hash_func, params.miner_hash_params)
+            (params.miner_hash_func, params.mining_hash_params)
         } else {
             let hash_func = miner_hash_func.unwrap_or_else(|| {
                 log::info!("Using default miner hash function: randomx");

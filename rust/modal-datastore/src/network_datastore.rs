@@ -217,7 +217,7 @@ impl NetworkDatastore {
         let mut blocks_per_epoch: Option<u64> = None;
         let mut validators = Vec::new();
         let mut miner_hash_func: Option<String> = None;
-        let mut miner_hash_params: Option<serde_json::Value> = None;
+        let mut mining_hash_params: Option<serde_json::Value> = None;
         
         // Iterate over all keys with the prefix
         for result in self.iterator(&prefix) {
@@ -253,7 +253,7 @@ impl NetworkDatastore {
                     }
                     path if path.starts_with("miner_hash_params.") => {
                         // Parse JSON value
-                        miner_hash_params = serde_json::from_str(&value_str).ok();
+                        mining_hash_params = serde_json::from_str(&value_str).ok();
                     }
                     _ => {
                         // Unknown parameter, skip
@@ -276,7 +276,7 @@ impl NetworkDatastore {
             blocks_per_epoch: blocks_per_epoch.ok_or_else(|| Error::Database("Missing blocks_per_epoch".to_string()))?,
             validators,
             miner_hash_func: miner_hash_func.unwrap_or_else(|| "randomx".to_string()),
-            miner_hash_params,
+            mining_hash_params,
         })
     }
 

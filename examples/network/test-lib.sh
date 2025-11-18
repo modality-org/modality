@@ -249,6 +249,22 @@ assert_number() {
     fi
 }
 
+# Test failure handler
+test_fail() {
+    local msg="${1:-Test failed}"
+    
+    TESTS_RUN=$((TESTS_RUN + 1))
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo -e "  ${RED}✗${NC} $msg" >> "$CURRENT_LOG"
+    echo "  Result: FAIL" >> "$CURRENT_LOG"
+    
+    # Clean up and exit
+    test_cleanup
+    echo ""
+    echo -e "${RED}Test failed: $msg${NC}"
+    exit 1
+}
+
 # Finalize test
 test_finalize() {
     test_cleanup
