@@ -1,0 +1,51 @@
+---
+description: Place progress and implementation documentation in docs/progress/
+alwaysApply: true
+---
+
+# Documentation File Placement
+
+When creating documentation files about implementation progress, features, summaries, or status updates, place them in `docs/progress/` rather than the project root.
+
+## Files that should go in docs/progress/:
+- Implementation documentation: `*_IMPLEMENTATION*.md`
+- Summary documents: `*_SUMMARY.md`
+- Completion reports: `*_COMPLETE*.md`
+- Status updates: `*_STATUS.md`
+- Command documentation: `*_COMMAND*.md`
+- Architecture documentation: `*_ARCHITECTURE*.md`
+- Feature documentation: `*_FEATURE*.md`
+- Verification reports: `*_VERIFICATION*.md`
+- Progress reports: `*_PROGRESS.md`
+- Phase completion: `*_PHASE*.md`
+- Test results: `*_RESULTS.md`
+- Any other progress/implementation tracking documents
+
+## Files that should stay in the project root:
+- README.md
+- CONTRIBUTING.md
+- DEVELOPMENT.md
+- LICENSE
+- CODE_OF_CONDUCT.md
+- CHANGELOG.md
+- Other standard project documentation
+
+## Examples
+
+✅ **Correct placement:**
+- `docs/progress/WASM_IMPLEMENTATION_COMPLETE.md`
+- `docs/progress/ASSET_MANAGEMENT_IMPLEMENTATION.md`
+- `docs/progress/CONSENSUS_VALIDATION_SUMMARY.md`
+
+❌ **Incorrect placement:**
+- `WASM_IMPLEMENTATION_COMPLETE.md` (in root)
+- `ASSET_MANAGEMENT_IMPLEMENTATION.md` (in root)
+
+## Implementation
+
+When creating any progress or implementation tracking document:
+1. Save it directly to `docs/progress/` with the appropriate filename
+2. Use descriptive names that include keywords like IMPLEMENTATION, SUMMARY, COMPLETE, STATUS, etc.
+3. Keep the project root clean with only essential project documentation
+
+This organization keeps the project root clean and makes it easier to find standard project documentation in the root while progress tracking documents are organized in docs/progress/.
