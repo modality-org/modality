@@ -1,0 +1,393 @@
+name: Build and Upload Packages
+
+on:
+  # Disabled automatic builds - uncomment to enable
+  # push:
+  #   branches:
+  #     - testnet
+  #     - mainnet
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Custom version (optional)'
+        required: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_LOG: info
+
+jobs:
+  build:
+    name: Build Packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: aarch64-apple-darwin
+      
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            rust/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      
+      - name: Install cross
+        run: |
+          cargo install cross --git https://github.com/cross-rs/cross || echo "cross already installed"
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Install wasm-pack
+        run: |
+          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install pnpm
+        run: npm install -g pnpm
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      - name: Set version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+          else
+            TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+            GIT_COMMIT=$(git rev-parse --short HEAD)
+            echo "VERSION=${TIMESTAMP}-${GIT_COMMIT}" >> $GITHUB_ENV
+          fi
+      
+      - name: Build Linux x86_64
+        working-directory: rust
+        env:
+          MODAL_GIT_BRANCH: ${{ github.ref_name }}
+          MODAL_GIT_COMMIT: ${{ github.sha }}
+        run: |
+          cross build --release --target x86_64-unknown-linux-gnu
+          mkdir -p ../build/binaries/linux-x86_64
+          cp target/x86_64-unknown-linux-gnu/release/modal ../build/binaries/linux-x86_64/
+          strip ../build/binaries/linux-x86_64/modal || true
+      
+      - name: Build macOS ARM64
+        working-directory: rust
+        env:
+          MODAL_GIT_BRANCH: ${{ github.ref_name }}
+          MODAL_GIT_COMMIT: ${{ github.sha }}
+        run: |
+          rustup target add aarch64-apple-darwin
+          cargo build --release --target aarch64-apple-darwin
+          mkdir -p ../build/binaries/darwin-aarch64
+          cp target/aarch64-apple-darwin/release/modal ../build/binaries/darwin-aarch64/
+      
+      - name: Build WASM - modality-lang
+        working-directory: rust/modality-lang
+        run: |
+          npm run build
+          npm run build-node
+          npm run build-bundler
+          mkdir -p ../../build/wasm/modality-lang
+          cp -r dist ../../build/wasm/modality-lang/web
+          cp -r dist-node ../../build/wasm/modality-lang/node
+          cp -r dist-bundler ../../build/wasm/modality-lang/bundler
+      
+      - name: Build WASM - modal-wasm-validation
+        working-directory: rust/modal-wasm-validation
+        run: |
+          npm run build
+          npm run build-node
+          npm run build-bundler
+          mkdir -p ../../build/wasm/modal-wasm-validation
+          cp -r dist ../../build/wasm/modal-wasm-validation/web
+          cp -r dist-node ../../build/wasm/modal-wasm-validation/node
+          cp -r dist-bundler ../../build/wasm/modal-wasm-validation/bundler
+      
+      - name: Create package manifest
+        run: |
+          cat > build/manifest.json << EOF
+          {
+            "version": "${{ env.VERSION }}",
+            "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "git_branch": "${{ github.ref_name }}",
+            "git_commit": "${{ github.sha }}",
+            "packages": {
+              "binaries": {
+                "linux-x86_64": {
+                  "name": "modal",
+                  "path": "binaries/linux-x86_64/modal",
+                  "platform": "linux",
+                  "arch": "x86_64"
+                },
+                "darwin-aarch64": {
+                  "name": "modal",
+                  "path": "binaries/darwin-aarch64/modal",
+                  "platform": "darwin",
+                  "arch": "aarch64"
+                }
+              },
+              "wasm": {
+                "modality-lang": {
+                  "web": "wasm/modality-lang/web/",
+                  "node": "wasm/modality-lang/node/",
+                  "bundler": "wasm/modality-lang/bundler/"
+                },
+                "modal-wasm-validation": {
+                  "web": "wasm/modal-wasm-validation/web/",
+                  "node": "wasm/modal-wasm-validation/node/",
+                  "bundler": "wasm/modal-wasm-validation/bundler/"
+                }
+              }
+            }
+          }
+          EOF
+      
+      - name: Create install script
+        run: |
+          cat > build/install.sh << 'INSTALL_SCRIPT_EOF'
+          #!/usr/bin/env bash
+          # Modality Installation Script
+          set -e
+          
+          # Colors
+          RED='\033[0;31m'
+          GREEN='\033[0;32m'
+          BLUE='\033[0;34m'
+          NC='\033[0m'
+          
+          log_info() { printf "${BLUE}[INFO]${NC} %s\n" "$1"; }
+          log_success() { printf "${GREEN}[SUCCESS]${NC} %s\n" "$1"; }
+          log_error() { printf "${RED}[ERROR]${NC} %s\n" "$1"; }
+          
+          detect_platform() {
+              local os="$(uname -s)"
+              local arch="$(uname -m)"
+              
+              case "$os" in
+                  Linux*)
+                      case "$arch" in
+                          x86_64) echo "linux-x86_64" ;;
+                          *) log_error "Unsupported architecture: $arch"; exit 1 ;;
+                      esac
+                      ;;
+                  Darwin*)
+                      case "$arch" in
+                          arm64) echo "darwin-aarch64" ;;
+                          *) log_error "Unsupported architecture: $arch"; exit 1 ;;
+                      esac
+                      ;;
+                  *)
+                      log_error "Unsupported operating system: $os"
+                      exit 1
+                      ;;
+              esac
+          }
+          
+          PLATFORM=$(detect_platform)
+          BASE_URL="${MODALITY_INSTALL_URL:-https://get.modal.money/${{ github.ref_name }}/${{ env.VERSION }}}"
+          INSTALL_DIR="${MODALITY_INSTALL_DIR:-$HOME/.modality/bin}"
+          
+          log_info "Detected platform: $PLATFORM"
+          log_info "Installing to: $INSTALL_DIR"
+          
+          mkdir -p "$INSTALL_DIR"
+          
+          BINARY_URL="$BASE_URL/binaries/$PLATFORM/modal"
+          log_info "Downloading from: $BINARY_URL"
+          
+          if command -v curl > /dev/null 2>&1; then
+              curl -fsSL "$BINARY_URL" -o "$INSTALL_DIR/modal"
+          elif command -v wget > /dev/null 2>&1; then
+              wget -q "$BINARY_URL" -O "$INSTALL_DIR/modal"
+          else
+              log_error "Neither curl nor wget found"
+              exit 1
+          fi
+          
+          chmod +x "$INSTALL_DIR/modal"
+          
+          log_success "Modality installed successfully!"
+          log_info "Binary location: $INSTALL_DIR/modal"
+          
+          case ":$PATH:" in
+              *":$INSTALL_DIR:"*) ;;
+              *)
+                  printf "\n"
+                  log_info "To use modal, add it to your PATH:"
+                  log_info "  export PATH=\"\$PATH:$INSTALL_DIR\""
+                  printf "\n"
+                  ;;
+          esac
+          INSTALL_SCRIPT_EOF
+          chmod +x build/install.sh
+      
+      - name: Create index.html files
+        run: |
+          # Main index
+          cat > build/index.html << EOF
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <meta charset="utf-8">
+              <title>Modality Packages - ${{ env.VERSION }}</title>
+              <style>
+                  body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+                  h1 { color: #333; }
+                  code { background: #eee; padding: 2px 4px; border-radius: 3px; }
+                  pre { background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; }
+              </style>
+          </head>
+          <body>
+              <h1>Modality Packages</h1>
+              <p>Version: <code>${{ env.VERSION }}</code></p>
+              <p>Branch: <code>${{ github.ref_name }}</code></p>
+              <p>Commit: <code>${{ github.sha }}</code></p>
+              
+              <h2>Quick Installation</h2>
+              <pre>curl -fsSL https://get.modal.money/${{ github.ref_name }}/${{ env.VERSION }}/install.sh | sh</pre>
+              
+              <h2>Available Binaries</h2>
+              <ul>
+                  <li><a href="binaries/linux-x86_64/modal">Linux x86_64</a></li>
+                  <li><a href="binaries/darwin-aarch64/modal">macOS Apple Silicon</a></li>
+              </ul>
+              
+              <h2>Other Packages</h2>
+              <ul>
+                  <li><a href="wasm/">WebAssembly Packages</a></li>
+                  <li><a href="manifest.json">Package Manifest</a></li>
+                  <li><a href="install.sh">Install Script</a></li>
+              </ul>
+          </body>
+          </html>
+          EOF
+          
+          # Binaries index
+          mkdir -p build/binaries
+          cat > build/binaries/index.html << EOF
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <meta charset="utf-8">
+              <title>Modality Binaries</title>
+          </head>
+          <body>
+              <h1>Modality Pre-built Binaries</h1>
+              <p>Version: <code>${{ env.VERSION }}</code></p>
+              <ul>
+                  <li><a href="linux-x86_64/modal">Linux x86_64</a></li>
+                  <li><a href="darwin-aarch64/modal">macOS Apple Silicon</a></li>
+              </ul>
+          </body>
+          </html>
+          EOF
+          
+          # WASM index
+          mkdir -p build/wasm
+          cat > build/wasm/index.html << EOF
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <meta charset="utf-8">
+              <title>WebAssembly Packages</title>
+          </head>
+          <body>
+              <h1>WebAssembly Packages</h1>
+              <ul>
+                  <li><a href="modality-lang/">modality-lang</a></li>
+                  <li><a href="modal-wasm-validation/">modal-wasm-validation</a></li>
+              </ul>
+          </body>
+          </html>
+          EOF
+      
+      - name: Upload to S3
+        run: |
+          S3_PATH="${{ github.ref_name }}/${{ env.VERSION }}/"
+          aws s3 sync build/ "s3://get.modal.money-content/$S3_PATH" \
+            --region us-east-1 \
+            --exclude "*.DS_Store" \
+            --exclude ".git*"
+          
+          # Update latest symlink
+          aws s3 sync "s3://get.modal.money-content/$S3_PATH" \
+            "s3://get.modal.money-content/${{ github.ref_name }}/latest/" \
+            --region us-east-1 \
+            --delete
+          
+          echo "Uploaded to: s3://get.modal.money-content/$S3_PATH"
+          echo "Latest: s3://get.modal.money-content/${{ github.ref_name }}/latest/"
+      
+      - name: Build Cargo registry
+        run: |
+          cd sites/get.modal.money
+          ./build-registry.sh
+      
+      - name: Upload Cargo registry to S3
+        run: |
+          S3_PATH="${{ github.ref_name }}/${{ env.VERSION }}/cargo-registry/"
+          aws s3 sync sites/get.modal.money/registry/ \
+            "s3://get.modal.money-content/$S3_PATH" \
+            --region us-east-1 \
+            --exclude "*.DS_Store" \
+            --delete
+          
+          # Update latest symlink
+          aws s3 sync "s3://get.modal.money-content/$S3_PATH" \
+            "s3://get.modal.money-content/${{ github.ref_name }}/latest/cargo-registry/" \
+            --region us-east-1 \
+            --delete
+      
+      - name: Invalidate CloudFront cache
+        run: |
+          DISTRIBUTION_ID="EAB0G50HTKF8I"
+          aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths "/${{ github.ref_name }}/${{ env.VERSION }}/*" "/${{ github.ref_name }}/latest/*" \
+            --region us-east-1 || echo "CloudFront invalidation failed, continuing..."
+      
+      - name: Build summary
+        run: |
+          echo "## Build Complete! 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`${{ env.VERSION }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Installation" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "curl -fsSL https://get.modal.money/${{ github.ref_name }}/latest/install.sh | sh" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Direct Downloads" >> $GITHUB_STEP_SUMMARY
+          echo "- [Linux x86_64](https://get.modal.money/${{ github.ref_name }}/latest/binaries/linux-x86_64/modal)" >> $GITHUB_STEP_SUMMARY
+          echo "- [macOS ARM64](https://get.modal.money/${{ github.ref_name }}/latest/binaries/darwin-aarch64/modal)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Cargo Install" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "cargo install --index sparse+https://get.modal.money/${{ github.ref_name }}/latest/cargo-registry/index/ modal" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
