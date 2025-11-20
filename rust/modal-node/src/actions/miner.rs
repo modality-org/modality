@@ -9,6 +9,15 @@ use tokio::sync::Mutex;
 use crate::node::Node;
 use crate::gossip;
 
+/// Result of a mining operation
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MiningOutcome {
+    /// Block was successfully mined and gossipped
+    Mined,
+    /// Block was skipped because it already exists
+    Skipped,
+}
+
 /// Shared state for coordinating mining with sync operations
 #[derive(Clone, Debug)]
 struct MiningState {
@@ -434,9 +443,18 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 mining_delay_ms,
                 epoch_transition_tx.clone(),
             ).await {
-                Ok(()) => {
+                Ok(MiningOutcome::Mined) => {
                     log::info!("✅ Successfully mined and gossipped block {}", current_index);
                     // Move to next block
+                    current_index += 1;
+                    
+                    // Update shared state
+                    let mut state = mining_state_clone.lock().await;
+                    state.current_mining_index = current_index;
+                }
+                Ok(MiningOutcome::Skipped) => {
+                    log::info!("⏭️  Block {} already exists (received via gossip), moving to next block", current_index);
+                    // Move to next block - the block already exists in the chain
                     current_index += 1;
                     
                     // Update shared state
@@ -1295,7 +1313,7 @@ async fn mine_and_gossip_block(
     miner_hash_params: Option<serde_json::Value>,
     mining_delay_ms: Option<u64>,
     epoch_transition_tx: Option<tokio::sync::broadcast::Sender<u64>>,
-) -> Result<()> {
+) -> Result<MiningOutcome> {
     use modal_miner::{Blockchain, ChainConfig};
     
     // Determine the nominee to use for this block
@@ -1378,8 +1396,8 @@ async fn mine_and_gossip_block(
     // Check if we're trying to mine a block that already exists
     if index < chain.height() + 1 && index < chain.blocks.len() as u64 {
         // Block already exists in the chain, skip it
-        log::warn!("Block {} already exists in chain (height: {}), skipping mining", index, chain.height());
-        return Ok(());
+        log::warn!("⏭️  Block {} already exists in chain (height: {}), skipping mining", index, chain.height());
+        return Ok(MiningOutcome::Skipped);
     }
     
     // Verify we're mining the correct next block
@@ -1473,7 +1491,7 @@ async fn mine_and_gossip_block(
         }
     }
 
-    Ok(())
+    Ok(MiningOutcome::Mined)
 }
 
 /// Efficiently find the common ancestor between local and remote chains using binary search
