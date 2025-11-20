@@ -27,3 +27,11 @@ wasm = ["wasm-bindgen"]
 tokio = { version = "1.42.0", features = ["full", "test-util"] }
 wat = "1.0"
 
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O", "--enable-bulk-memory"]
+
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = ["-O", "--enable-bulk-memory"]
+
+[package.metadata.wasm-pack.profile.profiling]
+wasm-opt = ["-O", "--enable-bulk-memory"]
