@@ -425,23 +425,83 @@ impl ChainObserver {
                 
                 log::info!("Accepted block {} at index {} (extends chain)", &new_block.hash, new_block.index);
                 return Ok(true);
+            } else {
+                // Parent exists at index-1 but hash doesn't match (fork)
+                let block_index = new_block.index;
+                let block_hash = new_block.hash.clone();
+                let prev_hash_short = new_block.previous_hash[..16].to_string();
+                
+                let mut orphaned = new_block;
+                orphaned.is_canonical = false;
+                orphaned.is_orphaned = true;
+                orphaned.orphan_reason = Some(format!(
+                    "Fork detected: block at index {} has hash {}, but this block expects parent hash {}",
+                    parent.index,
+                    &parent.hash[..16],
+                    &prev_hash_short
+                ));
+                orphaned.save(&mut ds).await?;
+
+                log::debug!(
+                    "Stored orphan block {} at index {} (fork - parent hash mismatch)",
+                    &block_hash, block_index
+                );
+
+                return Ok(false);
             }
         }
         
-        // Block doesn't extend canonical chain and doesn't conflict with existing block
-        // Store as orphaned for potential future reorganization or analysis
+        // No canonical block at index-1 - this is a gap
+        // Check if the parent hash exists anywhere in the canonical chain
+        let parent_hash = new_block.previous_hash.clone();
+        let parent_by_hash = MinerBlock::find_by_hash(&ds, &parent_hash).await?;
+        
+        if let Some(parent) = parent_by_hash {
+            if parent.is_canonical {
+                // Parent exists but at wrong index - gap detected
+                let block_index = new_block.index;
+                let block_hash = new_block.hash.clone();
+                let parent_idx = parent.index;
+                
+                let mut orphaned = new_block;
+                orphaned.is_canonical = false;
+                orphaned.is_orphaned = true;
+                orphaned.orphan_reason = Some(format!(
+                    "Gap detected: missing block(s) between index {} and {}. Expected parent at index {} but found it at index {}",
+                    parent_idx,
+                    block_index,
+                    block_index - 1,
+                    parent_idx
+                ));
+                orphaned.save(&mut ds).await?;
+
+                log::warn!(
+                    "⚠️  Gap detected: block {} at index {} builds on block at index {}, missing blocks in between. Stored as orphan.",
+                    &block_hash[..16], block_index, parent_idx
+                );
+
+                return Ok(false);
+            }
+        }
+        
+        // Parent doesn't exist at all (neither at expected index nor by hash)
+        let block_index = new_block.index;
+        let block_hash = new_block.hash.clone();
+        let prev_hash_short = new_block.previous_hash[..16].to_string();
+        
         let mut orphaned = new_block;
         orphaned.is_canonical = false;
         orphaned.is_orphaned = true;
         orphaned.orphan_reason = Some(format!(
-            "Parent mismatch or gap - parent hash {} not found in canonical chain",
-            orphaned.previous_hash
+            "Parent not found: block references parent hash {} which is not in the canonical chain. Missing block at index {}.",
+            &prev_hash_short,
+            orphaned.index - 1
         ));
         orphaned.save(&mut ds).await?;
 
         log::debug!(
-            "Stored orphan block {} at index {} (parent mismatch or gap)",
-            &orphaned.hash, orphaned.index
+            "Stored orphan block {} at index {} (parent not found in canonical chain)",
+            &block_hash, block_index
         );
 
         Ok(false)

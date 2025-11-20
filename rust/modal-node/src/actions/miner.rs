@@ -454,8 +454,23 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 }
                 Ok(MiningOutcome::Skipped) => {
                     log::info!("⏭️  Block {} already exists (received via gossip), moving to next block", current_index);
-                    // Move to next block - the block already exists in the chain
-                    current_index += 1;
+                    
+                    // When we skip a block, we need to verify what the actual chain tip is
+                    // to avoid getting stuck in a loop where we keep trying to mine on an orphaned branch
+                    let actual_next_index = {
+                        let ds = datastore.lock().await;
+                        match MinerBlock::find_all_canonical(&ds).await {
+                            Ok(blocks) if !blocks.is_empty() => {
+                                let max_index = blocks.iter().map(|b| b.index).max().unwrap_or(0);
+                                max_index + 1
+                            }
+                            _ => 0 // Start from genesis if no valid blocks
+                        }
+                    };
+                    
+                    // Use the queried index instead of just incrementing
+                    current_index = actual_next_index;
+                    log::info!("📍 Verified next mining index: {}", current_index);
                     
                     // Update shared state
                     let mut state = mining_state_clone.lock().await;

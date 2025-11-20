@@ -1,0 +1,20 @@
+[package]
+name = "orphan-detection-test"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "orphan-detection-test"
+path = "src/main.rs"
+
+[dependencies]
+modal-observer = { path = "../../../rust/modal-observer" }
+modal-datastore = { path = "../../../rust/modal-datastore" }
+modal-miner = { path = "../../../rust/modal-miner" }
+modal-common = { path = "../../../rust/modal-common" }
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+chrono = "0.4"
+
+[dev-dependencies]
+
