@@ -1,15 +1,24 @@
 # Orphan Detection Test
 
-This test validates the blockchain's orphaning logic by simulating three distinct scenarios:
+This directory contains documentation and integration tests for the blockchain's orphaning logic.
 
-## ⚠️ Note: Now Available as CLI Command
+## ⚠️ Note: Tests Now in modal-miner
 
-This test has been integrated into the `modal` CLI as the `modal chain validate` command. 
+The orphan detection tests are now implemented as **unit tests** in the `modal-miner` crate at:
+```
+rust/modal-miner/src/tests.rs
+```
 
-**Recommended usage:**
+They are also available via the `modal` CLI command for convenience.
+
+---
+
+## Quick Start
+
+### Using the Modal CLI (Recommended)
 
 ```bash
-# Run all validation tests
+# Run all validation tests via CLI
 modal chain validate
 
 # Run specific tests
@@ -22,7 +31,25 @@ modal chain validate --datastore ./tmp/miner1/storage
 modal chain validate --json
 ```
 
-The standalone test binary in this directory is still available for reference and development purposes.
+### Running Unit Tests Directly
+
+```bash
+# Run the unit tests in modal-miner
+cd rust/modal-miner
+cargo test --features persistence orphan_detection
+
+# Run with output
+cargo test --features persistence orphan_detection -- --nocapture
+```
+
+### Running This Example's Test Script
+
+```bash
+cd examples/network/orphan-detection
+./test.sh
+```
+
+This script runs both the unit tests and the CLI tests.
 
 ---
 
@@ -31,7 +58,9 @@ The standalone test binary in this directory is still available for reference an
 ### 1. Fork Detection (Single-Block Fork)
 When two blocks are mined at the same index but with different content:
 - Block A arrives first → accepted as canonical
-- Block B arrives second → orphaned with reason: "Fork detected: block at index N has hash X, but this block expects parent hash Y"
+- Block B arrives second → orphaned with reason: "Fork detected" or "Rejected by first-seen rule"
+
+**Unit Test:** `rust/modal-miner/src/tests.rs::test_fork_detection`
 
 ### 2. Gap Detection
 When a block references a parent that exists in the canonical chain but at the wrong index:
@@ -39,19 +68,51 @@ When a block references a parent that exists in the canonical chain but at the w
 - Block at index N+1 is missing (gap)
 - Block at index N+2 arrives → orphaned with reason: "Gap detected: missing block(s) between index N and N+2"
 
+**Unit Test:** `rust/modal-miner/src/tests.rs::test_gap_detection`
+
 ### 3. Missing Parent
 When a block references a parent hash that doesn't exist anywhere in the canonical chain:
 - Block references unknown parent hash
-- Orphaned with reason: "Parent not found: block references parent hash X which is not in the canonical chain"
+- Orphaned with reason: "Parent not found" or detected as fork
 
-## How It Works
+**Unit Test:** `rust/modal-miner/src/tests.rs::test_missing_parent`
 
-The test uses the `modal-observer` crate's `ChainObserver` to directly test fork choice logic:
+### 4. Chain Integrity
+Verifies that the canonical chain remains consistent after orphaning events.
 
-1. Creates an in-memory datastore
-2. Manually constructs blocks with specific properties
-3. Processes them through `ChainObserver::process_gossiped_block`
-4. Verifies orphan reasons and canonical status
+**Unit Test:** `rust/modal-miner/src/tests.rs::test_chain_integrity`
+
+### 5. Orphan Promotion
+Tests that orphaned blocks can be promoted when their missing parent arrives.
+
+**Unit Test:** `rust/modal-miner/src/tests.rs::test_orphan_promotion`
+
+## Implementation
+
+The tests are implemented in three places:
+
+1. **Unit Tests** (`rust/modal-miner/src/tests.rs`)
+   - Core test logic using `ChainObserver` directly
+   - Fast execution with difficulty=1
+   - Part of `modal-miner` crate test suite
+
+2. **CLI Command** (`rust/modal/src/cmds/chain/validate.rs`)
+   - User-friendly command-line interface
+   - Supports JSON output
+   - Can test against existing node datastores
+
+3. **Integration Test** (`examples/network/orphan-detection/test.sh`)
+   - Runs both unit tests and CLI tests
+   - Validates all interfaces work correctly
+
+### How Tests Work
+
+The tests use the `modal-observer` crate's `ChainObserver` to directly test fork choice logic:
+
+1. Create an in-memory datastore (or use existing one for CLI)
+2. Manually construct blocks with specific properties (using difficulty=1)
+3. Process them through `ChainObserver::process_gossiped_block`
+4. Verify orphan reasons and canonical status
 
 ## Running the Test
 

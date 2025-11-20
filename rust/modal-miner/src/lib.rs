@@ -10,6 +10,9 @@ pub mod persistence;
 #[cfg(feature = "persistence")]
 pub mod fork_choice;
 
+#[cfg(all(test, feature = "persistence"))]
+mod tests;
+
 pub use block::{Block, BlockData, BlockHeader};
 pub use chain::{Blockchain, ChainConfig};
 pub use miner::{Miner, MinerConfig};

@@ -627,6 +627,7 @@ mod tests {
             ChainConfig {
                 initial_difficulty: 100, // Low difficulty for fast test
                 target_block_time_secs: 600,
+                mining_delay_ms: None,
             },
             "genesis_peer_id".to_string(),
         );
@@ -646,6 +647,7 @@ mod tests {
             ChainConfig {
                 initial_difficulty: 100,
                 target_block_time_secs: 600,
+                mining_delay_ms: None,
             },
             "genesis_peer_id".to_string(),
         );
@@ -664,6 +666,7 @@ mod tests {
             ChainConfig {
                 initial_difficulty: 100,
                 target_block_time_secs: 600,
+                mining_delay_ms: None,
             },
             genesis_peer_id.clone(),
         );
@@ -683,6 +686,7 @@ mod tests {
             ChainConfig {
                 initial_difficulty: 50, // Very low for fast mining
                 target_block_time_secs: 600,
+                mining_delay_ms: None,
             },
             "genesis_peer_id".to_string(),
         );
@@ -702,6 +706,7 @@ mod tests {
             ChainConfig {
                 initial_difficulty: 100,
                 target_block_time_secs: 600,
+                mining_delay_ms: None,
             },
             "genesis_peer_id".to_string(),
         );
@@ -720,6 +725,7 @@ mod tests {
             ChainConfig {
                 initial_difficulty: 50,
                 target_block_time_secs: 600,
+                mining_delay_ms: None,
             },
             "genesis_peer_id".to_string(),
         );
@@ -740,6 +746,7 @@ mod tests {
             ChainConfig {
                 initial_difficulty: 50,
                 target_block_time_secs: 60,
+                mining_delay_ms: None,
             },
             "genesis_peer_id".to_string(),
         );
@@ -760,6 +767,7 @@ mod tests {
             ChainConfig {
                 initial_difficulty: 50,
                 target_block_time_secs: 60,
+                mining_delay_ms: None,
             },
             "genesis_peer_id".to_string(),
         );
@@ -788,6 +796,7 @@ mod tests {
             ChainConfig {
                 initial_difficulty: 50,
                 target_block_time_secs: 60,
+                mining_delay_ms: None,
             },
             "genesis_peer_id".to_string(),
         );
@@ -816,6 +825,7 @@ mod tests {
             ChainConfig {
                 initial_difficulty: 50,
                 target_block_time_secs: 60,
+                mining_delay_ms: None,
             },
             "genesis_peer_id".to_string(),
         );
