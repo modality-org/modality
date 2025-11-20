@@ -17,7 +17,7 @@ use modal_datastore::{Model, NetworkDatastore, models::MinerBlock};
 #[async_trait]
 pub trait BlockchainPersistence {
     /// Save a block to the datastore
-    async fn save_block(&self, block: &Block, epoch: u64) -> Result<(), MiningError>;
+    async fn save_block(&mut self, block: &Block, epoch: u64) -> Result<(), MiningError>;
     
     /// Load all canonical blocks from the datastore
     async fn load_canonical_blocks(&self) -> Result<Vec<Block>, MiningError>;
@@ -27,7 +27,7 @@ pub trait BlockchainPersistence {
     
     /// Mark a block as orphaned
     async fn mark_block_orphaned(
-        &self,
+        &mut self,
         block_hash: &str,
         reason: String,
         competing_hash: Option<String>,
@@ -37,7 +37,7 @@ pub trait BlockchainPersistence {
 #[cfg(feature = "persistence")]
 #[async_trait]
 impl BlockchainPersistence for NetworkDatastore {
-    async fn save_block(&self, block: &Block, epoch: u64) -> Result<(), MiningError> {
+    async fn save_block(&mut self, block: &Block, epoch: u64) -> Result<(), MiningError> {
         use modal_datastore::Model;
         
         let miner_block = MinerBlock::new_canonical(
@@ -86,7 +86,7 @@ impl BlockchainPersistence for NetworkDatastore {
     }
     
     async fn mark_block_orphaned(
-        &self,
+        &mut self,
         block_hash: &str,
         reason: String,
         competing_hash: Option<String>,

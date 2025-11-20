@@ -737,9 +737,9 @@ pub async fn request_chain_info_impl(
     
     // Step 5: Save blocks as pending first
     {
-        let ds = datastore.lock().await;
+        let mut ds = datastore.lock().await;
         for block in &all_blocks {
-            block.save_as_pending(&ds).await?;
+            block.save_as_pending(&mut ds).await?;
         }
         log::debug!("Saved {} blocks as pending for verification", all_blocks.len());
     }
@@ -768,7 +768,7 @@ pub async fn request_chain_info_impl(
     
     // Step 7: Orphan competing local blocks and canonize peer blocks
     {
-        let ds = datastore.lock().await;
+        let mut ds = datastore.lock().await;
         
         // Find local blocks that compete with peer blocks
         let local_blocks = MinerBlock::find_all_canonical(&ds).await?;
@@ -782,13 +782,13 @@ pub async fn request_chain_info_impl(
                         peer_cumulative_difficulty, local_cumulative_difficulty),
                     Some(block.hash.clone())
                 );
-                orphaned.save(&ds).await?;
+                orphaned.save(&mut ds).await?;
             }
         }
         
         // Canonize all pending blocks
         for block in &mut all_blocks {
-            block.canonize(&ds).await?;
+            block.canonize(&mut ds).await?;
         }
     }
     
@@ -969,10 +969,10 @@ async fn request_block_range_from_peer(
                                             format!("Replaced by synced block with higher difficulty ({} vs {})", new_difficulty, existing_difficulty),
                                             Some(block.hash.clone())
                                         );
-                                        orphaned.save(&*ds).await?;
+                                        orphaned.save(&mut *ds).await?;
                                         
                                         // Save new block as canonical
-                                        block.save(&*ds).await?;
+                                        block.save(&mut *ds).await?;
                                         count += 1;
                                         log::debug!("Saved synced block {} (index: {})", &block.hash[..16], block.index);
                                     } else {
@@ -981,7 +981,7 @@ async fn request_block_range_from_peer(
                                 }
                                 None => {
                                     // No existing block at this index, save it
-                                    block.save(&*ds).await?;
+                                    block.save(&mut *ds).await?;
                                     count += 1;
                                     log::debug!("Saved synced block {} (index: {})", &block.hash[..16], block.index);
                                 }
@@ -1012,10 +1012,10 @@ async fn request_block_range_from_peer(
                                     "Replaced by synced genesis block".to_string(),
                                     Some(block.hash.clone())
                                 );
-                                orphaned.save(&*ds).await?;
+                                orphaned.save(&mut *ds).await?;
                                 
                                 // Save new genesis as canonical
-                                block.save(&*ds).await?;
+                                block.save(&mut *ds).await?;
                                 count += 1;
                                 log::debug!("Saved synced genesis block {}", &block.hash[..16]);
                             } else {
@@ -1024,7 +1024,7 @@ async fn request_block_range_from_peer(
                         }
                         None => {
                             // No existing genesis, save it
-                            block.save(&*ds).await?;
+                            block.save(&mut *ds).await?;
                             count += 1;
                             log::debug!("Saved synced block {} (index: {})", &block.hash[..16], block.index);
                         }

@@ -16,7 +16,7 @@ pub use validator::{
     ConsensusMetadata,
 };
 
-pub use miner::MinerBlock;
+pub use miner::{MinerBlock, MinerBlockHeight};
 pub use transaction::Transaction;
 pub use contract::{Contract, Commit, ContractAsset, AssetBalance, ReceivedSend};
 pub use wasm_module::WasmModule;

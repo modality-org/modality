@@ -153,7 +153,7 @@ impl Blockchain {
             
             // Save genesis block
             let genesis = chain.blocks[0].clone();
-            let ds = datastore.lock().await;
+            let mut ds = datastore.lock().await;
             ds.save_block(&genesis, 0).await?;
             drop(ds);
             
@@ -318,7 +318,7 @@ impl Blockchain {
         if let Some(ref datastore) = self.datastore {
             use crate::persistence::BlockchainPersistence;
             let epoch = self.epoch_manager.get_epoch(block.header.index);
-            let ds = datastore.lock().await;
+            let mut ds = datastore.lock().await;
             ds.save_block(&block, epoch).await?;
             drop(ds);
         }

@@ -115,6 +115,25 @@ impl MinerBlock {
         self.competing_hash = competing_hash;
     }
     
+    /// Save this block to the datastore and maintain the height index
+    pub async fn save(&self, datastore: &mut NetworkDatastore) -> Result<()> {
+        use crate::Model;
+        use super::MinerBlockHeight;
+        
+        // Save the block itself using Model trait
+        <Self as Model>::save(self, datastore).await?;
+        
+        // Also save/update the height index entry
+        let height_entry = MinerBlockHeight::new(
+            self.index,
+            self.hash.clone(),
+            self.is_canonical,
+        );
+        height_entry.save(datastore).await?;
+        
+        Ok(())
+    }
+    
     /// Parse nonce from string to u128
     pub fn get_nonce_u128(&self) -> Result<u128> {
         self.nonce
@@ -420,7 +439,7 @@ impl MinerBlock {
     }
     
     /// Save a block as pending (non-canonical) for later verification
-    pub async fn save_as_pending(&self, datastore: &NetworkDatastore) -> Result<()> {
+    pub async fn save_as_pending(&self, datastore: &mut NetworkDatastore) -> Result<()> {
         let mut pending = self.clone();
         pending.is_canonical = false;
         pending.is_orphaned = false;
@@ -428,7 +447,7 @@ impl MinerBlock {
     }
     
     /// Canonize this block (flip is_canonical to true)
-    pub async fn canonize(&mut self, datastore: &NetworkDatastore) -> Result<()> {
+    pub async fn canonize(&mut self, datastore: &mut NetworkDatastore) -> Result<()> {
         self.is_canonical = true;
         self.is_orphaned = false;
         self.save(datastore).await
@@ -475,7 +494,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_create_and_save_canonical() {
-        let datastore = NetworkDatastore::create_in_memory().unwrap();
+        let mut datastore = NetworkDatastore::create_in_memory().unwrap();
         
         let block = MinerBlock::new_canonical(
             "test_hash".to_string(),
@@ -493,7 +512,7 @@ mod tests {
         assert!(block.is_canonical);
         assert!(!block.is_orphaned);
         
-        block.save(&datastore).await.unwrap();
+        block.save(&mut datastore).await.unwrap();
         
         let loaded = MinerBlock::find_by_hash(&datastore, "test_hash")
             .await
@@ -508,7 +527,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_mark_as_orphaned() {
-        let datastore = NetworkDatastore::create_in_memory().unwrap();
+        let mut datastore = NetworkDatastore::create_in_memory().unwrap();
         
         let mut block = MinerBlock::new_canonical(
             "test_hash_2".to_string(),
@@ -523,14 +542,14 @@ mod tests {
             99,
         );
         
-        block.save(&datastore).await.unwrap();
+        block.save(&mut datastore).await.unwrap();
         
         block.mark_as_orphaned("Reorg".to_string(), Some("winner_hash".to_string()));
         
         assert!(block.is_orphaned);
         assert!(!block.is_canonical);
         
-        block.save(&datastore).await.unwrap();
+        block.save(&mut datastore).await.unwrap();
         
         let loaded = MinerBlock::find_by_hash(&datastore, "test_hash_2")
             .await
@@ -544,7 +563,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_find_canonical_by_epoch() {
-        let datastore = NetworkDatastore::create_in_memory().unwrap();
+        let mut datastore = NetworkDatastore::create_in_memory().unwrap();
         
         for i in 0..5 {
             let block = MinerBlock::new_canonical(
@@ -559,7 +578,7 @@ mod tests {
                 format!("peer_{}", i),
                 100 + i,
             );
-            block.save(&datastore).await.unwrap();
+            block.save(&mut datastore).await.unwrap();
         }
         
         let epoch_0 = MinerBlock::find_canonical_by_epoch(&datastore, 0)

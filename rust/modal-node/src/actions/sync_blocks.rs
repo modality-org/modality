@@ -90,7 +90,7 @@ async fn persist_blocks(
             Ok(None) => {
                 // Block doesn't exist, save it
                 block
-                    .save(&*ds)
+                    .save(&mut *ds)
                     .await
                     .map_err(|e| anyhow::anyhow!("Failed to save block {}: {}", block.hash, e))?;
                 saved_count += 1;
@@ -100,7 +100,7 @@ async fn persist_blocks(
                 log::warn!("Error checking block {}: {}", block.hash, e);
                 // Try to save anyway
                 block
-                    .save(&*ds)
+                    .save(&mut *ds)
                     .await
                     .map_err(|e| anyhow::anyhow!("Failed to save block {}: {}", block.hash, e))?;
                 saved_count += 1;

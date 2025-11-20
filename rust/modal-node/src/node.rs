@@ -102,6 +102,36 @@ impl Node {
         } else {
             Arc::new(Mutex::new(NetworkDatastore::create_in_memory()?))
         };
+        
+        // Check for and heal duplicate canonical blocks
+        {
+            let mut ds = datastore.lock().await;
+            match modal_datastore::models::miner::integrity::detect_duplicate_canonical_blocks(&ds).await {
+                Ok(duplicates) if !duplicates.is_empty() => {
+                    log::warn!("⚠️  Detected {} indices with duplicate canonical blocks", duplicates.len());
+                    for dup in &duplicates {
+                        log::warn!("  Index {}: {} canonical blocks", dup.index, dup.blocks.len());
+                        for block in &dup.blocks {
+                            log::warn!("    - {} (seen_at: {:?})", &block.hash[..16], block.seen_at);
+                        }
+                    }
+                    log::info!("🔧 Auto-healing duplicate canonical blocks...");
+                    match modal_datastore::models::miner::integrity::heal_duplicate_canonical_blocks(&mut ds, duplicates).await {
+                        Ok(healed) => {
+                            log::info!("✅ Healed {} duplicate blocks", healed.len());
+                        }
+                        Err(e) => {
+                            log::error!("❌ Failed to heal duplicates: {}", e);
+                        }
+                    }
+                }
+                Ok(_) => {} // No duplicates found
+                Err(e) => {
+                    log::warn!("Failed to check for duplicate canonical blocks: {}", e);
+                }
+            }
+        }
+        
         if let Some(network_config_path) = config.network_config_path {
             // Check if this is a modal-networks:// URI or a file path
             let network_config = if let Some(network_name) = network_config_path.to_string_lossy().strip_prefix("modal-networks://") {

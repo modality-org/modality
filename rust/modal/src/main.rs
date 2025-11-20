@@ -264,6 +264,9 @@ enum ProgramCommands {
 enum ChainCommands {
     #[command(about = "Validate blockchain orphaning logic")]
     Validate(cmds::chain::validate::Opts),
+    
+    #[command(about = "Detect and heal duplicate canonical blocks")]
+    Heal(cmds::chain::heal::Opts),
 }
 
 #[tokio::main]
@@ -358,6 +361,7 @@ async fn main() -> Result<()> {
         Commands::Chain { command } => {
             match command {
                 ChainCommands::Validate(opts) => cmds::chain::validate::run(opts).await?,
+                ChainCommands::Heal(opts) => cmds::chain::heal::run(opts).await?,
             }
         }
         Commands::Upgrade(opts) => modality::cmds::upgrade::run(opts).await?,

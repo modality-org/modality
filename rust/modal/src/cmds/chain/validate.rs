@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 
 #[derive(Parser, Debug)]
 pub struct Opts {
-    /// Specific test(s) to run (fork, gap, missing-parent, integrity, promotion)
+    /// Specific test(s) to run (fork, gap, missing-parent, integrity, promotion, duplicate-canonical)
     /// Can be specified multiple times. If not specified, runs all tests.
     #[arg(short, long = "test", value_name = "TEST")]
     tests: Vec<String>,
@@ -347,9 +347,37 @@ async fn test_orphan_promotion(datastore: Arc<Mutex<NetworkDatastore>>) -> Resul
     }
 }
 
+/// Test: Duplicate Canonical Detection - Check for duplicate canonical blocks
+async fn test_duplicate_canonical(datastore: Arc<Mutex<NetworkDatastore>>) -> Result<TestResult> {
+    let ds = datastore.lock().await;
+    let duplicates = modal_datastore::models::miner::integrity::detect_duplicate_canonical_blocks(&ds).await?;
+    drop(ds);
+    
+    if duplicates.is_empty() {
+        Ok(TestResult {
+            test: "duplicate-canonical".to_string(),
+            status: "passed".to_string(),
+            message: "No duplicate canonical blocks found".to_string(),
+            orphan_reason: None,
+            details: None,
+        })
+    } else {
+        let indices: Vec<String> = duplicates.iter()
+            .map(|d| format!("{} ({} blocks)", d.index, d.blocks.len()))
+            .collect();
+        Ok(TestResult {
+            test: "duplicate-canonical".to_string(),
+            status: "failed".to_string(),
+            message: format!("Found {} indices with duplicate canonical blocks", duplicates.len()),
+            orphan_reason: None,
+            details: Some(format!("Affected indices: {}", indices.join(", "))),
+        })
+    }
+}
+
 pub async fn run(opts: &Opts) -> Result<()> {
     // Determine which tests to run
-    let all_tests = vec!["fork", "gap", "missing-parent", "integrity", "promotion"];
+    let all_tests = vec!["fork", "gap", "missing-parent", "integrity", "promotion", "duplicate-canonical"];
     let tests_to_run: Vec<&str> = if opts.tests.is_empty() {
         all_tests.clone()
     } else {
@@ -375,6 +403,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             "missing-parent" => test_missing_parent(datastore).await?,
             "integrity" => test_chain_integrity(datastore).await?,
             "promotion" => test_orphan_promotion(datastore).await?,
+            "duplicate-canonical" => test_duplicate_canonical(datastore).await?,
             _ => {
                 eprintln!("Unknown test: {}", test_name);
                 continue;
@@ -412,6 +441,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 "missing-parent" => "Missing Parent Detection",
                 "integrity" => "Chain Integrity",
                 "promotion" => "Orphan Promotion",
+                "duplicate-canonical" => "Duplicate Canonical Detection",
                 _ => &result.test,
             };
             

@@ -294,12 +294,12 @@ async fn sync_from_peer(
     let blocks_synced = if let Some(ref data) = response.data {
         if let Some(blocks) = data.get("blocks").and_then(|b| b.as_array()) {
             let mut persisted = 0;
-            let ds = node.datastore.lock().await;
+            let mut ds = node.datastore.lock().await;
             
             for block_value in blocks {
                 if let Ok(block) = serde_json::from_value::<MinerBlock>(block_value.clone()) {
                     // Save as canonical
-                    if let Ok(_) = block.save(&ds).await {
+                    if let Ok(_) = block.save(&mut ds).await {
                         persisted += 1;
                     }
                 }

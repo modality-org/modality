@@ -172,7 +172,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_find_ancestor_basic() {
-        let datastore = NetworkDatastore::create_in_memory().unwrap();
+        let mut datastore = NetworkDatastore::create_in_memory().unwrap();
         
         // Create a chain: [0] -> [1] -> [2] -> [3]
         for i in 0..4 {
@@ -188,7 +188,7 @@ mod tests {
                 "peer_id".to_string(),
                 1,
             );
-            block.save(&datastore).await.unwrap();
+            block.save(&mut datastore).await.unwrap();
         }
         
         // Test 1: All checkpoints match
@@ -216,7 +216,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_find_ancestor_divergent() {
-        let datastore = NetworkDatastore::create_in_memory().unwrap();
+        let mut datastore = NetworkDatastore::create_in_memory().unwrap();
         
         // Create a chain: [0] -> [1] -> [2]
         for i in 0..3 {
@@ -232,7 +232,7 @@ mod tests {
                 "peer_id".to_string(),
                 1,
             );
-            block.save(&datastore).await.unwrap();
+            block.save(&mut datastore).await.unwrap();
         }
         
         // Check points where indices 0,1 match but 2,3 don't (different hashes)
@@ -261,7 +261,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_find_ancestor_empty_chain() {
-        let datastore = NetworkDatastore::create_in_memory().unwrap();
+        let mut datastore = NetworkDatastore::create_in_memory().unwrap();
         
         let request = serde_json::json!({
             "check_points": [
@@ -279,7 +279,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_find_ancestor_no_common() {
-        let datastore = NetworkDatastore::create_in_memory().unwrap();
+        let mut datastore = NetworkDatastore::create_in_memory().unwrap();
         
         // Create chain with different hashes
         for i in 0..3 {
@@ -295,7 +295,7 @@ mod tests {
                 "peer_id".to_string(),
                 1,
             );
-            block.save(&datastore).await.unwrap();
+            block.save(&mut datastore).await.unwrap();
         }
         
         // Check with completely different hashes
