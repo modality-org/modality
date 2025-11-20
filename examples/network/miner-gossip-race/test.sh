@@ -41,7 +41,7 @@ CONFIG_FILE="./tmp/miner1/config.json"
 TMP_FILE="./tmp/miner1/config.json.tmp"
 if command -v jq &> /dev/null; then
     PEER_ID=$(jq -r '.id' "$CONFIG_FILE")
-    jq '. + {run_miner: true, status_port: 8401, initial_difficulty: 1, mining_delay_ms: 300, listeners: ["/ip4/0.0.0.0/tcp/10401/ws"], miner_nominees: ["'"$PEER_ID"'"]}' "$CONFIG_FILE" > "$TMP_FILE"
+    jq '. + {run_miner: true, initial_difficulty: 1, mining_delay_ms: 300, listeners: ["/ip4/0.0.0.0/tcp/10401/ws"], miner_nominees: ["'"$PEER_ID"'"]}' "$CONFIG_FILE" > "$TMP_FILE"
     mv "$TMP_FILE" "$CONFIG_FILE"
 fi
 
@@ -58,7 +58,7 @@ TMP_FILE="./tmp/miner2/config.json.tmp"
 if command -v jq &> /dev/null; then
     MINER1_PEER_ID=$(jq -r '.id' ./tmp/miner1/config.json)
     PEER_ID=$(jq -r '.id' "$CONFIG_FILE")
-    jq '. + {run_miner: true, status_port: 8402, initial_difficulty: 1, mining_delay_ms: 300, listeners: ["/ip4/0.0.0.0/tcp/10402/ws"], bootstrappers: ["/ip4/127.0.0.1/tcp/10401/ws/p2p/'"$MINER1_PEER_ID"'"], miner_nominees: ["'"$PEER_ID"'"]}' "$CONFIG_FILE" > "$TMP_FILE"
+    jq '. + {run_miner: true, initial_difficulty: 1, mining_delay_ms: 300, listeners: ["/ip4/0.0.0.0/tcp/10402/ws"], bootstrappers: ["/ip4/127.0.0.1/tcp/10401/ws/p2p/'"$MINER1_PEER_ID"'"], miner_nominees: ["'"$PEER_ID"'"]}' "$CONFIG_FILE" > "$TMP_FILE"
     mv "$TMP_FILE" "$CONFIG_FILE"
 fi
 
@@ -161,9 +161,47 @@ else
     TESTS_PASSED=$((TESTS_PASSED + 1))  # Still pass, but note it's unusual
 fi
 
-# Test 8: Check for mining recovery pattern
+# Test 8: Check for the infinite loop bug (skipping + claiming success)
 echo ""
-echo "Test 9: Checking for mining recovery..."
+echo "Test 9: Checking for infinite loop bug..."
+
+# The bug: "Block X already exists" followed by "Successfully mined" without actual mining
+INFINITE_LOOP_DETECTED=false
+if grep -q "already exists in chain.*skipping mining" "$MINER1_LOG" 2>/dev/null; then
+    echo -e "  ${YELLOW}⚠${NC} Miner1 skipped mining an existing block"
+    echo "  Miner1 skipped mining check" >> "$CURRENT_LOG"
+    # Check if this was followed by "Successfully mined" (the bug)
+    if grep -A2 "already exists in chain.*skipping mining" "$MINER1_LOG" | grep -q "Successfully mined"; then
+        echo -e "  ${RED}✗${NC} INFINITE LOOP BUG: Miner1 claimed success after skipping!"
+        echo "  INFINITE LOOP BUG DETECTED in Miner1" >> "$CURRENT_LOG"
+        INFINITE_LOOP_DETECTED=true
+    fi
+fi
+
+if grep -q "already exists in chain.*skipping mining" "$MINER2_LOG" 2>/dev/null; then
+    echo -e "  ${YELLOW}⚠${NC} Miner2 skipped mining an existing block"
+    echo "  Miner2 skipped mining check" >> "$CURRENT_LOG"
+    # Check if this was followed by "Successfully mined" (the bug)
+    if grep -A2 "already exists in chain.*skipping mining" "$MINER2_LOG" | grep -q "Successfully mined"; then
+        echo -e "  ${RED}✗${NC} INFINITE LOOP BUG: Miner2 claimed success after skipping!"
+        echo "  INFINITE LOOP BUG DETECTED in Miner2" >> "$CURRENT_LOG"
+        INFINITE_LOOP_DETECTED=true
+    fi
+fi
+
+if [ "$INFINITE_LOOP_DETECTED" = false ]; then
+    echo -e "  ${GREEN}✓${NC} No infinite loop bug detected"
+    echo "  No infinite loop bug found" >> "$CURRENT_LOG"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+if [ "$INFINITE_LOOP_DETECTED" = false ]; then
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+fi
+
+# Test 9: Check for mining recovery pattern
+echo ""
+echo "Test 10: Checking for mining recovery..."
 
 # Check both logs for recovery patterns
 RECOVERY_FOUND=false
@@ -189,9 +227,9 @@ else
     TESTS_PASSED=$((TESTS_PASSED + 1))
 fi
 
-# Test 9: Verify both miners eventually sync and continue mining
+# Test 10: Verify both miners eventually sync and continue mining
 echo ""
-echo "Test 10: Verifying miners continue mining..."
+echo "Test 11: Verifying miners continue mining..."
 
 # Wait longer for miners to mine blocks (RandomX is slower)
 echo "  Waiting for miners to mine blocks (RandomX takes time)..." >> "$CURRENT_LOG"
@@ -210,9 +248,9 @@ echo "  Miner2 total blocks in chain: $MINER2_BLOCKS" >> "$CURRENT_LOG"
 assert_number "$MINER1_TOTAL" ">=" "2" "Miner1 should have mined at least 2 blocks"
 assert_number "$MINER2_BLOCKS" ">=" "2" "Miner2 should have at least 2 blocks in chain"
 
-# Test 10: Verify chains are in sync
+# Test 11: Verify chains are in sync
 echo ""
-echo "Test 11: Verifying chain synchronization..."
+echo "Test 12: Verifying chain synchronization..."
 
 # Get chain tips from both miners
 MINER1_TIP=$(modal node inspect --dir ./tmp/miner1 2>&1 | grep "Chain Tip:" | sed -E 's/.*Block ([0-9]+).*/\1/' || echo "0")
@@ -236,9 +274,9 @@ else
     TESTS_FAILED=$((TESTS_FAILED + 1))
 fi
 
-# Test 11: Display race condition statistics
+# Test 13: Display race condition statistics
 echo ""
-echo "Test 12: Analyzing race condition statistics..."
+echo "Test 13: Analyzing race condition statistics..."
 
 # Count rejections (use wc -l to count lines matching pattern)
 MINER1_REJECTIONS=$(grep "rejected by fork choice rules" "$MINER1_LOG" 2>/dev/null | wc -l | tr -d ' ')

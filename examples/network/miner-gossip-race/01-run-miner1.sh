@@ -22,7 +22,7 @@ if [ ! -f "./tmp/miner1/config.json" ]; then
     "12D3KooWBxABXy8BbxT5vqKmXPz1uy6GqHhQxmZ4hFxCLm6zGoFM"
   ],
   "initial_difficulty": 1,
-  "status_port": 8401
+  "mining_delay_ms": 300
 }
 EOF
 fi
