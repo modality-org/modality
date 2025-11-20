@@ -9,7 +9,7 @@ cd "$(dirname "$0")"
 source ../test-lib.sh
 
 # Clean up any previous test runs and stale processes
-pkill -9 -f "modal node run-miner" 2>/dev/null || true
+modal local killall-nodes --dir . --force 2>/dev/null || true
 sleep 1
 
 # Initialize test

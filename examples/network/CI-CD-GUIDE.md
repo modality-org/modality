@@ -576,7 +576,7 @@ Ensure cleanup happens even on failure:
 
 ```bash
 # In your CI script
-trap 'pkill -f "modal node"; exit' INT TERM EXIT
+trap 'modal local killall-nodes --force; exit' INT TERM EXIT
 ./run-tests.sh --quick
 ```
 

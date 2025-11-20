@@ -38,7 +38,8 @@ pub struct Config {
     pub forced_blocks: Option<HashMap<u64, String>>, // Map of block_height -> required_block_hash for forced fork specification (overrides fork_name)
     pub initial_difficulty: Option<u128>, // Initial mining difficulty (testnet: 1, other networks: 10 if not specified)
     pub miner_hash_func: Option<String>, // Hash function for mining: "randomx" (default), "sha256", etc.
-    pub miner_hash_params: Option<serde_json::Value>, // Hash algorithm parameters (e.g., RandomX key and flags)
+    pub miner_hash_params: Option<serde_json::Value>,
+    pub mining_delay_ms: Option<u64>, // Artificial delay between mining attempts (for testing race conditions) // Hash algorithm parameters (e.g., RandomX key and flags)
     pub inspect_whitelist: Option<Vec<String>>, // Peer IDs allowed to inspect this node via reqres. None = only self, empty vec = reject all, populated = allow those peers
 }
 

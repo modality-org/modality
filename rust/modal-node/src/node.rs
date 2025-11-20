@@ -53,6 +53,7 @@ pub struct Node {
     pub initial_difficulty: Option<u128>, // Initial mining difficulty (defaults to 1000 if not specified)
     pub miner_hash_func: Option<String>, // Hash function for mining
     pub miner_hash_params: Option<serde_json::Value>, // Hash algorithm parameters
+    pub mining_delay_ms: Option<u64>, // Artificial delay between mining attempts (for testing)
     pub mining_metrics: crate::mining_metrics::SharedMiningMetrics, // Mining hashrate metrics
     pub mining_shutdown: Option<Arc<std::sync::atomic::AtomicBool>>, // Shutdown flag for mining loop
     networking_task: Option<tokio::task::JoinHandle<Result<()>>>,
@@ -88,6 +89,7 @@ impl Node {
         let initial_difficulty = config.get_initial_difficulty();
         let miner_hash_func = config.miner_hash_func.clone();
         let miner_hash_params = config.miner_hash_params.clone();
+        let mining_delay_ms = config.mining_delay_ms;
         let listeners = config.listeners.clone().unwrap_or_default();
         let resolved_bootstrappers =
             resolve_dns_multiaddrs(config.bootstrappers.unwrap_or_default()).await?;
@@ -191,6 +193,7 @@ impl Node {
             initial_difficulty,
             miner_hash_func,
             miner_hash_params,
+            mining_delay_ms,
             mining_metrics: crate::mining_metrics::create_shared_metrics(),
             mining_shutdown: None, // Will be set in miner run()
             networking_task: None,

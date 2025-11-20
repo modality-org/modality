@@ -264,7 +264,7 @@ The network halts because `active (2) < quorum (3)`. This is **correct** - safet
 ### Network doesn't start
 
 - Check that ports 10301, 10302, 10303 are available
-- Ensure no previous test nodes are running: `pkill -f "modal node"`
+- Ensure no previous test nodes are running: `modal local killall-nodes --dir . --force`
 - Clear tmp directory: `rm -rf ./tmp`
 
 ### Nodes don't reconnect after recovery
@@ -283,7 +283,7 @@ The network halts because `active (2) < quorum (3)`. This is **correct** - safet
 
 Stop all test nodes:
 ```bash
-pkill -f "modal node"
+modal local killall-nodes --dir . --force
 rm -rf ./tmp
 ```
 

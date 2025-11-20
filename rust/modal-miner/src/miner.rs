@@ -7,6 +7,7 @@ use modal_common::hash_tax;
 pub struct MinerConfig {
     pub max_tries: Option<u128>,
     pub hash_func_name: Option<&'static str>,
+    pub mining_delay_ms: Option<u64>,
 }
 
 impl Default for MinerConfig {
@@ -14,6 +15,7 @@ impl Default for MinerConfig {
         Self {
             max_tries: None,
             hash_func_name: Some("randomx"),
+            mining_delay_ms: None,
         }
     }
 }
@@ -57,6 +59,7 @@ impl Miner {
             difficulty,
             self.config.max_tries,
             self.config.hash_func_name,
+            self.config.mining_delay_ms,
         )
         .map_err(|e| MiningError::MiningFailed(e.to_string()))?;
         

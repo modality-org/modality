@@ -22,6 +22,10 @@ pub struct Opts {
     /// Shorthand for --network "devnet*"
     #[clap(long)]
     pub devnet: bool,
+
+    /// Filter by directory - only show nodes in this directory or its subdirectories (recursively)
+    #[clap(long)]
+    pub dir: Option<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -36,6 +40,11 @@ pub struct NodeInfo {
 pub async fn run(opts: &Opts) -> Result<()> {
     let mut nodes = discover_running_nodes()?;
     
+    // Apply directory filter if specified
+    if let Some(dir) = &opts.dir {
+        nodes = filter_nodes_by_directory(nodes, dir)?;
+    }
+    
     // Apply network filter if specified
     let filter = if opts.devnet {
         Some("devnet*".to_string())
@@ -48,7 +57,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
     
     if nodes.is_empty() {
-        if filter.is_some() {
+        if opts.dir.is_some() {
+            println!("No running modal nodes found in the specified directory.");
+        } else if filter.is_some() {
             println!("No running modal nodes found matching network filter.");
         } else {
             println!("No running modal nodes found.");
@@ -331,3 +342,22 @@ fn print_node_info(node: &NodeInfo, verbose: bool) -> Result<()> {
     Ok(())
 }
 
+/// Filter nodes to only those within the specified directory or its subdirectories
+pub fn filter_nodes_by_directory(nodes: Vec<NodeInfo>, dir: &PathBuf) -> Result<Vec<NodeInfo>> {
+    // Canonicalize the directory path to handle relative paths and symlinks
+    let canonical_dir = fs::canonicalize(dir)?;
+    
+    let filtered = nodes.into_iter()
+        .filter(|node| {
+            // Try to canonicalize the node's directory
+            if let Ok(canonical_node_dir) = fs::canonicalize(&node.dir) {
+                // Check if the node's directory starts with the specified directory
+                canonical_node_dir.starts_with(&canonical_dir)
+            } else {
+                false
+            }
+        })
+        .collect();
+    
+    Ok(filtered)
+}

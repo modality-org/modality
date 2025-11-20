@@ -185,7 +185,7 @@ pub fn mine(
     max_tries: Option<u128>,
     hash_func_name: Option<&str>,
 ) -> Result<u128, Box<dyn Error>> {
-    mine_with_stats(data, difficulty, max_tries, hash_func_name)
+    mine_with_stats(data, difficulty, max_tries, hash_func_name, None)
         .map(|result| result.nonce)
 }
 
@@ -196,11 +196,17 @@ pub fn mine_with_stats(
     difficulty: u128,
     max_tries: Option<u128>,
     hash_func_name: Option<&str>,
+    mining_delay_ms: Option<u64>,
 ) -> Result<MiningResult, Box<dyn Error>> {
     let max_tries = max_tries.unwrap_or(DEFAULT_MAX_TRIES);
     let hash_func_name = hash_func_name.unwrap_or(DEFAULT_HASH_FUNC_NAME);
+    let mining_delay = mining_delay_ms.unwrap_or(0);
 
     log::info!("⛏️  Starting mining with {} algorithm (difficulty: {})", hash_func_name, difficulty);
+    
+    if mining_delay > 0 {
+        log::info!("🐌 Mining slowdown enabled: {}ms delay per attempt (for testing)", mining_delay);
+    }
 
     let start_time = std::time::Instant::now();
     let mut nonce = 0;
@@ -217,6 +223,11 @@ pub fn mine_with_stats(
         }
         
         try_count += 1;
+        
+        // Add artificial delay for testing race conditions
+        if mining_delay > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(mining_delay));
+        }
         
         // Log periodic status updates (only if we're doing a lot of attempts)
         if try_count > 1000 && last_status_log.elapsed() >= status_interval {

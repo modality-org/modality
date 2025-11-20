@@ -347,6 +347,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     let initial_difficulty = node.initial_difficulty;
     let miner_hash_func = node.miner_hash_func.clone();
     let miner_hash_params = node.miner_hash_params.clone();
+    let mining_delay_ms = node.mining_delay_ms;
     let epoch_transition_tx = if node.hybrid_consensus {
         Some(node.epoch_transition_tx.clone())
     } else {
@@ -430,6 +431,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 initial_difficulty,
                 miner_hash_func.clone(),
                 miner_hash_params.clone(),
+                mining_delay_ms,
                 epoch_transition_tx.clone(),
             ).await {
                 Ok(()) => {
@@ -1291,6 +1293,7 @@ async fn mine_and_gossip_block(
     initial_difficulty: Option<u128>,
     miner_hash_func: Option<String>,
     miner_hash_params: Option<serde_json::Value>,
+    mining_delay_ms: Option<u64>,
     epoch_transition_tx: Option<tokio::sync::broadcast::Sender<u64>>,
 ) -> Result<()> {
     use modal_miner::{Blockchain, ChainConfig};
@@ -1310,10 +1313,11 @@ async fn mine_and_gossip_block(
 
     log::info!("Mining block {} with nominated peer: {}", index, nominated_peer_id);
 
-    // Create ChainConfig with custom initial_difficulty if provided
+    // Create ChainConfig with custom initial_difficulty and mining_delay
     let chain_config = ChainConfig {
         initial_difficulty: initial_difficulty.unwrap_or(1000),
         target_block_time_secs: 60,
+        mining_delay_ms,
     };
 
     // Load blockchain from datastore using the load_or_create_with_fork_config API
@@ -1367,6 +1371,7 @@ async fn mine_and_gossip_block(
     let custom_miner = modal_miner::Miner::new(modal_miner::MinerConfig {
         max_tries: None,
         hash_func_name: Some(final_hash_func.leak()), // Convert String to &'static str
+        mining_delay_ms: chain.config.mining_delay_ms,
     });
     chain.miner = custom_miner;
     

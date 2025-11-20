@@ -10,6 +10,8 @@ use std::collections::HashMap;
 pub struct ChainConfig {
     pub initial_difficulty: u128,
     pub target_block_time_secs: u64,
+    #[serde(default)]
+    pub mining_delay_ms: Option<u64>,
 }
 
 impl Default for ChainConfig {
@@ -17,6 +19,7 @@ impl Default for ChainConfig {
         Self {
             initial_difficulty: 1000,
             target_block_time_secs: 60, // 1 minute
+            mining_delay_ms: None,
         }
     }
 }
@@ -51,10 +54,17 @@ impl Blockchain {
         let mut block_index = HashMap::new();
         block_index.insert(genesis.header.hash.clone(), 0);
         
+        // Create miner with config's mining_delay
+        let miner_config = crate::miner::MinerConfig {
+            max_tries: None,
+            hash_func_name: Some("randomx"),
+            mining_delay_ms: config.mining_delay_ms,
+        };
+        
         Self {
             blocks: vec![genesis],
             epoch_manager,
-            miner: Miner::new_default(),
+            miner: Miner::new(miner_config),
             config,
             genesis_peer_id,
             block_index,
@@ -90,10 +100,17 @@ impl Blockchain {
         // Initialize fork choice with the datastore
         let fork_choice = std::sync::Arc::new(crate::fork_choice::MinerForkChoice::new(datastore.clone()));
         
+        // Create miner with config's mining_delay
+        let miner_config = crate::miner::MinerConfig {
+            max_tries: None,
+            hash_func_name: Some("randomx"),
+            mining_delay_ms: config.mining_delay_ms,
+        };
+        
         Self {
             blocks: vec![genesis],
             epoch_manager,
-            miner: Miner::new_default(),
+            miner: Miner::new(miner_config),
             config,
             genesis_peer_id,
             block_index,
@@ -154,10 +171,17 @@ impl Blockchain {
                 block_index.insert(block.header.hash.clone(), idx);
             }
             
+            // Create miner with config's mining_delay
+            let miner_config = crate::miner::MinerConfig {
+                max_tries: None,
+                hash_func_name: Some("randomx"),
+                mining_delay_ms: config.mining_delay_ms,
+            };
+            
             Ok(Self {
                 blocks: loaded_blocks,
                 epoch_manager,
-                miner: Miner::new_default(),
+                miner: Miner::new(miner_config),
                 config,
                 genesis_peer_id,
                 block_index,

@@ -107,7 +107,9 @@ docker run --rm tests --quick
 cd rust && cargo build --package modal
 
 # Kill all nodes
-pkill -f "modal node"
+modal local killall-nodes --force
+# Or kill only nodes in current directory tree
+modal local killall-nodes --dir . --force
 
 # Check port usage
 lsof -i :10101
@@ -151,7 +153,7 @@ exit $?
 ## Troubleshooting
 
 **Tests hanging?**
-- Kill processes: `pkill -f "modal node"`
+- Kill processes: `modal local killall-nodes --force`
 - Check ports: `lsof -i :10101`
 
 **Tests failing?**

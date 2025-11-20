@@ -153,6 +153,7 @@ modal local nodes [OPTIONS]
 - `--verbose`, `-v` - Show verbose output with full paths
 - `--network <FILTER>` - Filter by network config path (supports wildcards)
 - `--devnet` - Shorthand for `--network "devnet*"`
+- `--dir <PATH>` - Filter by directory - only show nodes in this directory or its subdirectories (recursively)
 
 **Examples:**
 ```bash
@@ -234,6 +235,7 @@ modal local killall-nodes [OPTIONS]
 - `--dry-run` - Show what would be killed without actually killing
 - `--network <FILTER>` - Filter by network config path (supports wildcards)
 - `--devnet` - Shorthand for `--network "devnet*"`
+- `--dir <PATH>` - Filter by directory - only kill nodes in this directory or its subdirectories (recursively)
 
 **Examples:**
 ```bash
@@ -258,6 +260,15 @@ modal local killall-nodes --network "devnet3" --force
 # Kill testnet nodes with dry-run first
 modal local killall-nodes --network "testnet*" --dry-run
 modal local killall-nodes --network "testnet*"
+
+# Kill only nodes within the current directory and its subdirectories
+modal local killall-nodes --dir .
+
+# Kill only nodes in a specific directory tree
+modal local killall-nodes --dir ./examples/network --dry-run
+
+# Combine filters: kill devnet nodes in current directory tree
+modal local killall-nodes --network "devnet*" --dir . --force
 
 # Use in cleanup scripts
 cleanup() {

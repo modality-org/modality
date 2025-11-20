@@ -92,7 +92,7 @@ cleanup() {
     echo "Cleaning up..."
     
     # Kill any modal processes started by this test
-    pkill -f "modal node run.*wasm-test-node" || true
+    modal local killall-nodes --dir . --force 2>/dev/null || true
     
     # Clean up tmp directory
     if [ -d "$TMP_DIR" ]; then

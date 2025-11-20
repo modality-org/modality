@@ -258,8 +258,9 @@ If a test hangs, check:
 
 Kill all background processes:
 ```bash
-pkill -f "modal node"
-pkill -f "modality-js"
+modal local killall-nodes --force
+# Or kill only nodes in the current directory tree
+modal local killall-nodes --dir . --force
 ```
 
 ### Tests Failing
