@@ -85,6 +85,12 @@ enum Commands {
         command: ProgramCommands,
     },
 
+    #[command(about = "Chain validation and testing commands")]
+    Chain {
+        #[command(subcommand)]
+        command: ChainCommands,
+    },
+
     #[command(about = "Upgrade modal to the latest version")]
     Upgrade(modality::cmds::upgrade::Opts),
 }
@@ -254,6 +260,12 @@ enum ProgramCommands {
     Upload(cmds::program::upload::Opts),
 }
 
+#[derive(Subcommand)]
+enum ChainCommands {
+    #[command(about = "Validate blockchain orphaning logic")]
+    Validate(cmds::chain::validate::Opts),
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -341,6 +353,11 @@ async fn main() -> Result<()> {
                 ProgramCommands::List(opts) => cmds::program::list::run(opts).await?,
                 ProgramCommands::Info(opts) => cmds::program::info::run(opts).await?,
                 ProgramCommands::Upload(opts) => cmds::program::upload::run(opts).await?,
+            }
+        }
+        Commands::Chain { command } => {
+            match command {
+                ChainCommands::Validate(opts) => cmds::chain::validate::run(opts).await?,
             }
         }
         Commands::Upgrade(opts) => modality::cmds::upgrade::run(opts).await?,

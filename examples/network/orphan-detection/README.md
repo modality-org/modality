@@ -2,6 +2,30 @@
 
 This test validates the blockchain's orphaning logic by simulating three distinct scenarios:
 
+## ⚠️ Note: Now Available as CLI Command
+
+This test has been integrated into the `modal` CLI as the `modal chain validate` command. 
+
+**Recommended usage:**
+
+```bash
+# Run all validation tests
+modal chain validate
+
+# Run specific tests
+modal chain validate --test fork --test gap
+
+# Test against existing node datastore
+modal chain validate --datastore ./tmp/miner1/storage
+
+# Get JSON output
+modal chain validate --json
+```
+
+The standalone test binary in this directory is still available for reference and development purposes.
+
+---
+
 ## Test Scenarios
 
 ### 1. Fork Detection (Single-Block Fork)
@@ -30,6 +54,25 @@ The test uses the `modal-observer` crate's `ChainObserver` to directly test fork
 4. Verifies orphan reasons and canonical status
 
 ## Running the Test
+
+### Using the Modal CLI (Recommended)
+
+```bash
+# Run all tests
+modal chain validate
+
+# Run with JSON output
+modal chain validate --json
+
+# Run specific tests
+modal chain validate --test fork
+modal chain validate --test gap --test integrity
+
+# Test against an existing node's datastore
+modal chain validate --datastore ./path/to/node/storage
+```
+
+### Using the Standalone Binary
 
 ```bash
 cd examples/network/orphan-detection
