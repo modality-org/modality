@@ -2,19 +2,44 @@
 
 This directory contains scripts for building and distributing Modality binaries for multiple platforms.
 
+## Scripts
+
+- **`build.sh`** - Build binaries for all platforms
+- **`upload.sh`** - Upload built packages to S3
+- **`build-and-upload.sh`** - Combined build and upload (calls both scripts)
+
 ## Quick Start
 
-### Build and Upload All Platforms
+### Build Only
+
+```bash
+./build.sh
+```
+
+This will:
+1. Cross-compile binaries for all supported platforms using `cross`
+2. Build WASM packages for web/node/bundler targets
+3. Create a package manifest
+4. Output everything to `build/` directory
+
+### Upload Only
+
+```bash
+./upload.sh
+```
+
+This will:
+1. Upload the built packages to S3
+2. Invalidate CloudFront cache
+3. Optionally publish to Cargo registry (use `--enable-cargo-registry`)
+
+### Build and Upload
 
 ```bash
 ./build-and-upload.sh
 ```
 
-This will:
-1. Cross-compile binaries for all supported platforms using `cross`
-2. Create an install script for end users
-3. Upload everything to S3
-4. Publish to the Cargo registry
+This combines both build and upload steps.
 
 ### Supported Platforms
 
@@ -45,36 +70,55 @@ This will:
 
 ## Usage
 
-### Basic Build
+### Build Commands
 
 ```bash
 # Build for all platforms
-./build-and-upload.sh
+./build.sh
 
-# Build only, skip upload
-./build-and-upload.sh --skip-upload
-
-# Upload only (using existing build)
-./build-and-upload.sh --skip-build
-
-# Clean build
-./build-and-upload.sh --clean
-```
-
-### Build Options
-
-```bash
-# Custom version
-./build-and-upload.sh --version "1.0.0"
-
-# Custom S3 bucket
-./build-and-upload.sh --bucket my-custom-bucket
+# Clean build (remove existing build directory first)
+./build.sh --clean
 
 # Skip JavaScript packages
-./build-and-upload.sh --skip-js
+./build.sh --skip-js
 
-# Skip Cargo registry
-./build-and-upload.sh --skip-cargo-registry
+# Custom version
+./build.sh --version "1.0.0"
+```
+
+### Upload Commands
+
+```bash
+# Upload using default settings
+./upload.sh
+
+# Upload with Cargo registry
+./upload.sh --enable-cargo-registry
+
+# Skip updating the 'latest' symlink
+./upload.sh --skip-latest
+
+# Custom S3 bucket
+./upload.sh --bucket my-custom-bucket --region us-west-2
+
+# Upload from custom build directory
+./upload.sh --build-dir /path/to/build
+```
+
+### Combined Build and Upload
+
+```bash
+# Build and upload everything
+./build-and-upload.sh
+
+# Build only (skip upload)
+./build-and-upload.sh --skip-upload
+
+# Upload only (skip build)
+./build-and-upload.sh --skip-build
+
+# Clean build and upload
+./build-and-upload.sh --clean
 ```
 
 ## Output Structure
