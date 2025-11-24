@@ -108,6 +108,20 @@ model Test:
 
 ## Using the CLI
 
+### Create a Starter Model
+
+Get a ready-to-edit `.modality` file without copying from examples:
+
+```bash
+# Create demo-model.modality in current directory
+modality model create demo-model.modality
+
+# Overwrite an existing file
+modality model create demo-model.modality --force
+```
+
+The generated template contains two simple parts (Engine and Battery) so you can immediately tweak transitions and run the other commands below.
+
 ### Mermaid Diagram Generation
 
 Generate visual diagrams of your models:

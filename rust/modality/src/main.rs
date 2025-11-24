@@ -61,9 +61,12 @@ enum PassfileCommands {
 enum ModelCommands {
     #[command(about = "Generate a Mermaid diagram from a Modality file")]
     Mermaid(cmds::mermaid::Opts),
-    
+
     #[command(about = "Check a formula against a model")]
     Check(cmds::check::Opts),
+
+    #[command(about = "Create a starter Modality model file")]
+    Create(cmds::model_create::Opts),
 }
 
 #[derive(Subcommand)]
@@ -76,29 +79,22 @@ enum NodeCommands {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     match &cli.command {
-        Commands::Id { command } => {
-            match command {
-                IdCommands::Create(opts) => cmds::id::create::run(opts).await?,
-                IdCommands::Derive(opts) => cmds::id::derive::run(opts).await?,
-            }
-        }
-        Commands::Passfile { command } => {
-            match command {
-                PassfileCommands::Decrypt(opts) => cmds::passfile::decrypt::run(opts).await?,
-                PassfileCommands::Encrypt(opts) => cmds::passfile::encrypt::run(opts).await?,
-            }
-        }
-        Commands::Model { command } => {
-            match command {
-                ModelCommands::Mermaid(opts) => cmds::mermaid::run(opts).await?,
-                ModelCommands::Check(opts) => cmds::check::run(opts).await?,
-            }
-        }
-        Commands::Node { command } => {
-            match command {
-                NodeCommands::Inspect(opts) => cmds::inspect::run(opts).await?,
-            }
-        }
+        Commands::Id { command } => match command {
+            IdCommands::Create(opts) => cmds::id::create::run(opts).await?,
+            IdCommands::Derive(opts) => cmds::id::derive::run(opts).await?,
+        },
+        Commands::Passfile { command } => match command {
+            PassfileCommands::Decrypt(opts) => cmds::passfile::decrypt::run(opts).await?,
+            PassfileCommands::Encrypt(opts) => cmds::passfile::encrypt::run(opts).await?,
+        },
+        Commands::Model { command } => match command {
+            ModelCommands::Mermaid(opts) => cmds::mermaid::run(opts).await?,
+            ModelCommands::Check(opts) => cmds::check::run(opts).await?,
+            ModelCommands::Create(opts) => cmds::model_create::run(opts).await?,
+        },
+        Commands::Node { command } => match command {
+            NodeCommands::Inspect(opts) => cmds::inspect::run(opts).await?,
+        },
         Commands::Upgrade(opts) => cmds::upgrade::run(opts).await?,
     }
 

@@ -11,6 +11,16 @@ This example demonstrates how to use the Modality CLI to generate Mermaid diagra
 
 ## Usage
 
+### Create a Starter Model
+
+Instead of copying these files manually, generate a fresh template:
+
+```bash
+modality model create my-first-model.modality
+```
+
+Then edit `my-first-model.modality` as needed or compare it with the examples in this folder.
+
 ### Mermaid Diagrams
 
 ```bash

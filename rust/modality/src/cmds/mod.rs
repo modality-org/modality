@@ -1,6 +1,7 @@
-pub mod id;
-pub mod passfile;
-pub mod mermaid;
 pub mod check;
-pub mod upgrade;
+pub mod id;
 pub mod inspect;
+pub mod mermaid;
+pub mod model_create;
+pub mod passfile;
+pub mod upgrade;
