@@ -1,5 +1,5 @@
 use crate::DatastoreManager;
-use crate::models::{MinerBlock, MinerBlockHeight};
+use crate::models::MinerBlock;
 use anyhow::Result;
 use std::collections::HashMap;
 

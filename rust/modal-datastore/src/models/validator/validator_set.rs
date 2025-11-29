@@ -91,7 +91,7 @@ impl ValidatorSet {
     pub async fn find_by_epoch_multi(datastore: &DatastoreManager, epoch: u64) -> Result<Option<Self>> {
         let key = format!("validator_set:{}", epoch);
         let store = datastore.validator_final();
-        match store.get(&key) {
+        match store.get(&key)? {
             Some(value) => {
                 let value_str = String::from_utf8(value.to_vec())
                     .context("Failed to convert value to string")?;

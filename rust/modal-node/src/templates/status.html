@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modal Money Node Status</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #0f0f0f;
+            color: #e0e0e0;
+        }}
+        h1 {{
+            color: #4a9eff;
+            border-bottom: 2px solid #4a9eff;
+            padding-bottom: 10px;
+        }}
+        h2 {{
+            color: #4a9eff;
+            font-size: 1.3em;
+            margin-top: 0;
+        }}
+        .status-card {{
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }}
+        .status-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }}
+        .status-item {{
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #2a2a2a;
+        }}
+        .status-item:last-child {{
+            border-bottom: none;
+        }}
+        .label {{
+            font-weight: 600;
+            color: #888;
+        }}
+        .value {{
+            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+        }}
+        .stat-box {{
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }}
+        .stat-label {{
+            color: #888;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+        }}
+        .stat-value {{
+            color: #4a9eff;
+            font-size: 2em;
+            font-weight: bold;
+        }}
+        .status-online {{
+            color: #4ade80;
+            font-weight: bold;
+        }}
+        .header {{
+            text-align: center;
+            margin-bottom: 30px;
+        }}
+        .listeners {{
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }}
+        .listeners li {{
+            padding: 4px 0;
+            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }}
+        th {{
+            background: #252525;
+            color: #4a9eff;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #333;
+        }}
+        td {{
+            padding: 10px 12px;
+            border-bottom: 1px solid #2a2a2a;
+        }}
+        tr:hover {{
+            background: #1f1f1f;
+        }}
+        code {{
+            background: #252525;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }}
+        .blocks-container {{
+            max-height: 600px;
+            overflow-y: auto;
+        }}
+        .blocks-container::-webkit-scrollbar {{
+            width: 8px;
+        }}
+        .blocks-container::-webkit-scrollbar-track {{
+            background: #1a1a1a;
+        }}
+        .blocks-container::-webkit-scrollbar-thumb {{
+            background: #333;
+            border-radius: 4px;
+        }}
+        .blocks-container::-webkit-scrollbar-thumb:hover {{
+            background: #444;
+        }}
+        
+        /* Tab Styles */
+        .tabs {{
+            display: flex;
+            gap: 10px;
+            border-bottom: 2px solid #333;
+            margin-bottom: 30px;
+        }}
+        .tab {{
+            padding: 12px 24px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            color: #888;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }}
+        .tab:hover {{
+            background: #252525;
+            color: #e0e0e0;
+        }}
+        .tab.active {{
+            background: #0f0f0f;
+            color: #4a9eff;
+            border-bottom: 2px solid #4a9eff;
+            margin-bottom: -2px;
+        }}
+        .tab-content {{
+            display: none;
+        }}
+        .tab-content.active {{
+            display: block;
+        }}
+    </style>
+    <script>
+        // Tab switching
+        function switchTab(tabName) {{
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(function(content) {{
+                content.classList.remove('active');
+            }});
+            
+            // Deactivate all tabs
+            document.querySelectorAll('.tab').forEach(function(tab) {{
+                tab.classList.remove('active');
+            }});
+            
+            // Show selected tab content
+            document.getElementById(tabName + '-content').classList.add('active');
+            
+            // Activate selected tab
+            document.querySelector('[data-tab="' + tabName + '"]').classList.add('active');
+            
+            // Save active tab to localStorage
+            localStorage.setItem('activeTab', tabName);
+        }}
+        
+        // Restore active tab on page load
+        window.addEventListener('DOMContentLoaded', function() {{
+            const savedTab = localStorage.getItem('activeTab') || 'overview';
+            switchTab(savedTab);
+        }});
+        
+        // Toggle timestamp between Unix time and local time
+        function toggleTimestamp(element) {{
+            const timestamp = parseInt(element.getAttribute('data-timestamp'));
+            const currentText = element.textContent;
+            
+            // Check if currently showing Unix timestamp
+            if (currentText === timestamp.toString()) {{
+                // Convert to local time
+                const date = new Date(timestamp * 1000);
+                const localTime = date.toLocaleString();
+                element.textContent = localTime;
+                element.style.color = '#4a9eff';
+            }} else {{
+                // Show Unix timestamp
+                element.textContent = timestamp;
+                element.style.color = '#e0e0e0';
+            }}
+        }}
+        
+        // Auto-refresh every 10 seconds
+        setTimeout(function() {{
+            location.reload();
+        }}, {refresh_interval}000);
+    </script>
+</head>
+<body>
+    <div class="header">
+        <h1>🟢 Modal Money Node</h1>
+        <p class="status-online">Status: ONLINE</p>
+    </div>
+    
+    <!-- Tabs Navigation -->
+    <div class="tabs">
+        <div class="tab active" data-tab="overview" onclick="switchTab('overview')">Overview</div>
+        <div class="tab" data-tab="mining" onclick="switchTab('mining')">Mining</div>
+        <div class="tab" data-tab="sequencing" onclick="switchTab('sequencing')">Sequencing</div>
+    </div>
+    
+    <!-- Overview Tab -->
+    <div id="overview-content" class="tab-content active">
+        <div class="status-grid">
+            <div class="stat-box">
+                <div class="stat-label">Connected Peers</div>
+                <div class="stat-value">{connected_peers}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Block Height</div>
+                <div class="stat-value">{total_miner_blocks}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Cumulative Difficulty</div>
+                <div class="stat-value">{cumulative_difficulty}</div>
+            </div>
+        </div>
+        
+        <div class="status-card">
+            <h2>Node Information</h2>
+            <div class="status-item">
+                <span class="label">Peer ID:</span>
+                <span class="value">{peerid}</span>
+            </div>
+            <div class="status-item">
+                <span class="label">Listeners:</span>
+                <div class="value">
+                    <ul class="listeners">
+                        {listeners_html}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="status-card">
+            <h2>Blockchain Status</h2>
+            <div class="status-item">
+                <span class="label">Current Round:</span>
+                <span class="value">{current_round}</span>
+            </div>
+            <div class="status-item">
+                <span class="label">Latest Block Round:</span>
+                <span class="value">{latest_round}</span>
+            </div>
+        </div>
+
+        <div class="status-card">
+            <h2>Genesis Block (Block 0)</h2>
+            {block_0_html}
+        </div>
+
+        <div class="status-card">
+            <h2>Connected Peers</h2>
+            <div class="blocks-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Peer ID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {peers_html}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Mining Tab -->
+    <div id="mining-content" class="tab-content">
+        <div class="status-grid">
+            <div class="stat-box">
+                <div class="stat-label">Block Height</div>
+                <div class="stat-value">{total_miner_blocks}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Blocks Mined by Node</div>
+                <div class="stat-value">{blocks_mined_by_node}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Current Difficulty</div>
+                <div class="stat-value">{current_difficulty}</div>
+            </div>
+        </div>
+        
+        <!-- Hashrate Statistics Row -->
+        <div class="status-grid">
+            <div class="stat-box">
+                <div class="stat-label">Miner Hashrate</div>
+                <div class="stat-value">{miner_hashrate}</div>
+                <div style="font-size: 0.7em; color: #888; margin-top: 8px;">H/s</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Network Hashrate</div>
+                <div class="stat-value">{network_hashrate}</div>
+                <div style="font-size: 0.7em; color: #888; margin-top: 8px;">H/s (implied)</div>
+            </div>
+        </div>
+
+        <div class="status-card">
+            <h2>Recent Blocks (Last {recent_blocks_count})</h2>
+            <div class="blocks-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Index</th>
+                            <th>Epoch</th>
+                            <th>Hash</th>
+                            <th>Nominee</th>
+                            <th>Timestamp</th>
+                            <th>Time Delta (s)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {blocks_html}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="status-card">
+            <h2>First {first_blocks_count} Blocks</h2>
+            <div class="blocks-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Index</th>
+                            <th>Epoch</th>
+                            <th>Hash</th>
+                            <th>Nominee</th>
+                            <th>Timestamp</th>
+                            <th>Time Delta (s)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {first_blocks_html}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sequencing Tab -->
+    <div id="sequencing-content" class="tab-content">
+        <div class="status-grid">
+            <div class="stat-box">
+                <div class="stat-label">Current Epoch</div>
+                <div class="stat-value">{current_epoch}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Block Height</div>
+                <div class="stat-value">{total_miner_blocks}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Completed Epochs</div>
+                <div class="stat-value">{completed_epochs}</div>
+            </div>
+        </div>
+
+        {epoch_nominees_sections}
+    </div>
+
+    <div class="status-card">
+        <p style="text-align: center; color: #666; font-size: 0.9em;">
+            Page auto-refreshes every {refresh_interval} seconds
+        </p>
+    </div>
+</body>
+</html>
+

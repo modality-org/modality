@@ -1,7 +1,6 @@
-use anyhow::Result;
-use modal_datastore::DatastoreManager;
-use modal_datastore::models::MinerBlock;
-use crate::reqres::Response;
+//! Miner block request handlers.
+//!
+//! This module provides handlers for miner block related requests.
 
 /// Get a miner block by hash
 pub mod get;
@@ -23,41 +22,3 @@ pub mod find_ancestor;
 
 /// Debug: get all blocks at a specific index
 pub mod debug_index;
-
-/// Handler for GET /data/miner_block/:hash (deprecated - use get::handler)
-#[allow(dead_code)]
-pub async fn handler(data: Option<serde_json::Value>, datastore_manager: &DatastoreManager) -> Result<Response> {
-    let data = data.unwrap_or_default();
-    
-    if let Some(hash) = data.get("hash").and_then(|v| v.as_str()) {
-        match MinerBlock::find_by_hash_multi(datastore_manager, hash).await {
-            Ok(Some(block)) => {
-                Ok(Response {
-                    ok: true,
-                    data: Some(serde_json::to_value(block)?),
-                    errors: None,
-                })
-            }
-            Ok(None) => {
-                Ok(Response {
-                    ok: false,
-                    data: None,
-                    errors: Some(serde_json::json!({"error": "Miner block not found"})),
-                })
-            }
-            Err(e) => {
-                Ok(Response {
-                    ok: false,
-                    data: None,
-                    errors: Some(serde_json::json!({"error": e.to_string()})),
-                })
-            }
-        }
-    } else {
-        Ok(Response {
-            ok: false,
-            data: None,
-            errors: Some(serde_json::json!({"error": "Missing 'hash' parameter"})),
-        })
-    }
-}

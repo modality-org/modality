@@ -3,7 +3,6 @@ use serde::{Serialize, Deserialize};
 use async_trait::async_trait;
 use anyhow::{Result, Context, anyhow};
 
-use crate::DatastoreManager;
 use crate::stores::Store;
 
 #[async_trait]

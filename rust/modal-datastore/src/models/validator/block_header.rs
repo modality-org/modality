@@ -70,7 +70,9 @@ impl ValidatorBlockHeader {
         let prefix = format!("/validator/block_headers/round/{}/peer", round_id);
         let mut block_headers = Vec::new();
 
-        for store in [datastore.validator_active(), datastore.validator_final()] {
+        // Try ValidatorActive first
+        {
+            let store = datastore.validator_active();
             let iterator = store.iterator(&prefix);
             for result in iterator {
                 let (key, _) = result?;
@@ -88,8 +90,31 @@ impl ValidatorBlockHeader {
                     block_headers.push(block);
                 }
             }
-            if !block_headers.is_empty() {
-                break;
+        }
+        
+        if !block_headers.is_empty() {
+            return Ok(block_headers);
+        }
+
+        // Then try ValidatorFinal
+        {
+            let store = datastore.validator_final();
+            let iterator = store.iterator(&prefix);
+            for result in iterator {
+                let (key, _) = result?;
+                let key_str = String::from_utf8(key.to_vec())?;
+                let peer_id = key_str
+                    .split(&format!("{}/", prefix))
+                    .nth(1)
+                    .ok_or_else(|| anyhow!("Invalid key format: {}", key_str))?;
+
+                let mut keys = HashMap::new();
+                keys.insert("round_id".to_string(), round_id.to_string());
+                keys.insert("peer_id".to_string(), peer_id.to_string());
+
+                if let Some(block) = Self::find_one_from_store(&*store, keys).await? {
+                    block_headers.push(block);
+                }
             }
         }
 
@@ -127,3 +152,4 @@ pub mod prelude {
     pub use crate::Model;
     pub use crate::DatastoreManager;
 }
+

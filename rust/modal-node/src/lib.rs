@@ -14,3 +14,9 @@ pub mod pid;
 pub mod actions;
 pub mod consensus;
 pub mod autoupgrade;
+
+// New refactored modules
+pub mod constants;
+pub mod chain;
+pub mod sync;
+pub mod templates;

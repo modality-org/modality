@@ -9,15 +9,10 @@
 
 use crate::{DatastoreManager, Store};
 use crate::models::validator::ValidatorBlock;
-use crate::models::contract::{Contract, Commit, ContractAsset, AssetBalance, ReceivedSend};
-use crate::models::WasmModule;
 use anyhow::{Context, Result};
-use std::collections::HashMap;
 
 /// Key prefixes for validator data
 const VALIDATOR_BLOCK_PREFIX: &str = "/validator/blocks";
-const CONTRACT_PREFIX: &str = "/contracts";
-const COMMIT_PREFIX: &str = "/commits";
 
 impl ValidatorBlock {
     // ============================================================
@@ -177,105 +172,11 @@ impl ValidatorBlock {
     }
 }
 
-impl Contract {
-    // ============================================================
-    // Multi-store methods for contracts (stored in ValidatorFinal)
-    // ============================================================
-    
-    /// Save a contract to ValidatorFinal
-    pub async fn save_to_final(&self, mgr: &DatastoreManager) -> Result<()> {
-        let key = format!("{}/{}", CONTRACT_PREFIX, self.contract_id);
-        let data = serde_json::to_vec(self)?;
-        mgr.validator_final().put(&key, &data)?;
-        Ok(())
-    }
-    
-    /// Find a contract by ID from ValidatorFinal
-    pub async fn find_by_id_multi(
-        mgr: &DatastoreManager,
-        contract_id: &str,
-    ) -> Result<Option<Self>> {
-        let key = format!("{}/{}", CONTRACT_PREFIX, contract_id);
-        
-        if let Some(data) = mgr.validator_final().get(&key)? {
-            let contract: Contract = serde_json::from_slice(&data)
-                .context("Failed to deserialize Contract from ValidatorFinal")?;
-            return Ok(Some(contract));
-        }
-        
-        Ok(None)
-    }
-    
-    /// Find all contracts from ValidatorFinal
-    pub async fn find_all_multi(
-        mgr: &DatastoreManager,
-    ) -> Result<Vec<Self>> {
-        let mut contracts = Vec::new();
-        
-        for item in mgr.validator_final().iterator(CONTRACT_PREFIX) {
-            let (_, value) = item?;
-            let contract: Contract = serde_json::from_slice(&value)
-                .context("Failed to deserialize Contract")?;
-            contracts.push(contract);
-        }
-        
-        Ok(contracts)
-    }
-}
-
-impl Commit {
-    // ============================================================
-    // Multi-store methods for commits (stored in ValidatorFinal)
-    // ============================================================
-    
-    /// Save a commit to ValidatorFinal
-    pub async fn save_to_final(&self, mgr: &DatastoreManager) -> Result<()> {
-        let key = format!("{}/{}/{}", COMMIT_PREFIX, self.contract_id, self.commit_id);
-        let data = serde_json::to_vec(self)?;
-        mgr.validator_final().put(&key, &data)?;
-        Ok(())
-    }
-    
-    /// Find commits by contract from ValidatorFinal
-    pub async fn find_by_contract_multi(
-        mgr: &DatastoreManager,
-        contract_id: &str,
-    ) -> Result<Vec<Self>> {
-        // Note: iterator adds "/" to prefix, so we don't include trailing slash
-        let prefix = format!("{}/{}", COMMIT_PREFIX, contract_id);
-        let mut commits = Vec::new();
-        
-        for item in mgr.validator_final().iterator(&prefix) {
-            let (_, value) = item?;
-            let commit: Commit = serde_json::from_slice(&value)
-                .context("Failed to deserialize Commit")?;
-            commits.push(commit);
-        }
-        
-        Ok(commits)
-    }
-    
-    /// Find a specific commit by contract and commit ID
-    pub async fn find_one_multi(
-        mgr: &DatastoreManager,
-        contract_id: &str,
-        commit_id: &str,
-    ) -> Result<Option<Self>> {
-        let key = format!("{}/{}/{}", COMMIT_PREFIX, contract_id, commit_id);
-        
-        if let Some(data) = mgr.validator_final().get(&key)? {
-            let commit: Commit = serde_json::from_slice(&data)
-                .context("Failed to deserialize Commit")?;
-            return Ok(Some(commit));
-        }
-        
-        Ok(None)
-    }
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::contract::{Contract, Commit};
     use std::collections::HashMap;
     
     fn create_test_validator_block(peer_id: &str, round_id: u64, has_cert: bool) -> ValidatorBlock {
@@ -301,7 +202,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_save_and_find_validator_block() {
-        let mut mgr = DatastoreManager::create_in_memory().unwrap();
+        let mgr = DatastoreManager::create_in_memory().unwrap();
         
         let block = create_test_validator_block("peer1", 10, false);
         block.save_to_active(&mgr).await.unwrap();
@@ -313,7 +214,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_promote_certified_block() {
-        let mut mgr = DatastoreManager::create_in_memory().unwrap();
+        let mgr = DatastoreManager::create_in_memory().unwrap();
         
         let block = create_test_validator_block("peer2", 20, true);
         block.save_to_active(&mgr).await.unwrap();
@@ -327,7 +228,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_finalization_task() {
-        let mut mgr = DatastoreManager::create_in_memory().unwrap();
+        let mgr = DatastoreManager::create_in_memory().unwrap();
         
         // Create certified and uncertified blocks
         let certified = create_test_validator_block("peer3", 5, true);
@@ -345,7 +246,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_contract_multi_store() {
-        let mut mgr = DatastoreManager::create_in_memory().unwrap();
+        let mgr = DatastoreManager::create_in_memory().unwrap();
         
         let contract = Contract {
             contract_id: "test_contract".to_string(),
@@ -362,7 +263,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_commit_multi_store() {
-        let mut mgr = DatastoreManager::create_in_memory().unwrap();
+        let mgr = DatastoreManager::create_in_memory().unwrap();
         
         let commit = Commit {
             contract_id: "contract1".to_string(),
@@ -374,104 +275,14 @@ mod tests {
         
         commit.save_to_final(&mgr).await.unwrap();
         
-        let found = Commit::find_one_multi(&mgr, "contract1", "commit1").await.unwrap();
+        let keys: HashMap<String, String> = [
+            ("contract_id".to_string(), "contract1".to_string()),
+            ("commit_id".to_string(), "commit1".to_string()),
+        ].into_iter().collect();
+        let found = Commit::find_one_multi(&mgr, keys).await.unwrap();
         assert!(found.is_some());
         
         let by_contract = Commit::find_by_contract_multi(&mgr, "contract1").await.unwrap();
         assert_eq!(by_contract.len(), 1);
     }
 }
-
-// ============================================================
-// ContractAsset multi-store methods
-// ============================================================
-
-const ASSET_PREFIX: &str = "/assets";
-const BALANCE_PREFIX: &str = "/balances";
-const RECEIVED_SEND_PREFIX: &str = "/received_sends";
-const WASM_MODULE_PREFIX: &str = "/wasm_modules";
-
-impl ContractAsset {
-    /// Save asset to ValidatorFinal
-    pub async fn save_to_final(&self, mgr: &DatastoreManager) -> Result<()> {
-        let key = format!("{}/{}/{}", ASSET_PREFIX, self.contract_id, self.asset_id);
-        let data = serde_json::to_vec(self)?;
-        mgr.validator_final().put(&key, &data)?;
-        Ok(())
-    }
-    
-    /// Find asset by contract and asset ID
-    pub async fn find_one_multi(
-        mgr: &DatastoreManager,
-        keys: HashMap<String, String>,
-    ) -> Result<Option<Self>> {
-        let contract_id = keys.get("contract_id").map(|s| s.as_str()).unwrap_or("");
-        let asset_id = keys.get("asset_id").map(|s| s.as_str()).unwrap_or("");
-        let key = format!("{}/{}/{}", ASSET_PREFIX, contract_id, asset_id);
-        
-        if let Some(data) = mgr.validator_final().get(&key)? {
-            let asset: ContractAsset = serde_json::from_slice(&data)
-                .context("Failed to deserialize ContractAsset")?;
-            return Ok(Some(asset));
-        }
-        
-        Ok(None)
-    }
-}
-
-impl AssetBalance {
-    /// Save balance to ValidatorFinal
-    pub async fn save_to_final(&self, mgr: &DatastoreManager) -> Result<()> {
-        let key = format!("{}/{}/{}/{}", BALANCE_PREFIX, self.contract_id, self.asset_id, self.owner_contract_id);
-        let data = serde_json::to_vec(self)?;
-        mgr.validator_final().put(&key, &data)?;
-        Ok(())
-    }
-    
-    /// Find balance by keys
-    pub async fn find_one_multi(
-        mgr: &DatastoreManager,
-        keys: HashMap<String, String>,
-    ) -> Result<Option<Self>> {
-        let contract_id = keys.get("contract_id").map(|s| s.as_str()).unwrap_or("");
-        let asset_id = keys.get("asset_id").map(|s| s.as_str()).unwrap_or("");
-        let owner_contract_id = keys.get("owner_contract_id").map(|s| s.as_str()).unwrap_or("");
-        let key = format!("{}/{}/{}/{}", BALANCE_PREFIX, contract_id, asset_id, owner_contract_id);
-        
-        if let Some(data) = mgr.validator_final().get(&key)? {
-            let balance: AssetBalance = serde_json::from_slice(&data)
-                .context("Failed to deserialize AssetBalance")?;
-            return Ok(Some(balance));
-        }
-        
-        Ok(None)
-    }
-}
-
-impl ReceivedSend {
-    /// Save received send to ValidatorFinal
-    pub async fn save_to_final(&self, mgr: &DatastoreManager) -> Result<()> {
-        let key = format!("{}/{}", RECEIVED_SEND_PREFIX, self.send_commit_id);
-        let data = serde_json::to_vec(self)?;
-        mgr.validator_final().put(&key, &data)?;
-        Ok(())
-    }
-    
-    /// Find received send by keys
-    pub async fn find_one_multi(
-        mgr: &DatastoreManager,
-        keys: HashMap<String, String>,
-    ) -> Result<Option<Self>> {
-        let send_commit_id = keys.get("send_commit_id").map(|s| s.as_str()).unwrap_or("");
-        let key = format!("{}/{}", RECEIVED_SEND_PREFIX, send_commit_id);
-        
-        if let Some(data) = mgr.validator_final().get(&key)? {
-            let received: ReceivedSend = serde_json::from_slice(&data)
-                .context("Failed to deserialize ReceivedSend")?;
-            return Ok(Some(received));
-        }
-        
-        Ok(None)
-    }
-}
-

@@ -59,7 +59,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
         .context("Invalid WASM module")?;
 
     // Encode as base64
-    let wasm_base64 = base64::encode(&wasm_bytes);
+    use base64::{Engine as _, engine::general_purpose};
+    let wasm_base64 = general_purpose::STANDARD.encode(&wasm_bytes);
 
     // Create commit with POST action
     let parent_id = store.get_head()?;

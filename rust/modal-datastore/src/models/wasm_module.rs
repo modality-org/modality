@@ -36,7 +36,8 @@ impl Model for WasmModule {
             "module_name" => self.module_name = value.as_str().unwrap_or_default().to_string(),
             "wasm_bytes" => {
                 if let Some(s) = value.as_str() {
-                    if let Ok(bytes) = base64::decode(s) {
+                    use base64::{Engine as _, engine::general_purpose};
+                    if let Ok(bytes) = general_purpose::STANDARD.decode(s) {
                         self.wasm_bytes = bytes;
                     }
                 }
@@ -114,7 +115,7 @@ impl WasmModule {
             let mut keys = HashMap::new();
             keys.insert("contract_id".to_string(), contract_id.to_string());
             keys.insert("module_name".to_string(), module_name);
-            Self::find_one(datastore, keys).await
+            Self::find_one_from_store(&*datastore.validator_final(), keys).await
         } else {
             Ok(None)
         }

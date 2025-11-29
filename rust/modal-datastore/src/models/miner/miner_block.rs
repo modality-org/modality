@@ -391,7 +391,7 @@ mod tests {
             block.save_to_active(&datastore).await.unwrap();
         }
         
-        let epoch_0 = MinerBlock::find_canonical_by_epoch_multi(&datastore, 0)
+        let epoch_0 = MinerBlock::find_canonical_by_epoch_multi(&datastore, 0, 0)
             .await
             .unwrap();
         

@@ -45,7 +45,9 @@ impl ValidatorBlockMessage {
         let prefix = format!("/validator/block_messages/round/{}/type/{}/peer", round_id, r#type);
         let mut messages = Vec::new();
 
-        for store in [datastore.validator_active(), datastore.validator_final()] {
+        // Try ValidatorActive first
+        {
+            let store = datastore.validator_active();
             let iterator = store.iterator(&prefix);
             for result in iterator {
                 let (key, _) = result?;
@@ -57,12 +59,33 @@ impl ValidatorBlockMessage {
                 keys.insert("type".to_string(), r#type.to_string());
                 keys.insert("peer_id".to_string(), peer_id.to_string());
 
-                if let Some(msg) = Self::find_one_from_store(&*store, keys).await.unwrap() {
+                if let Some(msg) = Self::find_one_from_store(&*store, keys).await? {
                     messages.push(msg);
                 }
             }
-            if !messages.is_empty() {
-                break;
+        }
+        
+        if !messages.is_empty() {
+            return Ok(messages);
+        }
+
+        // Then try ValidatorFinal
+        {
+            let store = datastore.validator_final();
+            let iterator = store.iterator(&prefix);
+            for result in iterator {
+                let (key, _) = result?;
+                let key_str = String::from_utf8(key.to_vec())?;
+                let peer_id = key_str.split(&format!("{}/", prefix)).nth(1).ok_or_else(|| Error::Database(format!("Invalid key format: {} with prefix {}", key_str, &format!("{}/", prefix))))?;
+                
+                let mut keys = HashMap::new();
+                keys.insert("round_id".to_string(), round_id.to_string());
+                keys.insert("type".to_string(), r#type.to_string());
+                keys.insert("peer_id".to_string(), peer_id.to_string());
+
+                if let Some(msg) = Self::find_one_from_store(&*store, keys).await? {
+                    messages.push(msg);
+                }
             }
         }
 
@@ -79,3 +102,4 @@ impl ValidatorBlockMessage {
         self.save_to_store(&*datastore.validator_final()).await.map_err(|e| Error::Database(e.to_string()))
     }
 }
+

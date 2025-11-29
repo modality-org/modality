@@ -49,7 +49,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
     if let Some(contract) = contract {
         if let Some(commit_id) = &opts.commit_id {
             // Get specific commit
-            let commit = Commit::find_one_multi(&datastore_manager, &opts.contract_id, commit_id).await?;
+            let keys: std::collections::HashMap<String, String> = [
+                ("contract_id".to_string(), opts.contract_id.clone()),
+                ("commit_id".to_string(), commit_id.clone()),
+            ].into_iter().collect();
+            let commit = Commit::find_one_multi(&datastore_manager, keys).await?;
             
             if let Some(commit) = commit {
                 if opts.output == "json" {

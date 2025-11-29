@@ -335,6 +335,26 @@ impl DatastoreManager {
         Ok(next)
     }
     
+    /// Get timely certificates at a specific round
+    /// Returns a map of peer_id -> cert for blocks that have certs and were timely
+    pub async fn get_timely_certs_at_round(&self, round_id: u64) -> Result<std::collections::HashMap<String, String>> {
+        use crate::models::ValidatorBlock;
+        
+        let blocks = ValidatorBlock::find_all_in_round_multi(self, round_id).await?;
+        
+        Ok(blocks
+            .into_iter()
+            .filter(|block| block.seen_at_block_id.is_none())
+            .filter(|block| block.cert.is_some())
+            .map(|block| {
+                (
+                    block.peer_id.clone(),
+                    block.cert.unwrap_or_default(),
+                )
+            })
+            .collect())
+    }
+    
     /// Clear all data from all stores
     /// WARNING: This will delete all data in all 6 stores!
     pub async fn clear_all(&self) -> Result<u64> {

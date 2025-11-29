@@ -526,7 +526,8 @@ impl ContractProcessor {
         };
         
         // Decode base64
-        let wasm_bytes = base64::decode(wasm_base64)
+        use base64::{Engine as _, engine::general_purpose};
+        let wasm_bytes = general_purpose::STANDARD.decode(wasm_base64)
             .map_err(|e| anyhow::anyhow!("Invalid base64 WASM bytes: {}", e))?;
         
         // Validate WASM module format
@@ -590,7 +591,11 @@ impl ContractProcessor {
                         
                         if found_commit_id == commit_id {
                             // Found it! Fetch using multi-store method
-                            if let Some(commit) = Commit::find_one_multi(ds, found_contract_id, commit_id).await? {
+                            let keys: std::collections::HashMap<String, String> = [
+                                ("contract_id".to_string(), found_contract_id.to_string()),
+                                ("commit_id".to_string(), commit_id.to_string()),
+                            ].into_iter().collect();
+                            if let Some(commit) = Commit::find_one_multi(ds, keys).await? {
                                 return Ok(commit);
                             }
                         }

@@ -1,6 +1,5 @@
 use crate::{DatastoreManager, Result};
 use crate::model::Model;
-use crate::stores::Store;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use async_trait::async_trait;

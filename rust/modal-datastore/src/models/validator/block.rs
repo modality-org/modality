@@ -1,6 +1,4 @@
 use crate::model::Model;
-use crate::DatastoreManager;
-use crate::stores::Store;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use modal_common::keypair::Keypair;
@@ -257,7 +255,7 @@ impl ValidatorBlock {
         })
     }
 
-    pub fn generate_late_ack(&self, keypair: &Keypair, seen_at_block_id: u64) -> Result<Ack> {
+    pub fn generate_late_ack(&self, keypair: &Keypair, _seen_at_block_id: u64) -> Result<Ack> {
         let peer_id = keypair.as_public_address();
         let facts = serde_json::json!({
             "peer_id": self.peer_id,

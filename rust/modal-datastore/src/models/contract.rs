@@ -119,7 +119,7 @@ impl Commit {
         datastore: &DatastoreManager,
         contract_id: &str,
     ) -> Result<Vec<Self>> {
-        let prefix = format!("/commits/{}/", contract_id);
+        let prefix = format!("/commits/{}", contract_id);
         let mut commits = Vec::new();
         
         let store = datastore.validator_final();
