@@ -465,6 +465,12 @@ pub async fn run(node: &mut Node) -> Result<()> {
                     state.current_mining_index = current_index;
                 }
                 Err(e) => {
+                    // Check if shutdown was signaled - if so, exit immediately
+                    if shutdown_for_mining.load(Ordering::Relaxed) {
+                        log::info!("🛑 Mining loop received shutdown signal during error handling, exiting");
+                        break;
+                    }
+                    
                     // Log error but don't block - we'll retry on next iteration
                     // The sync/gossip handlers running in parallel will fix any chain issues
                     log::warn!("⚠️  Failed to mine block {} ({}), will retry with updated view", 

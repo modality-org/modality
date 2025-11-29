@@ -518,7 +518,10 @@ impl Node {
             tokio::signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
             log::info!("Received Ctrl-C, initiating shutdown...");
             
-            // Set mining shutdown flag if it exists
+            // Set mining shutdown flag in hash_tax module
+            modal_common::hash_tax::set_mining_shutdown(true);
+            
+            // Set mining shutdown flag if it exists (for miner mode)
             if let Some(ref flag) = mining_shutdown {
                 flag.store(true, std::sync::atomic::Ordering::Relaxed);
             }
@@ -690,8 +693,6 @@ impl Node {
             }
             Ok(())
         }));
-
-        self.shutdown().await?;
 
         Ok(())
     }

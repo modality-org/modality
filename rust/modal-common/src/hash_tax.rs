@@ -36,31 +36,20 @@ lazy_static::lazy_static! {
         map
     };
     
-    /// Global flag to signal mining should stop (e.g., on Ctrl-C)
-    static ref MINING_SHOULD_STOP: Arc<AtomicBool> = {
-        let flag = Arc::new(AtomicBool::new(false));
-        let flag_clone = flag.clone();
-        
-        // Set up signal handler for graceful shutdown
-        #[cfg(unix)]
-        {
-            use std::sync::Mutex;
-            static HANDLER_INSTALLED: Mutex<bool> = Mutex::new(false);
-            
-            let mut installed = HANDLER_INSTALLED.lock().unwrap();
-            if !*installed {
-                if let Err(e) = ctrlc::set_handler(move || {
-                    log::info!("🛑 Received shutdown signal (Ctrl-C), stopping mining...");
-                    flag_clone.store(true, Ordering::Relaxed);
-                }) {
-                    log::warn!("Failed to set Ctrl-C handler: {}", e);
-                }
-                *installed = true;
-            }
-        }
-        
-        flag
-    };
+    /// Global flag to signal mining should stop
+    /// This is controlled by the node's shutdown handler, NOT by a Ctrl-C handler here
+    /// (having multiple Ctrl-C handlers conflicts with tokio::signal::ctrl_c)
+    static ref MINING_SHOULD_STOP: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+}
+
+/// Set the global mining shutdown flag (called by node shutdown handler)
+pub fn set_mining_shutdown(should_stop: bool) {
+    MINING_SHOULD_STOP.store(should_stop, Ordering::Relaxed);
+}
+
+/// Get a reference to the mining shutdown flag for external monitoring
+pub fn get_mining_shutdown_flag() -> Arc<AtomicBool> {
+    MINING_SHOULD_STOP.clone()
 }
 
 thread_local! {
