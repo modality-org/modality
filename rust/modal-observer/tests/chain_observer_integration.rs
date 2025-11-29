@@ -1,5 +1,5 @@
 use modal_observer::ChainObserver;
-use modal_datastore::{Model, NetworkDatastore, models::MinerBlock};
+use modal_datastore::{DatastoreManager, models::MinerBlock};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -19,7 +19,7 @@ fn create_test_block(index: u64, hash: &str, prev_hash: &str, difficulty: u128) 
     )
 }
 
-async fn create_test_chain(ds: &mut NetworkDatastore, start: u64, end: u64, difficulty: u128) -> Vec<MinerBlock> {
+async fn create_test_chain(ds: &DatastoreManager, start: u64, end: u64, difficulty: u128) -> Vec<MinerBlock> {
     let mut blocks = Vec::new();
     for i in start..=end {
         let prev_hash = if i == 0 {
@@ -28,7 +28,7 @@ async fn create_test_chain(ds: &mut NetworkDatastore, start: u64, end: u64, diff
             format!("block_{}", i - 1)
         };
         let block = create_test_block(i, &format!("block_{}", i), &prev_hash, difficulty);
-        block.save(ds).await.unwrap();
+        block.save_to_active(ds).await.unwrap();
         blocks.push(block);
     }
     blocks
@@ -68,13 +68,13 @@ async fn test_reject_lighter_longer_chain() {
     // Chain A should remain canonical
     
     let datastore = Arc::new(Mutex::new(
-        NetworkDatastore::create_in_memory().unwrap()
+        DatastoreManager::create_in_memory().unwrap()
     ));
     
     // Create initial chain with 10 blocks, difficulty 1000 each (total: 10,000)
     {
         let mut ds = datastore.lock().await;
-        create_test_chain(&mut ds, 0, 9, 1000).await;
+        create_test_chain(&ds, 0, 9, 1000).await;
     }
     
     let observer = ChainObserver::new(datastore.clone());
@@ -116,13 +116,13 @@ async fn test_accept_heavier_longer_chain() {
     // This test demonstrates that blocks extending the canonical chain are accepted
     
     let datastore = Arc::new(Mutex::new(
-        NetworkDatastore::create_in_memory().unwrap()
+        DatastoreManager::create_in_memory().unwrap()
     ));
     
     // Create initial chain with 5 blocks, difficulty 1000 each (total: 5,000)
     {
         let mut ds = datastore.lock().await;
-        create_test_chain(&mut ds, 0, 4, 1000).await;
+        create_test_chain(&ds, 0, 4, 1000).await;
     }
     
     let observer = ChainObserver::new(datastore.clone());
@@ -166,13 +166,13 @@ async fn test_accept_heavier_longer_chain() {
 #[tokio::test]
 async fn test_single_block_fork_scenarios() {
     let datastore = Arc::new(Mutex::new(
-        NetworkDatastore::create_in_memory().unwrap()
+        DatastoreManager::create_in_memory().unwrap()
     ));
     
     // Create chain up to block 5
     {
         let mut ds = datastore.lock().await;
-        create_test_chain(&mut ds, 0, 5, 1000).await;
+        create_test_chain(&ds, 0, 5, 1000).await;
     }
     
     let observer = ChainObserver::new(datastore.clone());
@@ -201,13 +201,13 @@ async fn test_deep_reorganization() {
     // This test demonstrates the `should_accept_reorganization` method directly
     
     let datastore = Arc::new(Mutex::new(
-        NetworkDatastore::create_in_memory().unwrap()
+        DatastoreManager::create_in_memory().unwrap()
     ));
     
     // Create initial chain 0-10, each with difficulty 1000
     {
         let mut ds = datastore.lock().await;
-        create_test_chain(&mut ds, 0, 10, 1000).await;
+        create_test_chain(&ds, 0, 10, 1000).await;
     }
     
     let observer = ChainObserver::new(datastore.clone());
@@ -254,7 +254,7 @@ async fn test_deep_reorganization() {
 #[tokio::test]
 async fn test_out_of_order_block_handling() {
     let datastore = Arc::new(Mutex::new(
-        NetworkDatastore::create_in_memory().unwrap()
+        DatastoreManager::create_in_memory().unwrap()
     ));
     
     // Start with just genesis
@@ -299,13 +299,13 @@ async fn test_out_of_order_block_handling() {
 #[tokio::test]
 async fn test_concurrent_forks_at_different_heights() {
     let datastore = Arc::new(Mutex::new(
-        NetworkDatastore::create_in_memory().unwrap()
+        DatastoreManager::create_in_memory().unwrap()
     ));
     
     // Create initial chain 0-8
     {
         let mut ds = datastore.lock().await;
-        create_test_chain(&mut ds, 0, 8, 1000).await;
+        create_test_chain(&ds, 0, 8, 1000).await;
     }
     
     let observer = ChainObserver::new(datastore.clone());
@@ -336,13 +336,13 @@ async fn test_concurrent_forks_at_different_heights() {
 #[tokio::test]
 async fn test_reject_longer_lighter_chain_multiple_scenarios() {
     let datastore = Arc::new(Mutex::new(
-        NetworkDatastore::create_in_memory().unwrap()
+        DatastoreManager::create_in_memory().unwrap()
     ));
     
     // Scenario 1: Observer has 5 blocks with high difficulty
     {
         let mut ds = datastore.lock().await;
-        create_test_chain(&mut ds, 0, 4, 5000).await; // Total: 25,000
+        create_test_chain(&ds, 0, 4, 5000).await; // Total: 25,000
     }
     
     let observer = ChainObserver::new(datastore.clone());
@@ -368,13 +368,13 @@ async fn test_reject_longer_lighter_chain_multiple_scenarios() {
 #[tokio::test]
 async fn test_equal_cumulative_difficulty_scenarios() {
     let datastore = Arc::new(Mutex::new(
-        NetworkDatastore::create_in_memory().unwrap()
+        DatastoreManager::create_in_memory().unwrap()
     ));
     
     // Create chain with blocks 0-4, difficulty 1000 each (total: 5000)
     {
         let mut ds = datastore.lock().await;
-        create_test_chain(&mut ds, 0, 4, 1000).await;
+        create_test_chain(&ds, 0, 4, 1000).await;
     }
     
     let observer = ChainObserver::new(datastore.clone());
@@ -399,7 +399,7 @@ async fn test_equal_cumulative_difficulty_scenarios() {
 #[tokio::test]
 async fn test_chain_tip_updates_correctly() {
     let datastore = Arc::new(Mutex::new(
-        NetworkDatastore::create_in_memory().unwrap()
+        DatastoreManager::create_in_memory().unwrap()
     ));
     
     let observer = ChainObserver::new(datastore.clone());
@@ -427,13 +427,13 @@ async fn test_chain_tip_updates_correctly() {
 #[tokio::test]
 async fn test_complex_multi_fork_scenario() {
     let datastore = Arc::new(Mutex::new(
-        NetworkDatastore::create_in_memory().unwrap()
+        DatastoreManager::create_in_memory().unwrap()
     ));
     
     // Create initial chain 0-10 with difficulty 1000 each
     {
         let mut ds = datastore.lock().await;
-        create_test_chain(&mut ds, 0, 10, 1000).await;
+        create_test_chain(&ds, 0, 10, 1000).await;
     }
     
     let observer = ChainObserver::new(datastore.clone());

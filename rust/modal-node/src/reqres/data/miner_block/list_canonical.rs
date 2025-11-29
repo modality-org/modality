@@ -1,12 +1,15 @@
 use anyhow::Result;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::MinerBlock;
 use crate::reqres::Response;
 
 /// Handler for GET /data/miner_block/canonical
 /// Returns all canonical miner blocks sorted by index
-pub async fn handler(_data: Option<serde_json::Value>, datastore: &NetworkDatastore) -> Result<Response> {
-    match MinerBlock::find_all_canonical(datastore).await {
+pub async fn handler(
+    _data: Option<serde_json::Value>, 
+    datastore_manager: &DatastoreManager,
+) -> Result<Response> {
+    match MinerBlock::find_all_canonical_multi(datastore_manager).await {
         Ok(blocks) => {
             Ok(Response {
                 ok: true,
@@ -26,4 +29,3 @@ pub async fn handler(_data: Option<serde_json::Value>, datastore: &NetworkDatast
         }
     }
 }
-

@@ -3,7 +3,8 @@ use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use async_trait::async_trait;
 
-use crate::NetworkDatastore;
+use crate::DatastoreManager;
+use crate::stores::Store;
 use crate::model::Model;
 
 /// A contract represents a stateful entity with a unique ID
@@ -37,11 +38,12 @@ impl Model for Contract {
 }
 
 impl Contract {
-    pub async fn find_all(datastore: &NetworkDatastore) -> Result<Vec<Self>> {
+    pub async fn find_all_multi(datastore: &DatastoreManager) -> Result<Vec<Self>> {
         let prefix = "/contracts/";
         let mut contracts = Vec::new();
         
-        let iterator = datastore.iterator(prefix);
+        let store = datastore.validator_final();
+        let iterator = store.iterator(prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
@@ -54,7 +56,7 @@ impl Contract {
                         ("contract_id".to_string(), contract_id.to_string()),
                     ].into_iter().collect();
                     
-                    if let Some(contract) = Self::find_one(datastore, keys).await? {
+                    if let Some(contract) = Self::find_one_from_store(&*store, keys).await? {
                         contracts.push(contract);
                     }
                 }
@@ -62,6 +64,18 @@ impl Contract {
         }
         
         Ok(contracts)
+    }
+
+    pub async fn find_by_id_multi(datastore: &DatastoreManager, contract_id: &str) -> Result<Option<Self>> {
+        let keys = [
+            ("contract_id".to_string(), contract_id.to_string()),
+        ].into_iter().collect();
+        Self::find_one_from_store(&*datastore.validator_final(), keys).await
+    }
+
+    /// Save this contract to the ValidatorFinal store
+    pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
+        self.save_to_store(&*datastore.validator_final()).await
     }
 }
 
@@ -101,14 +115,15 @@ impl Model for Commit {
 }
 
 impl Commit {
-    pub async fn find_by_contract(
-        datastore: &NetworkDatastore,
+    pub async fn find_by_contract_multi(
+        datastore: &DatastoreManager,
         contract_id: &str,
     ) -> Result<Vec<Self>> {
         let prefix = format!("/commits/{}/", contract_id);
         let mut commits = Vec::new();
         
-        let iterator = datastore.iterator(&prefix);
+        let store = datastore.validator_final();
+        let iterator = store.iterator(&prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
@@ -122,7 +137,7 @@ impl Commit {
                         ("commit_id".to_string(), cmid.to_string()),
                     ].into_iter().collect();
                     
-                    if let Some(commit) = Self::find_one(datastore, keys).await? {
+                    if let Some(commit) = Self::find_one_from_store(&*store, keys).await? {
                         commits.push(commit);
                     }
                 }
@@ -130,6 +145,15 @@ impl Commit {
         }
         
         Ok(commits)
+    }
+
+    pub async fn find_one_multi(datastore: &DatastoreManager, keys: HashMap<String, String>) -> Result<Option<Self>> {
+        Self::find_one_from_store(&*datastore.validator_final(), keys).await
+    }
+
+    /// Save this commit to the ValidatorFinal store
+    pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
+        self.save_to_store(&*datastore.validator_final()).await
     }
 }
 
@@ -178,14 +202,15 @@ impl Model for ContractAsset {
 }
 
 impl ContractAsset {
-    pub async fn find_by_contract(
-        datastore: &NetworkDatastore,
+    pub async fn find_by_contract_multi(
+        datastore: &DatastoreManager,
         contract_id: &str,
     ) -> Result<Vec<Self>> {
         let prefix = format!("/assets/{}/", contract_id);
         let mut assets = Vec::new();
         
-        let iterator = datastore.iterator(&prefix);
+        let store = datastore.validator_final();
+        let iterator = store.iterator(&prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
@@ -199,7 +224,7 @@ impl ContractAsset {
                         ("asset_id".to_string(), aid.to_string()),
                     ].into_iter().collect();
                     
-                    if let Some(asset) = Self::find_one(datastore, keys).await? {
+                    if let Some(asset) = Self::find_one_from_store(&*store, keys).await? {
                         assets.push(asset);
                     }
                 }
@@ -207,6 +232,15 @@ impl ContractAsset {
         }
         
         Ok(assets)
+    }
+
+    pub async fn find_one_multi(datastore: &DatastoreManager, keys: HashMap<String, String>) -> Result<Option<Self>> {
+        Self::find_one_from_store(&*datastore.validator_final(), keys).await
+    }
+
+    /// Save this asset to the ValidatorFinal store
+    pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
+        self.save_to_store(&*datastore.validator_final()).await
     }
 }
 
@@ -250,14 +284,15 @@ impl Model for AssetBalance {
 }
 
 impl AssetBalance {
-    pub async fn find_by_owner(
-        datastore: &NetworkDatastore,
+    pub async fn find_by_owner_multi(
+        datastore: &DatastoreManager,
         owner_contract_id: &str,
     ) -> Result<Vec<Self>> {
         let prefix = "/balances/";
         let mut balances = Vec::new();
         
-        let iterator = datastore.iterator(prefix);
+        let store = datastore.validator_final();
+        let iterator = store.iterator(prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
@@ -273,7 +308,7 @@ impl AssetBalance {
                             ("owner_contract_id".to_string(), oid.to_string()),
                         ].into_iter().collect();
                         
-                        if let Some(balance) = Self::find_one(datastore, keys).await? {
+                        if let Some(balance) = Self::find_one_from_store(&*store, keys).await? {
                             balances.push(balance);
                         }
                     }
@@ -284,15 +319,16 @@ impl AssetBalance {
         Ok(balances)
     }
 
-    pub async fn find_by_asset(
-        datastore: &NetworkDatastore,
+    pub async fn find_by_asset_multi(
+        datastore: &DatastoreManager,
         contract_id: &str,
         asset_id: &str,
     ) -> Result<Vec<Self>> {
         let prefix = format!("/balances/{}/{}/", contract_id, asset_id);
         let mut balances = Vec::new();
         
-        let iterator = datastore.iterator(&prefix);
+        let store = datastore.validator_final();
+        let iterator = store.iterator(&prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
@@ -307,7 +343,7 @@ impl AssetBalance {
                         ("owner_contract_id".to_string(), oid.to_string()),
                     ].into_iter().collect();
                     
-                    if let Some(balance) = Self::find_one(datastore, keys).await? {
+                    if let Some(balance) = Self::find_one_from_store(&*store, keys).await? {
                         balances.push(balance);
                     }
                 }
@@ -315,6 +351,15 @@ impl AssetBalance {
         }
         
         Ok(balances)
+    }
+
+    pub async fn find_one_multi(datastore: &DatastoreManager, keys: HashMap<String, String>) -> Result<Option<Self>> {
+        Self::find_one_from_store(&*datastore.validator_final(), keys).await
+    }
+
+    /// Save this balance to the ValidatorFinal store
+    pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
+        self.save_to_store(&*datastore.validator_final()).await
     }
 }
 
@@ -355,4 +400,13 @@ impl Model for ReceivedSend {
     }
 }
 
+impl ReceivedSend {
+    pub async fn find_one_multi(datastore: &DatastoreManager, keys: HashMap<String, String>) -> Result<Option<Self>> {
+        Self::find_one_from_store(&*datastore.validator_final(), keys).await
+    }
 
+    /// Save this record to the ValidatorFinal store
+    pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
+        self.save_to_store(&*datastore.validator_final()).await
+    }
+}

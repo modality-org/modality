@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 
 use modal_node::config::Config;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::MinerBlock;
 
 #[derive(Debug, Parser)]
@@ -24,28 +24,32 @@ pub struct Opts {
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
-    // Load the config to get the storage path
+    // Load the config to get the data directory
     let config = Config::from_filepath(&opts.config)?;
 
-    let storage_path = config.storage_path
-        .ok_or_else(|| anyhow::anyhow!("Config does not specify a storage_path"))?;
+    // Use data_dir if available, otherwise fall back to storage_path
+    let data_dir = config.data_dir
+        .or(config.storage_path)
+        .ok_or_else(|| anyhow::anyhow!("Config does not specify a data_dir or storage_path"))?;
     
-    if !storage_path.exists() {
-        anyhow::bail!("Storage path does not exist: {:?}", storage_path);
+    if !data_dir.exists() {
+        anyhow::bail!("Data directory does not exist: {:?}", data_dir);
     }
 
-    println!("📁 Opening datastore at: {:?}", storage_path);
-    let datastore = NetworkDatastore::create_in_directory(&storage_path)?;
+    println!("📁 Opening datastore at: {:?}", data_dir);
+    let mgr = DatastoreManager::open(&data_dir)?;
 
     println!();
 
-    // Fetch all canonical miner blocks
+    // Fetch all canonical miner blocks using multi-store method
     let blocks = if let Some(epoch) = opts.epoch {
         println!("🔍 Querying blocks for epoch {}...", epoch);
-        MinerBlock::find_canonical_by_epoch(&datastore, epoch).await?
+        // Get all canonical blocks and filter by epoch
+        let all_blocks = MinerBlock::find_all_canonical_multi(&mgr).await?;
+        all_blocks.into_iter().filter(|b| b.epoch == epoch).collect()
     } else {
         println!("🔍 Querying all canonical miner blocks...");
-        MinerBlock::find_all_canonical(&datastore).await?
+        MinerBlock::find_all_canonical_multi(&mgr).await?
     };
 
     if blocks.is_empty() {
@@ -162,4 +166,3 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     Ok(())
 }
-

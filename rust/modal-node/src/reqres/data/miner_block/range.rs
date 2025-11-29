@@ -1,14 +1,14 @@
 use anyhow::Result;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::MinerBlock;
 use crate::reqres::Response;
 
 /// Handler for GET /data/miner_block/range
 /// Returns canonical miner blocks in a range (from_index..=to_index)
-/// Useful for syncing blocks incrementally
-/// Default limit is 50 blocks per request to avoid response size issues
-/// Client can specify a max_chunk_size (capped at 1000 blocks)
-pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatastore) -> Result<Response> {
+pub async fn handler(
+    data: Option<serde_json::Value>, 
+    datastore_manager: &DatastoreManager,
+) -> Result<Response> {
     let data = data.unwrap_or_default();
     
     let from_index = data.get("from_index").and_then(|v| v.as_u64());
@@ -27,12 +27,10 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
                 });
             }
             
-                    // Respect client's max_chunk_size, but cap at 1000 blocks per request to avoid extreme response sizes
-                    let chunk_size = std::cmp::min(max_chunk_size, 1000);
-                    let actual_to = std::cmp::min(to, from + chunk_size - 1);
+            let chunk_size = std::cmp::min(max_chunk_size, 1000);
+            let actual_to = std::cmp::min(to, from + chunk_size - 1);
             
-            // Load all canonical blocks and filter by range
-            match MinerBlock::find_all_canonical(datastore).await {
+            match MinerBlock::find_all_canonical_multi(datastore_manager).await {
                 Ok(all_blocks) => {
                     let blocks: Vec<_> = all_blocks
                         .into_iter()
@@ -71,4 +69,3 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
         }
     }
 }
-

@@ -1,5 +1,6 @@
 use anyhow::{Result, Context, anyhow};
-use crate::NetworkDatastore;
+use crate::DatastoreManager;
+use crate::stores::Store;
 
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
@@ -62,36 +63,41 @@ impl Model for ValidatorBlockHeader {
 }
 
 impl ValidatorBlockHeader {
-    pub async fn find_all_in_round(
-        datastore: &NetworkDatastore,
+    pub async fn find_all_in_round_multi(
+        datastore: &DatastoreManager,
         round_id: u64,
     ) -> Result<Vec<Self>> {
         let prefix = format!("/validator/block_headers/round/{}/peer", round_id);
         let mut block_headers = Vec::new();
 
-        let iterator = datastore.iterator(&prefix);
-        for result in iterator {
-            let (key, _) = result?;
-            let key_str = String::from_utf8(key.to_vec())?;
-            let peer_id = key_str
-                .split(&format!("{}/", prefix))
-                .nth(1)
-                .ok_or_else(|| anyhow!("Invalid key format: {}", key_str))?;
+        for store in [datastore.validator_active(), datastore.validator_final()] {
+            let iterator = store.iterator(&prefix);
+            for result in iterator {
+                let (key, _) = result?;
+                let key_str = String::from_utf8(key.to_vec())?;
+                let peer_id = key_str
+                    .split(&format!("{}/", prefix))
+                    .nth(1)
+                    .ok_or_else(|| anyhow!("Invalid key format: {}", key_str))?;
 
-            let mut keys = HashMap::new();
-            keys.insert("round_id".to_string(), round_id.to_string());
-            keys.insert("peer_id".to_string(), peer_id.to_string());
+                let mut keys = HashMap::new();
+                keys.insert("round_id".to_string(), round_id.to_string());
+                keys.insert("peer_id".to_string(), peer_id.to_string());
 
-            if let Some(block) = Self::find_one(datastore, keys).await? {
-                block_headers.push(block);
+                if let Some(block) = Self::find_one_from_store(&*store, keys).await? {
+                    block_headers.push(block);
+                }
+            }
+            if !block_headers.is_empty() {
+                break;
             }
         }
 
         Ok(block_headers)
     }
 
-    pub async fn dervive_all_in_round(datastore: &NetworkDatastore, round_id: u64) -> Result<()> {
-        let blocks = ValidatorBlock::find_all_in_round(datastore, round_id).await?;        
+    pub async fn derive_all_in_round_multi(datastore: &DatastoreManager, round_id: u64) -> Result<()> {
+        let blocks = ValidatorBlock::find_all_in_round_multi(datastore, round_id).await?;        
         for block in &blocks {
             let header = ValidatorBlockHeader {
                 round_id: block.round_id,
@@ -100,15 +106,24 @@ impl ValidatorBlockHeader {
                 opening_sig: block.opening_sig.clone(),
                 cert: block.cert.clone(),
             };
-            header.save(datastore).await?;
-            // Do something with header
+            header.save_to_active(datastore).await?;
         }
         Ok(())
+    }
+
+    /// Save this header to the ValidatorActive store
+    pub async fn save_to_active(&self, datastore: &DatastoreManager) -> Result<()> {
+        self.save_to_store(&*datastore.validator_active()).await
+    }
+
+    /// Save this header to the ValidatorFinal store
+    pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
+        self.save_to_store(&*datastore.validator_final()).await
     }
 }
 
 pub mod prelude {
     pub use super::ValidatorBlockHeader;
     pub use crate::Model;
-    pub use crate::NetworkDatastore;
+    pub use crate::DatastoreManager;
 }

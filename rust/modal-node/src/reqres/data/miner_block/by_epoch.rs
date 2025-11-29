@@ -1,16 +1,22 @@
 use anyhow::Result;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::MinerBlock;
 use crate::reqres::Response;
 
 /// Handler for GET /data/miner_block/epoch/:epoch
 /// Returns all canonical miner blocks for a specific epoch
-pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatastore) -> Result<Response> {
+pub async fn handler(data: Option<serde_json::Value>, datastore_manager: &DatastoreManager) -> Result<Response> {
     let data = data.unwrap_or_default();
     
     if let Some(epoch) = data.get("epoch").and_then(|v| v.as_u64()) {
-        match MinerBlock::find_canonical_by_epoch(datastore, epoch).await {
-            Ok(blocks) => {
+        // Get all canonical blocks and filter by epoch
+        match MinerBlock::find_all_canonical_multi(datastore_manager).await {
+            Ok(all_blocks) => {
+                let blocks: Vec<_> = all_blocks
+                    .into_iter()
+                    .filter(|b| b.epoch == epoch)
+                    .collect();
+                
                 Ok(Response {
                     ok: true,
                     data: Some(serde_json::json!({
@@ -37,4 +43,3 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
         })
     }
 }
-

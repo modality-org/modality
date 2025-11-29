@@ -3,14 +3,14 @@ use std::path::PathBuf;
 use tokio::sync::Mutex;
 use warp::Filter;
 
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::MinerBlock;
 
 /// Start HTTP status server on the specified port
 pub async fn start_status_server(
     port: u16,
     peerid: libp2p_identity::PeerId,
-    datastore: Arc<Mutex<NetworkDatastore>>,
+    datastore_manager: Arc<Mutex<DatastoreManager>>,
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     listeners: Vec<libp2p::Multiaddr>,
     mining_metrics: crate::mining_metrics::SharedMiningMetrics,
@@ -18,7 +18,7 @@ pub async fn start_status_server(
     let status_route = warp::path::end()
         .and(warp::get())
         .and(with_peerid(peerid))
-        .and(with_datastore(datastore.clone()))
+        .and(with_datastore(datastore_manager.clone()))
         .and(with_swarm(swarm.clone()))
         .and(with_listeners(listeners.clone()))
         .and(with_mining_metrics(mining_metrics.clone()))
@@ -50,10 +50,10 @@ fn with_peerid(
 }
 
 fn with_datastore(
-    datastore: Arc<Mutex<NetworkDatastore>>,
-) -> impl Filter<Extract = (Arc<Mutex<NetworkDatastore>>,), Error = std::convert::Infallible> + Clone
+    datastore_manager: Arc<Mutex<DatastoreManager>>,
+) -> impl Filter<Extract = (Arc<Mutex<DatastoreManager>>,), Error = std::convert::Infallible> + Clone
 {
-    warp::any().map(move || datastore.clone())
+    warp::any().map(move || datastore_manager.clone())
 }
 
 fn with_swarm(
@@ -72,7 +72,7 @@ fn with_listeners(
 /// Generate status HTML content
 pub async fn generate_status_html(
     peerid: libp2p_identity::PeerId,
-    datastore: Arc<Mutex<NetworkDatastore>>,
+    datastore_manager: Arc<Mutex<DatastoreManager>>,
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     listeners: Vec<libp2p::Multiaddr>,
     mining_metrics: crate::mining_metrics::SharedMiningMetrics,
@@ -85,12 +85,12 @@ pub async fn generate_status_html(
     let connected_peers = peer_info.len();
     
     // Get node status information
-    let ds = datastore.lock().await;
-    let current_round = ds.get_current_round().await.unwrap_or(0);
-    let latest_round = ds.find_max_int_key("/blocks/round").await.ok().flatten().unwrap_or(0);
+    let mgr = datastore_manager.lock().await;
+    let current_round = mgr.get_current_round().await.unwrap_or(0);
+    let latest_round = 0; // TODO: Implement find_max_int_key in DatastoreManager
     
     // Get miner blocks information
-    let miner_blocks = MinerBlock::find_all_canonical(&ds).await.unwrap_or_default();
+    let miner_blocks = MinerBlock::find_all_canonical_multi(&mgr).await.unwrap_or_default();
     let total_miner_blocks = miner_blocks.len();
     
     // Get latest block for current difficulty
@@ -123,7 +123,7 @@ pub async fn generate_status_html(
     };
     
     // Get Block 0 (genesis block)
-    let block_0 = MinerBlock::find_canonical_by_index(&ds, 0).await.ok().flatten();
+    let block_0 = MinerBlock::find_canonical_by_index_simple(&mgr, 0).await.ok().flatten();
     
     // Get last 80 blocks (sorted by index descending)
     let mut recent_blocks = miner_blocks.clone();
@@ -187,7 +187,7 @@ pub async fn generate_status_html(
         }
     }
     
-    drop(ds);
+    drop(mgr);
 
     // Build blocks table HTML for recent blocks (last 80)
     let blocks_html = if recent_blocks.is_empty() {
@@ -833,12 +833,12 @@ pub async fn generate_status_html(
 
 async fn status_handler(
     peerid: libp2p_identity::PeerId,
-    datastore: Arc<Mutex<NetworkDatastore>>,
+    datastore_manager: Arc<Mutex<DatastoreManager>>,
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     listeners: Vec<libp2p::Multiaddr>,
     mining_metrics: crate::mining_metrics::SharedMiningMetrics,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    let html = generate_status_html(peerid, datastore, swarm, listeners, mining_metrics)
+    let html = generate_status_html(peerid, datastore_manager, swarm, listeners, mining_metrics)
         .await
         .map_err(|_| warp::reject::not_found())?;
     Ok(warp::reply::html(html))
@@ -914,7 +914,7 @@ fn format_hashrate(hashrate: f64) -> String {
 pub async fn start_status_html_writer(
     dir: PathBuf,
     peerid: libp2p_identity::PeerId,
-    datastore: Arc<Mutex<NetworkDatastore>>,
+    datastore_manager: Arc<Mutex<DatastoreManager>>,
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     listeners: Vec<libp2p::Multiaddr>,
     mining_metrics: crate::mining_metrics::SharedMiningMetrics,
@@ -932,7 +932,7 @@ pub async fn start_status_html_writer(
                     // Generate and write HTML
                     match generate_status_html(
                         peerid,
-                        datastore.clone(),
+                        datastore_manager.clone(),
                         swarm.clone(),
                         listeners.clone(),
                         mining_metrics.clone(),

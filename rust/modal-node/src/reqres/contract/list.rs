@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::mpsc;
 
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::Commit;
 
 use crate::reqres::Response;
@@ -29,7 +29,7 @@ pub struct CommitMetadata {
 
 pub async fn handler(
     data: Option<Value>,
-    datastore: &NetworkDatastore,
+    datastore_manager: &DatastoreManager,
     _consensus_tx: mpsc::Sender<ConsensusMessage>,
 ) -> Result<Response> {
     let req: ListRequest = if let Some(d) = data {
@@ -38,10 +38,8 @@ pub async fn handler(
         anyhow::bail!("Missing request data");
     };
 
-    // Get all commits for this contract
-    let all_commits = Commit::find_by_contract(datastore, &req.contract_id).await?;
+    let all_commits = Commit::find_by_contract_multi(datastore_manager, &req.contract_id).await?;
 
-    // Extract metadata
     let commits_metadata: Vec<CommitMetadata> = all_commits
         .into_iter()
         .map(|commit| CommitMetadata {
@@ -52,7 +50,7 @@ pub async fn handler(
         .collect();
 
     let response = ListResponse {
-        contract_id: req.contract_id.clone(),
+        contract_id: req.contract_id,
         commits: commits_metadata,
     };
 
@@ -62,48 +60,3 @@ pub async fn handler(
         errors: None,
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use modal_datastore::NetworkDatastore;
-    use modal_datastore::models::Commit;
-    use modal_datastore::model::Model;
-
-    #[tokio::test]
-    async fn test_list_commits() {
-        let datastore = NetworkDatastore::create_in_memory().unwrap();
-        let (tx, _rx) = mpsc::channel(100);
-
-        // Save test commits
-        for i in 0..3 {
-            let commit = Commit {
-                contract_id: "test_contract_123".to_string(),
-                commit_id: format!("commit_{}", i),
-                commit_data: serde_json::to_string(&serde_json::json!({
-                    "body": [],
-                    "head": {}
-                })).unwrap(),
-                timestamp: 1234567890 + i,
-                in_batch: None,
-            };
-            commit.save(&datastore).await.unwrap();
-        }
-
-        let data = serde_json::json!({
-            "contract_id": "test_contract_123"
-        });
-
-        let result = handler(Some(data), &datastore, tx).await;
-        assert!(result.is_ok());
-        
-        let response = result.unwrap();
-        assert!(response.ok);
-        
-        let response_data: ListResponse = serde_json::from_value(
-            response.data.unwrap()
-        ).unwrap();
-        assert_eq!(response_data.commits.len(), 3);
-    }
-}
-

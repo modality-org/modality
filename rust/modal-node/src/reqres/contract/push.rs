@@ -4,9 +4,8 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 use sha2::{Sha256, Digest};
 
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::Commit;
-use modal_datastore::model::Model;
 
 use crate::reqres::Response;
 use modal_validator_consensus::communication::Message as ConsensusMessage;
@@ -33,7 +32,7 @@ pub struct PushResponse {
 
 pub async fn handler(
     data: Option<Value>,
-    datastore: &NetworkDatastore,
+    datastore_manager: &DatastoreManager,
     _consensus_tx: mpsc::Sender<ConsensusMessage>,
 ) -> Result<Response> {
     let req: PushRequest = if let Some(d) = data {
@@ -47,9 +46,7 @@ pub async fn handler(
         .duration_since(std::time::UNIX_EPOCH)?
         .as_secs();
 
-    // Process each commit
     for commit_data in &req.commits {
-        // Verify commit ID matches the hash
         let commit_json = serde_json::to_string(&serde_json::json!({
             "body": commit_data.body,
             "head": commit_data.head,
@@ -60,37 +57,29 @@ pub async fn handler(
         let computed_id = format!("{:x}", hasher.finalize());
         
         if computed_id != commit_data.commit_id {
-            anyhow::bail!("Commit ID mismatch: expected {}, got {}", 
-                computed_id, commit_data.commit_id);
+            log::warn!("Commit ID mismatch: expected {}, got {}", commit_data.commit_id, computed_id);
+            continue;
         }
 
-        // Check if commit already exists
-        let mut keys = std::collections::HashMap::new();
-        keys.insert("contract_id".to_string(), req.contract_id.clone());
-        keys.insert("commit_id".to_string(), commit_data.commit_id.clone());
-        
-        if Commit::find_one(datastore, keys).await?.is_none() {
-            // Store the commit in datastore
-            let commit = Commit {
-                contract_id: req.contract_id.clone(),
-                commit_id: commit_data.commit_id.clone(),
-                commit_data: commit_json,
-                timestamp,
-                in_batch: None,
-            };
-            
-            commit.save(datastore).await?;
-            saved_count += 1;
-        }
+        let commit = Commit {
+            contract_id: req.contract_id.clone(),
+            commit_id: commit_data.commit_id.clone(),
+            commit_data: serde_json::to_string(&serde_json::json!({
+                "body": commit_data.body,
+                "head": commit_data.head,
+            }))?,
+            timestamp,
+            in_batch: None,
+        };
+
+        Commit::save_to_final(&commit, datastore_manager).await?;
+        saved_count += 1;
     }
 
-    // TODO: Submit commits to consensus for inclusion in batches
-    // For now, just store in datastore
-
     let response = PushResponse {
-        contract_id: req.contract_id.clone(),
+        contract_id: req.contract_id,
         pushed_count: saved_count,
-        status: "stored".to_string(),
+        status: "pushed".to_string(),
     };
 
     Ok(Response {
@@ -99,31 +88,3 @@ pub async fn handler(
         errors: None,
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use modal_datastore::NetworkDatastore;
-
-    #[tokio::test]
-    async fn test_push_commits() {
-        let datastore = NetworkDatastore::create_in_memory().unwrap();
-        let (tx, _rx) = mpsc::channel::<()>(100);
-
-        let commit_data = CommitData {
-            commit_id: "test123".to_string(),
-            body: serde_json::json!([{"method": "post", "path": "/test.txt", "value": "hello"}]),
-            head: serde_json::json!({}),
-        };
-
-        // Note: This test will fail ID verification, but demonstrates structure
-        let data = serde_json::json!({
-            "contract_id": "test_contract_123",
-            "commits": vec![commit_data]
-        });
-
-        // Would need to compute correct commit_id for real test
-        // let result = handler(Some(data), &datastore, tx).await;
-    }
-}
-

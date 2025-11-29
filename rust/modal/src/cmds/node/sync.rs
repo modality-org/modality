@@ -56,8 +56,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
     
     // Get current local chain state
     let local_chain_info = {
-        let ds = node.datastore.lock().await;
-        let canonical_blocks = MinerBlock::find_all_canonical(&ds).await?;
+        let ds = node.datastore_manager.lock().await;
+        let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
         let height = canonical_blocks.last().map(|b| b.index).unwrap_or(0);
         let count = canonical_blocks.len();
         (height, count)
@@ -145,8 +145,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
     
     // Get final chain state
     let final_chain_info = {
-        let ds = node.datastore.lock().await;
-        let canonical_blocks = MinerBlock::find_all_canonical(&ds).await?;
+        let ds = node.datastore_manager.lock().await;
+        let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
         let height = canonical_blocks.last().map(|b| b.index).unwrap_or(0);
         let count = canonical_blocks.len();
         (height, count)
@@ -248,8 +248,8 @@ async fn sync_from_peer(
     
     // Get our current height
     let our_height = {
-        let ds = node.datastore.lock().await;
-        let canonical_blocks = MinerBlock::find_all_canonical(&ds).await?;
+        let ds = node.datastore_manager.lock().await;
+        let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
         canonical_blocks.last().map(|b| b.index).unwrap_or(0)
     };
     
@@ -294,12 +294,12 @@ async fn sync_from_peer(
     let blocks_synced = if let Some(ref data) = response.data {
         if let Some(blocks) = data.get("blocks").and_then(|b| b.as_array()) {
             let mut persisted = 0;
-            let mut ds = node.datastore.lock().await;
+            let mut ds = node.datastore_manager.lock().await;
             
             for block_value in blocks {
                 if let Ok(block) = serde_json::from_value::<MinerBlock>(block_value.clone()) {
                     // Save as canonical
-                    if let Ok(_) = block.save(&mut ds).await {
+                    if let Ok(_) = block.save_to_active(&ds).await {
                         persisted += 1;
                     }
                 }

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::MinerBlock;
 use modal_observer::{ChainObserver, ForkConfig};
 use modal_miner::block::{Block, BlockData};
@@ -80,7 +80,7 @@ fn block_to_miner_block(block: &Block) -> MinerBlock {
 }
 
 /// Test: Fork Detection - Two blocks at the same index
-async fn test_fork_detection(datastore: Arc<Mutex<NetworkDatastore>>) -> Result<TestResult> {
+async fn test_fork_detection(datastore: Arc<Mutex<DatastoreManager>>) -> Result<TestResult> {
     let fork_config = ForkConfig::new();
     let observer = ChainObserver::new_with_fork_config(datastore.clone(), fork_config);
     observer.initialize().await?;
@@ -108,7 +108,7 @@ async fn test_fork_detection(datastore: Arc<Mutex<NetworkDatastore>>) -> Result<
     }
     
     let ds = datastore.lock().await;
-    let orphaned = MinerBlock::find_by_hash(&ds, &block_1b.header.hash).await?;
+    let orphaned = MinerBlock::find_by_hash_multi(&ds, &block_1b.header.hash).await?;
     drop(ds);
     
     match orphaned {
@@ -133,7 +133,7 @@ async fn test_fork_detection(datastore: Arc<Mutex<NetworkDatastore>>) -> Result<
 }
 
 /// Test: Gap Detection - Block arrives with missing parent index
-async fn test_gap_detection(datastore: Arc<Mutex<NetworkDatastore>>) -> Result<TestResult> {
+async fn test_gap_detection(datastore: Arc<Mutex<DatastoreManager>>) -> Result<TestResult> {
     let fork_config = ForkConfig::new();
     let observer = ChainObserver::new_with_fork_config(datastore.clone(), fork_config);
     observer.initialize().await?;
@@ -161,7 +161,7 @@ async fn test_gap_detection(datastore: Arc<Mutex<NetworkDatastore>>) -> Result<T
     }
     
     let ds = datastore.lock().await;
-    let orphaned = MinerBlock::find_by_hash(&ds, &block_3.header.hash).await?;
+    let orphaned = MinerBlock::find_by_hash_multi(&ds, &block_3.header.hash).await?;
     drop(ds);
     
     match orphaned {
@@ -186,7 +186,7 @@ async fn test_gap_detection(datastore: Arc<Mutex<NetworkDatastore>>) -> Result<T
 }
 
 /// Test: Missing Parent - Block references unknown parent hash
-async fn test_missing_parent(datastore: Arc<Mutex<NetworkDatastore>>) -> Result<TestResult> {
+async fn test_missing_parent(datastore: Arc<Mutex<DatastoreManager>>) -> Result<TestResult> {
     let fork_config = ForkConfig::new();
     let observer = ChainObserver::new_with_fork_config(datastore.clone(), fork_config);
     observer.initialize().await?;
@@ -211,7 +211,7 @@ async fn test_missing_parent(datastore: Arc<Mutex<NetworkDatastore>>) -> Result<
     }
     
     let ds = datastore.lock().await;
-    let orphaned = MinerBlock::find_by_hash(&ds, &block_1.header.hash).await?;
+    let orphaned = MinerBlock::find_by_hash_multi(&ds, &block_1.header.hash).await?;
     drop(ds);
     
     match orphaned {
@@ -236,7 +236,7 @@ async fn test_missing_parent(datastore: Arc<Mutex<NetworkDatastore>>) -> Result<
 }
 
 /// Test: Chain Integrity - Verify canonical chain remains consistent
-async fn test_chain_integrity(datastore: Arc<Mutex<NetworkDatastore>>) -> Result<TestResult> {
+async fn test_chain_integrity(datastore: Arc<Mutex<DatastoreManager>>) -> Result<TestResult> {
     let fork_config = ForkConfig::new();
     let observer = ChainObserver::new_with_fork_config(datastore.clone(), fork_config);
     observer.initialize().await?;
@@ -262,8 +262,8 @@ async fn test_chain_integrity(datastore: Arc<Mutex<NetworkDatastore>>) -> Result
     observer.process_gossiped_block(block_to_miner_block(&fork_2)).await?;
     
     let ds = datastore.lock().await;
-    let canonical_blocks = MinerBlock::find_all_canonical(&ds).await?;
-    let all_blocks = MinerBlock::find_all_blocks(&ds).await?;
+    let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
+    let all_blocks = MinerBlock::find_all_blocks_multi(&ds).await?;
     drop(ds);
     
     let orphaned_count = all_blocks.iter().filter(|b| b.is_orphaned).count();
@@ -289,7 +289,7 @@ async fn test_chain_integrity(datastore: Arc<Mutex<NetworkDatastore>>) -> Result
 }
 
 /// Test: Orphan Promotion - When missing parent arrives, orphan can be promoted
-async fn test_orphan_promotion(datastore: Arc<Mutex<NetworkDatastore>>) -> Result<TestResult> {
+async fn test_orphan_promotion(datastore: Arc<Mutex<DatastoreManager>>) -> Result<TestResult> {
     let fork_config = ForkConfig::new();
     let observer = ChainObserver::new_with_fork_config(datastore.clone(), fork_config);
     observer.initialize().await?;
@@ -324,7 +324,7 @@ async fn test_orphan_promotion(datastore: Arc<Mutex<NetworkDatastore>>) -> Resul
     }
     
     let ds = datastore.lock().await;
-    let block_3_final = MinerBlock::find_by_hash(&ds, &block_3.header.hash).await?;
+    let block_3_final = MinerBlock::find_by_hash_multi(&ds, &block_3.header.hash).await?;
     drop(ds);
     
     match block_3_final {
@@ -348,9 +348,9 @@ async fn test_orphan_promotion(datastore: Arc<Mutex<NetworkDatastore>>) -> Resul
 }
 
 /// Test: Duplicate Canonical Detection - Check for duplicate canonical blocks
-async fn test_duplicate_canonical(datastore: Arc<Mutex<NetworkDatastore>>) -> Result<TestResult> {
+async fn test_duplicate_canonical(datastore: Arc<Mutex<DatastoreManager>>) -> Result<TestResult> {
     let ds = datastore.lock().await;
-    let duplicates = modal_datastore::models::miner::integrity::detect_duplicate_canonical_blocks(&ds).await?;
+    let duplicates = modal_datastore::models::miner::integrity::detect_duplicate_canonical_blocks_multi(&ds).await?;
     drop(ds);
     
     if duplicates.is_empty() {
@@ -391,10 +391,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
         // Create a fresh datastore for each test (or use the provided one)
         let datastore = if let Some(path) = &opts.datastore {
             // Use the provided datastore for all tests
-            Arc::new(Mutex::new(NetworkDatastore::new(path)?))
+            Arc::new(Mutex::new(DatastoreManager::open(path)?))
         } else {
             // Create a fresh in-memory datastore for each test
-            Arc::new(Mutex::new(NetworkDatastore::create_in_memory()?))
+            Arc::new(Mutex::new(DatastoreManager::create_in_memory()?))
         };
         
         let result = match *test_name {

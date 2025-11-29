@@ -1,14 +1,13 @@
 use modal_validator::ContractProcessor;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::{ContractAsset, AssetBalance, ReceivedSend};
-use modal_datastore::model::Model;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 /// Test that SEND validation rejects when balance is insufficient
 #[tokio::test]
 async fn test_send_insufficient_balance() {
-    let datastore = Arc::new(Mutex::new(NetworkDatastore::create_in_memory().unwrap()));
+    let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
     let processor = ContractProcessor::new(datastore.clone());
 
     let contract_id = "12D3KooWTest1";
@@ -25,7 +24,7 @@ async fn test_send_insufficient_balance() {
             created_at: 1234567890,
             creator_commit_id: "genesis".to_string(),
         };
-        asset.save(&ds).await.unwrap();
+        asset.save_to_final(&ds).await.unwrap();
 
         // Give contract 500 tokens
         let balance = AssetBalance {
@@ -34,7 +33,7 @@ async fn test_send_insufficient_balance() {
             owner_contract_id: contract_id.to_string(),
             balance: 500,
         };
-        balance.save(&ds).await.unwrap();
+        balance.save_to_final(&ds).await.unwrap();
     }
 
     // Try to send 600 tokens (more than balance)
@@ -60,7 +59,7 @@ async fn test_send_insufficient_balance() {
 /// Test that SEND validation passes when balance is sufficient
 #[tokio::test]
 async fn test_send_sufficient_balance() {
-    let datastore = Arc::new(Mutex::new(NetworkDatastore::create_in_memory().unwrap()));
+    let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
     let processor = ContractProcessor::new(datastore.clone());
 
     let contract_id = "12D3KooWTest1";
@@ -77,7 +76,7 @@ async fn test_send_sufficient_balance() {
             created_at: 1234567890,
             creator_commit_id: "genesis".to_string(),
         };
-        asset.save(&ds).await.unwrap();
+        asset.save_to_final(&ds).await.unwrap();
 
         let balance = AssetBalance {
             contract_id: contract_id.to_string(),
@@ -85,7 +84,7 @@ async fn test_send_sufficient_balance() {
             owner_contract_id: contract_id.to_string(),
             balance: 1000,
         };
-        balance.save(&ds).await.unwrap();
+        balance.save_to_final(&ds).await.unwrap();
     }
 
     // Send 400 tokens (less than balance)
@@ -112,14 +111,14 @@ async fn test_send_sufficient_balance() {
     keys.insert("asset_id".to_string(), asset_id.to_string());
     keys.insert("owner_contract_id".to_string(), contract_id.to_string());
     
-    let balance = AssetBalance::find_one(&ds, keys).await.unwrap().unwrap();
+    let balance = AssetBalance::find_one_multi(&ds, keys).await.unwrap().unwrap();
     assert_eq!(balance.balance, 600, "Balance should be deducted to 600");
 }
 
 /// Test that RECV validation rejects when recipient doesn't match
 #[tokio::test]
 async fn test_recv_wrong_recipient() {
-    let datastore = Arc::new(Mutex::new(NetworkDatastore::create_in_memory().unwrap()));
+    let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
     let processor = ContractProcessor::new(datastore.clone());
 
     let sender_id = "12D3KooWAlice";
@@ -139,7 +138,7 @@ async fn test_recv_wrong_recipient() {
             created_at: 1234567890,
             creator_commit_id: "genesis".to_string(),
         };
-        asset.save(&ds).await.unwrap();
+        asset.save_to_final(&ds).await.unwrap();
 
         let balance = AssetBalance {
             contract_id: sender_id.to_string(),
@@ -147,7 +146,7 @@ async fn test_recv_wrong_recipient() {
             owner_contract_id: sender_id.to_string(),
             balance: 1000,
         };
-        balance.save(&ds).await.unwrap();
+        balance.save_to_final(&ds).await.unwrap();
     }
 
     // Process the SEND commit first
@@ -187,7 +186,7 @@ async fn test_recv_wrong_recipient() {
 /// Test that RECV validation rejects double-receive
 #[tokio::test]
 async fn test_recv_double_receive() {
-    let datastore = Arc::new(Mutex::new(NetworkDatastore::create_in_memory().unwrap()));
+    let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
     let processor = ContractProcessor::new(datastore.clone());
 
     let sender_id = "12D3KooWAlice";
@@ -206,7 +205,7 @@ async fn test_recv_double_receive() {
             created_at: 1234567890,
             creator_commit_id: "genesis".to_string(),
         };
-        asset.save(&ds).await.unwrap();
+        asset.save_to_final(&ds).await.unwrap();
 
         let balance = AssetBalance {
             contract_id: sender_id.to_string(),
@@ -214,7 +213,7 @@ async fn test_recv_double_receive() {
             owner_contract_id: sender_id.to_string(),
             balance: 1000,
         };
-        balance.save(&ds).await.unwrap();
+        balance.save_to_final(&ds).await.unwrap();
     }
 
     // Process the SEND commit first
@@ -256,7 +255,7 @@ async fn test_recv_double_receive() {
 /// Test that RECV validation accepts valid receive
 #[tokio::test]
 async fn test_recv_valid() {
-    let datastore = Arc::new(Mutex::new(NetworkDatastore::create_in_memory().unwrap()));
+    let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
     let processor = ContractProcessor::new(datastore.clone());
 
     let sender_id = "12D3KooWAlice";
@@ -275,7 +274,7 @@ async fn test_recv_valid() {
             created_at: 1234567890,
             creator_commit_id: "genesis".to_string(),
         };
-        asset.save(&ds).await.unwrap();
+        asset.save_to_final(&ds).await.unwrap();
 
         let balance = AssetBalance {
             contract_id: sender_id.to_string(),
@@ -283,7 +282,7 @@ async fn test_recv_valid() {
             owner_contract_id: sender_id.to_string(),
             balance: 1000,
         };
-        balance.save(&ds).await.unwrap();
+        balance.save_to_final(&ds).await.unwrap();
     }
 
     // Process the SEND commit first
@@ -321,13 +320,13 @@ async fn test_recv_valid() {
     keys.insert("asset_id".to_string(), "token".to_string());
     keys.insert("owner_contract_id".to_string(), recipient_id.to_string());
     
-    let balance = AssetBalance::find_one(&ds, keys).await.unwrap().unwrap();
+    let balance = AssetBalance::find_one_multi(&ds, keys).await.unwrap().unwrap();
     assert_eq!(balance.balance, 250, "Recipient should have received 250 tokens");
 
     // Verify ReceivedSend was recorded
     let mut recv_keys = std::collections::HashMap::new();
     recv_keys.insert("send_commit_id".to_string(), send_commit_id.to_string());
-    let received_send = ReceivedSend::find_one(&ds, recv_keys).await.unwrap();
+    let received_send = ReceivedSend::find_one_multi(&ds, recv_keys).await.unwrap();
     assert!(received_send.is_some(), "ReceivedSend should be recorded");
     assert_eq!(received_send.unwrap().recv_contract_id, recipient_id);
 }

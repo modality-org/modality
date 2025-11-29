@@ -1,29 +1,15 @@
 use anyhow::Result;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::MinerBlock;
 use crate::reqres::Response;
 
 /// Handler for GET /data/miner_block/chain_info
-/// Returns chain information including cumulative difficulty and common ancestor
-/// 
-/// Request format:
-/// {
-///   "local_block_hashes": ["hash1", "hash2", ...], // Optional: for finding common ancestor
-///   "include_blocks": true/false, // Optional: whether to include full block data
-///   "from_index": u64, // Optional: if include_blocks=true, start from this index
-/// }
-/// 
-/// Response format:
-/// {
-///   "cumulative_difficulty": string, // u128 as string
-///   "chain_length": u64,
-///   "common_ancestor_index": u64 or null,
-///   "blocks": [...] or null // Only if include_blocks=true
-/// }
-pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatastore) -> Result<Response> {
+pub async fn handler(
+    data: Option<serde_json::Value>, 
+    datastore_manager: &DatastoreManager,
+) -> Result<Response> {
     let data = data.unwrap_or_default();
     
-    // Get local block hashes for common ancestor detection
     let local_hashes = data.get("local_block_hashes")
         .and_then(|v| v.as_array())
         .map(|arr| {
@@ -40,8 +26,7 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
     let from_index = data.get("from_index")
         .and_then(|v| v.as_u64());
     
-    // Load all canonical blocks
-    match MinerBlock::find_all_canonical(datastore).await {
+    match MinerBlock::find_all_canonical_multi(datastore_manager).await {
         Ok(all_blocks) => {
             if all_blocks.is_empty() {
                 return Ok(Response {
@@ -59,7 +44,6 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
                 });
             }
             
-            // Calculate cumulative difficulty
             let cumulative_difficulty = match MinerBlock::calculate_cumulative_difficulty(&all_blocks) {
                 Ok(diff) => diff,
                 Err(e) => {
@@ -73,13 +57,11 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
             
             let chain_length = all_blocks.len() as u64;
             
-            // Get the tip block's hash and epoch
             let (tip_hash, tip_epoch) = all_blocks.iter()
                 .max_by_key(|b| b.index)
                 .map(|b| (b.hash.clone(), b.epoch))
                 .unwrap_or(("".to_string(), 0));
             
-            // Find common ancestor by checking which of our blocks match the provided hashes
             let common_ancestor_index = if !local_hashes.is_empty() {
                 all_blocks.iter()
                     .filter(|block| local_hashes.contains(&block.hash))
@@ -89,7 +71,6 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
                 None
             };
             
-            // Optionally include blocks
             let blocks_data = if include_blocks {
                 let start_index = from_index
                     .or(common_ancestor_index.map(|idx| idx + 1))
@@ -110,7 +91,7 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
                 data: Some(serde_json::json!({
                     "cumulative_difficulty": cumulative_difficulty.to_string(),
                     "chain_length": chain_length,
-                    "chain_height": chain_length.saturating_sub(1), // Alias for backward compatibility
+                    "chain_height": chain_length.saturating_sub(1),
                     "tip_hash": tip_hash,
                     "tip_epoch": tip_epoch,
                     "common_ancestor_index": common_ancestor_index,
@@ -128,4 +109,3 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
         }
     }
 }
-

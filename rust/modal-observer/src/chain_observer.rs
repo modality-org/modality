@@ -1,6 +1,6 @@
 use anyhow::Result;
 use modal_datastore::models::MinerBlock;
-use modal_datastore::{Model, NetworkDatastore};
+use modal_datastore::DatastoreManager;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -87,14 +87,14 @@ impl Default for ForkConfig {
 /// This is used by validator nodes that need to observe the mining chain
 /// to perform consensus operations but do not mine blocks themselves.
 pub struct ChainObserver {
-    datastore: Arc<Mutex<NetworkDatastore>>,
+    datastore: Arc<Mutex<DatastoreManager>>,
     chain_tip_index: Arc<Mutex<u64>>,
     fork_config: ForkConfig,
 }
 
 impl ChainObserver {
     /// Create a new chain observer with no forced fork
-    pub fn new(datastore: Arc<Mutex<NetworkDatastore>>) -> Self {
+    pub fn new(datastore: Arc<Mutex<DatastoreManager>>) -> Self {
         Self {
             datastore,
             chain_tip_index: Arc::new(Mutex::new(0)),
@@ -103,7 +103,7 @@ impl ChainObserver {
     }
     
     /// Create a new chain observer with a forced fork configuration
-    pub fn new_with_fork_config(datastore: Arc<Mutex<NetworkDatastore>>, fork_config: ForkConfig) -> Self {
+    pub fn new_with_fork_config(datastore: Arc<Mutex<DatastoreManager>>, fork_config: ForkConfig) -> Self {
         Self {
             datastore,
             chain_tip_index: Arc::new(Mutex::new(0)),
@@ -114,7 +114,7 @@ impl ChainObserver {
     /// Initialize the observer by loading the current chain tip
     pub async fn initialize(&self) -> Result<()> {
         let ds = self.datastore.lock().await;
-        let canonical_blocks = MinerBlock::find_all_canonical(&ds).await?;
+        let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
         
         if let Some(max_index) = canonical_blocks.iter().map(|b| b.index).max() {
             let mut tip = self.chain_tip_index.lock().await;
@@ -146,25 +146,27 @@ impl ChainObserver {
     /// Get the canonical block at a specific index
     pub async fn get_canonical_block(&self, index: u64) -> Result<Option<MinerBlock>> {
         let ds = self.datastore.lock().await;
-        Ok(MinerBlock::find_canonical_by_index(&ds, index).await?)
+        let current_epoch = ds.block_index_to_epoch(*self.chain_tip_index.lock().await);
+        Ok(MinerBlock::find_canonical_by_index_multi(&ds, index, current_epoch).await?)
     }
     
     /// Get all canonical blocks
     pub async fn get_all_canonical_blocks(&self) -> Result<Vec<MinerBlock>> {
         let ds = self.datastore.lock().await;
-        Ok(MinerBlock::find_all_canonical(&ds).await?)
+        Ok(MinerBlock::find_all_canonical_multi(&ds).await?)
     }
     
     /// Get the canonical blocks for a specific epoch
     pub async fn get_canonical_blocks_by_epoch(&self, epoch: u64) -> Result<Vec<MinerBlock>> {
         let ds = self.datastore.lock().await;
-        Ok(MinerBlock::find_canonical_by_epoch(&ds, epoch).await?)
+        let current_epoch = ds.block_index_to_epoch(*self.chain_tip_index.lock().await);
+        Ok(MinerBlock::find_canonical_by_epoch_multi(&ds, epoch, current_epoch).await?)
     }
     
     /// Calculate the cumulative difficulty of the current canonical chain
     pub async fn get_chain_cumulative_difficulty(&self) -> Result<u128> {
         let ds = self.datastore.lock().await;
-        let canonical_blocks = MinerBlock::find_all_canonical(&ds).await?;
+        let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
         MinerBlock::calculate_cumulative_difficulty(&canonical_blocks)
             .map_err(|e| e.into())
     }
@@ -172,14 +174,14 @@ impl ChainObserver {
     /// Get canonical blocks starting from a specific index
     pub async fn get_canonical_blocks_from_index(&self, start_index: u64) -> Result<Vec<MinerBlock>> {
         let ds = self.datastore.lock().await;
-        let canonical_blocks = MinerBlock::find_all_canonical(&ds).await?;
+        let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
         Ok(canonical_blocks.into_iter().filter(|b| b.index >= start_index).collect())
     }
     
     /// Calculate cumulative difficulty for blocks in a specific range
     pub async fn calculate_chain_difficulty_at_range(&self, start_index: u64, end_index: u64) -> Result<u128> {
         let ds = self.datastore.lock().await;
-        let canonical_blocks = MinerBlock::find_all_canonical(&ds).await?;
+        let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
         let range_blocks: Vec<MinerBlock> = canonical_blocks
             .into_iter()
             .filter(|b| b.index >= start_index && b.index <= end_index)
@@ -210,7 +212,7 @@ impl ChainObserver {
         
         // Get existing canonical chain from fork point onwards
         let ds = self.datastore.lock().await;
-        let canonical_blocks = MinerBlock::find_all_canonical(&ds).await?;
+        let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
         let existing_branch: Vec<MinerBlock> = canonical_blocks
             .into_iter()
             .filter(|b| b.index > fork_point && b.index <= end_index)
@@ -265,7 +267,7 @@ impl ChainObserver {
                 "Rejected: timestamp {} is before minimum allowed timestamp {}",
                 orphaned.timestamp, min_timestamp
             ));
-            orphaned.save(&mut ds).await?;
+            orphaned.save_to_active(&ds).await?;
             
             return Ok(false);
         }
@@ -287,7 +289,7 @@ impl ChainObserver {
                     "Rejected by forced fork specification: required hash {} but got {}",
                     required_hash, orphaned.hash
                 ));
-                orphaned.save(&mut ds).await?;
+                orphaned.save_to_active(&ds).await?;
                 
                 return Ok(false);
             } else {
@@ -299,7 +301,7 @@ impl ChainObserver {
         }
         
         // Check if we already have this exact block
-        if let Ok(Some(existing)) = MinerBlock::find_by_hash(&ds, &new_block.hash).await {
+        if let Ok(Some(existing)) = MinerBlock::find_by_hash_multi(&ds, &new_block.hash).await {
             // If it's already canonical or orphaned due to first-seen rule, skip it
             if existing.is_canonical {
                 log::debug!("Block {} already exists as canonical, skipping", &new_block.hash);
@@ -317,7 +319,9 @@ impl ChainObserver {
         }
         
         // Check if there's an existing canonical block at this index
-        if let Some(existing) = MinerBlock::find_canonical_by_index(&ds, new_block.index).await? {
+        // Calculate current epoch from chain tip (or use block's epoch as estimate)
+        let current_epoch = ds.block_index_to_epoch(*self.chain_tip_index.lock().await);
+        if let Some(existing) = MinerBlock::find_canonical_by_index_multi(&ds, new_block.index, current_epoch).await? {
             drop(ds);
             
             // Check if forced fork requires replacement
@@ -332,10 +336,10 @@ impl ChainObserver {
                     format!("Replaced by forced fork specification"),
                     Some(new_block.hash.clone())
                 );
-                orphaned.save(&mut ds).await?;
+                orphaned.save_to_active(&ds).await?;
                 
                 // Save new block as canonical
-                new_block.save(&mut ds).await?;
+                new_block.save_to_active(&ds).await?;
                 
                 // Update chain tip if needed
                 let current_tip = *self.chain_tip_index.lock().await;
@@ -358,10 +362,10 @@ impl ChainObserver {
                     format!("Replaced by block with higher difficulty"),
                     Some(new_block.hash.clone())
                 );
-                orphaned.save(&mut ds).await?;
+                orphaned.save_to_active(&ds).await?;
                 
                 // Save new block as canonical
-                new_block.save(&mut ds).await?;
+                new_block.save_to_active(&ds).await?;
                 
                 // Update chain tip if needed
                 let current_tip = *self.chain_tip_index.lock().await;
@@ -379,7 +383,7 @@ impl ChainObserver {
                 orphaned.is_orphaned = true;
                 orphaned.orphan_reason = Some(format!("Rejected by first-seen rule - block already exists at index {}", orphaned.index));
                 orphaned.competing_hash = Some(existing.hash.clone());
-                orphaned.save(&mut ds).await?;
+                orphaned.save_to_active(&ds).await?;
                 
                 log::debug!("Stored orphan block {} at index {} (first-seen rule)", &orphaned.hash, orphaned.index);
                 return Ok(false);
@@ -389,20 +393,21 @@ impl ChainObserver {
         // No conflict at this index - check if it extends the canonical chain
         if new_block.index == 0 {
             // Genesis block
-            new_block.save(&mut ds).await?;
+            new_block.save_to_active(&ds).await?;
             *self.chain_tip_index.lock().await = 0;
             log::info!("Accepted genesis block {}", &new_block.hash);
             return Ok(true);
         }
         
         // Check if parent exists and is canonical
-        let parent_canonical = MinerBlock::find_canonical_by_index(&ds, new_block.index - 1).await?;
+        let current_epoch = ds.block_index_to_epoch(*self.chain_tip_index.lock().await);
+        let parent_canonical = MinerBlock::find_canonical_by_index_multi(&ds, new_block.index - 1, current_epoch).await?;
         
         if let Some(parent) = parent_canonical {
             if parent.hash == new_block.previous_hash {
                 // Extends canonical chain
                 // Check if this block was previously stored as orphan
-                if let Ok(Some(existing_orphan)) = MinerBlock::find_by_hash(&ds, &new_block.hash).await {
+                if let Ok(Some(existing_orphan)) = MinerBlock::find_by_hash_multi(&ds, &new_block.hash).await {
                     if existing_orphan.is_orphaned {
                         // Promote orphan to canonical
                         let mut promoted = existing_orphan;
@@ -411,7 +416,7 @@ impl ChainObserver {
                         promoted.orphan_reason = None;
                         promoted.orphaned_at = None;
                         promoted.competing_hash = None;
-                        promoted.save(&mut ds).await?;
+                        promoted.save_to_active(&ds).await?;
                         
                         let current_tip = *self.chain_tip_index.lock().await;
                         if promoted.index > current_tip {
@@ -424,7 +429,7 @@ impl ChainObserver {
                 }
                 
                 // Not previously stored, save as new canonical block
-                new_block.save(&mut ds).await?;
+                new_block.save_to_active(&ds).await?;
                 
                 let current_tip = *self.chain_tip_index.lock().await;
                 if new_block.index > current_tip {
@@ -448,7 +453,7 @@ impl ChainObserver {
                     &parent.hash[..16],
                     &prev_hash_short
                 ));
-                orphaned.save(&mut ds).await?;
+                orphaned.save_to_active(&ds).await?;
 
                 log::debug!(
                     "Stored orphan block {} at index {} (fork - parent hash mismatch)",
@@ -462,7 +467,7 @@ impl ChainObserver {
         // No canonical block at index-1 - this is a gap
         // Check if the parent hash exists anywhere in the canonical chain
         let parent_hash = new_block.previous_hash.clone();
-        let parent_by_hash = MinerBlock::find_by_hash(&ds, &parent_hash).await?;
+        let parent_by_hash = MinerBlock::find_by_hash_multi(&ds, &parent_hash).await?;
         
         if let Some(parent) = parent_by_hash {
             if parent.is_canonical {
@@ -481,7 +486,7 @@ impl ChainObserver {
                     block_index - 1,
                     parent_idx
                 ));
-                orphaned.save(&mut ds).await?;
+                orphaned.save_to_active(&ds).await?;
 
                 log::warn!(
                     "⚠️  Gap detected: block {} at index {} builds on block at index {}, missing blocks in between. Stored as orphan.",
@@ -505,7 +510,7 @@ impl ChainObserver {
             &prev_hash_short,
             orphaned.index - 1
         ));
-        orphaned.save(&mut ds).await?;
+        orphaned.save_to_active(&ds).await?;
 
         log::debug!(
             "Stored orphan block {} at index {} (parent not found in canonical chain)",
@@ -518,14 +523,14 @@ impl ChainObserver {
     /// Get all orphaned blocks
     pub async fn get_all_orphaned_blocks(&self) -> Result<Vec<MinerBlock>> {
         let ds = self.datastore.lock().await;
-        let all_blocks = MinerBlock::find_all_blocks(&ds).await?;
+        let all_blocks = MinerBlock::find_all_blocks_multi(&ds).await?;
         Ok(all_blocks.into_iter().filter(|b| b.is_orphaned).collect())
     }
     
     /// Get orphaned blocks at a specific index
     pub async fn get_orphaned_blocks_at_index(&self, index: u64) -> Result<Vec<MinerBlock>> {
         let ds = self.datastore.lock().await;
-        let blocks_at_index = MinerBlock::find_by_index(&ds, index).await?;
+        let blocks_at_index = MinerBlock::find_by_index_multi(&ds, index).await?;
         Ok(blocks_at_index.into_iter().filter(|b| b.is_orphaned).collect())
     }
     
@@ -588,7 +593,8 @@ impl ChainObserver {
             None // Competing from genesis
         } else {
             let ds = self.datastore.lock().await;
-            let parent = MinerBlock::find_canonical_by_index(&ds, first_block.index - 1).await?;
+            let current_epoch = ds.block_index_to_epoch(*self.chain_tip_index.lock().await);
+            let parent = MinerBlock::find_canonical_by_index_multi(&ds, first_block.index - 1, current_epoch).await?;
             
             if let Some(parent) = parent {
                 if parent.hash == first_block.previous_hash {
@@ -609,7 +615,7 @@ impl ChainObserver {
             let mut ds = self.datastore.lock().await;
             for block in &sorted_blocks {
                 // Check if already exists
-                if let Ok(Some(_existing)) = MinerBlock::find_by_hash(&ds, &block.hash).await {
+                if let Ok(Some(_existing)) = MinerBlock::find_by_hash_multi(&ds, &block.hash).await {
                     log::debug!("Block {} already exists, skipping storage", &block.hash);
                     continue;
                 }
@@ -617,7 +623,7 @@ impl ChainObserver {
                 let mut non_canonical = block.clone();
                 non_canonical.is_canonical = false;
                 non_canonical.is_orphaned = false; // Not orphaned yet, just pending evaluation
-                non_canonical.save(&mut ds).await?;
+                non_canonical.save_to_active(&ds).await?;
                 
                 log::debug!("Stored competing block {} at index {} as non-canonical", &block.hash, block.index);
             }
@@ -645,7 +651,7 @@ impl ChainObserver {
         } else if competing_difficulty == local_difficulty {
             // Tiebreaker: check if competing chain is longer
             let ds = self.datastore.lock().await;
-            let canonical_in_range = MinerBlock::find_all_canonical(&ds).await?;
+            let canonical_in_range = MinerBlock::find_all_canonical_multi(&ds).await?;
             let canonical_count = canonical_in_range.iter()
                 .filter(|b| b.index >= first_block.index && b.index <= last_block.index)
                 .count();
@@ -659,14 +665,14 @@ impl ChainObserver {
             // Mark competing blocks as orphaned
             let mut ds = self.datastore.lock().await;
             for block in &sorted_blocks {
-                if let Ok(Some(mut existing)) = MinerBlock::find_by_hash(&ds, &block.hash).await {
+                if let Ok(Some(mut existing)) = MinerBlock::find_by_hash_multi(&ds, &block.hash).await {
                     if !existing.is_canonical {
                         existing.is_orphaned = true;
                         existing.orphan_reason = Some(format!(
                             "Competing chain rejected: cumulative difficulty {} vs canonical {}",
                             competing_difficulty, local_difficulty
                         ));
-                        existing.save(&mut ds).await?;
+                        existing.save_to_active(&ds).await?;
                     }
                 }
             }
@@ -687,7 +693,7 @@ impl ChainObserver {
         let mut ds = self.datastore.lock().await;
         
         // Orphan the old canonical blocks in the range
-        let canonical_blocks = MinerBlock::find_all_canonical(&ds).await?;
+        let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
         for canonical in canonical_blocks {
             if canonical.index >= first_block.index && canonical.index <= last_block.index {
                 let mut orphaned = canonical;
@@ -697,7 +703,7 @@ impl ChainObserver {
                     "Replaced by competing chain with higher cumulative difficulty ({} vs {})",
                     competing_difficulty, local_difficulty
                 ));
-                orphaned.save(&mut ds).await?;
+                orphaned.save_to_active(&ds).await?;
                 
                 log::debug!("Orphaned old canonical block {} at index {}", &orphaned.hash, orphaned.index);
             }
@@ -705,11 +711,11 @@ impl ChainObserver {
         
         // Promote competing blocks to canonical
         for block in &sorted_blocks {
-            if let Ok(Some(mut existing)) = MinerBlock::find_by_hash(&ds, &block.hash).await {
+            if let Ok(Some(mut existing)) = MinerBlock::find_by_hash_multi(&ds, &block.hash).await {
                 existing.is_canonical = true;
                 existing.is_orphaned = false;
                 existing.orphan_reason = None;
-                existing.save(&mut ds).await?;
+                existing.save_to_active(&ds).await?;
                 
                 log::debug!("Promoted competing block {} at index {} to canonical", &existing.hash, existing.index);
             }
@@ -752,7 +758,7 @@ mod tests {
         )
     }
     
-    async fn create_test_chain(ds: &mut NetworkDatastore, start: u64, end: u64, difficulty: u128) -> Vec<MinerBlock> {
+    async fn create_test_chain(ds: &DatastoreManager, start: u64, end: u64, difficulty: u128) -> Vec<MinerBlock> {
         let mut blocks = Vec::new();
         for i in start..=end {
             let prev_hash = if i == 0 {
@@ -761,7 +767,7 @@ mod tests {
                 format!("block_{}", i - 1)
             };
             let block = create_test_block(i, &format!("block_{}", i), &prev_hash, difficulty);
-            block.save(ds).await.unwrap();
+            block.save_to_active(ds).await.unwrap();
             blocks.push(block);
         }
         blocks
@@ -771,7 +777,7 @@ mod tests {
     #[tokio::test]
     async fn test_chain_observer_creation() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         let observer = ChainObserver::new(datastore);
         
@@ -782,7 +788,7 @@ mod tests {
     #[tokio::test]
     async fn test_initialize_empty_chain() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         let observer = ChainObserver::new(datastore);
         
@@ -793,13 +799,13 @@ mod tests {
     #[tokio::test]
     async fn test_initialize_with_existing_chain() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create a chain of 5 blocks
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 4, 1000).await;
+            create_test_chain(&ds, 0, 4, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore);
@@ -811,12 +817,12 @@ mod tests {
     #[tokio::test]
     async fn test_get_canonical_blocks() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 4, 1000).await;
+            create_test_chain(&ds, 0, 4, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore);
@@ -829,12 +835,12 @@ mod tests {
     #[tokio::test]
     async fn test_get_canonical_block_by_index() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 4, 1000).await;
+            create_test_chain(&ds, 0, 4, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore);
@@ -848,12 +854,12 @@ mod tests {
     #[tokio::test]
     async fn test_chain_cumulative_difficulty() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 4, 1000).await;
+            create_test_chain(&ds, 0, 4, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore);
@@ -867,13 +873,13 @@ mod tests {
     #[tokio::test]
     async fn test_reject_higher_difficulty_block() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 2, 1000).await;
+            create_test_chain(&ds, 0, 2, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -893,13 +899,13 @@ mod tests {
     #[tokio::test]
     async fn test_reject_lower_difficulty_block() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 2, 1000).await;
+            create_test_chain(&ds, 0, 2, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -919,13 +925,13 @@ mod tests {
     #[tokio::test]
     async fn test_reject_equal_difficulty_block() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 2, 1000).await;
+            create_test_chain(&ds, 0, 2, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -945,13 +951,13 @@ mod tests {
     #[tokio::test]
     async fn test_orphaned_block_tracking() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 2, 1000).await;
+            create_test_chain(&ds, 0, 2, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -964,7 +970,7 @@ mod tests {
         
         // Verify original block is still canonical and not orphaned
         let ds = datastore.lock().await;
-        let original_block = MinerBlock::find_by_hash(&ds, "block_2").await.unwrap().unwrap();
+        let original_block = MinerBlock::find_by_hash_multi(&ds, "block_2").await.unwrap().unwrap();
         assert!(!original_block.is_orphaned);
         assert!(original_block.is_canonical);
     }
@@ -973,13 +979,13 @@ mod tests {
     #[tokio::test]
     async fn test_accept_block_extending_chain() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 2, 1000).await;
+            create_test_chain(&ds, 0, 2, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -996,13 +1002,13 @@ mod tests {
     #[tokio::test]
     async fn test_reject_block_with_gap() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 2, 1000).await;
+            create_test_chain(&ds, 0, 2, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1019,13 +1025,13 @@ mod tests {
     #[tokio::test]
     async fn test_reject_block_with_wrong_parent() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 2, 1000).await;
+            create_test_chain(&ds, 0, 2, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1043,7 +1049,7 @@ mod tests {
     #[tokio::test]
     async fn test_accept_genesis_block() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1059,13 +1065,13 @@ mod tests {
     #[tokio::test]
     async fn test_reject_duplicate_block() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 2, 1000).await;
+            create_test_chain(&ds, 0, 2, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1082,13 +1088,13 @@ mod tests {
     #[tokio::test]
     async fn test_should_accept_reorganization_higher_cumulative() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create chain with blocks 0-5, each with difficulty 1000
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 5, 1000).await;
+            create_test_chain(&ds, 0, 5, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1109,13 +1115,13 @@ mod tests {
     #[tokio::test]
     async fn test_should_reject_reorganization_lower_cumulative() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create chain with blocks 0-5, each with difficulty 1000
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 5, 1000).await;
+            create_test_chain(&ds, 0, 5, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1136,13 +1142,13 @@ mod tests {
     #[tokio::test]
     async fn test_reorganization_equal_difficulty_longer_chain() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create chain with blocks 0-4
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 4, 1000).await;
+            create_test_chain(&ds, 0, 4, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1164,12 +1170,12 @@ mod tests {
     #[tokio::test]
     async fn test_get_canonical_blocks_from_index() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 9, 1000).await;
+            create_test_chain(&ds, 0, 9, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore);
@@ -1183,12 +1189,12 @@ mod tests {
     #[tokio::test]
     async fn test_calculate_chain_difficulty_at_range() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 9, 1000).await;
+            create_test_chain(&ds, 0, 9, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore);
@@ -1202,14 +1208,14 @@ mod tests {
     #[tokio::test]
     async fn test_large_difficulty_values() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         let large_difficulty = u128::MAX / 10; // Very large but safe value
         
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 2, large_difficulty).await;
+            create_test_chain(&ds, 0, 2, large_difficulty).await;
         }
         
         let observer = ChainObserver::new(datastore);
@@ -1223,13 +1229,13 @@ mod tests {
     #[tokio::test]
     async fn test_store_orphan_competing_block() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 5, 1000).await;
+            create_test_chain(&ds, 0, 5, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1242,7 +1248,7 @@ mod tests {
         
         // Verify it was stored as orphan
         let ds = datastore.lock().await;
-        let orphan = MinerBlock::find_by_hash(&ds, "competing_block_3").await.unwrap().unwrap();
+        let orphan = MinerBlock::find_by_hash_multi(&ds, "competing_block_3").await.unwrap().unwrap();
         assert!(orphan.is_orphaned, "Block should be marked as orphaned");
         assert!(!orphan.is_canonical, "Block should not be canonical");
         assert!(orphan.orphan_reason.is_some(), "Should have orphan reason");
@@ -1252,13 +1258,13 @@ mod tests {
     #[tokio::test]
     async fn test_store_orphan_block_with_gap() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 5, 1000).await;
+            create_test_chain(&ds, 0, 5, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1271,7 +1277,7 @@ mod tests {
         
         // Verify it was stored as orphan
         let ds = datastore.lock().await;
-        let orphan = MinerBlock::find_by_hash(&ds, "gap_block_10").await.unwrap().unwrap();
+        let orphan = MinerBlock::find_by_hash_multi(&ds, "gap_block_10").await.unwrap().unwrap();
         assert!(orphan.is_orphaned, "Block should be marked as orphaned");
         assert!(!orphan.is_canonical, "Block should not be canonical");
         assert!(orphan.orphan_reason.is_some(), "Should have orphan reason");
@@ -1280,13 +1286,13 @@ mod tests {
     #[tokio::test]
     async fn test_store_orphan_block_with_wrong_parent() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 5, 1000).await;
+            create_test_chain(&ds, 0, 5, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1299,7 +1305,7 @@ mod tests {
         
         // Verify it was stored as orphan
         let ds = datastore.lock().await;
-        let orphan = MinerBlock::find_by_hash(&ds, "block_6").await.unwrap().unwrap();
+        let orphan = MinerBlock::find_by_hash_multi(&ds, "block_6").await.unwrap().unwrap();
         assert!(orphan.is_orphaned, "Block should be marked as orphaned");
         assert!(!orphan.is_canonical, "Block should not be canonical");
         assert!(orphan.orphan_reason.is_some(), "Should have orphan reason");
@@ -1308,13 +1314,13 @@ mod tests {
     #[tokio::test]
     async fn test_get_all_orphaned_blocks() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 3, 1000).await;
+            create_test_chain(&ds, 0, 3, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1343,13 +1349,13 @@ mod tests {
     #[tokio::test]
     async fn test_get_orphaned_blocks_at_index() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 3, 1000).await;
+            create_test_chain(&ds, 0, 3, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1383,13 +1389,13 @@ mod tests {
     #[tokio::test]
     async fn test_process_competing_chain_heavier() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create initial canonical chain: blocks 0-5, difficulty 1000 each
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 5, 1000).await;
+            create_test_chain(&ds, 0, 5, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1424,13 +1430,13 @@ mod tests {
     #[tokio::test]
     async fn test_process_competing_chain_lighter() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create initial canonical chain: blocks 0-5, difficulty 1500 each
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 5, 1500).await;
+            create_test_chain(&ds, 0, 5, 1500).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1465,13 +1471,13 @@ mod tests {
     #[tokio::test]
     async fn test_process_competing_chain_equal_difficulty_longer() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create initial canonical chain: blocks 0-4
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 4, 1000).await;
+            create_test_chain(&ds, 0, 4, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1500,12 +1506,12 @@ mod tests {
     #[tokio::test]
     async fn test_process_competing_chain_validation_gap() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 5, 1000).await;
+            create_test_chain(&ds, 0, 5, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1524,12 +1530,12 @@ mod tests {
     #[tokio::test]
     async fn test_process_competing_chain_validation_wrong_parent() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 5, 1000).await;
+            create_test_chain(&ds, 0, 5, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1548,13 +1554,13 @@ mod tests {
     #[tokio::test]
     async fn test_process_competing_chain_from_genesis() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create initial canonical chain: blocks 0-3, difficulty 1000 each
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 3, 1000).await;
+            create_test_chain(&ds, 0, 3, 1000).await;
         }
         
         let observer = ChainObserver::new(datastore.clone());
@@ -1585,7 +1591,7 @@ mod tests {
     #[tokio::test]
     async fn test_forced_fork_rejects_wrong_block() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create fork config requiring specific block at height 3
@@ -1598,7 +1604,7 @@ mod tests {
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 2, 1000).await;
+            create_test_chain(&ds, 0, 2, 1000).await;
         }
         
         observer.initialize().await.unwrap();
@@ -1610,7 +1616,7 @@ mod tests {
         
         // Verify it was orphaned
         let ds = datastore.lock().await;
-        let orphan = MinerBlock::find_by_hash(&ds, "wrong_block_3").await.unwrap().unwrap();
+        let orphan = MinerBlock::find_by_hash_multi(&ds, "wrong_block_3").await.unwrap().unwrap();
         assert!(orphan.is_orphaned);
         assert!(orphan.orphan_reason.is_some());
         assert!(orphan.orphan_reason.unwrap().contains("forced fork"));
@@ -1619,7 +1625,7 @@ mod tests {
     #[tokio::test]
     async fn test_forced_fork_accepts_correct_block() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create fork config requiring specific block at height 3
@@ -1632,7 +1638,7 @@ mod tests {
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 2, 1000).await;
+            create_test_chain(&ds, 0, 2, 1000).await;
         }
         
         observer.initialize().await.unwrap();
@@ -1651,7 +1657,7 @@ mod tests {
     #[tokio::test]
     async fn test_forced_fork_overrides_first_seen() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create fork config requiring specific block at height 3
@@ -1664,9 +1670,9 @@ mod tests {
         // Create initial chain with WRONG block at height 3
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 2, 1000).await;
+            create_test_chain(&ds, 0, 2, 1000).await;
             let wrong_block = create_test_block(3, "wrong_block_3", "block_2", 1000);
-            wrong_block.save(&mut ds).await.unwrap();
+            wrong_block.save_to_active(&ds).await.unwrap();
         }
         
         observer.initialize().await.unwrap();
@@ -1682,14 +1688,14 @@ mod tests {
         
         // Verify wrong block was orphaned
         let ds = datastore.lock().await;
-        let orphaned = MinerBlock::find_by_hash(&ds, "wrong_block_3").await.unwrap().unwrap();
+        let orphaned = MinerBlock::find_by_hash_multi(&ds, "wrong_block_3").await.unwrap().unwrap();
         assert!(orphaned.is_orphaned);
     }
     
     #[tokio::test]
     async fn test_forced_fork_multiple_heights() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create fork config with multiple forced blocks
@@ -1704,7 +1710,7 @@ mod tests {
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 1, 1000).await;
+            create_test_chain(&ds, 0, 1, 1000).await;
         }
         
         observer.initialize().await.unwrap();
@@ -1735,7 +1741,7 @@ mod tests {
     #[tokio::test]
     async fn test_forced_fork_competing_chain_validation() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create fork config
@@ -1748,7 +1754,7 @@ mod tests {
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 5, 1000).await;
+            create_test_chain(&ds, 0, 5, 1000).await;
         }
         
         observer.initialize().await.unwrap();
@@ -1768,7 +1774,7 @@ mod tests {
     #[tokio::test]
     async fn test_forced_fork_competing_chain_valid() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create fork config
@@ -1781,7 +1787,7 @@ mod tests {
         // Create initial chain
         {
             let mut ds = datastore.lock().await;
-            create_test_chain(&mut ds, 0, 5, 1000).await;
+            create_test_chain(&ds, 0, 5, 1000).await;
         }
         
         observer.initialize().await.unwrap();
@@ -1805,7 +1811,7 @@ mod tests {
     #[tokio::test]
     async fn test_forced_fork_genesis_block() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create fork config requiring specific genesis block
@@ -1822,7 +1828,7 @@ mod tests {
         
         // Verify it was orphaned
         let ds = datastore.lock().await;
-        let orphan = MinerBlock::find_by_hash(&ds, "wrong_genesis").await.unwrap().unwrap();
+        let orphan = MinerBlock::find_by_hash_multi(&ds, "wrong_genesis").await.unwrap().unwrap();
         assert!(orphan.is_orphaned);
         assert!(orphan.orphan_reason.unwrap().contains("forced fork"));
     }
@@ -1830,7 +1836,7 @@ mod tests {
     #[tokio::test]
     async fn test_forced_fork_genesis_accepts_correct() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create fork config requiring specific genesis block
@@ -1854,7 +1860,7 @@ mod tests {
     #[tokio::test]
     async fn test_forced_fork_genesis_replaces_wrong() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create fork config requiring specific genesis
@@ -1868,7 +1874,7 @@ mod tests {
         {
             let mut ds = datastore.lock().await;
             let wrong_genesis = create_test_block(0, "wrong_genesis", "none", 1000);
-            wrong_genesis.save(&mut ds).await.unwrap();
+            wrong_genesis.save_to_active(&ds).await.unwrap();
         }
         
         observer.initialize().await.unwrap();
@@ -1884,14 +1890,14 @@ mod tests {
         
         // Verify wrong genesis was orphaned
         let ds = datastore.lock().await;
-        let orphaned = MinerBlock::find_by_hash(&ds, "wrong_genesis").await.unwrap().unwrap();
+        let orphaned = MinerBlock::find_by_hash_multi(&ds, "wrong_genesis").await.unwrap().unwrap();
         assert!(orphaned.is_orphaned);
     }
     
     #[tokio::test]
     async fn test_forced_fork_genesis_in_competing_chain() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create fork config requiring specific genesis
@@ -1906,11 +1912,11 @@ mod tests {
         {
             let mut ds = datastore.lock().await;
             let genesis = create_test_block(0, "checkpoint_genesis", "none", 1000);
-            genesis.save(&mut ds).await.unwrap();
+            genesis.save_to_active(&ds).await.unwrap();
             let block_1 = create_test_block(1, "block_1", "checkpoint_genesis", 1000);
-            block_1.save(&mut ds).await.unwrap();
+            block_1.save_to_active(&ds).await.unwrap();
             let block_2 = create_test_block(2, "checkpoint_2", "block_1", 1000);
-            block_2.save(&mut ds).await.unwrap();
+            block_2.save_to_active(&ds).await.unwrap();
         }
         
         observer.initialize().await.unwrap();
@@ -1943,7 +1949,7 @@ mod tests {
     #[tokio::test]
     async fn test_forced_fork_genesis_and_regular_checkpoints() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         // Create fork config with genesis and other checkpoints

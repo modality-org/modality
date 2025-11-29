@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 
 use modal_node::config_resolution::load_config_with_node_dir;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::miner::MinerBlock;
 
 #[derive(Debug, Parser)]
@@ -37,15 +37,16 @@ pub async fn run(opts: &Opts) -> Result<()> {
     
     let config = load_config_with_node_dir(opts.config.clone(), dir.clone())?;
     
-    // Open datastore in read-only mode
-    let storage_path = config.storage_path.as_ref()
-        .context("No storage_path in config")?;
+    // Open datastore
+    let data_dir = config.data_dir.as_ref()
+        .or(config.storage_path.as_ref())
+        .context("No data_dir or storage_path in config")?;
     
-    let datastore = NetworkDatastore::create_in_directory_readonly(&storage_path)
-        .context("Failed to open datastore in read-only mode")?;
+    let datastore_manager = DatastoreManager::open(&data_dir)
+        .context("Failed to open datastore")?;
     
     // Get all canonical blocks and take the most recent N
-    let all_canonical_blocks = MinerBlock::find_all_canonical(&datastore).await?;
+    let all_canonical_blocks = MinerBlock::find_all_canonical_multi(&datastore_manager).await?;
     let total_blocks = all_canonical_blocks.len();
     
     if total_blocks == 0 {

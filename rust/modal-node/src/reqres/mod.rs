@@ -9,7 +9,7 @@ pub mod inspect;
 use data as reqres_data;
 use tokio::sync::mpsc;
 
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_validator_consensus::communication::Message as ConsensusMessage;
 
 #[allow(dead_code)]
@@ -36,7 +36,11 @@ pub struct Response {
     pub errors: Option<serde_json::Value>
 }
 
-pub async fn handle_request(req: Request, datastore: &mut NetworkDatastore, consensus_tx: mpsc::Sender<ConsensusMessage>) -> Result<Response> {
+pub async fn handle_request(
+    req: Request, 
+    datastore_manager: &DatastoreManager,
+    consensus_tx: mpsc::Sender<ConsensusMessage>
+) -> Result<Response> {
     log::info!("Handling request: {:?}", req);
     let path = req.path;
     let data = req.data.unwrap_or_default();
@@ -45,61 +49,61 @@ pub async fn handle_request(req: Request, datastore: &mut NetworkDatastore, cons
             ping::handler(Some(data.clone())).await?
         },
         "/inspect" => {
-            inspect::handler(Some(data.clone()), datastore).await?
+            inspect::handler(Some(data.clone()), datastore_manager).await?
         },
         "/data/block" => {
-            reqres_data::block::handler(Some(data.clone()), datastore).await?
+            reqres_data::block::handler(Some(data.clone()), datastore_manager).await?
         }
         "/data/block/head" => {
-            reqres_data::block::head::handler(Some(data.clone()), datastore).await?
+            reqres_data::block::head::handler(Some(data.clone()), datastore_manager).await?
         }
         "/data/block/body" => {
-            reqres_data::block::body::handler(Some(data.clone()), datastore).await?
+            reqres_data::block::body::handler(Some(data.clone()), datastore_manager).await?
         }
         "/data/block/inclusions" => {
-            reqres_data::block::inclusions::handler(Some(data.clone()), datastore).await?
+            reqres_data::block::inclusions::handler(Some(data.clone()), datastore_manager).await?
         }
         "/consensus/status" => {
-            consensus::status::handler(Some(data.clone()), datastore).await?
+            consensus::status::handler(Some(data.clone()), datastore_manager).await?
         }
         "/consensus/block/ack" => {
-            consensus::block::ack::handler(Some(data.clone()), datastore, consensus_tx).await?
+            consensus::block::ack::handler(Some(data.clone()), datastore_manager, consensus_tx).await?
         }
         "/data/miner_block/get" => {
-            reqres_data::miner_block::get::handler(Some(data.clone()), datastore).await?
+            reqres_data::miner_block::get::handler(Some(data.clone()), datastore_manager).await?
         }
         "/data/miner_block/canonical" => {
-            reqres_data::miner_block::list_canonical::handler(Some(data.clone()), datastore).await?
+            reqres_data::miner_block::list_canonical::handler(Some(data.clone()), datastore_manager).await?
         }
         "/data/miner_block/epoch" => {
-            reqres_data::miner_block::by_epoch::handler(Some(data.clone()), datastore).await?
+            reqres_data::miner_block::by_epoch::handler(Some(data.clone()), datastore_manager).await?
         }
         "/data/miner_block/range" => {
-            reqres_data::miner_block::range::handler(Some(data.clone()), datastore).await?
+            reqres_data::miner_block::range::handler(Some(data.clone()), datastore_manager).await?
         }
         "/data/miner_block/chain_info" => {
-            reqres_data::miner_block::chain_info::handler(Some(data.clone()), datastore).await?
+            reqres_data::miner_block::chain_info::handler(Some(data.clone()), datastore_manager).await?
         }
         "/data/miner_block/find_ancestor" => {
-            reqres_data::miner_block::find_ancestor::handler(Some(data.clone()), datastore).await?
+            reqres_data::miner_block::find_ancestor::handler(Some(data.clone()), datastore_manager).await?
         }
         "/data/miner_block/debug_index" => {
-            reqres_data::miner_block::debug_index::handler(Some(data.clone()), datastore).await?
+            reqres_data::miner_block::debug_index::handler(Some(data.clone()), datastore_manager).await?
         }
         "/dag/sync" => {
-            dag::sync::handler(Some(data.clone()), datastore).await?
+            dag::sync::handler(Some(data.clone()), datastore_manager).await?
         }
         "/contract/submit" => {
-            contract::submit::handler(Some(data.clone()), datastore, consensus_tx.clone()).await?
+            contract::submit::handler(Some(data.clone()), datastore_manager, consensus_tx.clone()).await?
         }
         "/contract/push" => {
-            contract::push::handler(Some(data.clone()), datastore, consensus_tx.clone()).await?
+            contract::push::handler(Some(data.clone()), datastore_manager, consensus_tx.clone()).await?
         }
         "/contract/pull" => {
-            contract::pull::handler(Some(data.clone()), datastore, consensus_tx.clone()).await?
+            contract::pull::handler(Some(data.clone()), datastore_manager, consensus_tx.clone()).await?
         }
         "/contract/list" => {
-            contract::list::handler(Some(data.clone()), datastore, consensus_tx).await?
+            contract::list::handler(Some(data.clone()), datastore_manager, consensus_tx).await?
         }
         _ => {
             Response {

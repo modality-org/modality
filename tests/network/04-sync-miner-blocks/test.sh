@@ -9,11 +9,7 @@ cd "$(dirname "$0")"
 source ../test-lib.sh
 
 # Build modal CLI if needed
-if ! command -v modal &> /dev/null; then
-    echo "Building modal CLI..."
-    (cd ../../../rust && cargo build --package modal)
-    export PATH="../../../rust/target/debug:$PATH"
-fi
+command -v modal &> /dev/null || rebuild
 
 # Clean up any previous test nodes
 rm -rf ./tmp
@@ -26,7 +22,7 @@ echo ""
 echo "Test 1: Setting up node1 with test blocks..."
 ./00-setup-node1-blocks.sh >> "$CURRENT_LOG" 2>&1
 assert_file_exists "./tmp/storage/node1" "Node1 storage should be created"
-assert_file_exists "./tmp/storage/node1/IDENTITY" "Node1 datastore should be initialized"
+assert_file_exists "./tmp/storage/node1/miner_active" "Node1 datastore should be initialized"
 
 # Test 2: Verify node1 has blocks (before starting)
 echo ""

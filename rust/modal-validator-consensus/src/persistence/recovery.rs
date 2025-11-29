@@ -4,7 +4,7 @@ use crate::persistence::FromPersistenceModel;
 use crate::shoal::{ConsensusState, ReputationState};
 use anyhow::{Context, Result};
 use modal_datastore::models::{DAGCertificate, DAGState};
-use modal_datastore::{NetworkDatastore, Model};
+use modal_datastore::DatastoreManager;
 
 /// Strategy for recovering DAG state from persistent storage
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,37 +28,38 @@ pub struct RecoveryResult {
     pub reputation_state: Option<ReputationState>,
 }
 
-/// Recover DAG from persistent storage using specified strategy
-pub async fn recover_dag(
-    datastore: &NetworkDatastore,
+/// Recover DAG from persistent storage using specified strategy (multi-store version)
+pub async fn recover_dag_multi(
+    datastore: &DatastoreManager,
     strategy: RecoveryStrategy,
 ) -> Result<RecoveryResult> {
     match strategy {
-        RecoveryStrategy::FromScratch => recover_from_scratch(datastore).await,
-        RecoveryStrategy::FromCheckpoint => recover_from_checkpoint(datastore).await,
+        RecoveryStrategy::FromScratch => recover_from_scratch_multi(datastore).await,
+        RecoveryStrategy::FromCheckpoint => recover_from_checkpoint_multi(datastore).await,
         RecoveryStrategy::Hybrid => {
             // Try checkpoint first
-            match recover_from_checkpoint(datastore).await {
+            match recover_from_checkpoint_multi(datastore).await {
                 Ok(result) => Ok(result),
                 Err(e) => {
                     log::warn!("Checkpoint recovery failed: {}, falling back to full rebuild", e);
-                    recover_from_scratch(datastore).await
+                    recover_from_scratch_multi(datastore).await
                 }
             }
         }
     }
 }
 
-/// Recover DAG by loading all certificates from datastore
-async fn recover_from_scratch(datastore: &NetworkDatastore) -> Result<RecoveryResult> {
+/// Recover DAG by loading all certificates from datastore (multi-store version)
+async fn recover_from_scratch_multi(datastore: &DatastoreManager) -> Result<RecoveryResult> {
     log::info!("Recovering DAG from scratch...");
     
     let mut dag = DAG::new();
     let prefix = "/dag/certificates/round";
     let mut cert_models = Vec::new();
     
-    // Iterate through all certificates
-    let iterator = datastore.iterator(prefix);
+    // Iterate through all certificates from ValidatorFinal store
+    let store = datastore.validator_final();
+    let iterator = store.iterator(prefix);
     for result in iterator {
         let (key, _) = result.context("failed to iterate certificates")?;
         let key_str = String::from_utf8(key.to_vec()).context("invalid key UTF-8")?;
@@ -72,7 +73,7 @@ async fn recover_from_scratch(datastore: &NetworkDatastore) -> Result<RecoveryRe
                     ("digest".to_string(), digest.to_string()),
                 ].into_iter().collect();
                 
-                if let Some(cert_model) = DAGCertificate::find_one(datastore, keys)
+                if let Some(cert_model) = DAGCertificate::find_one_multi(datastore, keys)
                     .await
                     .context("failed to load certificate")? 
                 {
@@ -115,12 +116,12 @@ async fn recover_from_scratch(datastore: &NetworkDatastore) -> Result<RecoveryRe
     })
 }
 
-/// Recover DAG from latest checkpoint
-async fn recover_from_checkpoint(datastore: &NetworkDatastore) -> Result<RecoveryResult> {
+/// Recover DAG from latest checkpoint (multi-store version)
+async fn recover_from_checkpoint_multi(datastore: &DatastoreManager) -> Result<RecoveryResult> {
     log::info!("Recovering DAG from checkpoint...");
     
     // Find latest checkpoint
-    let checkpoint = DAGState::get_latest(datastore)
+    let checkpoint = DAGState::get_latest_multi(datastore)
         .await
         .context("failed to query checkpoints")?
         .ok_or_else(|| anyhow::anyhow!("no checkpoint found"))?;
@@ -147,7 +148,8 @@ async fn recover_from_checkpoint(datastore: &NetworkDatastore) -> Result<Recover
     let prefix = "/dag/certificates/round";
     let mut newer_certs = 0;
     
-    let iterator = datastore.iterator(prefix);
+    let store = datastore.validator_final();
+    let iterator = store.iterator(prefix);
     for result in iterator {
         let (key, _) = result.context("failed to iterate certificates")?;
         let key_str = String::from_utf8(key.to_vec()).context("invalid key UTF-8")?;
@@ -164,7 +166,7 @@ async fn recover_from_checkpoint(datastore: &NetworkDatastore) -> Result<Recover
                         ("digest".to_string(), digest.to_string()),
                     ].into_iter().collect();
                     
-                    if let Some(cert_model) = DAGCertificate::find_one(datastore, keys)
+                    if let Some(cert_model) = DAGCertificate::find_one_multi(datastore, keys)
                         .await
                         .context("failed to load certificate")? 
                     {
@@ -226,13 +228,9 @@ pub fn verify_dag_consistency(dag: &DAG) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::narwhal::{Header, AggregatedSignature, Committee, Validator};
+    use crate::narwhal::{Header, AggregatedSignature};
     use libp2p_identity::{ed25519, PeerId};
-    use std::net::SocketAddr;
-    use tempfile::TempDir;
-    use std::path::Path;
     use crate::persistence::ToPersistenceModel;
-    use modal_datastore::Model;
 
     fn test_peer_id(seed: u8) -> PeerId {
         let mut secret_bytes = [0u8; 32];
@@ -243,17 +241,15 @@ mod tests {
         PeerId::from_public_key(&keypair.public().into())
     }
 
-    async fn setup_test_datastore() -> (NetworkDatastore, TempDir) {
-        let temp_dir = TempDir::new().unwrap();
-        let datastore = NetworkDatastore::new(temp_dir.path()).unwrap();
-        (datastore, temp_dir)
+    async fn setup_test_datastore() -> DatastoreManager {
+        DatastoreManager::create_in_memory().unwrap()
     }
 
     #[tokio::test]
     async fn test_recover_from_scratch_empty() {
-        let (datastore, _temp) = setup_test_datastore().await;
+        let datastore = setup_test_datastore().await;
         
-        let result = recover_from_scratch(&datastore).await.unwrap();
+        let result = recover_from_scratch_multi(&datastore).await.unwrap();
         assert_eq!(result.certificates_loaded, 0);
         assert_eq!(result.highest_round, 0);
         assert!(!result.used_checkpoint);
@@ -261,7 +257,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_recover_from_scratch_with_certs() {
-        let (datastore, _temp) = setup_test_datastore().await;
+        let datastore = setup_test_datastore().await;
         
         // Create and save test certificates
         let cert1 = Certificate {
@@ -289,11 +285,11 @@ mod tests {
         };
         
         // Save to datastore
-        cert1.to_persistence_model().unwrap().save(&datastore).await.unwrap();
-        cert2.to_persistence_model().unwrap().save(&datastore).await.unwrap();
+        cert1.to_persistence_model().unwrap().save_to_final(&datastore).await.unwrap();
+        cert2.to_persistence_model().unwrap().save_to_final(&datastore).await.unwrap();
         
         // Recover
-        let result = recover_from_scratch(&datastore).await.unwrap();
+        let result = recover_from_scratch_multi(&datastore).await.unwrap();
         assert_eq!(result.certificates_loaded, 2);
         assert_eq!(result.highest_round, 1);
         

@@ -1,6 +1,6 @@
 use crate::error::{Result, ValidatorError};
 use modal_observer::{ChainObserver, ForkConfig};
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -31,7 +31,7 @@ pub struct Validator {
 impl Validator {
     /// Create a new validator with the given datastore and config
     pub async fn new(
-        datastore: Arc<Mutex<NetworkDatastore>>,
+        datastore: Arc<Mutex<DatastoreManager>>,
         config: ValidatorConfig,
     ) -> Result<Self> {
         let observer = if let Some(fork_config) = config.fork_config.clone() {
@@ -44,7 +44,7 @@ impl Validator {
     }
     
     /// Create a new validator with default configuration
-    pub async fn new_default(datastore: Arc<Mutex<NetworkDatastore>>) -> Result<Self> {
+    pub async fn new_default(datastore: Arc<Mutex<DatastoreManager>>) -> Result<Self> {
         Self::new(datastore, ValidatorConfig::default()).await
     }
     

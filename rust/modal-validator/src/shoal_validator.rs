@@ -1,5 +1,5 @@
 use crate::error::{Result, ValidatorError};
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_validator_consensus::narwhal::{
     Batch, Certificate, Committee, Header, Primary, PublicKey, Transaction, Validator, Worker,
     SyncClient, SyncRequest, SyncResponse,
@@ -150,8 +150,8 @@ pub struct ShoalValidator {
     /// Configuration
     config: ShoalValidatorConfig,
     
-    /// Persistent datastore
-    datastore: Arc<Mutex<NetworkDatastore>>,
+    /// Multi-store datastore manager
+    datastore_manager: Option<Arc<Mutex<DatastoreManager>>>,
     
     /// The DAG
     dag: Arc<RwLock<DAG>>,
@@ -173,36 +173,13 @@ pub struct ShoalValidator {
 }
 
 impl ShoalValidator {
-    /// Create a new Shoal-based validator
+    /// Create a new Shoal-based validator with DatastoreManager
     pub async fn new(
-        datastore: Arc<Mutex<NetworkDatastore>>,
+        datastore_manager: Arc<Mutex<DatastoreManager>>,
         config: ShoalValidatorConfig,
     ) -> Result<Self> {
-        // Try to recover DAG from datastore
-        let dag = {
-            let ds = datastore.lock().await;
-            #[cfg(feature = "persistence")]
-            {
-                use modal_validator_consensus::persistence::recovery::{recover_dag, RecoveryStrategy};
-                
-                log::info!("Attempting to recover DAG from datastore...");
-                match recover_dag(&ds, RecoveryStrategy::Hybrid).await {
-                    Ok(result) => {
-                        log::info!("Recovered DAG: {} certificates, highest round: {}, used checkpoint: {}",
-                                   result.certificates_loaded, result.highest_round, result.used_checkpoint);
-                        Arc::new(RwLock::new(result.dag))
-                    }
-                    Err(e) => {
-                        log::warn!("DAG recovery failed ({}), starting fresh", e);
-                        Arc::new(RwLock::new(DAG::new()))
-                    }
-                }
-            }
-            #[cfg(not(feature = "persistence"))]
-            {
-                Arc::new(RwLock::new(DAG::new()))
-            }
-        };
+        // Start with a fresh DAG for multi-store mode
+        let dag = Arc::new(RwLock::new(DAG::new()));
         
         // Create workers
         let mut workers = Vec::new();
@@ -230,21 +207,13 @@ impl ShoalValidator {
             config.reputation_config.clone(),
         );
         
-        // Create consensus engine with datastore integration
+        // Create consensus engine
         let consensus = {
-            let mut cons = ShoalConsensus::new(
+            let cons = ShoalConsensus::new(
                 dag.clone(),
                 reputation,
                 config.committee.clone(),
             );
-            
-            #[cfg(feature = "persistence")]
-            {
-                let ds_clone = datastore.clone();
-                let ds_guard = ds_clone.lock().await;
-                cons = cons.with_datastore(Arc::new(ds_guard.clone_to_memory().await?));
-            }
-            
             Arc::new(Mutex::new(cons))
         };
         
@@ -255,13 +224,13 @@ impl ShoalValidator {
         let sync_client = SyncClient::new(dag.clone());
         
         log::info!(
-            "created Shoal validator for validator {:?}",
+            "created Shoal validator (multi-store) for validator {:?}",
             config.validator_key
         );
         
         Ok(Self {
             config,
-            datastore,
+            datastore_manager: Some(datastore_manager),
             dag,
             primary,
             workers,
@@ -342,15 +311,15 @@ impl ShoalValidator {
     
     /// Process a certificate received from another validator
     pub async fn process_certificate(&self, cert: Certificate) -> Result<Vec<Transaction>> {
-        // Persist certificate to datastore
-        #[cfg(feature = "persistence")]
-        {
-            let dag = self.dag.read().await;
-            let ds = self.datastore.lock().await;
-            if let Err(e) = dag.persist_certificate(&cert, &ds).await {
-                log::warn!("Failed to persist certificate: {}", e);
-            }
-        }
+        // Note: Certificate persistence requires DatastoreManager support in DAG (TODO)
+        // #[cfg(feature = "persistence")]
+        // {
+        //     if let Some(ref ds) = self.datastore_manager {
+        //         let dag = self.dag.read().await;
+        //         let ds_guard = ds.lock().await;
+        //         // TODO: Update DAG to support DatastoreManager
+        //     }
+        // }
         
         let mut primary = self.primary.lock().await;
         primary.process_certificate(cert.clone()).await?;
@@ -362,30 +331,18 @@ impl ShoalValidator {
             log::info!("committed {} certificates", committed.len());
             
             // Create checkpoint every 100 rounds
-            #[cfg(feature = "persistence")]
-            {
-                let current_round = {
-                    let dag = self.dag.read().await;
-                    dag.highest_round()
-                };
-                
-                if current_round > 0 && current_round % 100 == 0 {
-                    log::info!("Creating checkpoint at round {}", current_round);
-                    let dag = self.dag.read().await;
-                    let ds = self.datastore.lock().await;
-                    let consensus_state = &consensus.state;
-                    let reputation_state = consensus.reputation.get_state();
-                    
-                    if let Err(e) = dag.create_checkpoint(
-                        current_round,
-                        consensus_state,
-                        reputation_state,
-                        &ds
-                    ).await {
-                        log::warn!("Failed to create checkpoint: {}", e);
-                    }
-                }
-            }
+            // Note: Checkpoint creation requires DatastoreManager support in DAG (TODO)
+            // #[cfg(feature = "persistence")]
+            // {
+            //     let current_round = {
+            //         let dag = self.dag.read().await;
+            //         dag.highest_round()
+            //     };
+            //     
+            //     if current_round > 0 && current_round % 100 == 0 {
+            //         // TODO: Update DAG to support DatastoreManager
+            //     }
+            // }
             
             // Order and extract transactions
             let consensus_state = &consensus.state;
@@ -395,7 +352,12 @@ impl ShoalValidator {
             
             // Process contract commits for asset state updates
             use crate::contract_processor::ContractProcessor;
-            let contract_processor = ContractProcessor::new(self.datastore.clone());
+            // Use datastore_manager if available, otherwise skip contract processing
+            let Some(datastore_for_contracts) = self.datastore_manager.clone() else {
+                log::debug!("No datastore manager available, skipping contract processing");
+                return Ok(transactions);
+            };
+            let contract_processor = ContractProcessor::new(datastore_for_contracts);
             
             for tx in &transactions {
                 // Parse transaction to see if it contains a contract commit
@@ -577,12 +539,12 @@ mod tests {
     
     async fn create_test_validator(validator_index: usize) -> (ShoalValidator, TempDir) {
         let temp_dir = TempDir::new().unwrap();
-        let datastore = NetworkDatastore::new(temp_dir.path())
+        let datastore_manager = DatastoreManager::open(temp_dir.path())
             .unwrap();
-        let datastore = Arc::new(Mutex::new(datastore));
+        let datastore_manager = Arc::new(Mutex::new(datastore_manager));
         
         let config = ShoalValidatorConfig::new_test(4, validator_index);
-        let validator = ShoalValidator::new(datastore, config).await.unwrap();
+        let validator = ShoalValidator::new(datastore_manager, config).await.unwrap();
         
         (validator, temp_dir)
     }

@@ -3,7 +3,7 @@ use anyhow::{bail, Result};
 use std::collections::{BTreeMap, HashMap};
 
 #[cfg(feature = "persistence")]
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 #[cfg(feature = "persistence")]
 use crate::persistence::{ToPersistenceModel, digest_to_hex};
 
@@ -341,11 +341,10 @@ impl DAG {
     pub async fn persist_certificate(
         &self,
         cert: &Certificate,
-        datastore: &NetworkDatastore,
+        datastore: &DatastoreManager,
     ) -> Result<()> {
-        use modal_datastore::Model;
         let model = cert.to_persistence_model()?;
-        model.save(datastore).await?;
+        model.save_to_final(datastore).await?;
         Ok(())
     }
 
@@ -355,23 +354,22 @@ impl DAG {
         batch: &Batch,
         author: &PublicKey,
         cert_digest: Option<&CertificateDigest>,
-        datastore: &NetworkDatastore,
+        datastore: &DatastoreManager,
     ) -> Result<()> {
-        use modal_datastore::Model;
         let mut model = batch.to_persistence_model()?;
         model.author = author.to_base58();
         if let Some(digest) = cert_digest {
             model.referenced_by_cert = Some(digest_to_hex(digest));
         }
-        model.save(datastore).await?;
+        model.save_to_final(datastore).await?;
         Ok(())
     }
 
     #[cfg(feature = "persistence")]
-    pub async fn load_from_datastore(datastore: &NetworkDatastore) -> Result<Self> {
-        use crate::persistence::recovery::{recover_dag, RecoveryStrategy};
+    pub async fn load_from_datastore(datastore: &DatastoreManager) -> Result<Self> {
+        use crate::persistence::recovery::{recover_dag_multi, RecoveryStrategy};
         
-        let result = recover_dag(datastore, RecoveryStrategy::FromScratch).await?;
+        let result = recover_dag_multi(datastore, RecoveryStrategy::FromScratch).await?;
         Ok(result.dag)
     }
 
@@ -381,10 +379,9 @@ impl DAG {
         round: u64,
         consensus_state: &crate::shoal::ConsensusState,
         reputation_state: &crate::shoal::ReputationState,
-        datastore: &NetworkDatastore,
+        datastore: &DatastoreManager,
     ) -> Result<()> {
         use modal_datastore::models::DAGState;
-        use modal_datastore::Model;
         
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -409,17 +406,17 @@ impl DAG {
             size_bytes: dag_bytes.len(),
         };
         
-        checkpoint.save(datastore).await?;
+        checkpoint.save_to_final(datastore).await?;
         log::info!("Created checkpoint at round {} ({} bytes)", round, dag_bytes.len());
         
         Ok(())
     }
 
     #[cfg(feature = "persistence")]
-    pub async fn load_from_checkpoint(datastore: &NetworkDatastore) -> Result<Self> {
-        use crate::persistence::recovery::{recover_dag, RecoveryStrategy};
+    pub async fn load_from_checkpoint(datastore: &DatastoreManager) -> Result<Self> {
+        use crate::persistence::recovery::{recover_dag_multi, RecoveryStrategy};
         
-        let result = recover_dag(datastore, RecoveryStrategy::FromCheckpoint).await?;
+        let result = recover_dag_multi(datastore, RecoveryStrategy::FromCheckpoint).await?;
         Ok(result.dag)
     }
 }

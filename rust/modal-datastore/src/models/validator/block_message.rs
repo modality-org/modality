@@ -1,5 +1,6 @@
-use crate::{NetworkDatastore, Error, Result};
+use crate::{DatastoreManager, Error, Result};
 use crate::model::Model;
+use crate::stores::Store;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use async_trait::async_trait;
@@ -40,26 +41,41 @@ impl Model for ValidatorBlockMessage {
 }
 
 impl ValidatorBlockMessage {
-    pub async fn find_all_in_round_of_type(datastore: &NetworkDatastore, round_id: u64, r#type: &str) -> Result<Vec<Self>> {
+    pub async fn find_all_in_round_of_type_multi(datastore: &DatastoreManager, round_id: u64, r#type: &str) -> Result<Vec<Self>> {
         let prefix = format!("/validator/block_messages/round/{}/type/{}/peer", round_id, r#type);
         let mut messages = Vec::new();
 
-        let iterator = datastore.iterator(&prefix);
-        for result in iterator {
-            let (key, _) = result?;
-            let key_str = String::from_utf8(key.to_vec())?;
-            let peer_id = key_str.split(&format!("{}/", prefix)).nth(1).ok_or_else(|| Error::Database(format!("Invalid key format: {} with prefix {}", key_str, &format!("{}/", prefix))))?;
-            
-            let mut keys = HashMap::new();
-            keys.insert("round_id".to_string(), round_id.to_string());
-            keys.insert("type".to_string(), r#type.to_string());
-            keys.insert("peer_id".to_string(), peer_id.to_string());
+        for store in [datastore.validator_active(), datastore.validator_final()] {
+            let iterator = store.iterator(&prefix);
+            for result in iterator {
+                let (key, _) = result?;
+                let key_str = String::from_utf8(key.to_vec())?;
+                let peer_id = key_str.split(&format!("{}/", prefix)).nth(1).ok_or_else(|| Error::Database(format!("Invalid key format: {} with prefix {}", key_str, &format!("{}/", prefix))))?;
+                
+                let mut keys = HashMap::new();
+                keys.insert("round_id".to_string(), round_id.to_string());
+                keys.insert("type".to_string(), r#type.to_string());
+                keys.insert("peer_id".to_string(), peer_id.to_string());
 
-            if let Some(msg) = Self::find_one(datastore, keys).await.unwrap() {
-                messages.push(msg);
+                if let Some(msg) = Self::find_one_from_store(&*store, keys).await.unwrap() {
+                    messages.push(msg);
+                }
+            }
+            if !messages.is_empty() {
+                break;
             }
         }
 
         Ok(messages)
+    }
+
+    /// Save this message to the ValidatorActive store
+    pub async fn save_to_active(&self, datastore: &DatastoreManager) -> Result<()> {
+        self.save_to_store(&*datastore.validator_active()).await.map_err(|e| Error::Database(e.to_string()))
+    }
+
+    /// Save this message to the ValidatorFinal store
+    pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
+        self.save_to_store(&*datastore.validator_final()).await.map_err(|e| Error::Database(e.to_string()))
     }
 }

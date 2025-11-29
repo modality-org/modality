@@ -3,15 +3,13 @@ use anyhow::anyhow;
 use serde_json;
 use tokio::sync::mpsc;
 
-use modal_datastore::NetworkDatastore;
-use modal_datastore::models::ValidatorBlock;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::validator::block::Ack;
 use modal_validator_consensus::communication::Message as ConsensusMessage;
 
 use crate::reqres::Response;
 
-
-pub async fn handler(data: Option<serde_json::Value>, _datastore: &NetworkDatastore, consensus_tx: mpsc::Sender<ConsensusMessage>) -> Result<Response> {
+pub async fn handler(data: Option<serde_json::Value>, _datastore_manager: &DatastoreManager, consensus_tx: mpsc::Sender<ConsensusMessage>) -> Result<Response> {
     log::info!("REQ /data/block/ack {:?}", data);
     let response = Response {
         ok: true,
@@ -21,7 +19,6 @@ pub async fn handler(data: Option<serde_json::Value>, _datastore: &NetworkDatast
 
     let ack_data = data.ok_or_else(|| anyhow!("Missing ack data"))?;
     
-    // Extract and validate required fields
     let peer_id = ack_data.get("peer_id")
         .ok_or_else(|| anyhow!("Missing peer_id"))?
         .as_str()

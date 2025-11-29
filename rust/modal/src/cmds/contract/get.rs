@@ -3,9 +3,8 @@ use clap::Parser;
 use serde_json::json;
 use std::path::PathBuf;
 
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::{Contract, Commit};
-use modal_datastore::model::Model;
 
 #[derive(Debug, Parser)]
 #[command(about = "Get contract or commit information")]
@@ -35,27 +34,22 @@ pub async fn run(opts: &Opts) -> Result<()> {
         opts.dir.clone().unwrap()
     };
     
+    let data_dir = dir.join("data");
     let storage_path = dir.join("storage");
-    if !storage_path.exists() {
-        anyhow::bail!("Storage directory not found: {}", storage_path.display());
+    let path = if data_dir.exists() { &data_dir } else { &storage_path };
+    if !path.exists() {
+        anyhow::bail!("Data directory not found: {} or {}", data_dir.display(), storage_path.display());
     }
     
-    let datastore = NetworkDatastore::new(&storage_path)?;
+    let datastore_manager = DatastoreManager::open(path)?;
     
     // Get contract
-    let mut keys = std::collections::HashMap::new();
-    keys.insert("contract_id".to_string(), opts.contract_id.clone());
-    
-    let contract = Contract::find_one(&datastore, keys).await?;
+    let contract = Contract::find_by_id_multi(&datastore_manager, &opts.contract_id).await?;
     
     if let Some(contract) = contract {
         if let Some(commit_id) = &opts.commit_id {
             // Get specific commit
-            let mut keys = std::collections::HashMap::new();
-            keys.insert("contract_id".to_string(), opts.contract_id.clone());
-            keys.insert("commit_id".to_string(), commit_id.clone());
-            
-            let commit = Commit::find_one(&datastore, keys).await?;
+            let commit = Commit::find_one_multi(&datastore_manager, &opts.contract_id, commit_id).await?;
             
             if let Some(commit) = commit {
                 if opts.output == "json" {
@@ -79,7 +73,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             }
         } else {
             // List all commits for contract
-            let commits = Commit::find_by_contract(&datastore, &opts.contract_id).await?;
+            let commits = Commit::find_by_contract_multi(&datastore_manager, &opts.contract_id).await?;
             
             if opts.output == "json" {
                 println!("{}", serde_json::to_string_pretty(&json!({

@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use modal_datastore::{NetworkDatastore, models::WasmModule};
+use modal_datastore::{DatastoreManager, models::WasmModule};
 use modal_wasm_runtime::{WasmExecutor, WasmModuleCache};
 use modal_wasm_validation::{PredicateResult, PredicateContext, encode_predicate_input, decode_predicate_result};
 use serde_json::Value;
@@ -10,14 +10,14 @@ use wasmtime::{Engine, Config, Module};
 /// Evaluates WASM predicates to boolean propositions
 /// Handles cross-contract predicate execution and resolution with caching
 pub struct PredicateExecutor {
-    datastore: Arc<Mutex<NetworkDatastore>>,
+    datastore: Arc<Mutex<DatastoreManager>>,
     gas_limit: u64,
     cache: Arc<Mutex<WasmModuleCache>>,
     engine: Engine,
 }
 
 impl PredicateExecutor {
-    pub fn new(datastore: Arc<Mutex<NetworkDatastore>>, gas_limit: u64) -> Self {
+    pub fn new(datastore: Arc<Mutex<DatastoreManager>>, gas_limit: u64) -> Self {
         // Create Wasmtime engine with fuel consumption enabled
         let mut config = Config::new();
         config.consume_fuel(true);
@@ -36,7 +36,7 @@ impl PredicateExecutor {
 
     /// Create executor with custom cache limits
     pub fn with_cache_limits(
-        datastore: Arc<Mutex<NetworkDatastore>>,
+        datastore: Arc<Mutex<DatastoreManager>>,
         gas_limit: u64,
         max_modules: usize,
         max_size_mb: usize,
@@ -107,7 +107,7 @@ impl PredicateExecutor {
     async fn fetch_wasm_module(&self, contract_id: &str, path: &str) -> Result<WasmModule> {
         let ds = self.datastore.lock().await;
         
-        match WasmModule::find_by_contract_and_path(&ds, contract_id, path).await? {
+        match WasmModule::find_by_contract_and_path_multi(&ds, contract_id, path).await? {
             Some(module) => {
                 // Verify hash integrity
                 if !module.verify_hash() {
@@ -207,7 +207,7 @@ mod tests {
     #[test]
     fn test_parse_predicate_reference_local() {
         let executor = PredicateExecutor::new(
-            Arc::new(Mutex::new(NetworkDatastore::create_in_memory().unwrap())),
+            Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap())),
             10_000_000,
         );
 
@@ -222,7 +222,7 @@ mod tests {
     #[test]
     fn test_parse_predicate_reference_cross_contract() {
         let executor = PredicateExecutor::new(
-            Arc::new(Mutex::new(NetworkDatastore::create_in_memory().unwrap())),
+            Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap())),
             10_000_000,
         );
 

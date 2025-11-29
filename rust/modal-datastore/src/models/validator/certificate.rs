@@ -1,12 +1,13 @@
-use crate::{NetworkDatastore, Result};
+use crate::{DatastoreManager, Result};
 use crate::model::Model;
+use crate::stores::Store;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use async_trait::async_trait;
 
 /// A Narwhal certificate stored in the DAG
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Certificate {
+pub struct DAGCertificate {
     // Identity
     pub digest: String,              // Hex-encoded certificate digest
     pub author: String,              // PeerId as string
@@ -29,7 +30,7 @@ pub struct Certificate {
 }
 
 #[async_trait]
-impl Model for Certificate {
+impl Model for DAGCertificate {
     // Primary key: round + digest (allows efficient round queries)
     const ID_PATH: &'static str = "/dag/certificates/round/${round}/digest/${digest}";
     
@@ -79,16 +80,25 @@ impl Model for Certificate {
     }
 }
 
-impl Certificate {
+impl DAGCertificate {
+    /// Find one certificate by keys from the datastore
+    pub async fn find_one_multi(
+        datastore: &DatastoreManager,
+        keys: HashMap<String, String>,
+    ) -> Result<Option<Self>> {
+        Self::find_one_from_store(&*datastore.validator_final(), keys).await.map_err(|e| crate::Error::Database(e.to_string()))
+    }
+
     /// Find all certificates in a specific round
-    pub async fn find_all_in_round(
-        datastore: &NetworkDatastore,
+    pub async fn find_all_in_round_multi(
+        datastore: &DatastoreManager,
         round: u64,
     ) -> Result<Vec<Self>> {
         let prefix = format!("/dag/certificates/round/{}/digest", round);
         let mut certs = Vec::new();
         
-        let iterator = datastore.iterator(&prefix);
+        let store = datastore.validator_final();
+        let iterator = store.iterator(&prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
@@ -100,7 +110,7 @@ impl Certificate {
                     ("digest".to_string(), digest.to_string()),
                 ].into_iter().collect();
                 
-                if let Some(cert) = Self::find_one(datastore, keys).await? {
+                if let Some(cert) = Self::find_one_from_store(&*store, keys).await? {
                     certs.push(cert);
                 }
             }
@@ -110,14 +120,15 @@ impl Certificate {
     }
     
     /// Find all certificates by a specific author
-    pub async fn find_by_author(
-        datastore: &NetworkDatastore,
+    pub async fn find_by_author_multi(
+        datastore: &DatastoreManager,
         author: &str,
     ) -> Result<Vec<Self>> {
         let prefix = "/dag/certificates/round";
         let mut certs = Vec::new();
         
-        let iterator = datastore.iterator(prefix);
+        let store = datastore.validator_final();
+        let iterator = store.iterator(prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
@@ -131,7 +142,7 @@ impl Certificate {
                         ("digest".to_string(), digest.to_string()),
                     ].into_iter().collect();
                     
-                    if let Some(cert) = Self::find_one(datastore, keys).await? {
+                    if let Some(cert) = Self::find_one_from_store(&*store, keys).await? {
                         if cert.author == author {
                             certs.push(cert);
                         }
@@ -144,13 +155,14 @@ impl Certificate {
     }
     
     /// Find all committed certificates
-    pub async fn find_all_committed(
-        datastore: &NetworkDatastore,
+    pub async fn find_all_committed_multi(
+        datastore: &DatastoreManager,
     ) -> Result<Vec<Self>> {
         let prefix = "/dag/certificates/round";
         let mut certs = Vec::new();
         
-        let iterator = datastore.iterator(prefix);
+        let store = datastore.validator_final();
+        let iterator = store.iterator(prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
@@ -164,7 +176,7 @@ impl Certificate {
                         ("digest".to_string(), digest.to_string()),
                     ].into_iter().collect();
                     
-                    if let Some(cert) = Self::find_one(datastore, keys).await? {
+                    if let Some(cert) = Self::find_one_from_store(&*store, keys).await? {
                         if cert.committed {
                             certs.push(cert);
                         }
@@ -177,15 +189,19 @@ impl Certificate {
     }
     
     /// Mark a certificate as committed
-    pub async fn mark_committed(
+    pub async fn mark_committed_multi(
         &mut self,
-        datastore: &NetworkDatastore,
+        datastore: &DatastoreManager,
         committed_at_round: u64,
     ) -> Result<()> {
         self.committed = true;
         self.committed_at_round = Some(committed_at_round);
-        self.save(datastore).await?;
+        self.save_to_final(datastore).await?;
         Ok(())
     }
-}
 
+    /// Save this certificate to the ValidatorFinal store
+    pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
+        self.save_to_store(&*datastore.validator_final()).await.map_err(|e| crate::Error::Database(e.to_string()))
+    }
+}

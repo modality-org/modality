@@ -3,7 +3,8 @@ use serde::{Serialize, Deserialize};
 use async_trait::async_trait;
 use anyhow::{Result, Context, anyhow};
 
-use crate::network_datastore::NetworkDatastore;
+use crate::DatastoreManager;
+use crate::stores::Store;
 
 #[async_trait]
 pub trait Model: Sized + Serialize + for<'de> Deserialize<'de> {
@@ -48,10 +49,11 @@ pub trait Model: Sized + Serialize + for<'de> Deserialize<'de> {
         serde_json::to_value(self).context("Failed to serialize to JSON value")
     }
 
-    async fn save(&self, datastore: &NetworkDatastore) -> Result<()> {
+    /// Save this model to the specified store
+    async fn save_to_store<S: Store + Send + Sync>(&self, store: &S) -> Result<()> {
         let json = self.to_json_string()?;
-        datastore.put(&self.get_id(), json.as_bytes()).await
-            .context("Failed to save model to datastore")
+        store.put(&self.get_id(), json.as_bytes())
+            .context("Failed to save model to store")
     }
 
     fn get_id_for(keys: &HashMap<String, String>) -> String {
@@ -76,17 +78,23 @@ pub trait Model: Sized + Serialize + for<'de> Deserialize<'de> {
         Self::get_id_for(&keys)
     }
 
-    async fn find_one(datastore: &NetworkDatastore, keys: HashMap<String, String>) -> Result<Option<Self>> {
+    /// Find one model from the specified store
+    async fn find_one_from_store<S: Store + Send + Sync>(store: &S, keys: HashMap<String, String>) -> Result<Option<Self>> {
         let key = Self::get_id_for(&keys);
-        match datastore.get_string(&key).await? {
-            Some(value) => Ok(Some(Self::from_json_string(&value)?)),
+        match store.get(&key)? {
+            Some(value) => {
+                let value_str = String::from_utf8(value.to_vec())
+                    .context("Failed to convert value to string")?;
+                Ok(Some(Self::from_json_string(&value_str)?))
+            },
             None => Ok(None),
         }
     }
 
-    async fn reload(&mut self, datastore: &NetworkDatastore) -> Result<()> {
+    /// Reload this model from the specified store
+    async fn reload_from_store<S: Store + Send + Sync>(&mut self, store: &S) -> Result<()> {
         let keys = self.get_id_keys();
-        if let Some(obj) = Self::find_one(datastore, keys).await? {
+        if let Some(obj) = Self::find_one_from_store(store, keys).await? {
             *self = obj;
             Ok(())
         } else {
@@ -94,23 +102,9 @@ pub trait Model: Sized + Serialize + for<'de> Deserialize<'de> {
         }
     }
 
-    async fn delete(&self, datastore: &NetworkDatastore) -> Result<()> {
-        datastore.delete(&self.get_id()).await
-            .context("Failed to delete model from datastore")
+    /// Delete this model from the specified store
+    async fn delete_from_store<S: Store + Send + Sync>(&self, store: &S) -> Result<()> {
+        store.delete(&self.get_id())
+            .context("Failed to delete model from store")
     }
 }
-
-// #[async_trait]
-// pub trait ModelExt: Model {
-//     fn create_from_json(obj: Value) -> Result<Self> {
-//         <Self as Model>::create_from_json(obj)
-//     }
-
-//     async fn save(&self, datastore: &NetworkDatastore) -> Result<()> {
-//         <Self as Model>::save(self, datastore).await
-//     }
-//     // Add other methods from Model that you want to expose here
-// }
-
-// // This blanket implementation makes ModelExt available for all types that implement Model
-// impl<T: Model> ModelExt for T {}

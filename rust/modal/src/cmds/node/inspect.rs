@@ -2,7 +2,7 @@ use anyhow::{Result, Context};
 use clap::Parser;
 use std::path::PathBuf;
 use modal_node::config_resolution::load_config_with_node_dir;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::miner::MinerBlock;
 
 #[derive(Debug, Parser)]
@@ -58,15 +58,16 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let key = opts.datastore_key.as_ref()
             .context("datastore-get requires a KEY argument")?;
         
-        // Open datastore in read-only mode
-        let storage_path = config.storage_path.as_ref()
-            .context("No storage_path in config")?;
+        // Open datastore
+        let data_dir = config.data_dir.as_ref()
+            .or(config.storage_path.as_ref())
+            .context("No data_dir or storage_path in config")?;
         
-        let datastore = NetworkDatastore::create_in_directory_readonly(&storage_path)
-            .context("Failed to open datastore in read-only mode")?;
+        let datastore_manager = DatastoreManager::open(&data_dir)
+            .context("Failed to open datastore")?;
         
         // Query the key from datastore
-        match datastore.get_data_by_key(key).await {
+        match datastore_manager.get_data_by_key(key).await {
             Ok(Some(value)) => {
                 // Output the raw value (as string)
                 let value_str = String::from_utf8_lossy(&value);
@@ -100,24 +101,25 @@ pub async fn run(opts: &Opts) -> Result<()> {
     inspect_identity(&config)?;
     println!();
     
-    // Open datastore in read-only mode
-    let storage_path = config.storage_path.as_ref()
-        .context("No storage_path in config")?;
+    // Open datastore
+    let data_dir = config.data_dir.as_ref()
+        .or(config.storage_path.as_ref())
+        .context("No data_dir or storage_path in config")?;
     
-    let datastore = NetworkDatastore::create_in_directory_readonly(&storage_path)
-        .context("Failed to open datastore in read-only mode")?;
+    let datastore_manager = DatastoreManager::open(&data_dir)
+        .context("Failed to open datastore")?;
     
     match command {
         "general" | "blocks" => {
-            inspect_blocks(&datastore).await?;
+            inspect_blocks(&datastore_manager).await?;
         }
         "mining" => {
-            inspect_mining(&datastore, &config).await?;
+            inspect_mining(&datastore_manager, &config).await?;
         }
         "block" => {
             let index = opts.block_index
                 .context("block command requires an INDEX argument")?;
-            inspect_block_by_index(&datastore, index).await?;
+            inspect_block_by_index(&datastore_manager, index).await?;
         }
         _ => {
             println!("Unknown inspection command: {}", command);
@@ -188,10 +190,10 @@ fn inspect_identity(config: &modal_node::config::Config) -> Result<()> {
     Ok(())
 }
 
-async fn inspect_blocks(datastore: &NetworkDatastore) -> Result<()> {
+async fn inspect_blocks(datastore_manager: &DatastoreManager) -> Result<()> {
     // Get all canonical blocks
-    let canonical_blocks = MinerBlock::find_all_canonical(datastore).await?;
-    let orphaned_blocks = MinerBlock::find_all_orphaned(datastore).await?;
+    let canonical_blocks = MinerBlock::find_all_canonical_multi(datastore_manager).await?;
+    let orphaned_blocks = MinerBlock::find_all_orphaned_multi(datastore_manager).await?;
     
     println!("📊 Block Statistics");
     println!("==================");
@@ -231,7 +233,7 @@ async fn inspect_blocks(datastore: &NetworkDatastore) -> Result<()> {
     Ok(())
 }
 
-async fn inspect_mining(datastore: &NetworkDatastore, config: &modal_node::config::Config) -> Result<()> {
+async fn inspect_mining(datastore_manager: &DatastoreManager, config: &modal_node::config::Config) -> Result<()> {
     println!("⛏️  Mining Status");
     println!("================");
     println!();
@@ -252,7 +254,7 @@ async fn inspect_mining(datastore: &NetworkDatastore, config: &modal_node::confi
     println!();
     
     // Get mining stats from blocks
-    let canonical_blocks = MinerBlock::find_all_canonical(datastore).await?;
+    let canonical_blocks = MinerBlock::find_all_canonical_multi(datastore_manager).await?;
     
     if !canonical_blocks.is_empty() {
         println!("Blocks Mined: {}", canonical_blocks.len());
@@ -281,11 +283,11 @@ async fn inspect_mining(datastore: &NetworkDatastore, config: &modal_node::confi
 }
 
 async fn inspect_block_by_index(
-    datastore: &NetworkDatastore, 
+    datastore_manager: &DatastoreManager, 
     index: u64
 ) -> Result<()> {
     // Find all blocks at this index (canonical + orphans)
-    let blocks = MinerBlock::find_by_index(datastore, index).await?;
+    let blocks = MinerBlock::find_by_index_multi(datastore_manager, index).await?;
     
     if blocks.is_empty() {
         println!("No block found at index {}", index);

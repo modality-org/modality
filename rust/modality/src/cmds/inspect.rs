@@ -3,7 +3,7 @@ use clap::Parser;
 use std::path::PathBuf;
 use modal_node::config::Config;
 use modal_node::inspection::{InspectionData, InspectionLevel, NodeStatus};
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 
 #[derive(Debug, Parser)]
 #[command(about = "Inspect a Modality node's state")]
@@ -117,13 +117,17 @@ async fn query_datastore_directly(
     config: &Config,
     level: InspectionLevel,
 ) -> Result<InspectionData> {
-    let storage_path = config.storage_path.as_ref()
-        .ok_or_else(|| anyhow::anyhow!("No storage_path configured in node config"))?;
+    // Use data_dir if available, otherwise fall back to storage_path
+    let data_dir = config.data_dir.as_ref()
+        .or(config.storage_path.as_ref())
+        .ok_or_else(|| anyhow::anyhow!("No data_dir or storage_path configured in node config"))?;
 
-    let mut datastore = NetworkDatastore::create_in_directory(storage_path)
+    let datastore_manager = DatastoreManager::open(data_dir)
         .context("Failed to open datastore")?;
+    let mgr_guard = tokio::sync::Mutex::new(datastore_manager);
+    let mgr = mgr_guard.lock().await;
 
-    let inspection_data = modal_node::reqres::inspect::get_datastore_inspection(&mut datastore, level).await?;
+    let inspection_data = modal_node::reqres::inspect::get_datastore_inspection(&mgr, level).await?;
 
     // Get peer ID from config if available
     let peer_id = if let Ok(keypair) = config.get_libp2p_keypair().await {

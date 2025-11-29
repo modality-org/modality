@@ -9,11 +9,7 @@ cd "$(dirname "$0")"
 source ../test-lib.sh
 
 # Build modal CLI if needed
-if ! command -v modal &> /dev/null; then
-    echo "Building modal CLI..."
-    (cd ../../../rust && cargo build --package modal)
-    export PATH="../../../rust/target/debug:$PATH"
-fi
+command -v modal &> /dev/null || rebuild
 
 # Clean up any previous test state
 rm -rf ./tmp

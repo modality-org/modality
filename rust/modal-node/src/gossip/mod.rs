@@ -1,8 +1,10 @@
 use anyhow::Result;
 use libp2p::gossipsub::{self, Message};
 use tokio::sync::mpsc;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_validator_consensus::communication::Message as ConsensusMessage;
 
 use crate::node::Node;
@@ -38,7 +40,7 @@ pub async fn add_miner_event_listeners(node: &mut Node) -> Result<()> {
 
 pub async fn handle_event(
     message: Message, 
-    datastore: std::sync::Arc<tokio::sync::Mutex<NetworkDatastore>>,
+    datastore_manager: Arc<Mutex<DatastoreManager>>,
     consensus_tx: mpsc::Sender<ConsensusMessage>,
     sync_request_tx: Option<mpsc::UnboundedSender<(libp2p::PeerId, String)>>,
     mining_update_tx: Option<mpsc::UnboundedSender<u64>>,
@@ -51,13 +53,13 @@ pub async fn handle_event(
   let source_peer = message.source;
   
   if &topic == consensus::block::draft::TOPIC {
-    let mut ds = datastore.lock().await;
-    consensus::block::draft::handler(data, &mut ds, consensus_tx).await?;
+    let mut mgr = datastore_manager.lock().await;
+    consensus::block::draft::handler(data, &mut mgr, consensus_tx).await?;
   } else if &topic == consensus::block::cert::TOPIC {
-    let mut ds = datastore.lock().await;
-    consensus::block::cert::handler(data, &mut ds, consensus_tx).await?;
+    let mut mgr = datastore_manager.lock().await;
+    consensus::block::cert::handler(data, &mut mgr, consensus_tx).await?;
   } else if &topic == miner::block::TOPIC {
-    miner::block::handler(data, source_peer, datastore, sync_request_tx, mining_update_tx, bootstrappers, minimum_block_timestamp).await?;
+    miner::block::handler(data, source_peer, datastore_manager, sync_request_tx, mining_update_tx, bootstrappers, minimum_block_timestamp).await?;
   } else {
     log::warn!("Unknown gossip topic: {}", topic);
   }

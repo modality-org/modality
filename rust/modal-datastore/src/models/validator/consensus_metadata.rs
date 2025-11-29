@@ -1,5 +1,6 @@
-use crate::{NetworkDatastore, Result};
+use crate::{DatastoreManager, Result};
 use crate::model::Model;
+use crate::stores::Store;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use async_trait::async_trait;
@@ -84,9 +85,10 @@ impl Model for ConsensusMetadata {
 
 impl ConsensusMetadata {
     /// Get or create the current metadata
-    pub async fn get_current(datastore: &NetworkDatastore) -> Result<Self> {
+    pub async fn get_current_multi(datastore: &DatastoreManager) -> Result<Self> {
         let keys = HashMap::from([("id".to_string(), "current".to_string())]);
-        match Self::find_one(datastore, keys).await {
+        let store = datastore.validator_final();
+        match Self::find_one_from_store(&*store, keys).await {
             Ok(Some(metadata)) => Ok(metadata),
             _ => {
                 // Create default
@@ -111,10 +113,14 @@ impl ConsensusMetadata {
                     last_updated: now,
                     last_checkpoint_at: 0,
                 };
-                metadata.save(datastore).await?;
+                metadata.save_to_final(datastore).await?;
                 Ok(metadata)
             }
         }
     }
-}
 
+    /// Save this metadata to the ValidatorFinal store
+    pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
+        self.save_to_store(&*datastore.validator_final()).await.map_err(|e| crate::Error::Database(e.to_string()))
+    }
+}

@@ -1,5 +1,6 @@
-use crate::{NetworkDatastore, Result};
+use crate::{DatastoreManager, Result};
 use crate::model::Model;
+use crate::stores::Store;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use async_trait::async_trait;
@@ -69,12 +70,21 @@ impl Model for DAGState {
 }
 
 impl DAGState {
+    /// Find one DAGState by keys from the datastore
+    pub async fn find_one_multi(
+        datastore: &DatastoreManager,
+        keys: HashMap<String, String>,
+    ) -> Result<Option<Self>> {
+        Self::find_one_from_store(&*datastore.validator_final(), keys).await.map_err(|e| crate::Error::Database(e.to_string()))
+    }
+
     /// Get the latest checkpoint
-    pub async fn get_latest(datastore: &NetworkDatastore) -> Result<Option<Self>> {
+    pub async fn get_latest_multi(datastore: &DatastoreManager) -> Result<Option<Self>> {
         let prefix = "/dag/checkpoints/round";
         let mut checkpoints = Vec::new();
         
-        let iterator = datastore.iterator(prefix);
+        let store = datastore.validator_final();
+        let iterator = store.iterator(prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
@@ -84,7 +94,7 @@ impl DAGState {
             if let Some(round_str) = parts.get(4) {
                 let keys = [("checkpoint_round".to_string(), round_str.to_string())].into_iter().collect();
                 
-                if let Some(checkpoint) = Self::find_one(datastore, keys).await? {
+                if let Some(checkpoint) = Self::find_one_from_store(&*store, keys).await? {
                     checkpoints.push(checkpoint);
                 }
             }
@@ -94,11 +104,12 @@ impl DAGState {
     }
     
     /// Prune old checkpoints, keeping only the last N
-    pub async fn prune_old(datastore: &NetworkDatastore, keep_count: usize) -> Result<()> {
+    pub async fn prune_old_multi(datastore: &DatastoreManager, keep_count: usize) -> Result<()> {
         let prefix = "/dag/checkpoints/round";
         let mut checkpoints = Vec::new();
         
-        let iterator = datastore.iterator(prefix);
+        let store = datastore.validator_final();
+        let iterator = store.iterator(prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
@@ -108,7 +119,7 @@ impl DAGState {
             if let Some(round_str) = parts.get(4) {
                 let keys = [("checkpoint_round".to_string(), round_str.to_string())].into_iter().collect();
                 
-                if let Some(checkpoint) = Self::find_one(datastore, keys).await? {
+                if let Some(checkpoint) = Self::find_one_from_store(&*store, keys).await? {
                     checkpoints.push(checkpoint);
                 }
             }
@@ -119,10 +130,14 @@ impl DAGState {
         if checkpoints.len() > keep_count {
             let to_delete = checkpoints.len() - keep_count;
             for checkpoint in checkpoints.iter().take(to_delete) {
-                datastore.delete(&checkpoint.get_id()).await?;
+                store.delete(&checkpoint.get_id())?;
             }
         }
         Ok(())
     }
-}
 
+    /// Save this state to the ValidatorFinal store
+    pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
+        self.save_to_store(&*datastore.validator_final()).await.map_err(|e| crate::Error::Database(e.to_string()))
+    }
+}

@@ -16,11 +16,7 @@ sleep 1
 test_init "miner-gossip-race"
 
 # Build modal CLI if needed
-if ! command -v modal &> /dev/null; then
-    echo "Building modal CLI..."
-    (cd ../../../rust && cargo build --package modal)
-    export PATH="../../../rust/target/debug:$PATH"
-fi
+command -v modal &> /dev/null || rebuild
 
 # Test 1: Clean up previous runs
 echo ""

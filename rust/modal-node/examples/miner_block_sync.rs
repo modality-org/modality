@@ -13,10 +13,12 @@ use futures::StreamExt;
 use libp2p::{Multiaddr, Swarm};
 use libp2p::swarm::SwarmEvent;
 use modal_datastore::models::MinerBlock;
-use modal_datastore::Model;
+use modal_datastore::DatastoreManager;
 use modal_node::config::Config;
 use modal_node::reqres::{Request, Response};
 use modal_node::swarm;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -31,11 +33,11 @@ async fn main() -> Result<()> {
     
     let temp_dir1 = tempfile::tempdir()?;
     let storage_path1 = temp_dir1.path().join("node1_data");
-    let mut datastore1 = modal_datastore::NetworkDatastore::create_in_directory(&storage_path1)?;
+    let datastore1 = Arc::new(Mutex::new(DatastoreManager::create_in_directory(&storage_path1)?));
     
     let temp_dir2 = tempfile::tempdir()?;
     let storage_path2 = temp_dir2.path().join("node2_data");
-    let mut datastore2 = modal_datastore::NetworkDatastore::create_in_directory(&storage_path2)?;
+    let datastore2 = Arc::new(Mutex::new(DatastoreManager::create_in_directory(&storage_path2)?));
     
     println!("  ✓ Datastores created\n");
     
@@ -56,7 +58,9 @@ async fn main() -> Result<()> {
             1000 + i,
         );
         
-        block.save(&datastore1).await?;
+        let ds = datastore1.lock().await;
+        block.save_to_active(&*ds).await?;
+        drop(ds);
         
         if i == 0 {
             println!("  ✓ Genesis block: hash={}", block.hash);
@@ -136,8 +140,8 @@ async fn main() -> Result<()> {
     let response = handle_sync(
         &mut node1_swarm,
         &mut node2_swarm,
-        &mut datastore1,
-        &mut datastore2,
+        &datastore1,
+        &datastore2,
         request_id,
     ).await?;
     
@@ -182,8 +186,8 @@ async fn main() -> Result<()> {
     let response = handle_sync(
         &mut node1_swarm,
         &mut node2_swarm,
-        &mut datastore1,
-        &mut datastore2,
+        &datastore1,
+        &datastore2,
         request_id,
     ).await?;
     
@@ -210,8 +214,8 @@ async fn main() -> Result<()> {
     let response = handle_sync(
         &mut node1_swarm,
         &mut node2_swarm,
-        &mut datastore1,
-        &mut datastore2,
+        &datastore1,
+        &datastore2,
         request_id,
     ).await?;
     
@@ -302,8 +306,8 @@ async fn wait_for_connection_both(
 async fn handle_sync(
     node1_swarm: &mut Swarm<swarm::NodeBehaviour>,
     node2_swarm: &mut Swarm<swarm::NodeBehaviour>,
-    datastore1: &mut modal_datastore::NetworkDatastore,
-    datastore2: &mut modal_datastore::NetworkDatastore,
+    datastore1: &Arc<Mutex<DatastoreManager>>,
+    _datastore2: &Arc<Mutex<DatastoreManager>>,
     request_id: libp2p::request_response::OutboundRequestId,
 ) -> Result<Response> {
     use libp2p::request_response;
@@ -328,7 +332,7 @@ async fn handle_sync(
                     }
                 )) = event1 {
                     // Handle request on Node 1
-                    let response = modal_node::reqres::handle_request(request, datastore1, tx.clone()).await?;
+                    let response = modal_node::reqres::handle_request(request, datastore1.clone(), tx.clone()).await?;
                     node1_swarm.behaviour_mut().reqres.send_response(channel, response).ok();
                 }
             }

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use modal_datastore::models::MinerBlock;
+use modal_datastore::{DatastoreManager, models::MinerBlock};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -26,7 +26,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     
     // Start sync request handler task
     // This handles chain comparison requests triggered by orphan detection
-    let sync_node_datastore = node.datastore.clone();
+    let sync_node_datastore = node.datastore_manager.clone();
     let sync_node_swarm = node.swarm.clone();
     let sync_node_ignored_peers = node.ignored_peers.clone();
     let sync_node_reqres_txs = node.reqres_response_txs.clone();
@@ -116,8 +116,8 @@ pub async fn run(node: &mut Node) -> Result<()> {
     
     // Get the starting chain tip
     let starting_index = {
-        let ds = node.datastore.lock().await;
-        match MinerBlock::find_all_canonical(&ds).await {
+        let ds = node.datastore_manager.lock().await;
+        match MinerBlock::find_all_canonical_multi(&ds).await {
             Ok(blocks) if !blocks.is_empty() => {
                 let max_index = blocks.iter().map(|b| b.index).max().unwrap_or(0);
                 log::info!("Starting chain observer at index {}", max_index);
@@ -131,7 +131,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     };
     
     // Spawn a task to monitor chain updates
-    let datastore = node.datastore.clone();
+    let datastore = node.datastore_manager.clone();
     let mut current_tip = starting_index;
     
     tokio::spawn(async move {
@@ -154,7 +154,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
             
             let latest_tip_index = {
                 let ds = datastore.lock().await;
-                match MinerBlock::find_all_canonical(&ds).await {
+                match MinerBlock::find_all_canonical_multi(&ds).await {
                     Ok(blocks) if !blocks.is_empty() => {
                         blocks.iter().map(|b| b.index).max().unwrap_or(0)
                     }
@@ -181,8 +181,8 @@ pub async fn run(node: &mut Node) -> Result<()> {
 async fn sync_from_peers(node: &Node) -> Result<()> {
     // Get our current chain state
     let (local_chain_length, local_cumulative_difficulty) = {
-        let ds = node.datastore.lock().await;
-        let canonical_blocks = MinerBlock::find_all_canonical(&ds).await?;
+        let ds = node.datastore_manager.lock().await;
+        let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
         let length = canonical_blocks.len();
         let difficulty = if !canonical_blocks.is_empty() {
             MinerBlock::calculate_cumulative_difficulty(&canonical_blocks)?
@@ -219,7 +219,7 @@ async fn sync_from_peers(node: &Node) -> Result<()> {
                 peer_id,
                 addr_str,
                 node.swarm.clone(),
-                node.datastore.clone(),
+                node.datastore_manager.clone(),
                 node.ignored_peers.clone(),
                 node.reqres_response_txs.clone(),
             ).await {
@@ -244,7 +244,7 @@ async fn sync_from_peers(node: &Node) -> Result<()> {
 /// Handle a sync request from a specific peer
 async fn handle_sync_from_peer(
     peer_addr: String,
-    datastore: Arc<Mutex<modal_datastore::NetworkDatastore>>,
+    datastore: Arc<Mutex<DatastoreManager>>,
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     ignored_peers: Arc<Mutex<std::collections::HashMap<libp2p::PeerId, crate::node::IgnoredPeerInfo>>>,
     reqres_txs: Arc<Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<crate::reqres::Response>>>>,
@@ -274,7 +274,7 @@ async fn handle_sync_from_peer(
         Ok(()) => {
             // Get the new chain tip
             let ds = datastore.lock().await;
-            let canonical_blocks = MinerBlock::find_all_canonical(&ds).await?;
+            let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
             let new_tip = canonical_blocks.iter().map(|b| b.index).max();
             Ok(new_tip)
         }

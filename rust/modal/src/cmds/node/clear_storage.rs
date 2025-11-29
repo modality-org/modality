@@ -65,7 +65,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     
     // Create node and get datastore
     let node = Node::from_config(config).await?;
-    let datastore = node.datastore.lock().await;
+    let datastore = node.datastore_manager.lock().await;
     
     // Clear all keys
     let count = datastore.clear_all().await?;

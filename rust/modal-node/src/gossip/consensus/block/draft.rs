@@ -1,18 +1,16 @@
 use anyhow::Result;
 use anyhow::anyhow;
-use modal_datastore::Model;
 use serde_json;
 use tokio::sync::mpsc;
 
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
+use modal_datastore::Model;
 use modal_datastore::models::ValidatorBlock;
 use modal_validator_consensus::communication::Message as ConsensusMessage;
 
 pub const TOPIC: &str = "/consensus/block/draft";
 
-pub async fn handler(data: String, _datastore: &NetworkDatastore, consensus_tx: mpsc::Sender<ConsensusMessage>) -> Result<()> {
-  // log::info!("current_round: {:?}", datastore.get_current_round().await);
-
+pub async fn handler(data: String, _datastore_manager: &mut DatastoreManager, consensus_tx: mpsc::Sender<ConsensusMessage>) -> Result<()> {
   let block_data = serde_json::from_str::<serde_json::Value>(&data).unwrap_or(serde_json::Value::Null);
   let block = ValidatorBlock::from_json_string(&data.clone())?;
   let from = block_data.get("peer_id")

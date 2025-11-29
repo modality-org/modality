@@ -1,4 +1,5 @@
-use crate::NetworkDatastore;
+use crate::DatastoreManager;
+use crate::stores::Store;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
@@ -79,19 +80,22 @@ impl ValidatorSet {
     }
 
     /// Save this validator set to the datastore
-    pub async fn save(&self, datastore: &NetworkDatastore) -> Result<()> {
+    pub async fn save_multi(&self, datastore: &DatastoreManager) -> Result<()> {
         let key = self.get_key();
         let value = serde_json::to_string(self)?;
-        datastore.put(&key, value.as_bytes()).await?;
+        datastore.validator_final().put(&key, value.as_bytes())?;
         Ok(())
     }
 
     /// Find a validator set by epoch
-    pub async fn find_by_epoch(datastore: &NetworkDatastore, epoch: u64) -> Result<Option<Self>> {
+    pub async fn find_by_epoch_multi(datastore: &DatastoreManager, epoch: u64) -> Result<Option<Self>> {
         let key = format!("validator_set:{}", epoch);
-        match datastore.get_string(&key).await? {
+        let store = datastore.validator_final();
+        match store.get(&key) {
             Some(value) => {
-                let set: ValidatorSet = serde_json::from_str(&value)
+                let value_str = String::from_utf8(value.to_vec())
+                    .context("Failed to convert value to string")?;
+                let set: ValidatorSet = serde_json::from_str(&value_str)
                     .context("Failed to deserialize validator set")?;
                 Ok(Some(set))
             }
@@ -100,8 +104,8 @@ impl ValidatorSet {
     }
 
     /// Find the validator set for a given mining epoch
-    pub async fn find_for_mining_epoch(
-        datastore: &NetworkDatastore,
+    pub async fn find_for_mining_epoch_multi(
+        datastore: &DatastoreManager,
         mining_epoch: u64,
     ) -> Result<Option<Self>> {
         // Validator sets are created from the previous mining epoch
@@ -110,11 +114,11 @@ impl ValidatorSet {
             return Ok(None);
         }
         
-        Self::find_by_epoch(datastore, mining_epoch - 1).await
+        Self::find_by_epoch_multi(datastore, mining_epoch - 1).await
     }
 
     /// Get the latest validator set
-    pub async fn find_latest(datastore: &NetworkDatastore) -> Result<Option<Self>> {
+    pub async fn find_latest_multi(datastore: &DatastoreManager) -> Result<Option<Self>> {
         // Scan through all validator sets to find the latest
         // In production, we'd want to maintain an index or metadata for this
         let mut latest: Option<ValidatorSet> = None;
@@ -122,7 +126,7 @@ impl ValidatorSet {
         // For now, we'll try to find sets by scanning recent epochs
         // This is not efficient but works for demonstration
         for epoch in (0..1000).rev() {
-            if let Some(set) = Self::find_by_epoch(datastore, epoch).await? {
+            if let Some(set) = Self::find_by_epoch_multi(datastore, epoch).await? {
                 latest = Some(set);
                 break;
             }
@@ -132,9 +136,9 @@ impl ValidatorSet {
     }
 
     /// Delete a validator set
-    pub async fn delete(&self, datastore: &NetworkDatastore) -> Result<()> {
+    pub async fn delete_multi(&self, datastore: &DatastoreManager) -> Result<()> {
         let key = self.get_key();
-        datastore.delete(&key).await?;
+        datastore.validator_final().delete(&key)?;
         Ok(())
     }
 }
@@ -199,4 +203,3 @@ mod tests {
         assert!(!set.is_alternate_validator("peer2"));
     }
 }
-

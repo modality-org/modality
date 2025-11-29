@@ -3,7 +3,8 @@ use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use async_trait::async_trait;
 
-use crate::NetworkDatastore;
+use crate::DatastoreManager;
+use crate::stores::Store;
 use crate::model::Model;
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -38,13 +39,14 @@ impl Model for Transaction {
 }
 
 impl Transaction {
-    pub async fn find_all(
-        datastore: &NetworkDatastore
+    pub async fn find_all_multi(
+        datastore: &DatastoreManager
     ) -> Result<Vec<Self>> {
-        let prefix = format!("/transactions");
+        let prefix = "/transactions";
         let mut transactions = Vec::new();
 
-        let iterator = datastore.iterator(&prefix);
+        let store = datastore.validator_final();
+        let iterator = store.iterator(&prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
@@ -68,11 +70,16 @@ impl Transaction {
             keys.insert("contract_id".to_string(), contract_id.to_string());
             keys.insert("commit_id".to_string(), commit_id.to_string());
 
-            if let Some(block) = Self::find_one(datastore, keys).await? {
+            if let Some(block) = Self::find_one_from_store(&*store, keys).await? {
                 transactions.push(block);
             }
         }
 
         Ok(transactions)
+    }
+
+    /// Save this transaction to the ValidatorFinal store
+    pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
+        self.save_to_store(&*datastore.validator_final()).await
     }
 }

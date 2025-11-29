@@ -1,12 +1,11 @@
 use anyhow::Result;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::MinerBlock;
 use crate::reqres::Response;
 
 /// Handler for POST /data/miner_block/debug_index
 /// Returns ALL blocks at a specific index (canonical, orphaned, and pending)
-/// Useful for debugging chain integrity issues
-pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatastore) -> Result<Response> {
+pub async fn handler(data: Option<serde_json::Value>, datastore_manager: &DatastoreManager) -> Result<Response> {
     let data = data.unwrap_or_default();
     
     let index = match data.get("index").and_then(|v| v.as_u64()) {
@@ -20,14 +19,14 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
         }
     };
     
-    // Get all blocks at this index
-    let all_at_index = MinerBlock::find_by_index(datastore, index).await?;
+    // Get all blocks at this index from multi-store
+    let all_at_index = MinerBlock::find_by_index_multi(datastore_manager, index).await?;
     
-    // Also get the canonical block specifically
-    let canonical = MinerBlock::find_canonical_by_index(datastore, index).await?;
+    // Get canonical block specifically
+    let canonical = MinerBlock::find_canonical_by_index_simple(datastore_manager, index).await?;
     
     // If we have a next block, get its prev_hash to verify chain linkage
-    let next_blocks = MinerBlock::find_by_index(datastore, index + 1).await?;
+    let next_blocks = MinerBlock::find_by_index_multi(datastore_manager, index + 1).await?;
     let canonical_next = next_blocks.iter().find(|b| b.is_canonical);
     
     // Build diagnostic info
@@ -56,7 +55,6 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
         result["next_block_index"] = serde_json::json!(next_canonical.index);
         result["next_block_prev_hash"] = serde_json::json!(next_canonical.previous_hash);
         
-        // Check if there's a matching block at current index
         let matching_block = all_at_index.iter().find(|b| b.hash == next_canonical.previous_hash);
         if let Some(matching) = matching_block {
             result["matching_block_for_next"] = serde_json::json!({
@@ -80,4 +78,3 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
         errors: None,
     })
 }
-

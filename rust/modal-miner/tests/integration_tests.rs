@@ -4,7 +4,7 @@ use modal_miner::{
 };
 
 #[cfg(feature = "persistence")]
-use modal_datastore::{Model, NetworkDatastore};
+use modal_datastore::DatastoreManager;
 #[cfg(feature = "persistence")]
 use modal_datastore::models::MinerBlock;
 
@@ -383,12 +383,12 @@ async fn test_sequential_mining_after_sync() {
     // Setup two separate datastores for two nodes
     let temp_dir1 = tempfile::tempdir().unwrap();
     let storage_path1 = temp_dir1.path().join("node1_data");
-    let datastore1 = NetworkDatastore::create_in_directory(&storage_path1).unwrap();
+    let datastore1 = DatastoreManager::create_in_directory(&storage_path1).unwrap();
     let datastore1 = std::sync::Arc::new(tokio::sync::Mutex::new(datastore1));
     
     let temp_dir2 = tempfile::tempdir().unwrap();
     let storage_path2 = temp_dir2.path().join("node2_data");
-    let datastore2 = NetworkDatastore::create_in_directory(&storage_path2).unwrap();
+    let datastore2 = DatastoreManager::create_in_directory(&storage_path2).unwrap();
     let datastore2 = std::sync::Arc::new(tokio::sync::Mutex::new(datastore2));
     
     let peer_id1 = "node1_peer_id".to_string();
@@ -415,7 +415,7 @@ async fn test_sequential_mining_after_sync() {
     // Verify block 1 is in node1's datastore
     {
         let ds = datastore1.lock().await;
-        let blocks = MinerBlock::find_all_canonical(&ds).await.unwrap();
+        let blocks = MinerBlock::find_all_canonical_multi(&ds).await.unwrap();
         assert_eq!(blocks.len(), 2); // Genesis + block 1
         println!("✅ Node 1 has {} blocks in datastore", blocks.len());
     }
@@ -426,13 +426,13 @@ async fn test_sequential_mining_after_sync() {
     // Simulate sync by copying block from node1's datastore to node2's datastore
     {
         let ds1 = datastore1.lock().await;
-        let mut ds2 = datastore2.lock().await;
+        let ds2 = datastore2.lock().await;
         
-        let blocks_from_node1 = MinerBlock::find_all_canonical(&ds1).await.unwrap();
+        let blocks_from_node1 = MinerBlock::find_all_canonical_multi(&ds1).await.unwrap();
         
         for block in blocks_from_node1 {
-            let mut synced_block = block.clone();
-            synced_block.save(&mut *ds2).await.unwrap();
+            let synced_block = block.clone();
+            synced_block.save_to_active(&*ds2).await.unwrap();
             println!("  📥 Synced block {} from Node 1", synced_block.index);
         }
     }
@@ -465,7 +465,7 @@ async fn test_sequential_mining_after_sync() {
     // Verify block 2 is in node2's datastore
     {
         let ds = datastore2.lock().await;
-        let blocks = MinerBlock::find_all_canonical(&ds).await.unwrap();
+        let blocks = MinerBlock::find_all_canonical_multi(&ds).await.unwrap();
         assert_eq!(blocks.len(), 3); // Genesis + block 1 + block 2
         println!("✅ Node 2 has {} blocks in datastore", blocks.len());
     }
@@ -476,15 +476,15 @@ async fn test_sequential_mining_after_sync() {
     // Simulate sync by copying block 2 from node2's datastore to node1's datastore
     {
         let ds2 = datastore2.lock().await;
-        let mut ds1 = datastore1.lock().await;
+        let ds1 = datastore1.lock().await;
         
-        let blocks_from_node2 = MinerBlock::find_all_canonical(&ds2).await.unwrap();
+        let blocks_from_node2 = MinerBlock::find_all_canonical_multi(&ds2).await.unwrap();
         let block2_data = blocks_from_node2.iter()
             .find(|b| b.index == 2)
             .expect("Block 2 should exist on node2");
         
-        let mut synced_block = block2_data.clone();
-        synced_block.save(&mut *ds1).await.unwrap();
+        let synced_block = block2_data.clone();
+        synced_block.save_to_active(&*ds1).await.unwrap();
         println!("  📥 Synced block {} from Node 2", synced_block.index);
     }
     

@@ -1,9 +1,9 @@
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
+use modal_datastore::stores::Store;
 use modal_datastore::models::{ContractAsset, AssetBalance, Commit, ReceivedSend, WasmModule};
-use modal_datastore::model::Model;
 use serde_json::Value;
 use modal_wasm_runtime::{WasmExecutor, DEFAULT_GAS_LIMIT};
 use modal_wasm_validation::{ValidationResult, validators, PredicateContext, PredicateResult, ProgramContext};
@@ -59,13 +59,13 @@ pub enum StateChange {
 
 /// Processes contract commits and manages asset state during consensus
 pub struct ContractProcessor {
-    datastore: Arc<Mutex<NetworkDatastore>>,
+    datastore: Arc<Mutex<DatastoreManager>>,
     predicate_executor: PredicateExecutor,
     program_executor: ProgramExecutor,
 }
 
 impl ContractProcessor {
-    pub fn new(datastore: Arc<Mutex<NetworkDatastore>>) -> Self {
+    pub fn new(datastore: Arc<Mutex<DatastoreManager>>) -> Self {
         let predicate_executor = PredicateExecutor::new(
             Arc::clone(&datastore),
             DEFAULT_GAS_LIMIT
@@ -103,7 +103,7 @@ impl ContractProcessor {
                 timestamp,
                 in_batch: None,
             };
-            commit.save(&ds).await?;
+            commit.save_to_final(&ds).await?;
         }
 
         let commit: serde_json::Value = serde_json::from_str(commit_data)?;
@@ -176,7 +176,7 @@ impl ContractProcessor {
         keys.insert("contract_id".to_string(), contract_id.to_string());
         keys.insert("asset_id".to_string(), asset_id.to_string());
 
-        if ContractAsset::find_one(&ds, keys.clone()).await?.is_some() {
+        if ContractAsset::find_one_multi(&ds, keys.clone()).await?.is_some() {
             anyhow::bail!("Asset {} already exists in contract {}", asset_id, contract_id);
         }
 
@@ -194,7 +194,7 @@ impl ContractProcessor {
             creator_commit_id: commit_id.to_string(),
         };
 
-        asset.save(&ds).await?;
+        asset.save_to_final(&ds).await?;
 
         // Initialize balance for the creating contract
         let balance = AssetBalance {
@@ -204,7 +204,7 @@ impl ContractProcessor {
             balance: quantity,
         };
 
-        balance.save(&ds).await?;
+        balance.save_to_final(&ds).await?;
 
         Ok(StateChange::AssetCreated {
             contract_id: contract_id.to_string(),
@@ -249,7 +249,7 @@ impl ContractProcessor {
         asset_keys.insert("contract_id".to_string(), contract_id.to_string());
         asset_keys.insert("asset_id".to_string(), asset_id.to_string());
 
-        let asset = ContractAsset::find_one(&ds, asset_keys).await?
+        let asset = ContractAsset::find_one_multi(&ds, asset_keys).await?
             .ok_or_else(|| anyhow::anyhow!("Asset {} not found in contract {}", asset_id, contract_id))?;
 
         // Check if amount is valid (respects divisibility)
@@ -263,7 +263,7 @@ impl ContractProcessor {
         balance_keys.insert("asset_id".to_string(), asset_id.to_string());
         balance_keys.insert("owner_contract_id".to_string(), contract_id.to_string());
 
-        let mut balance = AssetBalance::find_one(&ds, balance_keys).await?
+        let mut balance = AssetBalance::find_one_multi(&ds, balance_keys).await?
             .ok_or_else(|| anyhow::anyhow!("No balance found for asset {} in contract {}", asset_id, contract_id))?;
 
         // Verify sufficient balance
@@ -273,7 +273,7 @@ impl ContractProcessor {
 
         // Deduct from sender
         balance.balance -= amount;
-        balance.save(&ds).await?;
+        balance.save_to_final(&ds).await?;
 
         Ok(StateChange::AssetSent {
             contract_id: contract_id.to_string(),
@@ -310,7 +310,7 @@ impl ContractProcessor {
         let mut received_keys = std::collections::HashMap::new();
         received_keys.insert("send_commit_id".to_string(), send_commit_id.to_string());
         
-        if let Some(existing) = ReceivedSend::find_one(&ds, received_keys).await? {
+        if let Some(existing) = ReceivedSend::find_one_multi(&ds, received_keys).await? {
             anyhow::bail!(
                 "SEND commit {} already received by contract {} in commit {}",
                 send_commit_id,
@@ -373,7 +373,7 @@ impl ContractProcessor {
             recv_commit_id: commit_id.to_string(),
             received_at: timestamp,
         };
-        received_send.save(&ds).await?;
+        received_send.save_to_final(&ds).await?;
 
         // Get or create balance for receiving contract
         let mut balance_keys = std::collections::HashMap::new();
@@ -381,7 +381,7 @@ impl ContractProcessor {
         balance_keys.insert("asset_id".to_string(), asset_id.to_string());
         balance_keys.insert("owner_contract_id".to_string(), contract_id.to_string());
 
-        let balance_opt = AssetBalance::find_one(&ds, balance_keys.clone()).await?;
+        let balance_opt = AssetBalance::find_one_multi(&ds, balance_keys.clone()).await?;
 
         let mut balance = if let Some(b) = balance_opt {
             b
@@ -396,7 +396,7 @@ impl ContractProcessor {
 
         // Add to receiver
         balance.balance += amount;
-        balance.save(&ds).await?;
+        balance.save_to_final(&ds).await?;
 
         Ok(StateChange::AssetReceived {
             from_contract: from_contract.to_string(),
@@ -550,7 +550,7 @@ impl ContractProcessor {
         let sha256_hash = wasm_module.sha256_hash.clone();
         
         let ds = self.datastore.lock().await;
-        wasm_module.save(&ds).await?;
+        wasm_module.save_to_final(&ds).await?;
         
         log::info!(
             "Uploaded WASM module '{}' for contract {} via POST {}, hash: {}, gas_limit: {}",
@@ -569,13 +569,13 @@ impl ContractProcessor {
         })
     }
 
-    async fn find_commit_by_id(&self, ds: &NetworkDatastore, commit_id: &str) -> Result<Commit> {
+    async fn find_commit_by_id(&self, ds: &DatastoreManager, commit_id: &str) -> Result<Commit> {
         // Since we don't know the contract_id, we need to search all contracts
         // This is inefficient - in production we'd want to index commits by ID
+        use modal_datastore::stores::Store;
         
-        // Iterate through all keys (empty prefix) and filter for commits
-        // Note: Using a specific prefix like "/commits/" doesn't work with the iterator
-        let iter = ds.iterator("");
+        // Iterate through all commit keys in ValidatorFinal
+        let iter = ds.validator_final().iterator("/commits");
         
         for result in iter {
             match result {
@@ -583,21 +583,15 @@ impl ContractProcessor {
                     let key_str = String::from_utf8_lossy(&key);
                     
                     // Filter for commit keys: /commits/${contract_id}/${commit_id}
-                    if key_str.starts_with("/commits/") {
-                        let parts: Vec<&str> = key_str.split('/').collect();
-                        if parts.len() >= 4 {
-                            let found_contract_id = parts[2];
-                            let found_commit_id = parts[3];
-                            
-                            if found_commit_id == commit_id {
-                                // Found it! Now fetch using Model::find_one
-                                let mut keys = std::collections::HashMap::new();
-                                keys.insert("contract_id".to_string(), found_contract_id.to_string());
-                                keys.insert("commit_id".to_string(), commit_id.to_string());
-                                
-                                if let Some(commit) = Commit::find_one(ds, keys).await? {
-                                    return Ok(commit);
-                                }
+                    let parts: Vec<&str> = key_str.split('/').collect();
+                    if parts.len() >= 4 {
+                        let found_contract_id = parts[2];
+                        let found_commit_id = parts[3];
+                        
+                        if found_commit_id == commit_id {
+                            // Found it! Fetch using multi-store method
+                            if let Some(commit) = Commit::find_one_multi(ds, found_contract_id, commit_id).await? {
+                                return Ok(commit);
                             }
                         }
                     }
@@ -732,13 +726,12 @@ impl ContractProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use modal_datastore::NetworkDatastore;
 
     #[tokio::test]
     async fn test_post_action_processing() {
         // Create in-memory datastore
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         let processor = ContractProcessor::new(datastore.clone());
@@ -805,7 +798,7 @@ mod tests {
     #[tokio::test]
     async fn test_post_with_complex_value() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         let processor = ContractProcessor::new(datastore.clone());
@@ -844,7 +837,7 @@ mod tests {
     #[tokio::test]
     async fn test_wasm_post_simple_string() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         let processor = ContractProcessor::new(datastore.clone());
@@ -893,7 +886,7 @@ mod tests {
         keys.insert("contract_id".to_string(), "contract1".to_string());
         keys.insert("module_name".to_string(), "primary".to_string());
         
-        let stored_module = WasmModule::find_one(&ds, keys).await.unwrap();
+        let stored_module = WasmModule::find_by_contract_and_path_multi(&ds, "contract1", "/_code/primary.wasm").await.unwrap();
         assert!(stored_module.is_some());
         
         let module = stored_module.unwrap();
@@ -904,7 +897,7 @@ mod tests {
     #[tokio::test]
     async fn test_wasm_post_with_object() {
         let datastore = Arc::new(Mutex::new(
-            NetworkDatastore::create_in_memory().unwrap()
+            DatastoreManager::create_in_memory().unwrap()
         ));
         
         let processor = ContractProcessor::new(datastore.clone());

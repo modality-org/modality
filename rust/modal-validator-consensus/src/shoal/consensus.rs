@@ -7,7 +7,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 #[cfg(feature = "persistence")]
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 
 /// Shoal consensus engine
 pub struct ShoalConsensus {
@@ -21,7 +21,7 @@ pub struct ShoalConsensus {
     pub committee: Committee,
     /// Optional datastore for persistence
     #[cfg(feature = "persistence")]
-    pub datastore: Option<Arc<NetworkDatastore>>,
+    pub datastore: Option<Arc<DatastoreManager>>,
 }
 
 impl ShoalConsensus {
@@ -43,7 +43,7 @@ impl ShoalConsensus {
 
     /// Set the datastore for persistence
     #[cfg(feature = "persistence")]
-    pub fn with_datastore(mut self, datastore: Arc<NetworkDatastore>) -> Self {
+    pub fn with_datastore(mut self, datastore: Arc<DatastoreManager>) -> Self {
         self.datastore = Some(datastore);
         self
     }
@@ -202,7 +202,6 @@ impl ShoalConsensus {
         #[cfg(feature = "persistence")]
         if let Some(datastore) = &self.datastore {
             use modal_datastore::models::DAGCertificate;
-            use modal_datastore::Model;
             use crate::persistence::digest_to_hex;
             
             for digest in &newly_committed {
@@ -215,8 +214,8 @@ impl ShoalConsensus {
                     ("digest".to_string(), digest_hex),
                 ].into_iter().collect();
                 
-                if let Ok(Some(mut cert_model)) = DAGCertificate::find_one(datastore, keys).await {
-                    if cert_model.mark_committed(datastore, round).await.is_err() {
+                if let Ok(Some(mut cert_model)) = DAGCertificate::find_one_multi(datastore, keys).await {
+                    if cert_model.mark_committed_multi(datastore, round).await.is_err() {
                         log::warn!("failed to mark certificate {:?} as committed", digest);
                     }
                 }

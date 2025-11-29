@@ -3,7 +3,7 @@ use clap::Parser;
 use std::path::PathBuf;
 use modal_node::config_resolution::load_config_with_node_dir;
 use modal_node::node::Node;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::miner::MinerBlock;
 use libp2p::{PeerId, Multiaddr};
 use libp2p::multiaddr::Protocol;
@@ -41,14 +41,15 @@ pub async fn run(opts: &Opts) -> Result<()> {
     
     let config = load_config_with_node_dir(opts.config.clone(), dir)?;
     
-    // Open local datastore in read-only mode
-    let storage_path = config.storage_path.as_ref()
-        .context("No storage_path in config")?;
-    let datastore = NetworkDatastore::create_in_directory_readonly(&storage_path)?;
+    // Open local datastore
+    let data_dir = config.data_dir.as_ref()
+        .or(config.storage_path.as_ref())
+        .context("No data_dir or storage_path in config")?;
+    let datastore_manager = DatastoreManager::open(&data_dir)?;
     
     // Get local chain info
-    let local_blocks = MinerBlock::find_all_canonical(&datastore).await?;
-    let local_orphans = MinerBlock::find_all_orphaned(&datastore).await?;
+    let local_blocks = MinerBlock::find_all_canonical_multi(&datastore_manager).await?;
+    let local_orphans = MinerBlock::find_all_orphaned_multi(&datastore_manager).await?;
     let local_chain_length = local_blocks.len() as u64;
     
     // Calculate local cumulative difficulty

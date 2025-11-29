@@ -1,5 +1,6 @@
 use crate::model::Model;
-use crate::NetworkDatastore;
+use crate::DatastoreManager;
+use crate::stores::Store;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use modal_common::keypair::Keypair;
@@ -142,34 +143,6 @@ impl Model for ValidatorBlock {
 impl ValidatorBlock {
     pub fn create_from_json(obj: serde_json::Value) -> Result<Self> {
         <Self as Model>::create_from_json(obj)
-    }
-
-    pub async fn find_all_in_round(
-        datastore: &NetworkDatastore,
-        round_id: u64,
-    ) -> Result<Vec<Self>> {
-        let prefix = format!("/blocks/round/{}/peer", round_id);
-        let mut blocks = Vec::new();
-
-        let iterator = datastore.iterator(&prefix);
-        for result in iterator {
-            let (key, _) = result?;
-            let key_str = String::from_utf8(key.to_vec())?;
-            let peer_id = key_str
-                .split(&format!("{}/", prefix))
-                .nth(1)
-                .ok_or_else(|| anyhow!("Invalid key format: {}", key_str))?;
-
-            let mut keys = HashMap::new();
-            keys.insert("round_id".to_string(), round_id.to_string());
-            keys.insert("peer_id".to_string(), peer_id.to_string());
-
-            if let Some(block) = Self::find_one(datastore, keys).await? {
-                blocks.push(block);
-            }
-        }
-
-        Ok(blocks)
     }
 
     pub fn to_draft_json_object(&self) -> serde_json::Value {

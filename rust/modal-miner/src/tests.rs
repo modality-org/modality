@@ -10,7 +10,7 @@
 #[cfg(all(test, feature = "persistence"))]
 mod orphan_detection_tests {
     use crate::{Block, BlockData, Miner};
-    use modal_datastore::{NetworkDatastore, models::MinerBlock};
+    use modal_datastore::{DatastoreManager, models::MinerBlock};
     use modal_observer::{ChainObserver, ForkConfig};
     use std::sync::Arc;
     use tokio::sync::Mutex;
@@ -49,7 +49,7 @@ mod orphan_detection_tests {
     #[tokio::test]
     async fn test_fork_detection() {
         // Create in-memory datastore
-        let datastore = Arc::new(Mutex::new(NetworkDatastore::create_in_memory().unwrap()));
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         
         // Create observer with fork choice
         let fork_config = ForkConfig::new();
@@ -76,7 +76,7 @@ mod orphan_detection_tests {
         
         // Verify orphan reason
         let ds = datastore.lock().await;
-        let orphaned = MinerBlock::find_by_hash(&ds, &block_1b.header.hash).await.unwrap();
+        let orphaned = MinerBlock::find_by_hash_multi(&ds, &block_1b.header.hash).await.unwrap();
         drop(ds);
         
         assert!(orphaned.is_some(), "Orphaned block should be stored");
@@ -96,7 +96,7 @@ mod orphan_detection_tests {
 
     #[tokio::test]
     async fn test_gap_detection() {
-        let datastore = Arc::new(Mutex::new(NetworkDatastore::create_in_memory().unwrap()));
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         
         let fork_config = ForkConfig::new();
         let observer = ChainObserver::new_with_fork_config(datastore.clone(), fork_config);
@@ -120,7 +120,7 @@ mod orphan_detection_tests {
         
         // Verify orphan reason mentions gap
         let ds = datastore.lock().await;
-        let orphaned = MinerBlock::find_by_hash(&ds, &block_3.header.hash).await.unwrap();
+        let orphaned = MinerBlock::find_by_hash_multi(&ds, &block_3.header.hash).await.unwrap();
         drop(ds);
         
         assert!(orphaned.is_some(), "Orphaned block should be stored");
@@ -139,7 +139,7 @@ mod orphan_detection_tests {
 
     #[tokio::test]
     async fn test_missing_parent() {
-        let datastore = Arc::new(Mutex::new(NetworkDatastore::create_in_memory().unwrap()));
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         
         let fork_config = ForkConfig::new();
         let observer = ChainObserver::new_with_fork_config(datastore.clone(), fork_config);
@@ -159,7 +159,7 @@ mod orphan_detection_tests {
         
         // Verify orphan reason mentions missing parent
         let ds = datastore.lock().await;
-        let orphaned = MinerBlock::find_by_hash(&ds, &block_1.header.hash).await.unwrap();
+        let orphaned = MinerBlock::find_by_hash_multi(&ds, &block_1.header.hash).await.unwrap();
         drop(ds);
         
         assert!(orphaned.is_some(), "Orphaned block should be stored");
@@ -181,7 +181,7 @@ mod orphan_detection_tests {
 
     #[tokio::test]
     async fn test_chain_integrity() {
-        let datastore = Arc::new(Mutex::new(NetworkDatastore::create_in_memory().unwrap()));
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         
         let fork_config = ForkConfig::new();
         let observer = ChainObserver::new_with_fork_config(datastore.clone(), fork_config);
@@ -209,8 +209,8 @@ mod orphan_detection_tests {
         
         // Verify canonical chain
         let ds = datastore.lock().await;
-        let canonical_blocks = MinerBlock::find_all_canonical(&ds).await.unwrap();
-        let all_blocks = MinerBlock::find_all_blocks(&ds).await.unwrap();
+        let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await.unwrap();
+        let all_blocks = MinerBlock::find_all_blocks_multi(&ds).await.unwrap();
         drop(ds);
         
         let orphaned_count = all_blocks.iter().filter(|b| b.is_orphaned).count();
@@ -231,7 +231,7 @@ mod orphan_detection_tests {
 
     #[tokio::test]
     async fn test_orphan_promotion() {
-        let datastore = Arc::new(Mutex::new(NetworkDatastore::create_in_memory().unwrap()));
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         
         let fork_config = ForkConfig::new();
         let observer = ChainObserver::new_with_fork_config(datastore.clone(), fork_config);
@@ -256,7 +256,7 @@ mod orphan_detection_tests {
         
         // Verify block 3 is orphaned
         let ds = datastore.lock().await;
-        let block_3_stored = MinerBlock::find_by_hash(&ds, &block_3.header.hash).await.unwrap();
+        let block_3_stored = MinerBlock::find_by_hash_multi(&ds, &block_3.header.hash).await.unwrap();
         drop(ds);
         assert!(block_3_stored.unwrap().is_orphaned, "Block 3 should be orphaned");
         
@@ -269,7 +269,7 @@ mod orphan_detection_tests {
         
         // Verify block 3 is now canonical
         let ds = datastore.lock().await;
-        let block_3_final = MinerBlock::find_by_hash(&ds, &block_3.header.hash).await.unwrap();
+        let block_3_final = MinerBlock::find_by_hash_multi(&ds, &block_3.header.hash).await.unwrap();
         drop(ds);
         
         let block_3_final = block_3_final.unwrap();

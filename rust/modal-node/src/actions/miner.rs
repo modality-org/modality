@@ -2,6 +2,7 @@ use anyhow::Result;
 use libp2p::gossipsub::IdentTopic;
 use modal_datastore::Model;
 use modal_datastore::models::MinerBlock;
+use modal_datastore::DatastoreManager;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::Mutex;
@@ -31,8 +32,8 @@ pub async fn run(node: &mut Node) -> Result<()> {
     // Validate and repair chain integrity before starting mining
     // This ensures we don't mine on top of a broken/orphaned chain
     {
-        let mut ds = node.datastore.lock().await;
-        match super::chain_integrity::validate_and_repair_chain(&mut ds, true).await {
+        let mgr = node.datastore_manager.lock().await;
+        match super::chain_integrity::validate_and_repair_chain(&mgr, true).await {
             Ok(report) => {
                 if report.break_point.is_some() {
                     log::warn!("🔧 Chain integrity repair: orphaned {} blocks from index {} onwards",
@@ -60,7 +61,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     node.mining_update_tx = Some(mining_update_tx.clone());
     // Start sync request handler task BEFORE gossip is active
     // This handles chain comparison requests triggered by orphan detection
-    let sync_node_datastore = node.datastore.clone();
+    let sync_node_datastore = node.datastore_manager.clone();
     let sync_node_swarm = node.swarm.clone();
     let sync_node_ignored_peers = node.ignored_peers.clone();
     let sync_node_reqres_txs = node.reqres_response_txs.clone();
@@ -124,7 +125,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
                             // After successful chain sync, notify mining loop to update view
                             let new_tip = {
                                 let ds = sync_node_datastore.lock().await;
-                                match MinerBlock::find_all_canonical(&ds).await {
+                                match MinerBlock::find_all_canonical_multi(&ds).await {
                                     Ok(blocks) if !blocks.is_empty() => {
                                         blocks.iter().map(|b| b.index).max()
                                     }
@@ -162,10 +163,54 @@ pub async fn run(node: &mut Node) -> Result<()> {
     node.start_networking().await?;
     node.start_autoupgrade().await?;
     
+    // Start block promotion/purge background task
+    {
+        let mgr = node.datastore_manager.clone();
+        let shutdown_for_promotion = shutdown.clone();
+        
+        tokio::spawn(async move {
+            log::info!("🗃️  Starting block promotion/purge background task");
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+            
+            while !shutdown_for_promotion.load(Ordering::Relaxed) {
+                interval.tick().await;
+                
+                // Get current epoch from the chain tip
+                let current_epoch = {
+                    let mgr_lock = mgr.lock().await;
+                    match MinerBlock::find_all_canonical_multi(&mgr_lock).await {
+                        Ok(blocks) => blocks.into_iter().max_by_key(|b| b.index).map(|b| b.epoch).unwrap_or(0),
+                        Err(e) => {
+                            log::warn!("Failed to get current epoch for promotion task: {}", e);
+                            continue;
+                        }
+                    }
+                };
+                
+                // Run promotion (copy finalized blocks to MinerCanon)
+                {
+                    let mut mgr_lock = mgr.lock().await;
+                    if let Err(e) = MinerBlock::run_promotion(&mut mgr_lock, current_epoch).await {
+                        log::warn!("Block promotion task failed: {}", e);
+                    }
+                }
+                
+                // Run purge (remove very old blocks from MinerActive)
+                {
+                    let mut mgr_lock = mgr.lock().await;
+                    if let Err(e) = MinerBlock::run_purge(&mut mgr_lock, current_epoch).await {
+                        log::warn!("Block purge task failed: {}", e);
+                    }
+                }
+            }
+            log::info!("🗃️  Block promotion/purge background task stopped");
+        });
+    }
+    
     // Get the current blockchain height from datastore (before we start syncing)
     let latest_block = {
-        let datastore = node.datastore.lock().await;
-        MinerBlock::find_all_canonical(&datastore).await?
+        let mgr = node.datastore_manager.lock().await;
+        MinerBlock::find_all_canonical_multi(&mgr).await?
             .into_iter()
             .max_by_key(|b| b.index)
     };
@@ -184,7 +229,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     // Start sync listener task BEFORE we wait for connections
     // This ensures it's ready to handle sync triggers from gossip
     // This task also handles chain cleanup/reorg in the background
-    let sync_datastore = node.datastore.clone();
+    let sync_datastore = node.datastore_manager.clone();
     let sync_swarm = node.swarm.clone();
     let sync_bootstrappers = node.bootstrappers.clone();
     let sync_reqres_txs = node.reqres_response_txs.clone();
@@ -218,7 +263,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
             {
                 let mut ds = sync_datastore.lock().await;
                 
-                if let Ok(all_blocks) = MinerBlock::find_all_canonical(&ds).await {
+                if let Ok(all_blocks) = MinerBlock::find_all_canonical_multi(&ds).await {
                     if !all_blocks.is_empty() {
                         let max_index = all_blocks.iter().map(|b| b.index).max().unwrap_or(0);
                         
@@ -269,7 +314,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
                                         format!("Background chain cleanup: removing blocks after index {}", last_valid_index),
                                         None
                                     );
-                                    if let Err(e) = orphaned.save(&mut *ds).await {
+                                    if let Err(e) = orphaned.save_to_active(&ds).await {
                                         log::error!("Failed to orphan block {}: {}", block.index, e);
                                     } else {
                                         orphaned_count += 1;
@@ -291,7 +336,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
             // Find the actual range of blocks we need
             let (first_index, _last_index) = {
                 let ds = sync_datastore.lock().await;
-                match MinerBlock::find_all_canonical(&ds).await {
+                match MinerBlock::find_all_canonical_multi(&ds).await {
                     Ok(blocks) => {
                         if blocks.is_empty() {
                             (0, target_index)
@@ -344,7 +389,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
                         // Notify mining loop that chain tip may have changed
                         let new_tip = {
                             let ds = sync_datastore.lock().await;
-                            match MinerBlock::find_all_canonical(&ds).await {
+                            match MinerBlock::find_all_canonical_multi(&ds).await {
                                 Ok(blocks) if !blocks.is_empty() => {
                                     blocks.iter().map(|b| b.index).max()
                                 }
@@ -372,7 +417,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     });
 
     // Start mining loop - this runs CONTINUOUSLY without blocking
-    let datastore = node.datastore.clone();
+    let datastore = node.datastore_manager.clone();
     let swarm = node.swarm.clone();
     let peerid_str = node.peerid.to_string();
     let miner_nominees = node.miner_nominees.clone();
@@ -432,7 +477,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
             // This is a quick check that doesn't block
             let latest_tip_index = {
                 let ds = datastore.lock().await;
-                match MinerBlock::find_all_canonical(&ds).await {
+                match MinerBlock::find_all_canonical_multi(&ds).await {
                     Ok(blocks) if !blocks.is_empty() => {
                         blocks.into_iter().max_by_key(|b| b.index).map(|b| b.index)
                     }
@@ -489,7 +534,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
                     // to avoid getting stuck in a loop where we keep trying to mine on an orphaned branch
                     let actual_next_index = {
                         let ds = datastore.lock().await;
-                        match MinerBlock::find_all_canonical(&ds).await {
+                        match MinerBlock::find_all_canonical_multi(&ds).await {
                             Ok(blocks) if !blocks.is_empty() => {
                                 let max_index = blocks.iter().map(|b| b.index).max().unwrap_or(0);
                                 max_index + 1
@@ -525,7 +570,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
                     // This happens when our local chain has issues
                     let corrected_index = {
                         let ds = datastore.lock().await;
-                        match MinerBlock::find_all_canonical(&ds).await {
+                        match MinerBlock::find_all_canonical_multi(&ds).await {
                             Ok(blocks) if !blocks.is_empty() => {
                                 let max_index = blocks.iter().map(|b| b.index).max().unwrap_or(0);
                                 Some(max_index + 1)
@@ -577,7 +622,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
 
     // Start periodic auto-healing task to check for heavier chains from peers
     // This helps nodes converge when forks occur
-    let healing_datastore = node.datastore.clone();
+    let healing_datastore = node.datastore_manager.clone();
     let healing_swarm = node.swarm.clone();
     let healing_reqres_txs = node.reqres_response_txs.clone();
     let healing_ignored_peers = node.ignored_peers.clone();
@@ -611,7 +656,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
             // Get our current chain info for comparison
             let (local_length, local_difficulty) = {
                 let ds = healing_datastore.lock().await;
-                match MinerBlock::find_all_canonical(&ds).await {
+                match MinerBlock::find_all_canonical_multi(&ds).await {
                     Ok(blocks) => {
                         let difficulty = MinerBlock::calculate_cumulative_difficulty(&blocks).unwrap_or(0);
                         (blocks.len() as u64, difficulty)
@@ -659,7 +704,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
                             // Check if chain tip changed after sync
                             let new_tip = {
                                 let ds = healing_datastore.lock().await;
-                                match MinerBlock::find_all_canonical(&ds).await {
+                                match MinerBlock::find_all_canonical_multi(&ds).await {
                                     Ok(blocks) if !blocks.is_empty() => {
                                         blocks.iter().map(|b| b.index).max()
                                     }
@@ -704,7 +749,7 @@ pub async fn request_chain_info_impl(
     peer_id: libp2p::PeerId,
     peer_addr: String,
     swarm: std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
-    datastore: std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
+    datastore: std::sync::Arc<tokio::sync::Mutex<DatastoreManager>>,
     ignored_peers: std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<libp2p::PeerId, crate::node::IgnoredPeerInfo>>>,
     reqres_response_txs: std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<crate::reqres::Response>>>>,
 ) -> Result<()> {
@@ -745,7 +790,7 @@ pub async fn request_chain_info_impl(
     // Get our local chain info for comparison
     let (local_cumulative_difficulty, local_chain_length) = {
         let ds = datastore.lock().await;
-        let blocks = MinerBlock::find_all_canonical(&ds).await?;
+        let blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
         let local_difficulty = MinerBlock::calculate_cumulative_difficulty(&blocks)?;
         (local_difficulty, blocks.len() as u64)
     };
@@ -878,7 +923,7 @@ pub async fn request_chain_info_impl(
         );
         // Clean up pending blocks
         let ds = datastore.lock().await;
-        let _ = MinerBlock::delete_all_pending(&ds).await;
+        let _ = MinerBlock::delete_all_pending_multi(&ds).await;
         return Ok(());
     }
     
@@ -888,7 +933,7 @@ pub async fn request_chain_info_impl(
     {
         let mut ds = datastore.lock().await;
         for block in &all_blocks {
-            block.save_as_pending(&mut ds).await?;
+            block.save_to_active(&ds).await?;
         }
         log::debug!("Saved {} blocks as pending for verification", all_blocks.len());
     }
@@ -903,7 +948,7 @@ pub async fn request_chain_info_impl(
         if first_block.index > 0 {
             let ancestor_index = first_block.index - 1;
             let ds = datastore.lock().await;
-            let ancestor_block = MinerBlock::find_canonical_by_index(&ds, ancestor_index).await?;
+            let ancestor_block = MinerBlock::find_canonical_by_index_simple(&ds, ancestor_index).await?;
             
             if let Some(ancestor) = ancestor_block {
                 log::info!("🔍 Verifying chain connection: First received block {} prev_hash={}, local ancestor {} hash={}", 
@@ -918,7 +963,7 @@ pub async fn request_chain_info_impl(
                     drop(ds);
                     let ds = datastore.lock().await;
                     
-                    let local_blocks = MinerBlock::find_all_canonical(&ds).await?;
+                    let local_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
                     let local_hashes: std::collections::HashMap<String, u64> = local_blocks.iter()
                         .map(|b| (b.hash.clone(), b.index))
                         .collect();
@@ -942,7 +987,7 @@ pub async fn request_chain_info_impl(
                         all_blocks = all_blocks.split_off(start_idx);
                     } else {
                         log::error!("⚠️  Could not find any connection point in received blocks - peer chain completely disconnected from local");
-                        let _ = MinerBlock::delete_all_pending(&ds).await;
+                        let _ = MinerBlock::delete_all_pending_multi(&ds).await;
                         return Ok(());
                     }
                 } else {
@@ -951,7 +996,7 @@ pub async fn request_chain_info_impl(
             } else {
                 log::error!("⚠️  No local block at index {} to connect peer chain to", ancestor_index);
                 let ds = datastore.lock().await;
-                let _ = MinerBlock::delete_all_pending(&ds).await;
+                let _ = MinerBlock::delete_all_pending_multi(&ds).await;
                 return Ok(());
             }
         }
@@ -962,14 +1007,14 @@ pub async fn request_chain_info_impl(
             log::error!("⚠️  Blocks not consecutive: gap between {} and {}", 
                 all_blocks[i-1].index, all_blocks[i].index);
             let ds = datastore.lock().await;
-            let _ = MinerBlock::delete_all_pending(&ds).await;
+            let _ = MinerBlock::delete_all_pending_multi(&ds).await;
             return Ok(());
         }
         if all_blocks[i].previous_hash != all_blocks[i-1].hash {
             log::error!("⚠️  Invalid chain: block {} prev_hash doesn't match block {} hash",
                 all_blocks[i].index, all_blocks[i-1].index);
             let ds = datastore.lock().await;
-            let _ = MinerBlock::delete_all_pending(&ds).await;
+            let _ = MinerBlock::delete_all_pending_multi(&ds).await;
             return Ok(());
         }
     }
@@ -982,7 +1027,7 @@ pub async fn request_chain_info_impl(
         let mut ds = datastore.lock().await;
         
         // Find ALL local canonical blocks after the ancestor
-        let local_blocks = MinerBlock::find_all_canonical(&ds).await?;
+        let local_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
         
         // Orphan ALL local blocks after the ancestor index, not just those with competing peer blocks
         // This handles the case where peer chain is shorter but has higher cumulative difficulty
@@ -1000,13 +1045,13 @@ pub async fn request_chain_info_impl(
                         peer_cumulative_difficulty, local_cumulative_difficulty),
                     competing_hash
                 );
-                orphaned.save(&mut ds).await?;
+                orphaned.save_to_active(&ds).await?;
             }
         }
         
         // Canonize all peer blocks
         for block in &mut all_blocks {
-            block.canonize(&mut ds).await?;
+            block.save_to_active(&ds).await?;
         }
     }
     
@@ -1039,8 +1084,8 @@ async fn announce_chain_tip(node: &Node) -> Result<()> {
     
     // Get our highest block
     let tip_block = {
-        let datastore = node.datastore.lock().await;
-        MinerBlock::find_all_canonical(&datastore).await?
+        let mgr = node.datastore_manager.lock().await;
+        MinerBlock::find_all_canonical_multi(&mgr).await?
             .into_iter()
             .max_by_key(|b| b.index)
     };
@@ -1076,8 +1121,8 @@ async fn announce_chain_tip(node: &Node) -> Result<()> {
 async fn sync_from_peers(node: &Node) -> Result<()> {
     // Get our current chain height
     let local_height = {
-        let datastore = node.datastore.lock().await;
-        let blocks = MinerBlock::find_all_canonical(&datastore).await?;
+        let mgr = node.datastore_manager.lock().await;
+        let blocks = MinerBlock::find_all_canonical_multi(&mgr).await?;
         blocks.len() as u64
     };
     
@@ -1111,7 +1156,7 @@ async fn request_block_range_from_peer(
     peer_addr: String,
     from_index: u64,
     to_index: u64,
-    datastore: &std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
+    datastore: &std::sync::Arc<tokio::sync::Mutex<DatastoreManager>>,
     reqres_response_txs: &std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<crate::reqres::Response>>>>,
 ) -> Result<usize> {
     use libp2p::multiaddr::Multiaddr;
@@ -1162,16 +1207,16 @@ async fn request_block_range_from_peer(
                 let block: MinerBlock = serde_json::from_value(block_json.clone())?;
                 
                 // Check if we already have this block
-                if MinerBlock::find_by_hash(&*ds, &block.hash).await?.is_some() {
+                if MinerBlock::find_by_hash_multi(&ds, &block.hash).await?.is_some() {
                     continue;
                 }
                 
                 // Check if parent exists (except for genesis)
                 if block.index > 0 {
-                    match MinerBlock::find_by_hash(&*ds, &block.previous_hash).await? {
+                    match MinerBlock::find_by_hash_multi(&ds, &block.previous_hash).await? {
                         Some(_) => {
                             // Parent exists, now check for fork choice
-                            match MinerBlock::find_canonical_by_index(&*ds, block.index).await? {
+                            match MinerBlock::find_canonical_by_index_simple(&ds, block.index).await? {
                                 Some(existing) => {
                                     // Apply fork choice: higher difficulty wins
                                     let new_difficulty = block.get_difficulty_u128()?;
@@ -1187,10 +1232,10 @@ async fn request_block_range_from_peer(
                                             format!("Replaced by synced block with higher difficulty ({} vs {})", new_difficulty, existing_difficulty),
                                             Some(block.hash.clone())
                                         );
-                                        orphaned.save(&mut *ds).await?;
+                                        orphaned.save_to_active(&ds).await?;
                                         
                                         // Save new block as canonical
-                                        block.save(&mut *ds).await?;
+                                        block.save_to_active(&ds).await?;
                                         count += 1;
                                         log::debug!("Saved synced block {} (index: {})", &block.hash[..16], block.index);
                                     } else {
@@ -1199,7 +1244,7 @@ async fn request_block_range_from_peer(
                                 }
                                 None => {
                                     // No existing block at this index, save it
-                                    block.save(&mut *ds).await?;
+                                    block.save_to_active(&ds).await?;
                                     count += 1;
                                     log::debug!("Saved synced block {} (index: {})", &block.hash[..16], block.index);
                                 }
@@ -1213,7 +1258,7 @@ async fn request_block_range_from_peer(
                     }
                 } else {
                     // Genesis block (index 0) - apply fork choice
-                    match MinerBlock::find_canonical_by_index(&*ds, 0).await? {
+                    match MinerBlock::find_canonical_by_index_simple(&ds, 0).await? {
                         Some(existing) => {
                             // Apply fork choice: higher difficulty wins (or lower hash as tiebreaker)
                             let new_difficulty = block.get_difficulty_u128()?;
@@ -1230,10 +1275,10 @@ async fn request_block_range_from_peer(
                                     "Replaced by synced genesis block".to_string(),
                                     Some(block.hash.clone())
                                 );
-                                orphaned.save(&mut *ds).await?;
+                                orphaned.save_to_active(&ds).await?;
                                 
                                 // Save new genesis as canonical
-                                block.save(&mut *ds).await?;
+                                block.save_to_active(&ds).await?;
                                 count += 1;
                                 log::debug!("Saved synced genesis block {}", &block.hash[..16]);
                             } else {
@@ -1242,7 +1287,7 @@ async fn request_block_range_from_peer(
                         }
                         None => {
                             // No existing genesis, save it
-                            block.save(&mut *ds).await?;
+                            block.save_to_active(&ds).await?;
                             count += 1;
                             log::debug!("Saved synced block {} (index: {})", &block.hash[..16], block.index);
                         }
@@ -1254,7 +1299,7 @@ async fn request_block_range_from_peer(
             if from_index == 0 && blocks_array.len() > 0 {
                 // We requested from 0 (full chain comparison)
                 // Check if the peer's chain is different from ours
-                let local_blocks = MinerBlock::find_all_canonical(&ds).await?;
+                let local_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
                 let local_chain_length = local_blocks.len();
                 let peer_chain_length = blocks_array.len();
                 
@@ -1267,7 +1312,7 @@ async fn request_block_range_from_peer(
                         log::error!("Chain reorg failed: {:?}", e);
                     } else {
                         // Recount saved blocks after reorg
-                        return Ok(MinerBlock::find_all_canonical(&ds).await?.len());
+                        return Ok(MinerBlock::find_all_canonical_multi(&ds).await?.len());
                     }
                 } else if skipped_no_parent > 0 && count == 0 {
                     // Only do reorg if no blocks were saved due to missing parents
@@ -1305,7 +1350,7 @@ async fn request_block_range_from_peer(
 
 /// Attempt to reorganize the chain when divergence is detected
 async fn attempt_chain_reorg(
-    ds: &mut modal_datastore::NetworkDatastore,
+    ds: &mut DatastoreManager,
     peer_blocks: &[serde_json::Value],
     start_index: u64,
 ) -> Result<()> {
@@ -1320,7 +1365,7 @@ async fn attempt_chain_reorg(
         let peer_block: MinerBlock = serde_json::from_value(peer_block_json.clone())?;
         
         // Check if we have a block at this index
-        if let Some(local_block) = MinerBlock::find_canonical_by_index(ds, peer_block.index).await? {
+        if let Some(local_block) = MinerBlock::find_canonical_by_index_simple(&ds, peer_block.index).await? {
             if local_block.hash == peer_block.hash {
                 // Found common ancestor!
                 common_ancestor_index = Some(peer_block.index);
@@ -1335,7 +1380,7 @@ async fn attempt_chain_reorg(
             log::info!("Reorganizing chain from block {} onwards", ancestor_index + 1);
             
             // Collect blocks that would be orphaned (local chain after ancestor)
-            let all_local_blocks = MinerBlock::find_all_canonical(ds).await?;
+            let all_local_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
             let orphan_candidates: Vec<_> = all_local_blocks
                 .iter()
                 .filter(|b| b.index > ancestor_index)
@@ -1373,13 +1418,13 @@ async fn attempt_chain_reorg(
                             peer_branch_difficulty, local_branch_difficulty),
                         None
                     );
-                    orphaned.save(ds).await?;
+                    orphaned.save_to_active(&ds).await?;
                 }
                 
                 // Save peer blocks starting after the ancestor
                 let mut saved = 0;
                 for peer_block in peer_blocks_to_adopt {
-                    peer_block.save(ds).await?;
+                    peer_block.save_to_active(&ds).await?;
                     saved += 1;
                     log::debug!("Reorg: saved block {} at index {}", &peer_block.hash[..16], peer_block.index);
                 }
@@ -1400,13 +1445,13 @@ async fn attempt_chain_reorg(
                             "Chain reorganization: replaced by longer chain with equal difficulty".to_string(),
                             None
                         );
-                        orphaned.save(ds).await?;
+                        orphaned.save_to_active(&ds).await?;
                     }
                     
                     // Save peer blocks starting after the ancestor
                     let mut saved = 0;
                     for peer_block in peer_blocks_to_adopt {
-                        peer_block.save(ds).await?;
+                        peer_block.save_to_active(&ds).await?;
                         saved += 1;
                         log::debug!("Reorg: saved block {} at index {}", &peer_block.hash[..16], peer_block.index);
                     }
@@ -1431,13 +1476,13 @@ async fn attempt_chain_reorg(
                                     "Chain reorganization: replaced by chain with lower hash (tiebreaker)".to_string(),
                                     None
                                 );
-                                orphaned.save(ds).await?;
+                                orphaned.save_to_active(&ds).await?;
                             }
                             
                             // Save peer blocks starting after the ancestor
                             let mut saved = 0;
                             for peer_block in peer_blocks_to_adopt {
-                                peer_block.save(ds).await?;
+                                peer_block.save_to_active(&ds).await?;
                                 saved += 1;
                                 log::debug!("Reorg: saved block {} at index {}", &peer_block.hash[..16], peer_block.index);
                             }
@@ -1468,7 +1513,7 @@ async fn attempt_chain_reorg(
             // Apply cumulative difficulty rule: adopt the chain with more total work
             log::warn!("No common ancestor found - chains have completely diverged!");
             
-            let local_blocks = MinerBlock::find_all_canonical(ds).await?;
+            let local_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
             let local_chain_length = local_blocks.len();
             let peer_chain_length = peer_blocks.len();
             
@@ -1498,13 +1543,13 @@ async fn attempt_chain_reorg(
                             peer_difficulty, local_difficulty),
                         None
                     );
-                    orphaned.save(ds).await?;
+                    orphaned.save_to_active(&ds).await?;
                 }
                 
                 // Save all peer blocks
                 let mut saved = 0;
                 for peer_block in peer_blocks_parsed {
-                    peer_block.save(ds).await?;
+                    peer_block.save_to_active(&ds).await?;
                     saved += 1;
                     log::debug!("Reorg: saved block {} at index {}", &peer_block.hash[..16], peer_block.index);
                 }
@@ -1537,7 +1582,7 @@ async fn mine_and_gossip_block(
     index: u64,
     peer_id: &str,
     miner_nominees: &Option<Vec<String>>,
-    datastore: std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
+    datastore: std::sync::Arc<tokio::sync::Mutex<DatastoreManager>>,
     swarm: std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
     fork_config: modal_observer::ForkConfig,
     mining_metrics: crate::mining_metrics::SharedMiningMetrics,
@@ -1571,7 +1616,7 @@ async fn mine_and_gossip_block(
         mining_delay_ms,
     };
 
-    // Load blockchain from datastore using the load_or_create_with_fork_config API
+    // Load blockchain from datastore using the multi-store API
     let mut chain = Blockchain::load_or_create_with_fork_config(
         chain_config,
         peer_id.to_string(),
@@ -1714,7 +1759,7 @@ async fn mine_and_gossip_block(
     // This catches integrity issues early before they propagate
     if miner_block.index > 0 && miner_block.index % 10 == 0 {
         let mut ds = datastore.lock().await;
-        match super::chain_integrity::check_recent_blocks(&mut ds, 160, true).await {
+        match super::chain_integrity::check_recent_blocks(&ds, 160, true).await {
             Ok(true) => {
                 log::debug!("✓ Rolling integrity check passed (last 160 blocks)");
             }
@@ -1723,7 +1768,7 @@ async fn mine_and_gossip_block(
                 // Update mining index after repair
                 drop(ds);
                 let ds = datastore.lock().await;
-                if let Ok(blocks) = MinerBlock::find_all_canonical(&ds).await {
+                if let Ok(blocks) = MinerBlock::find_all_canonical_multi(&ds).await {
                     if let Some(tip) = blocks.iter().max_by_key(|b| b.index) {
                         log::info!("🔄 Updated mining index after repair: now at {}", tip.index + 1);
                     }
@@ -1771,7 +1816,7 @@ async fn mine_and_gossip_block(
 pub async fn find_common_ancestor_efficient(
     swarm: &std::sync::Arc<tokio::sync::Mutex<crate::swarm::NodeSwarm>>,
     peer_addr: String,
-    datastore: &std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
+    datastore: &std::sync::Arc<tokio::sync::Mutex<DatastoreManager>>,
     reqres_response_txs: &std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<libp2p::request_response::OutboundRequestId, tokio::sync::oneshot::Sender<crate::reqres::Response>>>>,
 ) -> Result<(Option<u64>, u64, u128)> {
     use libp2p::multiaddr::Multiaddr;
@@ -1781,7 +1826,7 @@ pub async fn find_common_ancestor_efficient(
     // Load our local canonical chain
     let local_blocks = {
         let ds = datastore.lock().await;
-        MinerBlock::find_all_canonical(&ds).await?
+        MinerBlock::find_all_canonical_multi(&ds).await?
     };
     
     // Parse peer address early so we can use it in both branches

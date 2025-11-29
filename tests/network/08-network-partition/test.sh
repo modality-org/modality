@@ -8,17 +8,8 @@ cd "$(dirname "$0")"
 # Source test library
 source ../test-lib.sh
 
-# Store script directory
-SCRIPT_DIR="$(pwd)"
-
 # Build modal CLI if needed
-if [ ! -f "$SCRIPT_DIR/../../../rust/target/debug/modal" ]; then
-    echo "Building modal CLI..."
-    (cd "$SCRIPT_DIR/../../../rust" && cargo build --package modal)
-fi
-
-# Add modal to PATH for this test (use absolute path to avoid issues with cd)
-export PATH="$SCRIPT_DIR/../../../rust/target/debug:$PATH"
+command -v modal &> /dev/null || rebuild
 
 # Clean up any previous test nodes
 rm -rf ./tmp

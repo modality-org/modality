@@ -1,5 +1,5 @@
 use anyhow::Result;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::MinerBlock;
 use crate::reqres::Response;
 
@@ -24,12 +24,13 @@ pub mod find_ancestor;
 /// Debug: get all blocks at a specific index
 pub mod debug_index;
 
-/// Handler for GET /data/miner_block/:hash
-pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatastore) -> Result<Response> {
+/// Handler for GET /data/miner_block/:hash (deprecated - use get::handler)
+#[allow(dead_code)]
+pub async fn handler(data: Option<serde_json::Value>, datastore_manager: &DatastoreManager) -> Result<Response> {
     let data = data.unwrap_or_default();
     
     if let Some(hash) = data.get("hash").and_then(|v| v.as_str()) {
-        match MinerBlock::find_by_hash(datastore, hash).await {
+        match MinerBlock::find_by_hash_multi(datastore_manager, hash).await {
             Ok(Some(block)) => {
                 Ok(Response {
                     ok: true,
@@ -60,4 +61,3 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
         })
     }
 }
-

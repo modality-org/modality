@@ -3,7 +3,7 @@ use clap::Parser;
 use std::path::PathBuf;
 
 use modal_node::config_resolution::load_config_with_node_dir;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::miner::MinerBlock;
 
 #[derive(Debug, Parser)]
@@ -32,16 +32,17 @@ pub async fn run(opts: &Opts) -> Result<()> {
     
     let config = load_config_with_node_dir(opts.config.clone(), dir.clone())?;
     
-    // Try to open datastore in read-only mode (safe for running nodes)
+    // Try to open datastore (safe for running nodes)
     // If it doesn't exist yet (node never started), that's okay - we'll just show config info
-    let storage_path = config.storage_path.as_ref()
-        .context("No storage_path in config")?;
+    let data_dir = config.data_dir.as_ref()
+        .or(config.storage_path.as_ref())
+        .context("No data_dir or storage_path in config")?;
     
-    let datastore_result = NetworkDatastore::create_in_directory_readonly(&storage_path);
+    let datastore_result = DatastoreManager::open(&data_dir);
     
     // Get mining statistics from datastore (if available)
-    let (canonical_blocks, chain_tip, genesis_block, blocks_mined_by_node) = if let Ok(datastore) = datastore_result {
-        let canonical_blocks = MinerBlock::find_all_canonical(&datastore).await?;
+    let (canonical_blocks, chain_tip, genesis_block, blocks_mined_by_node) = if let Ok(datastore_manager) = datastore_result {
+        let canonical_blocks = MinerBlock::find_all_canonical_multi(&datastore_manager).await?;
         let chain_tip = canonical_blocks.last().cloned();
         let genesis_block = canonical_blocks.first().cloned();
         

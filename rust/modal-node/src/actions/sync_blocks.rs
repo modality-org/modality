@@ -2,8 +2,7 @@ use crate::reqres;
 use crate::node::Node;
 use anyhow::Result;
 use libp2p::multiaddr::Multiaddr;
-use modal_datastore::models::MinerBlock;
-use modal_datastore::Model;
+use modal_datastore::{DatastoreManager, models::MinerBlock};
 
 /// Sync blocks from a remote node with optional persistence
 pub async fn run(
@@ -36,7 +35,7 @@ pub async fn run(
     // Persist blocks if requested
     let (persisted_count, skipped_count) = if persist {
         if let Some(ref data) = response.data {
-            persist_blocks(data, &node.datastore).await?
+            persist_blocks(data, &node.datastore_manager).await?
         } else {
             (0, 0)
         }
@@ -61,17 +60,17 @@ pub struct SyncResult {
     pub skipped_count: Option<usize>,
 }
 
-/// Persist synced blocks to the datastore
+/// Persist synced blocks to the datastore (using multi-store)
 async fn persist_blocks(
     data: &serde_json::Value,
-    datastore: &std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
+    datastore_manager: &std::sync::Arc<tokio::sync::Mutex<DatastoreManager>>,
 ) -> Result<(usize, usize)> {
     let blocks = data
         .get("blocks")
         .and_then(|b| b.as_array())
         .ok_or_else(|| anyhow::anyhow!("No blocks in response"))?;
 
-    let mut ds = datastore.lock().await;
+    let mgr = datastore_manager.lock().await;
     let mut saved_count = 0;
     let mut skipped_count = 0;
 
@@ -81,16 +80,16 @@ async fn persist_blocks(
             .map_err(|e| anyhow::anyhow!("Failed to deserialize block: {}", e))?;
 
         // Check if block already exists
-        match MinerBlock::find_by_hash(&*ds, &block.hash).await {
+        match MinerBlock::find_by_hash_multi(&mgr, &block.hash).await {
             Ok(Some(_existing)) => {
                 // Block already exists, skip
                 skipped_count += 1;
                 log::debug!("Block {} already exists, skipping", block.hash);
             }
             Ok(None) => {
-                // Block doesn't exist, save it
+                // Block doesn't exist, save it to active store
                 block
-                    .save(&mut *ds)
+                    .save_to_active(&mgr)
                     .await
                     .map_err(|e| anyhow::anyhow!("Failed to save block {}: {}", block.hash, e))?;
                 saved_count += 1;
@@ -100,7 +99,7 @@ async fn persist_blocks(
                 log::warn!("Error checking block {}: {}", block.hash, e);
                 // Try to save anyway
                 block
-                    .save(&mut *ds)
+                    .save_to_active(&mgr)
                     .await
                     .map_err(|e| anyhow::anyhow!("Failed to save block {}: {}", block.hash, e))?;
                 saved_count += 1;
@@ -117,4 +116,3 @@ async fn persist_blocks(
 
     Ok((saved_count, skipped_count))
 }
-

@@ -11,14 +11,8 @@ if [ ! -d "./tmp/storage/miner" ]; then
     exit 1
 fi
 
-# Build the modal CLI if needed
-if ! command -v modal &> /dev/null; then
-    echo "Building modal CLI..."
-    cd ../../../rust
-    cargo build --package modal
-    cd - > /dev/null
-    export PATH="$(cd ../../../rust/target/debug && pwd):$PATH"
-fi
+# Build modal CLI if needed
+command -v modal &> /dev/null || rebuild
 
 # Get all blocks and show difficulty changes
 echo "Getting blocks from datastore..."

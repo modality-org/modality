@@ -2,12 +2,15 @@
 description: Rules for writing tests in the tests/network directory
 ---
 
-# Examples Directory Guidelines
+# Tests Directory Guidelines
+
+- use direnv within this directory of tests
+- `rebuild` runs `cargo build --package modal` in the rust directory
 
 ## Purpose
 - Write each test to teach users how to use the modal CLI
 - Each test should also be runnable as an integration test
-- Use test.sh in each test directory to run the tests
+- Use test.sh in each test directory to run the test
 
 ## File Structure
 - Write a README.md file in each test directory that explains the test and how to run it

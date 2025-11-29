@@ -9,7 +9,7 @@ use crate::block::Block;
 #[cfg(feature = "persistence")]
 use crate::error::MiningError;
 #[cfg(feature = "persistence")]
-use modal_datastore::{NetworkDatastore, models::MinerBlock};
+use modal_datastore::{DatastoreManager, models::MinerBlock};
 #[cfg(feature = "persistence")]
 use modal_observer::{ChainObserver, ForkConfig};
 #[cfg(feature = "persistence")]
@@ -35,14 +35,14 @@ impl std::fmt::Debug for MinerForkChoice {
 #[cfg(feature = "persistence")]
 impl MinerForkChoice {
     /// Create a new MinerForkChoice with the given datastore
-    pub fn new(datastore: Arc<Mutex<NetworkDatastore>>) -> Self {
+    pub fn new(datastore: Arc<Mutex<DatastoreManager>>) -> Self {
         Self {
             observer: Arc::new(ChainObserver::new(datastore)),
         }
     }
     
     /// Create a new MinerForkChoice with a fork configuration
-    pub fn new_with_fork_config(datastore: Arc<Mutex<NetworkDatastore>>, fork_config: ForkConfig) -> Self {
+    pub fn new_with_fork_config(datastore: Arc<Mutex<DatastoreManager>>, fork_config: ForkConfig) -> Self {
         Self {
             observer: Arc::new(ChainObserver::new_with_fork_config(datastore, fork_config)),
         }
@@ -136,11 +136,10 @@ fn block_to_miner_block(block: &Block) -> Result<MinerBlock, MiningError> {
 mod tests {
     use super::*;
     use crate::block::{Block, BlockData};
-    use modal_datastore::Model;
     
     #[tokio::test]
     async fn test_create_fork_choice() {
-        let datastore = Arc::new(Mutex::new(NetworkDatastore::create_in_memory().unwrap()));
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         let fork_choice = MinerForkChoice::new(datastore);
         
         // Initialize to load chain tip
@@ -152,7 +151,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_process_mined_block() {
-        let datastore = Arc::new(Mutex::new(NetworkDatastore::create_in_memory().unwrap()));
+        let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         let fork_choice = MinerForkChoice::new(datastore.clone());
         
         // Initialize
@@ -163,9 +162,9 @@ mod tests {
         let genesis_mb = block_to_miner_block(&genesis).unwrap();
         
         // Save genesis through the mutex
-        let mut ds = datastore.lock().await;
-        genesis_mb.save(&mut *ds).await.unwrap();
-        drop(ds);
+        let mgr = datastore.lock().await;
+        genesis_mb.save_to_active(&*mgr).await.unwrap();
+        drop(mgr);
         
         // Re-initialize to pick up genesis
         fork_choice.initialize().await.unwrap();

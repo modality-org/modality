@@ -106,7 +106,7 @@ impl WasmModule {
     /// Find a WASM module by contract ID and path
     /// This is a helper for lookups by path instead of module_name
     pub async fn find_by_contract_and_path(
-        datastore: &crate::NetworkDatastore,
+        datastore: &crate::DatastoreManager,
         contract_id: &str,
         path: &str,
     ) -> Result<Option<Self>> {
@@ -118,6 +118,47 @@ impl WasmModule {
         } else {
             Ok(None)
         }
+    }
+    
+    /// Find a WASM module by contract ID and path (multi-store version)
+    /// Searches in ValidatorFinal store
+    pub async fn find_by_contract_and_path_multi(
+        datastore_manager: &crate::DatastoreManager,
+        contract_id: &str,
+        path: &str,
+    ) -> Result<Option<Self>> {
+        use crate::stores::Store;
+        
+        if let Some(module_name) = Self::module_name_from_path(path) {
+            // Build the key for the WasmModule
+            let key = format!("/wasm_modules/{}/{}", contract_id, module_name);
+            
+            // Check ValidatorFinal store first (finalized modules)
+            if let Some(bytes) = datastore_manager.validator_final().get(&key)? {
+                let module: WasmModule = serde_json::from_slice(&bytes)?;
+                return Ok(Some(module));
+            }
+            
+            // Check ValidatorActive store (pending modules)
+            if let Some(bytes) = datastore_manager.validator_active().get(&key)? {
+                let module: WasmModule = serde_json::from_slice(&bytes)?;
+                return Ok(Some(module));
+            }
+            
+            Ok(None)
+        } else {
+            Ok(None)
+        }
+    }
+    
+    /// Save WASM module to ValidatorFinal store (multi-store version)
+    pub async fn save_to_final(&self, datastore_manager: &crate::DatastoreManager) -> Result<()> {
+        use crate::stores::Store;
+        
+        let key = format!("/wasm_modules/{}/{}", self.contract_id, self.module_name);
+        let value = serde_json::to_vec(self)?;
+        datastore_manager.validator_final().put(&key, &value)?;
+        Ok(())
     }
 }
 

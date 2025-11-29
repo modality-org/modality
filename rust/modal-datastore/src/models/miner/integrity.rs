@@ -1,6 +1,5 @@
-use crate::NetworkDatastore;
+use crate::DatastoreManager;
 use crate::models::{MinerBlock, MinerBlockHeight};
-use crate::Model;
 use anyhow::Result;
 use std::collections::HashMap;
 
@@ -11,13 +10,12 @@ pub struct DuplicateCanonicalBlock {
     pub blocks: Vec<MinerBlock>,
 }
 
-/// Detect indices that have multiple canonical blocks
-/// This should never happen under normal operation
-pub async fn detect_duplicate_canonical_blocks(
-    datastore: &NetworkDatastore,
+/// Detect indices that have multiple canonical blocks (multi-store version)
+pub async fn detect_duplicate_canonical_blocks_multi(
+    datastore: &DatastoreManager,
 ) -> Result<Vec<DuplicateCanonicalBlock>> {
-    // Get all canonical blocks
-    let canonical_blocks = MinerBlock::find_all_canonical(datastore).await?;
+    // Get all canonical blocks from both active and canon stores
+    let canonical_blocks = MinerBlock::find_all_canonical_multi(datastore).await?;
     
     // Group by index
     let mut blocks_by_index: HashMap<u64, Vec<MinerBlock>> = HashMap::new();
@@ -44,10 +42,10 @@ pub async fn detect_duplicate_canonical_blocks(
     Ok(duplicates)
 }
 
-/// Heal duplicate canonical blocks by applying fork choice rules
+/// Heal duplicate canonical blocks by applying fork choice rules (multi-store version)
 /// Returns the hashes of blocks that were marked as orphaned
-pub async fn heal_duplicate_canonical_blocks(
-    datastore: &mut NetworkDatastore,
+pub async fn heal_duplicate_canonical_blocks_multi(
+    datastore: &DatastoreManager,
     duplicates: Vec<DuplicateCanonicalBlock>,
 ) -> Result<Vec<String>> {
     let mut orphaned_hashes = Vec::new();
@@ -92,14 +90,14 @@ pub async fn heal_duplicate_canonical_blocks(
         log::info!(
             "🔧 Healing duplicate at index {}: keeping block {} (seen_at: {:?})",
             dup.index,
-            &canonical_block.hash[..16],
+            &canonical_block.hash[..16.min(canonical_block.hash.len())],
             canonical_block.seen_at
         );
         
         for block in &sorted_blocks[1..] {
             log::info!(
                 "  ⚠️  Marking as orphaned: {} (seen_at: {:?})",
-                &block.hash[..16],
+                &block.hash[..16.min(block.hash.len())],
                 block.seen_at
             );
             
@@ -109,26 +107,10 @@ pub async fn heal_duplicate_canonical_blocks(
                 format!("Duplicate canonical block at index {} - resolved via fork choice rules", dup.index),
                 Some(canonical_block.hash.clone()),
             );
-            orphaned.save(datastore).await?;
-            
-            // Update the height index
-            let height_entry = MinerBlockHeight::new(
-                block.index,
-                block.hash.clone(),
-                false, // No longer canonical
-            );
-            height_entry.save(datastore).await?;
+            orphaned.save_to_active(datastore).await?;
             
             orphaned_hashes.push(block.hash.clone());
         }
-        
-        // Ensure the canonical block's height index is correct
-        let height_entry = MinerBlockHeight::new(
-            canonical_block.index,
-            canonical_block.hash.clone(),
-            true,
-        );
-        height_entry.save(datastore).await?;
     }
     
     Ok(orphaned_hashes)
@@ -140,7 +122,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_detect_no_duplicates() {
-        let mut ds = NetworkDatastore::create_in_memory().unwrap();
+        let ds = DatastoreManager::create_in_memory().unwrap();
         
         // Create normal chain with no duplicates
         for i in 0..5 {
@@ -156,16 +138,16 @@ mod tests {
                 "peer1".to_string(),
                 1,
             );
-            block.save(&mut ds).await.unwrap();
+            block.save_to_active(&ds).await.unwrap();
         }
         
-        let duplicates = detect_duplicate_canonical_blocks(&ds).await.unwrap();
+        let duplicates = detect_duplicate_canonical_blocks_multi(&ds).await.unwrap();
         assert_eq!(duplicates.len(), 0);
     }
 
     #[tokio::test]
     async fn test_detect_and_heal_duplicates() {
-        let mut ds = NetworkDatastore::create_in_memory().unwrap();
+        let ds = DatastoreManager::create_in_memory().unwrap();
         
         // Create duplicate canonical blocks at index 1
         let mut block1 = MinerBlock::new_canonical(
@@ -181,7 +163,7 @@ mod tests {
             1,
         );
         block1.seen_at = Some(1000); // Seen first
-        block1.save(&mut ds).await.unwrap();
+        block1.save_to_active(&ds).await.unwrap();
         
         // Second block at same index (seen later)
         let mut block2 = MinerBlock::new_canonical(
@@ -197,33 +179,32 @@ mod tests {
             2,
         );
         block2.seen_at = Some(1005); // Seen later
-        block2.save(&mut ds).await.unwrap();
+        block2.save_to_active(&ds).await.unwrap();
         
         // Detect duplicates
-        let duplicates = detect_duplicate_canonical_blocks(&ds).await.unwrap();
+        let duplicates = detect_duplicate_canonical_blocks_multi(&ds).await.unwrap();
         assert_eq!(duplicates.len(), 1);
         assert_eq!(duplicates[0].index, 1);
         assert_eq!(duplicates[0].blocks.len(), 2);
         
         // Heal
-        let orphaned = heal_duplicate_canonical_blocks(&mut ds, duplicates).await.unwrap();
+        let orphaned = heal_duplicate_canonical_blocks_multi(&ds, duplicates).await.unwrap();
         assert_eq!(orphaned.len(), 1);
         
         // Verify only one canonical block remains
-        let duplicates_after = detect_duplicate_canonical_blocks(&ds).await.unwrap();
+        let duplicates_after = detect_duplicate_canonical_blocks_multi(&ds).await.unwrap();
         assert_eq!(duplicates_after.len(), 0);
         
         // Verify the correct block was kept (earliest seen_at)
-        let canonical = MinerBlock::find_canonical_by_index(&ds, 1).await.unwrap();
+        let canonical = MinerBlock::find_canonical_by_index_simple(&ds, 1).await.unwrap();
         assert!(canonical.is_some());
         assert_eq!(canonical.unwrap().hash, "hash_1a");
         
         // Verify the other is orphaned
-        let block_1b = MinerBlock::find_by_hash(&ds, "hash_1b").await.unwrap();
+        let block_1b = MinerBlock::find_by_hash_multi(&ds, "hash_1b").await.unwrap();
         assert!(block_1b.is_some());
         let block_1b = block_1b.unwrap();
         assert!(block_1b.is_orphaned);
         assert!(!block_1b.is_canonical);
     }
 }
-

@@ -82,7 +82,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         // Try to create node and clear datastore properly
         match Node::from_config(config.clone()).await {
             Ok(node) => {
-                let datastore = node.datastore.lock().await;
+                let datastore = node.datastore_manager.lock().await;
                 
                 // Clear all keys
                 let count = datastore.clear_all().await?;

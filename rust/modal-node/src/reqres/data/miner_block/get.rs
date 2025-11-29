@@ -1,16 +1,18 @@
 use anyhow::Result;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::MinerBlock;
-use modal_datastore::Model;
 use crate::reqres::Response;
 
 /// Handler for GET /data/miner_block/get
 /// Get a specific miner block by hash
-pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatastore) -> Result<Response> {
+pub async fn handler(
+    data: Option<serde_json::Value>, 
+    datastore_manager: &DatastoreManager,
+) -> Result<Response> {
     let data = data.unwrap_or_default();
     
     if let Some(hash) = data.get("hash").and_then(|v| v.as_str()) {
-        match MinerBlock::find_by_hash(datastore, hash).await {
+        match MinerBlock::find_by_hash_multi(datastore_manager, hash).await {
             Ok(Some(block)) => {
                 Ok(Response {
                     ok: true,
@@ -41,4 +43,3 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
         })
     }
 }
-

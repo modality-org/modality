@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use modal_datastore::{NetworkDatastore, models::WasmModule};
+use modal_datastore::{DatastoreManager, models::WasmModule};
 use modal_wasm_runtime::{WasmExecutor, WasmModuleCache};
 use modal_wasm_validation::{ProgramContext, ProgramResult, encode_program_input, decode_program_result, validate_program_result};
 use serde_json::Value;
@@ -10,14 +10,14 @@ use wasmtime::{Engine, Config, Module};
 /// Executes WASM programs to produce commit actions
 /// Handles program loading, execution, and result validation with caching
 pub struct ProgramExecutor {
-    datastore: Arc<Mutex<NetworkDatastore>>,
+    datastore: Arc<Mutex<DatastoreManager>>,
     gas_limit: u64,
     cache: Arc<Mutex<WasmModuleCache>>,
     engine: Engine,
 }
 
 impl ProgramExecutor {
-    pub fn new(datastore: Arc<Mutex<NetworkDatastore>>, gas_limit: u64) -> Self {
+    pub fn new(datastore: Arc<Mutex<DatastoreManager>>, gas_limit: u64) -> Self {
         // Create Wasmtime engine with fuel consumption enabled
         let mut config = Config::new();
         config.consume_fuel(true);
@@ -36,7 +36,7 @@ impl ProgramExecutor {
 
     /// Create executor with custom cache limits
     pub fn with_cache_limits(
-        datastore: Arc<Mutex<NetworkDatastore>>,
+        datastore: Arc<Mutex<DatastoreManager>>,
         gas_limit: u64,
         max_modules: usize,
         max_size_mb: usize,
@@ -82,7 +82,7 @@ impl ProgramExecutor {
     async fn fetch_wasm_module(&self, contract_id: &str, program_path: &str) -> Result<WasmModule> {
         let ds = self.datastore.lock().await;
         
-        let wasm_module = WasmModule::find_by_contract_and_path(&ds, contract_id, program_path)
+        let wasm_module = WasmModule::find_by_contract_and_path_multi(&ds, contract_id, program_path)
             .await?
             .ok_or_else(|| anyhow!("Program not found: {} in contract {}", program_path, contract_id))?;
 
@@ -169,14 +169,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_executor_creation() {
-        let ds = Arc::new(Mutex::new(NetworkDatastore::create_in_memory().unwrap()));
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         let executor = ProgramExecutor::new(ds, 10_000_000);
         assert_eq!(executor.gas_limit, 10_000_000);
     }
 
     #[tokio::test]
     async fn test_fetch_missing_program() {
-        let ds = Arc::new(Mutex::new(NetworkDatastore::create_in_memory().unwrap()));
+        let ds = Arc::new(Mutex::new(DatastoreManager::create_in_memory().unwrap()));
         let executor = ProgramExecutor::new(ds, 10_000_000);
 
         let result = executor.fetch_wasm_module("test_contract", "/__programs__/missing.wasm").await;

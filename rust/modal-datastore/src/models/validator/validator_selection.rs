@@ -1,15 +1,10 @@
-use crate::NetworkDatastore;
+use crate::DatastoreManager;
 use crate::models::{miner::MinerBlock, validator::ValidatorSet};
 use anyhow::Result;
 
-/// Get validator set for an epoch, checking static validators first
-/// 
-/// This function:
-/// 1. Checks if static validators are configured in the network
-/// 2. If yes, creates a ValidatorSet from static validators
-/// 3. If no, falls back to dynamic validator selection from mining epochs
-pub async fn get_validator_set_for_epoch(
-    datastore: &NetworkDatastore,
+/// Get validator set for an epoch (multi-store version)
+pub async fn get_validator_set_for_epoch_multi(
+    datastore: &DatastoreManager,
     epoch: u64,
 ) -> Result<ValidatorSet> {
     // Check if static validators are configured
@@ -25,21 +20,18 @@ pub async fn get_validator_set_for_epoch(
     }
     
     // Fall back to dynamic validator selection from mining epochs
-    generate_validator_set_from_epoch(datastore, epoch).await
+    generate_validator_set_from_epoch_multi(datastore, epoch).await
 }
 
-/// Get validator set for hybrid consensus
+/// Get validator set for hybrid consensus (multi-store version)
 /// 
 /// In hybrid consensus, validators for mining epoch N are selected from
 /// nominations in mining epoch N-2. This provides a 2-epoch lookback
 /// to ensure the validator set is stable before being activated.
-/// 
-/// Returns None if the current mining epoch is < 2 (not enough history).
-pub async fn get_validator_set_for_mining_epoch_hybrid(
-    datastore: &NetworkDatastore,
+pub async fn get_validator_set_for_mining_epoch_hybrid_multi(
+    mgr: &DatastoreManager,
     current_mining_epoch: u64,
 ) -> Result<Option<ValidatorSet>> {
-    // Need at least 2 completed epochs of mining history
     if current_mining_epoch < 2 {
         log::info!(
             "Mining epoch {} is too early for hybrid consensus (need >= 2)",
@@ -48,7 +40,6 @@ pub async fn get_validator_set_for_mining_epoch_hybrid(
         return Ok(None);
     }
     
-    // Validator set for epoch N comes from nominations in epoch N-2
     let nomination_epoch = current_mining_epoch - 2;
     
     log::info!(
@@ -57,10 +48,8 @@ pub async fn get_validator_set_for_mining_epoch_hybrid(
         nomination_epoch
     );
     
-    // Generate validator set from the nomination epoch
-    match generate_validator_set_from_epoch(datastore, nomination_epoch).await {
+    match generate_validator_set_from_epoch_multi(mgr, nomination_epoch).await {
         Ok(mut validator_set) => {
-            // Update the mining_epoch field to reflect which epoch this set will validate
             validator_set.mining_epoch = current_mining_epoch;
             Ok(Some(validator_set))
         }
@@ -75,69 +64,31 @@ pub async fn get_validator_set_for_mining_epoch_hybrid(
     }
 }
 
-/// Generate a validator set from a completed mining epoch
-/// 
-/// This function:
-/// 1. Gets all blocks from the epoch
-/// 2. Shuffles the nominations using XOR of nonces
-/// 3. Selects top 27 as nominated validators
-/// 4. Selects top 13 from staking (placeholder for now)
-/// 5. Selects bottom 13 from nominations as alternates
-pub async fn generate_validator_set_from_epoch(
-    datastore: &NetworkDatastore,
+/// Generate a validator set from a completed mining epoch (multi-store version)
+pub async fn generate_validator_set_from_epoch_multi(
+    mgr: &DatastoreManager,
     epoch: u64,
 ) -> Result<ValidatorSet> {
-    // Get all canonical blocks from this epoch
-    let epoch_blocks = MinerBlock::find_canonical_by_epoch(datastore, epoch).await?;
+    let all_blocks = MinerBlock::find_all_canonical_multi(mgr).await?;
+    let epoch_blocks: Vec<_> = all_blocks.into_iter().filter(|b| b.epoch == epoch).collect();
     
     if epoch_blocks.is_empty() {
         anyhow::bail!("No blocks found for epoch {}", epoch);
     }
 
-    // Calculate seed from XOR of all nonces
     let seed = calculate_epoch_seed(&epoch_blocks);
-    
-    // Get all nominated peer IDs
-    let peer_ids: Vec<String> = epoch_blocks
-        .iter()
-        .map(|b| b.nominated_peer_id.clone())
-        .collect();
-    
-    // Shuffle using Fisher-Yates with the seed
+    let peer_ids: Vec<String> = epoch_blocks.iter().map(|b| b.nominated_peer_id.clone()).collect();
     let shuffled_peer_ids = shuffle_peer_ids(seed, &peer_ids);
     
-    // Select validators
-    let nominated_validators = shuffled_peer_ids
-        .iter()
-        .take(27)
-        .cloned()
-        .collect::<Vec<String>>();
-    
-    // For alternates, take from the bottom 13 of the shuffled list
+    let nominated_validators = shuffled_peer_ids.iter().take(27).cloned().collect();
     let total_peers = shuffled_peer_ids.len();
     let alternate_validators = if total_peers > 27 {
-        shuffled_peer_ids
-            .iter()
-            .skip(total_peers.saturating_sub(13))
-            .take(13)
-            .cloned()
-            .collect::<Vec<String>>()
+        shuffled_peer_ids.iter().skip(total_peers.saturating_sub(13)).take(13).cloned().collect()
     } else {
         Vec::new()
     };
     
-    // TODO: Implement actual staking mechanism
-    // For now, staked validators is empty
-    let staked_validators = Vec::new();
-    
-    // Create and return the validator set
-    Ok(ValidatorSet::new(
-        epoch,
-        epoch + 1, // This set will be used for the next mining epoch
-        nominated_validators,
-        staked_validators,
-        alternate_validators,
-    ))
+    Ok(ValidatorSet::new(epoch, epoch + 1, nominated_validators, Vec::new(), alternate_validators))
 }
 
 /// Calculate seed from XOR of all block nonces
@@ -223,7 +174,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_validator_set_for_epoch_with_static_validators() {
         // Create a datastore with static validators
-        let datastore = NetworkDatastore::create_in_memory().unwrap();
+        let datastore = DatastoreManager::create_in_memory().unwrap();
         let static_validators = vec![
             "12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd".to_string(),
             "12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB".to_string(),
@@ -232,7 +183,7 @@ mod tests {
         datastore.set_static_validators(&static_validators).await.unwrap();
         
         // Get validator set for epoch 0
-        let validator_set = get_validator_set_for_epoch(&datastore, 0).await.unwrap();
+        let validator_set = get_validator_set_for_epoch_multi(&datastore, 0).await.unwrap();
         
         // Verify it uses the static validators
         assert_eq!(validator_set.epoch, 0);
@@ -250,12 +201,10 @@ mod tests {
     #[tokio::test]
     async fn test_get_validator_set_for_epoch_without_static_validators() {
         // Create a datastore without static validators
-        let datastore = NetworkDatastore::create_in_memory().unwrap();
+        let datastore = DatastoreManager::create_in_memory().unwrap();
         
         // This should fail since there are no blocks for dynamic selection
-        let result = get_validator_set_for_epoch(&datastore, 0).await;
+        let result = get_validator_set_for_epoch_multi(&datastore, 0).await;
         assert!(result.is_err());
     }
 }
-
-

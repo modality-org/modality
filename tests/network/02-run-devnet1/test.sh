@@ -9,11 +9,7 @@ cd "$(dirname "$0")"
 source ../test-lib.sh
 
 # Build modal CLI if needed
-if ! command -v modal &> /dev/null; then
-    echo "Building modal CLI..."
-    (cd ../../../rust && cargo build --package modal)
-    export PATH="../../../rust/target/debug:$PATH"
-fi
+command -v modal &> /dev/null || rebuild
 
 # Clean up any previous test nodes
 rm -rf ./tmp
@@ -31,7 +27,7 @@ echo ""
 echo "Test 2: Verifying node1 structure..."
 assert_file_exists "./tmp/node1/config.json" "Node1 config.json should exist"
 assert_file_exists "./tmp/node1/node.passfile" "Node1 passfile should exist"
-assert_file_exists "./tmp/node1/storage" "Node1 storage directory should exist"
+assert_file_exists "./tmp/node1/data" "Node1 data directory should exist"
 
 # Test 3: Verify node1 has the standard peer ID
 echo ""

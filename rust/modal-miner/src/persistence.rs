@@ -1,7 +1,7 @@
 //! Persistence layer for blockchain data
 //! 
 //! This module provides functionality to save and load blockchain data
-//! to/from the NetworkDatastore.
+//! to/from the DatastoreManager.
 
 #[cfg(feature = "persistence")]
 use crate::block::Block;
@@ -10,7 +10,7 @@ use crate::error::MiningError;
 #[cfg(feature = "persistence")]
 use async_trait::async_trait;
 #[cfg(feature = "persistence")]
-use modal_datastore::{Model, NetworkDatastore, models::MinerBlock};
+use modal_datastore::{DatastoreManager, models::MinerBlock};
 
 #[cfg(feature = "persistence")]
 /// Trait for blockchain persistence operations
@@ -36,10 +36,8 @@ pub trait BlockchainPersistence {
 
 #[cfg(feature = "persistence")]
 #[async_trait]
-impl BlockchainPersistence for NetworkDatastore {
+impl BlockchainPersistence for DatastoreManager {
     async fn save_block(&mut self, block: &Block, epoch: u64) -> Result<(), MiningError> {
-        use modal_datastore::Model;
-        
         let miner_block = MinerBlock::new_canonical(
             block.header.hash.clone(),
             block.header.index,
@@ -54,7 +52,7 @@ impl BlockchainPersistence for NetworkDatastore {
         );
         
         miner_block
-            .save(self)
+            .save_to_active(self)
             .await
             .map_err(|e| MiningError::PersistenceError(e.to_string()))?;
         
@@ -62,12 +60,10 @@ impl BlockchainPersistence for NetworkDatastore {
     }
     
     async fn load_canonical_blocks(&self) -> Result<Vec<Block>, MiningError> {
-        // Load all canonical blocks from datastore
-        let miner_blocks = MinerBlock::find_all_canonical(self)
+        let miner_blocks = MinerBlock::find_all_canonical_multi(self)
             .await
             .map_err(|e| MiningError::PersistenceError(e.to_string()))?;
         
-        // Convert MinerBlocks to Blocks
         miner_blocks
             .into_iter()
             .map(|mb| miner_block_to_block(&mb))
@@ -75,13 +71,19 @@ impl BlockchainPersistence for NetworkDatastore {
     }
     
     async fn load_epoch_blocks(&self, epoch: u64) -> Result<Vec<Block>, MiningError> {
-        let miner_blocks = MinerBlock::find_canonical_by_epoch(self, epoch)
+        // Get all canonical blocks and filter by epoch
+        let all_blocks = MinerBlock::find_all_canonical_multi(self)
             .await
             .map_err(|e| MiningError::PersistenceError(e.to_string()))?;
         
-        miner_blocks
+        let miner_blocks: Vec<_> = all_blocks
             .into_iter()
-            .map(|mb| miner_block_to_block(&mb))
+            .filter(|b| b.epoch == epoch)
+            .collect();
+        
+        miner_blocks
+            .iter()
+            .map(|mb| miner_block_to_block(mb))
             .collect()
     }
     
@@ -91,13 +93,13 @@ impl BlockchainPersistence for NetworkDatastore {
         reason: String,
         competing_hash: Option<String>,
     ) -> Result<(), MiningError> {
-        if let Some(mut miner_block) = MinerBlock::find_by_hash(self, block_hash)
+        if let Some(mut miner_block) = MinerBlock::find_by_hash_multi(self, block_hash)
             .await
             .map_err(|e| MiningError::PersistenceError(e.to_string()))?
         {
             miner_block.mark_as_orphaned(reason, competing_hash);
             miner_block
-                .save(self)
+                .save_to_active(self)
                 .await
                 .map_err(|e| MiningError::PersistenceError(e.to_string()))?;
         }
@@ -154,7 +156,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_save_and_load_block() {
-        let datastore = NetworkDatastore::create_in_memory().unwrap();
+        let mut datastore = DatastoreManager::create_in_memory().unwrap();
         
         let data = BlockData::new("peer_id_123".to_string(), 42);
         let block = Block::new(1, "prev_hash".to_string(), data, 1000);
@@ -171,8 +173,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_load_epoch_blocks() {
-        use modal_datastore::Model;
-        let datastore = NetworkDatastore::create_in_memory().unwrap();
+        let datastore = DatastoreManager::create_in_memory().unwrap();
         
         // Save blocks directly using MinerBlock model for testing
         for i in 0..5 {
@@ -188,7 +189,7 @@ mod tests {
                 format!("peer_{}", i),
                 100 + i,
             );
-            block.save(&datastore).await.unwrap();
+            block.save_to_active(&datastore).await.unwrap();
         }
         
         for i in 40..43 {
@@ -204,7 +205,7 @@ mod tests {
                 format!("peer_{}", i),
                 100 + i,
             );
-            block.save(&datastore).await.unwrap();
+            block.save_to_active(&datastore).await.unwrap();
         }
         
         // Load epoch 0

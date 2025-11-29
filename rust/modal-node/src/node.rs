@@ -16,7 +16,7 @@ use libp2p::swarm::SwarmEvent;
 use libp2p::{Multiaddr, PeerId};
 
 use modal_validator_consensus::communication::Message as ConsensusMessage;
-use modal_datastore::{NetworkDatastore, DatastoreManager};
+use modal_datastore::DatastoreManager;
 use modal_common::multiaddr_list::resolve_dns_multiaddrs;
 
 use crate::config::Config;
@@ -38,10 +38,8 @@ pub struct Node {
     pub listeners: Vec<Multiaddr>,
     pub bootstrappers: Vec<Multiaddr>,
     pub swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
-    pub datastore: Arc<Mutex<NetworkDatastore>>,
-    /// New multi-store architecture (MinerCanon, MinerActive, ValidatorFinal, etc.)
-    /// When set, this is the preferred datastore for new operations
-    pub datastore_manager: Option<Arc<Mutex<DatastoreManager>>>,
+    /// Multi-store architecture (MinerCanon, MinerActive, MinerForks, ValidatorFinal, ValidatorActive, NodeState)
+    pub datastore_manager: Arc<Mutex<DatastoreManager>>,
     pub miner_nominees: Option<Vec<String>>,
     pub hybrid_consensus: bool, // Enable hybrid consensus mode
     pub run_validator: bool, // Run as validator
@@ -98,60 +96,26 @@ impl Node {
             resolve_dns_multiaddrs(config.bootstrappers.unwrap_or_default()).await?;
         let bootstrappers = exclude_multiaddresses_with_peerid(resolved_bootstrappers, peerid);
         let swarm = crate::swarm::create_swarm(node_keypair.clone()).await?;
-        let datastore = if let Some(storage_path) = config.storage_path.clone() {
-            Arc::new(Mutex::new(NetworkDatastore::create_in_directory(
-                &storage_path,
-            )?))
-        } else {
-            Arc::new(Mutex::new(NetworkDatastore::create_in_memory()?))
-        };
         
-        // Initialize the new multi-store DatastoreManager if data_dir is configured
+        // Initialize the multi-store DatastoreManager
         let datastore_manager = if let Some(data_dir) = config.data_dir.clone() {
-            log::info!("📁 Initializing multi-store DatastoreManager at {:?}", data_dir);
-            match DatastoreManager::open(&data_dir) {
-                Ok(mgr) => {
-                    log::info!("✓ DatastoreManager initialized with 6 stores");
-                    Some(Arc::new(Mutex::new(mgr)))
-                }
-                Err(e) => {
-                    log::error!("❌ Failed to initialize DatastoreManager: {}", e);
-                    log::warn!("Falling back to legacy single-store mode");
-                    None
-                }
-            }
+            log::info!("📁 Initializing DatastoreManager at {:?}", data_dir);
+            let mgr = DatastoreManager::open(&data_dir)?;
+            log::info!("✓ DatastoreManager initialized with 6 stores");
+            Arc::new(Mutex::new(mgr))
+        } else if let Some(storage_path) = config.storage_path.clone() {
+            // Backwards compatibility: use storage_path as data_dir
+            log::info!("📁 Using storage_path as data_dir: {:?}", storage_path);
+            let mgr = DatastoreManager::open(&storage_path)?;
+            log::info!("✓ DatastoreManager initialized with 6 stores");
+            Arc::new(Mutex::new(mgr))
         } else {
-            None
+            // In-memory mode for testing
+            log::info!("📁 Creating in-memory DatastoreManager");
+            let mgr = DatastoreManager::create_in_memory()?;
+            log::info!("✓ In-memory DatastoreManager initialized");
+            Arc::new(Mutex::new(mgr))
         };
-        
-        // Check for and heal duplicate canonical blocks
-        {
-            let mut ds = datastore.lock().await;
-            match modal_datastore::models::miner::integrity::detect_duplicate_canonical_blocks(&ds).await {
-                Ok(duplicates) if !duplicates.is_empty() => {
-                    log::warn!("⚠️  Detected {} indices with duplicate canonical blocks", duplicates.len());
-                    for dup in &duplicates {
-                        log::warn!("  Index {}: {} canonical blocks", dup.index, dup.blocks.len());
-                        for block in &dup.blocks {
-                            log::warn!("    - {} (seen_at: {:?})", &block.hash[..16], block.seen_at);
-                        }
-                    }
-                    log::info!("🔧 Auto-healing duplicate canonical blocks...");
-                    match modal_datastore::models::miner::integrity::heal_duplicate_canonical_blocks(&mut ds, duplicates).await {
-                        Ok(healed) => {
-                            log::info!("✅ Healed {} duplicate blocks", healed.len());
-                        }
-                        Err(e) => {
-                            log::error!("❌ Failed to heal duplicates: {}", e);
-                        }
-                    }
-                }
-                Ok(_) => {} // No duplicates found
-                Err(e) => {
-                    log::warn!("Failed to check for duplicate canonical blocks: {}", e);
-                }
-            }
-        }
         
         if let Some(network_config_path) = config.network_config_path {
             // Check if this is a modal-networks:// URI or a file path
@@ -186,16 +150,17 @@ impl Node {
                 serde_json::from_str(&config_str)?
             };
             
-            datastore
-                .lock()
-                .await
-                .load_network_config(&network_config)
-                .await?;
+            // Load network config into NodeState store
+            {
+                let mut mgr = datastore_manager.lock().await;
+                mgr.load_network_config(&network_config).await?;
+            }
             
             // Load network parameters from genesis contract if present
             if let Some(genesis_contract_id) = network_config.get("genesis_contract_id").and_then(|v| v.as_str()) {
                 log::info!("Loading network parameters from genesis contract: {}", genesis_contract_id);
-                match datastore.lock().await.load_network_parameters_from_contract(genesis_contract_id).await {
+                let mut mgr = datastore_manager.lock().await;
+                match mgr.load_network_parameters_from_contract(genesis_contract_id).await {
                     Ok(params) => {
                         log::info!("✓ Loaded network parameters from contract:");
                         log::info!("  Name: {}", params.name);
@@ -208,7 +173,7 @@ impl Node {
                         
                         // Update static validators from contract
                         if !params.validators.is_empty() {
-                            datastore.lock().await.set_static_validators(&params.validators).await?;
+                            mgr.set_static_validators(&params.validators).await?;
                         }
                     }
                     Err(e) => {
@@ -230,7 +195,6 @@ impl Node {
             listeners,
             bootstrappers,
             swarm: Arc::new(Mutex::new(swarm)),
-            datastore,
             datastore_manager,
             miner_nominees,
             hybrid_consensus,
@@ -263,18 +227,9 @@ impl Node {
         Ok(node)
     }
 
-    // ============================================================
-    // DatastoreManager helpers for multi-store migration
-    // ============================================================
-    
-    /// Get DatastoreManager if available, for multi-store operations
-    pub fn get_datastore_manager(&self) -> Option<Arc<Mutex<DatastoreManager>>> {
+    /// Get the DatastoreManager for multi-store operations
+    pub fn get_datastore_manager(&self) -> Arc<Mutex<DatastoreManager>> {
         self.datastore_manager.clone()
-    }
-    
-    /// Check if using new multi-store architecture
-    pub fn uses_multi_store(&self) -> bool {
-        self.datastore_manager.is_some()
     }
 
     pub async fn setup(&mut self, config: &Config) -> Result<()> {
@@ -477,8 +432,8 @@ impl Node {
         
         // Datastore information
         if InspectionData::should_include_datastore(level) {
-            let datastore = self.datastore.lock().await;
-            let blocks = MinerBlock::find_all_canonical(&*datastore).await?;
+            let mgr = self.datastore_manager.lock().await;
+            let blocks = MinerBlock::find_all_canonical_multi(&mgr).await?;
             
             let block_range = if !blocks.is_empty() {
                 Some((blocks.first().unwrap().index, blocks.last().unwrap().index))
@@ -598,7 +553,7 @@ impl Node {
             let handle = crate::status_server::start_status_server(
                 port,
                 self.peerid,
-                self.datastore.clone(),
+                self.datastore_manager.clone(),
                 self.swarm.clone(),
                 self.listeners.clone(),
                 self.mining_metrics.clone(),
@@ -615,7 +570,7 @@ impl Node {
             let handle = crate::status_server::start_status_html_writer(
                 dir.clone(),
                 self.peerid,
-                self.datastore.clone(),
+                self.datastore_manager.clone(),
                 self.swarm.clone(),
                 self.listeners.clone(),
                 self.mining_metrics.clone(),
@@ -635,7 +590,7 @@ impl Node {
         let tick_interval: Duration = Duration::from_secs(15);
         let mut tick = futures_timer::Delay::new(tick_interval);
 
-        let datastore = self.datastore.clone();
+        let datastore_manager = self.datastore_manager.clone();
         let consensus_tx = self.consensus_tx.clone();
         let sync_request_tx = self.sync_request_tx.clone();
         let mining_update_tx = self.mining_update_tx.clone();
@@ -685,8 +640,8 @@ impl Node {
                                 } => {
                                     log::info!("reqres request");
                                     let res = {
-                                        let mut datastore = datastore.lock().await;
-                                        crate::reqres::handle_request(request, &mut *datastore, consensus_tx.clone()).await?
+                                        let mgr = datastore_manager.lock().await;
+                                        crate::reqres::handle_request(request, &mgr, consensus_tx.clone()).await?
                                     };
                                     swarm_lock.behaviour_mut().reqres.send_response(channel, res)
                                         .expect("failed to respond")
@@ -711,7 +666,7 @@ impl Node {
                                 },
                             )) => {
                                 log::info!("Gossip received {:?}", message.topic.to_string());
-                                gossip::handle_event(message, datastore.clone(), consensus_tx.clone(), sync_request_tx.clone(), mining_update_tx.clone(), bootstrappers.clone(), minimum_block_timestamp).await?;
+                                gossip::handle_event(message, datastore_manager.clone(), consensus_tx.clone(), sync_request_tx.clone(), mining_update_tx.clone(), bootstrappers.clone(), minimum_block_timestamp).await?;
                             }
                             SwarmEvent::Behaviour(event) => {
                                 log::info!("SwarmEvent::Behaviour event {:?}", event);
@@ -767,8 +722,8 @@ impl Node {
         
         // Create and run bootup tasks
         let bootup_runner = crate::bootup::BootupRunner::new(bootup_config);
-        let datastore = self.datastore.lock().await;
-        bootup_runner.run(&datastore).await?;
+        let mgr = self.datastore_manager.lock().await;
+        bootup_runner.run(&mgr).await?;
         
         log::info!("Bootup tasks completed successfully");
         Ok(())

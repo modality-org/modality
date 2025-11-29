@@ -1,5 +1,4 @@
 use crate::model::Model;
-use crate::NetworkDatastore;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -113,25 +112,6 @@ impl MinerBlock {
         self.orphaned_at = Some(chrono::Utc::now().timestamp());
         self.orphan_reason = Some(reason);
         self.competing_hash = competing_hash;
-    }
-    
-    /// Save this block to the datastore and maintain the height index
-    pub async fn save(&self, datastore: &mut NetworkDatastore) -> Result<()> {
-        use crate::Model;
-        use super::MinerBlockHeight;
-        
-        // Save the block itself using Model trait
-        <Self as Model>::save(self, datastore).await?;
-        
-        // Also save/update the height index entry
-        let height_entry = MinerBlockHeight::new(
-            self.index,
-            self.hash.clone(),
-            self.is_canonical,
-        );
-        height_entry.save(datastore).await?;
-        
-        Ok(())
     }
     
     /// Parse nonce from string to u128
@@ -280,129 +260,6 @@ impl Model for MinerBlock {
 }
 
 impl MinerBlock {
-    /// Find a MinerBlock by its hash
-    pub async fn find_by_hash(
-        datastore: &NetworkDatastore,
-        hash: &str,
-    ) -> Result<Option<Self>> {
-        let mut keys = HashMap::new();
-        keys.insert("hash".to_string(), hash.to_string());
-        Self::find_one(datastore, keys).await
-    }
-    
-    /// Find all canonical blocks in an epoch
-    pub async fn find_canonical_by_epoch(
-        datastore: &NetworkDatastore,
-        epoch: u64,
-    ) -> Result<Vec<Self>> {
-        let prefix = "/miner_blocks/hash";
-        let mut blocks = Vec::new();
-        
-        for item in datastore.iterator(prefix) {
-            let (_, value) = item?;
-            let block: MinerBlock = serde_json::from_slice(&value)
-                .context("Failed to deserialize MinerBlock")?;
-            
-            if block.epoch == epoch && block.is_canonical {
-                blocks.push(block);
-            }
-        }
-        
-        blocks.sort_by_key(|b| b.index);
-        Ok(blocks)
-    }
-    
-    /// Find all canonical blocks (sorted by index)
-    pub async fn find_all_canonical(
-        datastore: &NetworkDatastore,
-    ) -> Result<Vec<Self>> {
-        let prefix = "/miner_blocks/hash";
-        let mut blocks = Vec::new();
-        
-        for item in datastore.iterator(prefix) {
-            let (_, value) = item?;
-            let block: MinerBlock = serde_json::from_slice(&value)
-                .context("Failed to deserialize MinerBlock")?;
-            
-            if block.is_canonical {
-                blocks.push(block);
-            }
-        }
-        
-        blocks.sort_by_key(|b| b.index);
-        Ok(blocks)
-    }
-    
-    /// Find all orphaned blocks
-    pub async fn find_all_orphaned(
-        datastore: &NetworkDatastore,
-    ) -> Result<Vec<Self>> {
-        let prefix = "/miner_blocks/hash";
-        let mut blocks = Vec::new();
-        
-        for item in datastore.iterator(prefix) {
-            let (_, value) = item?;
-            let block: MinerBlock = serde_json::from_slice(&value)
-                .context("Failed to deserialize MinerBlock")?;
-            
-            if block.is_orphaned {
-                blocks.push(block);
-            }
-        }
-        
-        blocks.sort_by_key(|b| b.index);
-        Ok(blocks)
-    }
-    
-    /// Find all blocks at a specific index (may include orphans)
-    pub async fn find_by_index(
-        datastore: &NetworkDatastore,
-        index: u64,
-    ) -> Result<Vec<Self>> {
-        let prefix = "/miner_blocks/hash";
-        let mut blocks = Vec::new();
-        
-        for item in datastore.iterator(prefix) {
-            let (_, value) = item?;
-            let block: MinerBlock = serde_json::from_slice(&value)
-                .context("Failed to deserialize MinerBlock")?;
-            
-            if block.index == index {
-                blocks.push(block);
-            }
-        }
-        
-        Ok(blocks)
-    }
-    
-    /// Find all blocks (both canonical and orphaned)
-    pub async fn find_all_blocks(
-        datastore: &NetworkDatastore,
-    ) -> Result<Vec<Self>> {
-        let prefix = "/miner_blocks/hash";
-        let mut blocks = Vec::new();
-        
-        for item in datastore.iterator(prefix) {
-            let (_, value) = item?;
-            let block: MinerBlock = serde_json::from_slice(&value)
-                .context("Failed to deserialize MinerBlock")?;
-            
-            blocks.push(block);
-        }
-        
-        blocks.sort_by_key(|b| b.index);
-        Ok(blocks)
-    }
-    
-    /// Find the canonical block at a specific index
-    pub async fn find_canonical_by_index(
-        datastore: &NetworkDatastore,
-        index: u64,
-    ) -> Result<Option<Self>> {
-        let blocks = Self::find_by_index(datastore, index).await?;
-        Ok(blocks.into_iter().find(|b| b.is_canonical))
-    }
-    
     /// Create a new pending (non-canonical) block
     /// Used when syncing blocks that need verification before being made canonical
     pub fn new_pending(
@@ -437,64 +294,17 @@ impl MinerBlock {
             competing_hash: None,
         }
     }
-    
-    /// Save a block as pending (non-canonical) for later verification
-    pub async fn save_as_pending(&self, datastore: &mut NetworkDatastore) -> Result<()> {
-        let mut pending = self.clone();
-        pending.is_canonical = false;
-        pending.is_orphaned = false;
-        pending.save(datastore).await
-    }
-    
-    /// Canonize this block (flip is_canonical to true)
-    pub async fn canonize(&mut self, datastore: &mut NetworkDatastore) -> Result<()> {
-        self.is_canonical = true;
-        self.is_orphaned = false;
-        self.save(datastore).await
-    }
-    
-    /// Find all pending (non-canonical, non-orphaned) blocks
-    pub async fn find_all_pending(
-        datastore: &NetworkDatastore,
-    ) -> Result<Vec<Self>> {
-        let prefix = "/miner_blocks/hash";
-        let mut blocks = Vec::new();
-        
-        for item in datastore.iterator(prefix) {
-            let (_, value) = item?;
-            let block: MinerBlock = serde_json::from_slice(&value)
-                .context("Failed to deserialize MinerBlock")?;
-            
-            if !block.is_canonical && !block.is_orphaned {
-                blocks.push(block);
-            }
-        }
-        
-        blocks.sort_by_key(|b| b.index);
-        Ok(blocks)
-    }
-    
-    /// Delete all pending blocks
-    pub async fn delete_all_pending(datastore: &NetworkDatastore) -> Result<usize> {
-        let pending_blocks = Self::find_all_pending(datastore).await?;
-        let count = pending_blocks.len();
-        
-        for block in pending_blocks {
-            block.delete(datastore).await?;
-        }
-        
-        Ok(count)
-    }
 }
 
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::DatastoreManager;
     
     #[tokio::test]
     async fn test_create_and_save_canonical() {
-        let mut datastore = NetworkDatastore::create_in_memory().unwrap();
+        let datastore = DatastoreManager::create_in_memory().unwrap();
         
         let block = MinerBlock::new_canonical(
             "test_hash".to_string(),
@@ -512,9 +322,9 @@ mod tests {
         assert!(block.is_canonical);
         assert!(!block.is_orphaned);
         
-        block.save(&mut datastore).await.unwrap();
+        block.save_to_active(&datastore).await.unwrap();
         
-        let loaded = MinerBlock::find_by_hash(&datastore, "test_hash")
+        let loaded = MinerBlock::find_by_hash_multi(&datastore, "test_hash")
             .await
             .unwrap();
         assert!(loaded.is_some());
@@ -527,7 +337,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_mark_as_orphaned() {
-        let mut datastore = NetworkDatastore::create_in_memory().unwrap();
+        let datastore = DatastoreManager::create_in_memory().unwrap();
         
         let mut block = MinerBlock::new_canonical(
             "test_hash_2".to_string(),
@@ -542,16 +352,16 @@ mod tests {
             99,
         );
         
-        block.save(&mut datastore).await.unwrap();
+        block.save_to_active(&datastore).await.unwrap();
         
         block.mark_as_orphaned("Reorg".to_string(), Some("winner_hash".to_string()));
         
         assert!(block.is_orphaned);
         assert!(!block.is_canonical);
         
-        block.save(&mut datastore).await.unwrap();
+        block.save_to_active(&datastore).await.unwrap();
         
-        let loaded = MinerBlock::find_by_hash(&datastore, "test_hash_2")
+        let loaded = MinerBlock::find_by_hash_multi(&datastore, "test_hash_2")
             .await
             .unwrap()
             .unwrap();
@@ -563,7 +373,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_find_canonical_by_epoch() {
-        let mut datastore = NetworkDatastore::create_in_memory().unwrap();
+        let datastore = DatastoreManager::create_in_memory().unwrap();
         
         for i in 0..5 {
             let block = MinerBlock::new_canonical(
@@ -578,10 +388,10 @@ mod tests {
                 format!("peer_{}", i),
                 100 + i,
             );
-            block.save(&mut datastore).await.unwrap();
+            block.save_to_active(&datastore).await.unwrap();
         }
         
-        let epoch_0 = MinerBlock::find_canonical_by_epoch(&datastore, 0)
+        let epoch_0 = MinerBlock::find_canonical_by_epoch_multi(&datastore, 0)
             .await
             .unwrap();
         

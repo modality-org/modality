@@ -9,7 +9,7 @@
 
 use modal_sequencer::{ShoalSequencer, ShoalSequencerConfig};
 use modal_validator_consensus::narwhal::Transaction;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tempfile::TempDir;
@@ -26,7 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Created temporary storage at: {:?}", temp_dir.path());
     
     // Create datastore
-    let datastore = NetworkDatastore::new(temp_dir.path())?;
+    let datastore = DatastoreManager::create_in_directory(temp_dir.path())?;
     let datastore = Arc::new(Mutex::new(datastore));
     
     // Create a sequencer configuration for a 4-validator committee

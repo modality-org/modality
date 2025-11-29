@@ -26,6 +26,7 @@ use std::path::{Path, PathBuf};
 use std::fs;
 
 /// Configuration for epoch-based block lifecycle
+#[derive(Debug, Clone)]
 pub struct EpochConfig {
     /// Number of epochs before a block is promoted to canon/forks (default: 2)
     pub promotion_delay_epochs: u64,
@@ -55,6 +56,15 @@ pub struct DatastoreManager {
     validator_active: ValidatorActiveStore,
     node_state: NodeStateStore,
     epoch_config: EpochConfig,
+}
+
+impl std::fmt::Debug for DatastoreManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DatastoreManager")
+            .field("data_dir", &self.data_dir)
+            .field("epoch_config", &self.epoch_config)
+            .finish_non_exhaustive()
+    }
 }
 
 impl DatastoreManager {
@@ -213,6 +223,156 @@ impl DatastoreManager {
         self.validator_active.flush()?;
         self.node_state.flush()?;
         Ok(())
+    }
+    
+    // ============================================================
+    // Compatibility methods (forward to appropriate store)
+    // ============================================================
+    
+    /// Get data by key from NodeState store
+    pub async fn get_data_by_key(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        self.node_state.get(key)
+    }
+    
+    /// Set data by key in NodeState store
+    pub async fn set_data_by_key(&self, key: &str, value: &[u8]) -> Result<()> {
+        self.node_state.put(key, value)
+    }
+    
+    /// Get string value from NodeState store
+    pub async fn get_string(&self, key: &str) -> Result<Option<String>> {
+        match self.get_data_by_key(key).await? {
+            Some(data) => Ok(Some(String::from_utf8(data)?)),
+            None => Ok(None),
+        }
+    }
+    
+    /// Put data into NodeState store
+    pub async fn put(&self, key: &str, value: &[u8]) -> Result<()> {
+        self.node_state.put(key, value)
+    }
+    
+    /// Delete data from NodeState store
+    pub async fn delete(&self, key: &str) -> Result<()> {
+        self.node_state.delete(key)
+    }
+    
+    /// Load network config into NodeState store
+    pub async fn load_network_config(&self, network_config: &serde_json::Value) -> Result<()> {
+        // Store network config
+        let config_json = serde_json::to_vec(network_config)?;
+        self.node_state.put("network_config", &config_json)?;
+        
+        // Extract and store static validators if present
+        if let Some(validators) = network_config.get("validators").and_then(|v| v.as_array()) {
+            let validator_list: Vec<String> = validators
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+            if !validator_list.is_empty() {
+                self.set_static_validators(&validator_list).await?;
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Load network parameters from a genesis contract
+    pub async fn load_network_parameters_from_contract(&self, contract_id: &str) -> Result<crate::NetworkParameters> {
+        // Try to load from ValidatorFinal store where contracts live
+        let key = format!("contract/{}/network_params", contract_id);
+        if let Some(data) = self.validator_final.get(&key)? {
+            let params: crate::NetworkParameters = serde_json::from_slice(&data)?;
+            return Ok(params);
+        }
+        
+        // Fallback to checking NodeState
+        let key = format!("network_params/{}", contract_id);
+        if let Some(data) = self.node_state.get(&key)? {
+            let params: crate::NetworkParameters = serde_json::from_slice(&data)?;
+            return Ok(params);
+        }
+        
+        Err(crate::Error::KeyNotFound(format!("Network parameters for contract {}", contract_id)))
+    }
+    
+    /// Set static validators in NodeState store
+    pub async fn set_static_validators(&self, validators: &[String]) -> Result<()> {
+        let json = serde_json::to_vec(validators)?;
+        self.node_state.put("static_validators", &json)
+    }
+    
+    /// Get static validators from NodeState store
+    pub async fn get_static_validators(&self) -> Result<Option<Vec<String>>> {
+        if let Some(data) = self.node_state.get("static_validators")? {
+            let validators: Vec<String> = serde_json::from_slice(&data)?;
+            Ok(Some(validators))
+        } else {
+            Ok(None)
+        }
+    }
+    
+    /// Get current round from NodeState
+    pub async fn get_current_round(&self) -> Result<u64> {
+        if let Some(data) = self.node_state.get("current_round")? {
+            let round_str = String::from_utf8(data)?;
+            Ok(round_str.parse().unwrap_or(0))
+        } else {
+            Ok(0)
+        }
+    }
+    
+    /// Set current round in NodeState
+    pub async fn set_current_round(&self, round_id: u64) -> Result<()> {
+        self.node_state.put("current_round", round_id.to_string().as_bytes())
+    }
+    
+    /// Bump and return the next round
+    pub async fn bump_current_round(&self) -> Result<u64> {
+        let current = self.get_current_round().await?;
+        let next = current + 1;
+        self.set_current_round(next).await?;
+        Ok(next)
+    }
+    
+    /// Clear all data from all stores
+    /// WARNING: This will delete all data in all 6 stores!
+    pub async fn clear_all(&self) -> Result<u64> {
+        use crate::stores::Store;
+        use rocksdb::IteratorMode;
+        
+        let mut count = 0u64;
+        
+        // Helper to clear a store by iterating all keys
+        fn clear_db(db: &rocksdb::DB, count: &mut u64) -> Result<()> {
+            let keys: Vec<Vec<u8>> = db.iterator(IteratorMode::Start)
+                .filter_map(|result| result.ok().map(|(key, _)| key.to_vec()))
+                .collect();
+            
+            for key in keys {
+                db.delete(&key)?;
+                *count += 1;
+            }
+            Ok(())
+        }
+        
+        // Clear each store's underlying database
+        clear_db(self.miner_active.db(), &mut count)?;
+        clear_db(self.miner_canon.db(), &mut count)?;
+        clear_db(self.miner_forks.db(), &mut count)?;
+        clear_db(self.validator_active.db(), &mut count)?;
+        clear_db(self.validator_final.db(), &mut count)?;
+        clear_db(self.node_state.db(), &mut count)?;
+        
+        // Flush all stores
+        self.miner_active.flush()?;
+        self.miner_canon.flush()?;
+        self.miner_forks.flush()?;
+        self.validator_active.flush()?;
+        self.validator_final.flush()?;
+        self.node_state.flush()?;
+        
+        Ok(count)
     }
 }
 

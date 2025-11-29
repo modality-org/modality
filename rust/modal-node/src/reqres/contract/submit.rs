@@ -4,9 +4,8 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 use sha2::{Sha256, Digest};
 
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::Commit;
-use modal_datastore::model::Model;
 
 use crate::reqres::Response;
 use modal_validator_consensus::communication::Message as ConsensusMessage;
@@ -14,7 +13,7 @@ use modal_validator_consensus::communication::Message as ConsensusMessage;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitCommitRequest {
     pub contract_id: String,
-    pub commit_data: Value, // {body: [...], head: {...}}
+    pub commit_data: Value,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -26,7 +25,7 @@ pub struct SubmitCommitResponse {
 
 pub async fn handler(
     data: Option<Value>,
-    datastore: &NetworkDatastore,
+    datastore_manager: &DatastoreManager,
     _consensus_tx: mpsc::Sender<ConsensusMessage>,
 ) -> Result<Response> {
     let req: SubmitCommitRequest = if let Some(d) = data {
@@ -35,7 +34,6 @@ pub async fn handler(
         anyhow::bail!("Missing request data");
     };
 
-    // Generate commit ID from the commit data hash
     let commit_json = serde_json::to_string(&req.commit_data)?;
     let mut hasher = Sha256::new();
     hasher.update(commit_json.as_bytes());
@@ -45,29 +43,21 @@ pub async fn handler(
         .duration_since(std::time::UNIX_EPOCH)?
         .as_secs();
 
-    // Store the commit in datastore
     let commit = Commit {
         contract_id: req.contract_id.clone(),
         commit_id: commit_id.clone(),
-        commit_data: commit_json.clone(),
+        commit_data: serde_json::to_string(&req.commit_data)?,
         timestamp,
         in_batch: None,
     };
-    
-    commit.save(datastore).await?;
 
-    // TODO: Submit to consensus when ShoalValidator is integrated
-    // For now, just store in datastore
-    // let transaction = Transaction {
-    //     data: commit_json.into_bytes(),
-    //     timestamp,
-    // };
-    // validator.submit_transaction(transaction).await?;
+    // Save to ValidatorFinal store
+    Commit::save_to_final(&commit, datastore_manager).await?;
 
     let response = SubmitCommitResponse {
-        commit_id: commit_id.clone(),
-        contract_id: req.contract_id.clone(),
-        status: "stored".to_string(),
+        commit_id,
+        contract_id: req.contract_id,
+        status: "submitted".to_string(),
     };
 
     Ok(Response {
@@ -80,28 +70,21 @@ pub async fn handler(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use modal_datastore::NetworkDatastore;
 
     #[tokio::test]
     async fn test_submit_commit() {
-        let datastore = NetworkDatastore::create_in_memory().unwrap();
-        let (tx, _rx) = mpsc::channel(100);
-
-        let commit_data = serde_json::json!({
-            "body": [{"method": "post", "path": "/test.txt", "value": "hello world"}],
-            "head": {}
-        });
-
-        let data = serde_json::json!({
-            "contract_id": "test_contract_123",
-            "commit_data": commit_data
-        });
-
-        let result = handler(Some(data), &datastore, tx).await;
-        assert!(result.is_ok());
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        let (_tx, _rx) = mpsc::channel::<ConsensusMessage>(100);
         
-        let response = result.unwrap();
+        let data = serde_json::json!({
+            "contract_id": "test-contract",
+            "commit_data": {
+                "body": ["add", "x", 1],
+                "head": {"version": 1}
+            }
+        });
+        
+        let response = handler(Some(data), &mgr, _tx).await.unwrap();
         assert!(response.ok);
     }
 }
-

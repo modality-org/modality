@@ -1,7 +1,7 @@
 use anyhow::Result;
 use lazy_static::lazy_static;
 use modal_datastore::models::ValidatorBlock;
-use modal_datastore::{Model, NetworkDatastore};
+use modal_datastore::{Model, DatastoreManager};
 use serde_json::{self, Value};
 use std::collections::HashMap;
 
@@ -103,14 +103,14 @@ impl Devnet {
         Keypair::from_json_string(&keypair.to_string())
     }
 
-    pub async fn setup_datastore_scribes(ds: &mut NetworkDatastore, count: usize) -> Result<()> {
+    pub async fn setup_datastore_scribes(ds: &DatastoreManager, count: usize) -> Result<()> {
         // let peers_hashmap = Devnet::get_keypairs_dict(count)?;
         ds.set_current_round(1).await?;
         Devnet::add_fully_connected_empty_round(ds, count).await?;
         Ok(())
     }
 
-    pub async fn add_fully_connected_empty_round(ds: &mut NetworkDatastore, count: usize) -> Result<()> {
+    pub async fn add_fully_connected_empty_round(ds: &DatastoreManager, count: usize) -> Result<()> {
         let round_id = ds.get_current_round().await?;
         let peers_hashmap = Devnet::get_keypairs_dict(count)?;
         let round_scribes = peers_hashmap.keys();
@@ -127,13 +127,13 @@ impl Devnet {
                 "prev_round_certs": prev_round_certs
             }))?;
             block.generate_sigs(&peers_hashmap[peer_id_str])?;
-            block.save(&ds).await?;
+            block.save_to_active(&ds).await?;
             for acking_peer_id_str in round_scribes.clone() {
                 let ack = block.generate_ack(&peers_hashmap[acking_peer_id_str])?;
                 block.add_ack(ack)?;
             }
             block.generate_cert(&peers_hashmap[peer_id_str])?;
-            block.save(&ds).await?;
+            block.save_to_active(&ds).await?;
         }
         ds.set_current_round(round_id + 1).await?;
         Ok(())

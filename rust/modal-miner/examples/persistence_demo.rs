@@ -1,4 +1,4 @@
-/// Example demonstrating blockchain persistence with NetworkDatastore
+/// Example demonstrating blockchain persistence with DatastoreManager
 /// 
 /// This example shows how to:
 /// - Create a blockchain with datastore persistence
@@ -7,7 +7,7 @@
 /// - Query persisted blocks
 
 use modal_miner::{Blockchain, ChainConfig, BlockchainPersistence};
-use modal_datastore::NetworkDatastore;
+use modal_datastore::DatastoreManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📦 Creating datastore at: {}\n", datastore_path.display());
     
     // Initialize datastore
-    let datastore = Arc::new(Mutex::new(NetworkDatastore::create_in_directory(&datastore_path)?));
+    let datastore = Arc::new(Mutex::new(DatastoreManager::create_in_directory(&datastore_path)?));
     
     // Configuration
     let config = ChainConfig {

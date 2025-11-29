@@ -1,6 +1,6 @@
 use anyhow::Result;
-use log::{info, warn, error};
-use modal_datastore::{NetworkDatastore, models::miner::MinerBlock, Model};
+use log::{info, warn};
+use modal_datastore::{DatastoreManager, models::miner::MinerBlock};
 
 /// Configuration for bootup tasks
 #[derive(Debug, Clone)]
@@ -36,7 +36,7 @@ impl BootupRunner {
     }
 
     /// Run all configured bootup tasks
-    pub async fn run(&self, datastore: &NetworkDatastore) -> Result<()> {
+    pub async fn run(&self, mgr: &DatastoreManager) -> Result<()> {
         if !self.config.enabled {
             info!("Bootup tasks disabled, skipping");
             return Ok(());
@@ -45,64 +45,32 @@ impl BootupRunner {
         info!("Starting bootup tasks...");
 
         // Check datastore integrity and prune blocks
-        self.check_and_prune_miner_blocks(datastore).await?;
+        self.check_and_prune_miner_blocks(mgr).await?;
 
         info!("Bootup tasks completed successfully");
         Ok(())
     }
 
     /// Check miner block integrity and prune bad/old blocks
-    async fn check_and_prune_miner_blocks(&self, datastore: &NetworkDatastore) -> Result<()> {
+    async fn check_and_prune_miner_blocks(&self, mgr: &DatastoreManager) -> Result<()> {
         info!("Checking miner block integrity...");
 
-        // Get all miner blocks
-        let all_blocks = MinerBlock::find_all_blocks(datastore).await?;
-        info!("Found {} miner blocks to check", all_blocks.len());
+        // Get all canonical miner blocks from multi-store
+        let all_blocks = MinerBlock::find_all_canonical_multi(mgr).await?;
+        info!("Found {} canonical miner blocks to check", all_blocks.len());
 
-        let mut blocks_to_prune = Vec::new();
         let mut integrity_issues = 0;
 
         for block in &all_blocks {
             // Check block integrity
             if !self.is_block_valid(block) {
                 warn!("Found invalid block: {} (index: {})", block.hash, block.index);
-                blocks_to_prune.push(block.hash.clone());
                 integrity_issues += 1;
-                continue;
-            }
-
-            // Check if block should be pruned based on genesis timestamp
-            if self.config.prune_old_genesis_blocks {
-                if let Some(min_timestamp) = self.config.minimum_genesis_timestamp {
-                    if self.should_prune_genesis_block(block, min_timestamp) {
-                        info!("Pruning old genesis block: {} (timestamp: {})", 
-                              block.hash, block.timestamp);
-                        blocks_to_prune.push(block.hash.clone());
-                    }
-                }
-            }
-        }
-
-        let prune_count = blocks_to_prune.len();
-
-        // Prune identified blocks
-        if !blocks_to_prune.is_empty() {
-            info!("Pruning {} blocks", prune_count);
-            for block_hash in blocks_to_prune {
-                if let Some(block) = MinerBlock::find_by_hash(&datastore, &block_hash).await? {
-                    if let Err(e) = block.delete(&datastore).await {
-                        error!("Failed to prune block {}: {}", block_hash, e);
-                    } else {
-                        info!("Successfully pruned block: {}", block_hash);
-                    }
-                } else {
-                    warn!("Block {} not found for pruning", block_hash);
-                }
             }
         }
 
         if integrity_issues > 0 {
-            warn!("Found {} integrity issues, pruned {} blocks", integrity_issues, prune_count);
+            warn!("Found {} integrity issues", integrity_issues);
         } else {
             info!("Miner block integrity check passed - no issues found");
         }

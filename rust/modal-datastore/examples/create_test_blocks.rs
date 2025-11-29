@@ -1,29 +1,30 @@
 /// Example: Create test miner blocks for demonstrations
 /// 
 /// Usage:
-///   cargo run --example create_test_blocks -- <storage_path> [num_blocks]
+///   cargo run --example create_test_blocks -- <data_dir> [num_blocks]
 
-use modal_datastore::{NetworkDatastore, Model};
+use modal_datastore::DatastoreManager;
 use modal_datastore::models::MinerBlock;
 use std::env;
+use std::path::PathBuf;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
     
     if args.len() < 2 {
-        eprintln!("Usage: {} <storage_path> [num_blocks]", args[0]);
+        eprintln!("Usage: {} <data_dir> [num_blocks]", args[0]);
         eprintln!("Example: {} ./tmp/node1_data 120", args[0]);
         std::process::exit(1);
     }
     
-    let storage_path = &args[1];
+    let data_dir = PathBuf::from(&args[1]);
     let num_blocks: u64 = args.get(2)
         .and_then(|s| s.parse().ok())
         .unwrap_or(120); // Default: 3 epochs
     
-    println!("Creating datastore at: {}", storage_path);
-    let datastore = NetworkDatastore::create_in_directory(&std::path::PathBuf::from(storage_path))?;
+    println!("Creating DatastoreManager at: {}", data_dir.display());
+    let mgr = DatastoreManager::open(&data_dir)?;
     
     let miners = vec![
         "QmMiner1abc123def456",
@@ -59,7 +60,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             1000 + i,
         );
         
-        block.save(&datastore).await?;
+        // Save to MinerActive store
+        block.save_to_active(&mgr).await?;
         
         // Progress indicator
         if (i + 1) % 40 == 0 {
@@ -88,8 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   Total blocks: {}", num_blocks);
     println!("   Epochs: {}", num_epochs);
     println!("   Miners: {}", miners.len());
-    println!("   Storage: {}", storage_path);
+    println!("   Data directory: {}", data_dir.display());
     
     Ok(())
 }
-

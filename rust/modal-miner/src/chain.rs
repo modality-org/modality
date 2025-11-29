@@ -35,7 +35,7 @@ pub struct Blockchain {
     block_index: HashMap<String, usize>, // hash -> index mapping
     
     #[cfg(feature = "persistence")]
-    datastore: Option<std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>>,
+    datastore_manager: Option<std::sync::Arc<tokio::sync::Mutex<modal_datastore::DatastoreManager>>>,
     
     #[cfg(feature = "persistence")]
     fork_choice: Option<std::sync::Arc<crate::fork_choice::MinerForkChoice>>,
@@ -69,7 +69,7 @@ impl Blockchain {
             genesis_peer_id,
             block_index,
             #[cfg(feature = "persistence")]
-            datastore: None,
+            datastore_manager: None,
             #[cfg(feature = "persistence")]
             fork_choice: None,
         }
@@ -82,13 +82,13 @@ impl Blockchain {
     
     #[cfg(feature = "persistence")]
     /// Create a new blockchain with persistence support
-    pub fn new_with_datastore(
+    pub fn new_with_datastore_manager(
         config: ChainConfig,
         genesis_peer_id: String,
-        datastore: std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
+        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modal_datastore::DatastoreManager>>,
     ) -> Self {
         let epoch_manager = EpochManager::new(
-            40, // BLOCKS_PER_EPOCH
+            40,
             config.target_block_time_secs,
             config.initial_difficulty,
         );
@@ -97,10 +97,6 @@ impl Blockchain {
         let mut block_index = HashMap::new();
         block_index.insert(genesis.header.hash.clone(), 0);
         
-        // Initialize fork choice with the datastore
-        let fork_choice = std::sync::Arc::new(crate::fork_choice::MinerForkChoice::new(datastore.clone()));
-        
-        // Create miner with config's mining_delay
         let miner_config = crate::miner::MinerConfig {
             max_tries: None,
             hash_func_name: Some("randomx"),
@@ -114,8 +110,8 @@ impl Blockchain {
             config,
             genesis_peer_id,
             block_index,
-            datastore: Some(datastore),
-            fork_choice: Some(fork_choice),
+            datastore_manager: Some(datastore_manager),
+            fork_choice: None,
         }
     }
     
@@ -124,9 +120,9 @@ impl Blockchain {
     pub async fn load_or_create(
         config: ChainConfig,
         genesis_peer_id: String,
-        datastore: std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
+        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modal_datastore::DatastoreManager>>,
     ) -> Result<Self, MiningError> {
-        Self::load_or_create_with_fork_config(config, genesis_peer_id, datastore, modal_observer::ForkConfig::new()).await
+        Self::load_or_create_with_fork_config(config, genesis_peer_id, datastore_manager, modal_observer::ForkConfig::new()).await
     }
     
     #[cfg(feature = "persistence")]
@@ -134,28 +130,25 @@ impl Blockchain {
     pub async fn load_or_create_with_fork_config(
         config: ChainConfig,
         genesis_peer_id: String,
-        datastore: std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
-        fork_config: modal_observer::ForkConfig,
+        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modal_datastore::DatastoreManager>>,
+        _fork_config: modal_observer::ForkConfig,
     ) -> Result<Self, MiningError> {
         use crate::persistence::BlockchainPersistence;
         
         // Try to load existing blocks
-        let ds = datastore.lock().await;
-        let loaded_blocks = ds.load_canonical_blocks().await?;
-        drop(ds);
-        
-        // Initialize fork choice with the datastore and fork config
-        let fork_choice = std::sync::Arc::new(crate::fork_choice::MinerForkChoice::new_with_fork_config(datastore.clone(), fork_config));
+        let mgr = datastore_manager.lock().await;
+        let loaded_blocks = mgr.load_canonical_blocks().await?;
+        drop(mgr);
         
         if loaded_blocks.is_empty() {
             // No existing blocks, create genesis
-            let chain = Self::new_with_datastore(config, genesis_peer_id, datastore.clone());
+            let chain = Self::new_with_datastore_manager(config, genesis_peer_id, datastore_manager.clone());
             
             // Save genesis block
             let genesis = chain.blocks[0].clone();
-            let mut ds = datastore.lock().await;
-            ds.save_block(&genesis, 0).await?;
-            drop(ds);
+            let mut mgr = datastore_manager.lock().await;
+            mgr.save_block(&genesis, 0).await?;
+            drop(mgr);
             
             Ok(chain)
         } else {
@@ -171,7 +164,6 @@ impl Blockchain {
                 block_index.insert(block.header.hash.clone(), idx);
             }
             
-            // Create miner with config's mining_delay
             let miner_config = crate::miner::MinerConfig {
                 max_tries: None,
                 hash_func_name: Some("randomx"),
@@ -185,21 +177,19 @@ impl Blockchain {
                 config,
                 genesis_peer_id,
                 block_index,
-                datastore: Some(datastore),
-                fork_choice: Some(fork_choice),
+                datastore_manager: Some(datastore_manager),
+                fork_choice: None,
             })
         }
     }
     
     #[cfg(feature = "persistence")]
-    /// Set the datastore for persistence
-    pub fn with_datastore(
+    /// Set the datastore manager for persistence
+    pub fn with_datastore_manager(
         mut self,
-        datastore: std::sync::Arc<tokio::sync::Mutex<modal_datastore::NetworkDatastore>>,
+        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modal_datastore::DatastoreManager>>,
     ) -> Self {
-        let fork_choice = std::sync::Arc::new(crate::fork_choice::MinerForkChoice::new(datastore.clone()));
-        self.datastore = Some(datastore);
-        self.fork_choice = Some(fork_choice);
+        self.datastore_manager = Some(datastore_manager);
         self
     }
     
@@ -315,12 +305,12 @@ impl Blockchain {
         self.validate_block(&block)?;
         
         // Save to datastore if available
-        if let Some(ref datastore) = self.datastore {
+        if let Some(ref datastore_manager) = self.datastore_manager {
             use crate::persistence::BlockchainPersistence;
             let epoch = self.epoch_manager.get_epoch(block.header.index);
-            let mut ds = datastore.lock().await;
-            ds.save_block(&block, epoch).await?;
-            drop(ds);
+            let mut mgr = datastore_manager.lock().await;
+            mgr.save_block(&block, epoch).await?;
+            drop(mgr);
         }
         
         // Add to index
@@ -345,11 +335,11 @@ impl Blockchain {
             fork_choice.process_mined_block(block.clone()).await?;
             
             // Reload canonical chain from datastore to ensure we're in sync
-            if let Some(ref datastore) = self.datastore {
+            if let Some(ref datastore_manager) = self.datastore_manager {
                 use crate::persistence::BlockchainPersistence;
-                let ds = datastore.lock().await;
-                let canonical_blocks = ds.load_canonical_blocks().await?;
-                drop(ds);
+                let mgr = datastore_manager.lock().await;
+                let canonical_blocks = mgr.load_canonical_blocks().await?;
+                drop(mgr);
                 
                 // Update our in-memory state
                 self.blocks = canonical_blocks;
@@ -400,11 +390,11 @@ impl Blockchain {
             
             if accepted {
                 // Reload canonical chain from datastore
-                if let Some(ref datastore) = self.datastore {
+                if let Some(ref datastore_manager) = self.datastore_manager {
                     use crate::persistence::BlockchainPersistence;
-                    let ds = datastore.lock().await;
-                    let canonical_blocks = ds.load_canonical_blocks().await?;
-                    drop(ds);
+                    let mgr = datastore_manager.lock().await;
+                    let canonical_blocks = mgr.load_canonical_blocks().await?;
+                    drop(mgr);
                     
                     // Update our in-memory state
                     self.blocks = canonical_blocks;
