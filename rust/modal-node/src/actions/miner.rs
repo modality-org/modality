@@ -52,6 +52,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     // Shared flag to pause mining during sync
     let sync_in_progress = Arc::new(AtomicBool::new(false));
     let sync_in_progress_for_request = sync_in_progress.clone();
+    let sync_in_progress_for_healing = sync_in_progress.clone();
     
     // Track which peers are currently being synced to avoid duplicate requests
     let syncing_peers = Arc::new(Mutex::new(std::collections::HashSet::<libp2p::PeerId>::new()));
@@ -532,6 +533,87 @@ pub async fn run(node: &mut Node) -> Result<()> {
 
     // Store shutdown flag in node so wait_for_shutdown can check it
     node.mining_shutdown = Some(shutdown.clone());
+
+    // Start periodic auto-healing task to check for heavier chains from peers
+    // This helps nodes converge when forks occur
+    let healing_datastore = node.datastore.clone();
+    let healing_swarm = node.swarm.clone();
+    let healing_reqres_txs = node.reqres_response_txs.clone();
+    let healing_ignored_peers = node.ignored_peers.clone();
+    let healing_bootstrappers = node.bootstrappers.clone();
+    let healing_shutdown = shutdown.clone();
+    let healing_sync_in_progress = sync_in_progress_for_healing;
+    let healing_mining_update_tx = mining_update_tx.clone();
+    
+    tokio::spawn(async move {
+        // Wait a bit before starting healing checks
+        tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+        
+        loop {
+            // Check for shutdown
+            if healing_shutdown.load(Ordering::Relaxed) {
+                break;
+            }
+            
+            // Skip if sync is already in progress
+            if healing_sync_in_progress.load(Ordering::Relaxed) {
+                tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+                continue;
+            }
+            
+            // Check each peer to see if they have a heavier chain
+            for bootstrapper in &healing_bootstrappers {
+                // Parse peer ID from multiaddr
+                let peer_id = bootstrapper.iter().find_map(|proto| {
+                    if let libp2p::multiaddr::Protocol::P2p(id) = proto {
+                        Some(id)
+                    } else {
+                        None
+                    }
+                });
+                
+                if let Some(peer_id) = peer_id {
+                    log::debug!("🔧 Auto-healing: checking peer {} for heavier chain", peer_id);
+                    
+                    // Try to sync with this peer
+                    let result = request_chain_info_impl(
+                        peer_id,
+                        bootstrapper.to_string(),
+                        healing_swarm.clone(),
+                        healing_datastore.clone(),
+                        healing_ignored_peers.clone(),
+                        healing_reqres_txs.clone(),
+                    ).await;
+                    
+                    match result {
+                        Ok(()) => {
+                            // Check if chain tip changed after sync
+                            let new_tip = {
+                                let ds = healing_datastore.lock().await;
+                                match MinerBlock::find_all_canonical(&ds).await {
+                                    Ok(blocks) if !blocks.is_empty() => {
+                                        blocks.iter().map(|b| b.index).max()
+                                    }
+                                    _ => None
+                                }
+                            };
+                            
+                            if let Some(tip) = new_tip {
+                                log::info!("🔧 Auto-healing: chain tip updated to {}, notifying mining loop", tip);
+                                let _ = healing_mining_update_tx.send(tip);
+                            }
+                        }
+                        Err(e) => {
+                            log::debug!("Auto-healing check failed for peer {}: {}", peer_id, e);
+                        }
+                    }
+                }
+            }
+            
+            // Wait before next healing check (every 5 minutes)
+            tokio::time::sleep(tokio::time::Duration::from_secs(300)).await;
+        }
+    });
 
     // Wait for shutdown signal
     node.wait_for_shutdown().await?;

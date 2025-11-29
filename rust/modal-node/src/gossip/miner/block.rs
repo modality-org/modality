@@ -110,20 +110,59 @@ pub async fn handler(
         let mut ds = datastore.lock().await;
         if let Some(existing) = MinerBlock::find_canonical_by_index(&ds, miner_block.index).await? {
             // We have a different block at the same index - this is a fork!
-            // Apply fork choice: higher difficulty wins, first-seen wins on tie (Bitcoin-style)
+            // Apply fork choice rules in priority order:
+            // 1. Difficulty (highest wins)
+            // 2. First-seen (earliest seen_at wins)
+            // 3. Hash (smallest/lexicographically lowest wins)
             let new_difficulty = miner_block.get_difficulty_u128()?;
             let existing_difficulty = existing.get_difficulty_u128()?;
             
             let should_replace = if new_difficulty > existing_difficulty {
+                // Rule 1: Higher difficulty wins
+                log::info!("Fork choice: new block has higher difficulty ({} > {})", new_difficulty, existing_difficulty);
                 true
-            } else if new_difficulty == existing_difficulty {
-                // First-seen rule: keep the existing block, reject the new one
-                // This prevents flip-flopping between equal-difficulty blocks
-                log::debug!("Equal difficulty blocks at index {} - keeping first-seen block {}", 
-                    miner_block.index, &existing.hash[..16]);
+            } else if new_difficulty < existing_difficulty {
+                // Existing block has higher difficulty
                 false
             } else {
-                false
+                // Rule 2: Equal difficulty - check first-seen (seen_at timestamp)
+                match (&miner_block.seen_at, &existing.seen_at) {
+                    (Some(new_seen), Some(existing_seen)) => {
+                        if new_seen < existing_seen {
+                            // New block was seen earlier
+                            log::info!("Fork choice: equal difficulty, new block seen earlier ({} < {})", new_seen, existing_seen);
+                            true
+                        } else if new_seen > existing_seen {
+                            // Existing block was seen earlier
+                            false
+                        } else {
+                            // Rule 3: Both seen at same time - use hash as tie-breaker
+                            if miner_block.hash < existing.hash {
+                                log::info!("Fork choice: equal difficulty and time, new block has lower hash");
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                    }
+                    (Some(_), None) => {
+                        // New block has timestamp, existing doesn't - prefer new
+                        true
+                    }
+                    (None, Some(_)) => {
+                        // Existing block has timestamp, new doesn't - prefer existing
+                        false
+                    }
+                    (None, None) => {
+                        // Rule 3: Neither has timestamp - use hash as tie-breaker
+                        if miner_block.hash < existing.hash {
+                            log::info!("Fork choice: equal difficulty, no timestamps, new block has lower hash");
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                }
             };
             
             if should_replace {
