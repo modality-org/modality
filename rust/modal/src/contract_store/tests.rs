@@ -1,5 +1,4 @@
 use crate::contract_store::CommitFile;
-use crate::contract_store::commit_file::CommitAction;
 use serde_json::json;
 
 #[test]

@@ -1,5 +1,6 @@
 mod cmds;
 mod contract_store;
+mod utils;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -154,11 +155,23 @@ enum NodeCommands {
     #[command(about = "Modify node configuration")]
     Config(cmds::node::config::Opts),
 
+    #[command(about = "Start a node in the background")]
+    Start(cmds::node::start::Opts),
+
+    #[command(about = "Stop a running node")]
+    Stop(cmds::node::stop::Opts),
+
+    #[command(about = "Restart a running node")]
+    Restart(cmds::node::restart::Opts),
+
     #[command(about = "Kill a running node process")]
     Kill(cmds::node::kill::Opts),
 
     #[command(about = "Display the PID of a running node")]
     Pid(cmds::node::pid::Opts),
+
+    #[command(about = "Tail the logs of a running node")]
+    Logs(cmds::node::logs::Opts),
 
     #[command(alias = "run_node", about = "Run a Modality Network node")]
     Run(cmds::node::run::Opts),
@@ -305,8 +318,12 @@ async fn main() -> Result<()> {
                 NodeCommands::Inspect(opts) => cmds::node::inspect::run(opts).await?,
                 NodeCommands::Compare(opts) => cmds::node::compare::run(opts).await?,
                 NodeCommands::Config(opts) => cmds::node::config::run(opts).await?,
+                NodeCommands::Start(opts) => cmds::node::start::run(opts).await?,
+                NodeCommands::Stop(opts) => cmds::node::stop::run(opts).await?,
+                NodeCommands::Restart(opts) => cmds::node::restart::run(opts).await?,
                 NodeCommands::Kill(opts) => cmds::node::kill::run(opts).await?,
                 NodeCommands::Pid(opts) => cmds::node::pid::run(opts).await?,
+                NodeCommands::Logs(opts) => cmds::node::logs::run(opts).await?,
                 NodeCommands::Run(opts) => cmds::node::run::run(opts).await?,
                 NodeCommands::RunMiner(opts) => cmds::node::run_miner::run(opts).await?,
                 NodeCommands::RunValidator(opts) => cmds::node::run_validator::run(opts).await?,

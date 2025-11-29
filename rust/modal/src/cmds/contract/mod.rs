@@ -1,3 +1,8 @@
+//! Contract management commands.
+//!
+//! This module provides commands for creating, managing, and synchronizing
+//! contracts on the Modality network.
+
 pub mod create;
 pub mod commit;
 pub mod commit_id;

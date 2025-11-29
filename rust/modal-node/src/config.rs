@@ -46,6 +46,8 @@ pub struct Config {
     // Auto-healing / fork recovery settings
     pub fork_recovery_min_peers: Option<usize>, // Minimum number of peers that must report a heavier chain before pausing mining (default: 1)
     pub fork_recovery_epoch_threshold: Option<u64>, // Pause mining if peers report chains this many epochs ahead (default: 2)
+    
+    pub run_as: Option<String>, // Node role: "miner", "observer", "validator", "noop" (default: determined by run_miner)
 }
 
 impl Config {
