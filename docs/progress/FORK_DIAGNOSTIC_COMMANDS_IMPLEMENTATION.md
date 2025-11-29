@@ -62,7 +62,7 @@ Competing Hash: abc123...
 
 ### 2. Chain Comparison Command
 
-**Command:** `modal node compare <peer>`
+**Command:** `modal node compare <peer> [--precise]`
 
 **Purpose:** Compare the local blockchain with a remote peer's chain to identify fork points and determine which chain is heavier.
 
@@ -70,25 +70,29 @@ Competing Hash: abc123...
 - Accepts either a full multiaddr or a peer ID (if found in bootstrappers)
 - Connects to the remote peer via reqres protocol
 - Queries remote chain info (length, cumulative difficulty, tip hash)
-- Finds common ancestor using exponential backoff checkpoint algorithm
+- Finds common ancestor using exponential backoff checkpoint algorithm (fast)
+- **NEW: `--precise` flag** - Performs binary search to find exact fork point (slower but precise)
 - Identifies fork divergence points
 - Recommends which chain to follow based on cumulative difficulty
 - Shows actionable next steps
 
 **Example Usage:**
 ```bash
-# Using multiaddr
+# Fast comparison (uses exponential checkpoints)
 cd testnet1
 modal node compare /ip4/1.2.3.4/tcp/4040/ws/p2p/12D3KooWEA6dRWvK1vutRDxKfdPZZr7ycHvQNWrDGZZQbiE6YibZ
+
+# Precise comparison (binary search for exact fork point)
+modal node compare --precise 12D3KooWEA6dRWvK1vutRDxKfdPZZr7ycHvQNWrDGZZQbiE6YibZ
 
 # Using peer ID (if in bootstrappers)
 modal node compare 12D3KooWEA6dRWvK1vutRDxKfdPZZr7ycHvQNWrDGZZQbiE6YibZ
 
 # With custom timeout
-modal node compare --timeout-secs 60 /ip4/1.2.3.4/tcp/4040/ws/p2p/12D3...
+modal node compare --timeout-secs 60 --precise /ip4/1.2.3.4/tcp/4040/ws/p2p/12D3...
 ```
 
-**Example Output:**
+**Example Output (Normal Mode):**
 ```
 🔍 Comparing chains with peer 12D3KooWEA6dRWvK1vutRDxKfdPZZr7ycHvQNWrDGZZQbiE6YibZ
 
@@ -117,6 +121,49 @@ Remote Chain:
   Hash: def456...
 
 ⚠️  FORK DETECTED
+  📍 Fork point: ~Block 45378 (approximate, use --precise for exact)
+  Local diverged: 2 blocks (from 45378 to 45379)
+  Remote diverged: 7 blocks (from 45378 to 45384)
+
+⚠️  Remote chain is heavier (ahead by 500000000 difficulty)
+   Consider syncing to adopt the heavier chain:
+   modal node sync
+```
+
+**Example Output (Precise Mode with --precise):**
+```
+🔍 Comparing chains with peer 12D3KooWEA6dRWvK1vutRDxKfdPZZr7ycHvQNWrDGZZQbiE6YibZ
+
+🔗 Connecting to peer...
+   Connected!
+
+📡 Requesting chain info...
+🔎 Finding common ancestor...
+🔎 Performing precise binary search for exact fork point...
+   Block 45377 ✓ (same)
+   Block 45378 ❌ (different)
+   Found exact fork at block 45378
+
+📊 Chain Comparison
+==================
+
+Local Chain:
+  Length: 45380 blocks
+  Orphans: 23 blocks
+  Cumulative Difficulty: 98234567890
+  Tip Hash: abc123...
+  Tip Index: 45379
+
+Remote Chain:
+  Length: 45385 blocks
+  Cumulative Difficulty: 98734567890
+  Tip Hash: xyz789...
+
+✓ Common Ancestor: Block 45377
+  Hash: def456...
+
+⚠️  FORK DETECTED
+  📍 Exact fork point: Block 45378
   Local diverged: 2 blocks (from 45378 to 45379)
   Remote diverged: 7 blocks (from 45378 to 45384)
 
@@ -157,7 +204,9 @@ Remote Chain:
 - Creates temporary Node instance for network communication
 - Uses existing `/data/miner_block/chain_info` reqres endpoint for remote chain info
 - Uses existing `/data/miner_block/find_ancestor` reqres endpoint with checkpoint algorithm
-- Exponential backoff: checks [tip, tip-1, tip-2, tip-4, tip-8, ...] for efficient ancestor finding
+- Exponential backoff: checks [tip, tip-1, tip-2, tip-4, tip-8, ...] for efficient ancestor finding (O(log n))
+- **Precise mode**: After finding checkpoint range, performs binary search using `/data/miner_block/get` endpoint to find exact fork block
+- Binary search: O(log n) additional requests to pinpoint exact divergence within checkpoint gap
 - Calculates cumulative difficulty for both chains
 - Provides actionable recommendations based on fork choice rules
 

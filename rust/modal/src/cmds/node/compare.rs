@@ -26,6 +26,10 @@ pub struct Opts {
     /// Timeout in seconds for network requests
     #[clap(long, default_value = "30")]
     pub timeout_secs: u64,
+    
+    /// Find exact fork point using binary search (slower but precise)
+    #[clap(long)]
+    pub precise: bool,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
@@ -71,7 +75,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
         peer_id,
         peer_addr,
         &local_blocks,
-        opts.timeout_secs
+        opts.timeout_secs,
+        opts.precise
     ).await?;
     
     // Display comparison results
@@ -97,28 +102,39 @@ pub async fn run(opts: &Opts) -> Result<()> {
     println!();
     
     if let Some(common_ancestor) = comparison.common_ancestor_index {
-        println!("✓ Common Ancestor: Block {}", common_ancestor);
+        // Use precise fork point if available, otherwise use common ancestor
+        let display_ancestor = comparison.precise_fork_point.unwrap_or(common_ancestor);
+        
+        println!("✓ Common Ancestor: Block {}", display_ancestor);
         
         // Show the hash at common ancestor
-        if let Some(ancestor_block) = local_blocks.iter().find(|b| b.index == common_ancestor) {
+        if let Some(ancestor_block) = local_blocks.iter().find(|b| b.index == display_ancestor) {
             println!("  Hash: {}", ancestor_block.hash);
         }
         
-        // Show divergence info
-        let local_diverged_blocks = local_chain_length.saturating_sub(common_ancestor + 1);
-        let remote_diverged_blocks = comparison.remote_chain_length.saturating_sub(common_ancestor + 1);
+        // Calculate divergence based on actual fork point
+        let fork_point = comparison.precise_fork_point.unwrap_or(common_ancestor);
+        let local_diverged_blocks = local_chain_length.saturating_sub(fork_point + 1);
+        let remote_diverged_blocks = comparison.remote_chain_length.saturating_sub(fork_point + 1);
         
         if local_diverged_blocks > 0 || remote_diverged_blocks > 0 {
             println!();
             println!("⚠️  FORK DETECTED");
+            
+            if comparison.precise_fork_point.is_some() {
+                println!("  📍 Exact fork point: Block {}", fork_point + 1);
+            } else {
+                println!("  📍 Fork point: ~Block {} (approximate, use --precise for exact)", fork_point + 1);
+            }
+            
             println!("  Local diverged: {} blocks (from {} to {})", 
                 local_diverged_blocks,
-                common_ancestor + 1,
+                fork_point + 1,
                 local_chain_length - 1
             );
             println!("  Remote diverged: {} blocks (from {} to {})",
                 remote_diverged_blocks,
-                common_ancestor + 1,
+                fork_point + 1,
                 comparison.remote_chain_length - 1
             );
             
@@ -152,6 +168,7 @@ struct ChainComparison {
     remote_cumulative_difficulty: u128,
     remote_tip_hash: Option<String>,
     common_ancestor_index: Option<u64>,
+    precise_fork_point: Option<u64>, // Exact block where chains diverged
 }
 
 fn parse_peer_address(
@@ -205,6 +222,7 @@ async fn compare_with_peer(
     peer_addr: Multiaddr,
     local_blocks: &[MinerBlock],
     timeout_secs: u64,
+    precise: bool,
 ) -> Result<ChainComparison> {
     // Connect to peer
     println!("🔗 Connecting to peer...");
@@ -317,6 +335,43 @@ async fn compare_with_peer(
         .and_then(|d| d.get("highest_match"))
         .and_then(|h| h.as_u64());
     
+    // If precise mode is enabled, do binary search to find exact fork point
+    let precise_fork_point = if precise && common_ancestor_index.is_some() {
+        let common_ancestor = common_ancestor_index.unwrap();
+        
+        // Find the next checkpoint after common ancestor to narrow search range
+        let search_end = local_chain_length.min(remote_chain_length);
+        
+        // Only do binary search if there's a gap to search
+        if search_end > common_ancestor + 1 {
+            println!("🔎 Performing precise binary search for exact fork point...");
+            
+            match binary_search_fork_point(
+                node,
+                peer_id,
+                local_blocks,
+                common_ancestor,
+                search_end,
+                timeout_secs
+            ).await {
+                Ok(fork_point) => {
+                    println!("   Found exact fork at block {}", fork_point + 1);
+                    Some(fork_point)
+                }
+                Err(e) => {
+                    println!("   ⚠️  Binary search failed: {}", e);
+                    println!("   Using approximate fork point from checkpoints");
+                    None
+                }
+            }
+        } else {
+            // No gap to search - the fork is right after common ancestor
+            Some(common_ancestor)
+        }
+    } else {
+        None
+    };
+    
     // Disconnect from peer
     let _ = node.disconnect_from_peer_id(peer_id).await;
     
@@ -325,6 +380,76 @@ async fn compare_with_peer(
         remote_cumulative_difficulty,
         remote_tip_hash,
         common_ancestor_index,
+        precise_fork_point,
     })
+}
+
+/// Binary search to find the exact block where chains diverged
+async fn binary_search_fork_point(
+    node: &mut Node,
+    peer_id: PeerId,
+    local_blocks: &[MinerBlock],
+    start: u64,  // Known common block
+    end: u64,    // Known different block (or search limit)
+    timeout_secs: u64,
+) -> Result<u64> {
+    let mut left = start;
+    let mut right = end;
+    let mut last_common = start;
+    
+    while left < right - 1 {
+        let mid = (left + right) / 2;
+        
+        // Get local block hash at mid
+        let local_hash = local_blocks.iter()
+            .find(|b| b.index == mid)
+            .map(|b| b.hash.clone())
+            .context(format!("Local block {} not found", mid))?;
+        
+        // Query remote peer for block at mid
+        let response = tokio::time::timeout(
+            std::time::Duration::from_secs(timeout_secs),
+            node.send_request(
+                peer_id,
+                "/data/miner_block/get".to_string(),
+                serde_json::json!({
+                    "index": mid
+                }).to_string()
+            )
+        ).await;
+        
+        let remote_hash = match response {
+            Ok(Ok(resp)) => {
+                resp.data
+                    .as_ref()
+                    .and_then(|d| d.get("hash"))
+                    .and_then(|h| h.as_str())
+                    .map(|s| s.to_string())
+            }
+            Ok(Err(e)) => {
+                anyhow::bail!("Request failed at block {}: {}", mid, e);
+            }
+            Err(_) => {
+                anyhow::bail!("Timeout at block {}", mid);
+            }
+        };
+        
+        let Some(remote_hash) = remote_hash else {
+            anyhow::bail!("Remote block {} not found or invalid response", mid);
+        };
+        
+        if local_hash == remote_hash {
+            // This block matches, fork is after this point
+            last_common = mid;
+            left = mid;
+            println!("   Block {} ✓ (same)", mid);
+        } else {
+            // This block differs, fork is before or at this point
+            right = mid;
+            println!("   Block {} ❌ (different)", mid);
+        }
+    }
+    
+    Ok(last_common)
 }
 
