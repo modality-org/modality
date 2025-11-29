@@ -606,6 +606,8 @@ pub async fn run(node: &mut Node) -> Result<()> {
             // Track the chain tip before auto-healing to detect changes
             let tip_before = local_length;
             
+            log::info!("🔧 Auto-healing: checking {} bootstrappers", healing_bootstrappers.len());
+            
             // Try to sync with ALL peers - request_chain_info_impl will only adopt heavier chains
             // Note: We don't pause mining here - only pause when actually adopting blocks
             for bootstrapper in &healing_bootstrappers {
@@ -619,7 +621,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 });
                 
                 if let Some(peer_id) = peer_id {
-                    log::debug!("🔧 Auto-healing: checking peer {} for heavier chain", peer_id);
+                    log::info!("🔧 Auto-healing: checking peer {} for heavier chain", peer_id);
                     
                     // Try to sync with this peer
                     let result = request_chain_info_impl(
@@ -631,6 +633,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
                         healing_reqres_txs.clone(),
                     ).await;
                     
+                    log::info!("🔧 Auto-healing: finished checking peer {}", peer_id);
                     match result {
                         Ok(()) => {
                             // Check if chain tip changed after sync
@@ -660,6 +663,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
             
             // Wait before next healing check (every 60 seconds)
             // Mining continues during checks, only pausing briefly when actually adopting blocks
+            log::info!("🔧 Auto-healing: cycle complete, waiting 60 seconds for next check");
             tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
         }
     });
@@ -917,27 +921,35 @@ pub async fn request_chain_info_impl(
     
     log::info!("✓ Peer chain validation passed");
     
-    // Step 7: Orphan competing local blocks and canonize peer blocks
+    // Step 7: Orphan ALL local blocks after ancestor and canonize peer blocks
+    let ancestor_index = all_blocks.first().map(|b| b.index.saturating_sub(1)).unwrap_or(0);
     {
         let mut ds = datastore.lock().await;
         
-        // Find local blocks that compete with peer blocks
+        // Find ALL local canonical blocks after the ancestor
         let local_blocks = MinerBlock::find_all_canonical(&ds).await?;
         
-        for block in &all_blocks {
-            if let Some(local) = local_blocks.iter().find(|b| b.index == block.index && b.hash != block.hash) {
+        // Orphan ALL local blocks after the ancestor index, not just those with competing peer blocks
+        // This handles the case where peer chain is shorter but has higher cumulative difficulty
+        for local in &local_blocks {
+            if local.index > ancestor_index {
+                // Find competing peer block if any (for the competing_hash field)
+                let competing_hash = all_blocks.iter()
+                    .find(|b| b.index == local.index)
+                    .map(|b| b.hash.clone());
+                
                 log::info!("Orphaning local block {} at index {}", &local.hash[..16], local.index);
                 let mut orphaned = local.clone();
                 orphaned.mark_as_orphaned(
                     format!("Replaced by peer chain with higher cumulative difficulty ({} vs {})", 
                         peer_cumulative_difficulty, local_cumulative_difficulty),
-                    Some(block.hash.clone())
+                    competing_hash
                 );
                 orphaned.save(&mut ds).await?;
             }
         }
         
-        // Canonize all pending blocks
+        // Canonize all peer blocks
         for block in &mut all_blocks {
             block.canonize(&mut ds).await?;
         }
@@ -1800,7 +1812,7 @@ pub async fn find_common_ancestor_efficient(
     };
     
     let response = match tokio::time::timeout(
-        std::time::Duration::from_secs(60),
+        std::time::Duration::from_secs(20),
         wait_for_reqres_response(&reqres_response_txs, request_id)
     ).await {
         Ok(Ok(resp)) => resp,
@@ -1851,32 +1863,67 @@ pub async fn find_common_ancestor_efficient(
         }
     }
     
-    log::debug!("Phase 2: Binary search between {} and {}", search_low, search_high);
+    log::debug!("Phase 2: Batched binary search between {} and {}", search_low, search_high);
     
-    // Binary search to narrow down the exact divergence point
+    // Batched binary search: send multiple checkpoints per request to minimize round-trips
+    // This reduces O(log n) requests to O(1-2) requests
+    const MAX_CHECKPOINTS_PER_REQUEST: usize = 50;
+    
     while search_low < search_high && search_high - search_low > 1 {
-        let mid = (search_low + search_high) / 2;
+        let range_size = (search_high - search_low) as usize;
         
-        // Check if we have a block at mid index
-        let mid_block = match local_blocks.iter().find(|b| b.index == mid) {
-            Some(block) => block,
-            None => {
-                // If we don't have this block locally, adjust search range
-                search_high = mid;
-                continue;
+        // Generate checkpoints spanning the search range
+        // For small ranges: check every block (or every few blocks)
+        // For large ranges: distribute checkpoints evenly
+        let mut checkpoints = Vec::new();
+        
+        if range_size <= MAX_CHECKPOINTS_PER_REQUEST {
+            // Small range: check every block between search_low+1 and search_high
+            for idx in (search_low + 1)..=search_high {
+                if let Some(block) = local_blocks.iter().find(|b| b.index == idx) {
+                    checkpoints.push((block.index, block.hash.clone()));
+                }
             }
-        };
+        } else {
+            // Large range: distribute checkpoints evenly
+            // Use step size to get ~MAX_CHECKPOINTS_PER_REQUEST checkpoints
+            let step = range_size / MAX_CHECKPOINTS_PER_REQUEST;
+            let step = step.max(1);
+            
+            let mut idx = search_low + 1;
+            while idx <= search_high && checkpoints.len() < MAX_CHECKPOINTS_PER_REQUEST {
+                if let Some(block) = local_blocks.iter().find(|b| b.index == idx) {
+                    checkpoints.push((block.index, block.hash.clone()));
+                }
+                idx += step as u64;
+            }
+            
+            // Always include search_high if we have the block
+            if let Some(block) = local_blocks.iter().find(|b| b.index == search_high) {
+                if checkpoints.last().map(|(i, _)| *i) != Some(search_high) {
+                    checkpoints.push((block.index, block.hash.clone()));
+                }
+            }
+        }
         
-        log::debug!("Binary search: checking index {} (range: {} to {})", mid, search_low, search_high);
+        if checkpoints.is_empty() {
+            log::debug!("No local blocks in search range, narrowing...");
+            break;
+        }
         
-        // Query just this one checkpoint
+        log::debug!("Batched binary search: sending {} checkpoints (range: {} to {})", 
+            checkpoints.len(), search_low, search_high);
+        
+        // Send all checkpoints in a single request
         let request = crate::reqres::Request {
             path: "/data/miner_block/find_ancestor".to_string(),
             data: Some(serde_json::json!({
-                "check_points": [{
-                    "index": mid,
-                    "hash": mid_block.hash
-                }]
+                "check_points": checkpoints.iter().map(|(idx, hash)| {
+                    serde_json::json!({
+                        "index": idx,
+                        "hash": hash
+                    })
+                }).collect::<Vec<_>>()
             })),
         };
         
@@ -1886,7 +1933,7 @@ pub async fn find_common_ancestor_efficient(
         };
         
         let response = match tokio::time::timeout(
-            std::time::Duration::from_secs(60),
+            std::time::Duration::from_secs(20),
             wait_for_reqres_response(&reqres_response_txs, request_id)
         ).await {
             Ok(Ok(resp)) => resp,
@@ -1902,19 +1949,44 @@ pub async fn find_common_ancestor_efficient(
         let matches_array = data.get("matches").and_then(|v| v.as_array())
             .ok_or_else(|| anyhow::anyhow!("Missing matches"))?;
         
-        if let Some(match_info) = matches_array.first() {
+        // Find the highest matching index and lowest non-matching index from results
+        let mut batch_highest_match: Option<u64> = None;
+        let mut batch_lowest_non_match: Option<u64> = None;
+        
+        for match_info in matches_array {
+            let idx = match_info.get("index").and_then(|v| v.as_u64()).unwrap_or(0);
             let matches_val = match_info.get("matches").and_then(|v| v.as_bool()).unwrap_or(false);
             
             if matches_val {
-                // This block matches, search higher
-                search_low = mid;
-                highest_match_idx = mid;
-                log::debug!("Block {} matches, searching higher", mid);
+                if batch_highest_match.is_none() || idx > batch_highest_match.unwrap() {
+                    batch_highest_match = Some(idx);
+                }
             } else {
-                // This block doesn't match, search lower
-                search_high = mid;
-                log::debug!("Block {} doesn't match, searching lower", mid);
+                if batch_lowest_non_match.is_none() || idx < batch_lowest_non_match.unwrap() {
+                    batch_lowest_non_match = Some(idx);
+                }
             }
+        }
+        
+        // Update search bounds based on batch results
+        if let Some(highest) = batch_highest_match {
+            if highest > highest_match_idx {
+                highest_match_idx = highest;
+            }
+            search_low = highest;
+            log::debug!("Batch found match at {}, new search_low = {}", highest, search_low);
+        }
+        
+        if let Some(lowest_non_match) = batch_lowest_non_match {
+            if lowest_non_match < search_high {
+                search_high = lowest_non_match;
+                log::debug!("Batch found non-match at {}, new search_high = {}", lowest_non_match, search_high);
+            }
+        }
+        
+        // If we checked every block in a small range, we're done
+        if range_size <= MAX_CHECKPOINTS_PER_REQUEST {
+            break;
         }
     }
     
