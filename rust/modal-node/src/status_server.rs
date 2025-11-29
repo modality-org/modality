@@ -393,10 +393,15 @@ fn calculate_network_hashrate(miner_blocks: &[MinerBlock]) -> f64 {
         .sum();
     let avg_difficulty = total_difficulty as f64 / recent_blocks.len() as f64;
     
-    // Network hashrate = difficulty / block_time
-    // This gives an estimate of how many hashes per second the network is doing
+    // The difficulty system uses: target = (0xffff << (0x1d * 8)) / difficulty
+    // For 256-bit hashes (RandomX, SHA256): expected_hashes = difficulty × 2^256 / max_target
+    // With max_target = 0xffff << 232 ≈ 2^248, this gives: expected_hashes ≈ difficulty × 256
+    // This scaling factor is the same for all 256-bit hash algorithms
+    const DIFFICULTY_SCALE_FACTOR: f64 = 256.0;
+    
+    // Network hashrate = expected_hashes_per_block / block_time
     if avg_block_time > 0.0 {
-        avg_difficulty / avg_block_time
+        (avg_difficulty * DIFFICULTY_SCALE_FACTOR) / avg_block_time
     } else {
         0.0
     }
