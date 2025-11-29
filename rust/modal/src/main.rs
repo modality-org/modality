@@ -151,6 +151,9 @@ enum NodeCommands {
     #[command(about = "Compare local chain with a remote peer")]
     Compare(cmds::node::compare::Opts),
 
+    #[command(about = "Modify node configuration")]
+    Config(cmds::node::config::Opts),
+
     #[command(about = "Kill a running node process")]
     Kill(cmds::node::kill::Opts),
 
@@ -298,6 +301,7 @@ async fn main() -> Result<()> {
                 NodeCommands::Info(opts) => cmds::node::info::run(opts).await?,
                 NodeCommands::Inspect(opts) => cmds::node::inspect::run(opts).await?,
                 NodeCommands::Compare(opts) => cmds::node::compare::run(opts).await?,
+                NodeCommands::Config(opts) => cmds::node::config::run(opts).await?,
                 NodeCommands::Kill(opts) => cmds::node::kill::run(opts).await?,
                 NodeCommands::Pid(opts) => cmds::node::pid::run(opts).await?,
                 NodeCommands::Run(opts) => cmds::node::run::run(opts).await?,

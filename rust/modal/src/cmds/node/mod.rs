@@ -2,6 +2,7 @@ pub mod address;
 pub mod clear;
 pub mod clear_storage;
 pub mod compare;
+pub mod config;
 pub mod create;
 pub mod info;
 pub mod inspect;
