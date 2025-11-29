@@ -83,6 +83,9 @@ pub async fn handle_request(req: Request, datastore: &mut NetworkDatastore, cons
         "/data/miner_block/find_ancestor" => {
             reqres_data::miner_block::find_ancestor::handler(Some(data.clone()), datastore).await?
         }
+        "/data/miner_block/debug_index" => {
+            reqres_data::miner_block::debug_index::handler(Some(data.clone()), datastore).await?
+        }
         "/dag/sync" => {
             dag::sync::handler(Some(data.clone()), datastore).await?
         }

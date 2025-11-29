@@ -21,6 +21,9 @@ pub mod chain_info;
 /// Find common ancestor efficiently using binary search
 pub mod find_ancestor;
 
+/// Debug: get all blocks at a specific index
+pub mod debug_index;
+
 /// Handler for GET /data/miner_block/:hash
 pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatastore) -> Result<Response> {
     let data = data.unwrap_or_default();

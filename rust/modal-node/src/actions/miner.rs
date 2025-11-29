@@ -28,6 +28,26 @@ struct MiningState {
 /// Run a mining node that continuously mines and gossips blocks
 /// This function will run until a shutdown signal is received (Ctrl-C)
 pub async fn run(node: &mut Node) -> Result<()> {
+    // Validate and repair chain integrity before starting mining
+    // This ensures we don't mine on top of a broken/orphaned chain
+    {
+        let mut ds = node.datastore.lock().await;
+        match super::chain_integrity::validate_and_repair_chain(&mut ds, true).await {
+            Ok(report) => {
+                if report.break_point.is_some() {
+                    log::warn!("🔧 Chain integrity repair: orphaned {} blocks from index {} onwards",
+                        report.orphaned_count, report.break_point.unwrap());
+                    log::info!("   Auto-healing will sync correct blocks from peers");
+                } else {
+                    log::info!("✅ Chain integrity validated: {} blocks properly linked", report.valid_blocks);
+                }
+            }
+            Err(e) => {
+                log::error!("⚠️ Failed to validate chain integrity: {} - continuing anyway", e);
+            }
+        }
+    }
+    
     // Ctrl-C handler is set up in node.wait_for_shutdown()
     // We just need a shutdown flag for mining operations
     let shutdown = Arc::new(AtomicBool::new(false));
@@ -878,6 +898,7 @@ pub async fn request_chain_info_impl(
     all_blocks.sort_by_key(|b| b.index);
     
     // First, verify the first block connects to our local chain at the common ancestor
+    // If not, search through received blocks to find one that does connect
     if let Some(first_block) = all_blocks.first() {
         if first_block.index > 0 {
             let ancestor_index = first_block.index - 1;
@@ -885,14 +906,48 @@ pub async fn request_chain_info_impl(
             let ancestor_block = MinerBlock::find_canonical_by_index(&ds, ancestor_index).await?;
             
             if let Some(ancestor) = ancestor_block {
+                log::info!("🔍 Verifying chain connection: First received block {} prev_hash={}, local ancestor {} hash={}", 
+                    first_block.index, &first_block.previous_hash, ancestor.index, &ancestor.hash);
                 if ancestor.hash != first_block.previous_hash {
-                    log::error!("⚠️  First block {} prev_hash ({}) doesn't match local ancestor block {} hash ({})",
+                    log::warn!("⚠️  First block {} prev_hash ({}) doesn't match local ancestor block {} hash ({}) - searching through received blocks",
                         first_block.index, &first_block.previous_hash[..16], 
                         ancestor.index, &ancestor.hash[..16]);
-                    let _ = MinerBlock::delete_all_pending(&ds).await;
-                    return Ok(());
+                    
+                    // The peer chain doesn't connect at expected point - possibly due to corrupted data on peer
+                    // Search through received blocks to find one that connects to our local chain
+                    drop(ds);
+                    let ds = datastore.lock().await;
+                    
+                    let local_blocks = MinerBlock::find_all_canonical(&ds).await?;
+                    let local_hashes: std::collections::HashMap<String, u64> = local_blocks.iter()
+                        .map(|b| (b.hash.clone(), b.index))
+                        .collect();
+                    
+                    // Find the first received block that connects to our local chain
+                    let mut connection_block_idx: Option<usize> = None;
+                    for (idx, block) in all_blocks.iter().enumerate() {
+                        if let Some(&local_index) = local_hashes.get(&block.previous_hash) {
+                            log::info!("✓ Found connection: peer block {} (received idx {}) prev_hash matches local block {} hash",
+                                block.index, idx, local_index);
+                            connection_block_idx = Some(idx);
+                            break;
+                        }
+                    }
+                    
+                    if let Some(start_idx) = connection_block_idx {
+                        // Remove blocks before the connection point
+                        log::info!("✂️ Trimming {} blocks that don't connect, keeping {} blocks from index {} onwards",
+                            start_idx, all_blocks.len() - start_idx, all_blocks[start_idx].index);
+                        drop(ds);
+                        all_blocks = all_blocks.split_off(start_idx);
+                    } else {
+                        log::error!("⚠️  Could not find any connection point in received blocks - peer chain completely disconnected from local");
+                        let _ = MinerBlock::delete_all_pending(&ds).await;
+                        return Ok(());
+                    }
+                } else {
+                    log::debug!("✓ First block connects to local chain at ancestor {}", ancestor_index);
                 }
-                log::debug!("✓ First block connects to local chain at ancestor {}", ancestor_index);
             } else {
                 log::error!("⚠️  No local block at index {} to connect peer chain to", ancestor_index);
                 let ds = datastore.lock().await;
@@ -1990,8 +2045,27 @@ pub async fn find_common_ancestor_efficient(
         }
     }
     
-    log::info!("✅ Found common ancestor at block index {}", highest_match_idx);
-    Ok((Some(highest_match_idx), remote_chain_length, remote_cumulative_difficulty))
+    // Verify the common ancestor by checking the NEXT block's hash
+    // If the next block matches, we haven't found the true divergence point
+    let verified_ancestor = highest_match_idx;
+    log::info!("🔍 Verifying common ancestor at block {}", verified_ancestor);
+    
+    // Check if the next block (if we have it) also matches - that would indicate we need to search higher
+    if verified_ancestor + 1 < local_chain_length {
+        if let Some(next_block) = local_blocks.iter().find(|b| b.index == verified_ancestor + 1) {
+            log::info!("🔍 Local block {} (next after ancestor) has hash: {}", 
+                next_block.index, &next_block.hash[..16]);
+        }
+    }
+    
+    // Log the ancestor block's hash for debugging
+    if let Some(ancestor_block) = local_blocks.iter().find(|b| b.index == verified_ancestor) {
+        log::info!("🔍 Common ancestor block {} has hash: {}", 
+            ancestor_block.index, &ancestor_block.hash[..16]);
+    }
+    
+    log::info!("✅ Found common ancestor at block index {}", verified_ancestor);
+    Ok((Some(verified_ancestor), remote_chain_length, remote_cumulative_difficulty))
 }
 
 

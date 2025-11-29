@@ -7,3 +7,4 @@ pub mod validator;
 pub mod server;
 pub mod sync_blocks;
 pub mod dag_sync;
+pub mod chain_integrity;

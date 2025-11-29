@@ -141,9 +141,17 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
                 if is_match && (highest_match.is_none() || highest_match.unwrap() < index) {
                     highest_match = Some(index);
                 }
+                // Log mismatches for debugging
+                if !is_match {
+                    log::debug!("find_ancestor: index {} MISMATCH - local={}, remote={}", 
+                        index, &local_hash[..16], &hash[..16]);
+                }
                 is_match
             }
-            None => false,  // We don't have a block at this index
+            None => {
+                log::debug!("find_ancestor: index {} - no local block", index);
+                false  // We don't have a block at this index
+            }
         };
         
         matches.push(serde_json::json!({
@@ -152,6 +160,8 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
             "matches": matches_local,
         }));
     }
+    
+    log::info!("find_ancestor: chain_length={}, highest_match={:?}", chain_length, highest_match);
     
     Ok(Response {
         ok: true,
