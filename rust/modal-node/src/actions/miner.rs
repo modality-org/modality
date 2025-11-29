@@ -746,17 +746,17 @@ pub async fn request_chain_info_impl(
     
     let mut all_blocks: Vec<MinerBlock> = Vec::new();
     let mut current_from = from_index;
-    let chunk_size = 50; // Reduced from 100 for faster responses
     
-    // Request blocks in chunks
+    // Request blocks in chunks - request up to peer's chain tip so server knows there are more
+    // The server caps at 50 blocks per request and sets has_more appropriately
     loop {
-        log::debug!("Requesting blocks {}..{} from peer", current_from, current_from + chunk_size);
+        log::debug!("Requesting blocks {}..{} from peer", current_from, peer_chain_length);
         
         let request = crate::reqres::Request {
             path: "/data/miner_block/range".to_string(),
             data: Some(serde_json::json!({
                 "from_index": current_from,
-                "to_index": current_from + chunk_size
+                "to_index": peer_chain_length  // Request up to peer's tip, server will cap at 50
             })),
         };
         
@@ -872,6 +872,32 @@ pub async fn request_chain_info_impl(
     // Step 6: Verify blocks form a valid chain
     // Ensure blocks are consecutive and properly linked
     all_blocks.sort_by_key(|b| b.index);
+    
+    // First, verify the first block connects to our local chain at the common ancestor
+    if let Some(first_block) = all_blocks.first() {
+        if first_block.index > 0 {
+            let ancestor_index = first_block.index - 1;
+            let ds = datastore.lock().await;
+            let ancestor_block = MinerBlock::find_canonical_by_index(&ds, ancestor_index).await?;
+            
+            if let Some(ancestor) = ancestor_block {
+                if ancestor.hash != first_block.previous_hash {
+                    log::error!("⚠️  First block {} prev_hash ({}) doesn't match local ancestor block {} hash ({})",
+                        first_block.index, &first_block.previous_hash[..16], 
+                        ancestor.index, &ancestor.hash[..16]);
+                    let _ = MinerBlock::delete_all_pending(&ds).await;
+                    return Ok(());
+                }
+                log::debug!("✓ First block connects to local chain at ancestor {}", ancestor_index);
+            } else {
+                log::error!("⚠️  No local block at index {} to connect peer chain to", ancestor_index);
+                let ds = datastore.lock().await;
+                let _ = MinerBlock::delete_all_pending(&ds).await;
+                return Ok(());
+            }
+        }
+    }
+    
     for i in 1..all_blocks.len() {
         if all_blocks[i].index != all_blocks[i-1].index + 1 {
             log::error!("⚠️  Blocks not consecutive: gap between {} and {}", 
