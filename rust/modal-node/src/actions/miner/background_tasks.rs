@@ -17,10 +17,10 @@ use crate::actions::observer::{
     get_chain_tip_index,
     validate_and_cleanup_chain,
     sync_missing_blocks,
+    request_chain_info_impl,
 };
 use crate::constants::{AUTO_HEALING_INTERVAL_SECS, SYNC_COOLDOWN_MS};
 use crate::node::IgnoredPeerInfo;
-use super::sync_helpers::request_chain_info_impl;
 
 // Re-export observer's promotion task for miner's use
 pub use crate::actions::observer::start_promotion_task;

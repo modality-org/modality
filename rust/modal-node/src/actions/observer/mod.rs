@@ -23,7 +23,10 @@ pub mod chain_monitor;
 pub mod chain_maintenance;
 
 // Re-export commonly used functions
-pub use sync::{sync_from_peers, handle_sync_from_peer, start_sync_request_handler};
+pub use sync::{
+    sync_from_peers, handle_sync_from_peer, start_sync_request_handler,
+    request_chain_info_impl, find_common_ancestor_efficient,
+};
 pub use chain_monitor::{start_chain_monitor, get_chain_tip_index};
 pub use chain_maintenance::{start_promotion_task, validate_and_cleanup_chain, sync_missing_blocks};
 
