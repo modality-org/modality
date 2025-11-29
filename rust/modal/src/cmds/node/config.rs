@@ -41,6 +41,14 @@ pub struct Opts {
     #[clap(long)]
     pub replace_ip: Option<String>,
     
+    /// Enable autoupgrade
+    #[clap(long)]
+    pub enable_autoupgrade: bool,
+    
+    /// Disable autoupgrade
+    #[clap(long)]
+    pub disable_autoupgrade: bool,
+    
     /// Show current configuration
     #[clap(long)]
     pub show: bool,
@@ -101,6 +109,16 @@ pub async fn run(opts: &Opts) -> Result<()> {
             }
         } else {
             println!("Bootstrappers: (not set)");
+        }
+        
+        println!();
+        
+        if let Some(autoupgrade) = config.get("autoupgrade_enabled") {
+            println!("Autoupgrade: {}", 
+                if autoupgrade.as_bool().unwrap_or(false) { "✓ Enabled" } else { "✗ Disabled" }
+            );
+        } else {
+            println!("Autoupgrade: (not set)");
         }
         
         return Ok(());
@@ -239,6 +257,20 @@ pub async fn run(opts: &Opts) -> Result<()> {
         } else {
             println!("⚠️  No occurrences of {} found", old_ip);
         }
+    }
+    
+    // Handle enable_autoupgrade
+    if opts.enable_autoupgrade {
+        config["autoupgrade_enabled"] = serde_json::json!(true);
+        modified = true;
+        println!("✓ Enabled autoupgrade");
+    }
+    
+    // Handle disable_autoupgrade
+    if opts.disable_autoupgrade {
+        config["autoupgrade_enabled"] = serde_json::json!(false);
+        modified = true;
+        println!("✓ Disabled autoupgrade");
     }
     
     // Save config if modified
