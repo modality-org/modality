@@ -49,6 +49,14 @@ pub struct Opts {
     #[clap(long)]
     pub disable_autoupgrade: bool,
     
+    /// Merge settings from a JSON file into the config
+    #[clap(long)]
+    pub merge_in: Option<PathBuf>,
+    
+    /// Show what would be merged without actually modifying the config (use with --merge-in)
+    #[clap(long)]
+    pub dry_run: bool,
+    
     /// Show current configuration
     #[clap(long)]
     pub show: bool,
@@ -125,6 +133,83 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
     
     let mut modified = false;
+    
+    // Handle merge_in first (before other modifications)
+    if let Some(ref merge_file) = opts.merge_in {
+        if !merge_file.exists() {
+            anyhow::bail!("Merge file not found: {}", merge_file.display());
+        }
+        
+        // Load merge file
+        let merge_content = std::fs::read_to_string(merge_file)
+            .with_context(|| format!("Failed to read merge file from {}", merge_file.display()))?;
+        
+        let merge_data: serde_json::Value = serde_json::from_str(&merge_content)
+            .with_context(|| format!("Failed to parse merge file from {}", merge_file.display()))?;
+        
+        println!("📋 Merging settings from: {}", merge_file.display());
+        println!();
+        
+        // Ensure merge_data is an object
+        let merge_obj = merge_data.as_object()
+            .context("Merge file must contain a JSON object")?;
+        
+        // Track changes
+        let mut changes = Vec::new();
+        
+        // Merge settings
+        if let Some(config_obj) = config.as_object_mut() {
+            for (key, value) in merge_obj {
+                let old_value = config_obj.get(key);
+                
+                if old_value != Some(value) {
+                    changes.push((
+                        key.clone(),
+                        old_value.cloned(),
+                        value.clone()
+                    ));
+                    
+                    if !opts.dry_run {
+                        config_obj.insert(key.clone(), value.clone());
+                        modified = true;
+                    }
+                }
+            }
+        } else {
+            anyhow::bail!("Config file must contain a JSON object");
+        }
+        
+        // Display changes
+        if !changes.is_empty() {
+            for (key, old_value, new_value) in &changes {
+                print!("  • {}: ", key);
+                
+                if let Some(old) = old_value {
+                    let old_str = format_value_preview(old);
+                    let new_str = format_value_preview(new_value);
+                    println!("{} → {}", old_str, new_str);
+                } else {
+                    let new_str = format_value_preview(new_value);
+                    println!("(not set) → {}", new_str);
+                }
+            }
+            
+            println!();
+            if opts.dry_run {
+                println!("🔍 {} setting(s) would be updated (dry run)", changes.len());
+                return Ok(());
+            } else {
+                println!("✓ Merged {} setting(s)", changes.len());
+            }
+        } else {
+            println!("ℹ️  No changes needed - all settings already match");
+            if opts.dry_run {
+                return Ok(());
+            }
+        }
+    }
+    
+    let mut modified = modified;
     
     // Handle set_listeners
     if let Some(ref listeners_str) = opts.set_listeners {
@@ -288,5 +373,38 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
     
     Ok(())
+}
+
+fn format_value_preview(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => {
+            if s.len() > 60 {
+                format!("\"{}...\"", &s[..57])
+            } else {
+                format!("\"{}\"", s)
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            if arr.is_empty() {
+                "[]".to_string()
+            } else if arr.len() == 1 {
+                format!("[{} item]", arr.len())
+            } else {
+                format!("[{} items]", arr.len())
+            }
+        }
+        serde_json::Value::Object(obj) => {
+            if obj.is_empty() {
+                "{}".to_string()
+            } else if obj.len() == 1 {
+                format!("{{{} field}}", obj.len())
+            } else {
+                format!("{{{} fields}}", obj.len())
+            }
+        }
+        serde_json::Value::Bool(b) => b.to_string(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Null => "null".to_string(),
+    }
 }
 
