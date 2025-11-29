@@ -1,6 +1,6 @@
 {
   "passfile_path": "../../passfiles/node1.mod_passfile",
-  "storage_path": "../../../tmp/storage/node1",
+  "data_dir": "../../../tmp/data/node1",
   "listeners": ["/ip4/0.0.0.0/tcp/10201/ws"],
   "bootstrappers": [
     "/ip4/127.0.0.1/tcp/10202/ws/p2p/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB"

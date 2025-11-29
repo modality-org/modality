@@ -17,9 +17,10 @@ pub struct Opts {
     #[clap(long)]
     pub node_id: Option<String>,
 
-    /// Storage path relative to node directory (default: ./storage)
-    #[clap(long, default_value = "./storage")]
-    pub storage_path: String,
+    /// Data directory for multi-store architecture (default: ./data)
+    /// Contains: miner_canon/, miner_forks/, miner_active/, validator_final/, validator_active/, node_state/
+    #[clap(long, default_value = "./data")]
+    pub data_dir: String,
 
     /// Bootstrapper addresses (comma-separated)
     #[clap(long)]
@@ -378,7 +379,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         json!({
             "id": peer_id,
             "passfile_path": "./node.passfile",
-            "storage_path": opts.storage_path,
+            "data_dir": opts.data_dir,
             "logs_path": "./logs",
             "logs_enabled": opts.logs_enabled.unwrap_or(true),
             "log_level": opts.log_level,
@@ -396,13 +397,13 @@ pub async fn run(opts: &Opts) -> Result<()> {
         obj.insert("id".to_string(), json!(peer_id));
         obj.insert("passfile_path".to_string(), json!("./node.passfile"));
         
-        // Only override storage_path if explicitly provided (not default)
-        // The default is "./storage" from clap, but we don't want to override template configs with it
-        // Check if storage_path was actually provided by user (not just the default)
+        // Only override data_dir if explicitly provided (not default)
+        // The default is "./data" from clap, but we don't want to override template configs with it
+        // Check if data_dir was actually provided by user (not just the default)
         // Since we can't distinguish default vs user-provided easily, only override if it's different from default
-        // AND we're not using a template (templates should keep their storage_path)
-        if template_config_content.is_none() && !opts.storage_path.is_empty() {
-            obj.insert("storage_path".to_string(), json!(opts.storage_path));
+        // AND we're not using a template (templates should keep their data_dir)
+        if template_config_content.is_none() && !opts.data_dir.is_empty() {
+            obj.insert("data_dir".to_string(), json!(opts.data_dir));
         }
         
         // Override with CLI options if provided
@@ -468,10 +469,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
     std::fs::write(&config_path, serde_json::to_string_pretty(&config)?)
         .with_context(|| format!("Failed to write config.json to {}", config_path.display()))?;
 
-    // Create storage directory
-    let storage_dir = node_dir.join(opts.storage_path.trim_start_matches("./"));
-    std::fs::create_dir_all(&storage_dir)
-        .with_context(|| format!("Failed to create storage directory at {}", storage_dir.display()))?;
+    // Create data directory (multi-store architecture)
+    let data_dir = node_dir.join(opts.data_dir.trim_start_matches("./"));
+    std::fs::create_dir_all(&data_dir)
+        .with_context(|| format!("Failed to create data directory at {}", data_dir.display()))?;
 
     // Create logs directory
     let logs_dir = node_dir.join("logs");
@@ -486,7 +487,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
     println!("📄 Config file: {}", config_path.display());
     println!("🔐 Passfile: {}", passfile_path.display());
-    println!("💾 Storage directory: {}", storage_dir.display());
+    println!("💾 Data directory: {}", data_dir.display());
     println!("📝 Logs directory: {}", logs_dir.display());
     println!("📊 Logging: {} (level: {})", 
         if opts.logs_enabled.unwrap_or(true) { "enabled" } else { "disabled" }, 

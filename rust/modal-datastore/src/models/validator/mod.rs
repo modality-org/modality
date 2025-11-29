@@ -3,6 +3,7 @@ pub mod block_header;
 pub mod block_message;
 pub mod validator_set;
 pub mod validator_selection;
+pub mod multi_store;
 
 // DAG models for Narwhal/Shoal consensus
 pub mod certificate;

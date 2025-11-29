@@ -12,6 +12,7 @@ pub struct Config {
     pub id: Option<String>,
     pub passfile_path: Option<PathBuf>,
     pub storage_path: Option<PathBuf>,
+    pub data_dir: Option<PathBuf>, // New multi-store data directory (contains miner_canon/, miner_active/, etc.)
     pub logs_path: Option<PathBuf>,
     pub logs_enabled: Option<bool>,
     pub log_level: Option<String>,
@@ -66,6 +67,12 @@ impl Config {
             let storage_path = storage_path_buf.as_path();
             let abs_storage_path = to_absolute_path(config_dir, storage_path)?;
             config.storage_path = Some(abs_storage_path);
+        }
+
+        if let Some(data_dir_buf) = config.data_dir {
+            let data_dir = data_dir_buf.as_path();
+            let abs_data_dir = to_absolute_path(config_dir, data_dir)?;
+            config.data_dir = Some(abs_data_dir);
         }
 
         if let Some(logs_path_buf) = config.logs_path {

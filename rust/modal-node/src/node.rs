@@ -16,7 +16,7 @@ use libp2p::swarm::SwarmEvent;
 use libp2p::{Multiaddr, PeerId};
 
 use modal_validator_consensus::communication::Message as ConsensusMessage;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::{NetworkDatastore, DatastoreManager};
 use modal_common::multiaddr_list::resolve_dns_multiaddrs;
 
 use crate::config::Config;
@@ -39,6 +39,9 @@ pub struct Node {
     pub bootstrappers: Vec<Multiaddr>,
     pub swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     pub datastore: Arc<Mutex<NetworkDatastore>>,
+    /// New multi-store architecture (MinerCanon, MinerActive, ValidatorFinal, etc.)
+    /// When set, this is the preferred datastore for new operations
+    pub datastore_manager: Option<Arc<Mutex<DatastoreManager>>>,
     pub miner_nominees: Option<Vec<String>>,
     pub hybrid_consensus: bool, // Enable hybrid consensus mode
     pub run_validator: bool, // Run as validator
@@ -95,12 +98,30 @@ impl Node {
             resolve_dns_multiaddrs(config.bootstrappers.unwrap_or_default()).await?;
         let bootstrappers = exclude_multiaddresses_with_peerid(resolved_bootstrappers, peerid);
         let swarm = crate::swarm::create_swarm(node_keypair.clone()).await?;
-        let datastore = if let Some(storage_path) = config.storage_path {
+        let datastore = if let Some(storage_path) = config.storage_path.clone() {
             Arc::new(Mutex::new(NetworkDatastore::create_in_directory(
                 &storage_path,
             )?))
         } else {
             Arc::new(Mutex::new(NetworkDatastore::create_in_memory()?))
+        };
+        
+        // Initialize the new multi-store DatastoreManager if data_dir is configured
+        let datastore_manager = if let Some(data_dir) = config.data_dir.clone() {
+            log::info!("📁 Initializing multi-store DatastoreManager at {:?}", data_dir);
+            match DatastoreManager::open(&data_dir) {
+                Ok(mgr) => {
+                    log::info!("✓ DatastoreManager initialized with 6 stores");
+                    Some(Arc::new(Mutex::new(mgr)))
+                }
+                Err(e) => {
+                    log::error!("❌ Failed to initialize DatastoreManager: {}", e);
+                    log::warn!("Falling back to legacy single-store mode");
+                    None
+                }
+            }
+        } else {
+            None
         };
         
         // Check for and heal duplicate canonical blocks
@@ -210,6 +231,7 @@ impl Node {
             bootstrappers,
             swarm: Arc::new(Mutex::new(swarm)),
             datastore,
+            datastore_manager,
             miner_nominees,
             hybrid_consensus,
             run_validator,
@@ -239,6 +261,20 @@ impl Node {
             sync_trigger_tx,
         };
         Ok(node)
+    }
+
+    // ============================================================
+    // DatastoreManager helpers for multi-store migration
+    // ============================================================
+    
+    /// Get DatastoreManager if available, for multi-store operations
+    pub fn get_datastore_manager(&self) -> Option<Arc<Mutex<DatastoreManager>>> {
+        self.datastore_manager.clone()
+    }
+    
+    /// Check if using new multi-store architecture
+    pub fn uses_multi_store(&self) -> bool {
+        self.datastore_manager.is_some()
     }
 
     pub async fn setup(&mut self, config: &Config) -> Result<()> {

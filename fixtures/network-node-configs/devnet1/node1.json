@@ -1,6 +1,6 @@
 {
   "passfile_path": "../../passfiles/node1.mod_passfile",
-  "storage_path": "../../../tmp/storage/node1",
+  "data_dir": "../../../tmp/data/node1",
   "listeners": ["/ip4/0.0.0.0/tcp/10101/ws"],
   "bootstrappers": ["/dnsaddr/devnet1.modality.network"],
   "network_config_path": "../../network-configs/devnet1/config.json"

@@ -1,6 +1,6 @@
 {
   "passfile_path": "../passfiles/node1.mod_passfile",
-  "storage_path": "../../tmp/storage/miner-test",
+  "data_dir": "../../tmp/data/miner-test",
   "listeners": ["/ip4/0.0.0.0/tcp/10201/ws"],
   "bootstrappers": [],
   "status_port": 8080,

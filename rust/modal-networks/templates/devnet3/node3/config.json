@@ -1,7 +1,7 @@
 {
   "id": "12D3KooW9qGaMuW7k2a5iEQ37gWgtjfFC4B3j5R1kKJPZofS62Se",
   "passfile_path": "./node.passfile",
-  "storage_path": "./storage",
+  "data_dir": "./data",
   "logs_path": "./logs",
   "logs_enabled": true,
   "log_level": "info",

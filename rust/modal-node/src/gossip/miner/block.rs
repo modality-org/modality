@@ -1,8 +1,10 @@
 use anyhow::Result;
 use modal_datastore::Model;
-use modal_datastore::NetworkDatastore;
+use modal_datastore::{NetworkDatastore, DatastoreManager};
 use modal_datastore::models::MinerBlock;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub const TOPIC: &str = "/miner/block";
 
@@ -66,7 +68,8 @@ impl MinerBlockGossip {
 pub async fn handler(
     data: String,
     source_peer: Option<libp2p::PeerId>,
-    datastore: std::sync::Arc<tokio::sync::Mutex<NetworkDatastore>>,
+    datastore: Arc<Mutex<NetworkDatastore>>,
+    datastore_manager: Option<Arc<Mutex<DatastoreManager>>>,
     sync_request_tx: Option<tokio::sync::mpsc::UnboundedSender<(libp2p::PeerId, String)>>,
     mining_update_tx: Option<tokio::sync::mpsc::UnboundedSender<u64>>,
     bootstrappers: Vec<libp2p::Multiaddr>,
@@ -91,8 +94,17 @@ pub async fn handler(
         }
     }
     
+    // Use multi-store architecture if DatastoreManager is available
+    let use_multi_store = datastore_manager.is_some();
+    
     // Check if we already have this exact block (by hash)
-    {
+    if use_multi_store {
+        let mgr = datastore_manager.as_ref().unwrap().lock().await;
+        if let Ok(Some(_)) = MinerBlock::find_by_hash_multi(&mgr, &miner_block.hash).await {
+            log::debug!("Block with hash {} already exists (multi-store), skipping", &miner_block.hash[..16]);
+            return Ok(());
+        }
+    } else {
         let ds = datastore.lock().await;
         if let Ok(Some(_)) = MinerBlock::find_by_hash(&ds, &miner_block.hash).await {
             log::debug!("Block with hash {} already exists, skipping", &miner_block.hash[..16]);
