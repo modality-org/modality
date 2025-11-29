@@ -1,7 +1,14 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use modal_common::hash_tax;
+
+/// Special peer ID used for the genesis block (no nomination)
+pub const GENESIS_PEER_ID: &str = "";
+
+/// Fixed timestamp for default genesis block (Unix epoch: Jan 1, 1970 00:00:00 UTC)
+/// This ensures all nodes create identical genesis blocks
+pub const GENESIS_TIMESTAMP: i64 = 0;
 
 /// Block data containing a nominated peer ID and arbitrary number
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -93,7 +100,40 @@ impl Block {
         }
     }
     
-    /// Create genesis block (first block in chain)
+    /// Create the default genesis block (shared by all nodes)
+    /// 
+    /// The default genesis block:
+    /// - Has index 0 with no nomination (empty nominated_peer_id)
+    /// - Uses a fixed timestamp (Unix epoch) for deterministic hash
+    /// - Precedes epoch 0 (not counted as part of any epoch)
+    /// 
+    /// All nodes using default genesis will produce identical genesis blocks.
+    pub fn default_genesis(difficulty: u128) -> Self {
+        let data = BlockData::new(GENESIS_PEER_ID.to_string(), 0);
+        let data_hash = Self::calculate_data_hash(&data);
+        
+        let header = BlockHeader {
+            index: 0,
+            timestamp: Utc.timestamp_opt(GENESIS_TIMESTAMP, 0).unwrap(),
+            previous_hash: "0".to_string(),
+            data_hash,
+            nonce: 0,
+            difficulty,
+            hash: String::new(),
+        };
+        
+        let mut block = Self { header, data };
+        
+        // Genesis block doesn't need mining, just set hash
+        block.header.hash = block.header.calculate_hash(0);
+        block
+    }
+    
+    /// Create genesis block with a specific peer ID (for custom networks)
+    /// 
+    /// This is useful for networks that want a specific node to be credited
+    /// in the genesis block. For shared/public networks, use `default_genesis()`.
+    #[deprecated(note = "Use default_genesis() for shared networks")]
     pub fn genesis(difficulty: u128, genesis_peer_id: String) -> Self {
         let data = BlockData::new(genesis_peer_id, 0);
         
@@ -107,6 +147,11 @@ impl Block {
         // Genesis block doesn't need mining, just set hash
         block.header.hash = block.header.calculate_hash(0);
         block
+    }
+    
+    /// Check if this is the genesis block (block 0)
+    pub fn is_genesis(&self) -> bool {
+        self.header.index == 0 && self.header.previous_hash == "0"
     }
     
     /// Calculate hash of block data
@@ -148,13 +193,37 @@ mod tests {
     }
 
     #[test]
-    fn test_genesis_block() {
-        let genesis = Block::genesis(1, "genesis_peer_id".to_string());
+    fn test_default_genesis_block() {
+        let genesis = Block::default_genesis(1);
 
         assert_eq!(genesis.header.index, 0);
         assert_eq!(genesis.header.previous_hash, "0");
         assert_eq!(genesis.data.miner_number, 0);
-        assert_eq!(genesis.data.nominated_peer_id, "genesis_peer_id");
+        assert_eq!(genesis.data.nominated_peer_id, ""); // No nomination
+        assert!(!genesis.header.hash.is_empty());
+        assert!(genesis.is_genesis());
+    }
+    
+    #[test]
+    fn test_default_genesis_deterministic() {
+        // Two default genesis blocks should be identical
+        let genesis1 = Block::default_genesis(1);
+        let genesis2 = Block::default_genesis(1);
+        
+        assert_eq!(genesis1.header.hash, genesis2.header.hash);
+        assert_eq!(genesis1.header.timestamp, genesis2.header.timestamp);
+        assert_eq!(genesis1.header.data_hash, genesis2.header.data_hash);
+    }
+    
+    #[test]
+    #[allow(deprecated)]
+    fn test_custom_genesis_block() {
+        let genesis = Block::genesis(1, "custom_peer_id".to_string());
+
+        assert_eq!(genesis.header.index, 0);
+        assert_eq!(genesis.header.previous_hash, "0");
+        assert_eq!(genesis.data.miner_number, 0);
+        assert_eq!(genesis.data.nominated_peer_id, "custom_peer_id");
         assert!(!genesis.header.hash.is_empty());
     }
 

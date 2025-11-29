@@ -39,18 +39,58 @@ impl EpochManager {
     }
     
     /// Get the epoch number for a given block index
+    /// 
+    /// Genesis block (index 0) precedes all epochs and returns epoch 0.
+    /// Epoch 0 starts at block 1 and contains blocks 1 through blocks_per_epoch.
+    /// Epoch 1 starts at block (blocks_per_epoch + 1), etc.
+    /// 
+    /// Examples with blocks_per_epoch = 40:
+    /// - Block 0 (genesis): epoch 0 (precedes epoch, but returns 0 for compatibility)
+    /// - Blocks 1-40: epoch 0
+    /// - Blocks 41-80: epoch 1
+    /// - Blocks 81-120: epoch 2
     pub fn get_epoch(&self, block_index: u64) -> u64 {
-        block_index / self.blocks_per_epoch
+        if block_index == 0 {
+            return 0; // Genesis precedes all epochs
+        }
+        // Epoch 0 is blocks 1 to blocks_per_epoch
+        // Epoch 1 is blocks (blocks_per_epoch + 1) to (2 * blocks_per_epoch)
+        (block_index - 1) / self.blocks_per_epoch
     }
     
-    /// Check if a block is the first in its epoch
+    /// Check if a block is the genesis block (precedes all epochs)
+    pub fn is_genesis(&self, block_index: u64) -> bool {
+        block_index == 0
+    }
+    
+    /// Check if a block is the first in its epoch (excluding genesis)
+    /// Genesis is not considered the start of any epoch.
     pub fn is_epoch_start(&self, block_index: u64) -> bool {
-        block_index % self.blocks_per_epoch == 0
+        if block_index == 0 {
+            return false; // Genesis is not the start of an epoch
+        }
+        // Block 1 starts epoch 0, block 41 starts epoch 1, etc.
+        (block_index - 1) % self.blocks_per_epoch == 0
     }
     
     /// Check if a block is the last in its epoch
+    /// Genesis is not considered the end of any epoch.
     pub fn is_epoch_end(&self, block_index: u64) -> bool {
-        (block_index + 1) % self.blocks_per_epoch == 0
+        if block_index == 0 {
+            return false; // Genesis is not part of an epoch
+        }
+        // Block 40 ends epoch 0, block 80 ends epoch 1, etc.
+        (block_index - 1) % self.blocks_per_epoch == self.blocks_per_epoch - 1
+    }
+    
+    /// Get the first block index of an epoch (excluding genesis from epoch 0)
+    pub fn get_epoch_start_index(&self, epoch: u64) -> u64 {
+        epoch * self.blocks_per_epoch + 1
+    }
+    
+    /// Get the last block index of an epoch
+    pub fn get_epoch_end_index(&self, epoch: u64) -> u64 {
+        (epoch + 1) * self.blocks_per_epoch
     }
     
     /// Calculate difficulty for next epoch based on previous epoch's blocks
@@ -119,29 +159,35 @@ impl EpochManager {
     }
     
     /// Get difficulty for a specific block index
+    /// 
+    /// Genesis block always uses initial_difficulty.
+    /// Blocks in epoch 0 use initial_difficulty.
+    /// Blocks in epoch N (N > 0) use adjusted difficulty based on epoch N-1.
     pub fn get_difficulty_for_block(
         &self,
         block_index: u64,
         chain_blocks: &[Block],
     ) -> u128 {
+        // Genesis block always uses initial difficulty
         if block_index == 0 {
             return self.initial_difficulty;
         }
         
         let current_epoch = self.get_epoch(block_index);
         
+        // First epoch uses initial difficulty
         if current_epoch == 0 {
             return self.initial_difficulty;
         }
         
-        // Get blocks from previous epoch
-        let prev_epoch_start = (current_epoch - 1) * self.blocks_per_epoch;
-        let prev_epoch_end = current_epoch * self.blocks_per_epoch;
+        // Get blocks from previous epoch (excluding genesis)
+        let prev_epoch_start = self.get_epoch_start_index(current_epoch - 1);
+        let prev_epoch_end = self.get_epoch_end_index(current_epoch - 1);
         
         let epoch_blocks: Vec<Block> = chain_blocks
             .iter()
             .filter(|b| {
-                b.header.index >= prev_epoch_start && b.header.index < prev_epoch_end
+                b.header.index >= prev_epoch_start && b.header.index <= prev_epoch_end
             })
             .cloned()
             .collect();
@@ -212,29 +258,68 @@ mod tests {
     
     #[test]
     fn test_epoch_calculation() {
-        let manager = EpochManager::default();
+        let manager = EpochManager::default(); // blocks_per_epoch = 40
         
+        // Genesis block (index 0) precedes all epochs, returns 0 for compatibility
         assert_eq!(manager.get_epoch(0), 0);
-        assert_eq!(manager.get_epoch(39), 0);
-        assert_eq!(manager.get_epoch(40), 1);
-        assert_eq!(manager.get_epoch(79), 1);
-        assert_eq!(manager.get_epoch(80), 2);
+        assert!(manager.is_genesis(0));
+        
+        // Epoch 0: blocks 1-40
+        assert_eq!(manager.get_epoch(1), 0);
+        assert_eq!(manager.get_epoch(40), 0);
+        
+        // Epoch 1: blocks 41-80
+        assert_eq!(manager.get_epoch(41), 1);
+        assert_eq!(manager.get_epoch(80), 1);
+        
+        // Epoch 2: blocks 81-120
+        assert_eq!(manager.get_epoch(81), 2);
+        assert_eq!(manager.get_epoch(120), 2);
     }
     
     #[test]
     fn test_epoch_boundaries() {
-        let manager = EpochManager::default();
+        let manager = EpochManager::default(); // blocks_per_epoch = 40
         
-        assert!(manager.is_epoch_start(0));
-        assert!(manager.is_epoch_start(40));
-        assert!(manager.is_epoch_start(80));
-        assert!(!manager.is_epoch_start(1));
-        assert!(!manager.is_epoch_start(39));
-        
-        assert!(manager.is_epoch_end(39));
-        assert!(manager.is_epoch_end(79));
+        // Genesis is not part of any epoch
+        assert!(!manager.is_epoch_start(0));
         assert!(!manager.is_epoch_end(0));
-        assert!(!manager.is_epoch_end(40));
+        
+        // Block 1 starts epoch 0
+        assert!(manager.is_epoch_start(1));
+        assert!(!manager.is_epoch_end(1));
+        
+        // Block 40 ends epoch 0
+        assert!(!manager.is_epoch_start(40));
+        assert!(manager.is_epoch_end(40));
+        
+        // Block 41 starts epoch 1
+        assert!(manager.is_epoch_start(41));
+        assert!(!manager.is_epoch_end(41));
+        
+        // Block 80 ends epoch 1
+        assert!(!manager.is_epoch_start(80));
+        assert!(manager.is_epoch_end(80));
+        
+        // Block 81 starts epoch 2
+        assert!(manager.is_epoch_start(81));
+    }
+    
+    #[test]
+    fn test_epoch_index_helpers() {
+        let manager = EpochManager::default(); // blocks_per_epoch = 40
+        
+        // Epoch 0: blocks 1-40
+        assert_eq!(manager.get_epoch_start_index(0), 1);
+        assert_eq!(manager.get_epoch_end_index(0), 40);
+        
+        // Epoch 1: blocks 41-80
+        assert_eq!(manager.get_epoch_start_index(1), 41);
+        assert_eq!(manager.get_epoch_end_index(1), 80);
+        
+        // Epoch 2: blocks 81-120
+        assert_eq!(manager.get_epoch_start_index(2), 81);
+        assert_eq!(manager.get_epoch_end_index(2), 120);
     }
     
     #[test]

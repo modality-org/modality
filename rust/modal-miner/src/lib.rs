@@ -13,7 +13,7 @@ pub mod fork_choice;
 #[cfg(all(test, feature = "persistence"))]
 mod tests;
 
-pub use block::{Block, BlockData, BlockHeader};
+pub use block::{Block, BlockData, BlockHeader, GENESIS_PEER_ID, GENESIS_TIMESTAMP};
 pub use chain::{Blockchain, ChainConfig};
 pub use miner::{Miner, MinerConfig};
 pub use epoch::EpochManager;

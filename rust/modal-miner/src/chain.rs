@@ -42,7 +42,48 @@ pub struct Blockchain {
 }
 
 impl Blockchain {
-    /// Create a new blockchain with a genesis block
+    /// Create a new blockchain with the shared default genesis block
+    /// 
+    /// This is the recommended constructor for public networks.
+    /// The default genesis has no nomination (empty nominated_peer_id)
+    /// and a fixed timestamp, ensuring all nodes produce identical genesis blocks.
+    pub fn new_with_default_genesis(config: ChainConfig) -> Self {
+        let epoch_manager = EpochManager::new(
+            40, // BLOCKS_PER_EPOCH
+            config.target_block_time_secs,
+            config.initial_difficulty,
+        );
+        
+        let genesis = Block::default_genesis(config.initial_difficulty);
+        let mut block_index = HashMap::new();
+        block_index.insert(genesis.header.hash.clone(), 0);
+        
+        // Create miner with config's mining_delay
+        let miner_config = crate::miner::MinerConfig {
+            max_tries: None,
+            hash_func_name: Some("randomx"),
+            mining_delay_ms: config.mining_delay_ms,
+        };
+        
+        Self {
+            blocks: vec![genesis],
+            epoch_manager,
+            miner: Miner::new(miner_config),
+            config,
+            genesis_peer_id: String::new(), // Default genesis has no peer ID
+            block_index,
+            #[cfg(feature = "persistence")]
+            datastore_manager: None,
+            #[cfg(feature = "persistence")]
+            fork_choice: None,
+        }
+    }
+    
+    /// Create a new blockchain with a custom genesis block
+    /// 
+    /// This is useful for private networks where a specific node should be
+    /// credited in the genesis block. For public networks, use `new_with_default_genesis()`.
+    #[allow(deprecated)]
     pub fn new(config: ChainConfig, genesis_peer_id: String) -> Self {
         let epoch_manager = EpochManager::new(
             40, // BLOCKS_PER_EPOCH
@@ -75,13 +116,54 @@ impl Blockchain {
         }
     }
     
-    /// Create a new blockchain with default configuration
-    pub fn new_default(genesis_peer_id: String) -> Self {
+    /// Create a new blockchain with default configuration and default genesis
+    pub fn new_default() -> Self {
+        Self::new_with_default_genesis(ChainConfig::default())
+    }
+    
+    /// Create a new blockchain with default configuration and custom genesis peer ID
+    #[deprecated(note = "Use new_default() for shared networks")]
+    pub fn new_default_with_peer(genesis_peer_id: String) -> Self {
         Self::new(ChainConfig::default(), genesis_peer_id)
     }
     
     #[cfg(feature = "persistence")]
-    /// Create a new blockchain with persistence support
+    /// Create a new blockchain with persistence support using the default genesis
+    pub fn new_with_datastore_manager_default_genesis(
+        config: ChainConfig,
+        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modal_datastore::DatastoreManager>>,
+    ) -> Self {
+        let epoch_manager = EpochManager::new(
+            40,
+            config.target_block_time_secs,
+            config.initial_difficulty,
+        );
+        
+        let genesis = Block::default_genesis(config.initial_difficulty);
+        let mut block_index = HashMap::new();
+        block_index.insert(genesis.header.hash.clone(), 0);
+        
+        let miner_config = crate::miner::MinerConfig {
+            max_tries: None,
+            hash_func_name: Some("randomx"),
+            mining_delay_ms: config.mining_delay_ms,
+        };
+        
+        Self {
+            blocks: vec![genesis],
+            epoch_manager,
+            miner: Miner::new(miner_config),
+            config,
+            genesis_peer_id: String::new(),
+            block_index,
+            datastore_manager: Some(datastore_manager),
+            fork_choice: None,
+        }
+    }
+    
+    #[cfg(feature = "persistence")]
+    /// Create a new blockchain with persistence support (custom genesis)
+    #[allow(deprecated)]
     pub fn new_with_datastore_manager(
         config: ChainConfig,
         genesis_peer_id: String,
@@ -116,7 +198,17 @@ impl Blockchain {
     }
     
     #[cfg(feature = "persistence")]
-    /// Load blockchain from datastore, or create genesis if empty
+    /// Load blockchain from datastore, or create default genesis if empty
+    pub async fn load_or_create_default(
+        config: ChainConfig,
+        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modal_datastore::DatastoreManager>>,
+    ) -> Result<Self, MiningError> {
+        Self::load_or_create_with_fork_config_default(config, datastore_manager, modal_observer::ForkConfig::new()).await
+    }
+    
+    #[cfg(feature = "persistence")]
+    /// Load blockchain from datastore, or create genesis if empty (custom genesis peer ID)
+    #[deprecated(note = "Use load_or_create_default() for shared networks")]
     pub async fn load_or_create(
         config: ChainConfig,
         genesis_peer_id: String,
@@ -126,7 +218,70 @@ impl Blockchain {
     }
     
     #[cfg(feature = "persistence")]
-    /// Load blockchain from datastore with fork configuration, or create genesis if empty
+    /// Load blockchain from datastore with fork configuration, or create default genesis if empty
+    pub async fn load_or_create_with_fork_config_default(
+        config: ChainConfig,
+        datastore_manager: std::sync::Arc<tokio::sync::Mutex<modal_datastore::DatastoreManager>>,
+        _fork_config: modal_observer::ForkConfig,
+    ) -> Result<Self, MiningError> {
+        use crate::persistence::BlockchainPersistence;
+        
+        // Try to load existing blocks
+        let mgr = datastore_manager.lock().await;
+        let loaded_blocks = mgr.load_canonical_blocks().await?;
+        drop(mgr);
+        
+        if loaded_blocks.is_empty() {
+            // No existing blocks, create default genesis
+            let chain = Self::new_with_datastore_manager_default_genesis(config, datastore_manager.clone());
+            
+            // Save genesis block
+            let genesis = chain.blocks[0].clone();
+            let mut mgr = datastore_manager.lock().await;
+            mgr.save_block(&genesis, 0).await?;
+            drop(mgr);
+            
+            Ok(chain)
+        } else {
+            // Load existing blockchain
+            let epoch_manager = EpochManager::new(
+                40,
+                config.target_block_time_secs,
+                config.initial_difficulty,
+            );
+            
+            let mut block_index = HashMap::new();
+            for (idx, block) in loaded_blocks.iter().enumerate() {
+                block_index.insert(block.header.hash.clone(), idx);
+            }
+            
+            let miner_config = crate::miner::MinerConfig {
+                max_tries: None,
+                hash_func_name: Some("randomx"),
+                mining_delay_ms: config.mining_delay_ms,
+            };
+            
+            // Extract genesis_peer_id from loaded genesis block
+            let genesis_peer_id = loaded_blocks.first()
+                .map(|b| b.data.nominated_peer_id.clone())
+                .unwrap_or_default();
+            
+            Ok(Self {
+                blocks: loaded_blocks,
+                epoch_manager,
+                miner: Miner::new(miner_config),
+                config,
+                genesis_peer_id,
+                block_index,
+                datastore_manager: Some(datastore_manager),
+                fork_choice: None,
+            })
+        }
+    }
+    
+    #[cfg(feature = "persistence")]
+    /// Load blockchain from datastore with fork configuration, or create genesis if empty (custom genesis)
+    #[allow(deprecated)]
     pub async fn load_or_create_with_fork_config(
         config: ChainConfig,
         genesis_peer_id: String,
@@ -541,15 +696,23 @@ impl Blockchain {
         self.blocks.get(index as usize)
     }
     
-    /// Get all blocks in a specific epoch
+    /// Get all blocks in a specific epoch (excluding genesis from epoch 0)
+    /// 
+    /// Genesis block (index 0) precedes all epochs and is not included.
+    /// Epoch 0 contains blocks 1 through blocks_per_epoch.
     pub fn get_epoch_blocks(&self, epoch: u64) -> Vec<&Block> {
-        let start_index = epoch * self.epoch_manager.blocks_per_epoch;
-        let end_index = start_index + self.epoch_manager.blocks_per_epoch;
+        let start_index = self.epoch_manager.get_epoch_start_index(epoch);
+        let end_index = self.epoch_manager.get_epoch_end_index(epoch);
         
         self.blocks
             .iter()
-            .filter(|b| b.header.index >= start_index && b.header.index < end_index)
+            .filter(|b| b.header.index >= start_index && b.header.index <= end_index)
             .collect()
+    }
+    
+    /// Get the genesis block
+    pub fn genesis_block(&self) -> Option<&Block> {
+        self.blocks.first().filter(|b| b.header.index == 0)
     }
     
     /// Get shuffled nominations for a specific epoch
@@ -603,23 +766,38 @@ mod tests {
     use super::*;
     
     #[test]
-    fn test_new_blockchain() {
-        let chain = Blockchain::new_default("genesis_peer_id".to_string());
+    fn test_new_blockchain_default_genesis() {
+        let chain = Blockchain::new_default();
 
         assert_eq!(chain.height(), 0);
         assert_eq!(chain.blocks.len(), 1);
         assert_eq!(chain.current_epoch(), 0);
+        
+        // Default genesis has no peer ID
+        let genesis = chain.genesis_block().unwrap();
+        assert_eq!(genesis.data.nominated_peer_id, "");
+    }
+    
+    #[test]
+    fn test_default_genesis_deterministic() {
+        let chain1 = Blockchain::new_default();
+        let chain2 = Blockchain::new_default();
+        
+        // Both chains should have identical genesis blocks
+        assert_eq!(
+            chain1.genesis_block().unwrap().header.hash,
+            chain2.genesis_block().unwrap().header.hash
+        );
     }
     
     #[test]
     fn test_mine_block() {
-        let mut chain = Blockchain::new(
+        let mut chain = Blockchain::new_with_default_genesis(
             ChainConfig {
                 initial_difficulty: 100, // Low difficulty for fast test
                 target_block_time_secs: 600,
                 mining_delay_ms: None,
             },
-            "genesis_peer_id".to_string(),
         );
         
         let result = chain.mine_block("miner_peer_id".to_string(), 12345);
@@ -633,13 +811,12 @@ mod tests {
     
     #[test]
     fn test_validate_chain() {
-        let mut chain = Blockchain::new(
+        let mut chain = Blockchain::new_with_default_genesis(
             ChainConfig {
                 initial_difficulty: 100,
                 target_block_time_secs: 600,
                 mining_delay_ms: None,
             },
-            "genesis_peer_id".to_string(),
         );
         
         chain.mine_block("miner_peer_id".to_string(), 100).unwrap();
@@ -649,16 +826,14 @@ mod tests {
     
     #[test]
     fn test_count_blocks_by_nominated_peer() {
-        let genesis_peer_id = "genesis_peer_id".to_string();
         let nominated_peer_id = "nominated_peer_1".to_string();
         
-        let mut chain = Blockchain::new(
+        let mut chain = Blockchain::new_with_default_genesis(
             ChainConfig {
                 initial_difficulty: 100,
                 target_block_time_secs: 600,
                 mining_delay_ms: None,
             },
-            genesis_peer_id.clone(),
         );
         
         // Mine multiple blocks nominating the same peer ID
@@ -667,38 +842,42 @@ mod tests {
         }
         
         assert_eq!(chain.count_blocks_by_nominated_peer(&nominated_peer_id), 3);
-        assert_eq!(chain.count_blocks_by_nominated_peer(&genesis_peer_id), 1); // Genesis
+        assert_eq!(chain.count_blocks_by_nominated_peer(""), 1); // Genesis has empty peer ID
     }
     
     #[test]
     fn test_epoch_progression() {
-        let mut chain = Blockchain::new(
+        let mut chain = Blockchain::new_with_default_genesis(
             ChainConfig {
                 initial_difficulty: 50, // Very low for fast mining
                 target_block_time_secs: 600,
                 mining_delay_ms: None,
             },
-            "genesis_peer_id".to_string(),
         );
         
-        // Mine enough blocks to cross epoch boundary
-        for i in 0..41 {
+        // Genesis is block 0, epoch 0 is blocks 1-40
+        // Mine 40 blocks to complete epoch 0 and enter epoch 1
+        for i in 0..40 {
             chain.mine_block("miner_peer_id".to_string(), 1000 + i).unwrap();
         }
         
+        assert_eq!(chain.height(), 40);
+        assert_eq!(chain.current_epoch(), 0); // Block 40 is still in epoch 0
+        
+        // Mine one more block to enter epoch 1
+        chain.mine_block("miner_peer_id".to_string(), 1040).unwrap();
         assert_eq!(chain.height(), 41);
-        assert_eq!(chain.current_epoch(), 1);
+        assert_eq!(chain.current_epoch(), 1); // Block 41 is in epoch 1
     }
     
     #[test]
     fn test_get_block_by_hash() {
-        let mut chain = Blockchain::new(
+        let mut chain = Blockchain::new_with_default_genesis(
             ChainConfig {
                 initial_difficulty: 100,
                 target_block_time_secs: 600,
                 mining_delay_ms: None,
             },
-            "genesis_peer_id".to_string(),
         );
         
         let block = chain.mine_block("miner_peer_id".to_string(), 42).unwrap();
@@ -710,60 +889,62 @@ mod tests {
     }
     
     #[test]
-    fn test_get_epoch_blocks() {
-        let mut chain = Blockchain::new(
+    fn test_get_epoch_blocks_excludes_genesis() {
+        let mut chain = Blockchain::new_with_default_genesis(
             ChainConfig {
                 initial_difficulty: 50,
                 target_block_time_secs: 600,
                 mining_delay_ms: None,
             },
-            "genesis_peer_id".to_string(),
         );
         
-        // Mine blocks in first epoch
+        // Mine 10 blocks (blocks 1-10, all in epoch 0)
         for i in 0..10 {
             chain.mine_block("miner_peer_id".to_string(), 1000 + i).unwrap();
         }
         
         let epoch_0_blocks = chain.get_epoch_blocks(0);
-        // 1 genesis + 10 mined = 11 total in epoch 0
-        assert_eq!(epoch_0_blocks.len(), 11);
+        // Should have 10 blocks (1-10), genesis is NOT included
+        assert_eq!(epoch_0_blocks.len(), 10);
+        
+        // Verify genesis is not in epoch blocks
+        for block in &epoch_0_blocks {
+            assert!(block.header.index > 0, "Genesis should not be in epoch blocks");
+        }
     }
     
     #[test]
     fn test_get_epoch_shuffled_nominations_incomplete() {
-        let mut chain = Blockchain::new(
+        let mut chain = Blockchain::new_with_default_genesis(
             ChainConfig {
                 initial_difficulty: 50,
                 target_block_time_secs: 60,
                 mining_delay_ms: None,
             },
-            "genesis_peer_id".to_string(),
         );
         
-        // Mine only 10 blocks (epoch 0 incomplete)
+        // Mine only 10 blocks (blocks 1-10, epoch 0 needs 40)
         for i in 0..10 {
             chain.mine_block("nominated_peer_id".to_string(), 1000 + i).unwrap();
         }
         
-        // Epoch 0 is incomplete (has 11 blocks including genesis, needs 40)
+        // Epoch 0 is incomplete (has 10 blocks, needs 40)
         let shuffled = chain.get_epoch_shuffled_nominations(0);
         assert!(shuffled.is_none());
     }
     
     #[test]
     fn test_get_epoch_shuffled_nominations_complete() {
-        let mut chain = Blockchain::new(
+        let mut chain = Blockchain::new_with_default_genesis(
             ChainConfig {
                 initial_difficulty: 50,
                 target_block_time_secs: 60,
                 mining_delay_ms: None,
             },
-            "genesis_peer_id".to_string(),
         );
         
-        // Mine 39 blocks to complete epoch 0 (genesis + 39 = 40 total)
-        for i in 0..39 {
+        // Mine 40 blocks to complete epoch 0 (blocks 1-40)
+        for i in 0..40 {
             chain.mine_block(format!("peer_id_{}", i + 1), 1000 + i).unwrap();
         }
         
@@ -782,17 +963,16 @@ mod tests {
     
     #[test]
     fn test_get_epoch_shuffled_peer_ids() {
-        let mut chain = Blockchain::new(
+        let mut chain = Blockchain::new_with_default_genesis(
             ChainConfig {
                 initial_difficulty: 50,
                 target_block_time_secs: 60,
                 mining_delay_ms: None,
             },
-            "genesis_peer_id".to_string(),
         );
         
-        // Mine 39 blocks to complete epoch 0
-        for i in 0..39 {
+        // Mine 40 blocks to complete epoch 0
+        for i in 0..40 {
             chain.mine_block(format!("peer_id_{}", i + 1), 1000 + i).unwrap();
         }
         
@@ -811,17 +991,16 @@ mod tests {
     
     #[test]
     fn test_epoch_shuffled_nominations_deterministic() {
-        let mut chain = Blockchain::new(
+        let mut chain = Blockchain::new_with_default_genesis(
             ChainConfig {
                 initial_difficulty: 50,
                 target_block_time_secs: 60,
                 mining_delay_ms: None,
             },
-            "genesis_peer_id".to_string(),
         );
         
-        // Mine 39 blocks to complete epoch 0
-        for i in 0..39 {
+        // Mine 40 blocks to complete epoch 0
+        for i in 0..40 {
             chain.mine_block(format!("peer_id_{}", i + 1), i).unwrap();
         }
         
