@@ -14,6 +14,10 @@ pub struct ForkConfig {
     pub forced_blocks: HashMap<u64, String>,
     /// Reject blocks with timestamps before this Unix timestamp
     pub minimum_block_timestamp: Option<i64>,
+    /// Minimum number of peers that must report a heavier chain before pausing mining
+    pub fork_recovery_min_peers: Option<usize>,
+    /// Pause mining if peers report chains this many epochs ahead
+    pub fork_recovery_epoch_threshold: Option<u64>,
 }
 
 impl ForkConfig {
@@ -22,6 +26,8 @@ impl ForkConfig {
         Self {
             forced_blocks: HashMap::new(),
             minimum_block_timestamp: None,
+            fork_recovery_min_peers: None,
+            fork_recovery_epoch_threshold: None,
         }
     }
     
@@ -30,6 +36,8 @@ impl ForkConfig {
         Self {
             forced_blocks: pairs.into_iter().collect(),
             minimum_block_timestamp: None,
+            fork_recovery_min_peers: None,
+            fork_recovery_epoch_threshold: None,
         }
     }
     

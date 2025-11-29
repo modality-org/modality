@@ -49,6 +49,9 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
                     data: Some(serde_json::json!({
                         "cumulative_difficulty": "0",
                         "chain_length": 0,
+                        "chain_height": 0,
+                        "tip_hash": null,
+                        "tip_epoch": 0,
                         "common_ancestor_index": null,
                         "blocks": null,
                     })),
@@ -69,6 +72,12 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
             };
             
             let chain_length = all_blocks.len() as u64;
+            
+            // Get the tip block's hash and epoch
+            let (tip_hash, tip_epoch) = all_blocks.iter()
+                .max_by_key(|b| b.index)
+                .map(|b| (b.hash.clone(), b.epoch))
+                .unwrap_or(("".to_string(), 0));
             
             // Find common ancestor by checking which of our blocks match the provided hashes
             let common_ancestor_index = if !local_hashes.is_empty() {
@@ -101,6 +110,9 @@ pub async fn handler(data: Option<serde_json::Value>, datastore: &NetworkDatasto
                 data: Some(serde_json::json!({
                     "cumulative_difficulty": cumulative_difficulty.to_string(),
                     "chain_length": chain_length,
+                    "chain_height": chain_length.saturating_sub(1), // Alias for backward compatibility
+                    "tip_hash": tip_hash,
+                    "tip_epoch": tip_epoch,
                     "common_ancestor_index": common_ancestor_index,
                     "blocks": blocks_data,
                 })),

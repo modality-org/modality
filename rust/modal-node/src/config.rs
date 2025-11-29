@@ -41,6 +41,10 @@ pub struct Config {
     pub miner_hash_params: Option<serde_json::Value>,
     pub mining_delay_ms: Option<u64>, // Artificial delay between mining attempts (for testing race conditions) // Hash algorithm parameters (e.g., RandomX key and flags)
     pub inspect_whitelist: Option<Vec<String>>, // Peer IDs allowed to inspect this node via reqres. None = only self, empty vec = reject all, populated = allow those peers
+    
+    // Auto-healing / fork recovery settings
+    pub fork_recovery_min_peers: Option<usize>, // Minimum number of peers that must report a heavier chain before pausing mining (default: 1)
+    pub fork_recovery_epoch_threshold: Option<u64>, // Pause mining if peers report chains this many epochs ahead (default: 2)
 }
 
 impl Config {
@@ -171,6 +175,10 @@ impl Config {
             log::info!("Overriding minimum_block_timestamp with user configuration: {}", timestamp);
             fork_config.minimum_block_timestamp = Some(timestamp);
         }
+        
+        // Apply fork recovery settings
+        fork_config.fork_recovery_min_peers = self.fork_recovery_min_peers;
+        fork_config.fork_recovery_epoch_threshold = self.fork_recovery_epoch_threshold;
         
         fork_config
     }

@@ -545,9 +545,15 @@ pub async fn run(node: &mut Node) -> Result<()> {
     let healing_sync_in_progress = sync_in_progress_for_healing;
     let healing_mining_update_tx = mining_update_tx.clone();
     
+    // Fork recovery settings
+    let fork_recovery_min_peers = node.fork_config.fork_recovery_min_peers.unwrap_or(1);
+    let fork_recovery_epoch_threshold = node.fork_config.fork_recovery_epoch_threshold.unwrap_or(2);
+    
     tokio::spawn(async move {
-        // Wait a bit before starting healing checks
-        tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+        // Run auto-healing immediately at bootup, then periodically
+        log::info!("🔧 Starting auto-healing task - will check for heavier chains from peers");
+        log::info!("📋 Fork recovery settings: min_peers={}, epoch_threshold={}", 
+            fork_recovery_min_peers, fork_recovery_epoch_threshold);
         
         loop {
             // Check for shutdown
@@ -561,7 +567,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 continue;
             }
             
-            // Check each peer to see if they have a heavier chain
+            // Try to sync with peers - request_chain_info_impl will only adopt heavier chains
             for bootstrapper in &healing_bootstrappers {
                 // Parse peer ID from multiaddr
                 let peer_id = bootstrapper.iter().find_map(|proto| {
