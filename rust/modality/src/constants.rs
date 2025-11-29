@@ -1,6 +1,7 @@
 /// Network configuration constants
 
 /// Testnet bootstrapper addresses
+#[allow(dead_code)]
 pub const TESTNET_BOOTSTRAPPERS: &[&str] = &[
     "/ip4/3.125.46.158/tcp/4040/ws/p2p/12D3KooWBGR3m1JmVFm2aZYR7TZXicjA7HSVSWi2fama5cPpgQiX",
     "/ip4/18.217.58.253/tcp/4040/ws/p2p/12D3KooWEA6dRWvK1vutRDxKfdPZZr7ycHvQNWrDGZZQbiE6YibZ",
@@ -8,8 +9,10 @@ pub const TESTNET_BOOTSTRAPPERS: &[&str] = &[
 ];
 
 /// Default autoupgrade base URL
+#[allow(dead_code)]
 pub const DEFAULT_AUTOUPGRADE_BASE_URL: &str = "http://get.modal.money";
 
 /// Default autoupgrade check interval in seconds
+#[allow(dead_code)]
 pub const DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS: u64 = 3600;
 

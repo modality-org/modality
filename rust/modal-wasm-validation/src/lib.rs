@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 use serde::{Deserialize, Serialize};
 
 pub mod validators;

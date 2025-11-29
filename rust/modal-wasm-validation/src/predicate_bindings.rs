@@ -3,8 +3,9 @@
 /// Each predicate is compiled to a standalone WASM module
 /// with an "evaluate" function that takes JSON input and returns JSON output
 
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-use crate::predicates::{PredicateInput, PredicateResult};
+use crate::predicates::PredicateInput;
 use crate::predicates::{signed_by, amount_in_range, has_property, timestamp_valid, post_to_path};
 
 /// Memory allocator for WASM

@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
-use crate::ast::{Model, Formula, Action, ActionCall, Test, TestStatement};
-use crate::grammar::{TopLevelParser, ModelParser, FormulaParser, ActionParser, ActionCallParser, TestParser};
+use crate::ast::{Model, Formula, Action, ActionCall, Test};
+use crate::grammar::{TopLevelParser, FormulaParser, ActionParser, ActionCallParser};
 
 /// Parse a .modality file using LALRPOP and return a Model
 pub fn parse_file_lalrpop<P: AsRef<Path>>(path: P) -> Result<Model, String> {

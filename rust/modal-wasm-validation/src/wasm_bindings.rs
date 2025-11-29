@@ -1,5 +1,5 @@
 use wasm_bindgen::prelude::*;
-use crate::{ValidationResult, validators::*};
+use crate::validators::*;
 
 /// WASM binding for transaction validation
 #[wasm_bindgen]

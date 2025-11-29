@@ -77,6 +77,7 @@ pub struct Node {
     pub status_port: Option<u16>,
     pub status_html_dir: Option<PathBuf>,
     consensus_tx: mpsc::Sender<ConsensusMessage>,
+    #[allow(dead_code)]
     consensus_rx: Option<mpsc::Receiver<ConsensusMessage>>,
     shutdown_tx: tokio::sync::broadcast::Sender<()>,
     pub sync_trigger_tx: tokio::sync::broadcast::Sender<u64>,

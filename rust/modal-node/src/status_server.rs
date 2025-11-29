@@ -16,7 +16,7 @@ use crate::constants::{
     STATUS_FIRST_BLOCKS_COUNT, STATUS_EPOCHS_TO_SHOW, NETWORK_HASHRATE_SAMPLE_SIZE,
 };
 use crate::templates::{
-    self, render_block_row, render_peer_row, render_listener_item,
+    render_block_row, render_peer_row, render_listener_item,
     render_block_0_info, render_block_0_not_found, render_empty_blocks_message,
     render_empty_peers_message, render_epoch_nominees_section, render_nominee_row,
     render_status_page, StatusPageVars,

@@ -208,7 +208,7 @@ async fn gossip_block(swarm: &Arc<Mutex<crate::swarm::NodeSwarm>>, miner_block: 
 }
 
 /// Run rolling integrity check
-async fn run_integrity_check(datastore: &Arc<Mutex<DatastoreManager>>, current_index: u64) {
+async fn run_integrity_check(datastore: &Arc<Mutex<DatastoreManager>>, _current_index: u64) {
     let ds = datastore.lock().await;
     match crate::actions::chain_integrity::check_recent_blocks(&ds, ROLLING_INTEGRITY_WINDOW, true).await {
         Ok(true) => {

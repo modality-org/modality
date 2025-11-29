@@ -1,4 +1,4 @@
-use crate::ast::{Model, Part, Transition, Property, PropertySign, PartState};
+use crate::ast::{Model, PropertySign};
 
 /// Generate a Mermaid state diagram from a Modality model
 pub fn generate_mermaid_diagram(model: &Model) -> String {
@@ -153,7 +153,7 @@ pub fn generate_mermaid_diagram_with_state(model: &Model) -> String {
         
         // Check if this part has current state information
         let empty_vec = Vec::<String>::new();
-        let current_nodes = if let Some(state) = &model.state {
+        let _current_nodes = if let Some(state) = &model.state {
             state.iter()
                 .find(|s| s.part_name == part.name)
                 .map(|s| &s.current_nodes)
@@ -163,7 +163,7 @@ pub fn generate_mermaid_diagram_with_state(model: &Model) -> String {
         };
         
         for node in nodes {
-            let node_name = if model.parts.len() > 1 {
+            let _node_name = if model.parts.len() > 1 {
                 format!("{}.{}", part.name, node)
             } else {
                 node.to_string()

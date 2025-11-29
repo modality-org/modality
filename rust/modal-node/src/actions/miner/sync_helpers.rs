@@ -6,8 +6,6 @@
 use anyhow::Result;
 use libp2p::gossipsub::IdentTopic;
 use modal_datastore::models::MinerBlock;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 use crate::gossip;
 use crate::node::Node;

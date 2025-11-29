@@ -8,7 +8,7 @@ use modal_datastore::DatastoreManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::constants::{MAX_BLOCKS_PER_RANGE_REQUEST, REQRES_TIMEOUT_SECS};
+use crate::constants::REQRES_TIMEOUT_SECS;
 use crate::reqres;
 use crate::sync::common_ancestor::wait_for_reqres_response;
 

@@ -292,7 +292,7 @@ fn determine_binary_search_bounds(
     local_chain_length: u64,
     matches: &[serde_json::Value],
 ) -> (u64, u64) {
-    let mut search_low = highest_match;
+    let search_low = highest_match;
     let mut search_high = local_chain_length - 1;
     
     // Find the first non-matching index that's higher than highest_match

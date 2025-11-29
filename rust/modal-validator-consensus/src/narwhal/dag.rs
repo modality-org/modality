@@ -1,4 +1,4 @@
-use crate::narwhal::{Batch, Certificate, CertificateDigest, PublicKey};
+use crate::narwhal::{Certificate, CertificateDigest, PublicKey};
 use anyhow::{bail, Result};
 use std::collections::{BTreeMap, HashMap};
 

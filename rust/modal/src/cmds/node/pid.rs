@@ -72,8 +72,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     {
         // On non-Unix systems, just output the PID without checking
         println!("{}", pid);
+        Ok(())
     }
-    
-    Ok(())
 }
 

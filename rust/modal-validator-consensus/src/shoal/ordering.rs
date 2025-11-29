@@ -27,7 +27,7 @@ impl OrderingEngine {
         let ordered_certs = self.topological_sort(&*dag, committed)?;
 
         // Extract transactions from ordered certificates
-        let mut transactions = Vec::new();
+        let transactions = Vec::new();
         for cert_digest in ordered_certs {
             if let Some(cert) = dag.get(&cert_digest) {
                 // Note: In a real implementation, we would fetch the actual batch
@@ -296,4 +296,3 @@ mod tests {
         assert!(pos2 > 0 && pos2 < 3);
     }
 }
-

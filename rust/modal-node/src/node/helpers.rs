@@ -95,14 +95,14 @@ pub async fn load_network_config(
     
     // Load network config into NodeState store
     {
-        let mut mgr = datastore_manager.lock().await;
+        let mgr = datastore_manager.lock().await;
         mgr.load_network_config(&network_config).await?;
     }
     
     // Load network parameters from genesis contract if present
     if let Some(genesis_contract_id) = network_config.get("genesis_contract_id").and_then(|v| v.as_str()) {
         log::info!("Loading network parameters from genesis contract: {}", genesis_contract_id);
-        let mut mgr = datastore_manager.lock().await;
+        let mgr = datastore_manager.lock().await;
         match mgr.load_network_parameters_from_contract(genesis_contract_id).await {
             Ok(params) => {
                 log::info!("✓ Loaded network parameters from contract:");

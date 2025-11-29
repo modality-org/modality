@@ -95,6 +95,7 @@ impl BootupRunner {
     }
 
     /// Check if a genesis block should be pruned based on timestamp
+    #[allow(dead_code)]
     fn should_prune_genesis_block(&self, block: &MinerBlock, min_timestamp: u64) -> bool {
         // Only prune genesis blocks (index 0) that are canonical
         if block.index != 0 || !block.is_canonical {

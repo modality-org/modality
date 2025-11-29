@@ -79,7 +79,7 @@ pub async fn validate_and_cleanup_chain(
     datastore: &Arc<Mutex<DatastoreManager>>,
     update_tx: &tokio::sync::mpsc::UnboundedSender<u64>,
 ) {
-    let mut ds = datastore.lock().await;
+    let ds = datastore.lock().await;
     
     if let Ok(all_blocks) = MinerBlock::find_all_canonical_multi(&ds).await {
         if all_blocks.is_empty() {

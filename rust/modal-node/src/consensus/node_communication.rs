@@ -13,7 +13,6 @@ use modal_validator_consensus::communication::Message as ConsensusMessage;
 
 use crate::gossip::consensus::block::cert::TOPIC as BLOCK_CERT_TOPIC;
 use crate::gossip::consensus::block::draft::TOPIC as BLOCK_DRAFT_TOPIC;
-use crate::node::Node;
 
 pub struct NodeCommunication {
     pub swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
@@ -82,9 +81,9 @@ impl Communication for NodeCommunication {
 
     async fn send_block_late_ack(
         &mut self,
-        from_peer: &str,
-        to_peer: &str,
-        ack: &Ack,
+        _from_peer: &str,
+        _to_peer: &str,
+        _ack: &Ack,
     ) -> Result<()> {
         // TODO
         Ok(())
@@ -92,10 +91,10 @@ impl Communication for NodeCommunication {
 
     async fn fetch_scribe_round_certified_block(
         &mut self,
-        from_peer: &str,
-        to_peer: &str,
-        scribe_peer: &str,
-        round: u64,
+        _from_peer: &str,
+        _to_peer: &str,
+        _scribe_peer: &str,
+        _round: u64,
     ) -> Result<Option<ValidatorBlock>> {
         Ok(None)
         // let target_peer = PeerId::from_str(to_peer)?;

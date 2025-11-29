@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use crate::ast::{Model, Part, Transition, Property, PropertySign, Formula, FormulaExpr};
+use crate::ast::{Model, Part, Transition, Property, Formula, FormulaExpr};
 
 /// Represents a state in the model (part name and node name)
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -181,6 +181,7 @@ impl ModelChecker {
     }
 
     /// Check if a transition satisfies a property
+    #[allow(dead_code)]
     fn transition_satisfies_property(&self, transition: &Transition, property: &Property) -> bool {
         transition.properties.iter().any(|p| p == property)
     }

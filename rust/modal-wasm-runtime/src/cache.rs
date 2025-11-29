@@ -8,6 +8,7 @@ struct CacheEntry {
     /// The compiled Wasmtime module
     module: Arc<Module>,
     /// SHA256 hash for verification
+    #[allow(dead_code)]
     hash: String,
     /// Size in bytes for cache management
     size: usize,

@@ -1,15 +1,14 @@
 use crate::error::{Result, ValidatorError};
 use modal_datastore::DatastoreManager;
 use modal_validator_consensus::narwhal::{
-    Batch, Certificate, Committee, Header, Primary, PublicKey, Transaction, Validator, Worker,
+    Certificate, Committee, Primary, PublicKey, Transaction, Validator, Worker,
     SyncClient, SyncRequest, SyncResponse,
 };
 use modal_validator_consensus::narwhal::dag::DAG;
-use modal_validator_consensus::shoal::{ReputationConfig, ReputationState};
+use modal_validator_consensus::shoal::ReputationConfig;
 use modal_validator_consensus::shoal::reputation::ReputationManager;
 use modal_validator_consensus::shoal::consensus::ShoalConsensus;
 use modal_validator_consensus::shoal::ordering::OrderingEngine;
-use std::collections::BTreeSet;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
@@ -293,7 +292,7 @@ impl ShoalValidator {
             let cert = builder.build()?;
             
             // Process certificate through consensus
-            let digest = cert.digest();
+            let _digest = cert.digest();
             primary.process_certificate(cert.clone()).await?;
             
             let mut consensus = self.consensus.lock().await;
@@ -321,8 +320,9 @@ impl ShoalValidator {
         //     }
         // }
         
-        let mut primary = self.primary.lock().await;
+        let primary = self.primary.lock().await;
         primary.process_certificate(cert.clone()).await?;
+        drop(primary);
         
         let mut consensus = self.consensus.lock().await;
         let committed = consensus.process_certificate(cert).await?;

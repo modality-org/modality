@@ -1,6 +1,5 @@
 use crate::narwhal::{Committee, PublicKey};
 use crate::shoal::{PerformanceRecord, ReputationConfig, ReputationState};
-use anyhow::Result;
 
 /// Manager for leader reputation and selection
 #[derive(Clone)]

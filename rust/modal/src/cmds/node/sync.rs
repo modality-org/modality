@@ -5,8 +5,8 @@ use std::time::Instant;
 
 use modal_node::config_resolution::load_config_with_node_dir;
 use modal_node::node::Node;
-use modal_datastore::models::miner::MinerBlock;
-use modal_datastore::Model;
+#[allow(unused_imports)]
+use modal_datastore::{models::miner::MinerBlock, Model};
 use libp2p::{Multiaddr, PeerId};
 
 #[derive(Debug, Parser)]
@@ -294,7 +294,7 @@ async fn sync_from_peer(
     let blocks_synced = if let Some(ref data) = response.data {
         if let Some(blocks) = data.get("blocks").and_then(|b| b.as_array()) {
             let mut persisted = 0;
-            let mut ds = node.datastore_manager.lock().await;
+            let ds = node.datastore_manager.lock().await;
             
             for block_value in blocks {
                 if let Ok(block) = serde_json::from_value::<MinerBlock>(block_value.clone()) {

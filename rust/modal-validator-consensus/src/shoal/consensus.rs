@@ -2,7 +2,7 @@ use crate::narwhal::{Certificate, CertificateDigest, Committee};
 use crate::narwhal::dag::DAG;
 use crate::shoal::{ConsensusState, PerformanceRecord};
 use crate::shoal::reputation::ReputationManager;
-use anyhow::{bail, Result};
+use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 

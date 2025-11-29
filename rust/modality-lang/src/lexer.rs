@@ -1,5 +1,3 @@
-use lalrpop_util::lexer::Token;
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModalityToken {
     Model,

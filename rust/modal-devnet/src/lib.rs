@@ -1,7 +1,8 @@
 use anyhow::Result;
 use lazy_static::lazy_static;
 use modal_datastore::models::ValidatorBlock;
-use modal_datastore::{Model, DatastoreManager};
+#[allow(unused_imports)]
+use modal_datastore::{DatastoreManager, Model};
 use serde_json::{self, Value};
 use std::collections::HashMap;
 

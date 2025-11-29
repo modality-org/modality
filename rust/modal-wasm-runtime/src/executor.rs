@@ -25,7 +25,7 @@ impl WasmExecutor {
 
     /// Validate a WASM module without executing it
     pub fn validate_module(wasm_bytes: &[u8]) -> Result<()> {
-        let mut config = Config::new();
+        let config = Config::new();
         let engine = Engine::new(&config)?;
         Module::validate(&engine, wasm_bytes)?;
         Ok(())

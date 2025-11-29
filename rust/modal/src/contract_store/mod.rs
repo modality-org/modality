@@ -76,6 +76,7 @@ impl ContractStore {
     }
 
     /// Load the genesis commit
+    #[allow(unused)]
     pub fn load_genesis(&self) -> Result<serde_json::Value> {
         let genesis_path = self.contract_dir().join("genesis.json");
         let content = std::fs::read_to_string(genesis_path)?;

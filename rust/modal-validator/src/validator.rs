@@ -24,6 +24,7 @@ impl Default for ValidatorConfig {
 /// The validator uses modal-observer to track the canonical chain
 /// by observing mining events via gossip.
 pub struct Validator {
+    #[allow(dead_code)]
     config: ValidatorConfig,
     observer: ChainObserver,
 }

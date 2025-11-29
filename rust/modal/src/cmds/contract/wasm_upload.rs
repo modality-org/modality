@@ -39,7 +39,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Open contract store
     let store = ContractStore::open(&dir)?;
-    let config = store.load_config()?;
+    let _config = store.load_config()?;
 
     // Read WASM file
     if !opts.wasm_file.exists() {

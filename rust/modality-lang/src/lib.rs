@@ -1,3 +1,7 @@
+#![allow(unexpected_cfgs)]
+// Allow unused imports in generated grammar module
+#![allow(unused_imports)]
+
 pub mod ast;
 pub mod lexer;
 pub mod lalrpop_parser;

@@ -249,7 +249,7 @@ impl ChainObserver {
     /// Process a gossiped block with proper fork choice rules
     /// Returns Ok(true) if block was accepted, Ok(false) if rejected
     pub async fn process_gossiped_block(&self, new_block: MinerBlock) -> Result<bool> {
-        let mut ds = self.datastore.lock().await;
+        let ds = self.datastore.lock().await;
         
         // Check if this block violates timestamp requirements
         if !self.fork_config.is_timestamp_valid(&new_block) {
@@ -328,7 +328,7 @@ impl ChainObserver {
             if self.fork_config.is_forced_at(new_block.index) {
                 // New block already passed forced fork check above
                 // Existing block must be wrong if we got here
-                let mut ds = self.datastore.lock().await;
+                let ds = self.datastore.lock().await;
                 
                 // Mark old block as orphaned
                 let mut orphaned = existing.clone();
@@ -354,7 +354,7 @@ impl ChainObserver {
             // Single block fork - use first-seen rule (always keep existing)
             if self.should_accept_single_block(&new_block, &existing).await? {
                 // This should never happen with first-seen rule, but keep for safety
-                let mut ds = self.datastore.lock().await;
+                let ds = self.datastore.lock().await;
                 
                 // Mark old block as orphaned
                 let mut orphaned = existing.clone();
@@ -377,7 +377,7 @@ impl ChainObserver {
                 return Ok(true);
             } else {
                 // Store as orphaned block for tracking alternative chains
-                let mut ds = self.datastore.lock().await;
+                let ds = self.datastore.lock().await;
                 let mut orphaned = new_block;
                 orphaned.is_canonical = false;
                 orphaned.is_orphaned = true;
@@ -612,7 +612,7 @@ impl ChainObserver {
         
         // Step 1: Store all competing blocks as non-canonical
         {
-            let mut ds = self.datastore.lock().await;
+            let ds = self.datastore.lock().await;
             for block in &sorted_blocks {
                 // Check if already exists
                 if let Ok(Some(_existing)) = MinerBlock::find_by_hash_multi(&ds, &block.hash).await {
@@ -663,7 +663,7 @@ impl ChainObserver {
         
         if !should_adopt {
             // Mark competing blocks as orphaned
-            let mut ds = self.datastore.lock().await;
+            let ds = self.datastore.lock().await;
             for block in &sorted_blocks {
                 if let Ok(Some(mut existing)) = MinerBlock::find_by_hash_multi(&ds, &block.hash).await {
                     if !existing.is_canonical {
@@ -690,7 +690,7 @@ impl ChainObserver {
             competing_difficulty, local_difficulty
         );
         
-        let mut ds = self.datastore.lock().await;
+        let ds = self.datastore.lock().await;
         
         // Orphan the old canonical blocks in the range
         let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;

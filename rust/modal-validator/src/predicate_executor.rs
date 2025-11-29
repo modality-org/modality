@@ -143,7 +143,7 @@ impl PredicateExecutor {
         let mut cache = self.cache.lock().await;
         
         // Try to get compiled module from cache
-        let compiled_module = if let Some(module) = cache.get(&cache_key_contract, &cache_key_path, &cache_key_hash) {
+        let _compiled_module = if let Some(module) = cache.get(&cache_key_contract, &cache_key_path, &cache_key_hash) {
             log::debug!(
                 "Cache hit for WASM module: {} in contract {}",
                 wasm_module.module_name,

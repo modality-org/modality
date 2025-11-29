@@ -2,11 +2,10 @@ use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use modal_datastore::DatastoreManager;
-use modal_datastore::stores::Store;
 use modal_datastore::models::{ContractAsset, AssetBalance, Commit, ReceivedSend, WasmModule};
 use serde_json::Value;
 use modal_wasm_runtime::{WasmExecutor, DEFAULT_GAS_LIMIT};
-use modal_wasm_validation::{ValidationResult, validators, PredicateContext, PredicateResult, ProgramContext};
+use modal_wasm_validation::{PredicateContext, ProgramContext};
 use crate::predicate_executor::PredicateExecutor;
 use crate::program_executor::ProgramExecutor;
 

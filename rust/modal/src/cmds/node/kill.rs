@@ -29,7 +29,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         opts.dir.clone()
     };
     
-    let config = load_config_with_node_dir(opts.config.clone(), dir.clone())?;
+    let _config = load_config_with_node_dir(opts.config.clone(), dir.clone())?;
     
     // Determine the node directory
     let node_dir = if let Some(ref d) = dir {

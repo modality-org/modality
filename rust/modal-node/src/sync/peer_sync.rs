@@ -9,7 +9,7 @@ use modal_datastore::DatastoreManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::chain::{compare_chains, ChainComparison, ForkChoiceResult};
+use crate::chain::{compare_chains, ForkChoiceResult};
 use crate::chain::metrics::calculate_cumulative_difficulty;
 use crate::chain::reorg::{orphan_blocks_after, validate_block_chain};
 use crate::sync::common_ancestor::find_common_ancestor_efficient;

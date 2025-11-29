@@ -1,9 +1,11 @@
+#![allow(deprecated)]
+
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
-use crate::ast::{Model, PropertySign, Formula};
-use crate::lalrpop_parser::{parse_file_lalrpop, parse_content_lalrpop, parse_all_models_lalrpop, parse_all_models_content_lalrpop, parse_all_formulas_content_lalrpop};
-use crate::mermaid::{generate_mermaid_diagram, generate_mermaid_diagrams, generate_mermaid_diagram_with_styling, generate_mermaid_diagram_with_state};
-use crate::model_checker::{ModelChecker, State, ModelCheckResult};
+use crate::ast::{Model, Formula};
+use crate::lalrpop_parser::{parse_content_lalrpop, parse_all_models_content_lalrpop, parse_all_formulas_content_lalrpop};
+use crate::mermaid::{generate_mermaid_diagram, generate_mermaid_diagram_with_styling, generate_mermaid_diagram_with_state};
+use crate::model_checker::ModelChecker;
 use serde_json;
 
 #[wasm_bindgen]
