@@ -44,14 +44,15 @@ pub async fn run(node: &mut Node) -> Result<()> {
     let sync_node_swarm = node.swarm.clone();
     let sync_node_ignored_peers = node.ignored_peers.clone();
     let sync_node_reqres_txs = node.reqres_response_txs.clone();
+    let sync_bootstrappers = node.bootstrappers.clone();
     let (sync_request_tx, mut sync_request_rx) = tokio::sync::mpsc::unbounded_channel();
     // Set the node's channel so gossip handler can send to our new receiver
     node.sync_request_tx = Some(sync_request_tx);
     let mining_update_tx_for_sync = mining_update_tx.clone();
     
-    // Shared flag to pause mining during sync
+    // Shared flag to pause mining during sync (kept for future use if needed)
     let sync_in_progress = Arc::new(AtomicBool::new(false));
-    let sync_in_progress_for_request = sync_in_progress.clone();
+    let _sync_in_progress_for_request = sync_in_progress.clone();
     let sync_in_progress_for_healing = sync_in_progress.clone();
     
     // Track which peers are currently being synced to avoid duplicate requests
@@ -59,7 +60,7 @@ pub async fn run(node: &mut Node) -> Result<()> {
     let syncing_peers_clone = syncing_peers.clone();
     
     tokio::spawn(async move {
-        while let Some((peer_id, peer_addr)) = sync_request_rx.recv().await {
+        while let Some((peer_id, _peer_addr)) = sync_request_rx.recv().await {
             // Check if we're already syncing with this peer
             {
                 let mut peers = syncing_peers_clone.lock().await;
@@ -70,50 +71,65 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 peers.insert(peer_id);
             }
             
-            // Signal mining to pause during sync
-            sync_in_progress_for_request.store(true, Ordering::Relaxed);
+            // Note: We don't pause mining here - mining will continue and adjust naturally
+            // when the chain changes. This avoids excessive pausing during catch-up.
             
-            log::info!("🔄 Processing sync request for peer {}", peer_id);
+            log::debug!("🔄 Orphan detected - checking ALL peers for heavier chains (triggered by peer {})", peer_id);
             
-            // Create a temporary mutable node-like structure for request_chain_info
-            // Since we can't easily clone Node, we'll call the function with what it needs
-            let result = request_chain_info_impl(
-                peer_id,
-                peer_addr,
-                sync_node_swarm.clone(),
-                sync_node_datastore.clone(),
-                sync_node_ignored_peers.clone(),
-                sync_node_reqres_txs.clone(),
-            ).await;
-            
-            match result {
-                Ok(()) => {
-                    // After successful chain sync, notify mining loop to update view
-                    let new_tip = {
-                        let ds = sync_node_datastore.lock().await;
-                        match MinerBlock::find_all_canonical(&ds).await {
-                            Ok(blocks) if !blocks.is_empty() => {
-                                blocks.iter().map(|b| b.index).max()
-                            }
-                            _ => None
-                        }
-                    };
-                    if let Some(tip) = new_tip {
-                        log::info!("📡 Chain sync completed, notifying mining loop (new tip: {})", tip);
-                        let _ = mining_update_tx_for_sync.send(tip);
+            // When orphan is detected, check ALL bootstrappers for heavier chains
+            // This ensures we find the heaviest chain, not just from the peer that sent the orphan
+            for bootstrapper in &sync_bootstrappers {
+                let bp_peer_id = bootstrapper.iter().find_map(|proto| {
+                    if let libp2p::multiaddr::Protocol::P2p(id) = proto {
+                        Some(id)
+                    } else {
+                        None
                     }
-                }
-                Err(e) => {
-                    log::warn!("Chain sync failed for peer {}: {}", peer_id, e);
+                });
+                
+                if let Some(bp_peer_id) = bp_peer_id {
+                    log::debug!("🔄 Checking peer {} for heavier chain", bp_peer_id);
+                    
+                    let result = request_chain_info_impl(
+                        bp_peer_id,
+                        bootstrapper.to_string(),
+                        sync_node_swarm.clone(),
+                        sync_node_datastore.clone(),
+                        sync_node_ignored_peers.clone(),
+                        sync_node_reqres_txs.clone(),
+                    ).await;
+                    
+                    match result {
+                        Ok(()) => {
+                            // After successful chain sync, notify mining loop to update view
+                            let new_tip = {
+                                let ds = sync_node_datastore.lock().await;
+                                match MinerBlock::find_all_canonical(&ds).await {
+                                    Ok(blocks) if !blocks.is_empty() => {
+                                        blocks.iter().map(|b| b.index).max()
+                                    }
+                                    _ => None
+                                }
+                            };
+                            if let Some(tip) = new_tip {
+                                log::info!("📡 Chain sync with peer {} completed, chain tip is now {}", bp_peer_id, tip);
+                                let _ = mining_update_tx_for_sync.send(tip);
+                            }
+                        }
+                        Err(e) => {
+                            log::warn!("Chain sync failed for peer {}: {}", bp_peer_id, e);
+                        }
+                    }
                 }
             }
             
-            // Remove peer from syncing set and resume mining
+            // Remove peer from syncing set
             {
                 let mut peers = syncing_peers_clone.lock().await;
                 peers.remove(&peer_id);
             }
-            sync_in_progress_for_request.store(false, Ordering::Relaxed);
+            
+            log::debug!("🔄 Completed checking all peers for heavier chains");
         }
     });
 
@@ -404,11 +420,16 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 }
             };
             
-            // Update mining index if we see a newer tip
+            // Update mining index if we see a different tip (newer OR after reorg)
             if let Some(tip_index) = latest_tip_index {
                 let next_index = tip_index + 1;
                 if next_index > current_index {
                     log::info!("⛏️  Detected newer chain tip via datastore check: updating from {} to {}", 
+                        current_index, next_index);
+                    current_index = next_index;
+                } else if next_index < current_index {
+                    // Chain was reorganized to a shorter chain - update mining target
+                    log::info!("⛏️  Detected chain reorg via datastore check: updating from {} to {}", 
                         current_index, next_index);
                     current_index = next_index;
                 }
@@ -567,7 +588,26 @@ pub async fn run(node: &mut Node) -> Result<()> {
                 continue;
             }
             
-            // Try to sync with peers - request_chain_info_impl will only adopt heavier chains
+            // Get our current chain info for comparison
+            let (local_length, local_difficulty) = {
+                let ds = healing_datastore.lock().await;
+                match MinerBlock::find_all_canonical(&ds).await {
+                    Ok(blocks) => {
+                        let difficulty = MinerBlock::calculate_cumulative_difficulty(&blocks).unwrap_or(0);
+                        (blocks.len() as u64, difficulty)
+                    }
+                    Err(_) => (0, 0)
+                }
+            };
+            
+            log::info!("🔧 Auto-healing: Local chain has {} blocks, cumulative difficulty {}", 
+                local_length, local_difficulty);
+            
+            // Track the chain tip before auto-healing to detect changes
+            let tip_before = local_length;
+            
+            // Try to sync with ALL peers - request_chain_info_impl will only adopt heavier chains
+            // Note: We don't pause mining here - only pause when actually adopting blocks
             for bootstrapper in &healing_bootstrappers {
                 // Parse peer ID from multiaddr
                 let peer_id = bootstrapper.iter().find_map(|proto| {
@@ -605,19 +645,22 @@ pub async fn run(node: &mut Node) -> Result<()> {
                             };
                             
                             if let Some(tip) = new_tip {
-                                log::info!("🔧 Auto-healing: chain tip updated to {}, notifying mining loop", tip);
+                                if tip != tip_before as u64 {
+                                    log::info!("🔧 Auto-healing: chain changed after sync with peer {}, tip is now {}", peer_id, tip);
+                                }
                                 let _ = healing_mining_update_tx.send(tip);
                             }
                         }
                         Err(e) => {
-                            log::debug!("Auto-healing check failed for peer {}: {}", peer_id, e);
+                            log::debug!("🔧 Auto-healing: sync check for peer {} returned: {}", peer_id, e);
                         }
                     }
                 }
             }
             
-            // Wait before next healing check (every 5 minutes)
-            tokio::time::sleep(tokio::time::Duration::from_secs(300)).await;
+            // Wait before next healing check (every 60 seconds)
+            // Mining continues during checks, only pausing briefly when actually adopting blocks
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
         }
     });
 

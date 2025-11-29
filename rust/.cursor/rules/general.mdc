@@ -4,3 +4,5 @@ alwaysApply: true
 
 - After editing a package, make sure all its tests and examples are passing.
 - Keep code within the modality cli package as minimal as possible, refactoring code into other packages as needed.
+- During development and testing, only build and use the debug `modal` binary, not the release `modal` binary.
+- Use `modal killall` to killall running modal nodes during development and testing. Specify the --dir option to kill nodes in the current directory and its subdirectories.
