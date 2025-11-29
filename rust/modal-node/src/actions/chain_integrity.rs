@@ -215,6 +215,106 @@ pub async fn check_chain_integrity(datastore: &NetworkDatastore) -> Result<bool>
     Ok(true)
 }
 
+/// Rolling integrity check for the last N blocks
+/// 
+/// This is designed to be called frequently (e.g., after each mined block) to catch
+/// integrity issues early. It only checks the most recent blocks for performance.
+/// 
+/// # Arguments
+/// * `datastore` - The network datastore to check
+/// * `window_size` - Number of recent blocks to check (default: 160)
+/// * `repair` - If true, automatically orphan blocks that break chain integrity
+/// 
+/// # Returns
+/// True if the checked window has integrity, false otherwise
+pub async fn check_recent_blocks(
+    datastore: &mut NetworkDatastore,
+    window_size: usize,
+    repair: bool,
+) -> Result<bool> {
+    let canonical_blocks = MinerBlock::find_all_canonical(datastore).await?;
+    
+    if canonical_blocks.is_empty() {
+        return Ok(true);
+    }
+    
+    let chain_length = canonical_blocks.len();
+    
+    // Determine the window to check (last N blocks)
+    let start_index = if chain_length > window_size {
+        chain_length - window_size
+    } else {
+        0
+    };
+    
+    // Build index -> block map for the window
+    let mut blocks_by_index: HashMap<u64, &MinerBlock> = HashMap::new();
+    for block in &canonical_blocks {
+        if block.index >= start_index as u64 {
+            blocks_by_index.insert(block.index, block);
+        }
+    }
+    
+    // Find max index in our window
+    let max_index = blocks_by_index.keys().max().copied().unwrap_or(0);
+    
+    // Check linkage in the window
+    let mut break_found = false;
+    let mut break_index: Option<u64> = None;
+    
+    for index in (start_index as u64 + 1)..=max_index {
+        let Some(block) = blocks_by_index.get(&index) else {
+            log::warn!("⚠️  Rolling check: Gap at index {}", index);
+            break_found = true;
+            break_index = Some(index);
+            break;
+        };
+        
+        let Some(prev_block) = blocks_by_index.get(&(index - 1)) else {
+            // Previous block might be outside our window
+            continue;
+        };
+        
+        if block.previous_hash != prev_block.hash {
+            log::error!("❌ Rolling check: Chain break at index {}: prev_hash {} doesn't match block {} hash {}", 
+                index, &block.previous_hash[..16], index - 1, &prev_block.hash[..16]);
+            break_found = true;
+            break_index = Some(index);
+            break;
+        }
+    }
+    
+    if !break_found {
+        log::debug!("✓ Rolling integrity check: last {} blocks are valid", 
+            blocks_by_index.len());
+        return Ok(true);
+    }
+    
+    // If we found a break and repair is enabled, orphan the broken blocks
+    if repair {
+        if let Some(break_idx) = break_index {
+            log::warn!("🔧 Rolling repair: Orphaning blocks from index {} onwards", break_idx);
+            
+            let mut orphaned_count = 0;
+            for block in &canonical_blocks {
+                if block.index >= break_idx && block.is_canonical && !block.is_orphaned {
+                    let mut orphaned_block = block.clone();
+                    orphaned_block.mark_as_orphaned(
+                        format!("Rolling integrity check: chain break detected at index {}", break_idx),
+                        None,
+                    );
+                    orphaned_block.save(datastore).await?;
+                    orphaned_count += 1;
+                }
+            }
+            
+            log::warn!("🔧 Rolling repair: Orphaned {} blocks", orphaned_count);
+        }
+    }
+    
+    Ok(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

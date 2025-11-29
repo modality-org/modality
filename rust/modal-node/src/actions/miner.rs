@@ -1710,6 +1710,31 @@ async fn mine_and_gossip_block(
         &miner_block.hash[..16],
         miner_block.difficulty);
     
+    // Rolling integrity check: Validate the last 160 blocks after each mined block
+    // This catches integrity issues early before they propagate
+    if miner_block.index > 0 && miner_block.index % 10 == 0 {
+        let mut ds = datastore.lock().await;
+        match super::chain_integrity::check_recent_blocks(&mut ds, 160, true).await {
+            Ok(true) => {
+                log::debug!("✓ Rolling integrity check passed (last 160 blocks)");
+            }
+            Ok(false) => {
+                log::error!("❌ Rolling integrity check found and repaired broken blocks");
+                // Update mining index after repair
+                drop(ds);
+                let ds = datastore.lock().await;
+                if let Ok(blocks) = MinerBlock::find_all_canonical(&ds).await {
+                    if let Some(tip) = blocks.iter().max_by_key(|b| b.index) {
+                        log::info!("🔄 Updated mining index after repair: now at {}", tip.index + 1);
+                    }
+                }
+            }
+            Err(e) => {
+                log::error!("⚠️  Rolling integrity check failed: {}", e);
+            }
+        }
+    }
+    
     // Log epoch changes prominently
     if miner_block.index > 0 && miner_block.index % 40 == 0 {
         log::info!("🎯 EPOCH {} STARTED - New difficulty: {}", miner_block.epoch, miner_block.difficulty);

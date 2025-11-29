@@ -169,6 +169,9 @@ pub async fn handler(
                 log::info!("Fork choice: Replacing existing block {} (difficulty: {}, hash: {}) with gossiped block (difficulty: {}, hash: {})",
                     miner_block.index, existing_difficulty, &existing.hash[..16], new_difficulty, &miner_block.hash[..16]);
                 
+                let replaced_block_hash = existing.hash.clone();
+                let replaced_block_index = existing.index;
+                
                 // Mark old block as orphaned
                 let mut orphaned = existing.clone();
                 orphaned.mark_as_orphaned(
@@ -176,6 +179,48 @@ pub async fn handler(
                     Some(miner_block.hash.clone())
                 );
                 orphaned.save(&mut ds).await?;
+                
+                // CASCADE ORPHANING: Find and orphan all canonical blocks built on the replaced block
+                // This prevents chain integrity issues where blocks point to orphaned parents
+                let all_canonical = MinerBlock::find_all_canonical(&ds).await?;
+                let mut cascade_orphaned_count = 0;
+                
+                // Build a chain of blocks to orphan by following prev_hash links
+                let mut blocks_to_check: Vec<_> = all_canonical.iter()
+                    .filter(|b| b.index > replaced_block_index && b.is_canonical && !b.is_orphaned)
+                    .collect();
+                
+                // Sort by index to process in order
+                blocks_to_check.sort_by_key(|b| b.index);
+                
+                // Track which block hashes are orphaned (starting with the replaced block)
+                let mut orphaned_hashes = std::collections::HashSet::new();
+                orphaned_hashes.insert(replaced_block_hash.clone());
+                
+                // Cascade: if a block's prev_hash points to an orphaned block, orphan it too
+                for block in blocks_to_check {
+                    if orphaned_hashes.contains(&block.previous_hash) {
+                        log::info!("   Cascade orphaning block {} at index {} (built on orphaned chain)", 
+                            &block.hash[..16], block.index);
+                        
+                        let mut cascade_orphaned = block.clone();
+                        cascade_orphaned.mark_as_orphaned(
+                            format!("Built on orphaned block {} at index {} (cascade from fork choice)", 
+                                &replaced_block_hash[..16], replaced_block_index),
+                            None
+                        );
+                        cascade_orphaned.save(&mut ds).await?;
+                        
+                        // Add this block's hash to orphaned set so its children get orphaned too
+                        orphaned_hashes.insert(block.hash.clone());
+                        cascade_orphaned_count += 1;
+                    }
+                }
+                
+                if cascade_orphaned_count > 0 {
+                    log::warn!("⚠️  Cascade orphaned {} blocks built on replaced block {}", 
+                        cascade_orphaned_count, replaced_block_index);
+                }
                 
                 // Save new block as canonical
                 miner_block.save(&mut ds).await?;
@@ -312,6 +357,22 @@ pub async fn handler(
         let mut ds = datastore.lock().await;
         log::info!("Accepting new gossiped block {} at index {}", &miner_block.hash[..16], miner_block.index);
         miner_block.save(&mut ds).await?;
+        
+        // Rolling integrity check: Periodically validate recent blocks
+        // Check every 10 blocks to catch integrity issues early
+        if miner_block.index % 10 == 0 {
+            match crate::actions::chain_integrity::check_recent_blocks(&mut ds, 160, true).await {
+                Ok(true) => {
+                    log::debug!("✓ Rolling integrity check passed (last 160 blocks)");
+                }
+                Ok(false) => {
+                    log::error!("❌ Rolling integrity check found and repaired broken blocks");
+                }
+                Err(e) => {
+                    log::error!("⚠️  Rolling integrity check failed: {}", e);
+                }
+            }
+        }
         
         // Check if this extends the chain tip
         let current_tip = MinerBlock::find_all_canonical(&ds).await?
