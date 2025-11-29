@@ -28,21 +28,9 @@ struct MiningState {
 /// Run a mining node that continuously mines and gossips blocks
 /// This function will run until a shutdown signal is received (Ctrl-C)
 pub async fn run(node: &mut Node) -> Result<()> {
-    // Set up Ctrl-C handler for graceful shutdown
+    // Ctrl-C handler is set up in node.wait_for_shutdown()
+    // We just need a shutdown flag for mining operations
     let shutdown = Arc::new(AtomicBool::new(false));
-    let shutdown_clone = shutdown.clone();
-    
-    tokio::spawn(async move {
-        match tokio::signal::ctrl_c().await {
-            Ok(()) => {
-                log::info!("🛑 Received Ctrl-C signal, initiating graceful shutdown...");
-                shutdown_clone.store(true, Ordering::Relaxed);
-            }
-            Err(err) => {
-                log::error!("Failed to listen for Ctrl-C signal: {}", err);
-            }
-        }
-    });
     
     // Create a channel to signal mining view updates
     // This must be created FIRST so we can clone it for various tasks
