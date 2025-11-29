@@ -3,6 +3,7 @@
 //! Observer is the base node type that provides:
 //! - Chain synchronization from peers
 //! - Chain monitoring and reorg detection  
+//! - Chain maintenance (promotion, validation, cleanup)
 //! - Gossip subscription for mining blocks
 //! - Status server and networking
 //!
@@ -19,10 +20,12 @@
 
 pub mod sync;
 pub mod chain_monitor;
+pub mod chain_maintenance;
 
 // Re-export commonly used functions
 pub use sync::{sync_from_peers, handle_sync_from_peer, start_sync_request_handler};
 pub use chain_monitor::{start_chain_monitor, get_chain_tip_index};
+pub use chain_maintenance::{start_promotion_task, validate_and_cleanup_chain, sync_missing_blocks};
 
 use anyhow::Result;
 

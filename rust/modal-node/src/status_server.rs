@@ -276,43 +276,43 @@ fn calculate_epoch_nominees(
     
     let epochs_to_show = std::cmp::min(STATUS_EPOCHS_TO_SHOW, current_epoch);
     
-    for epoch_offset in 1..=epochs_to_show {
-        let epoch = current_epoch - epoch_offset;
-        let epoch_start = epoch * BLOCKS_PER_EPOCH;
-        let epoch_end = epoch_start + BLOCKS_PER_EPOCH;
-        
-        // Get all blocks from this epoch
-        let epoch_blocks: Vec<&MinerBlock> = miner_blocks
-            .iter()
-            .filter(|b| b.index >= epoch_start && b.index < epoch_end)
-            .collect();
-        
-        // Only process complete epochs
-        if epoch_blocks.len() == BLOCKS_PER_EPOCH as usize {
-            // Calculate XOR seed from all nonces
-            let mut seed = 0u64;
-            for block in &epoch_blocks {
-                if let Ok(nonce) = block.nonce.parse::<u128>() {
-                    seed ^= nonce as u64;
-                }
-            }
+        for epoch_offset in 1..=epochs_to_show {
+            let epoch = current_epoch - epoch_offset;
+            let epoch_start = epoch * BLOCKS_PER_EPOCH;
+            let epoch_end = epoch_start + BLOCKS_PER_EPOCH;
             
-            // Get shuffled indices using Fisher-Yates
-            let shuffled_indices = modal_common::shuffle::fisher_yates_shuffle(seed, epoch_blocks.len());
-            
-            // Map shuffled indices to (shuffle_rank, block_hash, nominated_peer_id, block_index)
-            let shuffled_nominees: Vec<(usize, String, String, u64)> = shuffled_indices
-                .into_iter()
-                .enumerate()
-                .map(|(rank, original_idx)| {
-                    let block = epoch_blocks[original_idx];
-                    (rank, block.hash.clone(), block.nominated_peer_id.clone(), block.index)
-                })
+            // Get all blocks from this epoch
+            let epoch_blocks: Vec<&MinerBlock> = miner_blocks
+                .iter()
+                .filter(|b| b.index >= epoch_start && b.index < epoch_end)
                 .collect();
             
-            epoch_nominees_data.push((epoch, shuffled_nominees));
+            // Only process complete epochs
+            if epoch_blocks.len() == BLOCKS_PER_EPOCH as usize {
+                // Calculate XOR seed from all nonces
+                let mut seed = 0u64;
+                for block in &epoch_blocks {
+                    if let Ok(nonce) = block.nonce.parse::<u128>() {
+                        seed ^= nonce as u64;
+                    }
+                }
+                
+                // Get shuffled indices using Fisher-Yates
+                let shuffled_indices = modal_common::shuffle::fisher_yates_shuffle(seed, epoch_blocks.len());
+                
+                // Map shuffled indices to (shuffle_rank, block_hash, nominated_peer_id, block_index)
+                let shuffled_nominees: Vec<(usize, String, String, u64)> = shuffled_indices
+                    .into_iter()
+                    .enumerate()
+                    .map(|(rank, original_idx)| {
+                        let block = epoch_blocks[original_idx];
+                        (rank, block.hash.clone(), block.nominated_peer_id.clone(), block.index)
+                    })
+                    .collect();
+                
+                epoch_nominees_data.push((epoch, shuffled_nominees));
+            }
         }
-    }
     
     epoch_nominees_data
 }
@@ -325,21 +325,21 @@ fn build_epoch_nominees_html(
         return String::new();
     }
     
-    epoch_nominees_data
-        .iter()
-        .map(|(epoch, nominees)| {
-            let nominees_html = nominees
-                .iter()
-                .map(|(rank, block_hash, peer_id, block_idx)| {
+        epoch_nominees_data
+            .iter()
+            .map(|(epoch, nominees)| {
+                let nominees_html = nominees
+                    .iter()
+                    .map(|(rank, block_hash, peer_id, block_idx)| {
                     render_nominee_row(*rank + 1, *block_idx, block_hash, peer_id)
-                })
-                .collect::<Vec<_>>()
-                .join("\n                    ");
-            
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n                    ");
+
             render_epoch_nominees_section(*epoch, &nominees_html)
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
 }
 
 async fn status_handler(

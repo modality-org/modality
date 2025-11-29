@@ -21,17 +21,12 @@ mod block_producer;
 mod sync_helpers;
 
 use anyhow::Result;
-use modal_datastore::models::MinerBlock;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use tokio::sync::Mutex;
 
 use crate::node::Node;
 use crate::gossip;
-use crate::constants::{
-    SYNC_COOLDOWN_MS, AUTO_HEALING_INTERVAL_SECS, PROMOTION_CHECK_INTERVAL_SECS,
-    MINING_LOOP_PAUSE_MS, MINING_RETRY_PAUSE_MS,
-};
 
 // Re-export public items
 pub use mining_loop::MiningOutcome;
@@ -201,25 +196,20 @@ async fn validate_chain_before_mining(node: &Node) {
     }
 }
 
-/// Get the starting block index for mining
+/// Get the starting block index for mining.
+/// Uses observer's get_chain_tip_index and adds 1 for mining.
 async fn get_starting_index(
     datastore_manager: &Arc<Mutex<modal_datastore::DatastoreManager>>,
 ) -> Result<u64> {
-    let mgr = datastore_manager.lock().await;
-    let latest_block = MinerBlock::find_all_canonical_multi(&mgr)
-        .await?
-        .into_iter()
-        .max_by_key(|b| b.index);
+    use super::observer::get_chain_tip_index;
     
-    match latest_block {
-        Some(block) => {
-            log::info!("Resuming mining from block index {}", block.index);
-            Ok(block.index + 1)
-        }
-        None => {
-            log::info!("No existing blocks found, starting from genesis");
-            Ok(0)
-        }
+    let tip = get_chain_tip_index(datastore_manager).await;
+    if tip > 0 {
+        log::info!("Resuming mining from block index {}", tip);
+        Ok(tip + 1)
+    } else {
+        log::info!("No existing blocks found, starting from genesis");
+        Ok(0)
     }
 }
 

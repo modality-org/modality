@@ -3,14 +3,13 @@
 //! This module contains the main mining loop that continuously mines blocks,
 //! handles updates from sync/gossip, and manages mining state.
 
-use anyhow::Result;
-use modal_datastore::models::MinerBlock;
 use modal_datastore::DatastoreManager;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::Mutex;
 
-use crate::constants::{MINING_LOOP_PAUSE_MS, MINING_RETRY_PAUSE_MS, ROLLING_INTEGRITY_CHECK_INTERVAL};
+use crate::actions::observer::get_chain_tip_index;
+use crate::constants::{MINING_LOOP_PAUSE_MS, MINING_RETRY_PAUSE_MS};
 use super::block_producer::mine_and_gossip_block;
 use super::MiningState;
 
@@ -147,39 +146,28 @@ fn process_mining_updates(
     current_index
 }
 
-/// Update mining index from datastore if chain tip has changed
+/// Update mining index from datastore if chain tip has changed.
+/// Uses observer's get_chain_tip_index for the actual chain query.
 async fn update_from_datastore(
     datastore: &Arc<Mutex<DatastoreManager>>,
     current_index: u64,
 ) -> u64 {
-    let ds = datastore.lock().await;
-    match MinerBlock::find_all_canonical_multi(&ds).await {
-        Ok(blocks) if !blocks.is_empty() => {
-            let tip_index = blocks.into_iter().max_by_key(|b| b.index).map(|b| b.index);
-            if let Some(tip) = tip_index {
-                let next_index = tip + 1;
-                if next_index != current_index {
-                    log::info!(
-                        "⛏️  Detected chain tip change via datastore: updating from {} to {}",
-                        current_index, next_index
-                    );
-                    return next_index;
-                }
-            }
-        }
-        _ => {}
+    let tip = get_chain_tip_index(datastore).await;
+    let next_index = tip + 1;
+    
+    if next_index != current_index {
+        log::info!(
+            "⛏️  Detected chain tip change via datastore: updating from {} to {}",
+            current_index, next_index
+        );
+        return next_index;
     }
     current_index
 }
 
-/// Get the next mining index from datastore
+/// Get the next mining index from datastore.
+/// Uses observer's get_chain_tip_index and adds 1 for mining.
 async fn get_next_mining_index(datastore: &Arc<Mutex<DatastoreManager>>) -> u64 {
-    let ds = datastore.lock().await;
-    match MinerBlock::find_all_canonical_multi(&ds).await {
-        Ok(blocks) if !blocks.is_empty() => {
-            blocks.iter().map(|b| b.index).max().unwrap_or(0) + 1
-        }
-        _ => 0
-    }
+    get_chain_tip_index(datastore).await + 1
 }
 
