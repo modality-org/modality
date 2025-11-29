@@ -226,17 +226,25 @@ async fn compare_with_peer(
 ) -> Result<ChainComparison> {
     // Connect to peer
     println!("🔗 Connecting to peer...");
+    println!("   Address: {}", peer_addr);
+    
     let connect_result = tokio::time::timeout(
         std::time::Duration::from_secs(timeout_secs / 2),
         node.connect_to_peer_multiaddr(peer_addr.clone())
     ).await;
     
-    if let Err(_) = connect_result {
-        anyhow::bail!("Connection timeout");
+    match &connect_result {
+        Err(_) => {
+            anyhow::bail!("Connection timeout after {} seconds\n   \n   Troubleshooting:\n   - Check that the peer is online and reachable\n   - Verify the multiaddr is correct\n   - Ensure firewall rules allow connections", timeout_secs / 2);
+        }
+        Ok(Err(e)) => {
+            anyhow::bail!("Failed to dial peer: {}\n   \n   Troubleshooting:\n   - If your local node is running, stop it first: modal node kill\n   - Verify the peer address: {}\n   - Check network connectivity", e, peer_addr);
+        }
+        Ok(Ok(_)) => {
+            println!("   Connected!");
+            println!();
+        }
     }
-    connect_result??;
-    println!("   Connected!");
-    println!();
     
     // Get peer's chain info
     println!("📡 Requesting chain info...");
