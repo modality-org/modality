@@ -186,6 +186,9 @@ enum NodeCommands {
 
     #[command(about = "Clear all values from node storage")]
     ClearStorage(cmds::node::clear_storage::Opts),
+
+    #[command(about = "Display summary statistics from recent blocks")]
+    Stats(cmds::node::stats::Opts),
 }
 
 #[derive(Subcommand)]
@@ -313,6 +316,7 @@ async fn main() -> Result<()> {
                 NodeCommands::Sync(opts) => cmds::node::sync::run(opts).await?,
                 NodeCommands::Clear(opts) => cmds::node::clear::run(opts).await?,
                 NodeCommands::ClearStorage(opts) => cmds::node::clear_storage::run(opts).await?,
+                NodeCommands::Stats(opts) => cmds::node::stats::run(opts).await?,
             }
         }
         Commands::Local { command } => {
