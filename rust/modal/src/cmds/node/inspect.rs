@@ -21,13 +21,17 @@ pub struct Opts {
     #[clap(long)]
     pub level: Option<String>,
 
-    /// Command: general, mining, blocks, peers, or datastore-get <key>
+    /// Command: general, mining, blocks, block, peers, or datastore-get <key>
     #[clap(name = "COMMAND")]
     pub command: Option<String>,
     
     /// Datastore key (required when command is datastore-get)
     #[clap(name = "KEY")]
     pub datastore_key: Option<String>,
+    
+    /// Block index (required when command is block)
+    #[clap(name = "INDEX")]
+    pub block_index: Option<u64>,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
@@ -110,9 +114,14 @@ pub async fn run(opts: &Opts) -> Result<()> {
         "mining" => {
             inspect_mining(&datastore, &config).await?;
         }
+        "block" => {
+            let index = opts.block_index
+                .context("block command requires an INDEX argument")?;
+            inspect_block_by_index(&datastore, index).await?;
+        }
         _ => {
             println!("Unknown inspection command: {}", command);
-            println!("Available commands: general, mining, blocks, datastore-get <key>");
+            println!("Available commands: general, mining, blocks, block <index>, datastore-get <key>");
         }
     }
     
@@ -266,6 +275,71 @@ async fn inspect_mining(datastore: &NetworkDatastore, config: &modal_node::confi
         println!("Average Difficulty: {}", avg_difficulty);
     } else {
         println!("No blocks mined yet");
+    }
+    
+    Ok(())
+}
+
+async fn inspect_block_by_index(
+    datastore: &NetworkDatastore, 
+    index: u64
+) -> Result<()> {
+    // Find all blocks at this index (canonical + orphans)
+    let blocks = MinerBlock::find_by_index(datastore, index).await?;
+    
+    if blocks.is_empty() {
+        println!("No block found at index {}", index);
+        return Ok(());
+    }
+    
+    println!("📦 Block {} Details", index);
+    println!("==================");
+    println!();
+    
+    for (i, block) in blocks.iter().enumerate() {
+        if i > 0 {
+            println!();
+            println!("---");
+            println!();
+        }
+        
+        println!("Status: {}", 
+            if block.is_canonical { "✓ Canonical" } 
+            else if block.is_orphaned { "⚠️  Orphaned" } 
+            else { "⏳ Pending" }
+        );
+        println!("Hash: {}", block.hash);
+        println!("Previous Hash: {}", block.previous_hash);
+        
+        if let Some(dt) = chrono::DateTime::from_timestamp(block.timestamp, 0) {
+            println!("Timestamp: {} ({})", 
+                block.timestamp,
+                dt.format("%Y-%m-%d %H:%M:%S UTC")
+            );
+        } else {
+            println!("Timestamp: {}", block.timestamp);
+        }
+        
+        println!("Epoch: {}", block.epoch);
+        println!("Difficulty: {}", block.difficulty);
+        println!("Nonce: {}", block.nonce);
+        println!("Nominated Peer: {}", block.nominated_peer_id);
+        println!("Miner Number: {}", block.miner_number);
+        
+        if block.is_orphaned {
+            if let Some(ref reason) = block.orphan_reason {
+                println!("Orphan Reason: {}", reason);
+            }
+            if let Some(ref competing) = block.competing_hash {
+                println!("Competing Hash: {}", competing);
+            }
+        }
+    }
+    
+    if blocks.len() > 1 {
+        println!();
+        println!("⚠️  WARNING: {} blocks found at index {} (fork detected)", 
+            blocks.len(), index);
     }
     
     Ok(())

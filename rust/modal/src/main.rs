@@ -91,6 +91,9 @@ enum Commands {
         command: ChainCommands,
     },
 
+    #[command(about = "Kill all running modal node processes (shortcut for 'modal local killall-nodes')")]
+    Killall(cmds::local::killall_nodes::Opts),
+
     #[command(about = "Upgrade modal to the latest version")]
     Upgrade(modality::cmds::upgrade::Opts),
 }
@@ -144,6 +147,9 @@ enum NodeCommands {
 
     #[command(about = "Inspect a node's state (running or offline)")]
     Inspect(cmds::node::inspect::Opts),
+
+    #[command(about = "Compare local chain with a remote peer")]
+    Compare(cmds::node::compare::Opts),
 
     #[command(about = "Kill a running node process")]
     Kill(cmds::node::kill::Opts),
@@ -291,6 +297,7 @@ async fn main() -> Result<()> {
                 NodeCommands::Create(opts) => cmds::node::create::run(opts).await?,
                 NodeCommands::Info(opts) => cmds::node::info::run(opts).await?,
                 NodeCommands::Inspect(opts) => cmds::node::inspect::run(opts).await?,
+                NodeCommands::Compare(opts) => cmds::node::compare::run(opts).await?,
                 NodeCommands::Kill(opts) => cmds::node::kill::run(opts).await?,
                 NodeCommands::Pid(opts) => cmds::node::pid::run(opts).await?,
                 NodeCommands::Run(opts) => cmds::node::run::run(opts).await?,
@@ -364,6 +371,7 @@ async fn main() -> Result<()> {
                 ChainCommands::Heal(opts) => cmds::chain::heal::run(opts).await?,
             }
         }
+        Commands::Killall(opts) => cmds::local::killall_nodes::run(opts).await?,
         Commands::Upgrade(opts) => modality::cmds::upgrade::run(opts).await?,
     }
 
