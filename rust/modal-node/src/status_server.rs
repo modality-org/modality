@@ -188,21 +188,24 @@ pub async fn generate_status_html(
     let peers_html = if peer_info.is_empty() {
         render_empty_peers_message()
     } else {
-        // Load peer info with status URLs from datastore
+        // Load peer info with status URLs and roles from datastore
         let mut peer_rows = Vec::new();
         for peer_id in &peer_info {
             let peer_id_str = peer_id.to_string();
             
             // Try to load PeerInfo from datastore
-            let status_url = modal_datastore::models::PeerInfo::find_one(&mgr, &peer_id_str)
+            let peer_metadata = modal_datastore::models::PeerInfo::find_one(&mgr, &peer_id_str)
                 .await
                 .ok()
-                .flatten()
-                .and_then(|info| info.status_url);
+                .flatten();
             
-            peer_rows.push(crate::templates::render_peer_row_with_url(
+            let status_url = peer_metadata.as_ref().and_then(|info| info.status_url.clone());
+            let role = peer_metadata.as_ref().and_then(|info| info.role.clone());
+            
+            peer_rows.push(crate::templates::render_peer_row_with_metadata(
                 &peer_id_str,
-                status_url.as_deref()
+                status_url.as_deref(),
+                role.as_deref()
             ));
         }
         peer_rows.join("\n                    ")

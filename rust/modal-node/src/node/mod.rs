@@ -116,7 +116,7 @@ impl Node {
         let resolved_bootstrappers =
             resolve_dns_multiaddrs(config.bootstrappers.clone().unwrap_or_default()).await?;
         let bootstrappers = exclude_multiaddresses_with_peerid(resolved_bootstrappers, peerid);
-        let swarm = swarm::create_swarm_with_status_url(node_keypair.clone(), status_url.clone()).await?;
+        let swarm = swarm::create_swarm_with_metadata(node_keypair.clone(), status_url.clone(), Some(role.clone())).await?;
         
         // Initialize the DatastoreManager
         let datastore_manager = helpers::initialize_datastore(&config).await?;
@@ -551,24 +551,31 @@ impl Node {
                             )) => {
                                 log::debug!("Identify received from {:?}: agent_version={}", peer_id, info.agent_version);
                                 
-                                // Extract status_url from agent version string
-                                // Format: "modal-node/version;status_url=https://..."
-                                if let Some(status_url_part) = info.agent_version.split(';').find(|s| s.starts_with("status_url=")) {
-                                    let status_url = status_url_part.strip_prefix("status_url=").map(|s| s.to_string());
+                                // Extract status_url and role from agent version string
+                                // Format: "modal-node/version;status_url=https://...;role=Miner"
+                                let parts: Vec<&str> = info.agent_version.split(';').collect();
+                                let status_url = parts.iter()
+                                    .find(|s| s.starts_with("status_url="))
+                                    .and_then(|s| s.strip_prefix("status_url="))
+                                    .map(|s| s.to_string());
+                                let role = parts.iter()
+                                    .find(|s| s.starts_with("role="))
+                                    .and_then(|s| s.strip_prefix("role="))
+                                    .map(|s| s.to_string());
+                                
+                                // Store peer info with status_url and role if either exists
+                                if status_url.is_some() || role.is_some() {
+                                    log::info!("Peer {} - status_url: {:?}, role: {:?}", peer_id, status_url, role);
+                                    let peer_info = modal_datastore::models::PeerInfo::with_metadata(
+                                        peer_id.to_string(),
+                                        status_url,
+                                        role
+                                    );
                                     
-                                    // Store peer info with status_url
-                                    if let Some(url) = status_url {
-                                        log::info!("Peer {} has status URL: {}", peer_id, url);
-                                        let peer_info = modal_datastore::models::PeerInfo::with_status_url(
-                                            peer_id.to_string(),
-                                            Some(url)
-                                        );
-                                        
-                                        // Store in NodeState
-                                        let mgr = datastore_manager.lock().await;
-                                        if let Err(e) = peer_info.save_to(mgr.node_state()).await {
-                                            log::warn!("Failed to store peer info: {}", e);
-                                        }
+                                    // Store in NodeState
+                                    let mgr = datastore_manager.lock().await;
+                                    if let Err(e) = peer_info.save_to(mgr.node_state()).await {
+                                        log::warn!("Failed to store peer info: {}", e);
                                     }
                                 }
                             }

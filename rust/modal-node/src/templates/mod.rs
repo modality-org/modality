@@ -56,6 +56,22 @@ pub fn render_peer_row_with_url(peer_id: &str, status_url: Option<&str>) -> Stri
     }
 }
 
+/// Template for a peer row with status URL and role
+pub fn render_peer_row_with_metadata(peer_id: &str, status_url: Option<&str>, role: Option<&str>) -> String {
+    let status_cell = if let Some(url) = status_url {
+        format!(r#"<a href="{}" target="_blank" style="color: #4ade80; text-decoration: none;">🔗 Status</a>"#, url)
+    } else {
+        "-".to_string()
+    };
+    
+    let role_cell = role.unwrap_or("-");
+    
+    format!(
+        r#"<tr><td><code>{}</code></td><td>{}</td><td>{}</td></tr>"#,
+        peer_id, role_cell, status_cell
+    )
+}
+
 /// Template for a listener item
 pub fn render_listener_item(listener: &str) -> String {
     format!("<li>{}</li>", listener)
@@ -123,7 +139,7 @@ pub fn render_empty_blocks_message() -> String {
 
 /// Template for empty peers table
 pub fn render_empty_peers_message() -> String {
-    "<tr><td style='text-align: center; padding: 20px; color: #666;'>No connected peers</td></tr>".to_string()
+    "<tr><td colspan='3' style='text-align: center; padding: 20px; color: #666;'>No connected peers</td></tr>".to_string()
 }
 
 /// Template for epoch nominees section

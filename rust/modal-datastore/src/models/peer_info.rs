@@ -9,6 +9,7 @@ use std::collections::HashMap;
 pub struct PeerInfo {
     pub peer_id: String,
     pub status_url: Option<String>,
+    pub role: Option<String>,
     pub last_seen: Option<i64>, // Unix timestamp
 }
 
@@ -18,15 +19,27 @@ impl PeerInfo {
         Self {
             peer_id,
             status_url: None,
+            role: None,
             last_seen: None,
         }
     }
 
-    /// Create a PeerInfo with status URL
+    /// Create a PeerInfo with status URL and role
+    pub fn with_metadata(peer_id: String, status_url: Option<String>, role: Option<String>) -> Self {
+        Self {
+            peer_id,
+            status_url,
+            role,
+            last_seen: None,
+        }
+    }
+
+    /// Create a PeerInfo with status URL (deprecated, use with_metadata)
     pub fn with_status_url(peer_id: String, status_url: Option<String>) -> Self {
         Self {
             peer_id,
             status_url,
+            role: None,
             last_seen: None,
         }
     }
@@ -55,6 +68,7 @@ impl Model for PeerInfo {
     const FIELDS: &'static [&'static str] = &[
         "peer_id",
         "status_url",
+        "role",
         "last_seen",
     ];
     
@@ -64,6 +78,7 @@ impl Model for PeerInfo {
         match field {
             "peer_id" => self.peer_id = value.as_str().unwrap_or_default().to_string(),
             "status_url" => self.status_url = value.as_str().map(|s| s.to_string()),
+            "role" => self.role = value.as_str().map(|s| s.to_string()),
             "last_seen" => self.last_seen = value.as_i64(),
             _ => {}
         }
