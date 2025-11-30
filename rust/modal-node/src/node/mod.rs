@@ -99,8 +99,17 @@ impl Node {
         let peerid = node_keypair.public().to_peer_id();
         let autoupgrade_config = crate::autoupgrade::AutoupgradeConfig::from_node_config(&config);
         let miner_nominees = config.miner_nominees.clone();
-        let hybrid_consensus = config.hybrid_consensus.unwrap_or(false);
-        let run_validator = config.run_validator.unwrap_or(false);
+        
+        // Hybrid consensus should be ON by default for all nodes
+        let hybrid_consensus = config.hybrid_consensus.unwrap_or(true);
+        
+        // Determine run_validator based on run_as or explicit flag
+        let run_validator = if let Some(ref run_as) = config.run_as {
+            matches!(run_as.as_str(), "validator" | "Validator")
+        } else {
+            config.run_validator.unwrap_or(false)
+        };
+        
         let network_name = config.get_network_name();
         let role = config.get_node_role();
         let status_port = config.status_port;
