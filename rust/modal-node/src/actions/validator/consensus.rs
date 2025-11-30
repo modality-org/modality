@@ -44,15 +44,25 @@ pub async fn create_and_start_shoal_validator_weighted(
     my_index: usize,
     datastore: Arc<Mutex<DatastoreManager>>,
 ) -> Result<()> {
+    let datastore_for_loop = datastore.clone();
+    let committee_size = validators.len();
+    
     match modal_validator::ShoalValidatorConfig::from_peer_ids_with_stakes(validators, stakes, my_index) {
         Ok(config) => {
+            let validator_peer_id = config.validator_key.to_string();
+            
             // Create and initialize ShoalValidator
             match modal_validator::ShoalValidator::new(datastore, config).await {
                 Ok(shoal_validator) => {
                     match shoal_validator.initialize().await {
                         Ok(()) => {
                             log::info!("✅ ShoalValidator initialized successfully");
-                            spawn_consensus_loop(shoal_validator).await
+                            spawn_consensus_loop(
+                                shoal_validator,
+                                datastore_for_loop,
+                                validator_peer_id,
+                                committee_size,
+                            ).await
                         }
                         Err(e) => {
                             Err(anyhow::anyhow!("Failed to initialize ShoalValidator: {}", e))
@@ -73,13 +83,34 @@ pub async fn create_and_start_shoal_validator_weighted(
 /// Spawn a background task to run the Shoal consensus loop.
 pub async fn spawn_consensus_loop(
     _shoal_validator: modal_validator::ShoalValidator,
+    datastore: Arc<Mutex<DatastoreManager>>,
+    validator_peer_id: String,
+    committee_size: usize,
 ) -> Result<()> {
     tokio::spawn(async move {
         log::info!("🚀 Starting Shoal consensus loop");
         let mut round = 0u64;
         
+        // Initialize consensus metadata
+        {
+            let mgr = datastore.lock().await;
+            if let Err(e) = mgr.set_current_round(0).await {
+                log::warn!("Failed to initialize current round: {}", e);
+            }
+        }
+        
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+            
+            round += 1;
+            
+            // Update round in datastore so status page can display it
+            {
+                let mgr = datastore.lock().await;
+                if let Err(e) = mgr.set_current_round(round).await {
+                    log::warn!("Failed to update current round: {}", e);
+                }
+            }
             
             // TODO: Submit transactions from mempool
             // TODO: Create batch and propose header
@@ -87,9 +118,12 @@ pub async fn spawn_consensus_loop(
             // TODO: Run consensus on certificates
             // TODO: Commit ordered transactions to datastore
             
-            round += 1;
             if round % 10 == 0 {
-                log::info!("⚙️  Consensus round: {}", round);
+                log::info!("⚙️  Consensus round: {} (validator: {}, committee: {})", 
+                    round, 
+                    &validator_peer_id[..16.min(validator_peer_id.len())],
+                    committee_size
+                );
             }
         }
     });

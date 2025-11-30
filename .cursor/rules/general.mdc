@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+
+- if you are given an ssh connection, do not build and copy binaries to it. only use the connection to inspect what is going on. then modify code locally. the user will build and deploy those changes when they are ready independently.

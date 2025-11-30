@@ -445,5 +445,32 @@ mod tests {
         // Block at epoch 5, current epoch 17 - SHOULD purge (12 epochs old)
         assert!(mgr.should_purge(5, 17));
     }
+    
+    #[tokio::test]
+    async fn test_round_persistence() {
+        let mgr = DatastoreManager::create_in_memory().unwrap();
+        
+        // Initial round should be 0
+        let initial = mgr.get_current_round().await.unwrap();
+        assert_eq!(initial, 0);
+        
+        // Set round to 42
+        mgr.set_current_round(42).await.unwrap();
+        let round = mgr.get_current_round().await.unwrap();
+        assert_eq!(round, 42);
+        
+        // Bump round
+        let bumped = mgr.bump_current_round().await.unwrap();
+        assert_eq!(bumped, 43);
+        
+        // Verify bumped value persists
+        let current = mgr.get_current_round().await.unwrap();
+        assert_eq!(current, 43);
+        
+        // Set to a high value
+        mgr.set_current_round(1000).await.unwrap();
+        let high = mgr.get_current_round().await.unwrap();
+        assert_eq!(high, 1000);
+    }
 }
 
