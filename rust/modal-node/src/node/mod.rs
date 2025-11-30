@@ -186,6 +186,11 @@ impl Node {
         self.datastore_manager.clone()
     }
 
+    /// Get the consensus message channel sender
+    pub fn get_consensus_tx(&self) -> mpsc::Sender<ConsensusMessage> {
+        self.consensus_tx.clone()
+    }
+
     /// Set up the node - run bootup tasks and configure swarm
     pub async fn setup(&mut self, config: &Config) -> Result<()> {
         self.run_bootup_tasks(config).await?;

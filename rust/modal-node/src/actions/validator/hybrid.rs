@@ -3,12 +3,15 @@
 //! In hybrid consensus mode, validators are selected based on mining nominations
 //! from epoch N-2.
 
+use modal_common::keypair::Keypair;
 use modal_datastore::models::MinerBlock;
 use modal_datastore::models::validator::get_validator_set_for_mining_epoch_hybrid_multi;
 use modal_datastore::DatastoreManager;
+use modal_validator_consensus::communication::Message as ConsensusMessage;
 use std::sync::Arc;
-use tokio::sync::broadcast;
-use tokio::sync::Mutex;
+use tokio::sync::{broadcast, mpsc, Mutex};
+
+use crate::swarm::NodeSwarm;
 
 /// Blocks per epoch constant for epoch calculations
 const BLOCKS_PER_EPOCH: u64 = 40;
@@ -21,6 +24,9 @@ pub fn start_hybrid_consensus_monitor(
     datastore: Arc<Mutex<DatastoreManager>>,
     node_peer_id: String,
     mut epoch_rx: broadcast::Receiver<u64>,
+    keypair: Keypair,
+    swarm: Arc<Mutex<NodeSwarm>>,
+    consensus_tx: mpsc::Sender<ConsensusMessage>,
 ) {
     tokio::spawn(async move {
         log::info!("Hybrid consensus coordinator started, waiting for epoch >= 2...");
@@ -30,7 +36,14 @@ pub fn start_hybrid_consensus_monitor(
         
         if current_epoch >= 2 {
             log::info!("Current epoch is {}, checking validator set immediately", current_epoch);
-            check_and_start_validator(&datastore, &node_peer_id, current_epoch).await;
+            check_and_start_validator(
+                &datastore,
+                &node_peer_id,
+                current_epoch,
+                &keypair,
+                swarm.clone(),
+                consensus_tx.clone(),
+            ).await;
         }
         
         // Listen for epoch transitions
@@ -38,7 +51,14 @@ pub fn start_hybrid_consensus_monitor(
             match epoch_rx.recv().await {
                 Ok(new_epoch) => {
                     log::info!("🔔 Epoch transition detected: epoch {}", new_epoch);
-                    check_and_start_validator(&datastore, &node_peer_id, new_epoch).await;
+                    check_and_start_validator(
+                        &datastore,
+                        &node_peer_id,
+                        new_epoch,
+                        &keypair,
+                        swarm.clone(),
+                        consensus_tx.clone(),
+                    ).await;
                 }
                 Err(e) => {
                     log::error!("Epoch transition channel closed: {}", e);
@@ -66,6 +86,9 @@ async fn check_and_start_validator(
     datastore: &Arc<Mutex<DatastoreManager>>,
     node_peer_id: &str,
     current_epoch: u64,
+    keypair: &Keypair,
+    swarm: Arc<Mutex<NodeSwarm>>,
+    consensus_tx: mpsc::Sender<ConsensusMessage>,
 ) {
     // Get validator set for this epoch (from epoch N-2 nominations)
     let validator_set = {
@@ -119,6 +142,9 @@ async fn check_and_start_validator(
                 stakes,
                 my_index,
                 datastore.clone(),
+                keypair.clone(),
+                swarm,
+                consensus_tx,
             ).await {
                 Ok(()) => log::info!("✅ Hybrid consensus started for epoch {}", current_epoch),
                 Err(e) => log::error!("Failed to start hybrid consensus: {}", e),
@@ -128,4 +154,3 @@ async fn check_and_start_validator(
         }
     }
 }
-

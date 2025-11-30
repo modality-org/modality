@@ -8,10 +8,12 @@
 //! - Support static validators and hybrid consensus modes
 //! - Do NOT mine blocks
 
+mod ack_collector;
 mod consensus;
 mod hybrid;
 
 use anyhow::Result;
+use modal_common::keypair::Keypair;
 
 use crate::gossip;
 use crate::node::Node;
@@ -49,6 +51,10 @@ pub async fn run(node: &mut Node) -> Result<()> {
     // Subscribe to mining block gossip
     gossip::add_miner_event_listeners(node).await?;
     log::info!("Subscribed to mining block gossip");
+    
+    // Subscribe to validator consensus gossip topics
+    gossip::add_validator_event_listeners(node).await?;
+    log::info!("Subscribed to validator consensus gossip topics");
     
     // Start status server
     node.start_status_server().await?;
@@ -101,6 +107,19 @@ pub async fn run(node: &mut Node) -> Result<()> {
 
 /// Check and start consensus based on node configuration.
 async fn start_consensus_if_configured(node: &Node) {
+    // Convert libp2p keypair to modal_common Keypair for signing
+    let keypair = match Keypair::from_libp2p_keypair(node.node_keypair.clone()) {
+        Ok(kp) => kp,
+        Err(e) => {
+            log::error!("Failed to convert node keypair for consensus: {}", e);
+            return;
+        }
+    };
+    
+    // Get swarm and consensus channel for communication
+    let swarm = node.swarm.clone();
+    let consensus_tx = node.get_consensus_tx();
+    
     // Check if this node is part of static validators and start consensus if so
     let static_validators = {
         let ds = node.datastore_manager.lock().await;
@@ -111,7 +130,14 @@ async fn start_consensus_if_configured(node: &Node) {
         let node_peer_id_str = node.peerid.to_string();
         if validators.contains(&node_peer_id_str) {
             log::info!("🏛️  This node is a static validator - starting Shoal consensus");
-            consensus::start_static_validator_consensus(&node_peer_id_str, &validators, &node.datastore_manager).await;
+            consensus::start_static_validator_consensus(
+                &node_peer_id_str,
+                &validators,
+                &node.datastore_manager,
+                keypair,
+                swarm,
+                consensus_tx,
+            ).await;
         } else {
             log::info!("This node is not in the static validators list");
         }
@@ -125,6 +151,9 @@ async fn start_consensus_if_configured(node: &Node) {
                 node.datastore_manager.clone(),
                 node.peerid.to_string(),
                 node.epoch_transition_tx.subscribe(),
+                keypair,
+                swarm,
+                consensus_tx,
             );
         } else if node.hybrid_consensus {
             log::info!("Hybrid consensus mode enabled but run_validator is false - running as miner only");
@@ -133,4 +162,3 @@ async fn start_consensus_if_configured(node: &Node) {
         }
     }
 }
-
