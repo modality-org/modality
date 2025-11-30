@@ -25,11 +25,23 @@ pub struct NodeBehaviour {
 pub type NodeSwarm = Swarm<NodeBehaviour>;
 
 pub async fn create_swarm(local_key: identity::Keypair) -> Result<NodeSwarm> {
+    create_swarm_with_status_url(local_key, None).await
+}
+
+pub async fn create_swarm_with_status_url(local_key: identity::Keypair, status_url: Option<String>) -> Result<NodeSwarm> {
     // let stream_behaviour = libp2p_stream::Behaviour::new();
+
+    // Create agent version string that includes status_url if provided
+    let agent_version = if let Some(url) = status_url {
+        format!("modal-node/0.1.0;status_url={}", url)
+    } else {
+        "modal-node/0.1.0".to_string()
+    };
 
     let identify_behaviour = identify::Behaviour::new(
         identify::Config::new("/ipfs/id/1.0.0".into(), local_key.public())
-            .with_interval(std::time::Duration::from_secs(60)), // do this so we can get timeouts for dropped WebRTC connections
+            .with_interval(std::time::Duration::from_secs(60)) // do this so we can get timeouts for dropped WebRTC connections
+            .with_agent_version(agent_version)
     );
     let ping_behaviour = ping::Behaviour::new(ping::Config::new());
 

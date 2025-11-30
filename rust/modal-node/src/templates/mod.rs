@@ -44,6 +44,18 @@ pub fn render_peer_row(peer_id: &str) -> String {
     format!("<tr><td><code>{}</code></td></tr>", peer_id)
 }
 
+/// Template for a peer row with status URL
+pub fn render_peer_row_with_url(peer_id: &str, status_url: Option<&str>) -> String {
+    if let Some(url) = status_url {
+        format!(
+            r#"<tr><td><code>{}</code></td><td><a href="{}" target="_blank" style="color: #4ade80; text-decoration: none;">🔗 Status</a></td></tr>"#,
+            peer_id, url
+        )
+    } else {
+        format!("<tr><td><code>{}</code></td><td>-</td></tr>", peer_id)
+    }
+}
+
 /// Template for a listener item
 pub fn render_listener_item(listener: &str) -> String {
     format!("<li>{}</li>", listener)

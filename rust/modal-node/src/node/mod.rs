@@ -78,6 +78,7 @@ pub struct Node {
     pub autoupgrade_config: Option<crate::autoupgrade::AutoupgradeConfig>,
     pub status_port: Option<u16>,
     pub status_html_dir: Option<PathBuf>,
+    pub status_url: Option<String>,
     consensus_tx: mpsc::Sender<ConsensusMessage>,
     #[allow(dead_code)]
     consensus_rx: Option<mpsc::Receiver<ConsensusMessage>>,
@@ -104,6 +105,7 @@ impl Node {
         let role = config.get_node_role();
         let status_port = config.status_port;
         let status_html_dir = config.status_html_dir.clone();
+        let status_url = config.status_url.clone();
         let minimum_block_timestamp = config.minimum_block_timestamp;
         let fork_config = config.get_fork_config();
         let initial_difficulty = config.get_initial_difficulty();
@@ -114,7 +116,7 @@ impl Node {
         let resolved_bootstrappers =
             resolve_dns_multiaddrs(config.bootstrappers.clone().unwrap_or_default()).await?;
         let bootstrappers = exclude_multiaddresses_with_peerid(resolved_bootstrappers, peerid);
-        let swarm = swarm::create_swarm(node_keypair.clone()).await?;
+        let swarm = swarm::create_swarm_with_status_url(node_keypair.clone(), status_url.clone()).await?;
         
         // Initialize the DatastoreManager
         let datastore_manager = helpers::initialize_datastore(&config).await?;
@@ -161,6 +163,7 @@ impl Node {
             autoupgrade_config,
             status_port,
             status_html_dir,
+            status_url,
             consensus_tx,
             consensus_rx: Some(consensus_rx),
             shutdown_tx,
@@ -542,6 +545,32 @@ impl Node {
                             )) => {
                                 log::info!("Gossip received {:?}", message.topic.to_string());
                                 gossip::handle_event(message, datastore_manager.clone(), consensus_tx.clone(), sync_request_tx.clone(), mining_update_tx.clone(), bootstrappers.clone(), minimum_block_timestamp).await?;
+                            }
+                            SwarmEvent::Behaviour(swarm::NodeBehaviourEvent::Identify(
+                                libp2p::identify::Event::Received { peer_id, info, .. }
+                            )) => {
+                                log::debug!("Identify received from {:?}: agent_version={}", peer_id, info.agent_version);
+                                
+                                // Extract status_url from agent version string
+                                // Format: "modal-node/version;status_url=https://..."
+                                if let Some(status_url_part) = info.agent_version.split(';').find(|s| s.starts_with("status_url=")) {
+                                    let status_url = status_url_part.strip_prefix("status_url=").map(|s| s.to_string());
+                                    
+                                    // Store peer info with status_url
+                                    if let Some(url) = status_url {
+                                        log::info!("Peer {} has status URL: {}", peer_id, url);
+                                        let peer_info = modal_datastore::models::PeerInfo::with_status_url(
+                                            peer_id.to_string(),
+                                            Some(url)
+                                        );
+                                        
+                                        // Store in NodeState
+                                        let mgr = datastore_manager.lock().await;
+                                        if let Err(e) = peer_info.save_to(mgr.node_state()).await {
+                                            log::warn!("Failed to store peer info: {}", e);
+                                        }
+                                    }
+                                }
                             }
                             SwarmEvent::Behaviour(event) => {
                                 log::info!("SwarmEvent::Behaviour event {:?}", event);

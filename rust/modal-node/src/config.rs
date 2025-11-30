@@ -34,6 +34,7 @@ pub struct Config {
     pub run_validator: Option<bool>, // Run as validator (hybrid mode: wait for epoch >= 2)
     pub status_port: Option<u16>,
     pub status_html_dir: Option<PathBuf>,
+    pub status_url: Option<String>, // Public URL for this node's status page (e.g., "https://node1.testnet.modal.money")
     pub fork_name: Option<String>, // Predefined fork configuration (e.g., "testnet/pepi")
     pub minimum_block_timestamp: Option<i64>, // Reject blocks mined before this Unix timestamp (overrides fork_name)
     pub forced_blocks: Option<HashMap<u64, String>>, // Map of block_height -> required_block_hash for forced fork specification (overrides fork_name)

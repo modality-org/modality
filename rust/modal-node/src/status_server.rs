@@ -18,7 +18,7 @@ use crate::constants::{
     STATUS_FINALIZED_ROUNDS_TO_SHOW, BFT_THRESHOLD_PERCENTAGE,
 };
 use crate::templates::{
-    render_block_row, render_peer_row, render_listener_item,
+    render_block_row, render_listener_item,
     render_block_0_info, render_block_0_not_found, render_empty_blocks_message,
     render_empty_peers_message, render_epoch_nominees_section, render_nominee_row,
     render_finalized_rounds_section, render_finalized_round_row, render_empty_finalized_rounds,
@@ -183,6 +183,30 @@ pub async fn generate_status_html(
     
     // Calculate finalized rounds data
     let finalized_rounds_data = calculate_finalized_rounds(&mgr, current_round).await;
+
+    // Build peers list HTML
+    let peers_html = if peer_info.is_empty() {
+        render_empty_peers_message()
+    } else {
+        // Load peer info with status URLs from datastore
+        let mut peer_rows = Vec::new();
+        for peer_id in &peer_info {
+            let peer_id_str = peer_id.to_string();
+            
+            // Try to load PeerInfo from datastore
+            let status_url = modal_datastore::models::PeerInfo::find_one(&mgr, &peer_id_str)
+                .await
+                .ok()
+                .flatten()
+                .and_then(|info| info.status_url);
+            
+            peer_rows.push(crate::templates::render_peer_row_with_url(
+                &peer_id_str,
+                status_url.as_deref()
+            ));
+        }
+        peer_rows.join("\n                    ")
+    };
     
     drop(mgr);
 
@@ -203,17 +227,6 @@ pub async fn generate_status_html(
             &block.nominated_peer_id,
         ),
         None => render_block_0_not_found(),
-    };
-
-    // Build peers list HTML
-    let peers_html = if peer_info.is_empty() {
-        render_empty_peers_message()
-    } else {
-        peer_info
-            .iter()
-            .map(|peer_id| render_peer_row(&peer_id.to_string()))
-            .collect::<Vec<_>>()
-            .join("\n                    ")
     };
 
     // Build epoch nominees HTML sections
