@@ -56,6 +56,8 @@ pub struct Node {
     pub miner_nominees: Option<Vec<String>>,
     pub hybrid_consensus: bool,
     pub run_validator: bool,
+    pub network_name: String,
+    pub role: String,
     pub ignored_peers: Arc<Mutex<HashMap<PeerId, IgnoredPeerInfo>>>,
     pub sync_request_tx: Option<mpsc::UnboundedSender<(PeerId, String)>>,
     pub mining_update_tx: Option<mpsc::UnboundedSender<u64>>,
@@ -98,6 +100,8 @@ impl Node {
         let miner_nominees = config.miner_nominees.clone();
         let hybrid_consensus = config.hybrid_consensus.unwrap_or(false);
         let run_validator = config.run_validator.unwrap_or(false);
+        let network_name = config.get_network_name();
+        let role = config.get_node_role();
         let status_port = config.status_port;
         let status_html_dir = config.status_html_dir.clone();
         let minimum_block_timestamp = config.minimum_block_timestamp;
@@ -135,6 +139,8 @@ impl Node {
             miner_nominees,
             hybrid_consensus,
             run_validator,
+            network_name,
+            role,
             ignored_peers: Arc::new(Mutex::new(HashMap::new())),
             sync_request_tx: None,
             mining_update_tx: None,
@@ -421,6 +427,8 @@ impl Node {
                 self.swarm.clone(),
                 self.listeners.clone(),
                 self.mining_metrics.clone(),
+                self.network_name.clone(),
+                self.role.clone(),
             )
             .await?;
             self.status_server_task = Some(handle);
@@ -439,6 +447,8 @@ impl Node {
                 self.swarm.clone(),
                 self.listeners.clone(),
                 self.mining_metrics.clone(),
+                self.network_name.clone(),
+                self.role.clone(),
                 self.shutdown_tx.subscribe(),
             )
             .await?;

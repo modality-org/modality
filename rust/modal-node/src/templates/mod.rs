@@ -170,6 +170,8 @@ pub fn render_status_page(vars: StatusPageVars) -> String {
         .replace("{total_miner_blocks}", &vars.total_miner_blocks.to_string())
         .replace("{cumulative_difficulty}", &vars.cumulative_difficulty.to_string())
         .replace("{peerid}", &vars.peerid)
+        .replace("{network_name}", &vars.network_name)
+        .replace("{role}", &vars.role)
         .replace("{listeners_html}", &vars.listeners_html)
         .replace("{current_round}", &vars.current_round.to_string())
         .replace("{latest_round}", &vars.latest_round.to_string())
@@ -195,6 +197,8 @@ pub struct StatusPageVars {
     pub total_miner_blocks: usize,
     pub cumulative_difficulty: u128,
     pub peerid: String,
+    pub network_name: String,
+    pub role: String,
     pub listeners_html: String,
     pub current_round: u64,
     pub latest_round: u64,

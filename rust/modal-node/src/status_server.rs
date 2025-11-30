@@ -30,6 +30,8 @@ pub async fn start_status_server(
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     listeners: Vec<libp2p::Multiaddr>,
     mining_metrics: crate::mining_metrics::SharedMiningMetrics,
+    network_name: String,
+    role: String,
 ) -> Result<tokio::task::JoinHandle<()>, anyhow::Error> {
     let status_route = warp::path::end()
         .and(warp::get())
@@ -38,6 +40,8 @@ pub async fn start_status_server(
         .and(with_swarm(swarm.clone()))
         .and(with_listeners(listeners.clone()))
         .and(with_mining_metrics(mining_metrics.clone()))
+        .and(with_network_name(network_name.clone()))
+        .and(with_role(role.clone()))
         .and_then(status_handler);
 
     let routes = status_route;
@@ -57,6 +61,18 @@ fn with_mining_metrics(
     mining_metrics: crate::mining_metrics::SharedMiningMetrics,
 ) -> impl Filter<Extract = (crate::mining_metrics::SharedMiningMetrics,), Error = std::convert::Infallible> + Clone {
     warp::any().map(move || mining_metrics.clone())
+}
+
+fn with_network_name(
+    network_name: String,
+) -> impl Filter<Extract = (String,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || network_name.clone())
+}
+
+fn with_role(
+    role: String,
+) -> impl Filter<Extract = (String,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || role.clone())
 }
 
 fn with_peerid(
@@ -92,6 +108,8 @@ pub async fn generate_status_html(
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     listeners: Vec<libp2p::Multiaddr>,
     mining_metrics: crate::mining_metrics::SharedMiningMetrics,
+    network_name: String,
+    role: String,
 ) -> Result<String, anyhow::Error> {
     // Get connected peers information
     let peer_info = {
@@ -209,6 +227,8 @@ pub async fn generate_status_html(
         total_miner_blocks,
         cumulative_difficulty,
         peerid: peerid.to_string(),
+        network_name,
+        role,
         listeners_html,
         current_round,
         latest_round,
@@ -348,8 +368,10 @@ async fn status_handler(
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     listeners: Vec<libp2p::Multiaddr>,
     mining_metrics: crate::mining_metrics::SharedMiningMetrics,
+    network_name: String,
+    role: String,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    let html = generate_status_html(peerid, datastore_manager, swarm, listeners, mining_metrics)
+    let html = generate_status_html(peerid, datastore_manager, swarm, listeners, mining_metrics, network_name, role)
         .await
         .map_err(|_| warp::reject::not_found())?;
     Ok(warp::reply::html(html))
@@ -434,6 +456,8 @@ pub async fn start_status_html_writer(
     swarm: Arc<Mutex<crate::swarm::NodeSwarm>>,
     listeners: Vec<libp2p::Multiaddr>,
     mining_metrics: crate::mining_metrics::SharedMiningMetrics,
+    network_name: String,
+    role: String,
     mut shutdown_rx: tokio::sync::broadcast::Receiver<()>,
 ) -> Result<tokio::task::JoinHandle<()>, anyhow::Error> {
     // Create the directory if it doesn't exist
@@ -452,6 +476,8 @@ pub async fn start_status_html_writer(
                         swarm.clone(),
                         listeners.clone(),
                         mining_metrics.clone(),
+                        network_name.clone(),
+                        role.clone(),
                     ).await {
                         Ok(html) => {
                             let index_path = dir.join("index.html");

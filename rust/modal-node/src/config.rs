@@ -244,6 +244,44 @@ impl Config {
         log::info!("Using default initial_difficulty = 10");
         Some(10)
     }
+    
+    /// Get network name from network_config_path or return "Unknown"
+    pub fn get_network_name(&self) -> String {
+        if let Some(ref network_config_path) = self.network_config_path {
+            // Try to extract network name from path
+            if let Some(network_name) = network_config_path.to_string_lossy().strip_prefix("modal-networks://") {
+                return network_name.to_string();
+            }
+            // Try to get filename without extension
+            if let Some(filename) = network_config_path.file_stem() {
+                return filename.to_string_lossy().to_string();
+            }
+        }
+        "Unknown".to_string()
+    }
+    
+    /// Get node role based on run_as, run_miner, run_validator, and noop_mode
+    pub fn get_node_role(&self) -> String {
+        // Use explicit run_as if provided
+        if let Some(ref run_as) = self.run_as {
+            return run_as.clone();
+        }
+        
+        // Otherwise infer from flags
+        if self.noop_mode.unwrap_or(false) {
+            return "Noop".to_string();
+        }
+        
+        let run_miner = self.run_miner.unwrap_or(true);
+        let run_validator = self.run_validator.unwrap_or(false);
+        
+        match (run_miner, run_validator) {
+            (true, true) => "Miner+Validator".to_string(),
+            (true, false) => "Miner".to_string(),
+            (false, true) => "Validator".to_string(),
+            (false, false) => "Observer".to_string(),
+        }
+    }
 }
 
 pub fn to_absolute_path<P: AsRef<Path>>(base_dir: P, relative_path: P) -> Result<PathBuf> {

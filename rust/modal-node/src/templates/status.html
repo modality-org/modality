@@ -224,15 +224,15 @@
 </head>
 <body>
     <div class="header">
-        <h1>🟢 Modal Money Node</h1>
-        <p class="status-online">Status: ONLINE</p>
+        <h1>Modal Money {network_name}</h1>
+        <p class="status-online">Status: 🟢 ONLINE | Node ID: {peerid} | Role: {role}</p>
     </div>
     
     <!-- Tabs Navigation -->
     <div class="tabs">
         <div class="tab active" data-tab="overview" onclick="switchTab('overview')">Overview</div>
-        <div class="tab" data-tab="mining" onclick="switchTab('mining')">Mining</div>
-        <div class="tab" data-tab="sequencing" onclick="switchTab('sequencing')">Sequencing</div>
+        <div class="tab" data-tab="miners" onclick="switchTab('miners')">Miners</div>
+        <div class="tab" data-tab="validators" onclick="switchTab('validators')">Validators</div>
     </div>
     
     <!-- Overview Tab -->
@@ -302,8 +302,8 @@
         </div>
     </div>
     
-    <!-- Mining Tab -->
-    <div id="mining-content" class="tab-content">
+    <!-- Miners Tab -->
+    <div id="miners-content" class="tab-content">
         <div class="status-grid">
             <div class="stat-box">
                 <div class="stat-label">Block Height</div>
@@ -376,8 +376,8 @@
         </div>
     </div>
     
-    <!-- Sequencing Tab -->
-    <div id="sequencing-content" class="tab-content">
+    <!-- Validators Tab -->
+    <div id="validators-content" class="tab-content">
         <div class="status-grid">
             <div class="stat-box">
                 <div class="stat-label">Current Epoch</div>
