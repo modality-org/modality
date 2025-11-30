@@ -220,3 +220,58 @@ pub struct StatusPageVars {
     pub epoch_nominees_sections: String,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_render_status_page_converts_double_braces() {
+        let vars = StatusPageVars {
+            refresh_interval: 10,
+            connected_peers: 4,
+            total_miner_blocks: 170,
+            cumulative_difficulty: 1098,
+            peerid: "12D3KooWBGR3m1JmVFm2aZYR7TZXicjA7HSVSWi2fama5cPpgQiX".to_string(),
+            network_name: "TestNet".to_string(),
+            role: "miner".to_string(),
+            listeners_html: "<li>/ip4/0.0.0.0/tcp/4040/ws</li>".to_string(),
+            current_round: 0,
+            latest_round: 0,
+            block_0_html: "<div>Test</div>".to_string(),
+            peers_html: "<tr><td>Test Peer</td></tr>".to_string(),
+            blocks_mined_by_node: 9,
+            current_difficulty: "12".to_string(),
+            miner_hashrate: "0".to_string(),
+            network_hashrate: "64.75".to_string(),
+            recent_blocks_count: 80,
+            blocks_html: "<tr><td>167</td></tr>".to_string(),
+            first_blocks_count: 10,
+            first_blocks_html: "<tr><td>0</td></tr>".to_string(),
+            current_epoch: 4,
+            completed_epochs: 4,
+            epoch_nominees_sections: "<div>Epoch data</div>".to_string(),
+        };
+
+        let html = render_status_page(vars);
+        
+        // Check that CSS has single braces (valid CSS)
+        assert!(html.contains("body {"), "CSS should have single opening brace for body");
+        assert!(html.contains("color: #e0e0e0;"), "CSS properties should be present");
+        assert!(html.contains(".status-card {"), "CSS class selectors should have single braces");
+        
+        // Check that double braces in CSS were converted
+        // We should not find {{ or }} in the style section
+        let style_start = html.find("<style>").expect("Should have style tag");
+        let style_end = html.find("</style>").expect("Should have closing style tag");
+        let style_content = &html[style_start..style_end];
+        
+        assert!(!style_content.contains("{{"), "CSS should NOT have double opening braces");
+        assert!(!style_content.contains("}}"), "CSS should NOT have double closing braces");
+        
+        // Check that placeholders were replaced
+        assert!(html.contains("TestNet"), "Network name placeholder should be replaced");
+        assert!(html.contains("12D3KooWBGR3m1JmVFm2aZYR7TZXicjA7HSVSWi2fama5cPpgQiX"), "Peer ID placeholder should be replaced");
+        assert!(html.contains("170"), "Block count placeholder should be replaced");
+    }
+}
+
