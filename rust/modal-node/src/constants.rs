@@ -78,6 +78,12 @@ pub const STATUS_FIRST_BLOCKS_COUNT: usize = 40;
 /// Number of epochs to show in status page sequencing tab
 pub const STATUS_EPOCHS_TO_SHOW: u64 = 5;
 
+/// Number of finalized rounds to show in status page validators tab
+pub const STATUS_FINALIZED_ROUNDS_TO_SHOW: u64 = 10;
+
 /// Blocks for network hashrate calculation
 pub const NETWORK_HASHRATE_SAMPLE_SIZE: usize = 10;
+
+/// Byzantine fault tolerance threshold (2/3 + 1) for finalized rounds
+pub const BFT_THRESHOLD_PERCENTAGE: f32 = 66.67;
 

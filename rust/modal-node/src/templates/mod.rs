@@ -162,6 +162,63 @@ pub fn render_nominee_row(rank: usize, block_idx: u64, block_hash: &str, peer_id
     )
 }
 
+/// Template for finalized rounds section
+pub fn render_finalized_rounds_section(rounds_html: &str) -> String {
+    format!(
+        r#"
+    <div class="status-card">
+        <h2>Recently Finalized Rounds</h2>
+        <div class="blocks-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Round</th>
+                        <th>Certified Blocks</th>
+                        <th>Total Blocks</th>
+                        <th>Completion %</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {}
+                </tbody>
+            </table>
+        </div>
+    </div>"#,
+        rounds_html
+    )
+}
+
+/// Template for a finalized round row
+pub fn render_finalized_round_row(
+    round_id: u64,
+    certified_count: usize,
+    total_count: usize,
+    completion_pct: f32,
+    status: &str,
+) -> String {
+    let status_color = match status {
+        "Finalized" => "#4ade80",
+        "Partial" => "#fbbf24",
+        _ => "#888",
+    };
+    
+    format!(
+        r#"<tr><td>{}</td><td>{}</td><td>{}</td><td>{:.1}%</td><td style="color: {};">{}</td></tr>"#,
+        round_id,
+        certified_count,
+        total_count,
+        completion_pct,
+        status_color,
+        status
+    )
+}
+
+/// Template for empty finalized rounds
+pub fn render_empty_finalized_rounds() -> String {
+    "<tr><td colspan='5' style='text-align: center; padding: 20px; color: #666;'>No finalized rounds yet</td></tr>".to_string()
+}
+
 /// Render the complete status page by replacing placeholders in the template
 pub fn render_status_page(vars: StatusPageVars) -> String {
     STATUS_TEMPLATE
@@ -188,6 +245,7 @@ pub fn render_status_page(vars: StatusPageVars) -> String {
         .replace("{current_epoch}", &vars.current_epoch.to_string())
         .replace("{completed_epochs}", &vars.completed_epochs.to_string())
         .replace("{epoch_nominees_sections}", &vars.epoch_nominees_sections)
+        .replace("{finalized_rounds_section}", &vars.finalized_rounds_section)
         // Convert double braces back to single braces for CSS/JavaScript
         .replace("{{", "{")
         .replace("}}", "}")
@@ -218,6 +276,7 @@ pub struct StatusPageVars {
     pub current_epoch: u64,
     pub completed_epochs: u64,
     pub epoch_nominees_sections: String,
+    pub finalized_rounds_section: String,
 }
 
 #[cfg(test)]
@@ -250,6 +309,7 @@ mod tests {
             current_epoch: 4,
             completed_epochs: 4,
             epoch_nominees_sections: "<div>Epoch data</div>".to_string(),
+            finalized_rounds_section: "<div>Finalized rounds</div>".to_string(),
         };
 
         let html = render_status_page(vars);

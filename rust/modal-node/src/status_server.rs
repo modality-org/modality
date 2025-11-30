@@ -10,15 +10,18 @@ use warp::Filter;
 
 use modal_datastore::DatastoreManager;
 use modal_datastore::models::MinerBlock;
+use modal_datastore::models::validator::ValidatorBlock;
 
 use crate::constants::{
     BLOCKS_PER_EPOCH, STATUS_PAGE_REFRESH_SECS, STATUS_RECENT_BLOCKS_COUNT,
     STATUS_FIRST_BLOCKS_COUNT, STATUS_EPOCHS_TO_SHOW, NETWORK_HASHRATE_SAMPLE_SIZE,
+    STATUS_FINALIZED_ROUNDS_TO_SHOW, BFT_THRESHOLD_PERCENTAGE,
 };
 use crate::templates::{
     render_block_row, render_peer_row, render_listener_item,
     render_block_0_info, render_block_0_not_found, render_empty_blocks_message,
     render_empty_peers_message, render_epoch_nominees_section, render_nominee_row,
+    render_finalized_rounds_section, render_finalized_round_row, render_empty_finalized_rounds,
     render_status_page, StatusPageVars,
 };
 
@@ -178,6 +181,9 @@ pub async fn generate_status_html(
     // Calculate epoch nominees with shuffle order for previous epochs
     let epoch_nominees_data = calculate_epoch_nominees(&miner_blocks, current_epoch);
     
+    // Calculate finalized rounds data
+    let finalized_rounds_data = calculate_finalized_rounds(&mgr, current_round).await;
+    
     drop(mgr);
 
     // Build blocks table HTML for recent blocks
@@ -213,6 +219,9 @@ pub async fn generate_status_html(
     // Build epoch nominees HTML sections
     let epoch_nominees_sections = build_epoch_nominees_html(&epoch_nominees_data);
 
+    // Build finalized rounds HTML section
+    let finalized_rounds_section = build_finalized_rounds_html(&finalized_rounds_data);
+
     // Build listeners HTML
     let listeners_html = listeners
         .iter()
@@ -245,6 +254,7 @@ pub async fn generate_status_html(
         current_epoch,
         completed_epochs: current_epoch,
         epoch_nominees_sections,
+        finalized_rounds_section,
     };
 
     Ok(render_status_page(vars))
@@ -360,6 +370,89 @@ fn build_epoch_nominees_html(
             })
             .collect::<Vec<_>>()
             .join("\n")
+}
+
+/// Round finalization data structure
+struct RoundFinalizationData {
+    round_id: u64,
+    certified_count: usize,
+    total_count: usize,
+}
+
+/// Calculate finalized rounds data from recent rounds
+async fn calculate_finalized_rounds(
+    mgr: &DatastoreManager,
+    current_round: u64,
+) -> Vec<RoundFinalizationData> {
+    let mut finalized_rounds = Vec::new();
+    
+    // Only show the last N rounds (configurable)
+    let rounds_to_show = STATUS_FINALIZED_ROUNDS_TO_SHOW;
+    let start_round = if current_round > rounds_to_show {
+        current_round - rounds_to_show
+    } else {
+        0
+    };
+    
+    for round_id in (start_round..current_round).rev() {
+        // Get all blocks in this round
+        let all_blocks = match ValidatorBlock::find_all_in_round_multi(mgr, round_id).await {
+            Ok(blocks) => blocks,
+            Err(_) => continue,
+        };
+        
+        if all_blocks.is_empty() {
+            continue;
+        }
+        
+        // Count certified blocks (blocks with certificates)
+        let certified_count = all_blocks.iter().filter(|b| b.cert.is_some()).count();
+        
+        finalized_rounds.push(RoundFinalizationData {
+            round_id,
+            certified_count,
+            total_count: all_blocks.len(),
+        });
+    }
+    
+    finalized_rounds
+}
+
+/// Build HTML for finalized rounds section
+fn build_finalized_rounds_html(finalized_rounds_data: &[RoundFinalizationData]) -> String {
+    if finalized_rounds_data.is_empty() {
+        return render_finalized_rounds_section(&render_empty_finalized_rounds());
+    }
+    
+    let rounds_html = finalized_rounds_data
+        .iter()
+        .map(|round_data| {
+            let completion_pct = if round_data.total_count > 0 {
+                (round_data.certified_count as f32 / round_data.total_count as f32) * 100.0
+            } else {
+                0.0
+            };
+            
+            let status = if completion_pct >= BFT_THRESHOLD_PERCENTAGE {
+                "Finalized"
+            } else if completion_pct > 0.0 {
+                "Partial"
+            } else {
+                "In Progress"
+            };
+            
+            render_finalized_round_row(
+                round_data.round_id,
+                round_data.certified_count,
+                round_data.total_count,
+                completion_pct,
+                status,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n                    ");
+    
+    render_finalized_rounds_section(&rounds_html)
 }
 
 async fn status_handler(
