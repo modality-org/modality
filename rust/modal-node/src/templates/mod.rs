@@ -188,6 +188,9 @@ pub fn render_status_page(vars: StatusPageVars) -> String {
         .replace("{current_epoch}", &vars.current_epoch.to_string())
         .replace("{completed_epochs}", &vars.completed_epochs.to_string())
         .replace("{epoch_nominees_sections}", &vars.epoch_nominees_sections)
+        // Convert double braces back to single braces for CSS/JavaScript
+        .replace("{{", "{")
+        .replace("}}", "}")
 }
 
 /// Variables for rendering the status page template
