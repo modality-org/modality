@@ -115,10 +115,23 @@ impl Certificate {
     }
 
     /// Check if this certificate has quorum (2f+1 signatures)
+    /// This uses a simple count-based check. For stake-weighted quorum,
+    /// use has_quorum_weighted() with a Committee.
     pub fn has_quorum(&self, total_validators: usize) -> bool {
         let signature_count = self.signers.iter().filter(|&&signed| signed).count();
         let threshold = crate::consensus_math::calculate_2f_plus_1(total_validators as f64);
         signature_count >= threshold as usize
+    }
+    
+    /// Check if this certificate has quorum with stake-weighted voting
+    pub fn has_quorum_weighted(&self, committee: &Committee) -> bool {
+        // Get the public keys of all signers
+        let signer_keys: Vec<PublicKey> = self.get_signer_indices()
+            .into_iter()
+            .filter_map(|idx| committee.validator_order.get(idx).cloned())
+            .collect();
+        
+        committee.check_quorum(&signer_keys)
     }
 
     /// Get the list of signers' indices
@@ -170,15 +183,47 @@ impl Committee {
     pub fn size(&self) -> usize {
         self.validators.len()
     }
+    
+    /// Get the total stake in the committee
+    pub fn total_stake(&self) -> u64 {
+        self.validators.values().map(|v| v.stake).sum()
+    }
 
-    /// Get the quorum threshold (2f+1)
+    /// Get the quorum threshold (2f+1) - stake-weighted
+    /// 
+    /// If all validators have equal stake (1), this is equivalent to the count-based threshold.
+    /// If stakes vary, this returns 2f+1 of the total stake.
     pub fn quorum_threshold(&self) -> u64 {
+        let total = self.total_stake();
+        crate::consensus_math::calculate_2f_plus_1(total as f64)
+    }
+    
+    /// Get the quorum threshold based on validator count (old behavior)
+    /// 
+    /// This is kept for compatibility but quorum_threshold() is preferred
+    /// as it properly accounts for stake-weighted voting.
+    pub fn quorum_threshold_by_count(&self) -> u64 {
         crate::consensus_math::calculate_2f_plus_1(self.size() as f64)
     }
 
     /// Get the maximum number of Byzantine validators tolerated (f)
     pub fn max_byzantine(&self) -> usize {
         (self.size() - 1) / 3
+    }
+    
+    /// Check if a set of votes meets the quorum threshold (stake-weighted)
+    pub fn check_quorum(&self, voters: &[PublicKey]) -> bool {
+        let stake_voted: u64 = voters.iter()
+            .filter_map(|pk| self.validators.get(pk).map(|v| v.stake))
+            .sum();
+        stake_voted >= self.quorum_threshold()
+    }
+    
+    /// Get the total stake represented by a set of validators
+    pub fn get_stake(&self, validators: &[PublicKey]) -> u64 {
+        validators.iter()
+            .filter_map(|pk| self.validators.get(pk).map(|v| v.stake))
+            .sum()
     }
 
     /// Get validator by public key

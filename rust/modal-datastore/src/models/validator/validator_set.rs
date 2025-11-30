@@ -11,6 +11,7 @@ pub struct ValidatorSet {
     pub nominated_validators: Vec<String>, // Top 27 from shuffle
     pub staked_validators: Vec<String>, // Top 13 from staking
     pub alternate_validators: Vec<String>, // Bottom 13 from nominations
+    pub validator_stakes: std::collections::HashMap<String, u64>, // Stake (nomination count) per validator
     pub created_at: i64, // Unix timestamp
 }
 
@@ -35,8 +36,63 @@ impl ValidatorSet {
             nominated_validators,
             staked_validators,
             alternate_validators,
+            validator_stakes: std::collections::HashMap::new(),
             created_at,
         }
+    }
+    
+    /// Create a new validator set with stakes
+    pub fn new_with_stakes(
+        epoch: u64,
+        mining_epoch: u64,
+        nominated_validators: Vec<String>,
+        staked_validators: Vec<String>,
+        alternate_validators: Vec<String>,
+        validator_stakes: std::collections::HashMap<String, u64>,
+    ) -> Self {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let created_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        
+        Self {
+            epoch,
+            mining_epoch,
+            nominated_validators,
+            staked_validators,
+            alternate_validators,
+            validator_stakes,
+            created_at,
+        }
+    }
+    
+    /// Get the stake for a validator
+    pub fn get_validator_stake(&self, peer_id: &str) -> u64 {
+        *self.validator_stakes.get(peer_id).unwrap_or(&1)
+    }
+    
+    /// Get all active validators with their stakes
+    pub fn get_active_validators_with_stakes(&self) -> Vec<(String, u64)> {
+        let mut active = Vec::new();
+        
+        // Take first 27 from nominated
+        for peer in self.nominated_validators.iter().take(27) {
+            if !active.iter().any(|(p, _)| p == peer) {
+                let stake = self.get_validator_stake(peer);
+                active.push((peer.clone(), stake));
+            }
+        }
+        
+        // Add up to 13 from staked that aren't already nominated
+        for peer in &self.staked_validators {
+            if !active.iter().any(|(p, _)| p == peer) && active.len() < 40 {
+                let stake = self.get_validator_stake(peer);
+                active.push((peer.clone(), stake));
+            }
+        }
+        
+        active
     }
 
     /// Get all active validators (nominated + staked, up to 40 total)

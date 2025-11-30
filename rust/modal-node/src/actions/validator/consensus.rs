@@ -34,7 +34,17 @@ pub async fn create_and_start_shoal_validator(
     my_index: usize,
     datastore: Arc<Mutex<DatastoreManager>>,
 ) -> Result<()> {
-    match modal_validator::ShoalValidatorConfig::from_peer_ids(validators, my_index) {
+    create_and_start_shoal_validator_weighted(validators, Vec::new(), my_index, datastore).await
+}
+
+/// Create and start a Shoal validator with weighted stakes.
+pub async fn create_and_start_shoal_validator_weighted(
+    validators: Vec<String>,
+    stakes: Vec<u64>,
+    my_index: usize,
+    datastore: Arc<Mutex<DatastoreManager>>,
+) -> Result<()> {
+    match modal_validator::ShoalValidatorConfig::from_peer_ids_with_stakes(validators, stakes, my_index) {
         Ok(config) => {
             // Create and initialize ShoalValidator
             match modal_validator::ShoalValidator::new(datastore, config).await {

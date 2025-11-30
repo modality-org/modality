@@ -10,8 +10,6 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 use tokio::sync::Mutex;
 
-use super::consensus::create_and_start_shoal_validator;
-
 /// Blocks per epoch constant for epoch calculations
 const BLOCKS_PER_EPOCH: u64 = 40;
 
@@ -89,7 +87,9 @@ async fn check_and_start_validator(
     };
     
     if let Some(validator_set) = validator_set {
-        let validators = validator_set.get_active_validators();
+        let validators_with_stakes = validator_set.get_active_validators_with_stakes();
+        let validators: Vec<String> = validators_with_stakes.iter().map(|(p, _)| p.clone()).collect();
+        let stakes: Vec<u64> = validators_with_stakes.iter().map(|(_, s)| *s).collect();
         
         if validators.contains(&node_peer_id.to_string()) {
             log::info!("🏛️  This node IS a validator for epoch {} - starting Shoal consensus", current_epoch);
@@ -100,10 +100,23 @@ async fn check_and_start_validator(
                 .expect("validator position in list");
             
             log::info!("📋 Validator index: {}/{}", my_index, validators.len());
-            log::info!("📋 Active validators for epoch {}: {:?}", current_epoch, validators);
+            log::info!("📋 Active validators for epoch {}:", current_epoch);
+            for (peer_id, stake) in &validators_with_stakes {
+                let short_id = if peer_id.len() > 16 {
+                    &peer_id[..16]
+                } else {
+                    peer_id
+                };
+                log::info!("   - {} (stake: {})", short_id, stake);
+            }
             
-            match create_and_start_shoal_validator(
+            // Calculate total stake
+            let total_stake: u64 = stakes.iter().sum();
+            log::info!("📊 Total stake: {}, My stake: {}", total_stake, stakes[my_index]);
+            
+            match super::consensus::create_and_start_shoal_validator_weighted(
                 validators,
+                stakes,
                 my_index,
                 datastore.clone(),
             ).await {

@@ -76,19 +76,58 @@ pub async fn generate_validator_set_from_epoch_multi(
         anyhow::bail!("No blocks found for epoch {}", epoch);
     }
 
+    // Count nominations for each peer ID (for stakes)
+    let mut nomination_counts: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+    for block in &epoch_blocks {
+        *nomination_counts.entry(block.nominated_peer_id.clone()).or_insert(0) += 1;
+    }
+    
+    log::info!(
+        "Epoch {} nomination counts: {} unique validators, total {} nominations",
+        epoch,
+        nomination_counts.len(),
+        epoch_blocks.len()
+    );
+    
+    // Log the nomination distribution
+    for (peer_id, count) in &nomination_counts {
+        let short_id = if peer_id.len() > 16 {
+            &peer_id[..16]
+        } else {
+            peer_id
+        };
+        log::info!("  - {}: {} nominations", short_id, count);
+    }
+
     let seed = calculate_epoch_seed(&epoch_blocks);
     let peer_ids: Vec<String> = epoch_blocks.iter().map(|b| b.nominated_peer_id.clone()).collect();
     let shuffled_peer_ids = shuffle_peer_ids(seed, &peer_ids);
     
-    let nominated_validators = shuffled_peer_ids.iter().take(27).cloned().collect();
-    let total_peers = shuffled_peer_ids.len();
+    // Deduplicate shuffled peer IDs while preserving order
+    let mut seen = std::collections::HashSet::new();
+    let mut unique_shuffled: Vec<String> = Vec::new();
+    for peer_id in shuffled_peer_ids {
+        if seen.insert(peer_id.clone()) {
+            unique_shuffled.push(peer_id);
+        }
+    }
+    
+    let nominated_validators = unique_shuffled.iter().take(27).cloned().collect();
+    let total_peers = unique_shuffled.len();
     let alternate_validators = if total_peers > 27 {
-        shuffled_peer_ids.iter().skip(total_peers.saturating_sub(13)).take(13).cloned().collect()
+        unique_shuffled.iter().skip(total_peers.saturating_sub(13)).take(13).cloned().collect()
     } else {
         Vec::new()
     };
     
-    Ok(ValidatorSet::new(epoch, epoch + 1, nominated_validators, Vec::new(), alternate_validators))
+    Ok(ValidatorSet::new_with_stakes(
+        epoch,
+        epoch + 1,
+        nominated_validators,
+        Vec::new(),
+        alternate_validators,
+        nomination_counts,
+    ))
 }
 
 /// Calculate seed from XOR of all block nonces

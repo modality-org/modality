@@ -103,10 +103,30 @@ impl ShoalValidatorConfig {
         peer_id_strings: Vec<String>,
         validator_index: usize,
     ) -> Result<Self> {
+        Self::from_peer_ids_with_stakes(peer_id_strings, Vec::new(), validator_index)
+    }
+    
+    /// Create configuration from a list of peer ID strings with custom stakes
+    /// 
+    /// This allows creating a committee with weighted validators based on nomination counts.
+    /// If stakes is empty, all validators will have equal stake (1).
+    pub fn from_peer_ids_with_stakes(
+        peer_id_strings: Vec<String>,
+        stakes: Vec<u64>,
+        validator_index: usize,
+    ) -> Result<Self> {
         if validator_index >= peer_id_strings.len() {
             return Err(ValidatorError::InitializationFailed(
                 format!("validator_index {} out of range for {} validators", 
                         validator_index, peer_id_strings.len())
+            ));
+        }
+        
+        // Validate stakes length if provided
+        if !stakes.is_empty() && stakes.len() != peer_id_strings.len() {
+            return Err(ValidatorError::InitializationFailed(
+                format!("stakes length ({}) must match peer_id_strings length ({})",
+                        stakes.len(), peer_id_strings.len())
             ));
         }
         
@@ -118,9 +138,15 @@ impl ShoalValidatorConfig {
                     format!("invalid peer ID '{}': {}", peer_id_str, e)
                 ))?;
             
+            let stake = if stakes.is_empty() {
+                1
+            } else {
+                stakes[i]
+            };
+            
             validators.push(Validator {
                 public_key: peer_id,
-                stake: 1,
+                stake,
                 network_address: format!("127.0.0.1:800{}", i)
                     .parse::<SocketAddr>()
                     .unwrap(),

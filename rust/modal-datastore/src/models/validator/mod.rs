@@ -11,6 +11,9 @@ pub mod batch;
 pub mod dag_state;
 pub mod consensus_metadata;
 
+#[cfg(test)]
+mod weighted_validators_test;
+
 pub use block_header::ValidatorBlockHeader;
 pub use block_message::ValidatorBlockMessage;
 pub use block::ValidatorBlock;
