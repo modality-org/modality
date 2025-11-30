@@ -231,6 +231,7 @@
     <!-- Tabs Navigation -->
     <div class="tabs">
         <div class="tab active" data-tab="overview" onclick="switchTab('overview')">Overview</div>
+        <div class="tab" data-tab="nodes" onclick="switchTab('nodes')">Nodes</div>
         <div class="tab" data-tab="miners" onclick="switchTab('miners')">Miners</div>
         <div class="tab" data-tab="validators" onclick="switchTab('validators')">Validators</div>
     </div>
@@ -284,9 +285,19 @@
             <h2>Genesis Block (Block 0)</h2>
             {block_0_html}
         </div>
+    </div>
+    
+    <!-- Nodes Tab -->
+    <div id="nodes-content" class="tab-content">
+        <div class="status-grid">
+            <div class="stat-box">
+                <div class="stat-label">Connected Nodes</div>
+                <div class="stat-value">{connected_peers}</div>
+            </div>
+        </div>
 
         <div class="status-card">
-            <h2>Connected Peers</h2>
+            <h2>Network Nodes</h2>
             <div class="blocks-container">
                 <table>
                     <thead>
