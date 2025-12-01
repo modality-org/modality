@@ -133,14 +133,14 @@ pub async fn generate_status_html(
     // Get latest block for current difficulty
     let latest_block = miner_blocks.iter().max_by_key(|b| b.index);
     let current_difficulty = latest_block
-        .map(|b| b.difficulty.clone())
+        .map(|b| b.target_difficulty.clone())
         .unwrap_or_else(|| "0".to_string());
     let current_epoch = latest_block.map(|b| b.epoch).unwrap_or(0);
     
     // Calculate cumulative difficulty
     let cumulative_difficulty: u128 = miner_blocks
         .iter()
-        .filter_map(|block| block.difficulty.parse::<u128>().ok())
+        .filter_map(|block| block.target_difficulty.parse::<u128>().ok())
         .sum();
     
     // Count blocks mined by this node
@@ -226,7 +226,7 @@ pub async fn generate_status_html(
             block.timestamp,
             &block.previous_hash,
             &block.data_hash,
-            &block.difficulty,
+            &block.target_difficulty,
             &block.nominated_peer_id,
         ),
         None => render_block_0_not_found(),
@@ -520,7 +520,7 @@ fn calculate_network_hashrate(miner_blocks: &[MinerBlock]) -> f64 {
     // Calculate average difficulty across recent blocks
     let total_difficulty: u128 = recent_blocks
         .iter()
-        .filter_map(|b| b.difficulty.parse::<u128>().ok())
+        .filter_map(|b| b.target_difficulty.parse::<u128>().ok())
         .sum();
     let avg_difficulty = total_difficulty as f64 / recent_blocks.len() as f64;
     

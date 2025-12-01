@@ -122,13 +122,13 @@ pub fn compare_chains(
 /// # Returns
 /// `true` if the new block should replace the existing block
 pub fn should_replace_block(new_block: &MinerBlock, existing_block: &MinerBlock) -> bool {
-    let new_difficulty = new_block.get_difficulty_u128().unwrap_or(0);
-    let existing_difficulty = existing_block.get_difficulty_u128().unwrap_or(0);
+    let new_difficulty = new_block.get_actualized_difficulty_u128().unwrap_or(0);
+    let existing_difficulty = existing_block.get_actualized_difficulty_u128().unwrap_or(0);
 
     if new_difficulty > existing_difficulty {
-        // Rule 1: Higher difficulty wins
+        // Rule 1: Higher actualized difficulty wins
         log::info!(
-            "Fork choice: new block has higher difficulty ({} > {})",
+            "Fork choice: new block has higher actualized difficulty ({} > {})",
             new_difficulty,
             existing_difficulty
         );
@@ -197,13 +197,13 @@ pub struct BlockForkChoiceResult {
 /// # Returns
 /// Detailed fork choice result with reasoning
 pub fn compare_blocks(new_block: &MinerBlock, existing_block: &MinerBlock) -> BlockForkChoiceResult {
-    let new_difficulty = new_block.get_difficulty_u128().unwrap_or(0);
-    let existing_difficulty = existing_block.get_difficulty_u128().unwrap_or(0);
+    let new_difficulty = new_block.get_actualized_difficulty_u128().unwrap_or(0);
+    let existing_difficulty = existing_block.get_actualized_difficulty_u128().unwrap_or(0);
     
     let (should_replace, reason) = if new_difficulty > existing_difficulty {
-        (true, format!("Higher difficulty ({} > {})", new_difficulty, existing_difficulty))
+        (true, format!("Higher actualized difficulty ({} > {})", new_difficulty, existing_difficulty))
     } else if new_difficulty < existing_difficulty {
-        (false, format!("Lower difficulty ({} < {})", new_difficulty, existing_difficulty))
+        (false, format!("Lower actualized difficulty ({} < {})", new_difficulty, existing_difficulty))
     } else {
         // Equal difficulty - check timestamps then hash
         match (&new_block.seen_at, &existing_block.seen_at) {

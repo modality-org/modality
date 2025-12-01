@@ -72,7 +72,7 @@ let observer = ChainObserver::new_with_fork_config(datastore, fork_config);
 **Forced Fork Behavior:**
 - Blocks at forced heights **must** match the specified hash
 - Blocks with wrong hash are **rejected** and marked as orphans
-- Forced forks **override** first-seen rule and difficulty comparisons
+- Forced forks **override** actualized difficulty comparisons
 - Competing chains **must respect** all forced blocks to be considered
 - **Genesis block (height 0) can be specified** to enforce a specific chain origin
 - Useful for:
@@ -114,7 +114,7 @@ if adopted {
 
 The observer automatically stores blocks that cannot be accepted into the canonical chain as orphans:
 
-1. **Competing blocks** at the same index (rejected by first-seen rule)
+1. **Competing blocks** at the same index with lower actualized difficulty
 2. **Blocks with missing parents** (gap in the chain)
 3. **Blocks with wrong parent hash** (not extending canonical chain)
 
@@ -127,15 +127,19 @@ Orphaned blocks are tracked with:
 
 ### Fork Choice Rules
 
-The ChainObserver implements a dual fork choice strategy:
+The ChainObserver implements a unified fork choice strategy based on **actualized difficulty** (the actual computational work represented by a block's hash, not just the target difficulty threshold):
 
-1. **Single Block Forks**: When competing blocks exist at the same index, the **first-seen block is always kept**. This prevents flip-flopping and provides stability at the block level.
+1. **Single Block Forks**: When competing blocks exist at the same index:
+   - The block with **higher actualized difficulty wins**
+   - Equal actualized difficulty uses **first-seen tiebreaker** (keep existing block)
 
-2. **Multi-Block Reorganizations**: When comparing competing chain branches, cumulative difficulty is used. A reorganization is only accepted if the new branch has:
-   - Higher cumulative difficulty, OR
-   - Equal cumulative difficulty AND more blocks (length tiebreaker)
+2. **Multi-Block Reorganizations**: When comparing competing chain branches, cumulative actualized difficulty is used. A reorganization is only accepted if the new branch has:
+   - Higher cumulative actualized difficulty, OR
+   - Equal cumulative actualized difficulty AND more blocks (length tiebreaker)
 
-This ensures that lighter chains (lower cumulative difficulty) cannot replace the canonical chain, even if they are longer, while maintaining stability for single block conflicts.
+**Actualized difficulty** is calculated as `max_target / hash_value`. A lower hash value (more leading zeros) indicates more work was performed, resulting in higher actualized difficulty.
+
+This ensures that chains with more actual computational work are favored, providing security against attacks while maintaining network convergence.
 
 ## Usage
 

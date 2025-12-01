@@ -35,7 +35,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 i + 1,
                 &block.hash[..16],
                 block.seen_at,
-                block.difficulty
+                block.target_difficulty
             );
         }
         println!();

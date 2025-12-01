@@ -260,7 +260,7 @@ async fn inspect_mining(datastore_manager: &DatastoreManager, config: &modal_nod
         println!("Blocks Mined: {}", canonical_blocks.len());
         
         if let Some(latest) = canonical_blocks.iter().max_by_key(|b| b.index) {
-            println!("Latest Block: {} (difficulty: {})", latest.index, &latest.difficulty);
+            println!("Latest Block: {} (target difficulty: {})", latest.index, &latest.target_difficulty);
             println!("Latest Block Hash: {}", &latest.hash[..32]);
             println!("Latest Block Nominee: {}", latest.nominated_peer_id);
         }
@@ -268,7 +268,7 @@ async fn inspect_mining(datastore_manager: &DatastoreManager, config: &modal_nod
         // Calculate average difficulty
         let mut total_difficulty: u128 = 0;
         for block in &canonical_blocks {
-            if let Ok(diff) = block.get_difficulty_u128() {
+            if let Ok(diff) = block.get_target_difficulty_u128() {
                 total_difficulty += diff;
             }
         }
@@ -323,7 +323,7 @@ async fn inspect_block_by_index(
         }
         
         println!("Epoch: {}", block.epoch);
-        println!("Difficulty: {}", block.difficulty);
+        println!("Target Difficulty: {}", block.target_difficulty);
         println!("Nonce: {}", block.nonce);
         println!("Nominated Peer: {}", block.nominated_peer_id);
         println!("Miner Number: {}", block.miner_number);

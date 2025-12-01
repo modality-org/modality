@@ -137,7 +137,7 @@ pub async fn mine_and_gossip_block(
     gossip_block(&swarm, &miner_block).await;
 
     log::info!("Mined block {} (epoch {}) with hash {} and difficulty {}",
-        miner_block.index, miner_block.epoch, &miner_block.hash[..16], miner_block.difficulty);
+        miner_block.index, miner_block.epoch, &miner_block.hash[..16], miner_block.target_difficulty);
     
     // Rolling integrity check
     if miner_block.index > 0 && miner_block.index % ROLLING_INTEGRITY_CHECK_INTERVAL == 0 {
@@ -146,7 +146,7 @@ pub async fn mine_and_gossip_block(
     
     // Log epoch changes
     if miner_block.index > 0 && miner_block.index % BLOCKS_PER_EPOCH == 0 {
-        log::info!("🎯 EPOCH {} STARTED - New difficulty: {}", miner_block.epoch, miner_block.difficulty);
+        log::info!("🎯 EPOCH {} STARTED - New target difficulty: {}", miner_block.epoch, miner_block.target_difficulty);
         
         if let Some(tx) = epoch_transition_tx {
             if let Err(e) = tx.send(miner_block.epoch) {

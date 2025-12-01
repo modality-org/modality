@@ -28,7 +28,7 @@ impl MinerBlockGossip {
             epoch: block.epoch,
             nominated_peer_id: block.nominated_peer_id.clone(),
             previous_hash: block.previous_hash.clone(),
-            difficulty: block.difficulty.clone(),
+            difficulty: block.target_difficulty.clone(), // Map internal target_difficulty to gossip's difficulty field
             nonce: block.nonce.clone(),
             timestamp: block.timestamp.to_string(),
             miner_number: block.miner_number,
@@ -112,15 +112,15 @@ pub async fn handler(
         if let Some(existing) = MinerBlock::find_canonical_by_index_simple(&mgr, miner_block.index).await? {
             // We have a different block at the same index - this is a fork!
             // Apply fork choice rules in priority order:
-            // 1. Difficulty (highest wins)
+            // 1. Actualized difficulty (highest wins - based on actual hash value)
             // 2. First-seen (earliest seen_at wins)
             // 3. Hash (smallest/lexicographically lowest wins)
-            let new_difficulty = miner_block.get_difficulty_u128()?;
-            let existing_difficulty = existing.get_difficulty_u128()?;
+            let new_difficulty = miner_block.get_actualized_difficulty_u128()?;
+            let existing_difficulty = existing.get_actualized_difficulty_u128()?;
             
             let should_replace = if new_difficulty > existing_difficulty {
-                // Rule 1: Higher difficulty wins
-                log::info!("Fork choice: new block has higher difficulty ({} > {})", new_difficulty, existing_difficulty);
+                // Rule 1: Higher actualized difficulty wins
+                log::info!("Fork choice: new block has higher actualized difficulty ({} > {})", new_difficulty, existing_difficulty);
                 true
             } else if new_difficulty < existing_difficulty {
                 // Existing block has higher difficulty

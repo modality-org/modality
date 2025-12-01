@@ -16,7 +16,8 @@ pub struct MinerBlock {
     pub previous_hash: String,
     pub data_hash: String,
     pub nonce: String, // Store as string since u128 doesn't play well with JSON
-    pub difficulty: String, // Store as string since u128 doesn't play well with JSON
+    pub target_difficulty: String, // Store as string - the minimum difficulty threshold required
+    pub actualized_difficulty: String, // Store as string - actual difficulty based on hash value
     
     // Block data fields
     pub nominated_peer_id: String, // Peer ID nominated by the miner
@@ -44,10 +45,14 @@ impl MinerBlock {
         previous_hash: String,
         data_hash: String,
         nonce: u128,
-        difficulty: u128,
+        target_difficulty: u128,
         nominated_peer_id: String,
         miner_number: u64,
     ) -> Self {
+        // Calculate actualized difficulty from hash
+        let actualized_difficulty = modal_common::hash_tax::hash_to_actualized_difficulty(&hash)
+            .unwrap_or(target_difficulty); // Fall back to target difficulty if calculation fails
+        
         Self {
             hash,
             index,
@@ -56,7 +61,8 @@ impl MinerBlock {
             previous_hash,
             data_hash,
             nonce: nonce.to_string(),
-            difficulty: difficulty.to_string(),
+            target_difficulty: target_difficulty.to_string(),
+            actualized_difficulty: actualized_difficulty.to_string(),
             nominated_peer_id,
             miner_number,
             is_orphaned: false,
@@ -78,12 +84,16 @@ impl MinerBlock {
         previous_hash: String,
         data_hash: String,
         nonce: u128,
-        difficulty: u128,
+        target_difficulty: u128,
         nominated_peer_id: String,
         miner_number: u64,
         orphan_reason: String,
         competing_hash: Option<String>,
     ) -> Self {
+        // Calculate actualized difficulty from hash
+        let actualized_difficulty = modal_common::hash_tax::hash_to_actualized_difficulty(&hash)
+            .unwrap_or(target_difficulty); // Fall back to target difficulty if calculation fails
+        
         Self {
             hash,
             index,
@@ -92,7 +102,8 @@ impl MinerBlock {
             previous_hash,
             data_hash,
             nonce: nonce.to_string(),
-            difficulty: difficulty.to_string(),
+            target_difficulty: target_difficulty.to_string(),
+            actualized_difficulty: actualized_difficulty.to_string(),
             nominated_peer_id,
             miner_number,
             is_orphaned: true,
@@ -121,19 +132,28 @@ impl MinerBlock {
             .context("Failed to parse nonce as u128")
     }
     
-    /// Parse difficulty from string to u128
-    pub fn get_difficulty_u128(&self) -> Result<u128> {
-        self.difficulty
+    /// Parse target difficulty from string to u128
+    pub fn get_target_difficulty_u128(&self) -> Result<u128> {
+        self.target_difficulty
             .parse::<u128>()
-            .context("Failed to parse difficulty as u128")
+            .context("Failed to parse target_difficulty as u128")
     }
     
-    /// Calculate total work (cumulative difficulty) for a chain of blocks
+    /// Parse actualized difficulty from string to u128
+    /// Actualized difficulty is the actual work done based on the hash value
+    pub fn get_actualized_difficulty_u128(&self) -> Result<u128> {
+        self.actualized_difficulty
+            .parse::<u128>()
+            .context("Failed to parse actualized_difficulty as u128")
+    }
+    
+    /// Calculate total work (cumulative actualized difficulty) for a chain of blocks
     /// Higher cumulative difficulty means more computational work was performed
+    /// Uses actualized difficulty (based on actual hash values) not target difficulty
     pub fn calculate_cumulative_difficulty(blocks: &[MinerBlock]) -> Result<u128> {
         let mut total: u128 = 0;
         for block in blocks {
-            let difficulty = block.get_difficulty_u128()?;
+            let difficulty = block.get_actualized_difficulty_u128()?;
             total = total.checked_add(difficulty)
                 .context("Cumulative difficulty overflow")?;
         }
@@ -154,7 +174,8 @@ impl Model for MinerBlock {
         "previous_hash",
         "data_hash",
         "nonce",
-        "difficulty",
+        "target_difficulty",
+        "actualized_difficulty",
         "nominated_peer_id",
         "miner_number",
         "is_orphaned",
@@ -208,9 +229,14 @@ impl Model for MinerBlock {
                     self.nonce = v.to_string();
                 }
             }
-            "difficulty" => {
+            "target_difficulty" => {
                 if let Some(v) = value.as_str() {
-                    self.difficulty = v.to_string();
+                    self.target_difficulty = v.to_string();
+                }
+            }
+            "actualized_difficulty" => {
+                if let Some(v) = value.as_str() {
+                    self.actualized_difficulty = v.to_string();
                 }
             }
             "nominated_peer_id" => {
@@ -270,10 +296,14 @@ impl MinerBlock {
         previous_hash: String,
         data_hash: String,
         nonce: u128,
-        difficulty: u128,
+        target_difficulty: u128,
         nominated_peer_id: String,
         miner_number: u64,
     ) -> Self {
+        // Calculate actualized difficulty from hash
+        let actualized_difficulty = modal_common::hash_tax::hash_to_actualized_difficulty(&hash)
+            .unwrap_or(target_difficulty); // Fall back to target difficulty if calculation fails
+        
         Self {
             hash,
             index,
@@ -282,7 +312,8 @@ impl MinerBlock {
             previous_hash,
             data_hash,
             nonce: nonce.to_string(),
-            difficulty: difficulty.to_string(),
+            target_difficulty: target_difficulty.to_string(),
+            actualized_difficulty: actualized_difficulty.to_string(),
             nominated_peer_id,
             miner_number,
             is_orphaned: false,
@@ -401,7 +432,7 @@ mod tests {
     }
     
     #[tokio::test]
-    async fn test_nonce_and_difficulty_parsing() {
+    async fn test_nonce_and_target_difficulty_parsing() {
         let block = MinerBlock::new_canonical(
             "test".to_string(),
             1,
@@ -416,6 +447,6 @@ mod tests {
         );
         
         assert_eq!(block.get_nonce_u128().unwrap(), 999999999999);
-        assert_eq!(block.get_difficulty_u128().unwrap(), 777777777777);
+        assert_eq!(block.get_target_difficulty_u128().unwrap(), 777777777777);
     }
 }

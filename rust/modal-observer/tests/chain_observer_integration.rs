@@ -191,7 +191,7 @@ async fn test_single_block_fork_scenarios() {
     // Verify the first-seen block is canonical
     let canonical_6 = observer.get_canonical_block(6).await.unwrap().unwrap();
     assert_eq!(canonical_6.hash, "block_6_high");
-    assert_eq!(canonical_6.get_difficulty_u128().unwrap(), 2000);
+    assert_eq!(canonical_6.get_target_difficulty_u128().unwrap(), 2000);
 }
 
 // Integration Test 4: Deep Reorganization (First-Seen Rule Limitation)

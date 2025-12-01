@@ -490,7 +490,8 @@ mod tests {
             previous_hash: "prev".to_string(),
             data_hash: "data".to_string(),
             nonce: "12345".to_string(),
-            difficulty: "1000".to_string(),
+            target_difficulty: "1000".to_string(),
+            actualized_difficulty: "1000".to_string(), // Use same as target difficulty for tests
             nominated_peer_id: "peer".to_string(),
             miner_number: 1,
             is_orphaned,

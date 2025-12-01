@@ -39,22 +39,26 @@ let chain = Blockchain::load_or_create(config, genesis_peer, datastore).await?;
 
 ## Fork Choice Rules
 
-### 1. Cumulative Difficulty
+### 1. Actualized Difficulty
 
-The observer calculates cumulative difficulty for competing forks and selects the heaviest chain:
+The observer calculates **actualized difficulty** (based on actual hash values, not just target difficulty) for competing forks and selects the heaviest chain:
 
 ```rust
-// Automatic cumulative difficulty comparison
+// Automatic actualized difficulty comparison
 let accepted = chain.process_gossiped_block(block).await?;
 ```
 
-### 2. First-Seen Rule
+Actualized difficulty = `max_target / hash_value`. A lower hash (more leading zeros) means more work was performed.
 
-For single-block forks (two blocks at the same height), the first-seen block is kept.
+### 2. Single Block Fork Resolution
+
+For single-block forks (two blocks at the same height):
+- Block with **higher actualized difficulty wins**
+- Equal actualized difficulty uses **first-seen tiebreaker** (keep existing block)
 
 ### 3. Tiebreaking
 
-When two chains have equal cumulative difficulty, the longer chain wins.
+When two chains have equal cumulative actualized difficulty, the longer chain wins.
 
 ### 4. Forced Forks
 

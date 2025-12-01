@@ -79,7 +79,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         *miner_counts.entry(block.nominated_peer_id.clone()).or_insert(0) += 1;
         
         // Track difficulty
-        if let Ok(diff) = block.get_difficulty_u128() {
+        if let Ok(diff) = block.get_target_difficulty_u128() {
             total_difficulty += diff;
         }
         

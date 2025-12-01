@@ -118,7 +118,7 @@ fn miner_block_to_block(mb: &MinerBlock) -> Result<Block, MiningError> {
     let nonce = mb.get_nonce_u128()
         .map_err(|e| MiningError::PersistenceError(format!("Invalid nonce: {}", e)))?;
     
-    let difficulty = mb.get_difficulty_u128()
+    let difficulty = mb.get_target_difficulty_u128()
         .map_err(|e| MiningError::PersistenceError(format!("Invalid difficulty: {}", e)))?;
     
     let timestamp = DateTime::<Utc>::from_timestamp(mb.timestamp, 0)

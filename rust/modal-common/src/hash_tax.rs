@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use num_bigint::BigUint;
 use num_bigint::ToBigUint;
-use num_traits::Num;
+use num_traits::{Num, Zero};
 use randomx_rs::{RandomXFlag, RandomXVM};
 use serde::{Deserialize};
 use std::cell::RefCell;
@@ -303,6 +303,39 @@ pub fn validate_nonce(data: &str, nonce: u128, difficulty: u128, hash_func_name:
     Ok(is_hash_acceptable(&hash, difficulty, hash_func_name))
 }
 
+/// Calculate the actualized (realized) difficulty from a hash value
+/// 
+/// This represents the actual computational work done, not just the target threshold.
+/// A lower hash value indicates more work was performed.
+/// 
+/// Formula: actualized_difficulty = max_target / hash_value
+/// 
+/// # Arguments
+/// * `hash` - The hex-encoded hash string
+/// 
+/// # Returns
+/// The actualized difficulty as u128, or an error if parsing fails
+#[allow(dead_code)]
+pub fn hash_to_actualized_difficulty(hash: &str) -> Result<u128, Box<dyn Error>> {
+    use num_traits::ToPrimitive;
+    
+    let max_target = DEFAULT_DIFFICULTY_COEFFICIENT.to_biguint().unwrap() 
+        << (DEFAULT_DIFFICULTY_EXPONENT * DEFAULT_DIFFICULTY_BASE);
+    
+    let hash_big_int = BigUint::from_str_radix(hash, 16)
+        .map_err(|e| format!("Failed to parse hash as hex: {}", e))?;
+    
+    if hash_big_int.is_zero() {
+        // Perfect hash (all zeros) has maximum possible difficulty
+        return Ok(u128::MAX);
+    }
+    
+    let actualized = &max_target / &hash_big_int;
+    
+    // Convert to u128, clamping to max if overflow
+    Ok(actualized.to_u128().unwrap_or(u128::MAX))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -329,5 +362,29 @@ mod tests {
         let data = String::from("data");
         let nonce = mine(&data, 500, None, Some("sha256")).unwrap();
         assert_eq!(nonce, 2401); // Known value for SHA256
+    }
+    
+    #[test]
+    fn test_hash_to_actualized_difficulty() {
+        // A hash with more leading zeros should have higher actualized difficulty
+        let easy_hash = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        let hard_hash = "0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        
+        let easy_diff = hash_to_actualized_difficulty(easy_hash).unwrap();
+        let hard_diff = hash_to_actualized_difficulty(hard_hash).unwrap();
+        
+        assert!(hard_diff > easy_diff, "Hash with more leading zeros should have higher actualized difficulty");
+    }
+    
+    #[test]
+    fn test_hash_to_actualized_difficulty_ordering() {
+        // Test that lower hash values yield higher difficulties
+        let hash_a = "0001000000000000000000000000000000000000000000000000000000000000";
+        let hash_b = "0010000000000000000000000000000000000000000000000000000000000000";
+        
+        let diff_a = hash_to_actualized_difficulty(hash_a).unwrap();
+        let diff_b = hash_to_actualized_difficulty(hash_b).unwrap();
+        
+        assert!(diff_a > diff_b, "Lower hash should have higher actualized difficulty");
     }
 }

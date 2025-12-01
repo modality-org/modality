@@ -55,7 +55,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Calculate local cumulative difficulty
     let mut local_cumulative_difficulty: u128 = 0;
     for block in &local_blocks {
-        if let Ok(diff) = block.get_difficulty_u128() {
+        if let Ok(diff) = block.get_target_difficulty_u128() {
             local_cumulative_difficulty += diff;
         }
     }

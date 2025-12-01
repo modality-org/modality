@@ -5,6 +5,15 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+/// Safely truncate a hash string for display in log messages
+fn truncate_hash(hash: &str) -> String {
+    if hash.len() > 16 {
+        hash[..16].to_string()
+    } else {
+        hash.to_string()
+    }
+}
+
 /// Configuration for forced fork specification
 /// Allows node operators to override fork choice rules at specific heights
 #[derive(Debug, Clone)]
@@ -163,7 +172,8 @@ impl ChainObserver {
         Ok(MinerBlock::find_canonical_by_epoch_multi(&ds, epoch, current_epoch).await?)
     }
     
-    /// Calculate the cumulative difficulty of the current canonical chain
+    /// Calculate the cumulative actualized difficulty of the current canonical chain
+    /// Uses actualized difficulty (based on actual hash values) not target difficulty
     pub async fn get_chain_cumulative_difficulty(&self) -> Result<u128> {
         let ds = self.datastore.lock().await;
         let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
@@ -178,7 +188,8 @@ impl ChainObserver {
         Ok(canonical_blocks.into_iter().filter(|b| b.index >= start_index).collect())
     }
     
-    /// Calculate cumulative difficulty for blocks in a specific range
+    /// Calculate cumulative actualized difficulty for blocks in a specific range
+    /// Uses actualized difficulty (based on actual hash values) not target difficulty
     pub async fn calculate_chain_difficulty_at_range(&self, start_index: u64, end_index: u64) -> Result<u128> {
         let ds = self.datastore.lock().await;
         let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
@@ -191,18 +202,38 @@ impl ChainObserver {
     }
     
     /// Determine if a single block should replace existing block at same index
-    /// Uses first-seen rule: always keep the existing block
-    pub async fn should_accept_single_block(&self, _new_block: &MinerBlock, existing_block: &MinerBlock) -> Result<bool> {
-        log::debug!(
-            "Single block fork at index {} - keeping first-seen block (hash: {})",
-            existing_block.index, &existing_block.hash
-        );
-        Ok(false)
+    /// Uses actualized difficulty comparison: higher actualized difficulty wins
+    /// Equal actualized difficulty uses first-seen rule (keep existing)
+    pub async fn should_accept_single_block(&self, new_block: &MinerBlock, existing_block: &MinerBlock) -> Result<bool> {
+        let new_actualized = new_block.get_actualized_difficulty_u128()?;
+        let existing_actualized = existing_block.get_actualized_difficulty_u128()?;
+        
+        if new_actualized > existing_actualized {
+            log::info!(
+                "Single block fork at index {} - new block (hash: {}, actualized_diff: {}) has higher difficulty than existing (hash: {}, actualized_diff: {})",
+                existing_block.index, &new_block.hash, new_actualized, &existing_block.hash, existing_actualized
+            );
+            Ok(true)
+        } else if new_actualized == existing_actualized {
+            // Tiebreaker: keep first-seen (existing block)
+            log::debug!(
+                "Single block fork at index {} - equal actualized difficulty, keeping first-seen block (hash: {})",
+                existing_block.index, &existing_block.hash
+            );
+            Ok(false)
+        } else {
+            log::debug!(
+                "Single block fork at index {} - keeping existing block with higher actualized difficulty (hash: {}, actualized_diff: {})",
+                existing_block.index, &existing_block.hash, existing_actualized
+            );
+            Ok(false)
+        }
     }
     
-    /// Determine if a reorganization should be accepted based on cumulative difficulty
+    /// Determine if a reorganization should be accepted based on cumulative actualized difficulty
     /// new_blocks should be the competing chain segment starting from fork_point + 1
-    /// Returns true if the new chain has higher cumulative difficulty
+    /// Returns true if the new chain has higher cumulative actualized difficulty
+    /// Uses actualized difficulty (based on actual hash values) not target difficulty
     pub async fn should_accept_reorganization(&self, fork_point: u64, new_blocks: &[MinerBlock]) -> Result<bool> {
         if new_blocks.is_empty() {
             return Ok(false);
@@ -351,15 +382,17 @@ impl ChainObserver {
                 return Ok(true);
             }
             
-            // Single block fork - use first-seen rule (always keep existing)
+            // Single block fork - compare actualized difficulty (higher wins, first-seen tiebreaker)
             if self.should_accept_single_block(&new_block, &existing).await? {
-                // This should never happen with first-seen rule, but keep for safety
                 let ds = self.datastore.lock().await;
+                
+                let new_actualized = new_block.get_actualized_difficulty_u128().unwrap_or(0);
+                let existing_actualized = existing.get_actualized_difficulty_u128().unwrap_or(0);
                 
                 // Mark old block as orphaned
                 let mut orphaned = existing.clone();
                 orphaned.mark_as_orphaned(
-                    format!("Replaced by block with higher difficulty"),
+                    format!("Replaced by block with higher actualized difficulty ({} vs {})", new_actualized, existing_actualized),
                     Some(new_block.hash.clone())
                 );
                 orphaned.save_to_active(&ds).await?;
@@ -373,19 +406,26 @@ impl ChainObserver {
                     *self.chain_tip_index.lock().await = new_block.index;
                 }
                 
-                log::info!("Accepted block {} at index {} (single block fork)", &new_block.hash, new_block.index);
+                log::info!("Accepted block {} at index {} (higher actualized difficulty)", &new_block.hash, new_block.index);
                 return Ok(true);
             } else {
                 // Store as orphaned block for tracking alternative chains
                 let ds = self.datastore.lock().await;
+                
+                let new_actualized = new_block.get_actualized_difficulty_u128().unwrap_or(0);
+                let existing_actualized = existing.get_actualized_difficulty_u128().unwrap_or(0);
+                
                 let mut orphaned = new_block;
                 orphaned.is_canonical = false;
                 orphaned.is_orphaned = true;
-                orphaned.orphan_reason = Some(format!("Rejected by first-seen rule - block already exists at index {}", orphaned.index));
+                orphaned.orphan_reason = Some(format!(
+                    "Rejected: lower or equal actualized difficulty ({}) vs existing block ({}) at index {}",
+                    new_actualized, existing_actualized, orphaned.index
+                ));
                 orphaned.competing_hash = Some(existing.hash.clone());
                 orphaned.save_to_active(&ds).await?;
                 
-                log::debug!("Stored orphan block {} at index {} (first-seen rule)", &orphaned.hash, orphaned.index);
+                log::debug!("Stored orphan block {} at index {} (lower actualized difficulty)", &orphaned.hash, orphaned.index);
                 return Ok(false);
             }
         }
@@ -442,7 +482,7 @@ impl ChainObserver {
                 // Parent exists at index-1 but hash doesn't match (fork)
                 let block_index = new_block.index;
                 let block_hash = new_block.hash.clone();
-                let prev_hash_short = new_block.previous_hash[..16].to_string();
+                let prev_hash_short = truncate_hash(&new_block.previous_hash);
                 
                 let mut orphaned = new_block;
                 orphaned.is_canonical = false;
@@ -450,7 +490,7 @@ impl ChainObserver {
                 orphaned.orphan_reason = Some(format!(
                     "Fork detected: block at index {} has hash {}, but this block expects parent hash {}",
                     parent.index,
-                    &parent.hash[..16],
+                    truncate_hash(&parent.hash),
                     &prev_hash_short
                 ));
                 orphaned.save_to_active(&ds).await?;
@@ -490,7 +530,7 @@ impl ChainObserver {
 
                 log::warn!(
                     "⚠️  Gap detected: block {} at index {} builds on block at index {}, missing blocks in between. Stored as orphan.",
-                    &block_hash[..16], block_index, parent_idx
+                    truncate_hash(&block_hash), block_index, parent_idx
                 );
 
                 return Ok(false);
@@ -500,7 +540,7 @@ impl ChainObserver {
         // Parent doesn't exist at all (neither at expected index nor by hash)
         let block_index = new_block.index;
         let block_hash = new_block.hash.clone();
-        let prev_hash_short = new_block.previous_hash[..16].to_string();
+        let prev_hash_short = truncate_hash(&new_block.previous_hash);
         
         let mut orphaned = new_block;
         orphaned.is_canonical = false;
@@ -743,19 +783,41 @@ mod tests {
     use modal_datastore::Model;
     
     // Test helper functions
+    // Creates a test block with explicit actualized_difficulty set equal to the target difficulty
+    // This allows tests to control both target and actualized difficulty for fork choice testing
     fn create_test_block(index: u64, hash: &str, prev_hash: &str, difficulty: u128) -> MinerBlock {
-        MinerBlock::new_canonical(
-            hash.to_string(),
+        create_test_block_with_actualized(index, hash, prev_hash, difficulty, difficulty)
+    }
+    
+    // Creates a test block with separate target difficulty and actualized difficulty
+    // actualized_difficulty determines fork choice winner (higher = more work done)
+    fn create_test_block_with_actualized(
+        index: u64, 
+        hash: &str, 
+        prev_hash: &str, 
+        target_difficulty: u128,
+        actualized_difficulty: u128,
+    ) -> MinerBlock {
+        MinerBlock {
+            hash: hash.to_string(),
             index,
-            index / 40, // epoch
-            1640000000 + (index as i64 * 60), // timestamp
-            prev_hash.to_string(),
-            format!("data_{}", hash),
-            12345 + index as u128, // nonce
-            difficulty,
-            format!("peer_{}", index),
-            index,
-        )
+            epoch: index / 40,
+            timestamp: 1640000000 + (index as i64 * 60),
+            previous_hash: prev_hash.to_string(),
+            data_hash: format!("data_{}", hash),
+            nonce: (12345 + index as u128).to_string(),
+            target_difficulty: target_difficulty.to_string(),
+            actualized_difficulty: actualized_difficulty.to_string(),
+            nominated_peer_id: format!("peer_{}", index),
+            miner_number: index,
+            is_orphaned: false,
+            is_canonical: true,
+            seen_at: Some(chrono::Utc::now().timestamp()),
+            orphaned_at: None,
+            orphan_reason: None,
+            height_at_time: Some(index),
+            competing_hash: None,
+        }
     }
     
     async fn create_test_chain(ds: &DatastoreManager, start: u64, end: u64, difficulty: u128) -> Vec<MinerBlock> {
@@ -871,12 +933,12 @@ mod tests {
     
     // Single block fork choice tests
     #[tokio::test]
-    async fn test_reject_higher_difficulty_block() {
+    async fn test_accept_higher_actualized_difficulty_block() {
         let datastore = Arc::new(Mutex::new(
             DatastoreManager::create_in_memory().unwrap()
         ));
         
-        // Create initial chain
+        // Create initial chain with actualized_difficulty = 1000
         {
             let mut ds = datastore.lock().await;
             create_test_chain(&ds, 0, 2, 1000).await;
@@ -885,24 +947,30 @@ mod tests {
         let observer = ChainObserver::new(datastore.clone());
         observer.initialize().await.unwrap();
         
-        // Try to replace block 2 with higher difficulty (should be rejected - first-seen rule)
-        let competing_block = create_test_block(2, "block_2_competing", "block_1", 2000);
+        // Try to replace block 2 with higher actualized difficulty (should be ACCEPTED)
+        let competing_block = create_test_block_with_actualized(2, "block_2_competing", "block_1", 1000, 2000);
         let accepted = observer.process_gossiped_block(competing_block).await.unwrap();
         
-        assert!(!accepted, "Competing block should be rejected (first-seen rule)");
+        assert!(accepted, "Block with higher actualized difficulty should be accepted");
         
-        // Verify the original block is still canonical
+        // Verify the new block is now canonical
         let canonical = observer.get_canonical_block(2).await.unwrap().unwrap();
-        assert_eq!(canonical.hash, "block_2");
+        assert_eq!(canonical.hash, "block_2_competing");
+        
+        // Verify the old block is now orphaned
+        let ds = datastore.lock().await;
+        let old_block = MinerBlock::find_by_hash_multi(&ds, "block_2").await.unwrap().unwrap();
+        assert!(old_block.is_orphaned, "Original block should be orphaned");
+        assert!(!old_block.is_canonical, "Original block should not be canonical");
     }
     
     #[tokio::test]
-    async fn test_reject_lower_difficulty_block() {
+    async fn test_reject_lower_actualized_difficulty_block() {
         let datastore = Arc::new(Mutex::new(
             DatastoreManager::create_in_memory().unwrap()
         ));
         
-        // Create initial chain
+        // Create initial chain with actualized_difficulty = 1000
         {
             let mut ds = datastore.lock().await;
             create_test_chain(&ds, 0, 2, 1000).await;
@@ -911,11 +979,11 @@ mod tests {
         let observer = ChainObserver::new(datastore.clone());
         observer.initialize().await.unwrap();
         
-        // Try to replace block 2 with lower difficulty
-        let competing_block = create_test_block(2, "block_2_competing", "block_1", 500);
+        // Try to replace block 2 with lower actualized difficulty
+        let competing_block = create_test_block_with_actualized(2, "block_2_competing", "block_1", 1000, 500);
         let accepted = observer.process_gossiped_block(competing_block).await.unwrap();
         
-        assert!(!accepted, "Lower difficulty block should be rejected");
+        assert!(!accepted, "Block with lower actualized difficulty should be rejected");
         
         // Verify original block is still canonical
         let canonical = observer.get_canonical_block(2).await.unwrap().unwrap();
@@ -923,12 +991,12 @@ mod tests {
     }
     
     #[tokio::test]
-    async fn test_reject_equal_difficulty_block() {
+    async fn test_reject_equal_actualized_difficulty_block() {
         let datastore = Arc::new(Mutex::new(
             DatastoreManager::create_in_memory().unwrap()
         ));
         
-        // Create initial chain
+        // Create initial chain with actualized_difficulty = 1000
         {
             let mut ds = datastore.lock().await;
             create_test_chain(&ds, 0, 2, 1000).await;
@@ -937,11 +1005,11 @@ mod tests {
         let observer = ChainObserver::new(datastore.clone());
         observer.initialize().await.unwrap();
         
-        // Try to replace block 2 with equal difficulty (first-seen rule)
-        let competing_block = create_test_block(2, "block_2_competing", "block_1", 1000);
+        // Try to replace block 2 with equal actualized difficulty (first-seen rule applies)
+        let competing_block = create_test_block_with_actualized(2, "block_2_competing", "block_1", 1000, 1000);
         let accepted = observer.process_gossiped_block(competing_block).await.unwrap();
         
-        assert!(!accepted, "Equal difficulty block should be rejected (first-seen)");
+        assert!(!accepted, "Block with equal actualized difficulty should be rejected (first-seen tiebreaker)");
         
         // Verify original block is still canonical
         let canonical = observer.get_canonical_block(2).await.unwrap().unwrap();
@@ -949,12 +1017,12 @@ mod tests {
     }
     
     #[tokio::test]
-    async fn test_orphaned_block_tracking() {
+    async fn test_orphaned_block_tracking_lower_difficulty() {
         let datastore = Arc::new(Mutex::new(
             DatastoreManager::create_in_memory().unwrap()
         ));
         
-        // Create initial chain
+        // Create initial chain with actualized_difficulty = 1000
         {
             let mut ds = datastore.lock().await;
             create_test_chain(&ds, 0, 2, 1000).await;
@@ -963,16 +1031,21 @@ mod tests {
         let observer = ChainObserver::new(datastore.clone());
         observer.initialize().await.unwrap();
         
-        // Try to replace block 2 (should be rejected due to first-seen rule)
-        let competing_block = create_test_block(2, "block_2_competing", "block_1", 2000);
+        // Try to replace block 2 with lower actualized difficulty (should be rejected and orphaned)
+        let competing_block = create_test_block_with_actualized(2, "block_2_competing", "block_1", 1000, 500);
         let accepted = observer.process_gossiped_block(competing_block).await.unwrap();
-        assert!(!accepted, "Competing block should be rejected");
+        assert!(!accepted, "Lower difficulty competing block should be rejected");
         
         // Verify original block is still canonical and not orphaned
         let ds = datastore.lock().await;
         let original_block = MinerBlock::find_by_hash_multi(&ds, "block_2").await.unwrap().unwrap();
         assert!(!original_block.is_orphaned);
         assert!(original_block.is_canonical);
+        
+        // Verify the competing block is stored as orphan
+        let competing = MinerBlock::find_by_hash_multi(&ds, "block_2_competing").await.unwrap().unwrap();
+        assert!(competing.is_orphaned, "Competing block should be orphaned");
+        assert!(!competing.is_canonical, "Competing block should not be canonical");
     }
     
     // Block extension tests
@@ -1227,12 +1300,12 @@ mod tests {
     
     // Orphan block storage tests
     #[tokio::test]
-    async fn test_store_orphan_competing_block() {
+    async fn test_store_orphan_competing_block_lower_difficulty() {
         let datastore = Arc::new(Mutex::new(
             DatastoreManager::create_in_memory().unwrap()
         ));
         
-        // Create initial chain
+        // Create initial chain with actualized_difficulty = 1000
         {
             let mut ds = datastore.lock().await;
             create_test_chain(&ds, 0, 5, 1000).await;
@@ -1241,10 +1314,10 @@ mod tests {
         let observer = ChainObserver::new(datastore.clone());
         observer.initialize().await.unwrap();
         
-        // Try to add competing block at index 3 (should be stored as orphan)
-        let competing_block = create_test_block(3, "competing_block_3", "block_2", 2000);
+        // Try to add competing block at index 3 with lower actualized difficulty (should be stored as orphan)
+        let competing_block = create_test_block_with_actualized(3, "competing_block_3", "block_2", 1000, 500);
         let accepted = observer.process_gossiped_block(competing_block).await.unwrap();
-        assert!(!accepted, "Competing block should be rejected");
+        assert!(!accepted, "Competing block with lower difficulty should be rejected");
         
         // Verify it was stored as orphan
         let ds = datastore.lock().await;
@@ -1317,7 +1390,7 @@ mod tests {
             DatastoreManager::create_in_memory().unwrap()
         ));
         
-        // Create initial chain
+        // Create initial chain with actualized_difficulty = 1000
         {
             let mut ds = datastore.lock().await;
             create_test_chain(&ds, 0, 3, 1000).await;
@@ -1326,14 +1399,14 @@ mod tests {
         let observer = ChainObserver::new(datastore.clone());
         observer.initialize().await.unwrap();
         
-        // Add multiple orphan blocks
-        let orphan1 = create_test_block(2, "orphan_block_2", "block_1", 2000);
+        // Add multiple orphan blocks (all with lower actualized difficulty so they become orphans)
+        let orphan1 = create_test_block_with_actualized(2, "orphan_block_2", "block_1", 1000, 500);
         observer.process_gossiped_block(orphan1).await.unwrap();
         
-        let orphan2 = create_test_block(3, "orphan_block_3", "block_2", 2000);
+        let orphan2 = create_test_block_with_actualized(3, "orphan_block_3", "block_2", 1000, 500);
         observer.process_gossiped_block(orphan2).await.unwrap();
         
-        let orphan3 = create_test_block(10, "orphan_block_10", "block_9", 1000);
+        let orphan3 = create_test_block(10, "orphan_block_10", "block_9", 1000); // Gap block
         observer.process_gossiped_block(orphan3).await.unwrap();
         
         // Get all orphaned blocks
@@ -1352,7 +1425,7 @@ mod tests {
             DatastoreManager::create_in_memory().unwrap()
         ));
         
-        // Create initial chain
+        // Create initial chain with actualized_difficulty = 1000
         {
             let mut ds = datastore.lock().await;
             create_test_chain(&ds, 0, 3, 1000).await;
@@ -1361,15 +1434,15 @@ mod tests {
         let observer = ChainObserver::new(datastore.clone());
         observer.initialize().await.unwrap();
         
-        // Add multiple competing orphan blocks at index 2
-        let orphan1 = create_test_block(2, "orphan_block_2a", "block_1", 2000);
+        // Add multiple competing orphan blocks at index 2 (all with lower actualized difficulty)
+        let orphan1 = create_test_block_with_actualized(2, "orphan_block_2a", "block_1", 1000, 500);
         observer.process_gossiped_block(orphan1).await.unwrap();
         
-        let orphan2 = create_test_block(2, "orphan_block_2b", "block_1", 1500);
+        let orphan2 = create_test_block_with_actualized(2, "orphan_block_2b", "block_1", 1000, 400);
         observer.process_gossiped_block(orphan2).await.unwrap();
         
-        // Add orphan at different index
-        let orphan3 = create_test_block(3, "orphan_block_3", "block_2", 2000);
+        // Add orphan at different index (also lower difficulty)
+        let orphan3 = create_test_block_with_actualized(3, "orphan_block_3", "block_2", 1000, 500);
         observer.process_gossiped_block(orphan3).await.unwrap();
         
         // Get orphaned blocks at index 2
@@ -1655,7 +1728,7 @@ mod tests {
     }
     
     #[tokio::test]
-    async fn test_forced_fork_overrides_first_seen() {
+    async fn test_forced_fork_overrides_actualized_difficulty() {
         let datastore = Arc::new(Mutex::new(
             DatastoreManager::create_in_memory().unwrap()
         ));
@@ -1680,7 +1753,7 @@ mod tests {
         // Try to add the REQUIRED block at height 3
         let required_block = create_test_block(3, "required_block_3", "block_2", 1000);
         let accepted = observer.process_gossiped_block(required_block).await.unwrap();
-        assert!(accepted, "Forced fork should override first-seen rule");
+        assert!(accepted, "Forced fork should override actualized difficulty comparison");
         
         // Verify required block is now canonical
         let canonical = observer.get_canonical_block(3).await.unwrap().unwrap();

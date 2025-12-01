@@ -73,9 +73,9 @@ pub async fn heal_duplicate_canonical_blocks_multi(
                 (None, None) => {}
             }
             
-            // Second: Compare difficulty (higher is better)
-            let a_diff: u128 = a.difficulty.parse().unwrap_or(0);
-            let b_diff: u128 = b.difficulty.parse().unwrap_or(0);
+            // Second: Compare actualized difficulty (higher is better)
+            let a_diff: u128 = a.actualized_difficulty.parse().unwrap_or(0);
+            let b_diff: u128 = b.actualized_difficulty.parse().unwrap_or(0);
             if a_diff != b_diff {
                 return b_diff.cmp(&a_diff); // Note: reversed for descending order
             }

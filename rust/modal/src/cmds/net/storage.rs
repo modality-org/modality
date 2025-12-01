@@ -71,7 +71,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     for block in &blocks {
         *epoch_counts.entry(block.epoch).or_insert(0) += 1;
         *miner_counts.entry(block.nominated_peer_id.clone()).or_insert(0) += 1;
-        difficulty_by_epoch.entry(block.epoch).or_insert_with(|| block.difficulty.clone());
+        difficulty_by_epoch.entry(block.epoch).or_insert_with(|| block.target_difficulty.clone());
         
         min_timestamp = min_timestamp.min(block.timestamp);
         max_timestamp = max_timestamp.max(block.timestamp);
@@ -157,7 +157,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             println!("    Hash: {}", hash_short);
             println!("    Epoch: {}", block.epoch);
             println!("    Miner: {}", miner_short);
-            println!("    Difficulty: {}", block.difficulty);
+            println!("    Target Difficulty: {}", block.target_difficulty);
             println!("    Nonce: {}", block.nonce);
         }
     }

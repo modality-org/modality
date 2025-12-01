@@ -48,7 +48,7 @@ pub fn calculate_chain_metrics(blocks: &[MinerBlock]) -> ChainMetrics {
 
     let cumulative_difficulty: u128 = blocks
         .iter()
-        .filter_map(|b| b.difficulty.parse::<u128>().ok())
+        .filter_map(|b| b.target_difficulty.parse::<u128>().ok())
         .sum();
 
     let tip_block = blocks.iter().max_by_key(|b| b.index);
