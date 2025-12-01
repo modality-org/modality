@@ -7,6 +7,7 @@ use modal_common::keypair::Keypair;
 use modal_datastore::models::MinerBlock;
 use modal_datastore::models::validator::get_validator_set_for_mining_epoch_hybrid_multi;
 use modal_datastore::DatastoreManager;
+use modal_networks::CheckpointMode;
 use modal_validator_consensus::communication::Message as ConsensusMessage;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, Mutex};
@@ -23,13 +24,38 @@ const BLOCKS_PER_EPOCH: u64 = 40;
 pub fn start_hybrid_consensus_monitor(
     datastore: Arc<Mutex<DatastoreManager>>,
     node_peer_id: String,
-    mut epoch_rx: broadcast::Receiver<u64>,
+    epoch_rx: broadcast::Receiver<u64>,
     keypair: Keypair,
     swarm: Arc<Mutex<NodeSwarm>>,
     consensus_tx: mpsc::Sender<ConsensusMessage>,
 ) {
+    start_hybrid_consensus_monitor_with_checkpoints(
+        datastore,
+        node_peer_id,
+        epoch_rx,
+        keypair,
+        swarm,
+        consensus_tx,
+        CheckpointMode::None,
+    )
+}
+
+/// Start the hybrid consensus monitor with checkpoint support.
+///
+/// This spawns a background task that monitors epoch transitions and starts
+/// consensus if this node is selected as a validator.
+pub fn start_hybrid_consensus_monitor_with_checkpoints(
+    datastore: Arc<Mutex<DatastoreManager>>,
+    node_peer_id: String,
+    mut epoch_rx: broadcast::Receiver<u64>,
+    keypair: Keypair,
+    swarm: Arc<Mutex<NodeSwarm>>,
+    consensus_tx: mpsc::Sender<ConsensusMessage>,
+    checkpoint_mode: CheckpointMode,
+) {
     tokio::spawn(async move {
         log::info!("Hybrid consensus coordinator started, waiting for epoch >= 2...");
+        log::info!("Checkpoint mode: {:?}", checkpoint_mode);
         
         // Check current epoch on startup
         let current_epoch = get_current_epoch(&datastore).await;
@@ -43,6 +69,7 @@ pub fn start_hybrid_consensus_monitor(
                 &keypair,
                 swarm.clone(),
                 consensus_tx.clone(),
+                checkpoint_mode.clone(),
             ).await;
         }
         
@@ -58,6 +85,7 @@ pub fn start_hybrid_consensus_monitor(
                         &keypair,
                         swarm.clone(),
                         consensus_tx.clone(),
+                        checkpoint_mode.clone(),
                     ).await;
                 }
                 Err(e) => {
@@ -89,6 +117,7 @@ async fn check_and_start_validator(
     keypair: &Keypair,
     swarm: Arc<Mutex<NodeSwarm>>,
     consensus_tx: mpsc::Sender<ConsensusMessage>,
+    checkpoint_mode: CheckpointMode,
 ) {
     // Get validator set for this epoch (from epoch N-2 nominations)
     let validator_set = {
@@ -137,7 +166,7 @@ async fn check_and_start_validator(
             let total_stake: u64 = stakes.iter().sum();
             log::info!("📊 Total stake: {}, My stake: {}", total_stake, stakes[my_index]);
             
-            match super::consensus::create_and_start_shoal_validator_weighted(
+            match super::consensus::create_and_start_shoal_validator_weighted_with_epoch(
                 validators,
                 stakes,
                 my_index,
@@ -145,6 +174,8 @@ async fn check_and_start_validator(
                 keypair.clone(),
                 swarm,
                 consensus_tx,
+                current_epoch,
+                checkpoint_mode,
             ).await {
                 Ok(()) => log::info!("✅ Hybrid consensus started for epoch {}", current_epoch),
                 Err(e) => log::error!("Failed to start hybrid consensus: {}", e),

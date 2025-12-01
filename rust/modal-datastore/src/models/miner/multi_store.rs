@@ -475,6 +475,183 @@ impl MinerBlock {
         // blocks where !is_canonical && !is_orphaned.
         Ok(0)
     }
+    
+    // ============================================================
+    // Checkpoint-aware pruning methods
+    // ============================================================
+    
+    /// Find orphaned blocks that are before a checkpoint and can be safely pruned.
+    /// 
+    /// Blocks are prunable if:
+    /// - They are orphaned (not canonical)
+    /// - Their index is <= the checkpoint's last block index
+    pub async fn find_orphaned_before_checkpoint_multi(
+        mgr: &DatastoreManager,
+        checkpoint_block_index: u64,
+    ) -> Result<Vec<Self>> {
+        let all_orphaned = Self::find_all_orphaned_multi(mgr).await?;
+        Ok(all_orphaned.into_iter()
+            .filter(|b| b.index <= checkpoint_block_index)
+            .collect())
+    }
+    
+    /// Prune orphaned blocks that are before a checkpoint.
+    /// 
+    /// This removes orphaned blocks from both MinerActive and MinerForks stores.
+    /// Returns the count of pruned blocks.
+    pub async fn prune_orphaned_before_checkpoint_multi(
+        mgr: &DatastoreManager,
+        checkpoint_block_index: u64,
+    ) -> Result<usize> {
+        let blocks_to_prune = Self::find_orphaned_before_checkpoint_multi(mgr, checkpoint_block_index).await?;
+        let count = blocks_to_prune.len();
+        
+        for block in &blocks_to_prune {
+            // Delete from MinerActive if present
+            let key = format!("{}/{}", MINER_BLOCK_PREFIX, block.hash);
+            let _ = mgr.miner_active().delete(&key);
+            
+            // Delete from MinerForks if present  
+            let _ = mgr.miner_forks().delete(&key);
+            
+            // Delete height index from both stores
+            let height_key = format!("/miner_blocks/index/{}/hash/{}", block.index, block.hash);
+            let _ = mgr.miner_active().delete(&height_key);
+            let _ = mgr.miner_forks().delete(&height_key);
+        }
+        
+        if count > 0 {
+            log::info!(
+                "🗑️  Pruned {} orphaned blocks before checkpoint at index {}",
+                count,
+                checkpoint_block_index
+            );
+        }
+        
+        Ok(count)
+    }
+    
+    /// Check if a block branches from a given checkpoint.
+    /// 
+    /// A block branches from a checkpoint if it can trace its ancestry
+    /// through previous_hash links back to the checkpoint block.
+    /// 
+    /// Returns true if:
+    /// - The block is the checkpoint block itself
+    /// - The block's index is before the checkpoint (assumed to be part of history)
+    /// - The block can trace ancestry to the checkpoint through canonical blocks
+    pub async fn branches_from_checkpoint_multi(
+        mgr: &DatastoreManager,
+        block: &Self,
+        checkpoint_block_hash: &str,
+        checkpoint_block_index: u64,
+    ) -> Result<bool> {
+        // Block is the checkpoint itself
+        if block.hash == checkpoint_block_hash {
+            return Ok(true);
+        }
+        
+        // Block is before checkpoint - assume it's part of validated history
+        if block.index <= checkpoint_block_index {
+            return Ok(true);
+        }
+        
+        // Trace ancestry back to checkpoint
+        let mut current_hash = block.previous_hash.clone();
+        let mut depth = 0;
+        let max_depth = (block.index - checkpoint_block_index) as usize + 10; // Safety margin
+        
+        while depth < max_depth {
+            // Found checkpoint
+            if current_hash == checkpoint_block_hash {
+                return Ok(true);
+            }
+            
+            // Try to find the block with this hash
+            match Self::find_by_hash_multi(mgr, &current_hash).await? {
+                Some(parent) => {
+                    // If we've gone past the checkpoint index without finding it,
+                    // this branch doesn't include the checkpoint
+                    if parent.index < checkpoint_block_index {
+                        return Ok(false);
+                    }
+                    current_hash = parent.previous_hash.clone();
+                }
+                None => {
+                    // Can't trace further - assume invalid unless at genesis
+                    return Ok(current_hash == "0" || current_hash.is_empty());
+                }
+            }
+            depth += 1;
+        }
+        
+        // Exceeded max depth - likely invalid
+        Ok(false)
+    }
+    
+    /// Find blocks that don't branch from all preceding checkpoints.
+    /// 
+    /// These blocks are invalid and can be discarded.
+    pub async fn find_blocks_not_branching_from_checkpoints_multi(
+        mgr: &DatastoreManager,
+        checkpoints: &[(u64, String)], // (block_index, block_hash)
+    ) -> Result<Vec<Self>> {
+        if checkpoints.is_empty() {
+            return Ok(vec![]);
+        }
+        
+        let all_blocks = Self::find_all_blocks_multi(mgr).await?;
+        let mut invalid_blocks = Vec::new();
+        
+        for block in all_blocks {
+            // Check that block branches from all checkpoints before it
+            for (checkpoint_index, checkpoint_hash) in checkpoints {
+                if block.index > *checkpoint_index {
+                    if !Self::branches_from_checkpoint_multi(
+                        mgr,
+                        &block,
+                        checkpoint_hash,
+                        *checkpoint_index,
+                    ).await? {
+                        invalid_blocks.push(block.clone());
+                        break;
+                    }
+                }
+            }
+        }
+        
+        Ok(invalid_blocks)
+    }
+    
+    /// Prune blocks that don't branch from all preceding checkpoints.
+    /// 
+    /// This is useful after a checkpoint is created to clean up any
+    /// blocks that ended up on an invalid fork.
+    pub async fn prune_blocks_not_branching_from_checkpoints_multi(
+        mgr: &DatastoreManager,
+        checkpoints: &[(u64, String)],
+    ) -> Result<usize> {
+        let invalid_blocks = Self::find_blocks_not_branching_from_checkpoints_multi(mgr, checkpoints).await?;
+        let count = invalid_blocks.len();
+        
+        for block in &invalid_blocks {
+            let key = format!("{}/{}", MINER_BLOCK_PREFIX, block.hash);
+            let _ = mgr.miner_active().delete(&key);
+            let _ = mgr.miner_canon().delete(&key);
+            let _ = mgr.miner_forks().delete(&key);
+            
+            let height_key = format!("/miner_blocks/index/{}/hash/{}", block.index, block.hash);
+            let _ = mgr.miner_active().delete(&height_key);
+            let _ = mgr.miner_canon().delete(&height_key);
+            let _ = mgr.miner_forks().delete(&height_key);
+        }
+        
+        if count > 0 {
+            log::info!("🗑️  Pruned {} blocks not branching from checkpoints", count);
+        }
+        
+        Ok(count)
+    }
 }
 
 #[cfg(test)]

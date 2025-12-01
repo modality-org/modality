@@ -1,6 +1,7 @@
 use anyhow::Result;
 use modal_datastore::DatastoreManager;
 use modal_datastore::models::MinerBlock;
+use modal_datastore::models::miner::checkpoint::validate_block_against_checkpoints;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -328,6 +329,33 @@ pub async fn handler(
                 }
                 
                 log::debug!("Parent block validated for block {}", miner_block.index);
+            }
+        }
+        drop(mgr);
+    }
+    
+    // **THIRD**: Validate block branches from all preceding checkpoints
+    {
+        let mgr = datastore_manager.lock().await;
+        match validate_block_against_checkpoints(&mgr, miner_block.index, &miner_block.previous_hash).await {
+            Ok(true) => {
+                log::debug!("Block {} validated against checkpoints", miner_block.index);
+            }
+            Ok(false) => {
+                log::warn!(
+                    "⚠️  Block {} at index {} rejected: does not branch from required checkpoint",
+                    &miner_block.hash[..16],
+                    miner_block.index
+                );
+                return Ok(());
+            }
+            Err(e) => {
+                // Log error but don't reject - checkpoint validation failure shouldn't block syncing
+                log::warn!(
+                    "Failed to validate block {} against checkpoints: {}",
+                    miner_block.index,
+                    e
+                );
             }
         }
         drop(mgr);

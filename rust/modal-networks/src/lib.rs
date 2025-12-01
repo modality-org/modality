@@ -1,5 +1,31 @@
 use serde::{Deserialize, Serialize};
 
+/// Checkpoint mode for a network
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum CheckpointMode {
+    /// Checkpoints are disabled
+    #[default]
+    None,
+    /// User specifies checkpoints manually in the network config
+    Manual,
+    /// Checkpoints are triggered by consensus (on new validator set's second certified round)
+    Consensus,
+}
+
+/// A manually specified checkpoint
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ManualCheckpoint {
+    /// Block index that serves as the checkpoint
+    pub block_index: u64,
+    /// Optional block hash for verification
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub block_hash: Option<String>,
+    /// Optional description of this checkpoint
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
 /// Represents information about a Modality network
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkInfo {
@@ -17,6 +43,36 @@ pub struct NetworkInfo {
     /// If absent, validators are selected dynamically from mining epochs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub validators: Option<Vec<String>>,
+    
+    /// Checkpoint mode for this network
+    /// Defaults to None if not specified
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub checkpoint_mode: Option<CheckpointMode>,
+    
+    /// Manual checkpoints (only used when checkpoint_mode is Manual)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub checkpoints: Option<Vec<ManualCheckpoint>>,
+}
+
+impl NetworkInfo {
+    /// Get the effective checkpoint mode (defaults to None)
+    pub fn get_checkpoint_mode(&self) -> CheckpointMode {
+        self.checkpoint_mode.clone().unwrap_or_default()
+    }
+    
+    /// Check if checkpoints are enabled
+    pub fn checkpoints_enabled(&self) -> bool {
+        self.get_checkpoint_mode() != CheckpointMode::None
+    }
+    
+    /// Get manual checkpoints sorted by block index
+    pub fn get_manual_checkpoints(&self) -> Vec<&ManualCheckpoint> {
+        let mut checkpoints: Vec<_> = self.checkpoints.as_ref()
+            .map(|c| c.iter().collect())
+            .unwrap_or_default();
+        checkpoints.sort_by_key(|c| c.block_index);
+        checkpoints
+    }
 }
 
 /// All available networks
@@ -190,6 +246,93 @@ mod tests {
             assert!(!peer_id.is_empty(), "Peer ID should not be empty");
             assert!(peer_id.starts_with("12D3"), "Peer ID should be valid libp2p format");
         }
+    }
+
+    #[test]
+    fn test_checkpoint_mode_default() {
+        // Test that checkpoint mode defaults to None
+        let network = NetworkInfo {
+            name: "test".to_string(),
+            description: "test network".to_string(),
+            bootstrappers: vec![],
+            validators: None,
+            checkpoint_mode: None,
+            checkpoints: None,
+        };
+        assert_eq!(network.get_checkpoint_mode(), CheckpointMode::None);
+        assert!(!network.checkpoints_enabled());
+    }
+
+    #[test]
+    fn test_checkpoint_mode_consensus() {
+        let network = NetworkInfo {
+            name: "test".to_string(),
+            description: "test network".to_string(),
+            bootstrappers: vec![],
+            validators: None,
+            checkpoint_mode: Some(CheckpointMode::Consensus),
+            checkpoints: None,
+        };
+        assert_eq!(network.get_checkpoint_mode(), CheckpointMode::Consensus);
+        assert!(network.checkpoints_enabled());
+    }
+
+    #[test]
+    fn test_manual_checkpoints() {
+        let network = NetworkInfo {
+            name: "test".to_string(),
+            description: "test network".to_string(),
+            bootstrappers: vec![],
+            validators: None,
+            checkpoint_mode: Some(CheckpointMode::Manual),
+            checkpoints: Some(vec![
+                ManualCheckpoint {
+                    block_index: 100,
+                    block_hash: Some("hash100".to_string()),
+                    description: Some("First checkpoint".to_string()),
+                },
+                ManualCheckpoint {
+                    block_index: 50,
+                    block_hash: None,
+                    description: None,
+                },
+            ]),
+        };
+        
+        let checkpoints = network.get_manual_checkpoints();
+        assert_eq!(checkpoints.len(), 2);
+        // Should be sorted by block_index
+        assert_eq!(checkpoints[0].block_index, 50);
+        assert_eq!(checkpoints[1].block_index, 100);
+    }
+
+    #[test]
+    fn test_checkpoint_mode_serialization() {
+        // Test that checkpoint mode serializes to lowercase
+        let json = serde_json::json!({
+            "name": "test",
+            "description": "test",
+            "bootstrappers": [],
+            "checkpoint_mode": "consensus"
+        });
+        
+        let network: NetworkInfo = serde_json::from_value(json).unwrap();
+        assert_eq!(network.get_checkpoint_mode(), CheckpointMode::Consensus);
+        
+        // Test manual mode
+        let json = serde_json::json!({
+            "name": "test",
+            "description": "test",
+            "bootstrappers": [],
+            "checkpoint_mode": "manual",
+            "checkpoints": [
+                { "block_index": 100 }
+            ]
+        });
+        
+        let network: NetworkInfo = serde_json::from_value(json).unwrap();
+        assert_eq!(network.get_checkpoint_mode(), CheckpointMode::Manual);
+        assert_eq!(network.checkpoints.unwrap().len(), 1);
     }
 }
 

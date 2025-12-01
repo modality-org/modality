@@ -7,6 +7,7 @@ use anyhow::Result;
 use modal_common::keypair::Keypair;
 use modal_datastore::models::ValidatorBlock;
 use modal_datastore::DatastoreManager;
+use modal_networks::CheckpointMode;
 use modal_validator_consensus::communication::{Communication, Message as ConsensusMessage};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -16,6 +17,7 @@ use crate::consensus::node_communication::NodeCommunication;
 use crate::swarm::NodeSwarm;
 
 use super::ack_collector::{AckCollector, save_certified_block, validate_certificate, run_finalization_task};
+use super::checkpoint::{CheckpointTracker, create_checkpoint_for_epoch};
 
 /// Start static validator consensus for a node that is in the static validators list.
 pub async fn start_static_validator_consensus(
@@ -77,9 +79,40 @@ pub async fn create_and_start_shoal_validator_weighted(
     swarm: Arc<Mutex<NodeSwarm>>,
     consensus_tx: mpsc::Sender<ConsensusMessage>,
 ) -> Result<()> {
+    create_and_start_shoal_validator_weighted_with_epoch(
+        validators,
+        stakes,
+        my_index,
+        datastore,
+        keypair,
+        swarm,
+        consensus_tx,
+        0, // Default epoch for static validators
+        CheckpointMode::None, // Default to no checkpoints for backward compatibility
+    ).await
+}
+
+/// Create and start a Shoal validator with weighted stakes and epoch tracking for checkpoints.
+pub async fn create_and_start_shoal_validator_weighted_with_epoch(
+    validators: Vec<String>,
+    stakes: Vec<u64>,
+    my_index: usize,
+    datastore: Arc<Mutex<DatastoreManager>>,
+    keypair: Keypair,
+    swarm: Arc<Mutex<NodeSwarm>>,
+    consensus_tx: mpsc::Sender<ConsensusMessage>,
+    validator_epoch: u64,
+    checkpoint_mode: CheckpointMode,
+) -> Result<()> {
     let datastore_for_loop = datastore.clone();
     let committee_size = validators.len();
     let validators_for_loop = validators.clone();
+    
+    // Get blocks per epoch from datastore config
+    let blocks_per_epoch = {
+        let mgr = datastore.lock().await;
+        mgr.epoch_config().blocks_per_epoch
+    };
     
     match modal_validator::ShoalValidatorConfig::from_peer_ids_with_stakes(validators, stakes, my_index) {
         Ok(config) => {
@@ -91,7 +124,7 @@ pub async fn create_and_start_shoal_validator_weighted(
                     match shoal_validator.initialize().await {
                         Ok(()) => {
                             log::info!("✅ ShoalValidator initialized successfully");
-                            spawn_consensus_loop(
+                            spawn_consensus_loop_with_checkpoints(
                                 shoal_validator,
                                 datastore_for_loop,
                                 validator_peer_id,
@@ -100,6 +133,9 @@ pub async fn create_and_start_shoal_validator_weighted(
                                 keypair,
                                 swarm,
                                 consensus_tx,
+                                validator_epoch,
+                                checkpoint_mode,
+                                blocks_per_epoch,
                             ).await
                         }
                         Err(e) => {
@@ -176,6 +212,32 @@ fn create_validator_block(
 
 /// Spawn a background task to run the Shoal consensus loop.
 pub async fn spawn_consensus_loop(
+    shoal_validator: modal_validator::ShoalValidator,
+    datastore: Arc<Mutex<DatastoreManager>>,
+    validator_peer_id: String,
+    committee_size: usize,
+    validators: Vec<String>,
+    keypair: Keypair,
+    swarm: Arc<Mutex<NodeSwarm>>,
+    consensus_tx: mpsc::Sender<ConsensusMessage>,
+) -> Result<()> {
+    spawn_consensus_loop_with_checkpoints(
+        shoal_validator,
+        datastore,
+        validator_peer_id,
+        committee_size,
+        validators,
+        keypair,
+        swarm,
+        consensus_tx,
+        0,
+        CheckpointMode::None,
+        100, // Default blocks per epoch
+    ).await
+}
+
+/// Spawn a background task to run the Shoal consensus loop with checkpoint support.
+pub async fn spawn_consensus_loop_with_checkpoints(
     _shoal_validator: modal_validator::ShoalValidator,
     datastore: Arc<Mutex<DatastoreManager>>,
     validator_peer_id: String,
@@ -184,6 +246,9 @@ pub async fn spawn_consensus_loop(
     keypair: Keypair,
     swarm: Arc<Mutex<NodeSwarm>>,
     consensus_tx: mpsc::Sender<ConsensusMessage>,
+    validator_epoch: u64,
+    checkpoint_mode: CheckpointMode,
+    blocks_per_epoch: u64,
 ) -> Result<()> {
     // Create a receiver for consensus messages
     // Note: We create a new channel and subscribe the consensus loop to it
@@ -215,6 +280,10 @@ pub async fn spawn_consensus_loop(
             keypair.clone(),
             committee_size,
         );
+        
+        // Create checkpoint tracker
+        let mut checkpoint_tracker = CheckpointTracker::new(checkpoint_mode, blocks_per_epoch);
+        checkpoint_tracker.on_epoch_change(validator_epoch);
         
         // Initialize consensus metadata
         {
@@ -277,6 +346,32 @@ pub async fn spawn_consensus_loop(
                                         // Save certified block
                                         if let Err(e) = save_certified_block(&certified_block, &datastore).await {
                                             log::error!("Failed to save certified block: {}", e);
+                                        }
+                                        
+                                        // Check if we should create a checkpoint
+                                        if checkpoint_tracker.on_round_certified(ack.round_id) {
+                                            if let Some(selection_epoch) = checkpoint_tracker.get_selection_epoch() {
+                                                log::info!("🏁 Creating checkpoint for epoch {}", selection_epoch);
+                                                match create_checkpoint_for_epoch(
+                                                    &datastore,
+                                                    selection_epoch,
+                                                    checkpoint_tracker.current_validator_epoch,
+                                                    ack.round_id,
+                                                    blocks_per_epoch,
+                                                ).await {
+                                                    Ok(checkpoint) => {
+                                                        log::info!(
+                                                            "✅ Checkpoint created: epoch {}, {} blocks, merkle root {}",
+                                                            checkpoint.epoch,
+                                                            checkpoint.block_count,
+                                                            &checkpoint.merkle_root[..16.min(checkpoint.merkle_root.len())]
+                                                        );
+                                                    }
+                                                    Err(e) => {
+                                                        log::error!("Failed to create checkpoint: {}", e);
+                                                    }
+                                                }
+                                            }
                                         }
                                         
                                         // Broadcast certified block

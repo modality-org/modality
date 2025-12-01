@@ -9,6 +9,7 @@
 //! - Do NOT mine blocks
 
 mod ack_collector;
+pub mod checkpoint;
 mod consensus;
 mod hybrid;
 

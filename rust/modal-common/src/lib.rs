@@ -11,3 +11,4 @@ pub mod encrypted_text;
 pub mod libp2p_identity_keypair;
 pub mod multiaddr_list;
 pub mod shuffle;
+pub mod merkle;
