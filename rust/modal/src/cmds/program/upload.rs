@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use std::path::PathBuf;
 use std::fs;
-use crate::contract_store::{ContractStore, CommitFile};
+use modal_common::contract_store::{ContractStore, CommitFile};
 
 #[derive(Parser, Debug)]
 pub struct Opts {

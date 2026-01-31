@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-use crate::contract_store::ContractStore;
+use modal_common::contract_store::ContractStore;
 
 #[derive(Debug, Parser)]
 #[command(about = "Manage contract assets")]

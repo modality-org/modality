@@ -3,7 +3,7 @@ use clap::Parser;
 use std::path::PathBuf;
 
 use modal_common::keypair::Keypair;
-use crate::contract_store::{ContractStore, CommitFile};
+use modal_common::contract_store::{ContractStore, CommitFile};
 
 #[derive(Debug, Parser)]
 #[command(about = "Create a new contract in a directory")]

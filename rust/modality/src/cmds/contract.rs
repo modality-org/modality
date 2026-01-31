@@ -2,6 +2,9 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+use modal_common::keypair::Keypair;
+use modal_common::contract_store::{ContractStore, CommitFile};
+
 /// Agent-friendly contract operations
 #[derive(Parser, Debug)]
 pub struct Opts {
@@ -11,15 +14,15 @@ pub struct Opts {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    /// Create a new empty contract
+    /// Create a new contract in a directory (dotcontract format)
     Create {
-        /// Optional template: escrow, handshake, service, swap, delegation, etc.
-        #[arg(short = 't', long)]
-        template: Option<String>,
+        /// Directory path where the contract will be created (defaults to current directory)
+        #[arg(long)]
+        dir: Option<PathBuf>,
         
-        /// Output file (default: stdout)
-        #[arg(short, long)]
-        output: Option<PathBuf>,
+        /// Output format (json or text)
+        #[arg(long, default_value = "text")]
+        output: String,
     },
     
     /// Propose a contract to another party
@@ -120,8 +123,8 @@ pub enum Command {
 
 pub async fn run(opts: &Opts) -> Result<()> {
     match &opts.command {
-        Command::Create { template, output } => {
-            create_contract(template.as_deref(), output.as_ref())
+        Command::Create { dir, output } => {
+            create_contract(dir.as_ref(), output)
         }
         Command::Propose { r#type, from, to, terms, output } => {
             propose_contract(r#type, from, to, terms.as_deref(), output.as_ref())
@@ -150,34 +153,66 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 }
 
-fn create_contract(template: Option<&str>, output: Option<&PathBuf>) -> Result<()> {
-    use modality_lang::agent::Contract;
-    
-    let contract = match template {
-        None => Contract::empty(),
-        Some("escrow") => Contract::escrow("PartyA", "PartyB"),
-        Some("handshake") => Contract::handshake("PartyA", "PartyB"),
-        Some("service") | Some("service_agreement") => Contract::service_agreement("Provider", "Consumer"),
-        Some("swap") | Some("atomic_swap") => Contract::atomic_swap("PartyA", "PartyB"),
-        Some("cooperation") | Some("mutual_cooperation") => Contract::mutual_cooperation("PartyA", "PartyB"),
-        Some("delegation") => Contract::delegation("Principal", "Agent"),
-        Some("auction") => Contract::auction("Seller"),
-        Some("subscription") => Contract::subscription("Provider", "Subscriber"),
-        Some(other) => return Err(anyhow::anyhow!(
-            "Unknown template: '{}'. Options: escrow, handshake, service, swap, cooperation, delegation, auction, subscription\n\
-            Or omit --template to create an empty contract.", other
-        )),
-    };
-    
-    let json = contract.to_json()?;
-    
-    if let Some(path) = output {
-        std::fs::write(path, &json)?;
-        println!("Contract created: {}", path.display());
+fn create_contract(dir: Option<&PathBuf>, output: &str) -> Result<()> {
+    // Determine the contract directory
+    let dir = if let Some(path) = dir {
+        path.clone()
     } else {
-        println!("{}", json);
-    }
+        std::env::current_dir()?
+    };
+
+    // Generate a keypair for the contract
+    let keypair = Keypair::generate()?;
+    let contract_id = keypair.as_public_address();
+
+    // Initialize the contract store
+    let store = ContractStore::init(&dir, contract_id.clone())?;
+
+    // Create genesis commit
+    let genesis = serde_json::json!({
+        "genesis": {
+            "contract_id": contract_id.clone(),
+            "created_at": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_secs(),
+            "public_key": keypair.public_key_as_base58_identity()
+        }
+    });
+
+    // Save genesis
+    store.save_genesis(&genesis)?;
+
+    // Create initial genesis commit as HEAD
+    let mut genesis_commit = CommitFile::new();
+    genesis_commit.add_action(
+        "genesis".to_string(),
+        None,
+        genesis.clone()
+    );
     
+    let genesis_commit_id = genesis_commit.compute_id()?;
+    store.save_commit(&genesis_commit_id, &genesis_commit)?;
+    store.set_head(&genesis_commit_id)?;
+
+    // Output
+    if output == "json" {
+        println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+            "contract_id": contract_id,
+            "directory": dir.display().to_string(),
+            "genesis_commit_id": genesis_commit_id,
+        }))?);
+    } else {
+        println!("✅ Contract created successfully!");
+        println!("   Contract ID: {}", contract_id);
+        println!("   Directory: {}", dir.display());
+        println!("   Genesis commit: {}", genesis_commit_id);
+        println!();
+        println!("Next steps:");
+        println!("  1. cd {}", dir.display());
+        println!("  2. modality contract commit --path /data --value 'hello'");
+        println!("  3. modality contract push --remote <node-multiaddr>");
+    }
+
     Ok(())
 }
 

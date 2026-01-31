@@ -1,8 +1,8 @@
 use clap::Parser;
 use anyhow::Result;
 use std::path::PathBuf;
-use crate::contract_store::ContractStore;
-use crate::contract_store::CommitFile;
+use modal_common::contract_store::ContractStore;
+use modal_common::contract_store::CommitFile;
 use serde_json::Value;
 
 #[derive(Parser, Debug)]

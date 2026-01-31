@@ -3,7 +3,7 @@ use clap::Parser;
 use serde_json::json;
 use std::path::PathBuf;
 
-use crate::contract_store::ContractStore;
+use modal_common::contract_store::ContractStore;
 
 #[derive(Debug, Parser)]
 #[command(about = "Show contract status")]

@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
 
-use crate::contract_store::ContractStore;
+use modal_common::contract_store::ContractStore;
 
 #[derive(Debug, Parser)]
 #[command(about = "Get the commit ID (HEAD or with offset)")]

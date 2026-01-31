@@ -1,5 +1,4 @@
 mod cmds;
-mod contract_store;
 mod utils;
 
 use anyhow::Result;

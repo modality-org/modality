@@ -3,7 +3,7 @@ use clap::Parser;
 use serde_json::json;
 use std::path::PathBuf;
 
-use crate::contract_store::{ContractStore, CommitFile};
+use modal_common::contract_store::{ContractStore, CommitFile};
 use modal_node::actions::request;
 use modal_node::node::Node;
 

@@ -3,7 +3,7 @@ use clap::Parser;
 use serde_json::Value;
 use std::path::PathBuf;
 
-use crate::contract_store::{ContractStore, CommitFile};
+use modal_common::contract_store::{ContractStore, CommitFile};
 
 #[derive(Debug, Parser)]
 #[command(about = "Add a commit to a local contract")]
