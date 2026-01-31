@@ -74,6 +74,7 @@ modal c commit --all
 
 ```bash
 # Alice adds a message
+mkdir -p state/data
 echo "Hello from Alice" > state/data/message.text
 modal c commit --all --sign alice.passfile
 
@@ -103,24 +104,24 @@ modal c log
 Contract: 12D3KooW...
 Commits: 5
 
-commit abc123... 
+commit 833e8119...
 Actions:
   post /data/response.text
 
-commit def456...
+commit bf68ec27...
 Actions:
   post /data/message.text
 
-commit 789abc...
+commit dee1abd8...
 Actions:
-  post /rules/auth.json
+  rule /rules/auth.modality
 
-commit bcd012...
+commit 18634bc4...
 Actions:
   post /users/alice.id
   post /users/bob.id
 
-commit efg345...
+commit 490a2225...
 Actions:
   genesis /
 ```
@@ -147,16 +148,16 @@ BOB=$(cat bob.passfile | jq -r '.id')
 echo "Alice: $ALICE"
 echo "Bob: $BOB"
 
-# Initialize state and add users
+# Initialize and add users to state/
 modal c checkout
-mkdir -p state/users state/rules state/data
+mkdir -p state/users state/data
 echo "$ALICE" > state/users/alice.id
 echo "$BOB" > state/users/bob.id
 
 # Commit users
 modal c commit --all
 
-# Add authorization rule (temporal modal logic)
+# Add authorization rule to rules/ (sibling of state/)
 # $PARENT is automatically replaced with the parent commit's hash
 mkdir -p rules
 cat > rules/auth.modality << 'EOF'
@@ -189,8 +190,8 @@ echo "=== Contract Log ==="
 modal c log
 
 echo ""
-echo "=== State Directory ==="
-find state -type f
+echo "=== Directory Structure ==="
+find state rules -type f
 ```
 
 ## Directory Structure
@@ -201,27 +202,34 @@ my-contract/
 │   ├── config.json
 │   ├── commits/
 │   └── HEAD
-├── state/               # Working directory
+├── state/               # Data files (POST method)
 │   ├── users/
 │   │   ├── alice.id
 │   │   └── bob.id
-│   ├── rules/
-│   │   └── auth.modality
 │   └── data/
 │       ├── message.text
 │       └── response.text
+├── rules/               # Rule files (RULE method)
+│   └── auth.modality
 ├── alice.passfile
 └── bob.passfile
 ```
+
+## Methods
+
+| Directory | Method | Purpose |
+|-----------|--------|---------|
+| `state/`  | `post` | Data files (.id, .text, .json, etc.) |
+| `rules/`  | `rule` | Modality formulas (.modality) |
 
 ## Workflow Summary
 
 | Command | Purpose |
 |---------|---------|
-| `modal c checkout` | Populate state/ from commits |
-| `modal c status` | Show contract info + state changes |
-| `modal c diff` | Show only state changes |
-| `modal c commit --all` | Commit all state changes |
+| `modal c checkout` | Populate state/ and rules/ from commits |
+| `modal c status` | Show contract info + changes |
+| `modal c diff` | Show only changes |
+| `modal c commit --all` | Commit all changes |
 | `modal c commit --all --sign X.passfile` | Commit with signature |
 | `modal c log` | Show commit history |
 | `modal c push` | Sync with network |
