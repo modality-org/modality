@@ -379,6 +379,72 @@ impl Contract {
     pub fn id(&self) -> &str {
         &self.instance.id
     }
+
+    // ==================== Path Store Methods ====================
+
+    /// Set a value at a path (POST action)
+    pub fn post(&mut self, path: &str, value: crate::paths::PathValue) -> Result<(), String> {
+        self.instance.post(path, value).map_err(|e| e.to_string())
+    }
+
+    /// Get a pubkey from a path
+    pub fn get_pubkey(&self, path: &str) -> Option<&str> {
+        self.instance.resolve_pubkey(path)
+    }
+
+    /// Get a balance from a path
+    pub fn get_balance(&self, path: &str) -> Option<u64> {
+        self.instance.resolve_balance(path)
+    }
+
+    /// Check if a path exists
+    pub fn path_exists(&self, path: &str) -> bool {
+        self.instance.store.exists(path)
+    }
+
+    // ==================== Convenience Helpers ====================
+
+    /// Get a human-readable description of what to do next
+    pub fn next_steps(&self) -> Vec<String> {
+        let mut steps = Vec::new();
+        
+        for party in &self.party_names {
+            let actions = self.what_can_i_do(party);
+            if !actions.is_empty() {
+                let action_names: Vec<_> = actions.iter().map(|a| a.name.clone()).collect();
+                steps.push(format!("{} can: {}", party, action_names.join(", ")));
+            }
+        }
+        
+        if steps.is_empty() {
+            if self.status().is_complete {
+                steps.push("Contract is complete.".to_string());
+            } else {
+                steps.push("No actions available.".to_string());
+            }
+        }
+        
+        steps
+    }
+
+    /// Check if it's a specific party's turn
+    pub fn is_turn(&self, party: &str) -> bool {
+        !self.what_can_i_do(party).is_empty()
+    }
+
+    /// Get all parties who can act right now
+    pub fn who_can_act(&self) -> Vec<String> {
+        self.party_names.iter()
+            .filter(|p| self.is_turn(p))
+            .cloned()
+            .collect()
+    }
+
+    /// Check if contract requires action from a specific party
+    pub fn waiting_for(&self, party: &str) -> bool {
+        let who = self.who_can_act();
+        who.len() == 1 && who[0].to_lowercase() == party.to_lowercase()
+    }
 }
 
 /// An action available to an agent
@@ -638,5 +704,41 @@ mod tests {
         let contract = Contract::auction("seller", 2);
         let status = contract.status();
         assert!(status.contract_type.contains("auction"));
+    }
+
+    #[test]
+    fn test_next_steps() {
+        let contract = Contract::escrow("alice", "bob");
+        let steps = contract.next_steps();
+        assert!(!steps.is_empty());
+        // Alice should be able to deposit
+        assert!(steps.iter().any(|s| s.contains("alice") || s.contains("Alice")));
+    }
+
+    #[test]
+    fn test_who_can_act() {
+        let contract = Contract::escrow("buyer", "seller");
+        let who = contract.who_can_act();
+        // At start, buyer can deposit
+        assert!(who.iter().any(|p| p.to_lowercase() == "buyer"));
+    }
+
+    #[test]
+    fn test_is_turn() {
+        let mut contract = Contract::handshake("alice", "bob");
+        // Both can sign initially
+        assert!(contract.is_turn("alice"));
+        assert!(contract.is_turn("bob"));
+    }
+
+    #[test]
+    fn test_post_and_get() {
+        use crate::paths::PathValue;
+        
+        let mut contract = Contract::escrow("alice", "bob");
+        contract.post("/escrow/amount.balance", PathValue::Balance(500)).unwrap();
+        
+        assert_eq!(contract.get_balance("/escrow/amount.balance"), Some(500));
+        assert!(contract.path_exists("/escrow/amount.balance"));
     }
 }
