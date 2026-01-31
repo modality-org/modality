@@ -40,6 +40,8 @@ use crate::synthesis::templates;
 use crate::patterns;
 use crate::runtime::{ContractInstance, ActionBuilder, RuntimeResult, RuntimeError, AvailableTransition};
 use crate::evolution::{EvolvableContract, Amendment};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::crypto;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 
@@ -445,6 +447,80 @@ impl Contract {
         let who = self.who_can_act();
         who.len() == 1 && who[0].to_lowercase() == party.to_lowercase()
     }
+
+    // ==================== Cryptographic Actions ====================
+
+    /// Take an action with a cryptographic signature
+    /// 
+    /// The action is signed with the agent's secret key, and the signature
+    /// is verified against the agent's public key stored at /members/<agent>.pubkey
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn act_signed(
+        &mut self,
+        agent: &str,
+        action: &str,
+        secret_key: &str,
+    ) -> Result<ActionResult, String> {
+        let agent_upper = agent.to_uppercase();
+        let action_upper = action.to_uppercase();
+        
+        // Build the action JSON
+        let action_json = serde_json::json!({
+            "action": action_upper,
+            "signer": agent,
+            "timestamp": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0),
+        });
+        let action_str = serde_json::to_string(&action_json)
+            .map_err(|e| format!("Failed to serialize action: {}", e))?;
+        
+        // Sign the action
+        let signature = crypto::sign_ed25519(secret_key, action_str.as_bytes())
+            .map_err(|e| format!("Failed to sign action: {}", e))?;
+        
+        // Verify against stored pubkey
+        let pubkey_path = format!("/members/{}.pubkey", agent.to_lowercase());
+        if !self.instance.verify_action_signature(&pubkey_path, &action_str, &signature) {
+            return Err("Signature verification failed - key mismatch".to_string());
+        }
+        
+        // Build and commit the action
+        let signed_action = ActionBuilder::new()
+            .with(&action_upper)
+            .with(&format!("SIGNED_BY_{}", agent_upper))
+            .signed_by(agent)
+            .signature(hex::decode(&signature).unwrap_or_default())
+            .build();
+        
+        match self.instance.commit(signed_action) {
+            Ok(record) => Ok(ActionResult {
+                success: true,
+                new_state: format!("{:?}", record.to_state),
+                sequence: record.seq,
+                message: format!("Action '{}' committed with verified signature", action),
+            }),
+            Err(e) => Err(format!("Failed to commit action: {}", e)),
+        }
+    }
+
+    /// Register a party with their public key
+    /// 
+    /// Call this to update a party's public key in the contract store.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn register_party(&mut self, party: &str, public_key: &str) -> Result<(), String> {
+        let path = format!("/members/{}.pubkey", party.to_lowercase());
+        self.post(&path, crate::paths::PathValue::PubKey(public_key.to_string()))
+    }
+
+    /// Generate a new keypair for signing
+    /// 
+    /// Returns (secret_key_hex, public_key_hex)
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn generate_keys() -> (String, String) {
+        crypto::generate_keypair()
+    }
 }
 
 /// An action available to an agent
@@ -740,5 +816,39 @@ mod tests {
         
         assert_eq!(contract.get_balance("/escrow/amount.balance"), Some(500));
         assert!(contract.path_exists("/escrow/amount.balance"));
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn test_generate_keys() {
+        let (secret, public) = Contract::generate_keys();
+        assert_eq!(secret.len(), 64); // 32 bytes hex
+        assert_eq!(public.len(), 64); // 32 bytes hex
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn test_register_party() {
+        let mut contract = Contract::escrow("alice", "bob");
+        let (_, public) = Contract::generate_keys();
+        
+        contract.register_party("alice", &public).unwrap();
+        
+        assert_eq!(contract.get_pubkey("/members/alice.pubkey"), Some(public.as_str()));
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn test_act_signed() {
+        let (secret, public) = Contract::generate_keys();
+        
+        let mut contract = Contract::handshake("alice", "bob");
+        
+        // Register Alice with her real pubkey
+        contract.register_party("alice", &public).unwrap();
+        
+        // Act with signature verification
+        let result = contract.act_signed("alice", "signed_by_alice", &secret);
+        assert!(result.is_ok(), "Should succeed: {:?}", result);
     }
 }

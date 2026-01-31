@@ -30,6 +30,7 @@ pub use printer::print_model;
 pub use evolution::{EvolvableContract, Amendment, Proposal, ProposalStatus, Approval, EvolutionRecord};
 pub use runtime::{ContractInstance, SignedAction, CommitRecord, ContractState, ActionBuilder, RuntimeError, RuntimeResult, AvailableTransition};
 pub use runtime::negotiation::{Proposal as NegotiationProposal, CounterProposal, ProposalStatus as NegotiationStatus};
+pub use crypto::{verify_ed25519, sign_ed25519, generate_keypair, sha256, VerifyResult};
 
 // Re-export the generated parser
 pub use grammar::ModelParser;
