@@ -92,6 +92,7 @@ const KNOWN_EXTENSIONS: &[&str] = &[
     ".md",        // Markdown
     ".id",        // Modality ID (peer ID)
     ".wasm",      // WebAssembly programs
+    ".modality",  // Modality rules/formulas
 ];
 
 impl CommitAction {
@@ -191,10 +192,10 @@ impl CommitAction {
     }
     
     fn validate_rule(&self) -> Result<()> {
-        // Rules should end in .json (they're JSON-encoded formulas)
+        // Rules should end in .modality
         if let Some(path) = &self.path {
-            if !path.ends_with(".json") {
-                anyhow::bail!("Rule path '{}' must end with .json", path);
+            if !path.ends_with(".modality") {
+                anyhow::bail!("Rule path '{}' must end with .modality", path);
             }
         }
         Ok(())

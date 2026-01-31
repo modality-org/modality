@@ -108,8 +108,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 let is_modified = committed.get(path).map(|v| v != &current_value).unwrap_or(false);
                 
                 if is_new || is_modified {
-                    // Use "rule" method for files in /rules/ directory
-                    let method = if path.starts_with("/rules/") {
+                    // Use "rule" method for .modality files in /rules/ directory
+                    let method = if path.starts_with("/rules/") && path.ends_with(".modality") {
                         "rule"
                     } else {
                         "post"
