@@ -22,6 +22,8 @@ pub struct Commit {
     pub signed_by: String,  // public key
     pub signature: Option<String>,
     pub timestamp: u64,
+    /// Optional: new governing model (must satisfy all rules)
+    pub model: Option<crate::ast::Model>,
 }
 
 /// Actions that can be committed to the log
@@ -35,12 +37,9 @@ pub enum Action {
     },
     
     /// Add a rule (formula) constraint
-    /// Must include a model that satisfies this rule AND all prior rules
     AddRule { 
         name: Option<String>,
         formula: Formula,
-        /// The state machine that satisfies all rules (required)
-        model: crate::ast::Model,
     },
     
     /// Domain action (state transition)
@@ -100,6 +99,17 @@ impl ContractLog {
     
     /// Add a commit to the log
     pub fn commit(&mut self, signed_by: String, actions: Vec<Action>, timestamp: u64) -> u64 {
+        self.commit_with_model(signed_by, actions, None, timestamp)
+    }
+    
+    /// Add a commit with an optional new governing model
+    pub fn commit_with_model(
+        &mut self, 
+        signed_by: String, 
+        actions: Vec<Action>, 
+        model: Option<crate::ast::Model>,
+        timestamp: u64
+    ) -> u64 {
         let commit_id = self.commits.len() as u64;
         self.commits.push(Commit {
             commit_id,
@@ -107,6 +117,7 @@ impl ContractLog {
             signed_by,
             signature: None,
             timestamp,
+            model,
         });
         commit_id
     }
@@ -116,6 +127,11 @@ impl ContractLog {
         let mut state = DerivedState::default();
         
         for commit in &self.commits {
+            // Check if commit provides a new governing model
+            if let Some(ref model) = commit.model {
+                state.current_model = Some(model.clone());
+            }
+            
             for action in &commit.actions {
                 match action {
                     Action::AddParty { party, .. } => {
@@ -123,9 +139,8 @@ impl ContractLog {
                             state.parties.push(party.clone());
                         }
                     }
-                    Action::AddRule { formula, model, .. } => {
+                    Action::AddRule { formula, .. } => {
                         state.rules.push(formula.clone());
-                        state.current_model = Some(model.clone());
                     }
                     Action::Domain { properties } => {
                         state.domain_history.push((commit.commit_id, properties.clone()));
@@ -163,31 +178,45 @@ impl ContractLog {
             .collect()
     }
     
-    /// Validate that a proposed commit satisfies all rules
-    pub fn validate_commit(&self, actions: &[Action]) -> Result<(), String> {
+    /// Validate a proposed commit (actions + optional model)
+    pub fn validate_commit(&self, actions: &[Action], new_model: Option<&crate::ast::Model>) -> Result<(), String> {
         use crate::model_checker::ModelChecker;
         
         // Collect all existing rules
-        let existing_rules: Vec<&Formula> = self.rules();
+        let mut all_rules: Vec<Formula> = self.rules().into_iter().cloned().collect();
         
-        // Check each AddRule action
+        // Add any new rules from this commit
         for action in actions {
-            if let Action::AddRule { name, formula, model } = action {
-                // Collect all rules: existing + this new one
-                let mut all_formulas: Vec<&Formula> = existing_rules.clone();
-                all_formulas.push(formula);
-                
-                // The provided model must satisfy ALL formulas
-                let checker = ModelChecker::new(model.clone());
-                
-                for f in &all_formulas {
-                    let result = checker.check_formula(f);
-                    if !result.is_satisfied {
-                        return Err(format!(
-                            "Model does not satisfy formula '{}'. AddRule rejected.",
-                            f.name
-                        ));
+            if let Action::AddRule { formula, .. } = action {
+                all_rules.push(formula.clone());
+            }
+        }
+        
+        // If there are any rules, we need a governing model
+        if !all_rules.is_empty() {
+            let state = self.derive_state();
+            
+            // Use new model if provided, otherwise use current model
+            let model = new_model.or(state.current_model.as_ref());
+            
+            match model {
+                Some(m) => {
+                    // Model must satisfy ALL rules
+                    let checker = ModelChecker::new(m.clone());
+                    
+                    for f in &all_rules {
+                        let result = checker.check_formula(f);
+                        if !result.is_satisfied {
+                            return Err(format!(
+                                "Model does not satisfy formula '{}'. Commit rejected.",
+                                f.name
+                            ));
+                        }
                     }
+                }
+                None => {
+                    // Rules exist but no model - invalid
+                    return Err("Rules exist but no governing model provided. Commit rejected.".to_string());
                 }
             }
         }
@@ -196,7 +225,7 @@ impl ContractLog {
         let state = self.derive_state();
         if state.finalized {
             if let Some(ref current_model) = state.current_model {
-                let checker = ModelChecker::new(current_model.clone());
+                let _checker = ModelChecker::new(current_model.clone());
                 
                 for action in actions {
                     if let Action::Domain { properties } = action {
@@ -221,6 +250,19 @@ impl Commit {
             signed_by,
             signature: None,
             timestamp,
+            model: None,
+        }
+    }
+    
+    /// Create a new commit with a governing model
+    pub fn with_model(commit_id: u64, signed_by: String, actions: Vec<Action>, model: crate::ast::Model, timestamp: u64) -> Self {
+        Self {
+            commit_id,
+            actions,
+            signed_by,
+            signature: None,
+            timestamp,
+            model: Some(model),
         }
     }
     
@@ -274,8 +316,8 @@ mod tests {
     fn test_add_party_and_rule() {
         let mut contract = ContractLog::new("test".to_string());
         
-        // A creates contract and adds a rule with a model
-        contract.commit(
+        // A creates contract and adds a rule WITH a governing model
+        contract.commit_with_model(
             "pubkey_a".to_string(),
             vec![
                 Action::AddParty { 
@@ -288,9 +330,9 @@ mod tests {
                         "AProtection".to_string(),
                         FormulaExpr::Eventually(Box::new(FormulaExpr::Prop("paid".to_string())))
                     ),
-                    model: simple_exchange_model(),
                 },
             ],
+            Some(simple_exchange_model()),
             1000,
         );
         
@@ -305,7 +347,7 @@ mod tests {
         let mut contract = ContractLog::new("exchange".to_string());
         
         // A creates and adds their rule with model
-        contract.commit(
+        contract.commit_with_model(
             "pubkey_a".to_string(),
             vec![
                 Action::AddParty { party: "pubkey_a".to_string(), name: Some("A".to_string()) },
@@ -315,14 +357,14 @@ mod tests {
                         "A_gets_paid".to_string(),
                         FormulaExpr::Eventually(Box::new(FormulaExpr::Prop("paid".to_string())))
                     ),
-                    model: simple_exchange_model(),
                 },
             ],
+            Some(simple_exchange_model()),
             1000,
         );
         
-        // B joins and adds their rule (must provide model satisfying BOTH rules)
-        contract.commit(
+        // B joins and adds their rule (can provide new model or rely on existing)
+        contract.commit_with_model(
             "pubkey_b".to_string(),
             vec![
                 Action::AddParty { party: "pubkey_b".to_string(), name: Some("B".to_string()) },
@@ -332,13 +374,13 @@ mod tests {
                         "B_gets_goods".to_string(),
                         FormulaExpr::Eventually(Box::new(FormulaExpr::Prop("delivered".to_string())))
                     ),
-                    model: simple_exchange_model(), // same model works for both
                 },
             ],
+            Some(simple_exchange_model()), // provides updated model satisfying both
             2000,
         );
         
-        // A delivers
+        // A delivers (no model change needed)
         contract.commit(
             "pubkey_a".to_string(),
             vec![
@@ -349,7 +391,7 @@ mod tests {
             3000,
         );
         
-        // B pays
+        // B pays (no model change needed)
         contract.commit(
             "pubkey_b".to_string(),
             vec![
@@ -368,10 +410,10 @@ mod tests {
     }
     
     #[test]
-    fn test_validate_add_rule_requires_satisfying_model() {
+    fn test_validate_requires_model_for_rules() {
         let contract = ContractLog::new("test".to_string());
         
-        // Try to add a rule with a model that satisfies it
+        // Try to add a rule WITHOUT a model - should fail
         let actions = vec![
             Action::AddRule {
                 name: Some("Test".to_string()),
@@ -379,11 +421,52 @@ mod tests {
                     "Test".to_string(),
                     FormulaExpr::Eventually(Box::new(FormulaExpr::Prop("paid".to_string())))
                 ),
-                model: simple_exchange_model(),
             },
         ];
         
-        // This should pass - model has path to "paid"
-        assert!(contract.validate_commit(&actions).is_ok());
+        // Should fail - no model provided
+        assert!(contract.validate_commit(&actions, None).is_err());
+        
+        // Should pass - model provided that satisfies rule
+        assert!(contract.validate_commit(&actions, Some(&simple_exchange_model())).is_ok());
+    }
+    
+    #[test]
+    fn test_any_commit_can_update_model() {
+        let mut contract = ContractLog::new("test".to_string());
+        
+        // First commit: add rule with model
+        contract.commit_with_model(
+            "pubkey_a".to_string(),
+            vec![
+                Action::AddRule {
+                    name: Some("R1".to_string()),
+                    formula: Formula::new(
+                        "R1".to_string(),
+                        FormulaExpr::Eventually(Box::new(FormulaExpr::Prop("paid".to_string())))
+                    ),
+                },
+            ],
+            Some(simple_exchange_model()),
+            1000,
+        );
+        
+        // Second commit: just a domain action, but also updates model
+        let mut new_model = simple_exchange_model();
+        new_model.name = "UpdatedExchange".to_string();
+        
+        contract.commit_with_model(
+            "pubkey_a".to_string(),
+            vec![
+                Action::Domain { 
+                    properties: vec![Property::new(PropertySign::Plus, "STEP".to_string())]
+                },
+            ],
+            Some(new_model),
+            2000,
+        );
+        
+        let state = contract.derive_state();
+        assert_eq!(state.current_model.as_ref().unwrap().name, "UpdatedExchange");
     }
 }

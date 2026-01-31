@@ -10,14 +10,22 @@ A Modality contract is an **append-only log of signed commits**. Each commit con
 Contract {
   id: "unique_id",
   commits: [
-    Commit { actions: [...], signed_by: A, timestamp: t0 },
-    Commit { actions: [...], signed_by: B, timestamp: t1 },
+    Commit { actions: [...], model: Some(M1), signed_by: A, timestamp: t0 },
+    Commit { actions: [...], model: None, signed_by: B, timestamp: t1 },
+    Commit { actions: [...], model: Some(M2), signed_by: A, timestamp: t2 },
     ...
   ]
 }
 ```
 
 The log is the source of truth. There is no separate "state" - state is always derived by replaying commits.
+
+### Governing Model
+
+Any commit can include a new governing model. The model must satisfy ALL accumulated rules. This allows:
+- Providing initial model when first rule is added
+- Updating/refining the model as new rules are added
+- Proposing alternative models that still satisfy all rules
 
 ### Action Types
 
