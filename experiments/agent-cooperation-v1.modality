@@ -17,8 +17,9 @@ model MutualCooperation {
 }
 
 // Rule: All commits must be signed by Alice or Bob
+// Uses diamondbox [<+action>] = "can do AND cannot refuse" (commitment)
 formula RequireSignature {
-  always (must +SIGNED_BY_ALICE or must +SIGNED_BY_BOB)
+  always ([<+SIGNED_BY_ALICE>] true | [<+SIGNED_BY_BOB>] true)
 }
 
 // Rule: Defection is never allowed
@@ -29,8 +30,8 @@ formula NoDefection {
 // Combined rule (what the contract enforces)
 formula ContractRules {
   always (
-    (must +SIGNED_BY_ALICE or must +SIGNED_BY_BOB) 
-    and [-DEFECT] true
+    ([<+SIGNED_BY_ALICE>] true | [<+SIGNED_BY_BOB>] true) 
+    & [-DEFECT] true
   )
 }
 

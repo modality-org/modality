@@ -73,7 +73,7 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always must (
+    always (
       [release] implies <deliver> true
     )
   }
@@ -135,7 +135,7 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always must (
+    always (
       [pay] implies <deliver> true
     )
   }
@@ -162,9 +162,9 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always must (
+    always (
       [execute] implies (
-        <signed_by(/users/alice.id)> true and
+        <signed_by(/users/alice.id)> true &
         <signed_by(/users/bob.id)> true
       )
     )
@@ -192,9 +192,9 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always must (
+    always (
       [claim] implies (
-        <signed_by(/users/alice.id)> true and
+        <signed_by(/users/alice.id)> true &
         <signed_by(/users/bob.id)> true
       )
     )

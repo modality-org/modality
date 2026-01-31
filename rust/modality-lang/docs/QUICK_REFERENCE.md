@@ -189,3 +189,50 @@ init → b_committed ↗
 agreed → m1_funded → m1_delivered → m1_confirmed →
        → m2_funded → m2_delivered → m2_confirmed → ...
 ```
+
+## Formula Syntax
+
+### Modal Operators
+| Syntax | Meaning |
+|--------|---------|
+| `[a] φ` | Box: all a-transitions satisfy φ |
+| `<a> φ` | Diamond: some a-transition satisfies φ |
+| `[] φ` | All transitions satisfy φ |
+| `<> φ` | Some transition satisfies φ |
+| `[<a>] φ` | Diamondbox: committed (can do a, cannot refuse) |
+
+### Temporal Operators
+| Syntax | Meaning |
+|--------|---------|
+| `always(φ)` | φ holds on all paths forever |
+| `eventually(φ)` | φ holds eventually on some path |
+| `p until q` | p holds until q becomes true |
+| `next(φ)` | φ holds in the next state |
+
+### Fixed Points (Modal Mu-Calculus)
+| Syntax | Meaning |
+|--------|---------|
+| `lfp(X, φ)` or `μX.φ` | Least fixed point |
+| `gfp(X, φ)` or `νX.φ` | Greatest fixed point |
+
+### Temporal = Fixed Point Sugar
+```
+always(f)     ≡  gfp(X, []X & f)
+eventually(f) ≡  lfp(X, <>X | f)
+until(p, q)   ≡  lfp(X, q | (p & <>X))
+```
+
+### Example Rule
+```modality
+export default rule {
+  starting_at $PARENT
+  formula {
+    always (
+      [+EXECUTE] implies (
+        <+signed_by(/users/alice.id)> true &
+        <+signed_by(/users/bob.id)> true
+      )
+    )
+  }
+}
+```

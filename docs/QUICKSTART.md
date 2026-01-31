@@ -64,12 +64,14 @@ Create **rules/auth.modality** — the constraints:
 export default rule {
   starting_at $PARENT
   formula {
-    always must (
-      signed_by(/users/alice.id) | signed_by(/users/bob.id)
+    always (
+      [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
     )
   }
 }
 ```
+
+This uses the **diamondbox** operator `[<+action>]` which means "can do action AND cannot refuse" — expressing commitment.
 
 ### 3. Commit (Signed)
 
