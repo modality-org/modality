@@ -178,7 +178,26 @@ pub async fn run(opts: &Opts) -> Result<()> {
     commit.validate()?;
 
     // Compute commit ID
-    let commit_id = commit.compute_id()?;
+    let mut commit_id = commit.compute_id()?;
+
+    // Replace $COMMIT placeholder in rule values with actual commit ID
+    let mut has_placeholder = false;
+    for action in &mut commit.body {
+        if action.method == "rule" {
+            if let Value::String(s) = &action.value {
+                if s.contains("$COMMIT") {
+                    let replaced = s.replace("$COMMIT", &commit_id);
+                    action.value = Value::String(replaced);
+                    has_placeholder = true;
+                }
+            }
+        }
+    }
+    
+    // Recompute commit ID if we replaced placeholders
+    if has_placeholder {
+        commit_id = commit.compute_id()?;
+    }
 
     // Save commit
     store.save_commit(&commit_id, &commit)?;

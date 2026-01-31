@@ -52,14 +52,12 @@ modal c commit --all
 ## Step 4: Add Authorization Rule
 
 ```bash
-# Get the current HEAD commit hash
-HEAD=$(cat .contract/HEAD)
-
 # Add a rule requiring signatures (temporal modal logic)
+# $COMMIT is automatically replaced with this commit's hash
 mkdir -p rules
-cat > rules/auth.modality << EOF
+cat > rules/auth.modality << 'EOF'
 export default rule {
-  starting $HEAD
+  starting $COMMIT
   formula {
     always must (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
@@ -159,11 +157,11 @@ echo "$BOB" > state/users/bob.id
 modal c commit --all
 
 # Add authorization rule (temporal modal logic)
-HEAD=$(cat .contract/HEAD)
+# $COMMIT is automatically replaced with the commit's hash
 mkdir -p rules
-cat > rules/auth.modality << EOF
+cat > rules/auth.modality << 'EOF'
 export default rule {
-  starting $HEAD
+  starting $COMMIT
   formula {
     always must (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
