@@ -647,11 +647,11 @@ formula committed {
     }
 
     #[test]
-    fn test_parse_must_simple() {
-        // must P desugars to [<+P>] true
+    fn test_parse_always_diamondbox() {
+        // always([<+A>] true | [<+B>] true) - explicit diamondbox syntax
         let content = r#"
-formula mustPay {
-    must PAY
+formula alwaysCommitted {
+    always([<+signed_by_A>] true | [<+signed_by_B>] true)
 }
 "#;
         
@@ -659,64 +659,7 @@ formula mustPay {
         assert_eq!(formulas.len(), 1);
         
         let formula = &formulas[0];
-        assert_eq!(formula.name, "mustPay");
-        
-        // Should desugar to DiamondBox
-        match &formula.expression {
-            FormulaExpr::DiamondBox(props, inner) => {
-                assert_eq!(props.len(), 1);
-                assert_eq!(props[0].name, "PAY");
-                assert_eq!(props[0].sign, PropertySign::Plus);
-                assert!(matches!(**inner, FormulaExpr::True));
-            }
-            _ => panic!("Expected DiamondBox from must, got {:?}", formula.expression),
-        }
-    }
-
-    #[test]
-    fn test_parse_must_disjunction() {
-        // must (P | Q) desugars to [<+P>] true | [<+Q>] true
-        let content = r#"
-formula mustEither {
-    must (PAY | REFUND)
-}
-"#;
-        
-        let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
-        assert_eq!(formulas.len(), 1);
-        
-        let formula = &formulas[0];
-        assert_eq!(formula.name, "mustEither");
-        
-        // Should desugar to Or(DiamondBox, DiamondBox)
-        match &formula.expression {
-            FormulaExpr::Or(left, right) => {
-                match (&**left, &**right) {
-                    (FormulaExpr::DiamondBox(props_l, _), FormulaExpr::DiamondBox(props_r, _)) => {
-                        assert_eq!(props_l[0].name, "PAY");
-                        assert_eq!(props_r[0].name, "REFUND");
-                    }
-                    _ => panic!("Expected Or(DiamondBox, DiamondBox), got Or({:?}, {:?})", left, right),
-                }
-            }
-            _ => panic!("Expected Or from must disjunction, got {:?}", formula.expression),
-        }
-    }
-
-    #[test]
-    fn test_parse_always_must() {
-        // always(must (A | B)) - the example Foy gave
-        let content = r#"
-formula alwaysMust {
-    always(must (signed_by_A | signed_by_B))
-}
-"#;
-        
-        let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
-        assert_eq!(formulas.len(), 1);
-        
-        let formula = &formulas[0];
-        assert_eq!(formula.name, "alwaysMust");
+        assert_eq!(formula.name, "alwaysCommitted");
         
         // Should be Always(Or(DiamondBox, DiamondBox))
         match &formula.expression {

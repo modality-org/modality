@@ -296,12 +296,6 @@ FormulaAtom: FormulaExpr = {
     "[" "<" <properties:PropertyList> ">" "]" <expr:FormulaAtom> => {
         FormulaExpr::DiamondBox(properties, Box::new(expr))
     },
-    // must φ - syntactic sugar that desugars based on content
-    // must (P | Q) → [<+P>] true | [<+Q>] true  (parens handled by FormulaAtom)
-    // must P → [<+P>] true
-    "must" <expr:FormulaAtom> => {
-        FormulaExpr::desugar_must(expr)
-    },
     // Fixed point operators (modal mu-calculus)
     // lfp(X, φ) - least fixed point
     "lfp" "(" <var:Ident> "," <expr:FormulaExpr> ")" => {
