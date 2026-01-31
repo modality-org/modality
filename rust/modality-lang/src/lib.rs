@@ -16,6 +16,7 @@ pub mod agent;
 pub mod patterns;
 pub mod paths;
 pub mod crypto;
+pub mod contract_log;
 
 // Include the generated parser
 use lalrpop_util::lalrpop_mod;
@@ -31,6 +32,7 @@ pub use evolution::{EvolvableContract, Amendment, Proposal, ProposalStatus, Appr
 pub use runtime::{ContractInstance, SignedAction, CommitRecord, ContractState, ActionBuilder, RuntimeError, RuntimeResult, AvailableTransition};
 pub use runtime::negotiation::{Proposal as NegotiationProposal, CounterProposal, ProposalStatus as NegotiationStatus};
 pub use crypto::{verify_ed25519, sign_ed25519, generate_keypair, sha256, VerifyResult};
+pub use contract_log::{ContractLog, Commit, Action as CommitAction, DerivedState};
 
 // Re-export the generated parser
 pub use grammar::ModelParser;
