@@ -108,7 +108,13 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 let is_modified = committed.get(path).map(|v| v != &current_value).unwrap_or(false);
                 
                 if is_new || is_modified {
-                    commit.add_action("post".to_string(), Some(path.clone()), current_value);
+                    // Use "rule" method for files in /rules/ directory
+                    let method = if path.starts_with("/rules/") {
+                        "rule"
+                    } else {
+                        "post"
+                    };
+                    commit.add_action(method.to_string(), Some(path.clone()), current_value);
                     changes += 1;
                 }
             }
