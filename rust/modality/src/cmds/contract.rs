@@ -344,13 +344,8 @@ fn verify_contract(model_path: &PathBuf, formula: Option<&str>) -> Result<()> {
     use modality_lang::{parse_file_lalrpop, ModelChecker};
     
     // Parse the model
-    let models = parse_file_lalrpop(model_path.to_str().unwrap())?;
-    
-    if models.is_empty() {
-        return Err(anyhow::anyhow!("No models found in file"));
-    }
-    
-    let model = &models[0];
+    let model = parse_file_lalrpop(model_path.to_str().unwrap())
+        .map_err(|e| anyhow::anyhow!("Parse error: {}", e))?;
     println!("Model: {}", model.name);
     println!("Parts: {}", model.parts.len());
     
