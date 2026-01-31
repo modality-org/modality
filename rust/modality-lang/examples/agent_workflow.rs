@@ -60,7 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Contract state:");
     println!("  Amount: {} tokens", contract.get_balance("/escrow/amount.balance").unwrap_or(0));
-    println!("  Description: {:?}", contract.instance.store.get("/escrow/description.text"));
+    println!("  Has description: {}", contract.path_exists("/escrow/description.text"));
     println!("");
 
     // =========================================================================
