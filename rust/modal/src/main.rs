@@ -68,6 +68,9 @@ enum Commands {
         command: ContractCommands,
     },
 
+    #[command(about = "Show status (contract status if in contract directory)")]
+    Status(cmds::contract::status::Opts),
+
     #[command(about = "Run node shortcuts")]
     Run {
         #[command(subcommand)]
@@ -410,6 +413,16 @@ async fn main() -> Result<()> {
         }
         Commands::Killall(opts) => cmds::local::killall_nodes::run(opts).await?,
         Commands::Upgrade(opts) => modality::cmds::upgrade::run(opts).await?,
+        Commands::Status(opts) => {
+            // Check if we're in a contract directory
+            let dir = std::env::current_dir()?;
+            if dir.join(".contract").exists() {
+                cmds::contract::status::run(opts).await?
+            } else {
+                println!("Not in a contract directory.");
+                println!("Run 'modal contract create' to create a new contract.");
+            }
+        }
     }
 
     Ok(())
