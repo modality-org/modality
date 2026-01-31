@@ -118,6 +118,12 @@ pub enum Command {
         #[arg(short, long)]
         formula: Option<String>,
     },
+    
+    /// Parse and validate a contract from .modality file
+    Parse {
+        /// Contract file (.modality)
+        file: PathBuf,
+    },
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
@@ -145,6 +151,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
         Command::Verify { model, formula } => {
             verify_contract(model, formula.as_deref())
+        }
+        Command::Parse { file } => {
+            parse_contract_file(file)
         }
     }
 }
@@ -338,6 +347,47 @@ fn format_timestamp(ts: u64) -> String {
     use std::time::{UNIX_EPOCH, Duration};
     let d = UNIX_EPOCH + Duration::from_millis(ts);
     format!("{:?}", d)
+}
+
+fn parse_contract_file(file: &PathBuf) -> Result<()> {
+    use modality_lang::lalrpop_parser::parse_contract_file as parse_contract;
+    use modality_lang::ast::CommitStatement;
+    
+    println!("Parsing: {}\n", file.display());
+    
+    let contract = parse_contract(file)
+        .map_err(|e| anyhow::anyhow!("Parse error: {}", e))?;
+    
+    println!("✓ Contract: {}", contract.name);
+    println!("  Commits: {}\n", contract.commits.len());
+    
+    for (i, commit) in contract.commits.iter().enumerate() {
+        println!("  Commit {}:", i);
+        println!("    signed_by: {}", commit.signed_by);
+        if commit.model.is_some() {
+            println!("    model: (provided)");
+        }
+        for stmt in &commit.statements {
+            match stmt {
+                CommitStatement::AddParty(name) => println!("    add_party: {}", name),
+                CommitStatement::AddRule { name, .. } => {
+                    println!("    add_rule: {}", name.as_deref().unwrap_or("(anonymous)"));
+                }
+                CommitStatement::DomainAction(props) => {
+                    let props_str: Vec<String> = props.iter()
+                        .map(|p| format!("{}{}", if p.sign == modality_lang::ast::PropertySign::Plus { "+" } else { "-" }, p.name))
+                        .collect();
+                    println!("    do: {}", props_str.join(" "));
+                }
+                _ => {}
+            }
+        }
+        println!();
+    }
+    
+    println!("✓ Contract is valid.");
+    
+    Ok(())
 }
 
 fn verify_contract(model_path: &PathBuf, formula: Option<&str>) -> Result<()> {
