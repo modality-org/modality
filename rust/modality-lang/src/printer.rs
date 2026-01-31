@@ -52,28 +52,24 @@ fn print_properties(props: &[Property]) -> String {
         .join(" ")
 }
 
-/// Print a single property, using @Signer shorthand when applicable
+/// Print a single property, handling predicates
 fn print_property(prop: &Property) -> String {
-    // Check if this is a SIGNED_BY_ property that can use shorthand
-    if prop.sign == PropertySign::Plus && prop.name.starts_with("SIGNED_BY_") {
-        let signer = &prop.name[10..]; // Remove "SIGNED_BY_" prefix
-        // Convert to title case for the shorthand
-        let signer_pretty = signer
-            .chars()
-            .enumerate()
-            .map(|(i, c)| {
-                if i == 0 { c.to_ascii_uppercase() }
-                else { c.to_ascii_lowercase() }
-            })
-            .collect::<String>();
-        format!("@{}", signer_pretty)
-    } else {
-        let sign = match prop.sign {
-            PropertySign::Plus => "+",
-            PropertySign::Minus => "-",
-        };
-        format!("{}{}", sign, prop.name)
+    let sign = match prop.sign {
+        PropertySign::Plus => "+",
+        PropertySign::Minus => "-",
+    };
+    
+    // Check if this is a predicate property
+    if let Some(ref source) = prop.source {
+        if let crate::ast::PropertySource::Predicate { args, .. } = source {
+            // Extract the arg from the JSON
+            if let Some(arg) = args.get("arg").and_then(|v| v.as_str()) {
+                return format!("{}{}({})", sign, prop.name, arg);
+            }
+        }
     }
+    
+    format!("{}{}", sign, prop.name)
 }
 
 #[cfg(test)]
@@ -87,8 +83,8 @@ mod tests {
         let output = print_model(&model);
         
         assert!(output.contains("model MutualCooperation"));
-        assert!(output.contains("@Alice"));
-        assert!(output.contains("@Bob"));
+        assert!(output.contains("+SIGNED_BY_ALICE"));
+        assert!(output.contains("+SIGNED_BY_BOB"));
         assert!(output.contains("-DEFECT"));
     }
     
@@ -104,14 +100,20 @@ mod tests {
     }
     
     #[test]
-    fn test_signer_shorthand() {
+    fn test_property_printing() {
         let prop = Property::new(PropertySign::Plus, "SIGNED_BY_ALICE".to_string());
-        assert_eq!(print_property(&prop), "@Alice");
+        assert_eq!(print_property(&prop), "+SIGNED_BY_ALICE");
         
         let prop2 = Property::new(PropertySign::Plus, "DEPOSIT".to_string());
         assert_eq!(print_property(&prop2), "+DEPOSIT");
         
         let prop3 = Property::new(PropertySign::Minus, "DEFECT".to_string());
         assert_eq!(print_property(&prop3), "-DEFECT");
+    }
+    
+    #[test]
+    fn test_predicate_printing() {
+        let prop = Property::new_predicate_from_call("signed_by".to_string(), "alice_pubkey".to_string());
+        assert_eq!(print_property(&prop), "+signed_by(alice_pubkey)");
     }
 }

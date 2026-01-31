@@ -1,4 +1,4 @@
-use crate::ast::{Model, Part, Transition, Property, PropertySign, Formula, FormulaExpr, PartState, TopLevelItem, Action, ActionCall, Test, TestStatement};
+use crate::ast::{Model, Part, Transition, Property, PropertySign, PropertySource, Formula, FormulaExpr, PartState, TopLevelItem, Action, ActionCall, Test, TestStatement};
 
 grammar;
 
@@ -70,8 +70,20 @@ PropertyList: Vec<Property> = {
 Property: Property = {
     "+" <name:Ident> => Property::new(PropertySign::Plus, name),
     "-" <name:Ident> => Property::new(PropertySign::Minus, name),
-    // @Signer shorthand: @Alice expands to +SIGNED_BY_ALICE
-    "@" <name:Ident> => Property::new(PropertySign::Plus, format!("SIGNED_BY_{}", name.to_uppercase()))
+    // Predicate function call: +signed_by("pubkey") or +has_amount(100)
+    "+" <name:Ident> "(" <arg:PredicateArg> ")" => {
+        Property::new_predicate_from_call(name, arg)
+    },
+    // Negated predicate: -signed_by("pubkey")
+    "-" <name:Ident> "(" <arg:PredicateArg> ")" => {
+        Property::new_predicate_from_call_negated(name, arg)
+    }
+};
+
+// Predicate arguments can be strings or identifiers
+PredicateArg: String = {
+    <s:StringLiteral> => s,
+    <i:Ident> => i
 };
 
 // Action parsing
