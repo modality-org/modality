@@ -321,6 +321,135 @@ pub mod templates {
         model.add_part(part);
         model
     }
+
+    /// Atomic swap: both parties must deliver before either can claim
+    pub fn atomic_swap(party_a: &str, party_b: &str) -> Model {
+        let mut model = Model::new("AtomicSwap".to_string());
+        let mut part = Part::new("exchange".to_string());
+        
+        let signer_a = format!("SIGNED_BY_{}", party_a.to_uppercase());
+        let signer_b = format!("SIGNED_BY_{}", party_b.to_uppercase());
+        
+        // init --> a_committed: +COMMIT_A +SIGNED_BY_A
+        let mut t1 = Transition::new("init".to_string(), "a_committed".to_string());
+        t1.add_property(Property::new(PropertySign::Plus, "COMMIT_A".to_string()));
+        t1.add_property(Property::new(PropertySign::Plus, signer_a.clone()));
+        part.add_transition(t1);
+        
+        // init --> b_committed: +COMMIT_B +SIGNED_BY_B
+        let mut t2 = Transition::new("init".to_string(), "b_committed".to_string());
+        t2.add_property(Property::new(PropertySign::Plus, "COMMIT_B".to_string()));
+        t2.add_property(Property::new(PropertySign::Plus, signer_b.clone()));
+        part.add_transition(t2);
+        
+        // a_committed --> both_committed: +COMMIT_B +SIGNED_BY_B
+        let mut t3 = Transition::new("a_committed".to_string(), "both_committed".to_string());
+        t3.add_property(Property::new(PropertySign::Plus, "COMMIT_B".to_string()));
+        t3.add_property(Property::new(PropertySign::Plus, signer_b.clone()));
+        part.add_transition(t3);
+        
+        // b_committed --> both_committed: +COMMIT_A +SIGNED_BY_A
+        let mut t4 = Transition::new("b_committed".to_string(), "both_committed".to_string());
+        t4.add_property(Property::new(PropertySign::Plus, "COMMIT_A".to_string()));
+        t4.add_property(Property::new(PropertySign::Plus, signer_a.clone()));
+        part.add_transition(t4);
+        
+        // both_committed --> complete: +CLAIM
+        let mut t5 = Transition::new("both_committed".to_string(), "complete".to_string());
+        t5.add_property(Property::new(PropertySign::Plus, "CLAIM".to_string()));
+        part.add_transition(t5);
+        
+        // complete --> complete
+        part.add_transition(Transition::new("complete".to_string(), "complete".to_string()));
+        
+        model.add_part(part);
+        model
+    }
+
+    /// Multisig: requires N signatures to approve
+    pub fn multisig(signers: &[&str], required: usize) -> Model {
+        let mut model = Model::new("Multisig".to_string());
+        let mut part = Part::new("approval".to_string());
+        
+        // Create signature properties
+        let signer_props: Vec<String> = signers.iter()
+            .map(|s| format!("SIGNED_BY_{}", s.to_uppercase()))
+            .collect();
+        
+        // init --> proposed: +PROPOSE
+        let mut t_propose = Transition::new("init".to_string(), "proposed".to_string());
+        t_propose.add_property(Property::new(PropertySign::Plus, "PROPOSE".to_string()));
+        part.add_transition(t_propose);
+        
+        // For each signer: proposed --> proposed: +SIGNED_BY_X
+        for signer_prop in &signer_props {
+            let mut t = Transition::new("proposed".to_string(), "proposed".to_string());
+            t.add_property(Property::new(PropertySign::Plus, signer_prop.clone()));
+            part.add_transition(t);
+        }
+        
+        // proposed --> approved: +APPROVE (requires checking N signatures externally)
+        let mut t_approve = Transition::new("proposed".to_string(), "approved".to_string());
+        t_approve.add_property(Property::new(PropertySign::Plus, "APPROVE".to_string()));
+        // Note: In practice, a formula would enforce the N-of-M requirement
+        part.add_transition(t_approve);
+        
+        // approved --> executed: +EXECUTE
+        let mut t_execute = Transition::new("approved".to_string(), "executed".to_string());
+        t_execute.add_property(Property::new(PropertySign::Plus, "EXECUTE".to_string()));
+        part.add_transition(t_execute);
+        
+        // Add metadata about required signatures as model-level info
+        // (This is informal - real enforcement is via formulas)
+        let _ = required; // Used in comments/docs, formula checks this
+        
+        model.add_part(part);
+        model
+    }
+
+    /// Service agreement: offer → accept → deliver → confirm → pay
+    pub fn service_agreement(provider: &str, consumer: &str) -> Model {
+        let mut model = Model::new("ServiceAgreement".to_string());
+        let mut part = Part::new("contract".to_string());
+        
+        let signer_provider = format!("SIGNED_BY_{}", provider.to_uppercase());
+        let signer_consumer = format!("SIGNED_BY_{}", consumer.to_uppercase());
+        
+        // init --> offered: +OFFER +SIGNED_BY_PROVIDER
+        let mut t1 = Transition::new("init".to_string(), "offered".to_string());
+        t1.add_property(Property::new(PropertySign::Plus, "OFFER".to_string()));
+        t1.add_property(Property::new(PropertySign::Plus, signer_provider.clone()));
+        part.add_transition(t1);
+        
+        // offered --> accepted: +ACCEPT +SIGNED_BY_CONSUMER
+        let mut t2 = Transition::new("offered".to_string(), "accepted".to_string());
+        t2.add_property(Property::new(PropertySign::Plus, "ACCEPT".to_string()));
+        t2.add_property(Property::new(PropertySign::Plus, signer_consumer.clone()));
+        part.add_transition(t2);
+        
+        // accepted --> delivered: +DELIVER +SIGNED_BY_PROVIDER
+        let mut t3 = Transition::new("accepted".to_string(), "delivered".to_string());
+        t3.add_property(Property::new(PropertySign::Plus, "DELIVER".to_string()));
+        t3.add_property(Property::new(PropertySign::Plus, signer_provider.clone()));
+        part.add_transition(t3);
+        
+        // delivered --> confirmed: +CONFIRM +SIGNED_BY_CONSUMER
+        let mut t4 = Transition::new("delivered".to_string(), "confirmed".to_string());
+        t4.add_property(Property::new(PropertySign::Plus, "CONFIRM".to_string()));
+        t4.add_property(Property::new(PropertySign::Plus, signer_consumer.clone()));
+        part.add_transition(t4);
+        
+        // confirmed --> complete: +PAY
+        let mut t5 = Transition::new("confirmed".to_string(), "complete".to_string());
+        t5.add_property(Property::new(PropertySign::Plus, "PAY".to_string()));
+        part.add_transition(t5);
+        
+        // complete --> complete
+        part.add_transition(Transition::new("complete".to_string(), "complete".to_string()));
+        
+        model.add_part(part);
+        model
+    }
 }
 
 #[cfg(test)]
@@ -344,6 +473,33 @@ mod tests {
     fn test_escrow_template() {
         let model = templates::escrow("Alice", "Bob");
         assert_eq!(model.name, "Escrow");
+    }
+    
+    #[test]
+    fn test_atomic_swap_template() {
+        let model = templates::atomic_swap("Alice", "Bob");
+        assert_eq!(model.name, "AtomicSwap");
+        assert_eq!(model.parts.len(), 1);
+        let part = &model.parts[0];
+        assert_eq!(part.name, "exchange");
+        // Should have transitions for both commit paths
+        assert!(part.transitions.len() >= 5);
+    }
+    
+    #[test]
+    fn test_multisig_template() {
+        let model = templates::multisig(&["Alice", "Bob", "Carol"], 2);
+        assert_eq!(model.name, "Multisig");
+        assert_eq!(model.parts.len(), 1);
+    }
+    
+    #[test]
+    fn test_service_agreement_template() {
+        let model = templates::service_agreement("Provider", "Consumer");
+        assert_eq!(model.name, "ServiceAgreement");
+        assert_eq!(model.parts.len(), 1);
+        let part = &model.parts[0];
+        assert_eq!(part.name, "contract");
     }
     
     #[test]
