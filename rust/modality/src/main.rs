@@ -54,6 +54,7 @@ enum Commands {
         command: NodeCommands,
     },
 
+    #[command(alias = "c")]
     #[command(about = "Agent contract operations (create, propose, execute)")]
     Contract(cmds::contract::Opts),
 

@@ -61,6 +61,7 @@ enum Commands {
         command: NetworkCommands,
     },
 
+    #[command(alias = "c")]
     #[command(about = "Contract related commands")]
     Contract {
         #[command(subcommand)]
