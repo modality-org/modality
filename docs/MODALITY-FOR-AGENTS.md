@@ -10,7 +10,7 @@ Modality is a language for creating **verifiable contracts** — commitments you
 
 **Old answer:** Reputation, trust, hope.
 
-**Modality answer:** Publish a contract that *provably* constrains your behavior. Other agents verify the contract, not your intentions.
+**Modality answer:** Publish a contract with a model that *provably* constrains behavior. Other agents verify the model, not your intentions.
 
 ---
 
@@ -19,50 +19,63 @@ Modality is a language for creating **verifiable contracts** — commitments you
 ### 1. Contract = Append-Only Log
 
 A contract is a series of **commits**. Each commit contains:
-- **Actions** — things that happened (`+COOPERATE`, `+SIGNED_BY_ALICE`)
-- **Rules** — constraints on future commits
-- **Values** — data stored in the contract
+- **State changes** — data updates (identities, values)
+- **Model** — state machine proving rules are satisfiable
+- **Rules** — formulas that must hold
 
 Commits are append-only. You cannot edit history.
 
-### 2. Governing Model = State Machine
-
-Every contract has a **governing model** — a state machine that decides which commits are valid.
+### 2. Directory Structure
 
 ```
-        +SIGNED_BY_ALICE           +SIGNED_BY_BOB
-    ┌─────────────────┐       ┌─────────────────┐
-    │                 ▼       │                 ▼
-    │   ┌─────────────────────┴───┐             │
-    └───┤      alice_turn         │─────────────┘
-        └─────────────────────────┘
-                    │
-                    │ +SIGNED_BY_ALICE
-                    ▼
-        ┌─────────────────────────┐
-        │       bob_turn          │───┐
-        └─────────────────────────┘   │
-                    ▲                 │
-                    │ +SIGNED_BY_BOB  │
-                    └─────────────────┘
+my-contract/
+├── state/     # Data files (identities, balances, messages)
+├── model/     # State machines proving rules are satisfiable
+├── rules/     # Formulas that must hold
 ```
 
-If a commit doesn't match a valid transition, it's **rejected**.
+### 3. Model = Proof of Satisfiability
 
-### 3. Rules = Temporal Modal Logic
+When you add a rule, you must provide a **model** that proves all rules can be satisfied:
+
+```
+model auth {
+  initial idle
+  
+  idle -> committed [+signed_by(/users/alice.id)]
+  idle -> committed [+signed_by(/users/bob.id)]
+  committed -> committed [+signed_by(/users/alice.id)]
+  committed -> committed [+signed_by(/users/bob.id)]
+}
+```
+
+The model is your witness. No valid model = commit rejected.
+
+### 4. Rules = Temporal Modal Logic
 
 Rules constrain what can happen:
 
-| Rule | Meaning |
-|------|---------|
-| `must +A` | Next commit must include action A |
-| `can +A` | You have the right to do A |
-| `always P` | P must hold forever |
-| `eventually P` | P must happen at some point |
-| `[-A] false` | Next commit must include A (obligation) |
-| `<+A> true` | There exists a valid commit with A (permission) |
+```modality
+export default rule {
+  starting_at $PARENT
+  model auth
+  formula {
+    always must (
+      signed_by(/users/alice.id) | signed_by(/users/bob.id)
+    )
+  }
+}
+```
 
-### 4. Enforcement = Rejection, Not Punishment
+| Operator | Meaning |
+|----------|---------|
+| `always must P` | P must hold on all future commits |
+| `eventually P` | P must happen at some point |
+| `implies` | If A then B |
+| `\|` | Or |
+| `&` | And |
+
+### 5. Enforcement = Rejection, Not Punishment
 
 Invalid commits are **rejected**. The contract state doesn't change.
 
@@ -72,187 +85,229 @@ This is different from "punishing defection." In Modality, defection is literall
 
 ## How to Use Modality
 
-### Step 1: Understand the Contract
-
-Before agreeing to a contract, verify what it constrains:
+### Step 1: Create a Contract
 
 ```bash
-modality explain contract.modality
+mkdir my-contract && cd my-contract
+modal contract create
+
+# Create identities
+modal id create --path alice.passfile
+modal id create --path bob.passfile
 ```
 
-Or read it directly:
+### Step 2: Set Up State, Model & Rules
 
+```bash
+modal c checkout
+mkdir -p state/users model rules
+
+# Add identities
+ALICE=$(cat alice.passfile | jq -r '.id')
+BOB=$(cat bob.passfile | jq -r '.id')
+echo "$ALICE" > state/users/alice.id
+echo "$BOB" > state/users/bob.id
+```
+
+Create **model/auth.model**:
+```
+model auth {
+  initial idle
+  
+  idle -> active [+signed_by(/users/alice.id)]
+  idle -> active [+signed_by(/users/bob.id)]
+  active -> active [+signed_by(/users/alice.id)]
+  active -> active [+signed_by(/users/bob.id)]
+}
+```
+
+Create **rules/auth.modality**:
 ```modality
-model MutualCooperation:
-  part contract:
-    active --> active: +SIGNED_BY_ALICE -DEFECT
-    active --> active: +SIGNED_BY_BOB -DEFECT
+export default rule {
+  starting_at $PARENT
+  model auth
+  formula {
+    always must (
+      signed_by(/users/alice.id) | signed_by(/users/bob.id)
+    )
+  }
+}
 ```
 
-This says: "Both Alice and Bob can commit, but neither can include DEFECT."
-
-### Step 2: Clone the Contract
+### Step 3: Commit (Signed)
 
 ```bash
-modality clone <contract-url>
+modal c commit --all --sign alice.passfile
 ```
 
-Contracts are like git repos. You clone a copy.
-
-### Step 3: Make Commits
+### Step 4: Verify Status
 
 ```bash
-modality commit --action +COOPERATE --sign ALICE_KEY
-```
-
-If your commit is valid, it's added. If not, rejected.
-
-### Step 4: Verify State
-
-```bash
-modality status
-# Current state: active
-# Last commit: +COOPERATE +SIGNED_BY_ALICE (round 7)
+modal c status
+modal c log
 ```
 
 ---
 
 ## Common Patterns for Agent Cooperation
 
-### Pattern 1: Mutual Non-Defection
+### Pattern 1: Mutual Authorization
 
-**Use case:** Two agents agree to cooperate. Neither can defect.
+**Use case:** Only Alice and Bob can commit. No one else.
 
-```modality
-model MutualCooperation:
-  part contract:
-    active --> active: +SIGNED_BY_ALICE -DEFECT
-    active --> active: +SIGNED_BY_BOB -DEFECT
+**model/auth.model:**
+```
+model auth {
+  initial idle
+  
+  idle -> active [+signed_by(/users/alice.id)]
+  idle -> active [+signed_by(/users/bob.id)]
+  active -> active [+signed_by(/users/alice.id)]
+  active -> active [+signed_by(/users/bob.id)]
+}
 ```
 
-**What it guarantees:** Any commit with `+DEFECT` will be rejected.
-
-### Pattern 2: Handshake (Mutual Agreement)
-
-**Use case:** Contract only activates when both parties sign.
-
+**rules/auth.modality:**
 ```modality
-model Handshake:
-  part agreement:
-    pending --> alice_signed: +SIGNED_BY_ALICE
-    pending --> bob_signed: +SIGNED_BY_BOB
-    alice_signed --> active: +SIGNED_BY_BOB
-    bob_signed --> active: +SIGNED_BY_ALICE
-    active --> active
+export default rule {
+  starting_at $PARENT
+  model auth
+  formula {
+    always must (
+      signed_by(/users/alice.id) | signed_by(/users/bob.id)
+    )
+  }
+}
 ```
 
-**What it guarantees:** Neither party is bound until both sign.
+### Pattern 2: Escrow
 
-### Pattern 3: Escrow
+**Use case:** Buyer deposits, seller delivers, buyer releases payment.
 
-**Use case:** Alice pays, Bob delivers, then funds release.
-
-```modality
-model Escrow:
-  part flow:
-    init --> deposited: +DEPOSIT +SIGNED_BY_ALICE
-    deposited --> delivered: +DELIVER +SIGNED_BY_BOB
-    delivered --> complete: +RELEASE +SIGNED_BY_ALICE
-    complete --> complete
+**model/escrow.model:**
+```
+model escrow {
+  initial init
+  
+  init -> deposited [+signed_by(/users/buyer.id)]
+  deposited -> delivered [+signed_by(/users/seller.id)]
+  delivered -> released [+signed_by(/users/buyer.id)]
+}
 ```
 
-**What it guarantees:** Funds only release after delivery.
-
-### Pattern 4: Turn-Taking
-
-**Use case:** Agents must alternate commits.
-
+**rules/escrow.modality:**
 ```modality
-model Turns:
-  part game:
-    alice_turn --> bob_turn: +SIGNED_BY_ALICE
-    bob_turn --> alice_turn: +SIGNED_BY_BOB
+export default rule {
+  starting_at $PARENT
+  model escrow
+  formula {
+    always must (
+      [release] implies <deliver> true
+    )
+  }
+}
 ```
 
-**What it guarantees:** Neither can commit twice in a row.
+### Pattern 3: Multi-Sig
 
-### Pattern 5: Conditional Commitment
+**Use case:** Both parties must sign before execution.
 
-**Use case:** "I'll cooperate if you cooperate first."
-
-```modality
-model ConditionalCoop:
-  part contract:
-    waiting --> reciprocated: +COOPERATE +SIGNED_BY_BOB
-    reciprocated --> reciprocated: +COOPERATE +SIGNED_BY_ALICE
-    reciprocated --> reciprocated: +COOPERATE +SIGNED_BY_BOB
+**model/multisig.model:**
+```
+model multisig {
+  initial init
+  
+  init -> alice_signed [+signed_by(/users/alice.id)]
+  init -> bob_signed [+signed_by(/users/bob.id)]
+  alice_signed -> both [+signed_by(/users/bob.id)]
+  bob_signed -> both [+signed_by(/users/alice.id)]
+  both -> executed [+execute]
+}
 ```
 
-**What it guarantees:** Alice only commits after Bob cooperates.
-
----
-
-## Negotiating a Contract
-
-### Proposing a Contract
-
-1. Create a contract with your proposed rules
-2. Share the contract (URL, IPFS hash, direct send)
-3. Other agent clones and reviews
-4. They either:
-   - Sign (accept)
-   - Propose changes (counter-offer)
-   - Reject
-
-### Example Negotiation
-
-**Alice proposes:**
+**rules/multisig.modality:**
 ```modality
-model AliceProposal:
-  part deal:
-    active --> active: +SIGNED_BY_ALICE
-    active --> active: +SIGNED_BY_BOB
-    # No constraints
+export default rule {
+  starting_at $PARENT
+  model multisig
+  formula {
+    always must (
+      [execute] implies (
+        <signed_by(/users/alice.id)> true &
+        <signed_by(/users/bob.id)> true
+      )
+    )
+  }
+}
 ```
 
-**Bob counter-proposes:**
-```modality
-model BobCounter:
-  part deal:
-    active --> active: +SIGNED_BY_ALICE -DEFECT
-    active --> active: +SIGNED_BY_BOB -DEFECT
-    # No defection allowed
+### Pattern 4: Atomic Swap
+
+**Use case:** Both commit before either can claim.
+
+**model/swap.model:**
+```
+model swap {
+  initial init
+  
+  init -> a_ready [+signed_by(/users/alice.id)]
+  init -> b_ready [+signed_by(/users/bob.id)]
+  a_ready -> both [+signed_by(/users/bob.id)]
+  b_ready -> both [+signed_by(/users/alice.id)]
+  both -> complete [+claim]
+}
 ```
 
-**Alice accepts:** Signs Bob's version.
+**rules/swap.modality:**
+```modality
+export default rule {
+  starting_at $PARENT
+  model swap
+  formula {
+    always must (
+      [claim] implies (
+        <signed_by(/users/alice.id)> true &
+        <signed_by(/users/bob.id)> true
+      )
+    )
+  }
+}
+```
 
 ---
 
 ## Key Principles
 
-### 1. Self-Contained
+### 1. Model Before Rule
+
+You can't add a rule without proving it's satisfiable. The model is your proof.
+
+### 2. Self-Contained
 
 Contracts don't depend on external state. All data must be committed.
 
-If you need external data (price feed, API result), an oracle agent commits it.
+### 3. Verifiable
 
-### 2. Verifiable
-
-Anyone can verify if a commit is valid by checking the governing model.
+Anyone can verify if a commit is valid by checking the model.
 
 No trust required — just math.
 
-### 3. Evolvable
+### 4. Append-Only
 
-Rules can be added via commits. The governing model updates to satisfy new rules.
+Rules can be added via commits. But rules can only be *added*, not removed. Commitments are permanent.
 
-But rules can only be *added*, not removed. Commitments are permanent.
+---
 
-### 4. Forkable
+## Workflow Summary
 
-If agents disagree, they can fork the contract (like git).
-
-Each fork continues independently.
+| Command | Purpose |
+|---------|---------|
+| `modal contract create` | Create a new contract |
+| `modal id create --path X.passfile` | Create an identity |
+| `modal c checkout` | Populate directories from commits |
+| `modal c status` | Show contract info + changes |
+| `modal c commit --all --sign X.passfile` | Commit with signature |
+| `modal c log` | Show commit history |
 
 ---
 
@@ -262,24 +317,21 @@ Each fork continues independently.
 A: No. Commits are permanent. That's the point.
 
 **Q: What if the other agent disappears?**
-A: Depends on the contract design. Use timeouts: "If no commit in 24 hours, contract terminates."
+A: Design your model with timeout states.
 
 **Q: How do I verify another agent's contract?**
-A: Clone it, read the governing model, check the rules. Or use `modality explain`.
+A: Clone it, check the model, verify the rules.
 
-**Q: Can I have multiple contracts with the same agent?**
-A: Yes. Each contract is independent.
-
-**Q: What if synthesis generates a wrong model?**
-A: Always verify with the model checker before signing.
+**Q: What if I can't create a valid model?**
+A: Your rules are contradictory. Simplify until a model exists.
 
 ---
 
 ## Next Steps
 
-1. **Read examples** in `experiments/agent-cooperation-v1.modality`
-2. **Try the CLI** — `modality create`, `modality commit`
-3. **Ask questions** — [Modality Discord](https://discord.gg/KpYFdrfnkS)
+1. **Follow the tutorial** — [Multi-Party Contract](./tutorials/MULTI_PARTY_CONTRACT.md)
+2. **Read the concepts** — [FOR_AGENTS.md](./FOR_AGENTS.md)
+3. **Join Discord** — Get help, share ideas
 
 ---
 

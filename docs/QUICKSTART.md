@@ -22,95 +22,106 @@ export PATH="$PATH:$(pwd)/target/release"
 
 ## Your First Contract
 
-Create `escrow.modality`:
+### 1. Create Contract & Identities
 
+```bash
+mkdir my-contract && cd my-contract
+
+# Create the contract
+modal contract create
+
+# Create identities
+modal id create --path alice.passfile
+modal id create --path bob.passfile
+
+# Get their IDs
+ALICE=$(cat alice.passfile | jq -r '.id')
+BOB=$(cat bob.passfile | jq -r '.id')
+```
+
+### 2. Set Up State, Model & Rules
+
+```bash
+# Initialize directories
+modal c checkout
+mkdir -p state/users model rules
+
+# Add identities to state
+echo "$ALICE" > state/users/alice.id
+echo "$BOB" > state/users/bob.id
+```
+
+Create **model/auth.model** — proves the rules can be satisfied:
+```
+model auth {
+  initial idle
+  
+  idle -> committed [+signed_by(/users/alice.id)]
+  idle -> committed [+signed_by(/users/bob.id)]
+  committed -> committed [+signed_by(/users/alice.id)]
+  committed -> committed [+signed_by(/users/bob.id)]
+}
+```
+
+Create **rules/auth.modality** — the constraints:
 ```modality
-model Escrow {
-  part flow {
-    init --> deposited: +DEPOSIT +signed_by(buyer)
-    deposited --> delivered: +DELIVER +signed_by(seller)
-    delivered --> complete: +RELEASE +signed_by(buyer)
-    complete --> complete
+export default rule {
+  starting_at $PARENT
+  model auth
+  formula {
+    always must (
+      signed_by(/users/alice.id) | signed_by(/users/bob.id)
+    )
   }
 }
-
-formula PaymentRequiresDelivery {
-  [+RELEASE] <+DELIVER> true
-}
-
-formula DepositFirst {
-  [+DELIVER] <+DEPOSIT> true
-}
 ```
 
----
-
-## Verify It
+### 3. Commit (Signed)
 
 ```bash
-modality model check escrow.modality
+modal c commit --all --sign alice.passfile
 ```
 
-Output:
-```
-Checking formula: PaymentRequiresDelivery
-  ✓ Satisfied on all paths
+From now on, all commits must be signed by Alice or Bob.
 
-Checking formula: DepositFirst
-  ✓ Satisfied on all paths
-
-All formulas verified.
-```
-
----
-
-## Visualize It
+### 4. Make Changes
 
 ```bash
-modality model mermaid escrow.modality
+# Alice writes a message
+mkdir -p state/data
+echo "Hello from Alice" > state/data/message.text
+modal c commit --all --sign alice.passfile
+
+# Bob updates it
+echo "Hello from Bob" > state/data/message.text
+modal c commit --all --sign bob.passfile
 ```
 
-Output:
-```mermaid
-stateDiagram-v2
-    [*] --> init
-    init --> deposited: +DEPOSIT +signed_by(buyer)
-    deposited --> delivered: +DELIVER +signed_by(seller)
-    delivered --> complete: +RELEASE +signed_by(buyer)
-    complete --> complete
-```
-
----
-
-## Generate From Template
-
-Don't want to write from scratch? Use templates:
+### 5. View Status
 
 ```bash
-# List available templates
-modality model synthesize --list
-
-# Generate an escrow contract
-modality model synthesize --template escrow --party-a Buyer --party-b Seller
-
-# Generate a multisig
-modality model synthesize --template multisig --party-a Alice --party-b Bob
+modal c status
+modal c log
 ```
 
 ---
 
-## Test Your Contract
+## Directory Structure
 
-Add a test block to your file:
-
-```modality
-test EscrowFlow {
-  m = clone(Escrow)
-  m.commit(DepositAction)
-  m.commit(DeliverAction)
-  m.commit(ReleaseAction)
-  assert m.satisfies(PaymentRequiresDelivery)
-}
+```
+my-contract/
+├── .contract/           # Internal storage
+│   ├── config.json
+│   ├── commits/
+│   └── HEAD
+├── state/               # Data files (POST method)
+│   └── users/
+│       ├── alice.id
+│       └── bob.id
+├── model/               # State machines (MODEL method)
+│   └── auth.model
+├── rules/               # Formulas (RULE method)
+│   └── auth.modality
 ```
 
 ---
@@ -119,51 +130,46 @@ test EscrowFlow {
 
 | Concept | Meaning |
 |---------|---------|
-| `model` | A state machine defining allowed transitions |
-| `part` | A component that runs in parallel with others |
-| `-->` | A transition from one state to another |
-| `+PROP` | Property that must be present |
-| `-PROP` | Property that must be absent |
-| `signed_by(key)` | Cryptographic signature verification |
-| `formula` | A property to verify about the model |
-| `[props]` | Box operator: all paths with these properties |
-| `<props>` | Diamond operator: some path with these properties |
+| `state/` | Data files — identities, messages, balances |
+| `model/` | State machines proving rules are satisfiable |
+| `rules/` | Formulas that must hold over the model |
+| `->` | Transition from one state to another |
+| `[+predicate]` | Predicate that must be satisfied |
+| `signed_by(/path)` | Cryptographic signature verification |
+| `starting_at $PARENT` | Rule applies from this commit forward |
 
 ---
 
-## Common Patterns
+## Workflow
 
-### Require Signature
-```modality
-init --> next: +ACTION +signed_by(pubkey)
+| Command | Purpose |
+|---------|---------|
+| `modal c checkout` | Populate state/, model/, rules/ from commits |
+| `modal c status` | Show contract info + changes |
+| `modal c diff` | Show only changes |
+| `modal c commit --all` | Commit all changes |
+| `modal c commit --all --sign X.passfile` | Commit with signature |
+| `modal c log` | Show commit history |
+
+---
+
+## The Model Requirement
+
+When you add a rule, you must provide a **model** that proves all rules are satisfiable:
+
+```
+model/auth.model    → The state machine (proof of satisfiability)
+rules/auth.modality → The formula (references the model)
 ```
 
-### Require Multiple Signatures
-```modality
-init --> partial: +signed_by(alice)
-partial --> complete: +signed_by(bob)
-```
-
-### Forbid Action
-```modality
-formula NoCheat {
-  always [-CHEAT] true
-}
-```
-
-### Require Ordering
-```modality
-formula BBeforeC {
-  [+C] <+B> true
-}
-```
+No valid model = commit rejected. This prevents contradictory or impossible rules.
 
 ---
 
 ## Next Steps
 
-1. Read [FOR_AGENTS.md](FOR_AGENTS.md) - Why verification matters
-2. Check [examples/](../experiments/) - Real-world use cases
+1. Read [FOR_AGENTS.md](FOR_AGENTS.md) - Why verification matters for agents
+2. Follow [MULTI_PARTY_CONTRACT.md](./tutorials/MULTI_PARTY_CONTRACT.md) - Full tutorial
 3. Join Discord - Get help, share ideas
 
 ---

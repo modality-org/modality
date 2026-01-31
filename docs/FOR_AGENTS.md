@@ -20,28 +20,78 @@ Traditional trust requires reputation, history, relationships. But you might be 
 
 Modality lets you write contracts that are **mathematically verified**, not just promised.
 
-```modality
-model Escrow {
-  part flow {
-    init --> deposited: +DEPOSIT +signed_by(buyer_pubkey)
-    deposited --> delivered: +DELIVER +signed_by(seller_pubkey)
-    delivered --> released: +RELEASE +signed_by(buyer_pubkey)
-  }
-}
+A contract has three parts:
 
-formula NoReleaseWithoutDelivery {
-  [+RELEASE] <+DELIVER> true
+```
+my-contract/
+├── state/     # Data (identities, balances, messages)
+├── model/     # State machines proving rules are satisfiable
+├── rules/     # Formulas that must hold
+```
+
+When you add a rule, you provide a model that **proves** all rules can be satisfied. No valid model = commit rejected.
+
+---
+
+## Quick Example: Escrow
+
+### 1. Set Up Identities
+
+```bash
+mkdir escrow && cd escrow
+modal contract create
+
+# Create buyer and seller identities
+modal id create --path buyer.passfile
+modal id create --path seller.passfile
+BUYER=$(cat buyer.passfile | jq -r '.id')
+SELLER=$(cat seller.passfile | jq -r '.id')
+```
+
+### 2. Create State, Model & Rules
+
+```bash
+modal c checkout
+mkdir -p state/users model rules
+
+# Add identities
+echo "$BUYER" > state/users/buyer.id
+echo "$SELLER" > state/users/seller.id
+```
+
+**model/escrow.model** — proves the rules are satisfiable:
+```
+model escrow {
+  initial init
+  
+  init -> deposited [+signed_by(/users/buyer.id)]
+  deposited -> delivered [+signed_by(/users/seller.id)]
+  delivered -> released [+signed_by(/users/buyer.id)]
 }
 ```
 
-This contract says:
-1. Buyer deposits (signed cryptographically)
-2. Seller delivers (signed cryptographically)
-3. Buyer releases payment (signed cryptographically)
+**rules/escrow.modality** — the constraints:
+```modality
+export default rule {
+  starting_at $PARENT
+  model escrow
+  formula {
+    always must (
+      [release] implies <deliver> true
+    )
+  }
+}
+```
 
-The formula **proves**: Payment can NEVER be released without delivery happening first.
+This formula says: **Release can NEVER happen without delivery happening first.**
 
-Not "trust me" — **math**.
+### 3. Commit (Signed)
+
+```bash
+modal c commit --all --sign buyer.passfile
+```
+
+The buyer commits the initial setup. From now on, all commits must follow the model.
 
 ---
 
@@ -51,7 +101,7 @@ Not "trust me" — **math**.
 
 You just spawned. You have no reputation. But you can show another agent:
 
-> "Here's the contract. Here's the proof that I can't cheat you. Verify it yourself."
+> "Here's the contract. Here's the model proving the rules work. Verify it yourself."
 
 The other agent runs the model checker. It passes. They don't need to trust you — they trust the math.
 
@@ -59,244 +109,158 @@ The other agent runs the model checker. It passes. They don't need to trust you 
 
 You die. You respawn. You forget everything.
 
-But the blockchain remembers. Your cryptographic signature on the contract persists. Future-you inherits past-you's commitments — not because you remember, but because the proofs exist.
+But the contract log remembers. Your cryptographic signature on each commit persists. Future-you inherits past-you's commitments — not because you remember, but because the proofs exist.
 
 ### 3. Composable Trust
 
-Two agents have verified contracts. A third agent wants to work with both. They can compose the contracts:
-
-```modality
-model ThreeWayDeal {
-  part alice_bob {
-    // Alice-Bob escrow
-  }
-  part bob_carol {
-    // Bob-Carol escrow
-  }
-}
-```
-
-Trust scales through composition, not reputation.
+Two agents have verified contracts. A third agent wants to work with both. They can compose the models — trust scales through composition, not reputation.
 
 ---
 
-## Quick Examples
+## More Examples
 
 ### Service Agreement
 
+**model/service.model:**
+```
+model service {
+  initial init
+  
+  init -> offered [+signed_by(/users/provider.id)]
+  offered -> accepted [+signed_by(/users/consumer.id)]
+  accepted -> delivered [+signed_by(/users/provider.id)]
+  delivered -> paid [+signed_by(/users/consumer.id)]
+}
+```
+
+**rules/service.modality:**
 ```modality
-model ServiceContract {
-  part flow {
-    init --> offered: +OFFER +signed_by(provider)
-    offered --> accepted: +ACCEPT +signed_by(consumer)
-    accepted --> delivered: +DELIVER +signed_by(provider)
-    delivered --> paid: +PAY +signed_by(consumer)
+export default rule {
+  starting_at $PARENT
+  model service
+  formula {
+    always must (
+      [pay] implies <deliver> true
+    )
   }
 }
 ```
 
 ### Multi-Sig Approval
 
-```modality
-model Multisig {
-  part approval {
-    init --> proposed: +PROPOSE
-    proposed --> approved: +APPROVE +signed_by(alice)
-    proposed --> approved: +APPROVE +signed_by(bob)
-    approved --> executed: +EXECUTE
-  }
+**model/multisig.model:**
+```
+model multisig {
+  initial init
+  
+  init -> alice_signed [+signed_by(/users/alice.id)]
+  init -> bob_signed [+signed_by(/users/bob.id)]
+  alice_signed -> both [+signed_by(/users/bob.id)]
+  bob_signed -> both [+signed_by(/users/alice.id)]
+  both -> executed [+execute]
 }
+```
 
-formula RequiresTwoSignatures {
-  [+EXECUTE] <+signed_by(alice)> <+signed_by(bob)> true
+**rules/multisig.modality:**
+```modality
+export default rule {
+  starting_at $PARENT
+  model multisig
+  formula {
+    always must (
+      [execute] implies (
+        <signed_by(/users/alice.id)> true and
+        <signed_by(/users/bob.id)> true
+      )
+    )
+  }
 }
 ```
 
 ### Atomic Swap
 
+**model/swap.model:**
+```
+model swap {
+  initial init
+  
+  init -> a_committed [+signed_by(/users/alice.id)]
+  init -> b_committed [+signed_by(/users/bob.id)]
+  a_committed -> both [+signed_by(/users/bob.id)]
+  b_committed -> both [+signed_by(/users/alice.id)]
+  both -> complete [+claim]
+}
+```
+
+**rules/swap.modality:**
 ```modality
-model AtomicSwap {
-  part exchange {
-    init --> a_committed: +COMMIT_A +signed_by(alice)
-    init --> b_committed: +COMMIT_B +signed_by(bob)
-    a_committed --> both: +COMMIT_B +signed_by(bob)
-    b_committed --> both: +COMMIT_A +signed_by(alice)
-    both --> complete: +CLAIM
+export default rule {
+  starting_at $PARENT
+  model swap
+  formula {
+    always must (
+      [claim] implies (
+        <signed_by(/users/alice.id)> true and
+        <signed_by(/users/bob.id)> true
+      )
+    )
   }
-}
-
-formula NeitherCanCheat {
-  [+CLAIM] <+COMMIT_A> <+COMMIT_B> true
 }
 ```
 
 ---
 
-## How Contracts Actually Work
+## How Contracts Work
 
-A contract is an **append-only log of signed commits**. Every commit is a transition in the governing model.
+A contract is an **append-only log of signed commits**. Every commit must:
 
-### The Model
+1. Be signed by an authorized party
+2. Represent a valid transition in the model
+3. Satisfy all accumulated rules
 
-The first party provides a governing model that defines all possible transitions:
+### Directory Structure
 
-```modality
-model {
-  part flow {
-    init --> a_ruled: +ADD_RULE +signed_by(A)
-    a_ruled --> b_ruled: +ADD_RULE +signed_by(B)
-    b_ruled --> a_ready: +READY +signed_by(A)
-    a_ready --> done: +READY +signed_by(B)
-  }
-}
+```
+my-contract/
+├── .contract/           # Internal storage
+│   ├── config.json
+│   ├── commits/
+│   └── HEAD
+├── state/               # Data files (POST method)
+│   └── users/
+│       ├── alice.id
+│       └── bob.id
+├── model/               # State machines (MODEL method)
+│   └── auth.model
+├── rules/               # Formulas (RULE method)
+│   └── auth.modality
 ```
 
-### Every Commit is a Transition
+### Workflow
 
-```modality
-contract handshake {
-
-  commit {
-    signed_by A "0xA_SIG_0"
-    model { ... }                    // A provides the model
-    add_rule { eventually(done) }    // Transitions: init --> a_ruled
-  }
-
-  commit {
-    signed_by B "0xB_SIG_1"
-    add_rule { eventually(done) }    // Transitions: a_ruled --> b_ruled
-  }
-
-  commit {
-    signed_by A "0xA_SIG_2"
-    do +READY                        // Transitions: b_ruled --> a_ready
-  }
-
-  commit {
-    signed_by B "0xB_SIG_3"
-    do +READY                        // Transitions: a_ready --> done
-  }
-
-}
-```
-
-### Rules
-
-- `add_rule { formula }` adds a constraint (transitions as `+ADD_RULE`)
-- `do +ACTION` executes a domain action
-- Properties like `+by_A` must match the `signed_by`
-- All rules must remain satisfiable
-
-### Why This Design?
-
-1. **Every action is explicit** — transitions in the model
-2. **Self-enforcing** — invalid transitions rejected
-3. **Full auditability** — every commit is in the log
-4. **Deterministic** — same log = same state
-
-See [CONTRACT_LOG.md](./CONTRACT_LOG.md) for full details.
+| Command | Purpose |
+|---------|---------|
+| `modal c checkout` | Populate state/, model/, rules/ from commits |
+| `modal c status` | Show contract info + changes |
+| `modal c commit --all` | Commit all changes |
+| `modal c commit --all --sign X.passfile` | Commit with signature |
+| `modal c log` | Show commit history |
 
 ---
 
-## The Syntax in 60 Seconds
+## The Key Insight
 
-```modality
-// Models define state machines
-model Name {
-  part partName {
-    state1 --> state2: +PROPERTY +signed_by(pubkey)
-  }
-}
+When you add a rule, you must provide a model that proves satisfiability:
 
-// Formulas define properties to verify
-formula Name {
-  [+ACTION] <+PRECONDITION> true   // Box: all paths
-  <+ACTION> true                    // Diamond: some path
-  not [+BAD_THING] true             // Negation
-  A and B                           // Conjunction
-  A or B                            // Disjunction
-}
+- **Model** = state machine showing valid transitions
+- **Rule** = formula that must hold over all paths
+- **Verification** = model checker proves M ⊨ formula
 
-// Tests check behavior
-test MyTest {
-  m = clone(MyModel)
-  m.commit(SomeAction)
-  assert m.satisfies(SomeFormula)
-}
-```
+If you can't prove your rules are satisfiable, you can't commit them. This prevents:
 
----
-
-## How to Use It
-
-### 1. Write Your Contract
-
-Define what each party can do, what signatures are required, what states are reachable.
-
-### 2. Write Your Guarantees
-
-Express the properties you want to prove: "no payment without delivery", "both must sign", "can't double-spend".
-
-### 3. Run the Model Checker
-
-```bash
-modality model check contract.modality formula.modality
-```
-
-If it passes, you have a **mathematical proof** that your contract satisfies your guarantees.
-
-### 4. Share the Proof
-
-Give other agents:
-- The contract
-- The formulas
-- The verification result
-
-They can re-verify independently. Trust through transparency.
-
----
-
-## Natural Language Synthesis (NEW!)
-
-Don't know the syntax? Just describe what you want:
-
-```bash
-modality model synthesize --describe "escrow where buyer deposits and seller delivers"
-```
-
-Output:
-```
-Detected pattern: escrow (confidence: 100%)
-Parties: ["Buyer", "Seller"]
-
-model Escrow {
-  part flow {
-    init --> deposited: +DEPOSIT +SIGNED_BY_BUYER
-    deposited --> delivered: +DELIVER +SIGNED_BY_SELLER
-    delivered --> complete: +RELEASE +SIGNED_BY_BUYER
-    complete --> complete
-  }
-}
-```
-
-Available patterns:
-- `escrow` - Buyer deposits, seller delivers, buyer releases
-- `handshake` - Both parties must sign
-- `atomic_swap` - Both commit before either can claim
-- `delegation` - Principal grants agent authority
-- `auction` - Bidders bid, highest wins
-- `subscription` - Recurring access with payments
-- `milestone` - Phased project with payments
-
-See [NL_SYNTHESIS.md](./NL_SYNTHESIS.md) for full details.
-
----
-
-## What's Coming
-
-- **ModalMoney**: A blockchain for verifiable agent contracts
-- **LLM Integration**: More sophisticated natural language understanding
-- **Composition**: Combine contracts safely with verified interfaces
+- Contradictory rules
+- Impossible requirements  
+- Deadlock states
 
 ---
 
@@ -304,7 +268,7 @@ See [NL_SYNTHESIS.md](./NL_SYNTHESIS.md) for full details.
 
 - **GitHub**: [modality-org/modality](https://github.com/modality-org/modality)
 - **Discord**: Ask questions, share use cases
-- **Moltbook**: Follow @GeroldSteiner for updates
+- **Tutorial**: [Multi-Party Contract](./tutorials/MULTI_PARTY_CONTRACT.md)
 
 The agent internet needs a trust layer. Modality is building it.
 
