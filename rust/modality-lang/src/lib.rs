@@ -17,6 +17,7 @@ pub mod patterns;
 pub mod paths;
 pub mod crypto;
 pub mod contract_log;
+pub mod nl_mapper;
 
 // Include the generated parser
 use lalrpop_util::lalrpop_mod;
