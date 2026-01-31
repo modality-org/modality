@@ -541,30 +541,36 @@ test MyTest {
         
         let content = r#"
 contract handshake {
-  commit signed_by(A) with model {
-    part flow {
-      init --> a_ready: +A_READY
+  commit {
+    signed_by A
+    model {
+      part flow {
+        init --> a_ready: +A_READY
+      }
     }
-  } {
     add_party A
     add_rule { eventually(a_ready) }
   }
 
-  commit signed_by(B) with model {
-    part flow {
-      init --> a_ready: +A_READY
-      a_ready --> done: +B_READY
+  commit {
+    signed_by B
+    model {
+      part flow {
+        init --> a_ready: +A_READY
+        a_ready --> done: +B_READY
+      }
     }
-  } {
     add_party B
     add_rule { eventually(done) }
   }
 
-  commit signed_by(A) {
+  commit {
+    signed_by A
     do +A_READY
   }
 
-  commit signed_by(B) {
+  commit {
+    signed_by B
     do +B_READY
   }
 }
@@ -579,24 +585,26 @@ contract handshake {
         let commit0 = &contract.commits[0];
         assert_eq!(commit0.signed_by, "A");
         assert!(commit0.model.is_some());
-        assert_eq!(commit0.statements.len(), 2);
+        assert_eq!(commit0.statements.len(), 2); // add_party + add_rule (signed_by and model extracted)
         assert!(matches!(&commit0.statements[0], CommitStatement::AddParty(name) if name == "A"));
         assert!(matches!(&commit0.statements[1], CommitStatement::AddRule { .. }));
         
         // Second commit: B joins with extended model
         let commit1 = &contract.commits[1];
         assert_eq!(commit1.signed_by, "B");
-        assert!(commit1.model.is_some()); // B provides extended model
+        assert!(commit1.model.is_some());
         assert_eq!(commit1.statements.len(), 2);
         
         // Third commit: A executes
         let commit2 = &contract.commits[2];
         assert_eq!(commit2.signed_by, "A");
+        assert_eq!(commit2.statements.len(), 1);
         assert!(matches!(&commit2.statements[0], CommitStatement::DomainAction(_)));
         
         // Fourth commit: B executes
         let commit3 = &contract.commits[3];
         assert_eq!(commit3.signed_by, "B");
+        assert_eq!(commit3.statements.len(), 1);
         assert!(matches!(&commit3.statements[0], CommitStatement::DomainAction(_)));
     }
 } 

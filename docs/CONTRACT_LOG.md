@@ -194,72 +194,51 @@ state.finalized       // Whether negotiation is locked
 state.domain_history  // All domain actions that occurred
 ```
 
-## Complete Example: Two-Party Exchange
+## Complete Example: Handshake
 
-```rust
-use modality_lang::{ContractLog, Action, Formula};
+```modality
+contract handshake {
 
-// 1. Create contract (starts with default model)
-let mut contract = ContractLog::new("exchange_001");
+  commit {
+    signed_by A
+    model {
+      part flow {
+        init --> a_ready: +A_READY
+      }
+    }
+    add_party A
+    add_rule { eventually(a_ready) }
+  }
 
-// 2. Alice creates, joins, adds her protection rule
-contract.commit_with_model(
-    "0xAlice...",
-    vec![
-        Action::AddParty { 
-            party: "0xAlice...".to_string(), 
-            name: Some("Alice".to_string()) 
-        },
-        Action::AddRule {
-            name: Some("AliceProtection".to_string()),
-            formula: parse_formula("[+DELIVER] eventually(paid | refunded)"),
-        },
-    ],
-    Some(exchange_model_v1()),
-    1000,
-);
+  commit {
+    signed_by B
+    model {
+      part flow {
+        init --> a_ready: +A_READY
+        a_ready --> done: +B_READY
+      }
+    }
+    add_party B
+    add_rule { eventually(done) }
+  }
 
-// 3. Bob joins, adds his protection rule
-contract.commit_with_model(
-    "0xBob...",
-    vec![
-        Action::AddParty { 
-            party: "0xBob...".to_string(), 
-            name: Some("Bob".to_string()) 
-        },
-        Action::AddRule {
-            name: Some("BobProtection".to_string()),
-            formula: parse_formula("[+PAY] eventually(delivered | refunded)"),
-        },
-    ],
-    Some(exchange_model_v2()),  // Satisfies both rules
-    2000,
-);
+  commit {
+    signed_by A
+    do +A_READY
+  }
 
-// 4. Finalize negotiation
-contract.commit("0xAlice...", vec![Action::Finalize], 3000);
+  commit {
+    signed_by B
+    do +B_READY
+  }
 
-// 5. Alice delivers
-contract.commit(
-    "0xAlice...",
-    vec![Action::Domain { properties: vec![plus("DELIVER")] }],
-    4000,
-);
-
-// 6. Bob pays
-contract.commit(
-    "0xBob...",
-    vec![Action::Domain { properties: vec![plus("PAY")] }],
-    5000,
-);
-
-// Check final state
-let state = contract.derive_state();
-assert_eq!(state.parties.len(), 2);
-assert_eq!(state.rules.len(), 2);
-assert_eq!(state.domain_history.len(), 2);
-assert!(state.finalized);
+}
 ```
+
+Each commit contains:
+- `signed_by` — who is signing this commit
+- `model` — optional new governing model (must satisfy all rules)
+- Actions: `add_party`, `add_rule`, `do +ACTION`
 
 ## JSON Representation
 

@@ -314,6 +314,8 @@ pub struct ContractCommit {
 /// Statements within a commit
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CommitStatement {
+    SignedBy(String),
+    Model(Model),
     AddParty(String),
     AddRule { name: Option<String>, formula: FormulaExpr },
     DomainAction(Vec<Property>),

@@ -266,26 +266,16 @@ pub ContractDecl: Contract = {
 };
 
 CommitDecl: ContractCommit = {
-    // commit signed_by(X) { statements }
-    "commit" "signed_by" "(" <signer:Ident> ")" "{" <stmts:CommitStatementList?> "}" => {
-        let mut commit = ContractCommit::new(signer);
+    // commit { statements }
+    "commit" "{" <stmts:CommitStatementList?> "}" => {
+        let mut commit = ContractCommit::new(String::new());
         if let Some(statements) = stmts {
             for stmt in statements {
-                commit.add_statement(stmt);
-            }
-        }
-        commit
-    },
-    // commit signed_by(X) with model { ... } { statements }
-    "commit" "signed_by" "(" <signer:Ident> ")" "with" "model" "{" <parts:Part*> "}" "{" <stmts:CommitStatementList?> "}" => {
-        let mut model = Model::new("inline".to_string());
-        for part in parts {
-            model.add_part(part);
-        }
-        let mut commit = ContractCommit::with_model(signer, model);
-        if let Some(statements) = stmts {
-            for stmt in statements {
-                commit.add_statement(stmt);
+                match stmt {
+                    CommitStatement::SignedBy(signer) => commit.signed_by = signer,
+                    CommitStatement::Model(model) => commit.model = Some(model),
+                    other => commit.add_statement(other),
+                }
             }
         }
         commit
@@ -302,6 +292,18 @@ CommitStatementList: Vec<CommitStatement> = {
 };
 
 CommitStatement: CommitStatement = {
+    // signed_by X
+    "signed_by" <name:Ident> => CommitStatement::SignedBy(name),
+    
+    // model { parts }
+    "model" "{" <parts:Part*> "}" => {
+        let mut model = Model::new("inline".to_string());
+        for part in parts {
+            model.add_part(part);
+        }
+        CommitStatement::Model(model)
+    },
+    
     // add_party X
     "add_party" <name:Ident> => CommitStatement::AddParty(name),
     

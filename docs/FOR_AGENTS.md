@@ -150,19 +150,34 @@ This means: any action is allowed. The blank slate.
 
 Each party adds their protection rules:
 
-```
-Commit 0 (Alice):
-  - AddParty: Alice
-  - AddRule: "[+DELIVER] eventually(paid | refunded)"
-  - Model: (state machine satisfying this rule)
+```modality
+commit {
+  signed_by Alice
+  model {
+    part flow {
+      init --> delivered: +DELIVER
+      delivered --> paid: +PAY
+    }
+  }
+  add_party Alice
+  add_rule { eventually(paid) }
+}
 
-Commit 1 (Bob):
-  - AddParty: Bob  
-  - AddRule: "[+PAY] eventually(delivered | refunded)"
-  - Model: (state machine satisfying BOTH rules)
+commit {
+  signed_by Bob
+  model {
+    part flow {
+      init --> delivered: +DELIVER
+      delivered --> paid: +PAY
+      delivered --> refunded: +REFUND
+    }
+  }
+  add_party Bob
+  add_rule { eventually(delivered) }
+}
 ```
 
-Each `AddRule` must come with a model that satisfies ALL accumulated rules. You can't add contradictory rules — no model would pass validation.
+Each `add_rule` must come with a model that satisfies ALL accumulated rules. You can't add contradictory rules — no model would pass validation.
 
 ### Executing Actions
 

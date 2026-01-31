@@ -6,34 +6,36 @@
 
 contract handshake {
 
-  // A creates contract, provides initial model, adds their rule
-  commit signed_by(A) with model {
-    part flow {
-      init --> a_ready: +A_READY
+  commit {
+    signed_by A
+    model {
+      part flow {
+        init --> a_ready: +A_READY
+      }
     }
-  } {
     add_party A
     add_rule { eventually(a_ready) }
   }
 
-  // B joins and extends the model to include B's action
-  commit signed_by(B) with model {
-    part flow {
-      init --> a_ready: +A_READY
-      a_ready --> done: +B_READY
+  commit {
+    signed_by B
+    model {
+      part flow {
+        init --> a_ready: +A_READY
+        a_ready --> done: +B_READY
+      }
     }
-  } {
     add_party B
     add_rule { eventually(done) }
   }
 
-  // A executes their action
-  commit signed_by(A) {
+  commit {
+    signed_by A
     do +A_READY
   }
 
-  // B executes their action
-  commit signed_by(B) {
+  commit {
+    signed_by B
     do +B_READY
   }
 
