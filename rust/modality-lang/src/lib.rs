@@ -11,6 +11,8 @@ pub mod model_checker;
 pub mod synthesis;
 pub mod printer;
 pub mod evolution;
+pub mod runtime;
+pub mod agent;
 
 // Include the generated parser
 use lalrpop_util::lalrpop_mod;
@@ -23,6 +25,8 @@ pub use model_checker::{ModelChecker, State, ModelCheckResult};
 pub use synthesis::{synthesize, synthesize_from_pattern, identify_pattern, SynthesisResult, RulePattern};
 pub use printer::print_model;
 pub use evolution::{EvolvableContract, Amendment, Proposal, ProposalStatus, Approval, EvolutionRecord};
+pub use runtime::{ContractInstance, SignedAction, CommitRecord, ContractState, ActionBuilder, RuntimeError, RuntimeResult, AvailableTransition};
+pub use runtime::negotiation::{Proposal as NegotiationProposal, CounterProposal, ProposalStatus as NegotiationStatus};
 
 // Re-export the generated parser
 pub use grammar::ModelParser;
