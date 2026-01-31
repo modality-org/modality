@@ -247,6 +247,9 @@ enum ContractCommands {
     #[command(about = "Set a state file value")]
     Set(cmds::contract::set::Opts),
     
+    #[command(about = "Set a state .id file from a named passfile")]
+    SetNamedId(cmds::contract::set_named_id::Opts),
+    
     #[command(about = "Show commit history")]
     Log(cmds::contract::log::Opts),
     
@@ -383,6 +386,7 @@ async fn main() -> Result<()> {
                 ContractCommands::Pull(opts) => cmds::contract::pull::run(opts).await?,
                 ContractCommands::Status(opts) => cmds::contract::status::run(opts).await?,
                 ContractCommands::Set(opts) => cmds::contract::set::run(opts).await?,
+                ContractCommands::SetNamedId(opts) => cmds::contract::set_named_id::run(opts).await?,
                 ContractCommands::Log(opts) => cmds::contract::log::run(opts).await?,
                 ContractCommands::Get(opts) => cmds::contract::get::run(opts).await?,
                 ContractCommands::Assets(opts) => cmds::contract::assets::run(opts).await?,

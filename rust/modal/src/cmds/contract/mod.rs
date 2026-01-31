@@ -15,5 +15,6 @@ pub mod push;
 pub mod pull;
 pub mod status;
 pub mod set;
+pub mod set_named_id;
 pub mod assets;
 pub mod wasm_upload;
