@@ -90,7 +90,7 @@ const KNOWN_EXTENSIONS: &[&str] = &[
     ".datetime",  // Date and time
     ".json",      // JSON data
     ".md",        // Markdown
-    ".pubkey",    // Public key
+    ".id",        // Modality ID (peer ID)
     ".wasm",      // WebAssembly programs
 ];
 
@@ -170,12 +170,12 @@ impl CommitAction {
                 }
                 _ => anyhow::bail!("Value for .datetime must be an ISO 8601 string or Unix timestamp"),
             }
-        } else if path.ends_with(".pubkey") {
-            // Must be a string starting with "12D3KooW" (libp2p peer ID format)
-            let key_str = self.value.as_str()
-                .ok_or_else(|| anyhow::anyhow!("Value for .pubkey path must be a string"))?;
-            if !key_str.starts_with("12D3KooW") {
-                anyhow::bail!("Invalid pubkey format '{}', expected libp2p peer ID (starts with 12D3KooW)", key_str);
+        } else if path.ends_with(".id") {
+            // Must be a string starting with "12D3KooW" (Modality ID / libp2p peer ID format)
+            let id_str = self.value.as_str()
+                .ok_or_else(|| anyhow::anyhow!("Value for .id path must be a string"))?;
+            if !id_str.starts_with("12D3KooW") {
+                anyhow::bail!("Invalid Modality ID format '{}', expected peer ID (starts with 12D3KooW)", id_str);
             }
         } else if path.ends_with(".json") {
             // Any valid JSON is fine (already parsed)

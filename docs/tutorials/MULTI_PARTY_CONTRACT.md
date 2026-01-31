@@ -43,10 +43,10 @@ Add both users' public keys to the contract:
 
 ```bash
 # Add Alice
-modal c commit --path /users/alice.pubkey --value "\"$ALICE\""
+modal c commit --path /users/alice.id --value "\"$ALICE\""
 
 # Add Bob
-modal c commit --path /users/bob.pubkey --value "\"$BOB\""
+modal c commit --path /users/bob.id --value "\"$BOB\""
 ```
 
 ## Step 4: Add the Authorization Rule
@@ -58,8 +58,8 @@ modal c commit --method rule --path /rules/authorized_signers.json --value '{
   "description": "All commits must be signed by Alice or Bob",
   "formula": "SIGNED_BY_ALICE | SIGNED_BY_BOB",
   "signers": {
-    "ALICE": "/users/alice.pubkey",
-    "BOB": "/users/bob.pubkey"
+    "ALICE": "/users/alice.id",
+    "BOB": "/users/bob.id"
   }
 }'
 ```
@@ -83,12 +83,12 @@ Actions:
 commit c3d4e5... (c3d4e5...)
 Parent: b2c3d4...
 Actions:
-  post /users/bob.pubkey
+  post /users/bob.id
 
 commit b2c3d4... (b2c3d4...)
 Parent: a1b2c3...
 Actions:
-  post /users/alice.pubkey
+  post /users/alice.id
 
 commit a1b2c3... (a1b2c3...)
 Actions:
@@ -141,15 +141,15 @@ modal id create --output bob.passfile
 BOB_KEY=$(modal id create --output bob.passfile 2>&1 | grep "Peer ID" | awk '{print $3}')
 
 # Register users
-modal c commit --path /users/alice.pubkey --value "\"$ALICE_KEY\""
-modal c commit --path /users/bob.pubkey --value "\"$BOB_KEY\""
+modal c commit --path /users/alice.id --value "\"$ALICE_KEY\""
+modal c commit --path /users/bob.id --value "\"$BOB_KEY\""
 
 # Add authorization rule
 modal c commit --method rule --path /rules/auth.json --value "{
   \"require\": \"SIGNED_BY_ALICE | SIGNED_BY_BOB\",
   \"signers\": {
-    \"ALICE\": \"/users/alice.pubkey\",
-    \"BOB\": \"/users/bob.pubkey\"
+    \"ALICE\": \"/users/alice.id\",
+    \"BOB\": \"/users/bob.id\"
   }
 }"
 
@@ -167,7 +167,7 @@ modal c log
 |------|---------|---------|
 | 1 | `modal contract create` | Initialize empty contract |
 | 2 | `modal id create` | Create keypairs for parties |
-| 3 | `modal c commit --path /users/X.pubkey` | Register authorized signers |
+| 3 | `modal c commit --path /users/X.id` | Register authorized signers |
 | 4 | `modal c commit --method rule` | Add authorization rule |
 | 5 | `modal c commit --sign X.passfile` | Make signed commits |
 | 6 | `modal c push` | Sync with network |
