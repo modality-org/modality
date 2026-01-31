@@ -19,22 +19,42 @@ ALICE=$(cat alice.passfile | jq -r '.id')
 BOB=$(cat bob.passfile | jq -r '.id')
 ```
 
-## Step 2: Alice Sets Up Users & Authorization Rule
+## Step 2: Alice Sets Up Users, Model & Authorization Rule
 
 ```bash
 # Initialize directories
 modal c checkout
-mkdir -p state/users rules
+mkdir -p state/users rules model
 
 # Add user IDs
 echo "$ALICE" > state/users/alice.id
 echo "$BOB" > state/users/bob.id
 
+# Add the model (proves the rule is satisfiable)
+cat > model/auth.model << 'EOF'
+model auth {
+  states { idle, committed }
+  initial idle
+  
+  transitions {
+    idle -> committed [sign_alice]
+    idle -> committed [sign_bob]
+    committed -> committed [sign_alice]
+    committed -> committed [sign_bob]
+  }
+  
+  propositions {
+    sign_alice: signed_by(/users/alice.id)
+    sign_bob: signed_by(/users/bob.id)
+  }
+}
+EOF
+
 # Add authorization rule (temporal modal logic)
-# $PARENT is automatically replaced with the parent commit's hash
 cat > rules/auth.modality << 'EOF'
 export default rule {
   starting_at $PARENT
+  model auth
   formula {
     always must (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
@@ -52,6 +72,9 @@ Output:
 Changes in state/:
   + /users/alice.id
   + /users/bob.id
+
+Changes in model/:
+  + /model/auth.model
 
 Changes in rules/:
   + /rules/auth.modality
@@ -113,6 +136,7 @@ commit 18634bc4...
 Actions:
   post /users/alice.id
   post /users/bob.id
+  model /model/auth.model
   rule /rules/auth.modality
 
 commit 490a2225...
@@ -144,15 +168,35 @@ echo "Bob: $BOB"
 
 # Initialize directories
 modal c checkout
-mkdir -p state/users state/data rules
+mkdir -p state/users state/data rules model
 
-# Alice sets up users and authorization rule
+# Alice sets up users, model, and authorization rule
 echo "$ALICE" > state/users/alice.id
 echo "$BOB" > state/users/bob.id
+
+cat > model/auth.model << 'EOF'
+model auth {
+  states { idle, committed }
+  initial idle
+  
+  transitions {
+    idle -> committed [sign_alice]
+    idle -> committed [sign_bob]
+    committed -> committed [sign_alice]
+    committed -> committed [sign_bob]
+  }
+  
+  propositions {
+    sign_alice: signed_by(/users/alice.id)
+    sign_bob: signed_by(/users/bob.id)
+  }
+}
+EOF
 
 cat > rules/auth.modality << 'EOF'
 export default rule {
   starting_at $PARENT
+  model auth
   formula {
     always must (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
@@ -200,6 +244,8 @@ my-contract/
 │   │   └── bob.id
 │   └── data/
 │       └── message.text
+├── model/               # Model files (MODEL method)
+│   └── auth.model
 ├── rules/               # Rule files (RULE method)
 │   └── auth.modality
 ├── alice.passfile
@@ -211,6 +257,7 @@ my-contract/
 | Directory | Method | Purpose |
 |-----------|--------|---------|
 | `state/`  | `post` | Data files (.id, .text, .json, etc.) |
+| `model/`  | `model` | State machines proving rule satisfiability |
 | `rules/`  | `rule` | Modality formulas (.modality) |
 
 ## Workflow Summary
