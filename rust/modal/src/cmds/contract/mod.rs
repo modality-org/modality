@@ -18,3 +18,5 @@ pub mod set;
 pub mod set_named_id;
 pub mod assets;
 pub mod wasm_upload;
+pub mod pack;
+pub mod unpack;

@@ -261,6 +261,12 @@ enum ContractCommands {
     
     #[command(about = "Upload a WASM module to a contract")]
     WasmUpload(cmds::contract::wasm_upload::Opts),
+    
+    #[command(about = "Pack contract directory into a .contract file")]
+    Pack(cmds::contract::pack::Opts),
+    
+    #[command(about = "Unpack a .contract file into a directory")]
+    Unpack(cmds::contract::unpack::Opts),
 }
 
 #[derive(Subcommand)]
@@ -391,6 +397,8 @@ async fn main() -> Result<()> {
                 ContractCommands::Get(opts) => cmds::contract::get::run(opts).await?,
                 ContractCommands::Assets(opts) => cmds::contract::assets::run(opts).await?,
                 ContractCommands::WasmUpload(opts) => cmds::contract::wasm_upload::run(opts).await?,
+                ContractCommands::Pack(opts) => cmds::contract::pack::run(opts).await?,
+                ContractCommands::Unpack(opts) => cmds::contract::unpack::run(opts).await?,
             }
         }
         Commands::Run { command } => {
