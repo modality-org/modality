@@ -57,7 +57,7 @@ modal c commit --all
 mkdir -p rules
 cat > rules/auth.modality << 'EOF'
 export default rule {
-  starting_since $PARENT
+  starting_at $PARENT
   formula {
     always must (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
@@ -162,7 +162,7 @@ modal c commit --all
 mkdir -p rules
 cat > rules/auth.modality << 'EOF'
 export default rule {
-  starting_since $PARENT
+  starting_at $PARENT
   formula {
     always must (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
