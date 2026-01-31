@@ -218,6 +218,12 @@ enum ContractCommands {
     #[command(about = "Add a commit to a local contract")]
     Commit(cmds::contract::commit::Opts),
     
+    #[command(about = "Checkout state from commits to state/ directory")]
+    Checkout(cmds::contract::checkout::Opts),
+    
+    #[command(about = "Show changes between state/ and committed state")]
+    Diff(cmds::contract::diff::Opts),
+    
     #[command(about = "Get the commit ID from the current directory")]
     CommitId(cmds::contract::commit_id::Opts),
     
@@ -360,6 +366,8 @@ async fn main() -> Result<()> {
             match command {
                 ContractCommands::Create(opts) => cmds::contract::create::run(opts).await?,
                 ContractCommands::Commit(opts) => cmds::contract::commit::run(opts).await?,
+                ContractCommands::Checkout(opts) => cmds::contract::checkout::run(opts).await?,
+                ContractCommands::Diff(opts) => cmds::contract::diff::run(opts).await?,
                 ContractCommands::CommitId(opts) => cmds::contract::commit_id::run(opts).await?,
                 ContractCommands::Id(opts) => cmds::contract::id::run(opts).await?,
                 ContractCommands::Push(opts) => cmds::contract::push::run(opts).await?,

@@ -60,6 +60,14 @@ pub struct Opts {
     /// Path to passfile for signing the commit
     #[clap(long)]
     sign: Option<PathBuf>,
+    
+    /// Commit all changes from state directory
+    #[clap(short = 'a', long)]
+    all: bool,
+    
+    /// Commit message (optional, stored in commit)
+    #[clap(short = 'm', long)]
+    message: Option<String>,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
@@ -84,30 +92,60 @@ pub async fn run(opts: &Opts) -> Result<()> {
         CommitFile::new()
     };
 
-    // Build the action value based on method
-    let value = match opts.method.as_str() {
-        "create" => build_create_value(opts)?,
-        "send" => build_send_value(opts)?,
-        "recv" => build_recv_value(opts)?,
-        "invoke" => build_invoke_value(opts)?,
-        _ => {
-            // For other methods (post, rule), use the --value flag
-            if let Some(value_str) = &opts.value {
-                // Try to parse as JSON, fallback to string
-                serde_json::from_str(value_str)
-                    .unwrap_or_else(|_| Value::String(value_str.clone()))
-            } else {
-                anyhow::bail!("--value is required for method '{}'", opts.method);
+    // Handle --all flag: commit all changes from state directory
+    if opts.all {
+        let committed = store.build_state_from_commits()?;
+        let state_files = store.list_state_files()?;
+        let committed_paths: std::collections::HashSet<_> = committed.keys().cloned().collect();
+        let state_paths: std::collections::HashSet<_> = state_files.iter().cloned().collect();
+        
+        let mut changes = 0;
+        
+        // Add/modify files
+        for path in &state_files {
+            if let Some(current_value) = store.read_state(path)? {
+                let is_new = !committed.contains_key(path);
+                let is_modified = committed.get(path).map(|v| v != &current_value).unwrap_or(false);
+                
+                if is_new || is_modified {
+                    commit.add_action("post".to_string(), Some(path.clone()), current_value);
+                    changes += 1;
+                }
             }
         }
-    };
+        
+        // Note: deletions would need a "delete" method - skipping for now
+        
+        if changes == 0 {
+            println!("Nothing to commit (state directory matches committed state).");
+            return Ok(());
+        }
+    } else {
+        // Single action commit (original behavior)
+        let value = match opts.method.as_str() {
+            "create" => build_create_value(opts)?,
+            "send" => build_send_value(opts)?,
+            "recv" => build_recv_value(opts)?,
+            "invoke" => build_invoke_value(opts)?,
+            _ => {
+                // For other methods (post, rule), use the --value flag
+                if let Some(value_str) = &opts.value {
+                    // Try to parse as JSON, fallback to string
+                    serde_json::from_str(value_str)
+                        .unwrap_or_else(|_| Value::String(value_str.clone()))
+                } else {
+                    anyhow::bail!("--value is required for method '{}'", opts.method);
+                }
+            }
+        };
 
-    // Add action
-    commit.add_action(
-        opts.method.clone(),
-        opts.path.clone(),
-        value
-    );
+        // Add action
+        commit.add_action(
+            opts.method.clone(),
+            opts.path.clone(),
+            value
+        );
+    }
 
     // Sign the commit if a passfile is provided
     if let Some(passfile_path) = &opts.sign {

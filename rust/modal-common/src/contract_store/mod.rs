@@ -140,6 +140,138 @@ impl ContractStore {
         Refs::write_remote_head(&self.root_dir, remote_name, commit_id)
     }
 
+    /// Get the state directory path (working directory for editable files)
+    pub fn state_dir(&self) -> PathBuf {
+        self.root_dir.join("state")
+    }
+
+    /// Initialize the state directory
+    pub fn init_state_dir(&self) -> Result<()> {
+        let state_dir = self.state_dir();
+        if !state_dir.exists() {
+            std::fs::create_dir_all(&state_dir)?;
+        }
+        Ok(())
+    }
+
+    /// Write a value to the state directory
+    pub fn write_state(&self, path: &str, value: &serde_json::Value) -> Result<()> {
+        let file_path = self.state_dir().join(path.trim_start_matches('/'));
+        
+        // Create parent directories if needed
+        if let Some(parent) = file_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        
+        // Write the value (as JSON for complex types, raw for simple)
+        let content = match value {
+            serde_json::Value::String(s) => s.clone(),
+            serde_json::Value::Bool(b) => b.to_string(),
+            serde_json::Value::Number(n) => n.to_string(),
+            _ => serde_json::to_string_pretty(value)?,
+        };
+        
+        std::fs::write(&file_path, content)?;
+        Ok(())
+    }
+
+    /// Read a value from the state directory
+    pub fn read_state(&self, path: &str) -> Result<Option<serde_json::Value>> {
+        let file_path = self.state_dir().join(path.trim_start_matches('/'));
+        
+        if !file_path.exists() {
+            return Ok(None);
+        }
+        
+        let content = std::fs::read_to_string(&file_path)?;
+        
+        // Try to parse as JSON, fallback to string
+        let value = serde_json::from_str(&content)
+            .unwrap_or_else(|_| serde_json::Value::String(content));
+        
+        Ok(Some(value))
+    }
+
+    /// List all files in the state directory
+    pub fn list_state_files(&self) -> Result<Vec<String>> {
+        let state_dir = self.state_dir();
+        if !state_dir.exists() {
+            return Ok(Vec::new());
+        }
+        
+        let mut files = Vec::new();
+        self.collect_files(&state_dir, &state_dir, &mut files)?;
+        Ok(files)
+    }
+
+    fn collect_files(&self, base: &Path, dir: &Path, files: &mut Vec<String>) -> Result<()> {
+        for entry in std::fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            
+            if path.is_dir() {
+                self.collect_files(base, &path, files)?;
+            } else if path.is_file() {
+                let relative = path.strip_prefix(base)?;
+                files.push(format!("/{}", relative.display()));
+            }
+        }
+        Ok(())
+    }
+
+    /// Build current state by replaying all commits
+    pub fn build_state_from_commits(&self) -> Result<std::collections::HashMap<String, serde_json::Value>> {
+        use std::collections::HashMap;
+        
+        let mut state: HashMap<String, serde_json::Value> = HashMap::new();
+        
+        // Get all commits in order (oldest first)
+        let head = self.get_head()?;
+        if head.is_none() {
+            return Ok(state);
+        }
+        
+        // Collect commits from HEAD to genesis
+        let mut commits = Vec::new();
+        let mut current = head;
+        while let Some(commit_id) = current {
+            let commit = self.load_commit(&commit_id)?;
+            commits.push(commit.clone());
+            current = commit.head.parent;
+        }
+        
+        // Replay in order (oldest first)
+        commits.reverse();
+        for commit in commits {
+            for action in &commit.body {
+                if let Some(path) = &action.path {
+                    match action.method.as_str() {
+                        "post" | "genesis" => {
+                            state.insert(path.clone(), action.value.clone());
+                        }
+                        // Add other methods as needed
+                        _ => {}
+                    }
+                }
+            }
+        }
+        
+        Ok(state)
+    }
+
+    /// Sync state directory from commits (checkout)
+    pub fn checkout_state(&self) -> Result<()> {
+        self.init_state_dir()?;
+        
+        let state = self.build_state_from_commits()?;
+        
+        for (path, value) in state {
+            self.write_state(&path, &value)?;
+        }
+        
+        Ok(())
+    }
+
     /// Get commits that need to be pushed (between remote HEAD and local HEAD)
     pub fn get_unpushed_commits(&self, remote_name: &str) -> Result<Vec<String>> {
         let local_head = self.get_head()?;
