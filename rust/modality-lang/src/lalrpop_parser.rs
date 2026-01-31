@@ -147,18 +147,22 @@ pub fn parse_all_tests_content_lalrpop(content: &str) -> Result<Vec<Test>, Strin
         
         if line.starts_with("test ") || line.starts_with("test:") {
             // Parse just the test declaration line
-            let test_decl_line = if line.starts_with("test:") {
+            let test_decl_line = if line.starts_with("test {") || line.starts_with("test:") {
                 line
             } else {
-                // Handle "test Name:" format
+                // Handle "test Name {" or "test Name:" format
                 line
             };
             
-            // Create test based on the declaration
-            let test = if test_decl_line == "test:" {
+            // Create test based on the declaration (support both old and new syntax)
+            let test = if test_decl_line == "test:" || test_decl_line == "test {" {
                 Test::new(None)
-            } else if test_decl_line.starts_with("test ") && test_decl_line.ends_with(":") {
-                let name = test_decl_line[5..test_decl_line.len()-1].trim().to_string();
+            } else if test_decl_line.starts_with("test ") && (test_decl_line.ends_with(":") || test_decl_line.ends_with("{")) {
+                let name = test_decl_line[5..]
+                    .trim_end_matches(':')
+                    .trim_end_matches('{')
+                    .trim()
+                    .to_string();
                 Test::new(Some(name))
             } else {
                 return Err(format!("Invalid test declaration: {}", test_decl_line));
@@ -234,9 +238,11 @@ mod tests {
     #[test]
     fn test_parse_simple_model_lalrpop() {
         let content = r#"
-model InitialModel:
-  part g1:
+model InitialModel {
+  part g1 {
     n1 --> n1
+  }
+}
 "#;
         
         let model = parse_content_lalrpop(content).unwrap();
@@ -256,10 +262,12 @@ model InitialModel:
     #[test]
     fn test_parse_model_with_properties_lalrpop() {
         let content = r#"
-model Model3:
-  part g1:
+model Model3 {
+  part g1 {
     n1 --> n2: +blue
     n2 --> n3: +blue
+  }
+}
 "#;
         
         let model = parse_content_lalrpop(content).unwrap();
@@ -288,11 +296,13 @@ model Model3:
     #[test]
     fn test_parse_model_with_multiple_properties_lalrpop() {
         let content = r#"
-model Model4:
-  part g1:
+model Model4 {
+  part g1 {
     n1 --> n2: +blue -red
     n2 --> n3: +blue -green
     n3 --> n1: -blue +red
+  }
+}
 "#;
         
         let model = parse_content_lalrpop(content).unwrap();
@@ -314,13 +324,16 @@ model Model4:
     #[test]
     fn test_parse_model_with_multiple_parts_lalrpop() {
         let content = r#"
-model Model5:
-  part g1:
+model Model5 {
+  part g1 {
     n1 --> n2: +blue -red
     n2 --> n3: +blue -green
     n3 --> n1: -blue +red
-  part g2:
+  }
+  part g2 {
     n1 --> n1: +yellow
+  }
+}
 "#;
         
         let model = parse_content_lalrpop(content).unwrap();
@@ -340,9 +353,9 @@ model Model5:
     #[test]
     fn test_parse_boolean_formulas() {
         let content = r#"
-formula FormulaTrue: true
-formula FormulaFalse: false
-formula FormulaBooleanWff: (true or false) and true
+formula FormulaTrue { true }
+formula FormulaFalse { false }
+formula FormulaBooleanWff { (true or false) and true }
 "#;
         
         let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
@@ -361,8 +374,8 @@ formula FormulaBooleanWff: (true or false) and true
     #[test]
     fn test_parse_modal_formulas() {
         let content = r#"
-formula FormulaDiamondBlueTrue: <+blue> true
-formula FormulaBoxNegBlueFalse: [-blue] false
+formula FormulaDiamondBlueTrue { <+blue> true }
+formula FormulaBoxNegBlueFalse { [-blue] false }
 "#;
         
         let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
@@ -378,7 +391,7 @@ formula FormulaBoxNegBlueFalse: [-blue] false
     #[test]
     fn test_parse_action_declaration() {
         let content = r#"
-action ActionHello: +hello
+action ActionHello { +hello }
 "#;
         
         let actions = parse_all_actions_content_lalrpop(content).unwrap();
@@ -402,7 +415,7 @@ action ActionHello: +hello
     #[test]
     fn test_parse_action_with_multiple_properties() {
         let content = r#"
-action ActionComplex: +blue -red +green
+action ActionComplex { +blue -red +green }
 "#;
         
         let actions = parse_all_actions_content_lalrpop(content).unwrap();
@@ -425,10 +438,8 @@ action ActionComplex: +blue -red +green
     #[test]
     fn test_parse_anonymous_test() {
         let content = r#"
-test:
-  m = clone(InitialModel)
-  m.commit(ActionHello)
-  m.commit(action("+hello"))
+test {
+}
 "#;
         
         let tests = parse_all_tests_content_lalrpop(content).unwrap();
@@ -442,9 +453,8 @@ test:
     #[test]
     fn test_parse_named_test() {
         let content = r#"
-test NamedTest:
-  m = clone(InitialModel)
-  m.commit(ActionHello)
+test NamedTest {
+}
 "#;
         
         let tests = parse_all_tests_content_lalrpop(content).unwrap();

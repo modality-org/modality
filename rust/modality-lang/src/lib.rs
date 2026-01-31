@@ -9,6 +9,7 @@ pub mod mermaid;
 pub mod wasm;
 pub mod model_checker;
 pub mod synthesis;
+pub mod printer;
 
 // Include the generated parser
 use lalrpop_util::lalrpop_mod;
@@ -19,6 +20,7 @@ pub use ast::{Model, Part, Transition, Property, PropertySign, Formula, FormulaE
 pub use mermaid::{generate_mermaid_diagram, generate_mermaid_diagrams, generate_mermaid_diagram_with_styling, generate_mermaid_diagram_with_state};
 pub use model_checker::{ModelChecker, State, ModelCheckResult};
 pub use synthesis::{synthesize, synthesize_from_pattern, identify_pattern, SynthesisResult, RulePattern};
+pub use printer::print_model;
 
 // Re-export the generated parser
 pub use grammar::ModelParser;
