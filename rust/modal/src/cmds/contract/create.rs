@@ -32,6 +32,16 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Initialize the contract store
     let store = ContractStore::init(&dir, contract_id.clone())?;
 
+    // Create model directory with default model
+    let model_dir = dir.join("model");
+    std::fs::create_dir_all(&model_dir)?;
+    
+    let default_model = r#"export default model {
+  init --> init
+}
+"#;
+    std::fs::write(model_dir.join("default.modality"), default_model)?;
+
     // Create genesis commit
     let genesis = serde_json::json!({
         "genesis": {
@@ -73,8 +83,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!();
         println!("Next steps:");
         println!("  1. cd {}", dir.display());
-        println!("  2. modal contract commit --path /data --value 'hello'");
-        println!("  3. modal contract push --remote <node-multiaddr>");
+        println!("  2. Edit model/default.modality to define your state machine");
+        println!("  3. Add rules in rules/*.modality");
+        println!("  4. modal c commit --all --sign your.passfile");
     }
 
     Ok(())
