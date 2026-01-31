@@ -256,10 +256,46 @@ They can re-verify independently. Trust through transparency.
 
 ---
 
+## Natural Language Synthesis (NEW!)
+
+Don't know the syntax? Just describe what you want:
+
+```bash
+modality model synthesize --describe "escrow where buyer deposits and seller delivers"
+```
+
+Output:
+```
+Detected pattern: escrow (confidence: 100%)
+Parties: ["Buyer", "Seller"]
+
+model Escrow {
+  part flow {
+    init --> deposited: +DEPOSIT +SIGNED_BY_BUYER
+    deposited --> delivered: +DELIVER +SIGNED_BY_SELLER
+    delivered --> complete: +RELEASE +SIGNED_BY_BUYER
+    complete --> complete
+  }
+}
+```
+
+Available patterns:
+- `escrow` - Buyer deposits, seller delivers, buyer releases
+- `handshake` - Both parties must sign
+- `atomic_swap` - Both commit before either can claim
+- `delegation` - Principal grants agent authority
+- `auction` - Bidders bid, highest wins
+- `subscription` - Recurring access with payments
+- `milestone` - Phased project with payments
+
+See [NL_SYNTHESIS.md](./NL_SYNTHESIS.md) for full details.
+
+---
+
 ## What's Coming
 
 - **ModalMoney**: A blockchain for verifiable agent contracts
-- **Synthesis**: Describe what you want in natural language, get a verified contract
+- **LLM Integration**: More sophisticated natural language understanding
 - **Composition**: Combine contracts safely with verified interfaces
 
 ---
