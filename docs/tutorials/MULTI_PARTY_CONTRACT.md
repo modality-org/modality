@@ -37,15 +37,10 @@ model auth {
   initial idle
   
   transitions {
-    idle -> committed [sign_alice]
-    idle -> committed [sign_bob]
-    committed -> committed [sign_alice]
-    committed -> committed [sign_bob]
-  }
-  
-  propositions {
-    sign_alice: signed_by(/users/alice.id)
-    sign_bob: signed_by(/users/bob.id)
+    idle -> committed [+signed_by(/users/alice.id)]
+    idle -> committed [+signed_by(/users/bob.id)]
+    committed -> committed [+signed_by(/users/alice.id)]
+    committed -> committed [+signed_by(/users/bob.id)]
   }
 }
 EOF
@@ -180,15 +175,10 @@ model auth {
   initial idle
   
   transitions {
-    idle -> committed [sign_alice]
-    idle -> committed [sign_bob]
-    committed -> committed [sign_alice]
-    committed -> committed [sign_bob]
-  }
-  
-  propositions {
-    sign_alice: signed_by(/users/alice.id)
-    sign_bob: signed_by(/users/bob.id)
+    idle -> committed [+signed_by(/users/alice.id)]
+    idle -> committed [+signed_by(/users/bob.id)]
+    committed -> committed [+signed_by(/users/alice.id)]
+    committed -> committed [+signed_by(/users/bob.id)]
   }
 }
 EOF
