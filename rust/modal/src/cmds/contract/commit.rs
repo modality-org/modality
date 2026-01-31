@@ -92,38 +92,42 @@ pub async fn run(opts: &Opts) -> Result<()> {
         CommitFile::new()
     };
 
-    // Handle --all flag: commit all changes from state directory
+    // Handle --all flag: commit all changes from state + rules directories
     if opts.all {
         let committed = store.build_state_from_commits()?;
         let state_files = store.list_state_files()?;
-        let committed_paths: std::collections::HashSet<_> = committed.keys().cloned().collect();
-        let state_paths: std::collections::HashSet<_> = state_files.iter().cloned().collect();
+        let rules_files = store.list_rules_files()?;
         
         let mut changes = 0;
         
-        // Add/modify files
+        // Add/modify state files
         for path in &state_files {
             if let Some(current_value) = store.read_state(path)? {
                 let is_new = !committed.contains_key(path);
                 let is_modified = committed.get(path).map(|v| v != &current_value).unwrap_or(false);
                 
                 if is_new || is_modified {
-                    // Use "rule" method for .modality files in /rules/ directory
-                    let method = if path.starts_with("/rules/") && path.ends_with(".modality") {
-                        "rule"
-                    } else {
-                        "post"
-                    };
-                    commit.add_action(method.to_string(), Some(path.clone()), current_value);
+                    commit.add_action("post".to_string(), Some(path.clone()), current_value);
                     changes += 1;
                 }
             }
         }
         
-        // Note: deletions would need a "delete" method - skipping for now
+        // Add/modify rule files
+        for path in &rules_files {
+            if let Some(current_value) = store.read_rule(path)? {
+                let is_new = !committed.contains_key(path);
+                let is_modified = committed.get(path).map(|v| v != &current_value).unwrap_or(false);
+                
+                if is_new || is_modified {
+                    commit.add_action("rule".to_string(), Some(path.clone()), current_value);
+                    changes += 1;
+                }
+            }
+        }
         
         if changes == 0 {
-            println!("Nothing to commit (state directory matches committed state).");
+            println!("Nothing to commit (working directories match committed state).");
             return Ok(());
         }
     } else {

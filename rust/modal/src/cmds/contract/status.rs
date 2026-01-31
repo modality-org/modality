@@ -50,17 +50,22 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Get remote URL if configured
     let remote_url = config.get_remote(&opts.remote).map(|r| r.url.clone());
 
-    // Check state directory for changes
+    // Check state and rules directories for changes
     let committed = store.build_state_from_commits()?;
     let state_files = store.list_state_files()?;
+    let rules_files = store.list_rules_files()?;
+    
+    let mut all_working_files: std::collections::HashSet<String> = std::collections::HashSet::new();
+    all_working_files.extend(state_files.iter().cloned());
+    all_working_files.extend(rules_files.iter().cloned());
+    
     let committed_paths: std::collections::HashSet<_> = committed.keys().cloned().collect();
-    let state_paths: std::collections::HashSet<_> = state_files.iter().cloned().collect();
     
     let mut added: Vec<String> = Vec::new();
     let mut modified: Vec<String> = Vec::new();
     let mut deleted: Vec<String> = Vec::new();
     
-    // Check for added and modified files
+    // Check for added and modified state files
     for path in &state_files {
         if let Some(current_value) = store.read_state(path)? {
             if let Some(committed_value) = committed.get(path) {
@@ -73,9 +78,22 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
     }
     
+    // Check for added and modified rule files
+    for path in &rules_files {
+        if let Some(current_value) = store.read_rule(path)? {
+            if let Some(committed_value) = committed.get(path) {
+                if &current_value != committed_value {
+                    modified.push(path.clone());
+                }
+            } else {
+                added.push(path.clone());
+            }
+        }
+    }
+    
     // Check for deleted files
     for path in &committed_paths {
-        if !state_paths.contains(path) {
+        if !all_working_files.contains(path) {
             deleted.push(path.clone());
         }
     }

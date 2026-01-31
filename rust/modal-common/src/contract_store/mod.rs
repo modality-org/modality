@@ -145,11 +145,25 @@ impl ContractStore {
         self.root_dir.join("state")
     }
 
+    /// Get the rules directory path (sister of state)
+    pub fn rules_dir(&self) -> PathBuf {
+        self.root_dir.join("rules")
+    }
+
     /// Initialize the state directory
     pub fn init_state_dir(&self) -> Result<()> {
         let state_dir = self.state_dir();
         if !state_dir.exists() {
             std::fs::create_dir_all(&state_dir)?;
+        }
+        Ok(())
+    }
+
+    /// Initialize the rules directory
+    pub fn init_rules_dir(&self) -> Result<()> {
+        let rules_dir = self.rules_dir();
+        if !rules_dir.exists() {
+            std::fs::create_dir_all(&rules_dir)?;
         }
         Ok(())
     }
@@ -200,20 +214,65 @@ impl ContractStore {
         }
         
         let mut files = Vec::new();
-        self.collect_files(&state_dir, &state_dir, &mut files)?;
+        self.collect_files(&state_dir, &state_dir, "", &mut files)?;
         Ok(files)
     }
 
-    fn collect_files(&self, base: &Path, dir: &Path, files: &mut Vec<String>) -> Result<()> {
+    /// List all files in the rules directory
+    pub fn list_rules_files(&self) -> Result<Vec<String>> {
+        let rules_dir = self.rules_dir();
+        if !rules_dir.exists() {
+            return Ok(Vec::new());
+        }
+        
+        let mut files = Vec::new();
+        self.collect_files(&rules_dir, &rules_dir, "/rules", &mut files)?;
+        Ok(files)
+    }
+
+    /// Read a rule file
+    pub fn read_rule(&self, path: &str) -> Result<Option<serde_json::Value>> {
+        // path is like /rules/auth.modality, strip the /rules prefix
+        let relative = path.trim_start_matches("/rules/");
+        let file_path = self.rules_dir().join(relative);
+        
+        if !file_path.exists() {
+            return Ok(None);
+        }
+        
+        let content = std::fs::read_to_string(&file_path)?;
+        Ok(Some(serde_json::Value::String(content)))
+    }
+
+    /// Write a rule file
+    pub fn write_rule(&self, path: &str, value: &serde_json::Value) -> Result<()> {
+        let relative = path.trim_start_matches("/rules/");
+        let file_path = self.rules_dir().join(relative);
+        
+        // Create parent directories if needed
+        if let Some(parent) = file_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        
+        let content = match value {
+            serde_json::Value::String(s) => s.clone(),
+            _ => serde_json::to_string_pretty(value)?,
+        };
+        
+        std::fs::write(&file_path, content)?;
+        Ok(())
+    }
+
+    fn collect_files(&self, base: &Path, dir: &Path, prefix: &str, files: &mut Vec<String>) -> Result<()> {
         for entry in std::fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
             
             if path.is_dir() {
-                self.collect_files(base, &path, files)?;
+                self.collect_files(base, &path, prefix, files)?;
             } else if path.is_file() {
                 let relative = path.strip_prefix(base)?;
-                files.push(format!("/{}", relative.display()));
+                files.push(format!("{}/{}", prefix, relative.display()));
             }
         }
         Ok(())
@@ -259,14 +318,19 @@ impl ContractStore {
         Ok(state)
     }
 
-    /// Sync state directory from commits (checkout)
+    /// Sync state and rules directories from commits (checkout)
     pub fn checkout_state(&self) -> Result<()> {
         self.init_state_dir()?;
+        self.init_rules_dir()?;
         
         let state = self.build_state_from_commits()?;
         
         for (path, value) in state {
-            self.write_state(&path, &value)?;
+            if path.starts_with("/rules/") {
+                self.write_rule(&path, &value)?;
+            } else {
+                self.write_state(&path, &value)?;
+            }
         }
         
         Ok(())
