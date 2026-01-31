@@ -71,13 +71,21 @@ PropertyList: Vec<Property> = {
 Property: Property = {
     "+" <name:Ident> => Property::new(PropertySign::Plus, name),
     "-" <name:Ident> => Property::new(PropertySign::Minus, name),
-    // Predicate function call: +signed_by("pubkey") or +has_amount(100)
+    // Predicate function call: +name("arg") or +name(arg)
     "+" <name:Ident> "(" <arg:PredicateArg> ")" => {
         Property::new_predicate_from_call(name, arg)
     },
-    // Negated predicate: -signed_by("pubkey")
+    // Negated predicate: -name("arg")
     "-" <name:Ident> "(" <arg:PredicateArg> ")" => {
         Property::new_predicate_from_call_negated(name, arg)
+    },
+    // Special case: +signed_by(X) - keyword used as predicate name
+    "+" "signed_by" "(" <arg:PredicateArg> ")" => {
+        Property::new_predicate_from_call("signed_by".to_string(), arg)
+    },
+    // Special case: -signed_by(X)
+    "-" "signed_by" "(" <arg:PredicateArg> ")" => {
+        Property::new_predicate_from_call_negated("signed_by".to_string(), arg)
     }
 };
 

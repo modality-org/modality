@@ -143,10 +143,10 @@ The first party provides a governing model that defines all possible transitions
 ```modality
 model {
   part flow {
-    init --> a_ruled: +ADD_RULE +signer(A)
-    a_ruled --> b_ruled: +ADD_RULE +signer(B)
-    b_ruled --> a_ready: +READY +signer(A)
-    a_ready --> done: +READY +signer(B)
+    init --> a_ruled: +ADD_RULE +signed_by(A)
+    a_ruled --> b_ruled: +ADD_RULE +signed_by(B)
+    b_ruled --> a_ready: +READY +signed_by(A)
+    a_ready --> done: +READY +signed_by(B)
   }
 }
 ```

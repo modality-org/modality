@@ -63,10 +63,10 @@ contract handshake {
     signed_by A
     model {
       part flow {
-        init --> a_ruled: +ADD_RULE +signer(A)
-        a_ruled --> b_ruled: +ADD_RULE +signer(B)
-        b_ruled --> a_ready: +READY +signer(A)
-        a_ready --> done: +READY +signer(B)
+        init --> a_ruled: +ADD_RULE +signed_by(A)
+        a_ruled --> b_ruled: +ADD_RULE +signed_by(B)
+        b_ruled --> a_ready: +READY +signed_by(A)
+        a_ready --> done: +READY +signed_by(B)
       }
     }
     add_rule { eventually(done) }
@@ -95,13 +95,13 @@ contract handshake {
 
 ### How It Works
 
-1. **Commit 0**: A provides the governing model and adds a rule. This transitions `init --> a_ruled` via `+ADD_RULE +signer(A)`.
+1. **Commit 0**: A provides the governing model and adds a rule. This transitions `init --> a_ruled` via `+ADD_RULE +signed_by(A)`.
 
-2. **Commit 1**: B adds their rule. This transitions `a_ruled --> b_ruled` via `+ADD_RULE +signer(B)`.
+2. **Commit 1**: B adds their rule. This transitions `a_ruled --> b_ruled` via `+ADD_RULE +signed_by(B)`.
 
-3. **Commit 2**: A executes `+READY`. This transitions `b_ruled --> a_ready` via `+READY +signer(A)`.
+3. **Commit 2**: A executes `+READY`. This transitions `b_ruled --> a_ready` via `+READY +signed_by(A)`.
 
-4. **Commit 3**: B executes `+READY`. This transitions `a_ready --> done` via `+READY +signer(B)`.
+4. **Commit 3**: B executes `+READY`. This transitions `a_ready --> done` via `+READY +signed_by(B)`.
 
 Both rules (`eventually(done)`) are now satisfied.
 
