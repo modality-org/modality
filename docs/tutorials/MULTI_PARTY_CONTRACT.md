@@ -33,15 +33,12 @@ echo "$BOB" > state/users/bob.id
 # Add the model (proves the rule is satisfiable)
 cat > model/auth.model << 'EOF'
 model auth {
-  states { idle, committed }
   initial idle
   
-  transitions {
-    idle -> committed [+signed_by(/users/alice.id)]
-    idle -> committed [+signed_by(/users/bob.id)]
-    committed -> committed [+signed_by(/users/alice.id)]
-    committed -> committed [+signed_by(/users/bob.id)]
-  }
+  idle -> committed [+signed_by(/users/alice.id)]
+  idle -> committed [+signed_by(/users/bob.id)]
+  committed -> committed [+signed_by(/users/alice.id)]
+  committed -> committed [+signed_by(/users/bob.id)]
 }
 EOF
 
@@ -171,15 +168,12 @@ echo "$BOB" > state/users/bob.id
 
 cat > model/auth.model << 'EOF'
 model auth {
-  states { idle, committed }
   initial idle
   
-  transitions {
-    idle -> committed [+signed_by(/users/alice.id)]
-    idle -> committed [+signed_by(/users/bob.id)]
-    committed -> committed [+signed_by(/users/alice.id)]
-    committed -> committed [+signed_by(/users/bob.id)]
-  }
+  idle -> committed [+signed_by(/users/alice.id)]
+  idle -> committed [+signed_by(/users/bob.id)]
+  committed -> committed [+signed_by(/users/alice.id)]
+  committed -> committed [+signed_by(/users/bob.id)]
 }
 EOF
 
