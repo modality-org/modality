@@ -13,6 +13,7 @@ readme = "../README.md"
 
 [dependencies]
 modality = { path = "../modality", version = "0.1.7" }
+modality-lang = { path = "../modality-lang", version = "0.1.7" }
 modal-common = { path = "../modal-common", version = "0.1.7" }
 modal-node = { path = "../modal-node", version = "0.1.7" }
 modal-datastore = { path = "../modal-datastore", version = "0.1.0" }

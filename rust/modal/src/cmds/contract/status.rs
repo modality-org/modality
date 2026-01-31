@@ -4,6 +4,7 @@ use serde_json::json;
 use std::path::PathBuf;
 
 use modal_common::contract_store::ContractStore;
+use modality_lang::parse_content_lalrpop;
 
 #[derive(Debug, Parser)]
 #[command(about = "Show contract status")]
@@ -46,6 +47,24 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Count total commits
     let all_commits = store.list_commits()?;
+
+    // Load and parse the governing model to determine current state
+    let model_path = contract_dir.join("model").join("default.modality");
+    let current_model_state = if model_path.exists() {
+        let model_content = std::fs::read_to_string(&model_path)?;
+        match parse_content_lalrpop(&model_content) {
+            Ok(model) => {
+                // Get initial state
+                let initial = model.initial.clone().unwrap_or_else(|| "init".to_string());
+                // For now, just show the initial state
+                // TODO: replay commits to determine actual current state
+                Some(initial)
+            }
+            Err(_) => None
+        }
+    } else {
+        None
+    };
 
     // Get remote URL if configured
     let remote_url = config.get_remote(&opts.remote).map(|r| r.url.clone());
@@ -104,6 +123,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&json!({
             "contract_id": config.contract_id,
             "directory": contract_dir.display().to_string(),
+            "model_state": current_model_state,
             "local_head": local_head,
             "remote_head": remote_head,
             "remote_name": opts.remote,
@@ -123,6 +143,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!();
         println!("  Contract ID: {}", config.contract_id);
         println!("  Directory:   {}", contract_dir.display());
+        if let Some(state) = &current_model_state {
+            println!("  Model state: {}", state);
+        }
         println!();
         println!("  Local HEAD:  {}", local_head.as_deref().unwrap_or("(none)"));
         println!("  Remote HEAD: {} [{}]", 
