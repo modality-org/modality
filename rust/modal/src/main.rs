@@ -242,6 +242,9 @@ enum ContractCommands {
     #[command(about = "Show contract status")]
     Status(cmds::contract::status::Opts),
     
+    #[command(about = "Set a state file value")]
+    Set(cmds::contract::set::Opts),
+    
     #[command(about = "Show commit history")]
     Log(cmds::contract::log::Opts),
     
@@ -376,6 +379,7 @@ async fn main() -> Result<()> {
                 ContractCommands::Push(opts) => cmds::contract::push::run(opts).await?,
                 ContractCommands::Pull(opts) => cmds::contract::pull::run(opts).await?,
                 ContractCommands::Status(opts) => cmds::contract::status::run(opts).await?,
+                ContractCommands::Set(opts) => cmds::contract::set::run(opts).await?,
                 ContractCommands::Log(opts) => cmds::contract::log::run(opts).await?,
                 ContractCommands::Get(opts) => cmds::contract::get::run(opts).await?,
                 ContractCommands::Assets(opts) => cmds::contract::assets::run(opts).await?,
