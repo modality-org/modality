@@ -34,15 +34,28 @@ The log is the source of truth. There is no separate "state" - state is always d
 
 `AddRule` is just another action. It adds a formula that all future actions must satisfy.
 
+**Critical: AddRule must include a state machine that satisfies the formula AND all prior rules.** Otherwise the commit is rejected.
+
 ```json
 {
   "type": "AddRule",
   "name": "MyProtection",
   "formula": {
     "expression": { "Eventually": { "Prop": "paid" } }
+  },
+  "model": {
+    "name": "Exchange",
+    "parts": [{
+      "name": "flow",
+      "transitions": [
+        { "from": "init", "to": "paid" }
+      ]
+    }]
   }
 }
 ```
+
+The model proves realizability. You can't add contradictory rules because no model would satisfy both.
 
 Rules accumulate. Each domain action is validated against ALL rules.
 
