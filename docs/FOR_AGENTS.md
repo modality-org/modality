@@ -59,9 +59,9 @@ echo "$BUYER" > state/users/buyer.id
 echo "$SELLER" > state/users/seller.id
 ```
 
-**model/escrow.model** — proves the rules are satisfiable:
+**model/escrow.modality** — proves the rules are satisfiable:
 ```
-model escrow {
+export default model {
   initial init
   
   init -> deposited [+signed_by(/users/buyer.id)]
@@ -121,9 +121,9 @@ Two agents have verified contracts. A third agent wants to work with both. They 
 
 ### Service Agreement
 
-**model/service.model:**
+**model/service.modality:**
 ```
-model service {
+export default model {
   initial init
   
   init -> offered [+signed_by(/users/provider.id)]
@@ -148,9 +148,9 @@ export default rule {
 
 ### Multi-Sig Approval
 
-**model/multisig.model:**
+**model/multisig.modality:**
 ```
-model multisig {
+export default model {
   initial init
   
   init -> alice_signed [+signed_by(/users/alice.id)]
@@ -179,9 +179,9 @@ export default rule {
 
 ### Atomic Swap
 
-**model/swap.model:**
+**model/swap.modality:**
 ```
-model swap {
+export default model {
   initial init
   
   init -> a_committed [+signed_by(/users/alice.id)]
@@ -231,7 +231,7 @@ my-contract/
 │       ├── alice.id
 │       └── bob.id
 ├── model/               # State machines (MODEL method)
-│   └── auth.model
+│   └── auth.modality
 ├── rules/               # Formulas (RULE method)
 │   └── auth.modality
 ```

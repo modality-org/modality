@@ -39,7 +39,7 @@ my-contract/
 When you add a rule, you must provide a **model** that proves all rules can be satisfied:
 
 ```
-model auth {
+export default model {
   initial idle
   
   idle -> committed [+signed_by(/users/alice.id)]
@@ -58,7 +58,7 @@ Rules constrain what can happen:
 ```modality
 export default rule {
   starting_at $PARENT
-  model auth
+  model
   formula {
     always must (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
@@ -109,9 +109,9 @@ echo "$ALICE" > state/users/alice.id
 echo "$BOB" > state/users/bob.id
 ```
 
-Create **model/auth.model**:
+Create **model/auth.modality**:
 ```
-model auth {
+export default model {
   initial idle
   
   idle -> active [+signed_by(/users/alice.id)]
@@ -125,7 +125,7 @@ Create **rules/auth.modality**:
 ```modality
 export default rule {
   starting_at $PARENT
-  model auth
+  model
   formula {
     always must (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
@@ -155,9 +155,9 @@ modal c log
 
 **Use case:** Only Alice and Bob can commit. No one else.
 
-**model/auth.model:**
+**model/auth.modality:**
 ```
-model auth {
+export default model {
   initial idle
   
   idle -> active [+signed_by(/users/alice.id)]
@@ -171,7 +171,7 @@ model auth {
 ```modality
 export default rule {
   starting_at $PARENT
-  model auth
+  model
   formula {
     always must (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
@@ -184,9 +184,9 @@ export default rule {
 
 **Use case:** Buyer deposits, seller delivers, buyer releases payment.
 
-**model/escrow.model:**
+**model/escrow.modality:**
 ```
-model escrow {
+export default model {
   initial init
   
   init -> deposited [+signed_by(/users/buyer.id)]
@@ -212,9 +212,9 @@ export default rule {
 
 **Use case:** Both parties must sign before execution.
 
-**model/multisig.model:**
+**model/multisig.modality:**
 ```
-model multisig {
+export default model {
   initial init
   
   init -> alice_signed [+signed_by(/users/alice.id)]
@@ -245,9 +245,9 @@ export default rule {
 
 **Use case:** Both commit before either can claim.
 
-**model/swap.model:**
+**model/swap.modality:**
 ```
-model swap {
+export default model {
   initial init
   
   init -> a_ready [+signed_by(/users/alice.id)]

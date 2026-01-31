@@ -51,9 +51,9 @@ echo "$ALICE" > state/users/alice.id
 echo "$BOB" > state/users/bob.id
 ```
 
-Create **model/auth.model** — proves the rules can be satisfied:
+Create **model/auth.modality** — proves the rules can be satisfied:
 ```
-model auth {
+export default model {
   initial idle
   
   idle -> committed [+signed_by(/users/alice.id)]
@@ -67,7 +67,7 @@ Create **rules/auth.modality** — the constraints:
 ```modality
 export default rule {
   starting_at $PARENT
-  model auth
+  model
   formula {
     always must (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
@@ -119,7 +119,7 @@ my-contract/
 │       ├── alice.id
 │       └── bob.id
 ├── model/               # State machines (MODEL method)
-│   └── auth.model
+│   └── auth.modality
 ├── rules/               # Formulas (RULE method)
 │   └── auth.modality
 ```
@@ -158,7 +158,7 @@ my-contract/
 When you add a rule, you must provide a **model** that proves all rules are satisfiable:
 
 ```
-model/auth.model    → The state machine (proof of satisfiability)
+model/auth.modality    → The state machine (proof of satisfiability)
 rules/auth.modality → The formula (references the model)
 ```
 

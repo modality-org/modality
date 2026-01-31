@@ -31,8 +31,8 @@ echo "$ALICE" > state/users/alice.id
 echo "$BOB" > state/users/bob.id
 
 # Add the model (proves the rule is satisfiable)
-cat > model/auth.model << 'EOF'
-model auth {
+cat > model/default.modality << 'EOF'
+export default model {
   initial idle
   
   idle -> committed [+signed_by(/users/alice.id)]
@@ -46,7 +46,6 @@ EOF
 cat > rules/auth.modality << 'EOF'
 export default rule {
   starting_at $PARENT
-  model auth
   formula {
     always must (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
@@ -66,7 +65,7 @@ Changes in state/:
   + /users/bob.id
 
 Changes in model/:
-  + /model/auth.model
+  + /model/default.modality
 
 Changes in rules/:
   + /rules/auth.modality
@@ -128,7 +127,7 @@ commit 18634bc4...
 Actions:
   post /users/alice.id
   post /users/bob.id
-  model /model/auth.model
+  model /model/default.modality
   rule /rules/auth.modality
 
 commit 490a2225...
@@ -166,8 +165,8 @@ mkdir -p state/users state/data rules model
 echo "$ALICE" > state/users/alice.id
 echo "$BOB" > state/users/bob.id
 
-cat > model/auth.model << 'EOF'
-model auth {
+cat > model/default.modality << 'EOF'
+export default model {
   initial idle
   
   idle -> committed [+signed_by(/users/alice.id)]
@@ -180,7 +179,6 @@ EOF
 cat > rules/auth.modality << 'EOF'
 export default rule {
   starting_at $PARENT
-  model auth
   formula {
     always must (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
@@ -229,7 +227,7 @@ my-contract/
 │   └── data/
 │       └── message.text
 ├── model/               # Model files (MODEL method)
-│   └── auth.model
+│   └── default.modality
 ├── rules/               # Rule files (RULE method)
 │   └── auth.modality
 ├── alice.passfile
