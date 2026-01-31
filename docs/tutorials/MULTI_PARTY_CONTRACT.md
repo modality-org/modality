@@ -19,42 +19,19 @@ ALICE=$(cat alice.passfile | jq -r '.id')
 BOB=$(cat bob.passfile | jq -r '.id')
 ```
 
-## Step 2: Set Up Users via State Directory
+## Step 2: Alice Sets Up Users & Authorization Rule
 
 ```bash
-# Initialize state directory
+# Initialize directories
 modal c checkout
+mkdir -p state/users rules
 
-# Create the users directory and add IDs
-mkdir -p state/users
+# Add user IDs
 echo "$ALICE" > state/users/alice.id
 echo "$BOB" > state/users/bob.id
 
-# Check status
-modal c status
-```
-
-Output:
-```
-Changes in state/:
-  + /users/alice.id
-  + /users/bob.id
-
-  Run 'modal c commit --all' to commit changes.
-```
-
-## Step 3: Commit the Users
-
-```bash
-modal c commit --all
-```
-
-## Step 4: Add Authorization Rule
-
-```bash
-# Add a rule requiring signatures (temporal modal logic)
+# Add authorization rule (temporal modal logic)
 # $PARENT is automatically replaced with the parent commit's hash
-mkdir -p rules
 cat > rules/auth.modality << 'EOF'
 export default rule {
   starting_at $PARENT
@@ -66,11 +43,31 @@ export default rule {
 }
 EOF
 
-# Commit the rule
-modal c commit --all
+# Check status
+modal c status
 ```
 
-## Step 5: Make Signed Changes
+Output:
+```
+Changes in state/:
+  + /users/alice.id
+  + /users/bob.id
+
+Changes in rules/:
+  + /rules/auth.modality
+
+  Run 'modal c commit --all' to commit changes.
+```
+
+## Step 3: Alice Commits the Setup (Signed)
+
+```bash
+modal c commit --all --sign alice.passfile
+```
+
+From this point on, all commits must be signed by Alice or Bob.
+
+## Step 4: Make Signed Changes
 
 ```bash
 # Alice adds a message
@@ -83,7 +80,7 @@ echo "Hello from Bob" > state/data/response.text
 modal c commit --all --sign bob.passfile
 ```
 
-## Step 6: View Status & Log
+## Step 5: View Status & Log
 
 ```bash
 modal c status
@@ -93,7 +90,7 @@ Contract Status
 ═══════════════
 
   Contract ID: 12D3KooW...
-  Total commits: 5
+  Total commits: 4
   ✅ state/ matches committed state.
 ```
 
@@ -102,7 +99,7 @@ modal c log
 ```
 ```
 Contract: 12D3KooW...
-Commits: 5
+Commits: 4
 
 commit 833e8119...
 Actions:
@@ -112,14 +109,11 @@ commit bf68ec27...
 Actions:
   post /data/message.text
 
-commit dee1abd8...
-Actions:
-  rule /rules/auth.modality
-
 commit 18634bc4...
 Actions:
   post /users/alice.id
   post /users/bob.id
+  rule /rules/auth.modality
 
 commit 490a2225...
 Actions:
@@ -148,18 +142,14 @@ BOB=$(cat bob.passfile | jq -r '.id')
 echo "Alice: $ALICE"
 echo "Bob: $BOB"
 
-# Initialize and add users to state/
+# Initialize directories
 modal c checkout
-mkdir -p state/users state/data
+mkdir -p state/users state/data rules
+
+# Alice sets up users and authorization rule
 echo "$ALICE" > state/users/alice.id
 echo "$BOB" > state/users/bob.id
 
-# Commit users
-modal c commit --all
-
-# Add authorization rule to rules/ (sibling of state/)
-# $PARENT is automatically replaced with the parent commit's hash
-mkdir -p rules
 cat > rules/auth.modality << 'EOF'
 export default rule {
   starting_at $PARENT
@@ -170,7 +160,9 @@ export default rule {
   }
 }
 EOF
-modal c commit --all
+
+# Alice commits the setup (signed)
+modal c commit --all --sign alice.passfile
 
 # Alice sends a message (signed)
 echo "Hello from Alice" > state/data/message.text
