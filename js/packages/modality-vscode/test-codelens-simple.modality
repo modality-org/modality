@@ -1,2 +1,6 @@
-model TestModel:
-    // This is a simple test model 
+model TestModel {
+  // This is a simple test model
+  part main {
+    idle --> active: +start
+  }
+}
