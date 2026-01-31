@@ -1,0 +1,12 @@
+// Simple Escrow Contract
+// Parties: Buyer (Alice), Seller (Bob)
+// Flow: deposit → deliver → release
+
+model SimpleEscrow {
+  part flow {
+    pending --> deposited: +DEPOSIT +signed_by(/users/alice.id)
+    deposited --> delivered: +DELIVER +signed_by(/users/bob.id)
+    delivered --> complete: +RELEASE +signed_by(/users/alice.id)
+    complete --> complete
+  }
+}

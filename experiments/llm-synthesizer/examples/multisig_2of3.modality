@@ -1,0 +1,19 @@
+// Multi-signature Approval (2-of-3)
+// Parties: Member1, Member2, Member3
+// Pattern: Any 2 signatures required to execute
+
+model Multisig2of3 {
+  part approval {
+    proposed --> signed_1: +SIGN +signed_by(/users/member1.id)
+    proposed --> signed_2: +SIGN +signed_by(/users/member2.id)
+    proposed --> signed_3: +SIGN +signed_by(/users/member3.id)
+    signed_1 --> approved: +SIGN +signed_by(/users/member2.id)
+    signed_1 --> approved: +SIGN +signed_by(/users/member3.id)
+    signed_2 --> approved: +SIGN +signed_by(/users/member1.id)
+    signed_2 --> approved: +SIGN +signed_by(/users/member3.id)
+    signed_3 --> approved: +SIGN +signed_by(/users/member1.id)
+    signed_3 --> approved: +SIGN +signed_by(/users/member2.id)
+    approved --> executed: +EXECUTE
+    executed --> executed
+  }
+}

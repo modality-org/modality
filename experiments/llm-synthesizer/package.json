@@ -1,0 +1,20 @@
+{
+  "name": "@modality-dev/llm-synthesizer",
+  "version": "0.1.0",
+  "description": "LLM-enhanced contract synthesis for Modality",
+  "type": "module",
+  "main": "synthesizer.ts",
+  "scripts": {
+    "synth": "npx ts-node synthesizer.ts",
+    "interactive": "npx ts-node synthesizer.ts --interactive",
+    "experiments": "npx ts-node synthesizer.ts --experiments"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.50.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,17 @@
+// Dutch Auction
+// Parties: Seller, Bidders (represented as generic BIDDER)
+// Pattern: Price decreases over time, first acceptable bid wins
+
+model DutchAuction {
+  part bidding {
+    init --> listed: +LIST +signed_by(/users/seller.id)
+    listed --> listed: +TICK +LOWER_PRICE
+    listed --> sold: +BID +ACCEPT_BID +signed_by(/users/seller.id)
+    listed --> cancelled: +CANCEL +signed_by(/users/seller.id)
+    sold --> paid: +PAY +signed_by(/users/winner.id)
+    paid --> transferred: +TRANSFER +signed_by(/users/seller.id)
+    transferred --> complete: +CONFIRM +signed_by(/users/winner.id)
+    complete --> complete
+    cancelled --> cancelled
+  }
+}

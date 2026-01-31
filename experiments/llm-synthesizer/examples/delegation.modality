@@ -1,0 +1,12 @@
+// Delegation with Revocation
+// Parties: Principal (grants authority), Delegate (acts on behalf)
+// Pattern: Principal can revoke at any time
+
+model Delegation {
+  part authority {
+    init --> delegated: +DELEGATE +signed_by(/users/principal.id)
+    delegated --> delegated: +ACT_ON_BEHALF +signed_by(/users/delegate.id)
+    delegated --> revoked: +REVOKE +signed_by(/users/principal.id)
+    revoked --> revoked
+  }
+}

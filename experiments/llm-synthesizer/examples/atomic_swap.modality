@@ -1,0 +1,17 @@
+// Atomic Data Exchange
+// Parties: AgentA, AgentB
+// Pattern: Both commit before either reveals (atomic swap)
+
+model AtomicDataExchange {
+  part exchange {
+    init --> a_committed: +COMMIT_A +signed_by(/users/agent_a.id)
+    init --> b_committed: +COMMIT_B +signed_by(/users/agent_b.id)
+    a_committed --> both_committed: +COMMIT_B +signed_by(/users/agent_b.id)
+    b_committed --> both_committed: +COMMIT_A +signed_by(/users/agent_a.id)
+    both_committed --> a_revealed: +REVEAL_A +signed_by(/users/agent_a.id)
+    both_committed --> b_revealed: +REVEAL_B +signed_by(/users/agent_b.id)
+    a_revealed --> complete: +REVEAL_B +signed_by(/users/agent_b.id)
+    b_revealed --> complete: +REVEAL_A +signed_by(/users/agent_a.id)
+    complete --> complete
+  }
+}

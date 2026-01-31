@@ -1,0 +1,17 @@
+// Reputation-Gated Escrow
+// Parties: Buyer, Seller, Oracle (reputation system)
+// Pattern: Escrow with reputation check before release
+
+model ReputationEscrow {
+  part flow {
+    init --> deposited: +DEPOSIT +signed_by(/users/buyer.id)
+    deposited --> reputation_checked: +CHECK_REPUTATION +signed_by(/users/oracle.id)
+    reputation_checked --> seller_approved: +APPROVE_SELLER +signed_by(/users/oracle.id)
+    reputation_checked --> seller_rejected: +REJECT_SELLER +signed_by(/users/oracle.id)
+    seller_approved --> delivered: +DELIVER +signed_by(/users/seller.id)
+    delivered --> complete: +RELEASE +signed_by(/users/buyer.id)
+    seller_rejected --> refunded: +REFUND +signed_by(/users/oracle.id)
+    complete --> complete
+    refunded --> refunded
+  }
+}

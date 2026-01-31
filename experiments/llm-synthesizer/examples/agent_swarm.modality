@@ -1,0 +1,23 @@
+// Agent Swarm Coordination
+// Parties: Coordinator, Worker1, Worker2, Worker3
+// Pattern: Coordinator assigns tasks, workers complete, coordinator aggregates
+
+model AgentSwarm {
+  part coordination {
+    idle --> task_assigned: +ASSIGN_TASK +signed_by(/users/coordinator.id)
+    task_assigned --> worker1_done: +COMPLETE_W1 +signed_by(/users/worker1.id)
+    task_assigned --> worker2_done: +COMPLETE_W2 +signed_by(/users/worker2.id)
+    task_assigned --> worker3_done: +COMPLETE_W3 +signed_by(/users/worker3.id)
+    worker1_done --> two_done: +COMPLETE_W2 +signed_by(/users/worker2.id)
+    worker1_done --> two_done: +COMPLETE_W3 +signed_by(/users/worker3.id)
+    worker2_done --> two_done: +COMPLETE_W1 +signed_by(/users/worker1.id)
+    worker2_done --> two_done: +COMPLETE_W3 +signed_by(/users/worker3.id)
+    worker3_done --> two_done: +COMPLETE_W1 +signed_by(/users/worker1.id)
+    worker3_done --> two_done: +COMPLETE_W2 +signed_by(/users/worker2.id)
+    two_done --> all_done: +COMPLETE_W1 +signed_by(/users/worker1.id)
+    two_done --> all_done: +COMPLETE_W2 +signed_by(/users/worker2.id)
+    two_done --> all_done: +COMPLETE_W3 +signed_by(/users/worker3.id)
+    all_done --> aggregated: +AGGREGATE +signed_by(/users/coordinator.id)
+    aggregated --> idle: +FINALIZE +signed_by(/users/coordinator.id)
+  }
+}

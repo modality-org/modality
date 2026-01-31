@@ -1,0 +1,16 @@
+// Milestone-based Project Contract
+// Parties: Client, Contractor
+// Pattern: Sequential milestones with payment gates
+
+model MilestoneProject {
+  part project {
+    init --> started: +START +signed_by(/users/client.id)
+    started --> design_done: +DELIVER_DESIGN +signed_by(/users/contractor.id)
+    design_done --> design_paid: +APPROVE_DESIGN +PAY_DESIGN +signed_by(/users/client.id)
+    design_paid --> build_done: +DELIVER_BUILD +signed_by(/users/contractor.id)
+    build_done --> build_paid: +APPROVE_BUILD +PAY_BUILD +signed_by(/users/client.id)
+    build_paid --> test_done: +DELIVER_TEST +signed_by(/users/contractor.id)
+    test_done --> complete: +APPROVE_TEST +PAY_TEST +signed_by(/users/client.id)
+    complete --> complete
+  }
+}
