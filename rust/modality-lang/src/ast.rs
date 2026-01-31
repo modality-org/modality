@@ -59,6 +59,12 @@ pub struct Model {
     pub name: String,
     pub parts: Vec<Part>,
     pub state: Option<Vec<PartState>>,
+    /// Initial state (for models with direct transitions, no parts)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial: Option<String>,
+    /// Direct transitions (for simpler syntax without parts)
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub transitions: Vec<Transition>,
 }
 
 /// Represents an action declaration
@@ -128,6 +134,19 @@ impl Model {
             name,
             parts: Vec::new(),
             state: None,
+            initial: None,
+            transitions: Vec::new(),
+        }
+    }
+
+    /// Create a new model with initial state and direct transitions
+    pub fn new_simple(name: String, initial: String, transitions: Vec<Transition>) -> Self {
+        Self {
+            name,
+            parts: Vec::new(),
+            state: None,
+            initial: Some(initial),
+            transitions,
         }
     }
 
@@ -136,9 +155,28 @@ impl Model {
         self.parts.push(part);
     }
 
+    /// Add a direct transition (for simple models without parts)
+    pub fn add_transition(&mut self, transition: Transition) {
+        self.transitions.push(transition);
+    }
+
+    /// Set the initial state
+    pub fn set_initial(&mut self, state: String) {
+        self.initial = Some(state);
+    }
+
     /// Set the state information for this model
     pub fn set_state(&mut self, state: Vec<PartState>) {
         self.state = Some(state);
+    }
+
+    /// Get all transitions (from parts or direct)
+    pub fn all_transitions(&self) -> Vec<&Transition> {
+        let mut result: Vec<&Transition> = self.transitions.iter().collect();
+        for part in &self.parts {
+            result.extend(part.transitions.iter());
+        }
+        result
     }
 }
 
@@ -294,6 +332,14 @@ pub enum TopLevelItem {
     Action(Action),
     Test(Test),
     Contract(Contract),
+}
+
+/// Helper enum for parsing model body items
+#[derive(Debug, Clone, PartialEq)]
+pub enum ModelBodyItem {
+    Initial(String),
+    Transition(Transition),
+    Part(Part),
 }
 
 /// A contract is an append-only log of commits

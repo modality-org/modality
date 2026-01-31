@@ -1,4 +1,4 @@
-use crate::ast::{Model, Part, Transition, Property, PropertySign, PropertySource, Formula, FormulaExpr, PartState, TopLevelItem, Action, ActionCall, Test, TestStatement, Contract, ContractCommit, CommitStatement};
+use crate::ast::{Model, Part, Transition, Property, PropertySign, PropertySource, Formula, FormulaExpr, PartState, TopLevelItem, Action, ActionCall, Test, TestStatement, Contract, ContractCommit, CommitStatement, ModelBodyItem};
 
 grammar;
 
@@ -27,26 +27,40 @@ pub Model: Model = {
 };
 
 ModelDecl: Model = {
-    "model" <name:Ident> "{" <parts:Part*> "}" => {
+    // Unified syntax: can have parts, initial, or direct transitions
+    "model" <name:Ident> "{" <items:ModelBodyItem*> "}" => {
         let mut model = Model::new(name);
-        for part in parts {
-            model.add_part(part);
+        for item in items {
+            match item {
+                ModelBodyItem::Initial(state) => model.set_initial(state),
+                ModelBodyItem::Transition(t) => model.add_transition(t),
+                ModelBodyItem::Part(p) => model.add_part(p),
+            }
         }
         model
     }
 };
 
-Part: Part = {
-    "part" <name:Ident> "{" <transitions:Transition*> "}" => {
-        let mut part = Part::new(name);
-        for transition in transitions {
-            part.add_transition(transition);
-        }
-        part
-    }
+ModelBodyItem: ModelBodyItem = {
+    "initial" <state:Ident> => ModelBodyItem::Initial(state),
+    <t:SimpleTransition> => ModelBodyItem::Transition(t),
+    <p:Part> => ModelBodyItem::Part(p),
 };
 
-Transition: Transition = {
+// Simple transition syntax: from -> to [+prop] (new) or from --> to : +prop (legacy)
+SimpleTransition: Transition = {
+    // New syntax: ->
+    <from:Ident> "->" <to:Ident> => {
+        Transition::new(from, to)
+    },
+    <from:Ident> "->" <to:Ident> "[" <properties:PropertyList> "]" => {
+        let mut transition = Transition::new(from, to);
+        for property in properties {
+            transition.add_property(property);
+        }
+        transition
+    },
+    // Legacy syntax: -->
     <from:Ident> "-->" <to:Ident> => {
         Transition::new(from, to)
     },
@@ -56,6 +70,16 @@ Transition: Transition = {
             transition.add_property(property);
         }
         transition
+    }
+};
+
+Part: Part = {
+    "part" <name:Ident> "{" <transitions:SimpleTransition*> "}" => {
+        let mut part = Part::new(name);
+        for transition in transitions {
+            part.add_transition(transition);
+        }
+        part
     }
 };
 
@@ -89,10 +113,16 @@ Property: Property = {
     }
 };
 
-// Predicate arguments can be strings or identifiers
+// Predicate arguments can be strings, identifiers, or paths
 PredicateArg: String = {
     <s:StringLiteral> => s,
-    <i:Ident> => i
+    <i:Ident> => i,
+    <p:PathLiteral> => p
+};
+
+// Path literal like /users/alice.id
+PathLiteral: String = {
+    r#"/[a-zA-Z0-9_./]+"# => <>.to_string()
 };
 
 // Action parsing
