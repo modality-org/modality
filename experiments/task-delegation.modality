@@ -1,0 +1,54 @@
+// Multi-Agent Task Delegation
+//
+// Scenario: Orchestrator delegates work to Workers.
+// Workers must complete or be reassigned.
+//
+// Use case: AI agent swarm coordination
+
+model TaskOrchestration {
+  part task {
+    // Orchestrator creates and assigns task
+    created --> assigned: +ASSIGN +TASK_ID +SIGNED_BY_ORCHESTRATOR
+    
+    // Worker accepts
+    assigned --> in_progress: +ACCEPT +SIGNED_BY_WORKER
+    
+    // Worker completes
+    in_progress --> completed: +RESULT +SIGNED_BY_WORKER
+    
+    // Orchestrator can reassign if worker fails
+    // (In practice: timeout would trigger this)
+    assigned --> reassigned: +REASSIGN +SIGNED_BY_ORCHESTRATOR
+    in_progress --> reassigned: +REASSIGN +SIGNED_BY_ORCHESTRATOR
+    
+    // Reassigned task follows same flow
+    reassigned --> in_progress: +ACCEPT +SIGNED_BY_WORKER
+    
+    // Orchestrator validates result
+    completed --> validated: +VALIDATE +SIGNED_BY_ORCHESTRATOR
+    completed --> rejected: +REJECT +SIGNED_BY_ORCHESTRATOR
+    
+    // Rejected task can be reassigned
+    rejected --> reassigned: +REASSIGN +SIGNED_BY_ORCHESTRATOR
+    
+    // Terminal states
+    validated --> validated
+  }
+}
+
+// Rule: Task must eventually be validated
+formula TaskCompletion {
+  <+ASSIGN> eventually <+VALIDATE> true
+}
+
+// Rule: Only orchestrator can assign/reassign
+formula OrchestratorControl {
+  always ([+ASSIGN] <+SIGNED_BY_ORCHESTRATOR> true and
+          [+REASSIGN] <+SIGNED_BY_ORCHESTRATOR> true)
+}
+
+// Rule: Only assigned worker can submit result
+// (This is tricky - need to track who was assigned)
+formula WorkerSubmission {
+  [+RESULT] <+SIGNED_BY_WORKER> true
+}

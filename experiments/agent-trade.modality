@@ -1,0 +1,39 @@
+// Agent Trade: API Credits for Compute Time
+//
+// Scenario: Agent A has API credits, Agent B has compute.
+// They want to swap without trusting each other.
+//
+// Current limitation: No timeout mechanism
+
+model APIComputeTrade {
+  part exchange {
+    // Initial state - trade proposed
+    init --> a_committed: +COMMIT_API +SIGNED_BY_A
+    init --> b_committed: +COMMIT_COMPUTE +SIGNED_BY_B
+    
+    // One party committed, waiting for other
+    a_committed --> both_committed: +COMMIT_COMPUTE +SIGNED_BY_B
+    b_committed --> both_committed: +COMMIT_API +SIGNED_BY_A
+    
+    // Both committed - now deliver
+    both_committed --> a_delivered: +DELIVER_API +SIGNED_BY_A
+    both_committed --> b_delivered: +DELIVER_COMPUTE +SIGNED_BY_B
+    
+    // One delivered, waiting for other
+    a_delivered --> complete: +DELIVER_COMPUTE +SIGNED_BY_B
+    b_delivered --> complete: +DELIVER_API +SIGNED_BY_A
+    
+    // Trade complete
+    complete --> complete
+  }
+}
+
+// Rule: Once both commit, neither can defect
+formula NoDefectionAfterCommit {
+  [+COMMIT_API +COMMIT_COMPUTE] always [-DEFECT] true
+}
+
+// Rule: Both must eventually deliver (no timeout enforcement yet)
+formula EventualDelivery {
+  <+COMMIT_API +COMMIT_COMPUTE> eventually <+DELIVER_API> <+DELIVER_COMPUTE> true
+}
