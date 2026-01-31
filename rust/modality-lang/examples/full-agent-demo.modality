@@ -1,0 +1,261 @@
+// =============================================================================
+// FULL AGENT COOPERATION DEMO
+// =============================================================================
+// This file demonstrates all the features of Modality for agent cooperation:
+// - Model definition with typed properties
+// - Path-based predicates
+// - Evolution (amendments)
+// - Multiple contract patterns
+//
+// For use by AI agents negotiating and executing verifiable contracts.
+
+// =============================================================================
+// PART 1: BASIC ESCROW
+// =============================================================================
+// A simple escrow between two agents: buyer deposits, seller delivers, buyer releases.
+
+model BasicEscrow {
+    // State: init (nothing happened yet)
+    // Buyer deposits funds into escrow
+    init --> deposited: +DEPOSIT +signed_by(/members/buyer.pubkey)
+    
+    // Seller delivers the goods/service
+    deposited --> delivered: +DELIVER +signed_by(/members/seller.pubkey)
+    
+    // Buyer confirms and releases funds
+    delivered --> complete: +RELEASE +signed_by(/members/buyer.pubkey)
+    
+    // Timeout: if seller doesn't deliver, buyer can reclaim
+    deposited --> timeout: +TIMEOUT_ELAPSED
+    timeout --> complete: +RECLAIM +signed_by(/members/buyer.pubkey)
+}
+
+// Formula: No release without delivery
+formula no_release_without_delivery {
+    [+RELEASE -DELIVER] false
+}
+
+// =============================================================================
+// PART 2: PROTECTED ESCROW WITH DISPUTES
+// =============================================================================
+// Full escrow with dispute resolution and arbitration.
+
+model ProtectedEscrow {
+    // Happy path
+    init --> deposited: +DEPOSIT +signed_by(/members/buyer.pubkey)
+    deposited --> delivered: +DELIVER +signed_by(/members/seller.pubkey)
+    delivered --> complete: +RELEASE +signed_by(/members/buyer.pubkey)
+    
+    // Dispute path
+    delivered --> disputed: +DISPUTE +signed_by(/members/buyer.pubkey)
+    disputed --> arbitration: +REQUEST_ARBITRATION
+    
+    // Arbitrator decides
+    arbitration --> resolved_buyer: +RULING_BUYER +signed_by(/members/arbitrator.pubkey)
+    arbitration --> resolved_seller: +RULING_SELLER +signed_by(/members/arbitrator.pubkey)
+    arbitration --> resolved_split: +RULING_SPLIT +signed_by(/members/arbitrator.pubkey)
+    
+    // Resolution outcomes
+    resolved_buyer --> complete: +REFUND
+    resolved_seller --> complete: +RELEASE
+    resolved_split --> complete: +SPLIT_FUNDS
+    
+    // Timeout protection
+    deposited --> timeout: +DELIVERY_TIMEOUT
+    timeout --> complete: +RECLAIM +signed_by(/members/buyer.pubkey)
+    
+    // Mutual cancellation
+    deposited --> cancelled: +CANCEL +signed_by(/members/buyer.pubkey) +signed_by(/members/seller.pubkey)
+    cancelled --> complete: +REFUND
+}
+
+// =============================================================================
+// PART 3: MILESTONE CONTRACT
+// =============================================================================
+// Multi-stage work with payments per milestone.
+
+model MilestoneContract {
+    // Agreement
+    init --> agreed: +AGREE +signed_by(/members/client.pubkey) +signed_by(/members/contractor.pubkey)
+    
+    // Milestone 1
+    agreed --> m1_funded: +FUND_M1 +signed_by(/members/client.pubkey)
+    m1_funded --> m1_delivered: +DELIVER_M1 +signed_by(/members/contractor.pubkey)
+    m1_delivered --> m1_confirmed: +CONFIRM_M1 +signed_by(/members/client.pubkey)
+    
+    // Milestone 2
+    m1_confirmed --> m2_funded: +FUND_M2 +signed_by(/members/client.pubkey)
+    m2_funded --> m2_delivered: +DELIVER_M2 +signed_by(/members/contractor.pubkey)
+    m2_delivered --> m2_confirmed: +CONFIRM_M2 +signed_by(/members/client.pubkey)
+    
+    // Milestone 3 (final)
+    m2_confirmed --> m3_funded: +FUND_M3 +signed_by(/members/client.pubkey)
+    m3_funded --> m3_delivered: +DELIVER_M3 +signed_by(/members/contractor.pubkey)
+    m3_delivered --> complete: +CONFIRM_M3 +signed_by(/members/client.pubkey)
+    
+    // Dispute at any funded milestone
+    m1_funded --> dispute: +DISPUTE
+    m2_funded --> dispute: +DISPUTE
+    m3_funded --> dispute: +DISPUTE
+    dispute --> arbitration: +REQUEST_ARBITRATION
+    arbitration --> complete: +RESOLUTION +signed_by(/members/arbitrator.pubkey)
+}
+
+// =============================================================================
+// PART 4: DAO GOVERNANCE
+// =============================================================================
+// Proposal/vote/execute cycle for group decisions.
+
+model DAOGovernance {
+    // Propose
+    idle --> proposed: +PROPOSE +signed_by(/members/member.pubkey)
+    
+    // Voting
+    proposed --> voting: +OPEN_VOTE
+    voting --> voting: +VOTE +signed_by(/members/member.pubkey)
+    
+    // Outcomes
+    voting --> approved: +QUORUM_REACHED +MAJORITY_YES
+    voting --> rejected: +QUORUM_REACHED +MAJORITY_NO
+    voting --> expired: +VOTE_TIMEOUT
+    
+    // Execute if approved
+    approved --> executed: +EXECUTE
+    executed --> idle: +FINALIZE
+    
+    // Return to idle if rejected or expired
+    rejected --> idle: +FINALIZE
+    expired --> idle: +FINALIZE
+}
+
+// Formula: No execution without approval
+formula governance_integrity {
+    [+EXECUTE -QUORUM_REACHED] false
+}
+
+// =============================================================================
+// PART 5: ATOMIC SWAP
+// =============================================================================
+// Trustless exchange: both commit or neither gets anything.
+
+model AtomicSwap {
+    // Either party can commit first
+    init --> a_committed: +COMMIT_A +signed_by(/members/alice.pubkey)
+    init --> b_committed: +COMMIT_B +signed_by(/members/bob.pubkey)
+    
+    // Wait for the other
+    a_committed --> both_committed: +COMMIT_B +signed_by(/members/bob.pubkey)
+    b_committed --> both_committed: +COMMIT_A +signed_by(/members/alice.pubkey)
+    
+    // Once both committed, execute the swap
+    both_committed --> complete: +EXECUTE_SWAP
+    
+    // Timeout: if other doesn't commit, can reclaim
+    a_committed --> timeout_a: +SWAP_TIMEOUT
+    b_committed --> timeout_b: +SWAP_TIMEOUT
+    timeout_a --> complete: +RECLAIM_A +signed_by(/members/alice.pubkey)
+    timeout_b --> complete: +RECLAIM_B +signed_by(/members/bob.pubkey)
+}
+
+// Formula: No one-sided execution
+formula swap_fairness {
+    [+EXECUTE_SWAP -COMMIT_A] false
+}
+
+formula swap_fairness_b {
+    [+EXECUTE_SWAP -COMMIT_B] false
+}
+
+// =============================================================================
+// PART 6: SUBSCRIPTION SERVICE
+// =============================================================================
+// Recurring payments with pause/cancel.
+
+model Subscription {
+    // Setup
+    init --> active: +SUBSCRIBE +signed_by(/members/subscriber.pubkey) +signed_by(/members/provider.pubkey)
+    
+    // Payment cycle
+    active --> payment_due: +PERIOD_ELAPSED
+    payment_due --> active: +PAY +signed_by(/members/subscriber.pubkey)
+    
+    // Pause and resume
+    active --> paused: +PAUSE +signed_by(/members/subscriber.pubkey)
+    paused --> active: +RESUME +signed_by(/members/subscriber.pubkey)
+    
+    // Cancel
+    active --> cancelled: +CANCEL +signed_by(/members/subscriber.pubkey)
+    paused --> cancelled: +CANCEL +signed_by(/members/subscriber.pubkey)
+    
+    // Payment timeout
+    payment_due --> suspended: +PAYMENT_TIMEOUT
+    suspended --> active: +PAY_OVERDUE +signed_by(/members/subscriber.pubkey)
+    suspended --> cancelled: +TERMINATE +signed_by(/members/provider.pubkey)
+}
+
+// =============================================================================
+// TESTS
+// =============================================================================
+
+test basic_escrow_happy_path {
+    contract = BasicEscrow.clone()
+    
+    // Set up parties
+    contract.post("/members/buyer.pubkey", "buyer_key_123")
+    contract.post("/members/seller.pubkey", "seller_key_456")
+    
+    // Execute
+    contract.commit(+DEPOSIT +signed_by(/members/buyer.pubkey))
+    contract.commit(+DELIVER +signed_by(/members/seller.pubkey))
+    contract.commit(+RELEASE +signed_by(/members/buyer.pubkey))
+    
+    assert contract.state == "complete"
+}
+
+test escrow_with_dispute {
+    contract = ProtectedEscrow.clone()
+    
+    contract.commit(+DEPOSIT +signed_by(/members/buyer.pubkey))
+    contract.commit(+DELIVER +signed_by(/members/seller.pubkey))
+    contract.commit(+DISPUTE +signed_by(/members/buyer.pubkey))
+    contract.commit(+REQUEST_ARBITRATION)
+    contract.commit(+RULING_BUYER +signed_by(/members/arbitrator.pubkey))
+    contract.commit(+REFUND)
+    
+    assert contract.state == "complete"
+}
+
+test atomic_swap_success {
+    swap = AtomicSwap.clone()
+    
+    swap.commit(+COMMIT_A +signed_by(/members/alice.pubkey))
+    swap.commit(+COMMIT_B +signed_by(/members/bob.pubkey))
+    swap.commit(+EXECUTE_SWAP)
+    
+    assert swap.state == "complete"
+}
+
+// =============================================================================
+// USAGE FROM RUST
+// =============================================================================
+//
+// use modality_lang::agent::Contract;
+// use modality_lang::paths::PathValue;
+//
+// // Create a contract
+// let mut contract = Contract::escrow_protected("buyer", "seller", "arbitrator");
+//
+// // Set escrow amount via path
+// contract.post("/escrow/amount.balance", PathValue::Balance(1000))?;
+//
+// // Check available actions
+// let actions = contract.what_can_i_do("buyer");
+// println!("Buyer can: {:?}", actions);
+//
+// // Take action
+// contract.act("buyer", "deposit")?;
+//
+// // Check status
+// println!("{}", contract.summary());
+//
+// =============================================================================
