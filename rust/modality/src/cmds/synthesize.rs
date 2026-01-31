@@ -1,7 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
+use std::path::PathBuf;
 
-/// Synthesize a model from a template or pattern
+/// Synthesize a model from a template, pattern, or rule
 #[derive(Parser, Debug)]
 pub struct Opts {
     /// Template name: escrow, handshake, mutual_cooperation, etc.
@@ -11,6 +12,14 @@ pub struct Opts {
     /// Natural language description of the contract
     #[arg(short, long)]
     pub describe: Option<String>,
+    
+    /// Synthesize from a rule file
+    #[arg(short, long)]
+    pub rule: Option<PathBuf>,
+    
+    /// Output file path (for --rule)
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
     
     /// First party/signer name
     #[arg(long, default_value = "Alice")]
@@ -53,6 +62,30 @@ pub async fn run(opts: &Opts) -> Result<()> {
         return Ok(());
     }
 
+    // Handle rule-based synthesis
+    if let Some(rule_path) = &opts.rule {
+        let content = std::fs::read_to_string(rule_path)?;
+        
+        // Parse the rule to extract the formula
+        // For now, use a simple heuristic approach based on the formula structure
+        let model = synthesize_from_rule(&content, &opts.party_a, &opts.party_b)?;
+        
+        let output = format_model(&model, &opts.format)?;
+        
+        if let Some(output_path) = &opts.output {
+            // Create parent directories if needed
+            if let Some(parent) = output_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(output_path, &output)?;
+            println!("✅ Synthesized model written to {}", output_path.display());
+        } else {
+            println!("{}", output);
+        }
+        
+        return Ok(());
+    }
+
     // Handle natural language description
     if let Some(description) = &opts.describe {
         let result = modality_lang::nl_mapper::map_nl_to_pattern(description);
@@ -89,7 +122,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     let template = opts.template.as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Please specify --template, --describe, or use --list to see options"))?;
+        .ok_or_else(|| anyhow::anyhow!("Please specify --template, --describe, --rule, or use --list to see options"))?;
 
     let model = match template.as_str() {
         "escrow" => modality_lang::synthesis::templates::escrow(&opts.party_a, &opts.party_b),
@@ -124,4 +157,111 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Synthesize a model from a rule file content
+fn synthesize_from_rule(content: &str, party_a: &str, party_b: &str) -> Result<modality_lang::Model> {
+    // Extract formula from rule content
+    // Look for patterns like: signed_by(/users/X.id)
+    let mut signers = Vec::new();
+    
+    // Simple regex-like extraction for signed_by predicates
+    for line in content.lines() {
+        if line.contains("signed_by") {
+            // Extract path from signed_by(/path)
+            if let Some(start) = line.find("signed_by(") {
+                let rest = &line[start + 10..];
+                if let Some(end) = rest.find(')') {
+                    let path = &rest[..end];
+                    signers.push(path.to_string());
+                }
+            }
+        }
+    }
+    
+    // If we found signers, create a model with transitions for each
+    if !signers.is_empty() {
+        let mut model = modality_lang::Model::new("default".to_string());
+        model.set_initial("idle".to_string());
+        
+        for signer in &signers {
+            // idle -> idle with signed_by
+            let mut t = modality_lang::Transition::new("idle".to_string(), "idle".to_string());
+            t.add_property(modality_lang::Property::new_predicate_from_call(
+                "signed_by".to_string(),
+                signer.clone()
+            ));
+            model.add_transition(t);
+        }
+        
+        return Ok(model);
+    }
+    
+    // Fallback: use party names if no signers found
+    let mut model = modality_lang::Model::new("default".to_string());
+    model.set_initial("idle".to_string());
+    
+    let mut t1 = modality_lang::Transition::new("idle".to_string(), "idle".to_string());
+    t1.add_property(modality_lang::Property::new_predicate_from_call(
+        "signed_by".to_string(),
+        format!("/users/{}.id", party_a.to_lowercase())
+    ));
+    model.add_transition(t1);
+    
+    let mut t2 = modality_lang::Transition::new("idle".to_string(), "idle".to_string());
+    t2.add_property(modality_lang::Property::new_predicate_from_call(
+        "signed_by".to_string(),
+        format!("/users/{}.id", party_b.to_lowercase())
+    ));
+    model.add_transition(t2);
+    
+    Ok(model)
+}
+
+/// Format a model for output
+fn format_model(model: &modality_lang::Model, format: &str) -> Result<String> {
+    match format {
+        "modality" => {
+            // Generate export default model syntax
+            let mut output = String::new();
+            output.push_str("export default model {\n");
+            
+            if let Some(initial) = &model.initial {
+                output.push_str(&format!("  initial {}\n", initial));
+            }
+            output.push_str("\n");
+            
+            for transition in &model.transitions {
+                let props: Vec<String> = transition.properties.iter()
+                    .map(|p| {
+                        let sign = if p.sign == modality_lang::PropertySign::Plus { "+" } else { "-" };
+                        if let Some(source) = &p.source {
+                            if let modality_lang::PropertySource::Predicate { args, .. } = source {
+                                if let Some(arg) = args.get("arg") {
+                                    return format!("{}{}({})", sign, p.name, arg.as_str().unwrap_or(""));
+                                }
+                            }
+                        }
+                        format!("{}{}", sign, p.name)
+                    })
+                    .collect();
+                
+                let props_str = if props.is_empty() { 
+                    String::new() 
+                } else { 
+                    format!(" [{}]", props.join(" ")) 
+                };
+                
+                output.push_str(&format!("  {} --> {}{}\n", transition.from, transition.to, props_str));
+            }
+            
+            output.push_str("}\n");
+            Ok(output)
+        }
+        "json" => {
+            let json = serde_json::to_string_pretty(model)?;
+            Ok(json)
+        }
+        other => Err(anyhow::anyhow!("Unknown format: '{}'", other)),
+    }
 }
