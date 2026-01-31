@@ -1,7 +1,7 @@
 // Two agents shake hands with enforced rules
 //
 // Every commit is a transition in the governing model.
-// +RULE actions carry formulas. +READY actions execute.
+// add_rule transitions as +ADD_RULE, do +X as domain actions.
 
 contract handshake {
 
@@ -9,18 +9,18 @@ contract handshake {
     signed_by A
     model {
       part flow {
-        init --> a_ruled: +RULE +by_A
-        a_ruled --> b_ruled: +RULE +by_B
+        init --> a_ruled: +ADD_RULE +by_A
+        a_ruled --> b_ruled: +ADD_RULE +by_B
         b_ruled --> a_ready: +READY +by_A
         a_ready --> done: +READY +by_B
       }
     }
-    do +RULE +by_A { eventually(done) }
+    add_rule { eventually(done) }
   }
 
   commit {
     signed_by B
-    do +RULE +by_B { eventually(done) }
+    add_rule { eventually(done) }
   }
 
   commit {

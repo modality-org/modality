@@ -540,25 +540,25 @@ test MyTest {
         use crate::ast::CommitStatement;
         
         // Every commit is a transition in the model.
-        // +RULE actions carry formulas, +READY actions just execute.
+        // add_rule transitions as +ADD_RULE, do +X as domain actions.
         let content = r#"
 contract handshake {
   commit {
     signed_by A
     model {
       part flow {
-        init --> a_ruled: +RULE +by_A
-        a_ruled --> b_ruled: +RULE +by_B
+        init --> a_ruled: +ADD_RULE +by_A
+        a_ruled --> b_ruled: +ADD_RULE +by_B
         b_ruled --> a_ready: +READY +by_A
         a_ready --> done: +READY +by_B
       }
     }
-    do +RULE +by_A { eventually(done) }
+    add_rule { eventually(done) }
   }
 
   commit {
     signed_by B
-    do +RULE +by_B { eventually(done) }
+    add_rule { eventually(done) }
   }
 
   commit {
@@ -578,43 +578,28 @@ contract handshake {
         assert_eq!(contract.name, "handshake");
         assert_eq!(contract.commits.len(), 4);
         
-        // First commit: A provides model, does +RULE +by_A with formula
+        // First commit: A provides model, add_rule
         let commit0 = &contract.commits[0];
         assert_eq!(commit0.signed_by, "A");
         assert!(commit0.model.is_some());
         assert_eq!(commit0.statements.len(), 1);
-        match &commit0.statements[0] {
-            CommitStatement::Do { properties, formula } => {
-                assert_eq!(properties[0].name, "RULE");
-                assert_eq!(properties[1].name, "by_A");
-                assert!(formula.is_some());
-            }
-            _ => panic!("Expected Do statement"),
-        }
+        assert!(matches!(&commit0.statements[0], CommitStatement::AddRule(_)));
         
-        // Second commit: B does +RULE +by_B with formula
+        // Second commit: B add_rule
         let commit1 = &contract.commits[1];
         assert_eq!(commit1.signed_by, "B");
         assert!(commit1.model.is_none());
         assert_eq!(commit1.statements.len(), 1);
-        match &commit1.statements[0] {
-            CommitStatement::Do { properties, formula } => {
-                assert_eq!(properties[0].name, "RULE");
-                assert_eq!(properties[1].name, "by_B");
-                assert!(formula.is_some());
-            }
-            _ => panic!("Expected Do statement"),
-        }
+        assert!(matches!(&commit1.statements[0], CommitStatement::AddRule(_)));
         
         // Third commit: A does +READY +by_A
         let commit2 = &contract.commits[2];
         assert_eq!(commit2.signed_by, "A");
         assert_eq!(commit2.statements.len(), 1);
         match &commit2.statements[0] {
-            CommitStatement::Do { properties, formula } => {
+            CommitStatement::Do(properties) => {
                 assert_eq!(properties[0].name, "READY");
                 assert_eq!(properties[1].name, "by_A");
-                assert!(formula.is_none());
             }
             _ => panic!("Expected Do statement"),
         }
@@ -624,10 +609,9 @@ contract handshake {
         assert_eq!(commit3.signed_by, "B");
         assert_eq!(commit3.statements.len(), 1);
         match &commit3.statements[0] {
-            CommitStatement::Do { properties, formula } => {
+            CommitStatement::Do(properties) => {
                 assert_eq!(properties[0].name, "READY");
                 assert_eq!(properties[1].name, "by_B");
-                assert!(formula.is_none());
             }
             _ => panic!("Expected Do statement"),
         }

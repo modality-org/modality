@@ -316,11 +316,10 @@ pub struct ContractCommit {
 pub enum CommitStatement {
     SignedBy(String),
     Model(Model),
-    /// Domain action with optional formula (for +RULE actions)
-    Do { 
-        properties: Vec<Property>,
-        formula: Option<FormulaExpr>,
-    },
+    /// Add a rule (transitions as +ADD_RULE in model)
+    AddRule(FormulaExpr),
+    /// Domain action
+    Do(Vec<Property>),
 }
 
 impl Contract {

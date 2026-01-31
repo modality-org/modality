@@ -369,15 +369,14 @@ fn parse_contract_file(file: &PathBuf) -> Result<()> {
         }
         for stmt in &commit.statements {
             match stmt {
-                CommitStatement::Do { properties, formula } => {
+                CommitStatement::AddRule(_) => {
+                    println!("    add_rule: {{ <formula> }}");
+                }
+                CommitStatement::Do(properties) => {
                     let props_str: Vec<String> = properties.iter()
                         .map(|p| format!("{}{}", if p.sign == modality_lang::ast::PropertySign::Plus { "+" } else { "-" }, p.name))
                         .collect();
-                    if formula.is_some() {
-                        println!("    do: {} {{ <formula> }}", props_str.join(" "));
-                    } else {
-                        println!("    do: {}", props_str.join(" "));
-                    }
+                    println!("    do: {}", props_str.join(" "));
                 }
                 _ => {}
             }
