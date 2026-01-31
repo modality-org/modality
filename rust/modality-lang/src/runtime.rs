@@ -462,6 +462,61 @@ impl ContractInstance {
     pub fn has_sufficient_balance(&self, path: &str, required: u64) -> bool {
         self.resolve_balance(path).map(|b| b >= required).unwrap_or(false)
     }
+
+    // ==================== Time Operations ====================
+
+    /// Get current timestamp in milliseconds
+    pub fn now_ms(&self) -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0)
+    }
+
+    /// Set a deadline at a path (timestamp in ms)
+    pub fn set_deadline(&mut self, path: &str, deadline_ms: u64) -> RuntimeResult<()> {
+        self.store_set(path, PathValue::Int(deadline_ms as i64))
+    }
+
+    /// Set a deadline relative to now
+    pub fn set_deadline_from_now(&mut self, path: &str, duration_ms: u64) -> RuntimeResult<u64> {
+        let deadline = self.now_ms() + duration_ms;
+        self.store_set(path, PathValue::Int(deadline as i64))?;
+        Ok(deadline)
+    }
+
+    /// Check if a deadline has passed
+    pub fn is_past_deadline(&self, path: &str) -> bool {
+        if let Some(PathValue::Int(deadline)) = self.store.get(path) {
+            self.now_ms() > (*deadline as u64)
+        } else {
+            false
+        }
+    }
+
+    /// Check if still within deadline
+    pub fn is_before_deadline(&self, path: &str) -> bool {
+        if let Some(PathValue::Int(deadline)) = self.store.get(path) {
+            self.now_ms() <= (*deadline as u64)
+        } else {
+            true // No deadline means no constraint
+        }
+    }
+
+    /// Get time remaining until deadline (returns 0 if past)
+    pub fn time_until_deadline(&self, path: &str) -> u64 {
+        if let Some(PathValue::Int(deadline)) = self.store.get(path) {
+            let now = self.now_ms();
+            let deadline_u64 = *deadline as u64;
+            if now < deadline_u64 {
+                deadline_u64 - now
+            } else {
+                0
+            }
+        } else {
+            0
+        }
+    }
 }
 
 /// Description of an available transition
@@ -1010,5 +1065,45 @@ mod tests {
         // Try to subtract more than available
         let result = instance.subtract_balance("/balances/alice.balance", 500);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_time_operations() {
+        let model = templates::escrow("Alice", "Bob");
+        let mut parties = HashMap::new();
+        parties.insert("Alice".to_string(), "alice_key".to_string());
+        parties.insert("Bob".to_string(), "bob_key".to_string());
+
+        let mut instance = ContractInstance::new(model, parties).unwrap();
+
+        // Set a deadline 1 hour from now
+        let deadline = instance.set_deadline_from_now("/escrow/deadline.int", 3600_000).unwrap();
+        assert!(deadline > instance.now_ms());
+
+        // Should be before deadline
+        assert!(instance.is_before_deadline("/escrow/deadline.int"));
+        assert!(!instance.is_past_deadline("/escrow/deadline.int"));
+
+        // Time remaining should be close to 1 hour
+        let remaining = instance.time_until_deadline("/escrow/deadline.int");
+        assert!(remaining > 3599_000 && remaining <= 3600_000);
+    }
+
+    #[test]
+    fn test_past_deadline() {
+        let model = templates::escrow("Alice", "Bob");
+        let mut parties = HashMap::new();
+        parties.insert("Alice".to_string(), "alice_key".to_string());
+        parties.insert("Bob".to_string(), "bob_key".to_string());
+
+        let mut instance = ContractInstance::new(model, parties).unwrap();
+
+        // Set deadline in the past
+        instance.set_deadline("/escrow/deadline.int", 1000).unwrap();
+
+        // Should be past deadline
+        assert!(instance.is_past_deadline("/escrow/deadline.int"));
+        assert!(!instance.is_before_deadline("/escrow/deadline.int"));
+        assert_eq!(instance.time_until_deadline("/escrow/deadline.int"), 0);
     }
 }
