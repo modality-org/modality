@@ -72,6 +72,36 @@ pub enum Action {
 }
 ```
 
+## Meta-Actions vs Domain Actions
+
+The governing model tracks **domain state**, not contract negotiation.
+
+**Meta-actions** modify the contract structure. They do NOT consume transitions:
+- `signed_by X` — who signs this commit
+- `model { ... }` — provide/update governing model
+- `add_party X` — add a party
+- `add_rule { ... }` — add a formula constraint
+
+**Domain actions** execute in the governing model. They MUST be valid transitions:
+- `do +ACTION` — execute a domain action
+
+Example:
+```modality
+// Meta-actions (don't move in model)
+commit {
+  signed_by A
+  model { part flow { init --> done: +DONE } }
+  add_party A
+  add_rule { eventually(done) }
+}
+
+// Domain action (moves init --> done)
+commit {
+  signed_by A
+  do +DONE
+}
+```
+
 ## The Default Model
 
 Every contract starts with a **default governing model**:

@@ -539,29 +539,26 @@ test MyTest {
     fn test_parse_contract_handshake() {
         use crate::ast::CommitStatement;
         
+        // Meta-actions (add_party, add_rule, model) don't move in the governing model
+        // Domain actions (do +X) must be valid transitions
         let content = r#"
 contract handshake {
   commit {
     signed_by A
     model {
       part flow {
-        init --> a_ready: +A_READY
+        init --> a_done: +A_READY
+        a_done --> both_done: +B_READY
       }
     }
     add_party A
-    add_rule { eventually(a_ready) }
+    add_rule { eventually(both_done) }
   }
 
   commit {
     signed_by B
-    model {
-      part flow {
-        init --> a_ready: +A_READY
-        a_ready --> done: +B_READY
-      }
-    }
     add_party B
-    add_rule { eventually(done) }
+    add_rule { eventually(both_done) }
   }
 
   commit {
@@ -581,27 +578,27 @@ contract handshake {
         assert_eq!(contract.name, "handshake");
         assert_eq!(contract.commits.len(), 4);
         
-        // First commit: A with model
+        // First commit: A with model (meta-actions)
         let commit0 = &contract.commits[0];
         assert_eq!(commit0.signed_by, "A");
         assert!(commit0.model.is_some());
-        assert_eq!(commit0.statements.len(), 2); // add_party + add_rule (signed_by and model extracted)
+        assert_eq!(commit0.statements.len(), 2); // add_party + add_rule
         assert!(matches!(&commit0.statements[0], CommitStatement::AddParty(name) if name == "A"));
         assert!(matches!(&commit0.statements[1], CommitStatement::AddRule { .. }));
         
-        // Second commit: B joins with extended model
+        // Second commit: B joins (meta-actions only, no model change)
         let commit1 = &contract.commits[1];
         assert_eq!(commit1.signed_by, "B");
-        assert!(commit1.model.is_some());
+        assert!(commit1.model.is_none()); // B uses A's model
         assert_eq!(commit1.statements.len(), 2);
         
-        // Third commit: A executes
+        // Third commit: A executes domain action (moves init --> a_done)
         let commit2 = &contract.commits[2];
         assert_eq!(commit2.signed_by, "A");
         assert_eq!(commit2.statements.len(), 1);
         assert!(matches!(&commit2.statements[0], CommitStatement::DomainAction(_)));
         
-        // Fourth commit: B executes
+        // Fourth commit: B executes domain action (moves a_done --> both_done)
         let commit3 = &contract.commits[3];
         assert_eq!(commit3.signed_by, "B");
         assert_eq!(commit3.statements.len(), 1);
