@@ -4,6 +4,7 @@ use serde_json::Value;
 use std::path::PathBuf;
 
 use modal_common::contract_store::{ContractStore, CommitFile};
+use modal_common::keypair::Keypair;
 
 #[derive(Debug, Parser)]
 #[command(about = "Add a commit to a local contract")]
@@ -54,6 +55,11 @@ pub struct Opts {
     /// SEND commit ID to receive from (for RECV method)
     #[clap(long)]
     send_commit_id: Option<String>,
+    
+    // Signing
+    /// Path to passfile for signing the commit
+    #[clap(long)]
+    sign: Option<PathBuf>,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
@@ -102,6 +108,23 @@ pub async fn run(opts: &Opts) -> Result<()> {
         opts.path.clone(),
         value
     );
+
+    // Sign the commit if a passfile is provided
+    if let Some(passfile_path) = &opts.sign {
+        let passfile_str = passfile_path.to_string_lossy();
+        let keypair = Keypair::from_json_file(&passfile_str)?;
+        let public_key = keypair.public_key_as_base58_identity();
+        
+        // Sign the body (canonical JSON)
+        let body_json = serde_json::to_string(&commit.body)?;
+        let signature = keypair.sign_string_as_base64_pad(&body_json)?;
+        
+        // Add signature to head
+        let sig_obj = serde_json::json!({
+            public_key: signature
+        });
+        commit.head.signatures = Some(sig_obj);
+    }
 
     // Validate the commit
     commit.validate()?;
