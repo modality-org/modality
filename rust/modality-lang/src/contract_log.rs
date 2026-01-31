@@ -82,12 +82,23 @@ pub struct DerivedState {
 }
 
 impl ContractLog {
-    /// Create a new empty contract
+    /// Create a new empty contract with default governing model
     pub fn new(id: String) -> Self {
         Self {
             id,
             commits: Vec::new(),
         }
+    }
+    
+    /// The default governing model: single node with empty-label self-loop
+    /// This is maximally permissive - any action is allowed until rules constrain it
+    pub fn default_model() -> crate::ast::Model {
+        let mut model = crate::ast::Model::new("Default".to_string());
+        let mut part = crate::ast::Part::new("flow".to_string());
+        // Single node with empty transition back to itself
+        part.add_transition(crate::ast::Transition::new("*".to_string(), "*".to_string()));
+        model.add_part(part);
+        model
     }
     
     /// Create a new contract with first commit from creator
@@ -124,7 +135,11 @@ impl ContractLog {
     
     /// Replay the log to derive current state
     pub fn derive_state(&self) -> DerivedState {
-        let mut state = DerivedState::default();
+        // Start with default model
+        let mut state = DerivedState {
+            current_model: Some(Self::default_model()),
+            ..Default::default()
+        };
         
         for commit in &self.commits {
             // Check if commit provides a new governing model
@@ -192,47 +207,39 @@ impl ContractLog {
             }
         }
         
-        // If there are any rules, we need a governing model
+        // Get current state (includes default model)
+        let state = self.derive_state();
+        
+        // Use new model if provided, otherwise use current model (which defaults to permissive model)
+        let model = new_model
+            .cloned()
+            .or(state.current_model)
+            .unwrap_or_else(Self::default_model);
+        
+        // If there are any rules, model must satisfy them
         if !all_rules.is_empty() {
-            let state = self.derive_state();
+            let checker = ModelChecker::new(model.clone());
             
-            // Use new model if provided, otherwise use current model
-            let model = new_model.or(state.current_model.as_ref());
-            
-            match model {
-                Some(m) => {
-                    // Model must satisfy ALL rules
-                    let checker = ModelChecker::new(m.clone());
-                    
-                    for f in &all_rules {
-                        let result = checker.check_formula(f);
-                        if !result.is_satisfied {
-                            return Err(format!(
-                                "Model does not satisfy formula '{}'. Commit rejected.",
-                                f.name
-                            ));
-                        }
-                    }
-                }
-                None => {
-                    // Rules exist but no model - invalid
-                    return Err("Rules exist but no governing model provided. Commit rejected.".to_string());
+            for f in &all_rules {
+                let result = checker.check_formula(f);
+                if !result.is_satisfied {
+                    return Err(format!(
+                        "Model does not satisfy formula '{}'. Commit rejected.",
+                        f.name
+                    ));
                 }
             }
         }
         
         // Check domain actions against current model (if finalized)
-        let state = self.derive_state();
         if state.finalized {
-            if let Some(ref current_model) = state.current_model {
-                let _checker = ModelChecker::new(current_model.clone());
-                
-                for action in actions {
-                    if let Action::Domain { properties } = action {
-                        // Validate this transition is allowed in the model
-                        // TODO: More sophisticated transition validation
-                        let _ = properties; // Use when implementing
-                    }
+            let _checker = ModelChecker::new(model);
+            
+            for action in actions {
+                if let Action::Domain { properties } = action {
+                    // Validate this transition is allowed in the model
+                    // TODO: More sophisticated transition validation
+                    let _ = properties; // Use when implementing
                 }
             }
         }
@@ -410,10 +417,30 @@ mod tests {
     }
     
     #[test]
-    fn test_validate_requires_model_for_rules() {
+    fn test_default_model() {
+        // Default model is a single node with empty-label self-loop
+        let model = ContractLog::default_model();
+        assert_eq!(model.name, "Default");
+        assert_eq!(model.parts.len(), 1);
+        assert_eq!(model.parts[0].transitions.len(), 1);
+        assert_eq!(model.parts[0].transitions[0].from, "*");
+        assert_eq!(model.parts[0].transitions[0].to, "*");
+    }
+    
+    #[test]
+    fn test_new_contract_has_default_model() {
+        let contract = ContractLog::new("test".to_string());
+        let state = contract.derive_state();
+        
+        // Should have default model even with no commits
+        assert!(state.current_model.is_some());
+        assert_eq!(state.current_model.unwrap().name, "Default");
+    }
+    
+    #[test]
+    fn test_validate_with_custom_model() {
         let contract = ContractLog::new("test".to_string());
         
-        // Try to add a rule WITHOUT a model - should fail
         let actions = vec![
             Action::AddRule {
                 name: Some("Test".to_string()),
@@ -424,10 +451,7 @@ mod tests {
             },
         ];
         
-        // Should fail - no model provided
-        assert!(contract.validate_commit(&actions, None).is_err());
-        
-        // Should pass - model provided that satisfies rule
+        // With custom model that satisfies rule - should pass
         assert!(contract.validate_commit(&actions, Some(&simple_exchange_model())).is_ok());
     }
     
