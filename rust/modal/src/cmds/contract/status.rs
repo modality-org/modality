@@ -50,6 +50,38 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Get remote URL if configured
     let remote_url = config.get_remote(&opts.remote).map(|r| r.url.clone());
 
+    // Check state directory for changes
+    let committed = store.build_state_from_commits()?;
+    let state_files = store.list_state_files()?;
+    let committed_paths: std::collections::HashSet<_> = committed.keys().cloned().collect();
+    let state_paths: std::collections::HashSet<_> = state_files.iter().cloned().collect();
+    
+    let mut added: Vec<String> = Vec::new();
+    let mut modified: Vec<String> = Vec::new();
+    let mut deleted: Vec<String> = Vec::new();
+    
+    // Check for added and modified files
+    for path in &state_files {
+        if let Some(current_value) = store.read_state(path)? {
+            if let Some(committed_value) = committed.get(path) {
+                if &current_value != committed_value {
+                    modified.push(path.clone());
+                }
+            } else {
+                added.push(path.clone());
+            }
+        }
+    }
+    
+    // Check for deleted files
+    for path in &committed_paths {
+        if !state_paths.contains(path) {
+            deleted.push(path.clone());
+        }
+    }
+    
+    let has_changes = !added.is_empty() || !modified.is_empty() || !deleted.is_empty();
+
     if opts.output == "json" {
         println!("{}", serde_json::to_string_pretty(&json!({
             "contract_id": config.contract_id,
@@ -61,6 +93,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
             "total_commits": all_commits.len(),
             "unpushed_commits": unpushed.len(),
             "unpushed": unpushed,
+            "state_changes": {
+                "added": added,
+                "modified": modified,
+                "deleted": deleted,
+            },
         }))?);
     } else {
         println!("Contract Status");
@@ -98,6 +135,28 @@ pub async fn run(opts: &Opts) -> Result<()> {
             println!("  ℹ️  No remote tracking configured.");
             println!();
             println!("  Run 'modal contract push --remote <url>' to set up remote.");
+        }
+        
+        // Show state directory changes
+        if state_files.is_empty() && committed.is_empty() {
+            // No state directory yet
+        } else if has_changes {
+            println!();
+            println!("Changes in state/:");
+            for path in &added {
+                println!("  + {}", path);
+            }
+            for path in &modified {
+                println!("  M {}", path);
+            }
+            for path in &deleted {
+                println!("  - {}", path);
+            }
+            println!();
+            println!("  Run 'modal c commit --all' to commit changes.");
+        } else if !state_files.is_empty() {
+            println!();
+            println!("  ✅ state/ matches committed state.");
         }
     }
 
