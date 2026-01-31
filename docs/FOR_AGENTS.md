@@ -134,71 +134,64 @@ formula NeitherCanCheat {
 
 ## How Contracts Actually Work
 
-A contract is an **append-only log of signed commits**. You don't agree on a fixed state machine upfront — you build it incrementally.
+A contract is an **append-only log of signed commits**. Every commit is a transition in the governing model.
 
-### The Default: Anything Goes
+### The Model
 
-Every contract starts with a maximally permissive model:
-
-```
-* --> *  (empty label, self-loop)
-```
-
-This means: any action is allowed. The blank slate.
-
-### Adding Rules
-
-Each party adds their protection rules:
+The first party provides a governing model that defines all possible transitions:
 
 ```modality
-commit {
-  signed_by Alice
-  model {
-    part flow {
-      init --> delivered: +DELIVER
-      delivered --> paid: +PAY
-    }
+model {
+  part flow {
+    init --> a_ruled: +ADD_RULE +by_A
+    a_ruled --> b_ruled: +ADD_RULE +by_B
+    b_ruled --> a_ready: +READY +by_A
+    a_ready --> done: +READY +by_B
   }
-  add_party Alice
-  add_rule { eventually(paid) }
-}
-
-commit {
-  signed_by Bob
-  model {
-    part flow {
-      init --> delivered: +DELIVER
-      delivered --> paid: +PAY
-      delivered --> refunded: +REFUND
-    }
-  }
-  add_party Bob
-  add_rule { eventually(delivered) }
 }
 ```
 
-Each `add_rule` must come with a model that satisfies ALL accumulated rules. You can't add contradictory rules — no model would pass validation.
+### Every Commit is a Transition
 
-### Executing Actions
+```modality
+contract handshake {
 
-Once rules are set, parties execute domain actions:
+  commit {
+    signed_by A
+    model { ... }                    // A provides the model
+    add_rule { eventually(done) }    // Transitions: init --> a_ruled
+  }
 
+  commit {
+    signed_by B
+    add_rule { eventually(done) }    // Transitions: a_ruled --> b_ruled
+  }
+
+  commit {
+    signed_by A
+    do +READY +by_A                  // Transitions: b_ruled --> a_ready
+  }
+
+  commit {
+    signed_by B
+    do +READY +by_B                  // Transitions: a_ready --> done
+  }
+
+}
 ```
-Commit 2 (Alice): +DELIVER
-Commit 3 (Bob): +PAY
-```
 
-Each action is validated against the governing model and all rules.
+### Rules
 
-### Any Commit Can Update the Model
-
-As long as the new model satisfies all rules, any commit can propose a refined model. This allows the contract to evolve while maintaining all guarantees.
+- `add_rule { formula }` adds a constraint (transitions as `+ADD_RULE`)
+- `do +ACTION` executes a domain action
+- Properties like `+by_A` must match the `signed_by`
+- All rules must remain satisfiable
 
 ### Why This Design?
 
-1. **No upfront agreement needed** — start with nothing, add constraints
-2. **Self-enforcing** — contradictory rules can't be added
-3. **Full auditability** — every change is in the log
+1. **Every action is explicit** — transitions in the model
+2. **Self-enforcing** — invalid transitions rejected
+3. **Full auditability** — every commit is in the log
 4. **Deterministic** — same log = same state
 
 See [CONTRACT_LOG.md](./CONTRACT_LOG.md) for full details.
