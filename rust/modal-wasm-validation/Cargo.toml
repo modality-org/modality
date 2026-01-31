@@ -13,6 +13,10 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
 anyhow = "1.0"
+base64 = "0.22"
+
+# Ed25519 signature verification
+ed25519-dalek = { version = "2.1", default-features = false, features = ["alloc"] }
 
 # WASM dependencies
 wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
