@@ -157,23 +157,23 @@ model {
 contract handshake {
 
   commit {
-    signed_by A
+    signed_by A "0xA_SIG_0"
     model { ... }                    // A provides the model
     add_rule { eventually(done) }    // Transitions: init --> a_ruled
   }
 
   commit {
-    signed_by B
+    signed_by B "0xB_SIG_1"
     add_rule { eventually(done) }    // Transitions: a_ruled --> b_ruled
   }
 
   commit {
-    signed_by A
+    signed_by A "0xA_SIG_2"
     do +READY                        // Transitions: b_ruled --> a_ready
   }
 
   commit {
-    signed_by B
+    signed_by B "0xB_SIG_3"
     do +READY                        // Transitions: a_ready --> done
   }
 

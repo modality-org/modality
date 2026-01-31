@@ -10,9 +10,9 @@ A Modality contract is an **append-only log of signed commits**. Every commit is
 
 3. **Rules are transitions too.** `add_rule` transitions as `+ADD_RULE` in the model. Rules accumulate and constrain the contract.
 
-4. **The model defines what's possible.** Transitions specify required properties (e.g., `+by_A` for signer constraints).
+4. **Commits are signed.** Each commit includes the signer's identity and cryptographic signature digest.
 
-5. **Signatures are implicit parties.** If you sign a commit, you're a party. No separate "add party" needed.
+5. **The model defines what's possible.** Transitions specify required properties (e.g., `+signed_by(A)` for signer constraints).
 
 ## Syntax
 
@@ -44,8 +44,8 @@ The model defines valid transitions. Each commit must match a transition.
 ```modality
 model {
   part flow {
-    init --> state1: +ACTION +property
-    state1 --> state2: +ACTION +property
+    init --> state1: +ACTION +signed_by(X)
+    state1 --> state2: +ACTION +signed_by(Y)
     ...
   }
 }
@@ -112,13 +112,27 @@ Both rules (`eventually(done)`) are now satisfied.
 | `add_rule { formula }` | `+ADD_RULE` | Add a formula constraint |
 | `do +ACTION` | `+ACTION` | Execute domain action |
 
+## Signatures
+
+Each commit requires a signature:
+
+```modality
+signed_by <party> "<signature_digest>"
+```
+
+- `<party>` — identifier for the signing party (matches `+signed_by(party)` in model)
+- `<signature_digest>` — cryptographic signature of the commit contents
+
+The signature proves the commit was authorized by the party.
+
 ## Validation
 
 Each commit is validated:
 
-1. **Transition exists**: The action must match a valid transition from current state
-2. **Properties match**: Commit properties (e.g., `signed_by A` → `+by_A`) must match transition requirements
-3. **Rules satisfied**: All accumulated rules must remain satisfiable
+1. **Signature valid**: The signature digest must verify against the party's public key
+2. **Transition exists**: The action must match a valid transition from current state
+3. **Properties match**: Commit properties (e.g., `signed_by A` → `+signed_by(A)`) must match transition requirements
+4. **Rules satisfied**: All accumulated rules must remain satisfiable
 
 ## Model Updates
 
@@ -126,7 +140,7 @@ Any commit can provide a new model:
 
 ```modality
 commit {
-  signed_by A
+  signed_by A "0xSIG"
   model {
     // New/updated model
   }
@@ -178,21 +192,21 @@ Parsing: examples/handshake.modality
   Commits: 4
 
   Commit 0:
-    signed_by: A
+    signed_by: A "0xA_SIG_0"
     model: (provided)
     add_rule: { <formula> }
 
   Commit 1:
-    signed_by: B
+    signed_by: B "0xB_SIG_1"
     add_rule: { <formula> }
 
   Commit 2:
-    signed_by: A
-    do: +READY +by_A
+    signed_by: A "0xA_SIG_2"
+    do: +READY
 
   Commit 3:
-    signed_by: B
-    do: +READY +by_B
+    signed_by: B "0xB_SIG_3"
+    do: +READY
 
 ✓ Contract is valid.
 ```
