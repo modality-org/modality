@@ -96,11 +96,26 @@ pub enum Command {
         output: Option<PathBuf>,
     },
     
-    /// Show contract history
+    /// Show contract history (from JSON file)
     History {
         /// Contract JSON file
         #[arg(short, long)]
         contract: PathBuf,
+    },
+    
+    /// Show commit log (dotcontract format)
+    Log {
+        /// Contract directory (defaults to current directory)
+        #[arg(long)]
+        dir: Option<PathBuf>,
+        
+        /// Number of commits to show (default: all)
+        #[arg(short = 'n', long)]
+        limit: Option<usize>,
+        
+        /// Output format (json or text)
+        #[arg(long, default_value = "text")]
+        output: String,
     },
     
     /// Verify contract properties
@@ -143,6 +158,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
         Command::History { contract } => {
             show_history(contract)
+        }
+        Command::Log { dir, limit, output } => {
+            show_log(dir.as_ref(), *limit, &output)
         }
         Command::Verify { model, formula } => {
             verify_contract(model, formula.as_deref())
@@ -370,6 +388,80 @@ fn show_history(contract_path: &PathBuf) -> Result<()> {
                 entry.by,
                 format_timestamp(entry.timestamp)
             );
+        }
+    }
+    
+    Ok(())
+}
+
+fn show_log(dir: Option<&PathBuf>, limit: Option<usize>, output: &str) -> Result<()> {
+    let dir = dir.cloned().unwrap_or_else(|| std::env::current_dir().unwrap());
+    let store = ContractStore::open(&dir)?;
+    
+    // Get HEAD and walk backwards through commits
+    let head = store.get_head()?;
+    
+    if head.is_none() {
+        if output == "json" {
+            println!("{{\"commits\": []}}");
+        } else {
+            println!("No commits yet.");
+        }
+        return Ok(());
+    }
+    
+    let mut commits = Vec::new();
+    let mut current = head;
+    let mut count = 0;
+    
+    while let Some(commit_id) = current {
+        if let Some(lim) = limit {
+            if count >= lim {
+                break;
+            }
+        }
+        
+        let commit = store.load_commit(&commit_id)?;
+        commits.push((commit_id.clone(), commit.clone()));
+        current = commit.head.parent.clone();
+        count += 1;
+    }
+    
+    if output == "json" {
+        let json_commits: Vec<serde_json::Value> = commits.iter().map(|(id, commit)| {
+            serde_json::json!({
+                "id": id,
+                "parent": commit.head.parent,
+                "actions": commit.body.len(),
+            })
+        }).collect();
+        
+        println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+            "commits": json_commits
+        }))?);
+    } else {
+        let config = store.load_config()?;
+        println!("Contract: {}", config.contract_id);
+        println!("Commits: {}\n", commits.len());
+        
+        for (id, commit) in &commits {
+            let short_id = if id.len() > 12 { &id[..12] } else { id };
+            
+            println!("commit {} ({}...)", short_id, &id[..8.min(id.len())]);
+            if let Some(parent) = &commit.head.parent {
+                let short_parent = if parent.len() > 12 { &parent[..12] } else { parent };
+                println!("Parent: {}...", short_parent);
+            }
+            
+            // Show actions summary
+            if !commit.body.is_empty() {
+                println!("Actions:");
+                for action in &commit.body {
+                    let path = action.path.as_deref().unwrap_or("/");
+                    println!("  {} {}", action.method, path);
+                }
+            }
+            println!();
         }
     }
     

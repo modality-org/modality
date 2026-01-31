@@ -232,6 +232,9 @@ enum ContractCommands {
     #[command(about = "Show contract status")]
     Status(cmds::contract::status::Opts),
     
+    #[command(about = "Show commit history")]
+    Log(cmds::contract::log::Opts),
+    
     #[command(about = "Get contract or commit information")]
     Get(cmds::contract::get::Opts),
     
@@ -361,6 +364,7 @@ async fn main() -> Result<()> {
                 ContractCommands::Push(opts) => cmds::contract::push::run(opts).await?,
                 ContractCommands::Pull(opts) => cmds::contract::pull::run(opts).await?,
                 ContractCommands::Status(opts) => cmds::contract::status::run(opts).await?,
+                ContractCommands::Log(opts) => cmds::contract::log::run(opts).await?,
                 ContractCommands::Get(opts) => cmds::contract::get::run(opts).await?,
                 ContractCommands::Assets(opts) => cmds::contract::assets::run(opts).await?,
                 ContractCommands::WasmUpload(opts) => cmds::contract::wasm_upload::run(opts).await?,

@@ -8,6 +8,7 @@ pub mod commit;
 pub mod commit_id;
 pub mod get;
 pub mod id;
+pub mod log;
 pub mod push;
 pub mod pull;
 pub mod status;
