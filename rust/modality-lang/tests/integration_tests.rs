@@ -361,3 +361,213 @@ fn test_history_entries_informative() {
     assert_eq!(entry.by, "depositor");
     assert!(entry.timestamp > 0);
 }
+
+// ============================================================
+// Formula Syntax Tests
+// ============================================================
+
+use modality_lang::lalrpop_parser::{parse_content_lalrpop, parse_all_formulas_content_lalrpop};
+use modality_lang::ast::FormulaExpr;
+use modality_lang::model_checker::ModelChecker;
+
+/// Test: Parse diamondbox formula [<+action>] true
+#[test]
+fn test_parse_diamondbox_formula() {
+    let content = r#"
+formula CommittedToPay {
+    [<+PAY>] true
+}
+"#;
+    
+    let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
+    assert_eq!(formulas.len(), 1);
+    assert_eq!(formulas[0].name, "CommittedToPay");
+    
+    match &formulas[0].expression {
+        FormulaExpr::DiamondBox(props, inner) => {
+            assert_eq!(props.len(), 1);
+            assert_eq!(props[0].name, "PAY");
+            assert!(matches!(**inner, FormulaExpr::True));
+        }
+        _ => panic!("Expected DiamondBox"),
+    }
+}
+
+/// Test: Parse lfp (least fixed point) formula
+#[test]
+fn test_parse_lfp_formula() {
+    let content = r#"
+formula Reachable {
+    lfp(X, goal | <>X)
+}
+"#;
+    
+    let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
+    assert_eq!(formulas.len(), 1);
+    
+    match &formulas[0].expression {
+        FormulaExpr::Lfp(var, _) => {
+            assert_eq!(var, "X");
+        }
+        _ => panic!("Expected Lfp"),
+    }
+}
+
+/// Test: Parse gfp (greatest fixed point) formula
+#[test]
+fn test_parse_gfp_formula() {
+    let content = r#"
+formula Invariant {
+    gfp(X, safe & []X)
+}
+"#;
+    
+    let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
+    assert_eq!(formulas.len(), 1);
+    
+    match &formulas[0].expression {
+        FormulaExpr::Gfp(var, _) => {
+            assert_eq!(var, "X");
+        }
+        _ => panic!("Expected Gfp"),
+    }
+}
+
+/// Test: Parse always/eventually temporal operators
+#[test]
+fn test_parse_temporal_operators() {
+    let content = r#"
+formula AlwaysSafe {
+    always(safe)
+}
+
+formula EventuallyGoal {
+    eventually(goal)
+}
+
+formula WaitUntilDone {
+    waiting until done
+}
+"#;
+    
+    let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
+    assert_eq!(formulas.len(), 3);
+    
+    assert!(matches!(&formulas[0].expression, FormulaExpr::Always(_)));
+    assert!(matches!(&formulas[1].expression, FormulaExpr::Eventually(_)));
+    assert!(matches!(&formulas[2].expression, FormulaExpr::Until(_, _)));
+}
+
+/// Test: Parse unlabeled box and diamond
+#[test]
+fn test_parse_unlabeled_modal() {
+    let content = r#"
+formula AllSuccessors {
+    []safe
+}
+
+formula SomeSuccessor {
+    <>goal
+}
+"#;
+    
+    let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
+    assert_eq!(formulas.len(), 2);
+    
+    match &formulas[0].expression {
+        FormulaExpr::Box(props, _) => assert!(props.is_empty()),
+        _ => panic!("Expected unlabeled Box"),
+    }
+    
+    match &formulas[1].expression {
+        FormulaExpr::Diamond(props, _) => assert!(props.is_empty()),
+        _ => panic!("Expected unlabeled Diamond"),
+    }
+}
+
+/// Test: Model checking with diamond formula
+#[test]
+fn test_model_check_diamond() {
+    use modality_lang::ast::Formula;
+    
+    let content = r#"
+model TestModel {
+    part flow {
+        n1 -> n2 [+STEP]
+        n2 -> n3 [+STEP]
+        n3 -> n3
+    }
+}
+"#;
+    
+    let model = parse_content_lalrpop(content).unwrap();
+    let checker = ModelChecker::new(model);
+    
+    // Formula: there exists a +STEP transition
+    let diamond_expr = FormulaExpr::Diamond(
+        vec![Property::new(PropertySign::Plus, "STEP".to_string())],
+        Box::new(FormulaExpr::True),
+    );
+    let formula = Formula::new("CanStep".to_string(), diamond_expr);
+    
+    let result = checker.check_formula_any_state(&formula);
+    assert!(result.is_satisfied); // Some state can do +STEP
+}
+
+/// Test: Model checking with always formula
+#[test]
+fn test_model_check_always() {
+    use modality_lang::ast::Formula;
+    
+    let content = r#"
+model SafeModel {
+    part flow {
+        safe -> safe [+TICK]
+    }
+}
+"#;
+    
+    let model = parse_content_lalrpop(content).unwrap();
+    let checker = ModelChecker::new(model);
+    
+    // Formula: always(safe)
+    let always_safe_expr = FormulaExpr::Always(Box::new(FormulaExpr::Prop("safe".to_string())));
+    let formula = Formula::new("AlwaysSafe".to_string(), always_safe_expr);
+    
+    let result = checker.check_formula(&formula);
+    assert!(result.is_satisfied);
+}
+
+/// Test: Desugar temporal to fixed point
+#[test]
+fn test_desugar_temporal_to_fixpoint() {
+    // always(safe) should desugar to gfp(X, safe & []X)
+    let always_safe = FormulaExpr::Always(Box::new(FormulaExpr::Prop("safe".to_string())));
+    let desugared = always_safe.desugar_temporal();
+    
+    match desugared {
+        FormulaExpr::Gfp(var, inner) => {
+            assert_eq!(var, "X");
+            match *inner {
+                FormulaExpr::And(_, _) => (), // Expected: []X & safe
+                _ => panic!("Expected And inside Gfp"),
+            }
+        }
+        _ => panic!("Expected Gfp from always"),
+    }
+    
+    // eventually(goal) should desugar to lfp(X, goal | <>X)
+    let eventually_goal = FormulaExpr::Eventually(Box::new(FormulaExpr::Prop("goal".to_string())));
+    let desugared2 = eventually_goal.desugar_temporal();
+    
+    match desugared2 {
+        FormulaExpr::Lfp(var, inner) => {
+            assert_eq!(var, "X");
+            match *inner {
+                FormulaExpr::Or(_, _) => (), // Expected: <>X | goal
+                _ => panic!("Expected Or inside Lfp"),
+            }
+        }
+        _ => panic!("Expected Lfp from eventually"),
+    }
+}

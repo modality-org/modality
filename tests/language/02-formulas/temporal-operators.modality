@@ -1,0 +1,93 @@
+// Temporal Operators Test
+// Demonstrates always, eventually, until, next
+
+// Simple self-loop model (always safe)
+model SimpleLoop {
+  part flow {
+    safe -> safe [+TICK]
+  }
+}
+
+// Model with reachable goal
+model Reachability {
+  part flow {
+    start -> middle [+STEP]
+    middle -> goal [+STEP]
+    goal -> goal
+  }
+}
+
+// Model for until semantics
+model UntilDemo {
+  part flow {
+    waiting -> waiting [+WAIT]
+    waiting -> done [+FINISH]
+    done -> done
+  }
+}
+
+// Model that can reach unsafe state
+model SafetyViolation {
+  part flow {
+    safe -> safe [+STAY]
+    safe -> unsafe [+BREAK]
+    unsafe -> unsafe
+  }
+}
+
+// Cyclic model for liveness
+model LivenessDemo {
+  part flow {
+    idle -> working [+START]
+    working -> idle [+STOP]
+    working -> working [+CONTINUE]
+  }
+}
+
+// ----- FORMULAS -----
+
+// Always: safe holds at every state on all paths
+// True in SimpleLoop (only state is safe)
+formula AlwaysSafe {
+  always(safe)
+}
+
+// Eventually: goal is reachable
+// True in Reachability from start
+formula EventuallyGoal {
+  eventually(goal)
+}
+
+// Next: in the next state, middle holds
+// True at start in Reachability
+formula NextMiddle {
+  next(middle)
+}
+
+// Until: waiting holds until done
+// True at waiting in UntilDemo
+formula WaitingUntilDone {
+  waiting until done
+}
+
+// Always eventually: infinitely often return to idle
+// True in LivenessDemo (can always get back to idle)
+formula AlwaysEventuallyIdle {
+  always(eventually(idle))
+}
+
+// Safety: never reach unsafe
+// This is the NEGATION check - if always(safe) fails, unsafe is reachable
+formula NeverUnsafe {
+  always(safe)
+}
+
+// Eventually can start working
+formula CanStartWorking {
+  eventually(working)
+}
+
+// From working, can eventually return to idle
+formula WorkingToIdle {
+  working -> eventually(idle)
+}

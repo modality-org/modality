@@ -1,0 +1,82 @@
+// Modal Operators Test
+// Demonstrates box, diamond, and diamondbox operators
+
+// Simple escrow model
+model Escrow {
+  part flow {
+    init -> deposited [+DEPOSIT]
+    deposited -> delivered [+DELIVER]
+    delivered -> released [+RELEASE]
+    released -> released
+  }
+}
+
+// Model with commitment (can do action, cannot refuse)
+model Commitment {
+  part flow {
+    // From ready, can only sign (committed)
+    ready -> signed [+SIGN]
+    signed -> done [+COMPLETE]
+    done -> done
+  }
+}
+
+// Model demonstrating diamondbox semantics
+// [<+A>] true means: can do +A AND cannot do -A
+model DiamondBoxDemo {
+  part flow {
+    // From state s1, +PAY is possible but -PAY is NOT
+    s1 -> s2 [+PAY]
+    s2 -> s2
+  }
+}
+
+// Model where action is optional (NOT committed)
+model Optional {
+  part flow {
+    // From state s1, can do +ACT or skip
+    s1 -> s2 [+ACT]
+    s1 -> s3 [-ACT]
+    s2 -> s2
+    s3 -> s3
+  }
+}
+
+// ----- FORMULAS -----
+
+// Diamond: "there exists a +DEPOSIT transition"
+formula CanDeposit {
+  <+DEPOSIT> true
+}
+
+// Box: "all +DELIVER transitions lead to true" (trivially satisfied)
+formula AllDeliverOk {
+  [+DELIVER] true
+}
+
+// Diamondbox: "committed to PAY" (can +PAY, cannot -PAY)
+// This should be true in DiamondBoxDemo at s1
+formula CommittedToPay {
+  [<+PAY>] true
+}
+
+// In Optional model, NOT committed (can refuse)
+// This formula checks if committed - should fail at s1 in Optional
+formula CommittedToAct {
+  [<+ACT>] true
+}
+
+// Chain of diamonds: can deposit then deliver then release
+formula CanComplete {
+  <+DEPOSIT> <+DELIVER> <+RELEASE> true
+}
+
+// Unlabeled box: all successors satisfy true
+formula AllSuccessorsOk {
+  [] true
+}
+
+// Unlabeled diamond: some successor exists
+formula HasSuccessor {
+  <> true
+}

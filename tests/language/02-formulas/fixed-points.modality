@@ -1,0 +1,84 @@
+// Fixed Points Test (Modal Mu-Calculus)
+// Demonstrates lfp (least fixed point) and gfp (greatest fixed point)
+
+// Model for testing invariants (gfp)
+model Invariant {
+  part flow {
+    s1 -> s1 [+A]
+    s1 -> s2 [+B]
+    s2 -> s2 [+A]
+  }
+}
+
+// Model for testing reachability (lfp)
+model Reachable {
+  part flow {
+    start -> mid1 [+STEP]
+    start -> mid2 [+STEP]
+    mid1 -> target [+STEP]
+    mid2 -> dead [+STEP]
+    target -> target
+    dead -> dead
+  }
+}
+
+// Simple cycle for infinite behavior
+model Cycle {
+  part flow {
+    a -> b [+TICK]
+    b -> c [+TICK]
+    c -> a [+TICK]
+  }
+}
+
+// ----- FORMULAS -----
+
+// Greatest fixed point: safety invariant
+// gfp(X, safe & []X) means "safe now and all successors satisfy X"
+// This is equivalent to always(safe)
+formula SafetyInvariant {
+  gfp(X, s1 & []X)
+}
+
+// Least fixed point: reachability
+// lfp(X, target | <>X) means "target now or can reach X"
+// This is equivalent to eventually(target)
+formula ReachTarget {
+  lfp(X, target | <>X)
+}
+
+// The temporal operators ARE fixed points:
+// always(f) = gfp(X, f & []X)
+// eventually(f) = lfp(X, f | <>X)
+
+// Explicit always via gfp
+formula AlwaysS1 {
+  gfp(X, s1 & []X)
+}
+
+// Explicit eventually via lfp  
+formula EventuallyTarget {
+  lfp(X, target | <>X)
+}
+
+// Can reach either target or dead
+formula ReachTerminal {
+  lfp(X, (target | dead) | <>X)
+}
+
+// Invariant: always in {a, b, c}
+formula AlwaysInCycle {
+  gfp(X, (a | b | c) & []X)
+}
+
+// Infinitely often visit 'a' (using nested fixed points)
+// gfp(Y, lfp(X, a | <>X) & []Y)
+// Read as: "always eventually a"
+formula InfinitelyOftenA {
+  gfp(Y, lfp(X, a | <>X) & []Y)
+}
+
+// Until as fixed point: p until q = lfp(X, q | (p & <>X))
+formula WaitUntilTarget {
+  lfp(X, target | (start & <>X))
+}
