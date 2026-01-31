@@ -126,7 +126,68 @@ impl CommitAction {
     }
     
     fn validate_post(&self) -> Result<()> {
-        self.validate_path_extension()
+        self.validate_path_extension()?;
+        self.validate_value_for_type()
+    }
+    
+    /// Validate value matches the type indicated by path extension
+    fn validate_value_for_type(&self) -> Result<()> {
+        let path = match &self.path {
+            Some(p) => p,
+            None => return Ok(()),
+        };
+        
+        if path.ends_with(".bool") {
+            // Must be a boolean
+            if !self.value.is_boolean() {
+                anyhow::bail!("Value for .bool path must be true or false, got: {}", self.value);
+            }
+        } else if path.ends_with(".text") || path.ends_with(".md") {
+            // Must be a string
+            if !self.value.is_string() {
+                anyhow::bail!("Value for {} path must be a string", if path.ends_with(".text") { ".text" } else { ".md" });
+            }
+        } else if path.ends_with(".date") {
+            // Must be a string in YYYY-MM-DD format
+            let date_str = self.value.as_str()
+                .ok_or_else(|| anyhow::anyhow!("Value for .date path must be a string in YYYY-MM-DD format"))?;
+            if !is_valid_date(date_str) {
+                anyhow::bail!("Invalid date format '{}', expected YYYY-MM-DD", date_str);
+            }
+        } else if path.ends_with(".datetime") {
+            // Must be a string in ISO 8601 format or Unix timestamp
+            match &self.value {
+                serde_json::Value::String(s) => {
+                    if !is_valid_datetime(s) {
+                        anyhow::bail!("Invalid datetime format '{}', expected ISO 8601 (YYYY-MM-DDTHH:MM:SSZ)", s);
+                    }
+                }
+                serde_json::Value::Number(n) => {
+                    // Unix timestamp is valid
+                    if !n.is_u64() && !n.is_i64() {
+                        anyhow::bail!("Datetime as number must be a Unix timestamp");
+                    }
+                }
+                _ => anyhow::bail!("Value for .datetime must be an ISO 8601 string or Unix timestamp"),
+            }
+        } else if path.ends_with(".pubkey") {
+            // Must be a string starting with "12D3KooW" (libp2p peer ID format)
+            let key_str = self.value.as_str()
+                .ok_or_else(|| anyhow::anyhow!("Value for .pubkey path must be a string"))?;
+            if !key_str.starts_with("12D3KooW") {
+                anyhow::bail!("Invalid pubkey format '{}', expected libp2p peer ID (starts with 12D3KooW)", key_str);
+            }
+        } else if path.ends_with(".json") {
+            // Any valid JSON is fine (already parsed)
+        } else if path.ends_with(".wasm") {
+            // Should be base64-encoded WASM or a reference
+            // For now, just ensure it's a string
+            if !self.value.is_string() {
+                anyhow::bail!("Value for .wasm path must be a base64-encoded string");
+            }
+        }
+        
+        Ok(())
     }
     
     fn validate_rule(&self) -> Result<()> {
@@ -248,5 +309,44 @@ impl Default for CommitFile {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Validate date string is in YYYY-MM-DD format
+fn is_valid_date(s: &str) -> bool {
+    if s.len() != 10 {
+        return false;
+    }
+    let parts: Vec<&str> = s.split('-').collect();
+    if parts.len() != 3 {
+        return false;
+    }
+    let year = parts[0].parse::<u32>().ok();
+    let month = parts[1].parse::<u32>().ok();
+    let day = parts[2].parse::<u32>().ok();
+    
+    match (year, month, day) {
+        (Some(y), Some(m), Some(d)) => {
+            y >= 1970 && y <= 9999 && m >= 1 && m <= 12 && d >= 1 && d <= 31
+        }
+        _ => false,
+    }
+}
+
+/// Validate datetime string is in ISO 8601 format
+fn is_valid_datetime(s: &str) -> bool {
+    // Accept formats like: 2024-01-15T10:30:00Z, 2024-01-15T10:30:00+00:00
+    if s.len() < 19 {
+        return false;
+    }
+    // Check basic structure: YYYY-MM-DDTHH:MM:SS
+    let has_t = s.chars().nth(10) == Some('T');
+    let has_colons = s.chars().nth(13) == Some(':') && s.chars().nth(16) == Some(':');
+    
+    if !has_t || !has_colons {
+        return false;
+    }
+    
+    // Validate the date part
+    is_valid_date(&s[..10])
 }
 
