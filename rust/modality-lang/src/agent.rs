@@ -404,6 +404,28 @@ impl Contract {
         self.instance.store.exists(path)
     }
 
+    // ==================== Balance Operations ====================
+
+    /// Add to a balance at a path
+    pub fn add_balance(&mut self, path: &str, amount: u64) -> Result<u64, String> {
+        self.instance.add_balance(path, amount).map_err(|e| e.to_string())
+    }
+
+    /// Subtract from a balance at a path
+    pub fn subtract_balance(&mut self, path: &str, amount: u64) -> Result<u64, String> {
+        self.instance.subtract_balance(path, amount).map_err(|e| e.to_string())
+    }
+
+    /// Transfer balance between paths
+    pub fn transfer_balance(&mut self, from: &str, to: &str, amount: u64) -> Result<(u64, u64), String> {
+        self.instance.transfer_balance(from, to, amount).map_err(|e| e.to_string())
+    }
+
+    /// Check if balance is sufficient
+    pub fn has_sufficient_balance(&self, path: &str, required: u64) -> bool {
+        self.instance.has_sufficient_balance(path, required)
+    }
+
     // ==================== Convenience Helpers ====================
 
     /// Get a human-readable description of what to do next
@@ -850,5 +872,34 @@ mod tests {
         // Act with signature verification
         let result = contract.act_signed("alice", "signed_by_alice", &secret);
         assert!(result.is_ok(), "Should succeed: {:?}", result);
+    }
+
+    #[test]
+    fn test_contract_balance_operations() {
+        use crate::paths::PathValue;
+        
+        let mut contract = Contract::escrow("alice", "bob");
+        
+        // Set initial balances
+        contract.post("/balances/alice.balance", PathValue::Balance(1000)).unwrap();
+        contract.post("/balances/bob.balance", PathValue::Balance(0)).unwrap();
+        
+        // Check balance
+        assert!(contract.has_sufficient_balance("/balances/alice.balance", 500));
+        assert!(!contract.has_sufficient_balance("/balances/alice.balance", 2000));
+        
+        // Transfer
+        let (from, to) = contract.transfer_balance(
+            "/balances/alice.balance",
+            "/balances/bob.balance",
+            300
+        ).unwrap();
+        
+        assert_eq!(from, 700);  // Alice: 1000 - 300 = 700
+        assert_eq!(to, 300);    // Bob: 0 + 300 = 300
+        
+        // Verify final balances
+        assert_eq!(contract.get_balance("/balances/alice.balance"), Some(700));
+        assert_eq!(contract.get_balance("/balances/bob.balance"), Some(300));
     }
 }
