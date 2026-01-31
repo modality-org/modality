@@ -14,6 +14,7 @@ pub mod evolution;
 pub mod runtime;
 pub mod agent;
 pub mod patterns;
+pub mod paths;
 
 // Include the generated parser
 use lalrpop_util::lalrpop_mod;
