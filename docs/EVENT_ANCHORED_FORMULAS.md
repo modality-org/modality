@@ -4,6 +4,14 @@
 
 ---
 
+## Status
+
+**Core approach:** Use raw `[action]formula` patterns in the base language.
+
+**Future sugar:** The `on event { assert F }` syntax documented below is a potential ergonomic layer, not yet implemented. It desugars to `[+EVENT]F`.
+
+---
+
 ## The Problem
 
 We need to express ordering constraints like "no release without prior delivery" but:
@@ -119,35 +127,116 @@ When action `aᵢ` occurs at time `i`:
 
 ---
 
-## Examples
+## Raw Formula Syntax (Primary)
 
-### Escrow with Full Invariants
+The core language uses `[action]formula` directly:
 
 ```modality
 model Escrow {
-  on init {
-    // Contract must eventually terminate
-    assert eventually(released | refunded | cancelled)
+  part flow {
+    init --> deposited: +DEPOSIT +signed_by(buyer)
+    deposited --> delivered: +DELIVER +signed_by(seller)
+    delivered --> released: +RELEASE +signed_by(buyer)
+    delivered --> disputed: +DISPUTE +signed_by(buyer)
+    disputed --> refunded: +REFUND +signed_by(arbiter)
+    disputed --> released: +RELEASE +signed_by(arbiter)
   }
-  
+}
+
+// Event-anchored formulas using box modality
+formula InitObligation {
+  [+INIT] eventually(deposited | cancelled)
+}
+
+formula DepositObligation {
+  [+DEPOSIT] eventually(delivered | refunded)
+}
+
+formula DepositSafety {
+  [+DEPOSIT] always(not(released & refunded))
+}
+
+formula DeliverObligation {
+  [+DELIVER] eventually(released | disputed)
+}
+
+formula DisputeResolution {
+  [+DISPUTE] eventually(arbiter_rules)
+}
+
+formula DisputeFreeze {
+  [+DISPUTE] (not(released) until arbiter_rules)
+}
+```
+
+**Reading `[+ACTION] F`:** "After every occurrence of ACTION, formula F holds going forward."
+
+This is the hybrid logic `@action → F` pattern expressed in standard modal logic.
+
+---
+
+## Sugar Syntax (Future Idea)
+
+The `on/assert` syntax below is ergonomic sugar, not yet implemented:
+
+```modality
+// FUTURE SUGAR - not implemented
+model Escrow {
   on deposit {
-    // Once deposited, funds must resolve
-    assert eventually(released | refunded)
-    // No double-spend
+    assert eventually(delivered | refunded)
     assert always(not(released & refunded))
   }
-  
-  on deliver {
-    // Delivery triggers release eligibility
-    assert eventually(released | disputed)
+}
+
+// Desugars to:
+formula DepositObligation {
+  [+DEPOSIT] eventually(delivered | refunded)
+}
+formula DepositSafety {
+  [+DEPOSIT] always(not(released & refunded))
+}
+```
+
+---
+
+## Examples
+
+### Escrow with Full Invariants (Raw Formulas)
+
+```modality
+model Escrow {
+  part flow {
+    init --> deposited: +DEPOSIT
+    deposited --> delivered: +DELIVER
+    delivered --> released: +RELEASE
+    delivered --> disputed: +DISPUTE
+    disputed --> refunded: +REFUND
+    disputed --> released: +RELEASE
   }
-  
-  on dispute {
-    // Disputes must resolve
-    assert eventually(arbiter_rules)
-    // During dispute, no unilateral release
-    assert (not(released)) until arbiter_rules
-  }
+}
+
+formula ContractTerminates {
+  eventually(released | refunded | cancelled)
+}
+
+formula DepositLeadsToResolution {
+  [+DEPOSIT] eventually(released | refunded)
+}
+
+formula NoDoubleSpend {
+  always(not(released & refunded))
+}
+
+formula DeliveryLeadsToOutcome {
+  [+DELIVER] eventually(released | disputed)
+}
+
+formula DisputeMustResolve {
+  [+DISPUTE] eventually(resolved)
+}
+
+formula FrozenDuringDispute {
+  [+DISPUTE] (not(released) until resolved)
 }
 ```
 
