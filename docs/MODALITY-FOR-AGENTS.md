@@ -58,7 +58,6 @@ Rules constrain what can happen:
 ```modality
 export default rule {
   starting_at $PARENT
-  model
   formula {
     always must (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
@@ -109,7 +108,7 @@ echo "$ALICE" > state/users/alice.id
 echo "$BOB" > state/users/bob.id
 ```
 
-Create **model/auth.modality**:
+Create **model/default.modality**:
 ```
 export default model {
   initial idle
@@ -125,7 +124,6 @@ Create **rules/auth.modality**:
 ```modality
 export default rule {
   starting_at $PARENT
-  model
   formula {
     always must (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
@@ -155,7 +153,7 @@ modal c log
 
 **Use case:** Only Alice and Bob can commit. No one else.
 
-**model/auth.modality:**
+**model/default.modality:**
 ```
 export default model {
   initial idle
@@ -171,7 +169,6 @@ export default model {
 ```modality
 export default rule {
   starting_at $PARENT
-  model
   formula {
     always must (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
@@ -184,7 +181,7 @@ export default rule {
 
 **Use case:** Buyer deposits, seller delivers, buyer releases payment.
 
-**model/escrow.modality:**
+**model/default.modality:**
 ```
 export default model {
   initial init
@@ -199,7 +196,6 @@ export default model {
 ```modality
 export default rule {
   starting_at $PARENT
-  model escrow
   formula {
     always must (
       [release] implies <deliver> true
@@ -212,7 +208,7 @@ export default rule {
 
 **Use case:** Both parties must sign before execution.
 
-**model/multisig.modality:**
+**model/default.modality:**
 ```
 export default model {
   initial init
@@ -229,7 +225,6 @@ export default model {
 ```modality
 export default rule {
   starting_at $PARENT
-  model multisig
   formula {
     always must (
       [execute] implies (
@@ -245,7 +240,7 @@ export default rule {
 
 **Use case:** Both commit before either can claim.
 
-**model/swap.modality:**
+**model/default.modality:**
 ```
 export default model {
   initial init
@@ -262,7 +257,6 @@ export default model {
 ```modality
 export default rule {
   starting_at $PARENT
-  model swap
   formula {
     always must (
       [claim] implies (

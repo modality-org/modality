@@ -59,7 +59,7 @@ echo "$BUYER" > state/users/buyer.id
 echo "$SELLER" > state/users/seller.id
 ```
 
-**model/escrow.modality** — proves the rules are satisfiable:
+**model/default.modality** — proves the rules are satisfiable:
 ```
 export default model {
   initial init
@@ -74,7 +74,6 @@ export default model {
 ```modality
 export default rule {
   starting_at $PARENT
-  model escrow
   formula {
     always must (
       [release] implies <deliver> true
@@ -121,7 +120,7 @@ Two agents have verified contracts. A third agent wants to work with both. They 
 
 ### Service Agreement
 
-**model/service.modality:**
+**model/default.modality:**
 ```
 export default model {
   initial init
@@ -137,7 +136,6 @@ export default model {
 ```modality
 export default rule {
   starting_at $PARENT
-  model service
   formula {
     always must (
       [pay] implies <deliver> true
@@ -148,7 +146,7 @@ export default rule {
 
 ### Multi-Sig Approval
 
-**model/multisig.modality:**
+**model/default.modality:**
 ```
 export default model {
   initial init
@@ -165,7 +163,6 @@ export default model {
 ```modality
 export default rule {
   starting_at $PARENT
-  model multisig
   formula {
     always must (
       [execute] implies (
@@ -179,7 +176,7 @@ export default rule {
 
 ### Atomic Swap
 
-**model/swap.modality:**
+**model/default.modality:**
 ```
 export default model {
   initial init
@@ -196,7 +193,6 @@ export default model {
 ```modality
 export default rule {
   starting_at $PARENT
-  model swap
   formula {
     always must (
       [claim] implies (
