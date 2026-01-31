@@ -187,6 +187,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 if let Value::String(s) = &action.value {
                     if s.contains("$PARENT") {
                         let replaced = s.replace("$PARENT", parent);
+                        
+                        // Also update the local rule file so it matches
+                        if let Some(path) = &action.path {
+                            let _ = store.write_rule(path, &Value::String(replaced.clone()));
+                        }
+                        
                         action.value = Value::String(replaced);
                     }
                 }

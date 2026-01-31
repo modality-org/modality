@@ -305,7 +305,7 @@ impl ContractStore {
             for action in &commit.body {
                 if let Some(path) = &action.path {
                     match action.method.as_str() {
-                        "post" | "genesis" => {
+                        "post" | "genesis" | "rule" => {
                             state.insert(path.clone(), action.value.clone());
                         }
                         // Add other methods as needed
