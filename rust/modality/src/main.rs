@@ -67,6 +67,8 @@ enum IdCommands {
     Create(cmds::id::create::Opts),
     CreateSub(cmds::id::create_sub::Opts),
     Derive(cmds::id::derive::Opts),
+    #[command(about = "Get ID from passfile by name or path")]
+    Get(cmds::id::get::Opts),
 }
 
 #[derive(Subcommand)]
@@ -105,6 +107,7 @@ async fn main() -> Result<()> {
             IdCommands::Create(opts) => cmds::id::create::run(opts).await?,
             IdCommands::CreateSub(opts) => cmds::id::create_sub::run(opts).await?,
             IdCommands::Derive(opts) => cmds::id::derive::run(opts).await?,
+            IdCommands::Get(opts) => cmds::id::get::run(opts).await?,
         },
         Commands::Passfile { command } => match command {
             PassfileCommands::Decrypt(opts) => cmds::passfile::decrypt::run(opts).await?,

@@ -106,6 +106,8 @@ enum Commands {
 enum IdCommands {
     Create(modality::cmds::id::create::Opts),
     Derive(modality::cmds::id::derive::Opts),
+    #[command(about = "Get ID from passfile by name or path")]
+    Get(modality::cmds::id::get::Opts),
 }
 
 #[derive(Subcommand)]
@@ -317,6 +319,7 @@ async fn main() -> Result<()> {
             match command {
                 IdCommands::Create(opts) => modality::cmds::id::create::run(opts).await?,
                 IdCommands::Derive(opts) => modality::cmds::id::derive::run(opts).await?,
+                IdCommands::Get(opts) => modality::cmds::id::get::run(opts).await?,
             }
         }
         Commands::Passfile { command } => {
