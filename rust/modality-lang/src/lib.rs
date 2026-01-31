@@ -13,6 +13,7 @@ pub mod printer;
 pub mod evolution;
 pub mod runtime;
 pub mod agent;
+pub mod patterns;
 
 // Include the generated parser
 use lalrpop_util::lalrpop_mod;
