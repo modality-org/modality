@@ -72,11 +72,11 @@ From this point on, all commits must be signed by Alice or Bob.
 ```bash
 # Alice posts a message
 mkdir -p state/data
-echo "Hello from Alice" > state/data/messages.text
+echo "Hello from Alice" > state/data/message.text
 modal c commit --all --sign alice.passfile
 
 # Bob updates the message
-echo "Hello from Bob" > state/data/messages.text
+echo "Hello from Bob" > state/data/message.text
 modal c commit --all --sign bob.passfile
 ```
 
@@ -103,11 +103,11 @@ Commits: 4
 
 commit 833e8119...
 Actions:
-  post /data/messages.text
+  post /data/message.text
 
 commit bf68ec27...
 Actions:
-  post /data/messages.text
+  post /data/message.text
 
 commit 18634bc4...
 Actions:
@@ -165,11 +165,11 @@ EOF
 modal c commit --all --sign alice.passfile
 
 # Alice posts a message (signed)
-echo "Hello from Alice" > state/data/messages.text
+echo "Hello from Alice" > state/data/message.text
 modal c commit --all --sign alice.passfile
 
 # Bob updates the message (signed)
-echo "Hello from Bob" > state/data/messages.text
+echo "Hello from Bob" > state/data/message.text
 modal c commit --all --sign bob.passfile
 
 # Show final state
@@ -199,7 +199,7 @@ my-contract/
 │   │   ├── alice.id
 │   │   └── bob.id
 │   └── data/
-│       └── messages.text
+│       └── message.text
 ├── rules/               # Rule files (RULE method)
 │   └── auth.modality
 ├── alice.passfile
