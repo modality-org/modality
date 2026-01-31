@@ -1,125 +1,127 @@
 # Multi-Party Contract Tutorial
 
-This tutorial shows how to create a contract with multiple authorized signers. We'll set up a contract where only Alice or Bob can make commits.
+Create a contract where only Alice or Bob can make commits.
 
-## Step 1: Create an Empty Contract
+## Step 1: Create Contract & Identities
 
 ```bash
 mkdir my-contract && cd my-contract
+
+# Create the contract
 modal contract create
-```
 
-Output:
-```
-✅ Contract created successfully!
-   Contract ID: 12D3KooW...
-   Directory: /path/to/my-contract
-   Genesis commit: abc123...
-```
-
-## Step 2: Create Identity Passfiles
-
-Each party needs a passfile (keypair):
-
-```bash
-# Create Alice's identity
+# Create identities for Alice and Bob
 modal id create --path alice.passfile
-# Output: Modality ID: 12D3KooWPaH8gkE...
-
-# Create Bob's identity  
 modal id create --path bob.passfile
-# Output: Modality ID: 12D3KooWE1g9YPC...
-```
 
-Get the public keys:
-```bash
+# Get their IDs
 ALICE=$(cat alice.passfile | jq -r '.id')
 BOB=$(cat bob.passfile | jq -r '.id')
 ```
 
-## Step 3: Register the Users
-
-Add both users' public keys to the contract:
+## Step 2: Set Up Users via State Directory
 
 ```bash
-# Add Alice
-modal c commit --path /users/alice.id --value "\"$ALICE\""
+# Initialize state directory
+modal c checkout
 
-# Add Bob
-modal c commit --path /users/bob.id --value "\"$BOB\""
-```
+# Create the users directory and add IDs
+mkdir -p state/users
+echo "$ALICE" > state/users/alice.id
+echo "$BOB" > state/users/bob.id
 
-## Step 4: Add the Authorization Rule
-
-Add a rule requiring all future commits to be signed by Alice or Bob:
-
-```bash
-modal c commit --method rule --path /rules/authorized_signers.json --value '{
-  "description": "All commits must be signed by Alice or Bob",
-  "formula": "SIGNED_BY_ALICE | SIGNED_BY_BOB",
-  "signers": {
-    "ALICE": "/users/alice.id",
-    "BOB": "/users/bob.id"
-  }
-}'
-```
-
-## Step 5: View the Contract Log
-
-```bash
-modal c log
+# Check status
+modal c status
 ```
 
 Output:
 ```
+Changes in state/:
+  + /users/alice.id
+  + /users/bob.id
+
+  Run 'modal c commit --all' to commit changes.
+```
+
+## Step 3: Commit the Users
+
+```bash
+modal c commit --all
+```
+
+## Step 4: Add Authorization Rule
+
+```bash
+# Add a rule requiring signatures
+mkdir -p state/rules
+cat > state/rules/auth.json << 'EOF'
+{
+  "require": "SIGNED_BY_ALICE | SIGNED_BY_BOB",
+  "signers": {
+    "ALICE": "/users/alice.id",
+    "BOB": "/users/bob.id"
+  }
+}
+EOF
+
+# Commit the rule
+modal c commit --all
+```
+
+## Step 5: Make Signed Changes
+
+```bash
+# Alice adds a message
+echo "Hello from Alice" > state/data/message.text
+modal c commit --all --sign alice.passfile
+
+# Bob responds
+echo "Hello from Bob" > state/data/response.text
+modal c commit --all --sign bob.passfile
+```
+
+## Step 6: View Status & Log
+
+```bash
+modal c status
+```
+```
+Contract Status
+═══════════════
+
+  Contract ID: 12D3KooW...
+  Total commits: 5
+  ✅ state/ matches committed state.
+```
+
+```bash
+modal c log
+```
+```
 Contract: 12D3KooW...
-Commits: 4
+Commits: 5
 
-commit d4e5f6... (d4e5f6...)
-Parent: c3d4e5...
+commit abc123... 
 Actions:
-  rule /rules/authorized_signers.json
+  post /data/response.text
 
-commit c3d4e5... (c3d4e5...)
-Parent: b2c3d4...
+commit def456...
 Actions:
-  post /users/bob.id
+  post /data/message.text
 
-commit b2c3d4... (b2c3d4...)
-Parent: a1b2c3...
+commit 789abc...
+Actions:
+  post /rules/auth.json
+
+commit bcd012...
 Actions:
   post /users/alice.id
+  post /users/bob.id
 
-commit a1b2c3... (a1b2c3...)
+commit efg345...
 Actions:
   genesis /
 ```
-
-## Step 6: Make Signed Commits
-
-Now all commits must be signed:
-
-```bash
-# Alice signs a commit
-modal c commit --path /data/message.text --value '"Hello from Alice"' --sign alice.passfile
-
-# Bob signs a commit
-modal c commit --path /data/response.text --value '"Hello from Bob"' --sign bob.passfile
-```
-
-## Step 7: Push to Network
-
-```bash
-modal c push --remote "/ip4/127.0.0.1/tcp/4040/ws/p2p/12D3KooW..."
-```
-
-## What Happens Next?
-
-Once the authorization rule is active:
-
-1. **Unsigned commits are rejected** by validators
-2. **Commits signed by unauthorized keys are rejected**
-3. **Only Alice or Bob can advance the contract state**
 
 ## Full Script
 
@@ -128,51 +130,93 @@ Once the authorization rule is active:
 set -e
 
 # Setup
-mkdir -p tutorial-contract && cd tutorial-contract
+rm -rf /tmp/alice-bob-contract
+mkdir -p /tmp/alice-bob-contract && cd /tmp/alice-bob-contract
 
 # Create contract
 modal contract create
 
 # Create identities
-modal id create --output alice.passfile
-ALICE_KEY=$(modal id create --output alice.passfile 2>&1 | grep "Peer ID" | awk '{print $3}')
+modal id create --path alice.passfile
+modal id create --path bob.passfile
+ALICE=$(cat alice.passfile | jq -r '.id')
+BOB=$(cat bob.passfile | jq -r '.id')
 
-modal id create --output bob.passfile  
-BOB_KEY=$(modal id create --output bob.passfile 2>&1 | grep "Peer ID" | awk '{print $3}')
+echo "Alice: $ALICE"
+echo "Bob: $BOB"
 
-# Register users
-modal c commit --path /users/alice.id --value "\"$ALICE_KEY\""
-modal c commit --path /users/bob.id --value "\"$BOB_KEY\""
+# Initialize state and add users
+modal c checkout
+mkdir -p state/users state/rules state/data
+echo "$ALICE" > state/users/alice.id
+echo "$BOB" > state/users/bob.id
+
+# Commit users
+modal c commit --all
 
 # Add authorization rule
-modal c commit --method rule --path /rules/auth.json --value "{
-  \"require\": \"SIGNED_BY_ALICE | SIGNED_BY_BOB\",
-  \"signers\": {
-    \"ALICE\": \"/users/alice.id\",
-    \"BOB\": \"/users/bob.id\"
+cat > state/rules/auth.json << EOF
+{
+  "require": "SIGNED_BY_ALICE | SIGNED_BY_BOB",
+  "signers": {
+    "ALICE": "/users/alice.id",
+    "BOB": "/users/bob.id"
   }
-}"
+}
+EOF
+modal c commit --all
 
-# Make signed commits
-modal c commit --path /data/test.text --value '"Signed by Alice"' --sign alice.passfile
-modal c commit --path /data/test2.text --value '"Signed by Bob"' --sign bob.passfile
+# Alice sends a message (signed)
+echo "Hello from Alice" > state/data/message.text
+modal c commit --all --sign alice.passfile
 
-# View log
+# Bob responds (signed)
+echo "Hello from Bob" > state/data/response.text
+modal c commit --all --sign bob.passfile
+
+# Show final state
+echo ""
+echo "=== Contract Status ==="
+modal c status
+
+echo ""
+echo "=== Contract Log ==="
 modal c log
+
+echo ""
+echo "=== State Directory ==="
+find state -type f
 ```
 
-## Summary
+## Directory Structure
 
-| Step | Command | Purpose |
-|------|---------|---------|
-| 1 | `modal contract create` | Initialize empty contract |
-| 2 | `modal id create` | Create keypairs for parties |
-| 3 | `modal c commit --path /users/X.id` | Register authorized signers |
-| 4 | `modal c commit --method rule` | Add authorization rule |
-| 5 | `modal c commit --sign X.passfile` | Make signed commits |
-| 6 | `modal c push` | Sync with network |
+```
+my-contract/
+├── .contract/           # Internal storage
+│   ├── config.json
+│   ├── commits/
+│   └── HEAD
+├── state/               # Working directory
+│   ├── users/
+│   │   ├── alice.id
+│   │   └── bob.id
+│   ├── rules/
+│   │   └── auth.json
+│   └── data/
+│       ├── message.text
+│       └── response.text
+├── alice.passfile
+└── bob.passfile
+```
 
-This pattern enables:
-- **Multi-sig contracts** (require N of M signatures)
-- **Role-based access** (different rules for different paths)
-- **Governance** (voting on rule changes)
+## Workflow Summary
+
+| Command | Purpose |
+|---------|---------|
+| `modal c checkout` | Populate state/ from commits |
+| `modal c status` | Show contract info + state changes |
+| `modal c diff` | Show only state changes |
+| `modal c commit --all` | Commit all state changes |
+| `modal c commit --all --sign X.passfile` | Commit with signature |
+| `modal c log` | Show commit history |
+| `modal c push` | Sync with network |
