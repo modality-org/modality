@@ -618,4 +618,152 @@ contract handshake {
             _ => panic!("Expected Do statement"),
         }
     }
+
+    #[test]
+    fn test_parse_diamond_box_formula() {
+        // [<+action>] φ - committed diamond form
+        let content = r#"
+formula committed {
+    [<+PAY>] true
+}
+"#;
+        
+        let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
+        assert_eq!(formulas.len(), 1);
+        
+        let formula = &formulas[0];
+        assert_eq!(formula.name, "committed");
+        
+        // Check it parsed as DiamondBox
+        match &formula.expression {
+            FormulaExpr::DiamondBox(props, inner) => {
+                assert_eq!(props.len(), 1);
+                assert_eq!(props[0].name, "PAY");
+                assert_eq!(props[0].sign, PropertySign::Plus);
+                assert!(matches!(**inner, FormulaExpr::True));
+            }
+            _ => panic!("Expected DiamondBox, got {:?}", formula.expression),
+        }
+    }
+
+    #[test]
+    fn test_parse_must_simple() {
+        // must P desugars to [<+P>] true
+        let content = r#"
+formula mustPay {
+    must PAY
+}
+"#;
+        
+        let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
+        assert_eq!(formulas.len(), 1);
+        
+        let formula = &formulas[0];
+        assert_eq!(formula.name, "mustPay");
+        
+        // Should desugar to DiamondBox
+        match &formula.expression {
+            FormulaExpr::DiamondBox(props, inner) => {
+                assert_eq!(props.len(), 1);
+                assert_eq!(props[0].name, "PAY");
+                assert_eq!(props[0].sign, PropertySign::Plus);
+                assert!(matches!(**inner, FormulaExpr::True));
+            }
+            _ => panic!("Expected DiamondBox from must, got {:?}", formula.expression),
+        }
+    }
+
+    #[test]
+    fn test_parse_must_disjunction() {
+        // must (P | Q) desugars to [<+P>] true | [<+Q>] true
+        let content = r#"
+formula mustEither {
+    must (PAY | REFUND)
+}
+"#;
+        
+        let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
+        assert_eq!(formulas.len(), 1);
+        
+        let formula = &formulas[0];
+        assert_eq!(formula.name, "mustEither");
+        
+        // Should desugar to Or(DiamondBox, DiamondBox)
+        match &formula.expression {
+            FormulaExpr::Or(left, right) => {
+                match (&**left, &**right) {
+                    (FormulaExpr::DiamondBox(props_l, _), FormulaExpr::DiamondBox(props_r, _)) => {
+                        assert_eq!(props_l[0].name, "PAY");
+                        assert_eq!(props_r[0].name, "REFUND");
+                    }
+                    _ => panic!("Expected Or(DiamondBox, DiamondBox), got Or({:?}, {:?})", left, right),
+                }
+            }
+            _ => panic!("Expected Or from must disjunction, got {:?}", formula.expression),
+        }
+    }
+
+    #[test]
+    fn test_parse_always_must() {
+        // always(must (A | B)) - the example Foy gave
+        let content = r#"
+formula alwaysMust {
+    always(must (signed_by_A | signed_by_B))
+}
+"#;
+        
+        let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
+        assert_eq!(formulas.len(), 1);
+        
+        let formula = &formulas[0];
+        assert_eq!(formula.name, "alwaysMust");
+        
+        // Should be Always(Or(DiamondBox, DiamondBox))
+        match &formula.expression {
+            FormulaExpr::Always(inner) => {
+                match &**inner {
+                    FormulaExpr::Or(left, right) => {
+                        assert!(matches!(&**left, FormulaExpr::DiamondBox(_, _)));
+                        assert!(matches!(&**right, FormulaExpr::DiamondBox(_, _)));
+                    }
+                    _ => panic!("Expected Or inside Always, got {:?}", inner),
+                }
+            }
+            _ => panic!("Expected Always, got {:?}", formula.expression),
+        }
+    }
+
+    #[test]
+    fn test_diamond_box_expansion() {
+        // Test the expand_diamond_box() method
+        let props = vec![crate::ast::Property::new(PropertySign::Plus, "PAY".to_string())];
+        let diamond_box = FormulaExpr::DiamondBox(props, Box::new(FormulaExpr::True));
+        
+        let expanded = diamond_box.expand_diamond_box();
+        
+        // Should expand to: [-PAY] false & <+PAY> true
+        match expanded {
+            FormulaExpr::And(box_part, diamond_part) => {
+                // Check box part: [-PAY] false
+                match *box_part {
+                    FormulaExpr::Box(props, inner) => {
+                        assert_eq!(props[0].sign, PropertySign::Minus);
+                        assert_eq!(props[0].name, "PAY");
+                        assert!(matches!(*inner, FormulaExpr::False));
+                    }
+                    _ => panic!("Expected Box in expansion"),
+                }
+                // Check diamond part: <+PAY> true
+                match *diamond_part {
+                    FormulaExpr::Diamond(props, inner) => {
+                        assert_eq!(props[0].sign, PropertySign::Plus);
+                        assert_eq!(props[0].name, "PAY");
+                        assert!(matches!(*inner, FormulaExpr::True));
+                    }
+                    _ => panic!("Expected Diamond in expansion"),
+                }
+            }
+            _ => panic!("Expected And in expansion, got {:?}", expanded),
+        }
+    }
 } 

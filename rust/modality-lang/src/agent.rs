@@ -864,7 +864,7 @@ mod tests {
 
     #[test]
     fn test_auction_contract() {
-        let contract = Contract::auction("seller", 2);
+        let contract = Contract::auction("seller");
         let status = contract.status();
         assert!(status.contract_type.contains("auction"));
     }

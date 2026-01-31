@@ -118,6 +118,12 @@ impl ModelChecker {
             FormulaExpr::Box(properties, expr) => {
                 self.evaluate_box(properties, expr)
             }
+            FormulaExpr::DiamondBox(properties, expr) => {
+                // [<action>] φ = [-action] false & <+action> φ
+                // Expand and evaluate
+                let expanded = FormulaExpr::DiamondBox(properties.clone(), expr.clone()).expand_diamond_box();
+                self.evaluate_formula(&expanded)
+            }
             FormulaExpr::Eventually(expr) => {
                 self.evaluate_eventually(expr)
             }

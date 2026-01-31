@@ -275,11 +275,24 @@ FormulaAtom: FormulaExpr = {
         FormulaExpr::Paren(Box::new(expr))
     },
     // Modal operators (action-labeled)
+    // <action> φ - diamond (possibility)
     "<" <properties:PropertyList> ">" <expr:FormulaAtom> => {
         FormulaExpr::Diamond(properties, Box::new(expr))
     },
+    // [action] φ - box (necessity)
     "[" <properties:PropertyList> "]" <expr:FormulaAtom> => {
         FormulaExpr::Box(properties, Box::new(expr))
+    },
+    // [<action>] φ - diamond-box (committed): can do AND cannot refuse
+    // Semantically: [-action] false & <+action> φ
+    "[" "<" <properties:PropertyList> ">" "]" <expr:FormulaAtom> => {
+        FormulaExpr::DiamondBox(properties, Box::new(expr))
+    },
+    // must φ - syntactic sugar that desugars based on content
+    // must (P | Q) → [<+P>] true | [<+Q>] true  (parens handled by FormulaAtom)
+    // must P → [<+P>] true
+    "must" <expr:FormulaAtom> => {
+        FormulaExpr::desugar_must(expr)
     },
     // Temporal operators
     "eventually" "(" <expr:FormulaExpr> ")" => {

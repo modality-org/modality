@@ -118,13 +118,115 @@ pub enum FormulaExpr {
     /// Parenthesized expressions
     Paren(Box<FormulaExpr>),
     /// Modal operators (action-labeled)
+    /// <action> φ - "there exists an action-transition to a state satisfying φ"
     Diamond(Vec<Property>, Box<FormulaExpr>),
+    /// [action] φ - "all action-transitions lead to states satisfying φ"
     Box(Vec<Property>, Box<FormulaExpr>),
+    /// [<action>] φ - "committed diamond": can do action AND cannot refuse
+    /// Semantically equivalent to: [-action] false & <+action> φ
+    /// This is the "must" form - committed to being able to take the action
+    DiamondBox(Vec<Property>, Box<FormulaExpr>),
     /// Temporal operators (LTL - future-looking only)
     Eventually(Box<FormulaExpr>),
     Always(Box<FormulaExpr>),
     Until(Box<FormulaExpr>, Box<FormulaExpr>),
     Next(Box<FormulaExpr>),
+}
+
+impl FormulaExpr {
+    /// Desugar `must P` into `[<+P>] true`
+    /// For disjunctions: `must (P | Q)` → `[<+P>] true | [<+Q>] true`
+    pub fn desugar_must(inner: FormulaExpr) -> FormulaExpr {
+        match inner {
+            // must (P | Q) → [<+P>] true | [<+Q>] true
+            FormulaExpr::Or(left, right) => {
+                FormulaExpr::Or(
+                    Box::new(Self::desugar_must(*left)),
+                    Box::new(Self::desugar_must(*right)),
+                )
+            }
+            // must (P & Q) → [<+P>] true & [<+Q>] true
+            FormulaExpr::And(left, right) => {
+                FormulaExpr::And(
+                    Box::new(Self::desugar_must(*left)),
+                    Box::new(Self::desugar_must(*right)),
+                )
+            }
+            // must (φ) - unwrap parens
+            FormulaExpr::Paren(inner) => Self::desugar_must(*inner),
+            // must P where P is a proposition → [<+P>] true
+            FormulaExpr::Prop(name) => {
+                FormulaExpr::DiamondBox(
+                    vec![Property::new(PropertySign::Plus, name)],
+                    Box::new(FormulaExpr::True),
+                )
+            }
+            // For predicates like signed_by(X), wrap in diamond-box
+            // must <+action> φ → [<+action>] φ (already diamond form)
+            FormulaExpr::Diamond(props, phi) => {
+                FormulaExpr::DiamondBox(props, phi)
+            }
+            // Other cases: wrap as-is (may need refinement)
+            other => other,
+        }
+    }
+    
+    /// Expand DiamondBox to its semantic equivalent for model checking
+    /// [<+P>] φ → [-P] false & <+P> φ
+    pub fn expand_diamond_box(&self) -> FormulaExpr {
+        match self {
+            FormulaExpr::DiamondBox(props, phi) => {
+                // Negate the properties for the box part
+                let negated_props: Vec<Property> = props.iter().map(|p| {
+                    Property::new(
+                        match p.sign {
+                            PropertySign::Plus => PropertySign::Minus,
+                            PropertySign::Minus => PropertySign::Plus,
+                        },
+                        p.name.clone(),
+                    )
+                }).collect();
+                
+                // [-P] false & <+P> φ
+                FormulaExpr::And(
+                    Box::new(FormulaExpr::Box(negated_props, Box::new(FormulaExpr::False))),
+                    Box::new(FormulaExpr::Diamond(props.clone(), Box::new(phi.expand_diamond_box()))),
+                )
+            }
+            // Recursively expand in subformulas
+            FormulaExpr::And(l, r) => FormulaExpr::And(
+                Box::new(l.expand_diamond_box()),
+                Box::new(r.expand_diamond_box()),
+            ),
+            FormulaExpr::Or(l, r) => FormulaExpr::Or(
+                Box::new(l.expand_diamond_box()),
+                Box::new(r.expand_diamond_box()),
+            ),
+            FormulaExpr::Not(inner) => FormulaExpr::Not(Box::new(inner.expand_diamond_box())),
+            FormulaExpr::Implies(l, r) => FormulaExpr::Implies(
+                Box::new(l.expand_diamond_box()),
+                Box::new(r.expand_diamond_box()),
+            ),
+            FormulaExpr::Paren(inner) => FormulaExpr::Paren(Box::new(inner.expand_diamond_box())),
+            FormulaExpr::Diamond(props, phi) => FormulaExpr::Diamond(
+                props.clone(),
+                Box::new(phi.expand_diamond_box()),
+            ),
+            FormulaExpr::Box(props, phi) => FormulaExpr::Box(
+                props.clone(),
+                Box::new(phi.expand_diamond_box()),
+            ),
+            FormulaExpr::Eventually(phi) => FormulaExpr::Eventually(Box::new(phi.expand_diamond_box())),
+            FormulaExpr::Always(phi) => FormulaExpr::Always(Box::new(phi.expand_diamond_box())),
+            FormulaExpr::Until(l, r) => FormulaExpr::Until(
+                Box::new(l.expand_diamond_box()),
+                Box::new(r.expand_diamond_box()),
+            ),
+            FormulaExpr::Next(phi) => FormulaExpr::Next(Box::new(phi.expand_diamond_box())),
+            // Literals and props don't contain DiamondBox
+            other => other.clone(),
+        }
+    }
 }
 
 impl Model {
