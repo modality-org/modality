@@ -17,8 +17,8 @@ This satisfies any empty rule set. From here, we constrain.
 
 ## Synthesis Heuristics
 
-### Pattern 1: `always must +A`
-All future commits must include action A.
+### Pattern 1: `always [<+A>] true`
+All future commits must include action A (committed to A forever).
 
 **Synthesis:** Add +A to all transitions.
 ```modality
@@ -27,8 +27,8 @@ model AlwaysMustA:
     n1 --> n1: +A
 ```
 
-### Pattern 2: `must +A` (next commit only)
-Equivalent to `[-A] false` — the next commit must include A.
+### Pattern 2: `[<+A>] true` (next commit only)
+Equivalent to `[-A] false & <+A> true` — can do A and cannot refuse.
 
 **Synthesis:** Single transition with +A, then permissive.
 ```modality
@@ -49,7 +49,7 @@ model CanA:
 ```
 
 ### Pattern 4: Alternating turns (Alice and Bob)
-`always (must +SIGNED_BY_ALICE or must +SIGNED_BY_BOB)`
+`always ([<+SIGNED_BY_ALICE>] true | [<+SIGNED_BY_BOB>] true)`
 
 **Synthesis:** Two-state cycle.
 ```modality
@@ -81,7 +81,7 @@ model ExclusiveAction:
 ## Test Cases
 
 ### Test 1: Simple obligation
-Rule: `must +COOPERATE`
+Rule: `[<+COOPERATE>] true`
 Expected model:
 ```modality
 model Test1:
@@ -91,7 +91,7 @@ model Test1:
 ```
 
 ### Test 2: Mutual signature requirement
-Rule: `always must (+SIGNED_BY_ALICE or +SIGNED_BY_BOB)`
+Rule: `always ([<+SIGNED_BY_ALICE>] true | [<+SIGNED_BY_BOB>] true)`
 Expected model:
 ```modality
 model Test2:
@@ -101,7 +101,7 @@ model Test2:
 ```
 
 ### Test 3: Conditional obligation
-Rule: `when +RECEIVED_PAYMENT always must +DELIVER`
+Rule: `[+RECEIVED_PAYMENT] always [<+DELIVER>] true`
 Expected model: State machine with PENDING -> PAID -> DELIVERED
 
 ## Next Steps

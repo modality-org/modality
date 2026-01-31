@@ -43,7 +43,7 @@ cat > rules/auth.modality << 'EOF'
 export default rule {
   starting_at $PARENT
   formula {
-    always must (
+    always (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
     )
   }
@@ -171,7 +171,7 @@ cat > rules/auth.modality << 'EOF'
 export default rule {
   starting_at $PARENT
   formula {
-    always must (
+    always (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
     )
   }

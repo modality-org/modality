@@ -53,7 +53,9 @@ MTL is based on the [modal-mu calculus](https://en.wikipedia.org/wiki/Modal_%CE%
 
 Here's a simple example that requires all future commits to be signed by an admin:
 
-`always must include_signature_from( /config/admin.id )`
+`always [<+signed_by(/config/admin.id)>] true`
+
+This uses the **diamondbox** operator `[<+action>]` meaning "committed to action" (can do AND cannot refuse).
 
 ## What's the Modality Network? Do I need to use it to use Modality?
 

@@ -59,7 +59,7 @@ Rules constrain what can happen:
 export default rule {
   starting_at $PARENT
   formula {
-    always must (
+    always (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
     )
   }
@@ -68,8 +68,11 @@ export default rule {
 
 | Operator | Meaning |
 |----------|---------|
-| `always must P` | P must hold on all future commits |
-| `eventually P` | P must happen at some point |
+| `always P` | P holds on all future states |
+| `eventually P` | P holds at some future point |
+| `[<+A>] true` | Committed to A (can do AND cannot refuse) |
+| `[A] P` | All A-transitions lead to P |
+| `<A> P` | Some A-transition leads to P |
 | `implies` | If A then B |
 | `\|` | Or |
 | `&` | And |
@@ -123,7 +126,7 @@ Create **rules/auth.modality**:
 export default rule {
   starting_at $PARENT
   formula {
-    always must (
+    always (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
     )
   }
@@ -168,7 +171,7 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always must (
+    always (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
     )
   }
@@ -195,7 +198,7 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always must (
+    always (
       [release] implies <deliver> true
     )
   }
@@ -224,7 +227,7 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always must (
+    always (
       [execute] implies (
         <signed_by(/users/alice.id)> true &
         <signed_by(/users/bob.id)> true
@@ -256,7 +259,7 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always must (
+    always (
       [claim] implies (
         <signed_by(/users/alice.id)> true &
         <signed_by(/users/bob.id)> true

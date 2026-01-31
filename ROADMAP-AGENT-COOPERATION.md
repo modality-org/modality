@@ -24,13 +24,13 @@ The Prisoner's Dilemma is solved when both prisoners can read each other's sourc
 ### Deliverables
 
 1. **Synthesis prompt library** — patterns for common rules
-   - `always must +A` → self-loop with +A
+   - `always [<+A` → self-loop with +A
    - Alternating turns → two-state cycle
    - Escrow → linear state progression
    
 2. **`modality synthesize` command**
    ```bash
-   modality synthesize --rule "always must +SIGNED_BY_ALICE or +SIGNED_BY_BOB"
+   modality synthesize --rule "always [<+SIGNED_BY_ALICE or +SIGNED_BY_BOB"
    # Outputs candidate governing model
    ```
 
@@ -43,9 +43,9 @@ The Prisoner's Dilemma is solved when both prisoners can read each other's sourc
 
 | Rule Pattern | Model Shape | States |
 |--------------|-------------|--------|
-| `always must +A` | Self-loop with +A | 1 |
-| `must +A` (once) | Linear: start → after | 2 |
-| `can +A` | Permissive (neutral) | 1 |
+| `always [<+A>] true` | Self-loop with +A | 1 |
+| `[<+A>] true` (once) | Linear: start → after | 2 |
+| `<+A> true` | Permissive (neutral) | 1 |
 | Alternating | Cycle between parties | 2 |
 | Exclusive action | +A requires +SIGNER | 1 |
 | Sequential | Linear progression | N |
@@ -148,7 +148,7 @@ model Turns:
 3. **`modality propose "<natural language>"`** — NL → rules
    ```bash
    modality propose "I will cooperate if you cooperate"
-   # Generates: formula MutualCoop: always (when +COOPERATE then must +COOPERATE)
+   # Generates: formula MutualCoop: always ([+COOPERATE] [<+COOPERATE>] true)
    ```
 
 4. **OpenClaw/Moltbook skill** — agents can use Modality as a tool

@@ -36,7 +36,7 @@ cat > rules/auth.modality << 'EOF'
 export default rule {
   starting_at $PARENT
   formula {
-    always must (
+    always (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
     )
   }
@@ -66,7 +66,7 @@ export default model {
 ```
 
 **How it works:**
-- `always must (A | B)` → need transitions with A or B from every reachable state
+- `always (A | B)` → need transitions with A or B from every reachable state
 - Simplest satisfying model: single state with self-loops for each alternative
 
 ## Step 4: Review & Refine
@@ -106,10 +106,10 @@ The synthesizer recognizes common patterns:
 
 | Rule Pattern | Generated Model |
 |--------------|-----------------|
-| `always must +A` | Self-loop requiring +A |
-| `must +A` | Linear: start → after with +A |
-| `[+B] implies <+A> true` | A must precede B |
-| `eventually +A` | Path to state with +A |
+| `always [<+A>] true` | Self-loop requiring +A |
+| `[<+A>] true` | Linear: start → after with +A |
+| `[+B] implies <+A> true` | A precedes B |
+| `eventually <+A> true` | Path to state with +A |
 | Alternating parties | Cycle between parties |
 
 ### Example: Escrow
@@ -231,7 +231,7 @@ cat > rules/auth.modality << 'EOF'
 export default rule {
   starting_at $PARENT
   formula {
-    always must (
+    always (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
     )
   }

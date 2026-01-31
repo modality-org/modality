@@ -17,14 +17,16 @@ model ModelName:
 - No mention — transition is NEUTRAL (action can be present or absent)
 
 ### Formula Syntax
-- `<+A> phi` — EXISTS a transition with +A leading to phi
+- `<+A> phi` — EXISTS a transition with +A leading to phi (diamond)
+- `[+A] phi` — ALL +A transitions lead to phi (box)
 - `[-A] phi` — ALL transitions without A lead to phi
-- `always phi` — phi holds at all future states
-- `must A` — equivalent to `[-A] false` (next commit must include A)
-- `can A` — equivalent to `<+A> true` (right to do A)
-- `when P then Q` — if P then Q
-- `gfp(x, phi)` — greatest fixed point (always)
-- `lfp(x, phi)` — least fixed point (eventually)
+- `[] phi` — ALL transitions lead to phi (unlabeled box)
+- `<> phi` — EXISTS a transition to phi (unlabeled diamond)
+- `[<+A>] phi` — COMMITTED to A: can do +A AND cannot refuse (diamondbox)
+- `always phi` — phi holds at all future states (= gfp(X, []X & phi))
+- `eventually phi` — phi holds at some future state (= lfp(X, <>X | phi))
+- `gfp(X, phi)` — greatest fixed point (invariants)
+- `lfp(X, phi)` — least fixed point (reachability)
 
 ## Synthesis Rules
 
@@ -36,7 +38,7 @@ model ModelName:
 ## Examples
 
 ### Example 1: "Next commit must be signed by Alice"
-Rule: `must +SIGNED_BY_ALICE`
+Rule: `[<+SIGNED_BY_ALICE>] true`
 
 Model:
 ```modality
@@ -49,7 +51,7 @@ model MustAlice:
 Reasoning: The first transition requires Alice's signature. After that, anything goes.
 
 ### Example 2: "All commits must be signed by Alice or Bob"
-Rule: `always (must +SIGNED_BY_ALICE or must +SIGNED_BY_BOB)`
+Rule: `always ([<+SIGNED_BY_ALICE>] true | [<+SIGNED_BY_BOB>] true)`
 
 Model:
 ```modality
@@ -62,7 +64,7 @@ model AlwaysAliceOrBob:
 Reasoning: From any state, you can only transition via Alice or Bob signing. The two self-loops cover both cases.
 
 ### Example 3: "Alice and Bob must alternate"
-Rule: `always (must +SIGNED_BY_ALICE or must +SIGNED_BY_BOB) and never two consecutive by same signer`
+Rule: `always ([<+SIGNED_BY_ALICE>] true | [<+SIGNED_BY_BOB>] true) and never two consecutive by same signer`
 
 Model:
 ```modality
