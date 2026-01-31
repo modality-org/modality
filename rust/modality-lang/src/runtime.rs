@@ -430,6 +430,38 @@ impl ContractInstance {
             false
         }
     }
+
+    // ==================== Balance Operations ====================
+
+    /// Add to a balance at a path
+    pub fn add_balance(&mut self, path: &str, amount: u64) -> RuntimeResult<u64> {
+        let current = self.resolve_balance(path).unwrap_or(0);
+        let new_balance = current.checked_add(amount)
+            .ok_or_else(|| RuntimeError::InvalidState { reason: "Balance overflow".to_string() })?;
+        self.store_set(path, PathValue::Balance(new_balance))?;
+        Ok(new_balance)
+    }
+
+    /// Subtract from a balance at a path
+    pub fn subtract_balance(&mut self, path: &str, amount: u64) -> RuntimeResult<u64> {
+        let current = self.resolve_balance(path).unwrap_or(0);
+        let new_balance = current.checked_sub(amount)
+            .ok_or_else(|| RuntimeError::InvalidState { reason: "Insufficient balance".to_string() })?;
+        self.store_set(path, PathValue::Balance(new_balance))?;
+        Ok(new_balance)
+    }
+
+    /// Transfer balance from one path to another
+    pub fn transfer_balance(&mut self, from_path: &str, to_path: &str, amount: u64) -> RuntimeResult<(u64, u64)> {
+        let from_balance = self.subtract_balance(from_path, amount)?;
+        let to_balance = self.add_balance(to_path, amount)?;
+        Ok((from_balance, to_balance))
+    }
+
+    /// Check if a balance is sufficient
+    pub fn has_sufficient_balance(&self, path: &str, required: u64) -> bool {
+        self.resolve_balance(path).map(|b| b >= required).unwrap_or(false)
+    }
 }
 
 /// Description of an available transition
@@ -912,5 +944,71 @@ mod tests {
             action_json,
             &signature
         ));
+    }
+
+    #[test]
+    fn test_balance_operations() {
+        let model = templates::escrow("Alice", "Bob");
+        let mut parties = HashMap::new();
+        parties.insert("Alice".to_string(), "alice_key".to_string());
+        parties.insert("Bob".to_string(), "bob_key".to_string());
+
+        let mut instance = ContractInstance::new(model, parties).unwrap();
+
+        // Set initial balance
+        instance.store_set("/balances/alice.balance", PathValue::Balance(1000)).unwrap();
+
+        // Add balance
+        let new_balance = instance.add_balance("/balances/alice.balance", 500).unwrap();
+        assert_eq!(new_balance, 1500);
+
+        // Subtract balance
+        let new_balance = instance.subtract_balance("/balances/alice.balance", 300).unwrap();
+        assert_eq!(new_balance, 1200);
+
+        // Check sufficient balance
+        assert!(instance.has_sufficient_balance("/balances/alice.balance", 1000));
+        assert!(!instance.has_sufficient_balance("/balances/alice.balance", 2000));
+    }
+
+    #[test]
+    fn test_transfer_balance() {
+        let model = templates::escrow("Alice", "Bob");
+        let mut parties = HashMap::new();
+        parties.insert("Alice".to_string(), "alice_key".to_string());
+        parties.insert("Bob".to_string(), "bob_key".to_string());
+
+        let mut instance = ContractInstance::new(model, parties).unwrap();
+
+        // Set initial balances
+        instance.store_set("/balances/alice.balance", PathValue::Balance(1000)).unwrap();
+        instance.store_set("/balances/bob.balance", PathValue::Balance(0)).unwrap();
+
+        // Transfer
+        let (from, to) = instance.transfer_balance(
+            "/balances/alice.balance",
+            "/balances/bob.balance",
+            400
+        ).unwrap();
+
+        assert_eq!(from, 600);  // Alice now has 600
+        assert_eq!(to, 400);    // Bob now has 400
+    }
+
+    #[test]
+    fn test_insufficient_balance() {
+        let model = templates::escrow("Alice", "Bob");
+        let mut parties = HashMap::new();
+        parties.insert("Alice".to_string(), "alice_key".to_string());
+        parties.insert("Bob".to_string(), "bob_key".to_string());
+
+        let mut instance = ContractInstance::new(model, parties).unwrap();
+
+        // Set small balance
+        instance.store_set("/balances/alice.balance", PathValue::Balance(100)).unwrap();
+
+        // Try to subtract more than available
+        let result = instance.subtract_balance("/balances/alice.balance", 500);
+        assert!(result.is_err());
     }
 }
