@@ -112,11 +112,39 @@ pub Test: Test = {
 };
 
 TestDecl: Test = {
-    "test" "{" "}" => {
-        Test::new(None)
+    "test" "{" <statements:TestStatementList?> "}" => {
+        Test::with_statements(None, statements.unwrap_or_default())
     },
-    "test" <name:Ident> "{" "}" => {
-        Test::new(Some(name))
+    "test" <name:Ident> "{" <statements:TestStatementList?> "}" => {
+        Test::with_statements(Some(name), statements.unwrap_or_default())
+    }
+};
+
+TestStatementList: Vec<TestStatement> = {
+    <stmt:TestStatement> => vec![stmt],
+    <stmts:TestStatementList> <stmt:TestStatement> => {
+        let mut list = stmts;
+        list.push(stmt);
+        list
+    }
+};
+
+TestStatement: TestStatement = {
+    // Assignment: m = clone(ModelName)
+    <var:Ident> "=" "clone" "(" <model:Ident> ")" => {
+        TestStatement::Assignment(var, format!("clone({})", model))
+    },
+    // Method call: m.commit(ActionName)
+    <var:Ident> "." "commit" "(" <action:Ident> ")" => {
+        TestStatement::Commit(format!("{}.commit({})", var, action))
+    },
+    // Method call with action literal: m.commit(action("+hello"))
+    <var:Ident> "." "commit" "(" "action" "(" <arg:StringLiteral> ")" ")" => {
+        TestStatement::ActionCall(format!("{}.commit(action({}))", var, arg))
+    },
+    // Assertion: assert m.satisfies(FormulaName)
+    "assert" <var:Ident> "." "satisfies" "(" <formula:Ident> ")" => {
+        TestStatement::Assignment(format!("assert_{}", var), format!("satisfies({})", formula))
     }
 };
 

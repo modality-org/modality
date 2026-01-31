@@ -260,6 +260,11 @@ impl Test {
         }
     }
 
+    /// Create a new test with statements
+    pub fn with_statements(name: Option<String>, statements: Vec<TestStatement>) -> Self {
+        Self { name, statements }
+    }
+
     /// Add a statement to this test
     pub fn add_statement(&mut self, statement: TestStatement) {
         self.statements.push(statement);

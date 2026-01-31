@@ -132,50 +132,79 @@ pub fn parse_all_tests_lalrpop<P: AsRef<Path>>(path: P) -> Result<Vec<Test>, Str
 
 /// Parse all tests in content using LALRPOP
 pub fn parse_all_tests_content_lalrpop(content: &str) -> Result<Vec<Test>, String> {
-    // Filter out comments and empty lines
-    let lines: Vec<&str> = content
-        .lines()
-        .map(|line| line.trim())
-        .filter(|line| !line.is_empty() && !line.starts_with("//"))
-        .collect();
-
-    let mut tests = Vec::new();
-    let mut i = 0;
+    use crate::grammar::TestParser;
     
-    while i < lines.len() {
-        let line = lines[i];
+    // Find all test blocks and parse each with LALRPOP
+    let mut tests = Vec::new();
+    let mut remaining = content;
+    
+    while let Some(start) = remaining.find("test") {
+        let from_test = &remaining[start..];
         
-        if line.starts_with("test ") || line.starts_with("test:") {
-            // Parse just the test declaration line
-            let test_decl_line = if line.starts_with("test {") || line.starts_with("test:") {
-                line
-            } else {
-                // Handle "test Name {" or "test Name:" format
-                line
-            };
+        // Find the matching closing brace
+        if let Some(open_brace) = from_test.find('{') {
+            let mut depth = 0;
+            let mut end_pos = None;
             
-            // Create test based on the declaration (support both old and new syntax)
-            let test = if test_decl_line == "test:" || test_decl_line == "test {" {
-                Test::new(None)
-            } else if test_decl_line.starts_with("test ") && (test_decl_line.ends_with(":") || test_decl_line.ends_with("{")) {
-                let name = test_decl_line[5..]
-                    .trim_end_matches(':')
-                    .trim_end_matches('{')
-                    .trim()
-                    .to_string();
-                Test::new(Some(name))
-            } else {
-                return Err(format!("Invalid test declaration: {}", test_decl_line));
-            };
+            for (i, c) in from_test[open_brace..].char_indices() {
+                match c {
+                    '{' => depth += 1,
+                    '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end_pos = Some(open_brace + i + 1);
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
             
-            tests.push(test);
-            i += 1;
+            if let Some(end) = end_pos {
+                let test_str = &from_test[..end];
+                
+                // Parse with LALRPOP
+                match TestParser::new().parse(test_str) {
+                    Ok(test) => tests.push(test),
+                    Err(e) => {
+                        // Fall back to simple parsing for basic tests
+                        let test = parse_test_simple(test_str)?;
+                        tests.push(test);
+                    }
+                }
+                
+                remaining = &from_test[end..];
+            } else {
+                break;
+            }
         } else {
-            i += 1;
+            break;
         }
     }
     
     Ok(tests)
+}
+
+/// Simple fallback parser for tests without statements
+fn parse_test_simple(test_str: &str) -> Result<Test, String> {
+    let trimmed = test_str.trim();
+    if trimmed.starts_with("test {") {
+        Ok(Test::new(None))
+    } else if trimmed.starts_with("test ") {
+        let name_part = trimmed[5..].trim();
+        if let Some(brace_pos) = name_part.find('{') {
+            let name = name_part[..brace_pos].trim().to_string();
+            if name.is_empty() {
+                Ok(Test::new(None))
+            } else {
+                Ok(Test::new(Some(name)))
+            }
+        } else {
+            Err(format!("Invalid test syntax: {}", test_str))
+        }
+    } else {
+        Err(format!("Invalid test syntax: {}", test_str))
+    }
 }
 
 /// Parse all formulas in a .modality file using LALRPOP
@@ -462,6 +491,23 @@ test NamedTest {
         
         let test = &tests[0];
         assert_eq!(test.name, Some("NamedTest".to_string()));
-        assert_eq!(test.statements.len(), 0); // Simplified approach doesn't parse statements yet
+        assert_eq!(test.statements.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_test_with_statements() {
+        let content = r#"
+test MyTest {
+    m = clone(InitialModel)
+    m.commit(ActionHello)
+}
+"#;
+        
+        let tests = parse_all_tests_content_lalrpop(content).unwrap();
+        assert_eq!(tests.len(), 1);
+        
+        let test = &tests[0];
+        assert_eq!(test.name, Some("MyTest".to_string()));
+        assert_eq!(test.statements.len(), 2);
     }
 } 
