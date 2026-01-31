@@ -163,14 +163,18 @@ fn extract_parties(description: &str) -> Vec<String> {
     let mut parties = Vec::new();
     let lower = description.to_lowercase();
     
-    // Common party name patterns
+    // Common party name patterns (order matters - more specific first)
     let party_patterns = [
-        // Role-based
+        // Specific roles
+        ("service provider", "ServiceProvider"),
+        ("service consumer", "ServiceConsumer"),
+        ("party a", "PartyA"),
+        ("party b", "PartyB"),
+        ("first party", "FirstParty"),
+        ("second party", "SecondParty"),
+        // Generic roles
         ("buyer", "Buyer"),
         ("seller", "Seller"),
-        ("alice", "Alice"),
-        ("bob", "Bob"),
-        ("carol", "Carol"),
         ("provider", "Provider"),
         ("consumer", "Consumer"),
         ("client", "Client"),
@@ -178,13 +182,30 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("principal", "Principal"),
         ("agent", "Agent"),
         ("depositor", "Depositor"),
+        ("deliverer", "Deliverer"),
         ("recipient", "Recipient"),
         ("sender", "Sender"),
         ("receiver", "Receiver"),
-        ("party a", "PartyA"),
-        ("party b", "PartyB"),
-        ("first party", "FirstParty"),
-        ("second party", "SecondParty"),
+        ("bidder", "Bidder"),
+        ("subscriber", "Subscriber"),
+        ("moderator", "Moderator"),
+        ("admin", "Admin"),
+        ("owner", "Owner"),
+        ("user", "User"),
+        ("vendor", "Vendor"),
+        ("merchant", "Merchant"),
+        ("customer", "Customer"),
+        ("employee", "Employee"),
+        ("employer", "Employer"),
+        ("tenant", "Tenant"),
+        ("landlord", "Landlord"),
+        // Common names
+        ("alice", "Alice"),
+        ("bob", "Bob"),
+        ("carol", "Carol"),
+        ("dave", "Dave"),
+        ("eve", "Eve"),
+        ("frank", "Frank"),
     ];
     
     for (pattern, name) in party_patterns {
@@ -384,5 +405,19 @@ mod tests {
         assert_eq!(result.pattern, ContractPattern::Unknown);
         assert!(result.model.is_none());
         assert!(!result.suggestions.is_empty());
+    }
+    
+    #[test]
+    fn test_extended_party_names() {
+        let result = map_nl_to_pattern("Customer wants to pay merchant for goods");
+        assert!(result.parties.contains(&"Customer".to_string()));
+        assert!(result.parties.contains(&"Merchant".to_string()));
+    }
+    
+    #[test]
+    fn test_service_pattern() {
+        let result = map_nl_to_pattern("Freelance work where contractor delivers and gets payment");
+        assert_eq!(result.pattern, ContractPattern::ServiceAgreement);
+        assert!(result.parties.contains(&"Contractor".to_string()));
     }
 }
