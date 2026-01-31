@@ -1,0 +1,162 @@
+// Formula Syntax Examples
+// Demonstrates all formula operators in the new Modality syntax
+
+// ============================================================
+// MODAL OPERATORS
+// ============================================================
+
+// Diamond: "there exists a transition"
+formula DiamondExample {
+  <+PAY> true                    // Some +PAY transition to true
+}
+
+// Box: "all transitions lead to"
+formula BoxExample {
+  [+EXECUTE] complete            // All +EXECUTE transitions lead to complete
+}
+
+// Unlabeled modal operators
+formula UnlabeledBox {
+  [] safe                        // All transitions lead to safe
+}
+
+formula UnlabeledDiamond {
+  <> goal                        // Some transition leads to goal
+}
+
+// Diamondbox: "committed" (can do AND cannot refuse)
+// [<+A>] φ  ≡  [-A] false & <+A> φ
+formula Committed {
+  [<+signed_by(/users/alice.id)>] true
+}
+
+formula CommittedOr {
+  [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
+}
+
+// ============================================================
+// TEMPORAL OPERATORS
+// ============================================================
+
+// Always: holds at every state on all paths
+formula AlwaysExample {
+  always(safe)
+}
+
+// Eventually: holds at some future state
+formula EventuallyExample {
+  eventually(goal)
+}
+
+// Next: holds in the next state
+formula NextExample {
+  next(ready)
+}
+
+// Until: p holds until q becomes true
+formula UntilExample {
+  waiting until done
+}
+
+// Combined temporal
+formula AlwaysEventually {
+  always(eventually(checkpoint))   // Infinitely often reach checkpoint
+}
+
+// ============================================================
+// FIXED POINTS (Modal Mu-Calculus)
+// ============================================================
+
+// Least fixed point (lfp): reachability properties
+// lfp(X, φ) = smallest set satisfying X = φ[X]
+formula LfpReachability {
+  lfp(X, goal | <>X)             // Can reach goal (= eventually(goal))
+}
+
+// Greatest fixed point (gfp): invariant properties  
+// gfp(X, φ) = largest set satisfying X = φ[X]
+formula GfpInvariant {
+  gfp(X, safe & []X)             // Always safe (= always(safe))
+}
+
+// Nested fixed points
+formula InfinitelyOften {
+  gfp(Y, lfp(X, checkpoint | <>X) & []Y)
+}
+
+// Unicode notation (μ = lfp, ν = gfp)
+formula MuNotation {
+  μX.(goal | <>X)
+}
+
+formula NuNotation {
+  νX.(safe & []X)
+}
+
+// ============================================================
+// BOOLEAN OPERATORS
+// ============================================================
+
+formula Conjunction {
+  safe & ready                   // AND with &
+}
+
+formula ConjunctionWord {
+  safe and ready                 // AND with keyword
+}
+
+formula Disjunction {
+  error | warning               // OR with |
+}
+
+formula DisjunctionWord {
+  error or warning              // OR with keyword
+}
+
+formula Negation {
+  !error                        // NOT with !
+}
+
+formula NegationWord {
+  not error                     // NOT with keyword
+}
+
+formula Implication {
+  request -> response           // IMPLIES with ->
+}
+
+formula ImplicationWord {
+  request implies response      // IMPLIES with keyword
+}
+
+// ============================================================
+// COMBINED EXAMPLES
+// ============================================================
+
+// Escrow safety: release only after delivery
+formula EscrowSafety {
+  always([+RELEASE] implies <+DELIVER> true)
+}
+
+// Multi-sig requirement: execute requires both signatures
+formula MultiSig {
+  always(
+    [+EXECUTE] implies (
+      [<+signed_by(/users/alice.id)>] true &
+      [<+signed_by(/users/bob.id)>] true
+    )
+  )
+}
+
+// Authorization rule
+formula AuthorizationRequired {
+  always(
+    [<+signed_by(/users/alice.id)>] true | 
+    [<+signed_by(/users/bob.id)>] true
+  )
+}
+
+// Liveness: from any state, completion is reachable
+formula Liveness {
+  always(eventually(complete))
+}

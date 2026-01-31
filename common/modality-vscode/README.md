@@ -1,65 +1,122 @@
-# modality-vscode README
+# Modality VSCode Extension
 
-This is the README for your extension "modality-vscode". After writing up a brief description, we recommend including the following sections.
+Syntax highlighting for the Modality verification language.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- Syntax highlighting for `.modality` files
+- Support for brace-based syntax
+- Highlighting for:
+  - Models and parts
+  - Transitions with properties
+  - Formulas (modal, temporal, fixed points)
+  - Rules and contracts
+  - Comments
 
-For example if there is an image subfolder under your extension project workspace:
+## Syntax Overview
 
-\!\[feature X\]\(images/feature-x.png\)
+### Models
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+```modality
+model Escrow {
+  initial init
+  
+  init -> deposited [+DEPOSIT +signed_by(/users/buyer.id)]
+  deposited -> delivered [+DELIVER]
+  delivered -> released [+RELEASE]
+}
 
-## Requirements
+// With parts
+model MultiParty {
+  part flow {
+    idle -> active [+signed_by(/users/alice.id)]
+    active -> done [+COMPLETE]
+  }
+}
+```
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+### Formulas
 
-## Extension Settings
+```modality
+// Modal operators
+formula CanPay { <+PAY> true }           // Diamond: exists transition
+formula AllSafe { [+ACT] safe }          // Box: all transitions
+formula Committed { [<+SIGN>] true }     // Diamondbox: committed
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+// Temporal operators
+formula AlwaysSafe { always(safe) }
+formula ReachGoal { eventually(goal) }
+formula WaitForDone { pending until done }
 
-For example:
+// Fixed points (mu-calculus)
+formula Reachable { lfp(X, goal | <>X) }
+formula Invariant { gfp(X, safe & []X) }
+```
 
-This extension contributes the following settings:
+### Rules
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+```modality
+export default rule {
+  starting_at $PARENT
+  formula {
+    always (
+      [<+signed_by(/users/alice.id)>] true | 
+      [<+signed_by(/users/bob.id)>] true
+    )
+  }
+}
+```
 
-## Known Issues
+### Contracts
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+```modality
+contract Handshake {
+  commit {
+    signed_by A "0xSIGNATURE"
+    add_rule { always([<+signed_by(A)>] true | [<+signed_by(B)>] true) }
+  }
+  
+  commit {
+    signed_by B "0xSIGNATURE"
+    do +READY
+  }
+}
+```
 
-## Release Notes
+## Formula Operators
 
-Users appreciate release notes as you update your extension.
+| Operator | Syntax | Meaning |
+|----------|--------|---------|
+| Diamond | `<+A> φ` | Some +A transition leads to φ |
+| Box | `[+A] φ` | All +A transitions lead to φ |
+| Diamondbox | `[<+A>] φ` | Committed: can do +A, cannot refuse |
+| Always | `always(φ)` | φ holds forever on all paths |
+| Eventually | `eventually(φ)` | φ holds at some future state |
+| Until | `p until q` | p holds until q becomes true |
+| LFP | `lfp(X, φ)` | Least fixed point (reachability) |
+| GFP | `gfp(X, φ)` | Greatest fixed point (invariants) |
 
-### 1.0.0
+## Installation
 
-Initial release of ...
+1. Copy this folder to your VSCode extensions directory:
+   - Windows: `%USERPROFILE%\.vscode\extensions\`
+   - macOS/Linux: `~/.vscode/extensions/`
+2. Restart VSCode
+3. Open a `.modality` file
 
-### 1.0.1
+## Development
 
-Fixed issue #.
+```bash
+# Install dependencies
+npm install
 
-### 1.1.0
+# Compile
+npm run compile
 
-Added features X, Y, and Z.
+# Package
+vsce package
+```
 
----
+## License
 
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+MIT
