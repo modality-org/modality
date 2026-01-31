@@ -52,15 +52,13 @@ modal c commit --all
 ## Step 4: Add Authorization Rule
 
 ```bash
-# Add a rule requiring signatures
+# Add a rule requiring signatures (temporal modal logic)
 mkdir -p state/rules
-cat > state/rules/auth.json << 'EOF'
-{
-  "require": "SIGNED_BY_ALICE | SIGNED_BY_BOB",
-  "signers": {
-    "ALICE": "/users/alice.id",
-    "BOB": "/users/bob.id"
-  }
+cat > state/rules/auth.modality << 'EOF'
+export default formula {
+  always must (
+    signed_by(/users/alice.id) | signed_by(/users/bob.id)
+  )
 }
 EOF
 
@@ -154,14 +152,12 @@ echo "$BOB" > state/users/bob.id
 # Commit users
 modal c commit --all
 
-# Add authorization rule
-cat > state/rules/auth.json << EOF
-{
-  "require": "SIGNED_BY_ALICE | SIGNED_BY_BOB",
-  "signers": {
-    "ALICE": "/users/alice.id",
-    "BOB": "/users/bob.id"
-  }
+# Add authorization rule (temporal modal logic)
+cat > state/rules/auth.modality << 'EOF'
+export default formula {
+  always must (
+    signed_by(/users/alice.id) | signed_by(/users/bob.id)
+  )
 }
 EOF
 modal c commit --all
@@ -201,7 +197,7 @@ my-contract/
 │   │   ├── alice.id
 │   │   └── bob.id
 │   ├── rules/
-│   │   └── auth.json
+│   │   └── auth.modality
 │   └── data/
 │       ├── message.text
 │       └── response.text
