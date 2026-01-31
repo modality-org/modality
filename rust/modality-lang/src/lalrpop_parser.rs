@@ -543,19 +543,29 @@ test MyTest {
 contract handshake {
   commit signed_by(A) with model {
     part flow {
-      init --> done: +DONE
+      init --> a_ready: +A_READY
     }
   } {
     add_party A
+    add_rule { eventually(a_ready) }
+  }
+
+  commit signed_by(B) with model {
+    part flow {
+      init --> a_ready: +A_READY
+      a_ready --> done: +B_READY
+    }
+  } {
+    add_party B
     add_rule { eventually(done) }
   }
 
-  commit signed_by(B) {
-    add_party B
+  commit signed_by(A) {
+    do +A_READY
   }
 
-  commit signed_by(A) {
-    do +DONE
+  commit signed_by(B) {
+    do +B_READY
   }
 }
 "#;
@@ -563,7 +573,7 @@ contract handshake {
         let contract = parse_contract_content(content).unwrap();
         
         assert_eq!(contract.name, "handshake");
-        assert_eq!(contract.commits.len(), 3);
+        assert_eq!(contract.commits.len(), 4);
         
         // First commit: A with model
         let commit0 = &contract.commits[0];
@@ -573,15 +583,20 @@ contract handshake {
         assert!(matches!(&commit0.statements[0], CommitStatement::AddParty(name) if name == "A"));
         assert!(matches!(&commit0.statements[1], CommitStatement::AddRule { .. }));
         
-        // Second commit: B joins
+        // Second commit: B joins with extended model
         let commit1 = &contract.commits[1];
         assert_eq!(commit1.signed_by, "B");
-        assert!(commit1.model.is_none());
-        assert_eq!(commit1.statements.len(), 1);
+        assert!(commit1.model.is_some()); // B provides extended model
+        assert_eq!(commit1.statements.len(), 2);
         
         // Third commit: A executes
         let commit2 = &contract.commits[2];
         assert_eq!(commit2.signed_by, "A");
         assert!(matches!(&commit2.statements[0], CommitStatement::DomainAction(_)));
+        
+        // Fourth commit: B executes
+        let commit3 = &contract.commits[3];
+        assert_eq!(commit3.signed_by, "B");
+        assert!(matches!(&commit3.statements[0], CommitStatement::DomainAction(_)));
     }
 } 
