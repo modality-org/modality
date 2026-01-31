@@ -426,6 +426,38 @@ impl Contract {
         self.instance.has_sufficient_balance(path, required)
     }
 
+    // ==================== Time Operations ====================
+
+    /// Get current timestamp in milliseconds
+    pub fn now_ms(&self) -> u64 {
+        self.instance.now_ms()
+    }
+
+    /// Set a deadline at a path
+    pub fn set_deadline(&mut self, path: &str, deadline_ms: u64) -> Result<(), String> {
+        self.instance.set_deadline(path, deadline_ms).map_err(|e| e.to_string())
+    }
+
+    /// Set a deadline relative to now
+    pub fn set_deadline_from_now(&mut self, path: &str, duration_ms: u64) -> Result<u64, String> {
+        self.instance.set_deadline_from_now(path, duration_ms).map_err(|e| e.to_string())
+    }
+
+    /// Check if deadline has passed
+    pub fn is_past_deadline(&self, path: &str) -> bool {
+        self.instance.is_past_deadline(path)
+    }
+
+    /// Check if still before deadline
+    pub fn is_before_deadline(&self, path: &str) -> bool {
+        self.instance.is_before_deadline(path)
+    }
+
+    /// Get time remaining until deadline
+    pub fn time_until_deadline(&self, path: &str) -> u64 {
+        self.instance.time_until_deadline(path)
+    }
+
     // ==================== Convenience Helpers ====================
 
     /// Get a human-readable description of what to do next
