@@ -30,10 +30,10 @@ contract <name> {
 
 ```modality
 commit {
-  signed_by <party>           // Who signs this commit
-  model { ... }               // Optional: new/updated governing model
-  add_rule { <formula> }      // Add a rule (transitions as +ADD_RULE)
-  do +ACTION +PROPERTY ...    // Domain action
+  signed_by <party> "<signature>"   // Who signs + signature digest
+  model { ... }                     // Optional: new/updated governing model
+  add_rule { <formula> }            // Add a rule (transitions as +ADD_RULE)
+  do +ACTION                        // Domain action
 }
 ```
 
@@ -60,7 +60,7 @@ contract handshake {
 
   // Commit 0: A creates contract, provides model, adds rule
   commit {
-    signed_by A
+    signed_by A "0xA_SIG_0"
     model {
       part flow {
         init --> a_ruled: +ADD_RULE +signed_by(A)
@@ -74,19 +74,19 @@ contract handshake {
 
   // Commit 1: B adds their rule
   commit {
-    signed_by B
+    signed_by B "0xB_SIG_1"
     add_rule { eventually(done) }
   }
 
   // Commit 2: A executes
   commit {
-    signed_by A
+    signed_by A "0xA_SIG_2"
     do +READY
   }
 
   // Commit 3: B executes
   commit {
-    signed_by B
+    signed_by B "0xB_SIG_3"
     do +READY
   }
 

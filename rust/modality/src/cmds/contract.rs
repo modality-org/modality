@@ -363,7 +363,7 @@ fn parse_contract_file(file: &PathBuf) -> Result<()> {
     
     for (i, commit) in contract.commits.iter().enumerate() {
         println!("  Commit {}:", i);
-        println!("    signed_by: {}", commit.signed_by);
+        println!("    signed_by: {} \"{}\"", commit.signed_by, commit.signature);
         if commit.model.is_some() {
             println!("    model: (provided)");
         }

@@ -544,7 +544,7 @@ test MyTest {
         let content = r#"
 contract handshake {
   commit {
-    signed_by A
+    signed_by A "0xA_SIG_0"
     model {
       part flow {
         init --> a_ruled: +ADD_RULE +signed_by(A)
@@ -557,17 +557,17 @@ contract handshake {
   }
 
   commit {
-    signed_by B
+    signed_by B "0xB_SIG_1"
     add_rule { eventually(done) }
   }
 
   commit {
-    signed_by A
+    signed_by A "0xA_SIG_2"
     do +READY
   }
 
   commit {
-    signed_by B
+    signed_by B "0xB_SIG_3"
     do +READY
   }
 }
@@ -581,6 +581,7 @@ contract handshake {
         // First commit: A provides model, add_rule
         let commit0 = &contract.commits[0];
         assert_eq!(commit0.signed_by, "A");
+        assert_eq!(commit0.signature, "0xA_SIG_0");
         assert!(commit0.model.is_some());
         assert_eq!(commit0.statements.len(), 1);
         assert!(matches!(&commit0.statements[0], CommitStatement::AddRule(_)));
@@ -588,6 +589,7 @@ contract handshake {
         // Second commit: B add_rule
         let commit1 = &contract.commits[1];
         assert_eq!(commit1.signed_by, "B");
+        assert_eq!(commit1.signature, "0xB_SIG_1");
         assert!(commit1.model.is_none());
         assert_eq!(commit1.statements.len(), 1);
         assert!(matches!(&commit1.statements[0], CommitStatement::AddRule(_)));
@@ -595,6 +597,7 @@ contract handshake {
         // Third commit: A does +READY
         let commit2 = &contract.commits[2];
         assert_eq!(commit2.signed_by, "A");
+        assert_eq!(commit2.signature, "0xA_SIG_2");
         assert_eq!(commit2.statements.len(), 1);
         match &commit2.statements[0] {
             CommitStatement::Do(properties) => {
@@ -606,6 +609,7 @@ contract handshake {
         // Fourth commit: B does +READY
         let commit3 = &contract.commits[3];
         assert_eq!(commit3.signed_by, "B");
+        assert_eq!(commit3.signature, "0xB_SIG_3");
         assert_eq!(commit3.statements.len(), 1);
         match &commit3.statements[0] {
             CommitStatement::Do(properties) => {

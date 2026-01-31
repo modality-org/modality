@@ -6,7 +6,7 @@
 contract handshake {
 
   commit {
-    signed_by A
+    signed_by A "0xA_SIG_COMMIT_0"
     model {
       part flow {
         init --> a_ruled: +ADD_RULE +signed_by(A)
@@ -19,17 +19,17 @@ contract handshake {
   }
 
   commit {
-    signed_by B
+    signed_by B "0xB_SIG_COMMIT_1"
     add_rule { eventually(done) }
   }
 
   commit {
-    signed_by A
+    signed_by A "0xA_SIG_COMMIT_2"
     do +READY
   }
 
   commit {
-    signed_by B
+    signed_by B "0xB_SIG_COMMIT_3"
     do +READY
   }
 

@@ -307,6 +307,7 @@ pub struct Contract {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContractCommit {
     pub signed_by: String,
+    pub signature: String,
     pub model: Option<Model>,
     pub statements: Vec<CommitStatement>,
 }
@@ -314,7 +315,7 @@ pub struct ContractCommit {
 /// Statements within a commit
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CommitStatement {
-    SignedBy(String),
+    SignedBy { party: String, signature: String },
     Model(Model),
     /// Add a rule (transitions as +ADD_RULE in model)
     AddRule(FormulaExpr),
@@ -336,17 +337,19 @@ impl Contract {
 }
 
 impl ContractCommit {
-    pub fn new(signed_by: String) -> Self {
+    pub fn new(signed_by: String, signature: String) -> Self {
         Self {
             signed_by,
+            signature,
             model: None,
             statements: Vec::new(),
         }
     }
     
-    pub fn with_model(signed_by: String, model: Model) -> Self {
+    pub fn with_model(signed_by: String, signature: String, model: Model) -> Self {
         Self {
             signed_by,
+            signature,
             model: Some(model),
             statements: Vec::new(),
         }

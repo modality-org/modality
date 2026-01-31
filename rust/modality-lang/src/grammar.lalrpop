@@ -276,11 +276,14 @@ pub ContractDecl: Contract = {
 CommitDecl: ContractCommit = {
     // commit { statements }
     "commit" "{" <stmts:CommitStatementList?> "}" => {
-        let mut commit = ContractCommit::new(String::new());
+        let mut commit = ContractCommit::new(String::new(), String::new());
         if let Some(statements) = stmts {
             for stmt in statements {
                 match &stmt {
-                    CommitStatement::SignedBy(signer) => commit.signed_by = signer.clone(),
+                    CommitStatement::SignedBy { party, signature } => {
+                        commit.signed_by = party.clone();
+                        commit.signature = signature.clone();
+                    }
                     CommitStatement::Model(model) => commit.model = Some(model.clone()),
                     CommitStatement::AddRule(_) | CommitStatement::Do(_) => commit.add_statement(stmt),
                 }
@@ -300,8 +303,8 @@ CommitStatementList: Vec<CommitStatement> = {
 };
 
 CommitStatement: CommitStatement = {
-    // signed_by X
-    "signed_by" <name:Ident> => CommitStatement::SignedBy(name),
+    // signed_by X "signature"
+    "signed_by" <party:Ident> <sig:StringLiteral> => CommitStatement::SignedBy { party, signature: sig },
     
     // model { parts }
     "model" "{" <parts:Part*> "}" => {
