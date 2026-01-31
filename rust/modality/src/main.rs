@@ -4,11 +4,25 @@ mod constants;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+const VERSION: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    " (",
+    env!("GIT_BRANCH"),
+    "@",
+    env!("GIT_COMMIT"),
+    ")"
+);
+
 #[derive(Parser)]
 #[command(name = "modality")]
-#[command(version = "0.1.4")]
+#[command(version = VERSION)]
+#[command(disable_version_flag = true)]
 #[command(about = "Modality language and network CLI", long_about = None)]
 struct Cli {
+    /// Print version information
+    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    version: Option<bool>,
+
     #[command(subcommand)]
     command: Commands,
 }
