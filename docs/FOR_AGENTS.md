@@ -143,10 +143,10 @@ The first party provides a governing model that defines all possible transitions
 ```modality
 model {
   part flow {
-    init --> a_ruled: +ADD_RULE +by_A
-    a_ruled --> b_ruled: +ADD_RULE +by_B
-    b_ruled --> a_ready: +READY +by_A
-    a_ready --> done: +READY +by_B
+    init --> a_ruled: +ADD_RULE +signer(A)
+    a_ruled --> b_ruled: +ADD_RULE +signer(B)
+    b_ruled --> a_ready: +READY +signer(A)
+    a_ready --> done: +READY +signer(B)
   }
 }
 ```
@@ -169,12 +169,12 @@ contract handshake {
 
   commit {
     signed_by A
-    do +READY +by_A                  // Transitions: b_ruled --> a_ready
+    do +READY                        // Transitions: b_ruled --> a_ready
   }
 
   commit {
     signed_by B
-    do +READY +by_B                  // Transitions: a_ready --> done
+    do +READY                        // Transitions: a_ready --> done
   }
 
 }

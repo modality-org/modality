@@ -547,10 +547,10 @@ contract handshake {
     signed_by A
     model {
       part flow {
-        init --> a_ruled: +ADD_RULE +by_A
-        a_ruled --> b_ruled: +ADD_RULE +by_B
-        b_ruled --> a_ready: +READY +by_A
-        a_ready --> done: +READY +by_B
+        init --> a_ruled: +ADD_RULE +signer(A)
+        a_ruled --> b_ruled: +ADD_RULE +signer(B)
+        b_ruled --> a_ready: +READY +signer(A)
+        a_ready --> done: +READY +signer(B)
       }
     }
     add_rule { eventually(done) }
@@ -563,12 +563,12 @@ contract handshake {
 
   commit {
     signed_by A
-    do +READY +by_A
+    do +READY
   }
 
   commit {
     signed_by B
-    do +READY +by_B
+    do +READY
   }
 }
 "#;
@@ -592,26 +592,24 @@ contract handshake {
         assert_eq!(commit1.statements.len(), 1);
         assert!(matches!(&commit1.statements[0], CommitStatement::AddRule(_)));
         
-        // Third commit: A does +READY +by_A
+        // Third commit: A does +READY
         let commit2 = &contract.commits[2];
         assert_eq!(commit2.signed_by, "A");
         assert_eq!(commit2.statements.len(), 1);
         match &commit2.statements[0] {
             CommitStatement::Do(properties) => {
                 assert_eq!(properties[0].name, "READY");
-                assert_eq!(properties[1].name, "by_A");
             }
             _ => panic!("Expected Do statement"),
         }
         
-        // Fourth commit: B does +READY +by_B
+        // Fourth commit: B does +READY
         let commit3 = &contract.commits[3];
         assert_eq!(commit3.signed_by, "B");
         assert_eq!(commit3.statements.len(), 1);
         match &commit3.statements[0] {
             CommitStatement::Do(properties) => {
                 assert_eq!(properties[0].name, "READY");
-                assert_eq!(properties[1].name, "by_B");
             }
             _ => panic!("Expected Do statement"),
         }
