@@ -37,7 +37,7 @@ export default rule {
   starting_at $PARENT
   formula {
     always (
-      signed_by(/users/alice.id) | signed_by(/users/bob.id)
+      [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
     )
   }
 }
@@ -232,7 +232,7 @@ export default rule {
   starting_at $PARENT
   formula {
     always (
-      signed_by(/users/alice.id) | signed_by(/users/bob.id)
+      [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
     )
   }
 }
