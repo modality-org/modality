@@ -171,33 +171,81 @@ FormulaExpr: FormulaExpr = {
 };
 
 FormulaOrExpr: FormulaExpr = {
-    <expr:FormulaAndExpr> => expr,
-    <expr:FormulaOrExpr> "or" <expr2:FormulaAndExpr> => {
+    <expr:FormulaImpliesExpr> => expr,
+    <expr:FormulaOrExpr> "or" <expr2:FormulaImpliesExpr> => {
+        FormulaExpr::Or(Box::new(expr), Box::new(expr2))
+    },
+    <expr:FormulaOrExpr> "|" <expr2:FormulaImpliesExpr> => {
         FormulaExpr::Or(Box::new(expr), Box::new(expr2))
     }
 };
 
+FormulaImpliesExpr: FormulaExpr = {
+    <expr:FormulaAndExpr> => expr,
+    <expr:FormulaAndExpr> "->" <expr2:FormulaImpliesExpr> => {
+        FormulaExpr::Implies(Box::new(expr), Box::new(expr2))
+    },
+    <expr:FormulaAndExpr> "implies" <expr2:FormulaImpliesExpr> => {
+        FormulaExpr::Implies(Box::new(expr), Box::new(expr2))
+    }
+};
+
 FormulaAndExpr: FormulaExpr = {
-    <expr:FormulaAtom> => expr,
-    <expr:FormulaAndExpr> "and" <expr2:FormulaAtom> => {
+    <expr:FormulaUntilExpr> => expr,
+    <expr:FormulaAndExpr> "and" <expr2:FormulaUntilExpr> => {
         FormulaExpr::And(Box::new(expr), Box::new(expr2))
+    },
+    <expr:FormulaAndExpr> "&" <expr2:FormulaUntilExpr> => {
+        FormulaExpr::And(Box::new(expr), Box::new(expr2))
+    }
+};
+
+FormulaUntilExpr: FormulaExpr = {
+    <expr:FormulaAtom> => expr,
+    <expr:FormulaAtom> "until" <expr2:FormulaUntilExpr> => {
+        FormulaExpr::Until(Box::new(expr), Box::new(expr2))
     }
 };
 
 FormulaAtom: FormulaExpr = {
     "true" => FormulaExpr::True,
     "false" => FormulaExpr::False,
+    // State proposition (node name)
+    <name:Ident> => FormulaExpr::Prop(name),
+    // Negation
     "not" <expr:FormulaAtom> => {
         FormulaExpr::Not(Box::new(expr))
     },
+    "!" <expr:FormulaAtom> => {
+        FormulaExpr::Not(Box::new(expr))
+    },
+    // Parentheses
     "(" <expr:FormulaExpr> ")" => {
         FormulaExpr::Paren(Box::new(expr))
     },
+    // Modal operators (action-labeled)
     "<" <properties:PropertyList> ">" <expr:FormulaAtom> => {
         FormulaExpr::Diamond(properties, Box::new(expr))
     },
     "[" <properties:PropertyList> "]" <expr:FormulaAtom> => {
         FormulaExpr::Box(properties, Box::new(expr))
+    },
+    // Temporal operators
+    "eventually" "(" <expr:FormulaExpr> ")" => {
+        FormulaExpr::Eventually(Box::new(expr))
+    },
+    "always" "(" <expr:FormulaExpr> ")" => {
+        FormulaExpr::Always(Box::new(expr))
+    },
+    "next" "(" <expr:FormulaExpr> ")" => {
+        FormulaExpr::Next(Box::new(expr))
+    },
+    // Unicode temporal operators
+    "◇" "(" <expr:FormulaExpr> ")" => {
+        FormulaExpr::Eventually(Box::new(expr))
+    },
+    "□" "(" <expr:FormulaExpr> ")" => {
+        FormulaExpr::Always(Box::new(expr))
     }
 };
 

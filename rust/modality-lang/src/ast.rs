@@ -102,15 +102,23 @@ pub enum FormulaExpr {
     /// Boolean literals
     True,
     False,
+    /// State propositions (node names)
+    Prop(String),
     /// Boolean operations
     And(Box<FormulaExpr>, Box<FormulaExpr>),
     Or(Box<FormulaExpr>, Box<FormulaExpr>),
     Not(Box<FormulaExpr>),
+    Implies(Box<FormulaExpr>, Box<FormulaExpr>),
     /// Parenthesized expressions
     Paren(Box<FormulaExpr>),
-    /// Modal operators
+    /// Modal operators (action-labeled)
     Diamond(Vec<Property>, Box<FormulaExpr>),
     Box(Vec<Property>, Box<FormulaExpr>),
+    /// Temporal operators (LTL - future-looking only)
+    Eventually(Box<FormulaExpr>),
+    Always(Box<FormulaExpr>),
+    Until(Box<FormulaExpr>, Box<FormulaExpr>),
+    Next(Box<FormulaExpr>),
 }
 
 impl Model {
