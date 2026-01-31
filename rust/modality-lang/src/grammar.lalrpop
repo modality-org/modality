@@ -27,9 +27,21 @@ pub Model: Model = {
 };
 
 ModelDecl: Model = {
-    // Unified syntax: can have parts, initial, or direct transitions
+    // Named model: model name { ... }
     "model" <name:Ident> "{" <items:ModelBodyItem*> "}" => {
         let mut model = Model::new(name);
+        for item in items {
+            match item {
+                ModelBodyItem::Initial(state) => model.set_initial(state),
+                ModelBodyItem::Transition(t) => model.add_transition(t),
+                ModelBodyItem::Part(p) => model.add_part(p),
+            }
+        }
+        model
+    },
+    // Default export: export default model { ... }
+    "export" "default" "model" "{" <items:ModelBodyItem*> "}" => {
+        let mut model = Model::new("default".to_string());
         for item in items {
             match item {
                 ModelBodyItem::Initial(state) => model.set_initial(state),
