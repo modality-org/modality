@@ -69,7 +69,9 @@ PropertyList: Vec<Property> = {
 
 Property: Property = {
     "+" <name:Ident> => Property::new(PropertySign::Plus, name),
-    "-" <name:Ident> => Property::new(PropertySign::Minus, name)
+    "-" <name:Ident> => Property::new(PropertySign::Minus, name),
+    // @Signer shorthand: @Alice expands to +SIGNED_BY_ALICE
+    "@" <name:Ident> => Property::new(PropertySign::Plus, format!("SIGNED_BY_{}", name.to_uppercase()))
 };
 
 // Action parsing

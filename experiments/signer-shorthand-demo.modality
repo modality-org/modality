@@ -1,0 +1,57 @@
+// Demo: @Signer shorthand syntax
+//
+// @Alice expands to +SIGNED_BY_ALICE
+// Much cleaner than writing +SIGNED_BY_ALICE everywhere
+
+model EscrowWithShorthand {
+  part flow {
+    // Old verbose way:
+    // init --> deposited: +DEPOSIT +SIGNED_BY_BUYER
+    
+    // New shorthand:
+    init --> deposited: +DEPOSIT @Buyer
+    
+    deposited --> delivered: +DELIVER @Seller
+    
+    delivered --> confirmed: +CONFIRM @Buyer
+    
+    confirmed --> released: +RELEASE @Escrow
+  }
+}
+
+model HandshakeWithShorthand {
+  part agreement {
+    // Both parties sign to activate
+    pending --> alice_signed: @Alice
+    pending --> bob_signed: @Bob
+    
+    alice_signed --> active: @Bob
+    bob_signed --> active: @Alice
+    
+    // Once active, either can operate
+    active --> active: @Alice
+    active --> active: @Bob
+  }
+}
+
+model TradeWithShorthand {
+  part exchange {
+    // Alice offers, Bob accepts
+    init --> offered: +OFFER @Alice
+    offered --> accepted: +ACCEPT @Bob
+    
+    // Both must deliver
+    accepted --> alice_delivered: +DELIVER_A @Alice
+    accepted --> bob_delivered: +DELIVER_B @Bob
+    
+    alice_delivered --> complete: +DELIVER_B @Bob
+    bob_delivered --> complete: +DELIVER_A @Alice
+    
+    complete --> complete
+  }
+}
+
+// Formulas also work with shorthand
+formula RequireSignature {
+  always (must @Alice or must @Bob)
+}
