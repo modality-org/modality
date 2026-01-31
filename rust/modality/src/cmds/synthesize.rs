@@ -31,7 +31,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("  escrow              Two-party escrow with deposit/deliver/release");
         println!("  handshake           Mutual agreement requiring both signatures");
         println!("  mutual_cooperation  Cooperation game - both must cooperate, defection blocked");
-        println!("  trade               Simple asset swap between two parties");
+        println!("  atomic_swap         Both parties commit before either can claim");
+        println!("  multisig            N-of-M signature approval pattern");
+        println!("  service_agreement   Offer → Accept → Deliver → Confirm → Pay");
         println!("\nUsage:");
         println!("  modality synthesize --template escrow --party-a Buyer --party-b Seller");
         return Ok(());
@@ -44,6 +46,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         "escrow" => modality_lang::synthesis::templates::escrow(&opts.party_a, &opts.party_b),
         "handshake" => modality_lang::synthesis::templates::handshake(&opts.party_a, &opts.party_b),
         "mutual_cooperation" => modality_lang::synthesis::templates::mutual_cooperation(&opts.party_a, &opts.party_b),
+        "atomic_swap" => modality_lang::synthesis::templates::atomic_swap(&opts.party_a, &opts.party_b),
+        "multisig" => modality_lang::synthesis::templates::multisig(&[&opts.party_a, &opts.party_b], 2),
+        "service_agreement" => modality_lang::synthesis::templates::service_agreement(&opts.party_a, &opts.party_b),
         other => return Err(anyhow::anyhow!("Unknown template: '{}'. Use --list to see available templates.", other)),
     };
 
