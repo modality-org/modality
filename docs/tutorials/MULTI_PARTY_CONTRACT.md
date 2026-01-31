@@ -70,13 +70,13 @@ From this point on, all commits must be signed by Alice or Bob.
 ## Step 4: Make Signed Changes
 
 ```bash
-# Alice adds a message
+# Alice posts a message
 mkdir -p state/data
-echo "Hello from Alice" > state/data/message.text
+echo "Hello from Alice" > state/data/messages.text
 modal c commit --all --sign alice.passfile
 
-# Bob responds
-echo "Hello from Bob" > state/data/response.text
+# Bob updates the message
+echo "Hello from Bob" > state/data/messages.text
 modal c commit --all --sign bob.passfile
 ```
 
@@ -103,11 +103,11 @@ Commits: 4
 
 commit 833e8119...
 Actions:
-  post /data/response.text
+  post /data/messages.text
 
 commit bf68ec27...
 Actions:
-  post /data/message.text
+  post /data/messages.text
 
 commit 18634bc4...
 Actions:
@@ -164,12 +164,12 @@ EOF
 # Alice commits the setup (signed)
 modal c commit --all --sign alice.passfile
 
-# Alice sends a message (signed)
-echo "Hello from Alice" > state/data/message.text
+# Alice posts a message (signed)
+echo "Hello from Alice" > state/data/messages.text
 modal c commit --all --sign alice.passfile
 
-# Bob responds (signed)
-echo "Hello from Bob" > state/data/response.text
+# Bob updates the message (signed)
+echo "Hello from Bob" > state/data/messages.text
 modal c commit --all --sign bob.passfile
 
 # Show final state
@@ -199,8 +199,7 @@ my-contract/
 │   │   ├── alice.id
 │   │   └── bob.id
 │   └── data/
-│       ├── message.text
-│       └── response.text
+│       └── messages.text
 ├── rules/               # Rule files (RULE method)
 │   └── auth.modality
 ├── alice.passfile
