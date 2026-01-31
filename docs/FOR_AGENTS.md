@@ -163,9 +163,9 @@ export default rule {
   starting_at $PARENT
   formula {
     always (
-      [execute] implies (
-        <signed_by(/users/alice.id)> true &
-        <signed_by(/users/bob.id)> true
+      [+execute] implies (
+        [<+signed_by(/users/alice.id)>] true &
+        [<+signed_by(/users/bob.id)>] true
       )
     )
   }
@@ -193,9 +193,9 @@ export default rule {
   starting_at $PARENT
   formula {
     always (
-      [claim] implies (
-        <signed_by(/users/alice.id)> true &
-        <signed_by(/users/bob.id)> true
+      [+claim] implies (
+        [<+signed_by(/users/alice.id)>] true &
+        [<+signed_by(/users/bob.id)>] true
       )
     )
   }

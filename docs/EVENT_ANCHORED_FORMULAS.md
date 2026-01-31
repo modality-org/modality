@@ -250,7 +250,7 @@ model ServiceAgreement {
   
   on accept {
     assert eventually(completed | cancelled_with_refund)
-    assert always(signed_by(provider) | signed_by(consumer) | signed_by(arbiter))
+    assert always([<+signed_by(provider)>] true | [<+signed_by(consumer)>] true | [<+signed_by(arbiter)>] true)
   }
   
   on complete {
@@ -269,7 +269,7 @@ model Treasury {
   }
   
   on approve {
-    assert always(signed_by(council_member))
+    assert always([<+signed_by(council_member)>] true)
   }
 }
 ```

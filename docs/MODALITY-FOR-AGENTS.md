@@ -60,11 +60,13 @@ export default rule {
   starting_at $PARENT
   formula {
     always (
-      signed_by(/users/alice.id) | signed_by(/users/bob.id)
+      [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
     )
   }
 }
 ```
+
+This uses the **diamondbox** operator `[<+action>]` — meaning "committed to action" (can do AND cannot refuse).
 
 | Operator | Meaning |
 |----------|---------|
@@ -229,8 +231,8 @@ export default rule {
   formula {
     always (
       [execute] implies (
-        <signed_by(/users/alice.id)> true &
-        <signed_by(/users/bob.id)> true
+        [<+signed_by(/users/alice.id)>] true &
+        [<+signed_by(/users/bob.id)>] true
       )
     )
   }
@@ -261,8 +263,8 @@ export default rule {
   formula {
     always (
       [claim] implies (
-        <signed_by(/users/alice.id)> true &
-        <signed_by(/users/bob.id)> true
+        [<+signed_by(/users/alice.id)>] true &
+        [<+signed_by(/users/bob.id)>] true
       )
     )
   }
