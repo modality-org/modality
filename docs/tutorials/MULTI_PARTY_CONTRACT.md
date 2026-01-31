@@ -53,11 +53,11 @@ modal c commit --all
 
 ```bash
 # Add a rule requiring signatures (temporal modal logic)
-# $COMMIT is automatically replaced with this commit's hash
+# $PARENT is automatically replaced with the parent commit's hash
 mkdir -p rules
 cat > rules/auth.modality << 'EOF'
 export default rule {
-  starting $COMMIT
+  starting_since $PARENT
   formula {
     always must (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)
@@ -157,11 +157,11 @@ echo "$BOB" > state/users/bob.id
 modal c commit --all
 
 # Add authorization rule (temporal modal logic)
-# $COMMIT is automatically replaced with the commit's hash
+# $PARENT is automatically replaced with the parent commit's hash
 mkdir -p rules
 cat > rules/auth.modality << 'EOF'
 export default rule {
-  starting $COMMIT
+  starting_since $PARENT
   formula {
     always must (
       signed_by(/users/alice.id) | signed_by(/users/bob.id)

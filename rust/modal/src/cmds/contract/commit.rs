@@ -180,22 +180,19 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Compute commit ID
     let mut commit_id = commit.compute_id()?;
 
-    // Replace $COMMIT placeholder in rule values with actual commit ID
-    let mut has_placeholder = false;
-    for action in &mut commit.body {
-        if action.method == "rule" {
-            if let Value::String(s) = &action.value {
-                if s.contains("$COMMIT") {
-                    let replaced = s.replace("$COMMIT", &commit_id);
-                    action.value = Value::String(replaced);
-                    has_placeholder = true;
+    // Replace $PARENT placeholder in rule values with parent commit ID
+    if let Some(parent) = &parent_id {
+        for action in &mut commit.body {
+            if action.method == "rule" {
+                if let Value::String(s) = &action.value {
+                    if s.contains("$PARENT") {
+                        let replaced = s.replace("$PARENT", parent);
+                        action.value = Value::String(replaced);
+                    }
                 }
             }
         }
-    }
-    
-    // Recompute commit ID if we replaced placeholders
-    if has_placeholder {
+        // Recompute commit ID since content changed
         commit_id = commit.compute_id()?;
     }
 
