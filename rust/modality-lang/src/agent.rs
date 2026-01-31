@@ -37,6 +37,7 @@
 
 use crate::ast::{Model, Property, PropertySign};
 use crate::synthesis::templates;
+use crate::patterns;
 use crate::runtime::{ContractInstance, ActionBuilder, RuntimeResult, RuntimeError, AvailableTransition};
 use crate::evolution::{EvolvableContract, Amendment};
 use serde::{Serialize, Deserialize};
@@ -152,6 +153,64 @@ impl Contract {
             instance: ContractInstance::new(model.clone(), party_map).unwrap(),
             contract_type: model.name.clone(),
             party_names: parties.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    // ==================== Advanced Patterns ====================
+
+    /// Protected escrow with timeout, disputes, and arbitration
+    pub fn escrow_protected(depositor: &str, deliverer: &str, arbitrator: &str) -> Self {
+        let model = patterns::escrow_protected(depositor, deliverer, arbitrator);
+        let mut parties = HashMap::new();
+        parties.insert(depositor.to_string(), depositor.to_string());
+        parties.insert(deliverer.to_string(), deliverer.to_string());
+        parties.insert(arbitrator.to_string(), arbitrator.to_string());
+        
+        Self {
+            instance: ContractInstance::new(model, parties).unwrap(),
+            contract_type: "escrow_protected".to_string(),
+            party_names: vec![depositor.to_string(), deliverer.to_string(), arbitrator.to_string()],
+        }
+    }
+
+    /// Milestone-based contract with staged payments
+    pub fn milestone(client: &str, contractor: &str, milestones: usize) -> Self {
+        let model = patterns::milestone_contract(client, contractor, milestones);
+        let mut parties = HashMap::new();
+        parties.insert(client.to_string(), client.to_string());
+        parties.insert(contractor.to_string(), contractor.to_string());
+        
+        Self {
+            instance: ContractInstance::new(model, parties).unwrap(),
+            contract_type: format!("milestone_{}", milestones),
+            party_names: vec![client.to_string(), contractor.to_string()],
+        }
+    }
+
+    /// Recurring payment (subscription) contract
+    pub fn subscription(payer: &str, recipient: &str) -> Self {
+        let model = patterns::recurring_payment(payer, recipient);
+        let mut parties = HashMap::new();
+        parties.insert(payer.to_string(), payer.to_string());
+        parties.insert(recipient.to_string(), recipient.to_string());
+        
+        Self {
+            instance: ContractInstance::new(model, parties).unwrap(),
+            contract_type: "subscription".to_string(),
+            party_names: vec![payer.to_string(), recipient.to_string()],
+        }
+    }
+
+    /// Auction contract
+    pub fn auction(seller: &str, min_bidders: usize) -> Self {
+        let model = patterns::auction(seller, min_bidders);
+        let mut parties = HashMap::new();
+        parties.insert(seller.to_string(), seller.to_string());
+        
+        Self {
+            instance: ContractInstance::new(model, parties).unwrap(),
+            contract_type: format!("auction_{}_bidders", min_bidders),
+            party_names: vec![seller.to_string()],
         }
     }
 
@@ -550,5 +609,34 @@ mod tests {
         
         let status = contract.status();
         assert_eq!(status.action_count, 3);
+    }
+
+    #[test]
+    fn test_escrow_protected() {
+        let contract = Contract::escrow_protected("alice", "bob", "arbitrator");
+        let status = contract.status();
+        assert_eq!(status.contract_type, "escrow_protected");
+        assert_eq!(status.parties.len(), 3);
+    }
+
+    #[test]
+    fn test_milestone_contract() {
+        let contract = Contract::milestone("client", "contractor", 3);
+        let status = contract.status();
+        assert!(status.contract_type.contains("milestone"));
+    }
+
+    #[test]
+    fn test_subscription_contract() {
+        let contract = Contract::subscription("payer", "recipient");
+        let status = contract.status();
+        assert_eq!(status.contract_type, "subscription");
+    }
+
+    #[test]
+    fn test_auction_contract() {
+        let contract = Contract::auction("seller", 2);
+        let status = contract.status();
+        assert!(status.contract_type.contains("auction"));
     }
 }
