@@ -166,7 +166,7 @@ pub fn parse_all_tests_content_lalrpop(content: &str) -> Result<Vec<Test>, Strin
                 // Parse with LALRPOP
                 match TestParser::new().parse(test_str) {
                     Ok(test) => tests.push(test),
-                    Err(e) => {
+                    Err(_e) => {
                         // Fall back to simple parsing for basic tests
                         let test = parse_test_simple(test_str)?;
                         tests.push(test);

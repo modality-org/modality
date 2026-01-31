@@ -187,6 +187,9 @@ FormulaAndExpr: FormulaExpr = {
 FormulaAtom: FormulaExpr = {
     "true" => FormulaExpr::True,
     "false" => FormulaExpr::False,
+    "not" <expr:FormulaAtom> => {
+        FormulaExpr::Not(Box::new(expr))
+    },
     "(" <expr:FormulaExpr> ")" => {
         FormulaExpr::Paren(Box::new(expr))
     },
