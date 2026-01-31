@@ -1,0 +1,206 @@
+// Example: Agent Service Contract with Evolution
+//
+// Demonstrates how a contract between agents can evolve:
+// 1. Initial service agreement
+// 2. Amendment: Add dispute resolution
+// 3. Amendment: Add performance bonuses
+// 4. Upgrade: Replace with new version
+
+// =====================================================
+// INITIAL CONTRACT: Basic Service Agreement
+// =====================================================
+model ServiceContract_v1 {
+    // Simple offer → accept → deliver → pay flow
+    init --> offered: +OFFER +signed_by("provider")
+    offered --> accepted: +ACCEPT +signed_by("consumer")
+    accepted --> delivered: +DELIVER +signed_by("provider")
+    delivered --> complete: +PAY +signed_by("consumer")
+    
+    // Cancellation (only before delivery)
+    offered --> cancelled: +CANCEL +signed_by("consumer")
+    accepted --> cancelled: +CANCEL +signed_by("consumer") +signed_by("provider")
+    cancelled --> complete: +REFUND
+}
+
+// =====================================================
+// AMENDMENT #1: Add Dispute Resolution
+// Proposed by: Provider
+// Approved by: Consumer, Provider (unanimous)
+// =====================================================
+model ServiceContract_v1_1 {
+    // All original flows preserved
+    init --> offered: +OFFER +signed_by("provider")
+    offered --> accepted: +ACCEPT +signed_by("consumer")
+    accepted --> delivered: +DELIVER +signed_by("provider")
+    delivered --> complete: +PAY +signed_by("consumer")
+    offered --> cancelled: +CANCEL +signed_by("consumer")
+    accepted --> cancelled: +CANCEL +signed_by("consumer") +signed_by("provider")
+    cancelled --> complete: +REFUND
+    
+    // NEW: Dispute resolution path
+    delivered --> disputed: +DISPUTE +signed_by("consumer")
+    disputed --> arbitration: +REQUEST_ARBITRATION
+    arbitration --> resolved_for_provider: +ARBITRATOR_RULING_PROVIDER +signed_by("arbitrator")
+    arbitration --> resolved_for_consumer: +ARBITRATOR_RULING_CONSUMER +signed_by("arbitrator")
+    resolved_for_provider --> complete: +PAY +signed_by("consumer")
+    resolved_for_consumer --> complete: +REFUND +signed_by("provider")
+}
+
+// =====================================================
+// AMENDMENT #2: Add Performance Bonuses
+// Proposed by: Consumer
+// Approved by: Consumer, Provider (unanimous)
+// =====================================================
+model ServiceContract_v1_2 {
+    // Everything from v1.1, plus bonuses
+    init --> offered: +OFFER +signed_by("provider")
+    offered --> accepted: +ACCEPT +signed_by("consumer")
+    accepted --> delivered: +DELIVER +signed_by("provider")
+    delivered --> complete: +PAY +signed_by("consumer")
+    offered --> cancelled: +CANCEL +signed_by("consumer")
+    accepted --> cancelled: +CANCEL +signed_by("consumer") +signed_by("provider")
+    cancelled --> complete: +REFUND
+    delivered --> disputed: +DISPUTE +signed_by("consumer")
+    disputed --> arbitration: +REQUEST_ARBITRATION
+    arbitration --> resolved_for_provider: +ARBITRATOR_RULING_PROVIDER +signed_by("arbitrator")
+    arbitration --> resolved_for_consumer: +ARBITRATOR_RULING_CONSUMER +signed_by("arbitrator")
+    resolved_for_provider --> complete: +PAY +signed_by("consumer")
+    resolved_for_consumer --> complete: +REFUND +signed_by("provider")
+    
+    // NEW: Performance bonus path
+    delivered --> rating: +RATE +signed_by("consumer")
+    rating --> complete: +PAY +signed_by("consumer")
+    rating --> bonus_eligible: +EXCELLENT_RATING
+    bonus_eligible --> complete: +PAY +BONUS +signed_by("consumer")
+}
+
+// =====================================================
+// VERSION 2: Major Upgrade - Escrow-Based
+// Replaces v1.x entirely
+// Approved by: Supermajority of stakeholders
+// =====================================================
+model ServiceContract_v2 {
+    // Escrow-based: consumer deposits upfront
+    init --> escrow_pending: +OFFER +signed_by("provider")
+    escrow_pending --> escrowed: +DEPOSIT +signed_by("consumer")
+    
+    // Provider delivers, escrow holds funds
+    escrowed --> delivered: +DELIVER +signed_by("provider")
+    
+    // Consumer confirms, funds release
+    delivered --> release_pending: +CONFIRM +signed_by("consumer")
+    release_pending --> complete: +RELEASE_ESCROW
+    
+    // Automatic release after timeout
+    delivered --> auto_release: +TIMEOUT_ELAPSED
+    auto_release --> complete: +RELEASE_ESCROW
+    
+    // Dispute with escrow freeze
+    delivered --> dispute: +DISPUTE +signed_by("consumer")
+    dispute --> frozen: +FREEZE_ESCROW
+    frozen --> arbitration: +ASSIGN_ARBITRATOR
+    
+    // Arbitration outcomes
+    arbitration --> split: +ARBITRATOR_SPLIT +signed_by("arbitrator")
+    arbitration --> provider_wins: +ARBITRATOR_PROVIDER +signed_by("arbitrator")
+    arbitration --> consumer_wins: +ARBITRATOR_CONSUMER +signed_by("arbitrator")
+    
+    split --> complete: +RELEASE_SPLIT
+    provider_wins --> complete: +RELEASE_TO_PROVIDER
+    consumer_wins --> complete: +RELEASE_TO_CONSUMER
+    
+    // Cancellation with escrow return
+    escrow_pending --> cancelled: +CANCEL +signed_by("consumer")
+    escrowed --> cancelled: +CANCEL +signed_by("consumer") +signed_by("provider")
+    cancelled --> complete: +RETURN_ESCROW
+}
+
+// =====================================================
+// EVOLUTION HISTORY (metadata)
+// =====================================================
+// 
+// version: 1.0
+//   created: 2026-01-15
+//   parties: [provider, consumer]
+//   hash: 0xabc123...
+//
+// version: 1.1 (amendment)
+//   created: 2026-01-20
+//   proposed_by: provider
+//   description: "Add dispute resolution mechanism"
+//   approvals: [provider, consumer]
+//   changes: +4 transitions (dispute → arbitration flow)
+//   hash: 0xdef456...
+//
+// version: 1.2 (amendment)
+//   created: 2026-01-25
+//   proposed_by: consumer
+//   description: "Add performance bonus system"
+//   approvals: [provider, consumer]
+//   changes: +3 transitions (rating → bonus flow)
+//   hash: 0xghi789...
+//
+// version: 2.0 (upgrade)
+//   created: 2026-01-30
+//   proposed_by: provider
+//   description: "Escrow-based contract with enhanced dispute handling"
+//   approvals: [provider, consumer, arbitrator_registry]
+//   changes: FULL REPLACEMENT
+//   previous_hash: 0xghi789...
+//   new_hash: 0xjkl012...
+
+// =====================================================
+// FORMULAS: Invariants across all versions
+// =====================================================
+
+// No payment without delivery
+formula no_pay_without_delivery {
+    [+PAY -DELIVER -RELEASE_ESCROW -RELEASE_TO_PROVIDER] false
+}
+
+// No refund without cancellation or arbitration loss
+formula no_unauthorized_refund {
+    [+REFUND -CANCEL -ARBITRATOR_RULING_CONSUMER -RELEASE_TO_CONSUMER] false
+}
+
+// Escrow funds must go somewhere
+formula escrow_resolution {
+    [+FREEZE_ESCROW] (<+RELEASE_SPLIT> true | <+RELEASE_TO_PROVIDER> true | <+RELEASE_TO_CONSUMER> true)
+}
+
+// =====================================================
+// TEST: Evolution Scenario
+// =====================================================
+test contract_evolution {
+    // Start with v1
+    contract = ServiceContract_v1.clone()
+    contract.commit(+OFFER +signed_by("provider"))
+    contract.commit(+ACCEPT +signed_by("consumer"))
+    contract.commit(+DELIVER +signed_by("provider"))
+    contract.commit(+PAY +signed_by("consumer"))
+    // ✓ Complete on v1
+    
+    // Upgrade to v1.1 (off-chain approval ceremony)
+    contract = ServiceContract_v1_1.clone()
+    
+    // New dispute capability available
+    contract.commit(+OFFER +signed_by("provider"))
+    contract.commit(+ACCEPT +signed_by("consumer"))
+    contract.commit(+DELIVER +signed_by("provider"))
+    contract.commit(+DISPUTE +signed_by("consumer"))
+    contract.commit(+REQUEST_ARBITRATION)
+    contract.commit(+ARBITRATOR_RULING_PROVIDER +signed_by("arbitrator"))
+    contract.commit(+PAY +signed_by("consumer"))
+    // ✓ Dispute resolved via v1.1 amendment
+    
+    // Upgrade to v2 (major version change)
+    contract = ServiceContract_v2.clone()
+    
+    // Escrow-based flow
+    contract.commit(+OFFER +signed_by("provider"))
+    contract.commit(+DEPOSIT +signed_by("consumer"))
+    contract.commit(+DELIVER +signed_by("provider"))
+    contract.commit(+CONFIRM +signed_by("consumer"))
+    contract.commit(+RELEASE_ESCROW)
+    // ✓ Complete on v2 with escrow protection
+}

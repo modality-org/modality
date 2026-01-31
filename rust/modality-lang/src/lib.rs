@@ -10,6 +10,7 @@ pub mod wasm;
 pub mod model_checker;
 pub mod synthesis;
 pub mod printer;
+pub mod evolution;
 
 // Include the generated parser
 use lalrpop_util::lalrpop_mod;
@@ -21,6 +22,7 @@ pub use mermaid::{generate_mermaid_diagram, generate_mermaid_diagrams, generate_
 pub use model_checker::{ModelChecker, State, ModelCheckResult};
 pub use synthesis::{synthesize, synthesize_from_pattern, identify_pattern, SynthesisResult, RulePattern};
 pub use printer::print_model;
+pub use evolution::{EvolvableContract, Amendment, Proposal, ProposalStatus, Approval, EvolutionRecord};
 
 // Re-export the generated parser
 pub use grammar::ModelParser;
