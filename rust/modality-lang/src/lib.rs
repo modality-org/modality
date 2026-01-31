@@ -15,6 +15,7 @@ pub mod runtime;
 pub mod agent;
 pub mod patterns;
 pub mod paths;
+pub mod crypto;
 
 // Include the generated parser
 use lalrpop_util::lalrpop_mod;

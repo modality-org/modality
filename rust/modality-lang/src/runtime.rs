@@ -379,15 +379,19 @@ impl ContractInstance {
 
     /// Check if a predicate with path reference is satisfied
     /// Example: signed_by(/members/alice.pubkey)
-    pub fn check_path_predicate(&self, predicate: &str, _signature: &[u8]) -> bool {
+    /// 
+    /// For signature verification, pass the signature hex and the message that was signed.
+    pub fn check_path_predicate(&self, predicate: &str, signature_hex: &str, message: &[u8]) -> bool {
         if let Some((name, path)) = parse_path_reference(predicate) {
             match name.as_str() {
                 "signed_by" => {
                     // Get pubkey from path and verify signature
-                    if let Some(_pubkey) = self.resolve_pubkey(&path) {
-                        // TODO: Actually verify signature using pubkey
-                        // For now, return true if pubkey exists
-                        true
+                    if let Some(pubkey) = self.resolve_pubkey(&path) {
+                        // Actually verify the signature using ed25519
+                        match crate::crypto::verify_ed25519(pubkey, message, signature_hex) {
+                            crate::crypto::VerifyResult::Valid => true,
+                            _ => false,
+                        }
                     } else {
                         false
                     }
@@ -395,9 +399,31 @@ impl ContractInstance {
                 "has_balance" => {
                     self.resolve_balance(&path).is_some()
                 }
+                "has_min_balance" => {
+                    // Parse minimum from predicate args if needed
+                    self.resolve_balance(&path).map(|b| b > 0).unwrap_or(false)
+                }
                 "exists" => {
                     self.store.exists(&path)
                 }
+                _ => false,
+            }
+        } else {
+            false
+        }
+    }
+
+    /// Verify a signature for committing an action
+    /// Returns true if the signature is valid for the given signer and action
+    pub fn verify_action_signature(
+        &self,
+        signer_path: &str,
+        action_json: &str,
+        signature_hex: &str,
+    ) -> bool {
+        if let Some(pubkey) = self.resolve_pubkey(signer_path) {
+            match crate::crypto::verify_ed25519(pubkey, action_json.as_bytes(), signature_hex) {
+                crate::crypto::VerifyResult::Valid => true,
                 _ => false,
             }
         } else {
@@ -797,7 +823,7 @@ mod tests {
     }
 
     #[test]
-    fn test_path_predicate_check() {
+    fn test_path_predicate_exists() {
         let model = templates::escrow("Alice", "Bob");
         let mut parties = HashMap::new();
         parties.insert("Alice".to_string(), "alice_key".to_string());
@@ -805,9 +831,86 @@ mod tests {
 
         let instance = ContractInstance::new(model, parties).unwrap();
 
-        // Check path-based predicate
-        assert!(instance.check_path_predicate("signed_by(/members/alice.pubkey)", &[]));
-        assert!(instance.check_path_predicate("exists(/members/bob.pubkey)", &[]));
-        assert!(!instance.check_path_predicate("signed_by(/members/unknown.pubkey)", &[]));
+        // Check exists predicate
+        assert!(instance.check_path_predicate("exists(/members/alice.pubkey)", "", &[]));
+        assert!(instance.check_path_predicate("exists(/members/bob.pubkey)", "", &[]));
+        assert!(!instance.check_path_predicate("exists(/members/unknown.pubkey)", "", &[]));
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn test_path_predicate_signed_by() {
+        use crate::crypto::{generate_keypair, sign_ed25519};
+
+        let model = templates::escrow("Alice", "Bob");
+        
+        // Generate real keypairs
+        let (alice_secret, alice_public) = generate_keypair();
+        let (_, bob_public) = generate_keypair();
+        
+        let mut parties = HashMap::new();
+        parties.insert("Alice".to_string(), alice_public.clone());
+        parties.insert("Bob".to_string(), bob_public.clone());
+
+        let instance = ContractInstance::new(model, parties).unwrap();
+
+        // Sign a message with Alice's key
+        let message = b"test action";
+        let signature = sign_ed25519(&alice_secret, message).unwrap();
+
+        // Check signed_by predicate
+        assert!(instance.check_path_predicate(
+            "signed_by(/members/alice.pubkey)",
+            &signature,
+            message
+        ));
+
+        // Wrong signer path should fail
+        assert!(!instance.check_path_predicate(
+            "signed_by(/members/bob.pubkey)",
+            &signature,
+            message
+        ));
+
+        // Non-existent signer should fail
+        assert!(!instance.check_path_predicate(
+            "signed_by(/members/unknown.pubkey)",
+            &signature,
+            message
+        ));
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn test_verify_action_signature() {
+        use crate::crypto::{generate_keypair, sign_ed25519};
+
+        let model = templates::escrow("Alice", "Bob");
+        
+        let (alice_secret, alice_public) = generate_keypair();
+        
+        let mut parties = HashMap::new();
+        parties.insert("Alice".to_string(), alice_public);
+        parties.insert("Bob".to_string(), "bob_fake_key".to_string());
+
+        let instance = ContractInstance::new(model, parties).unwrap();
+
+        // Sign an action
+        let action_json = r#"{"action":"deposit","amount":100}"#;
+        let signature = sign_ed25519(&alice_secret, action_json.as_bytes()).unwrap();
+
+        // Verify with correct path
+        assert!(instance.verify_action_signature(
+            "/members/alice.pubkey",
+            action_json,
+            &signature
+        ));
+
+        // Verify with wrong path should fail
+        assert!(!instance.verify_action_signature(
+            "/members/bob.pubkey",
+            action_json,
+            &signature
+        ));
     }
 }
