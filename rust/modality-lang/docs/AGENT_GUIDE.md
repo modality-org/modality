@@ -141,6 +141,43 @@ contract.act("bob", "vote")?;
 contract.act("alice", "execute")?;
 ```
 
+### Protected Escrow (with disputes & timeouts)
+Best for: High-value trades needing maximum protection
+
+```rust
+let mut contract = Contract::escrow_protected("buyer", "seller", "arbitrator");
+// Includes: timeout if seller doesn't deliver, dispute resolution, arbitration
+```
+
+Paths:
+- **Happy:** deposit → deliver → release
+- **Timeout:** deposit → (timeout) → reclaim
+- **Dispute:** deposit → deliver → dispute → arbitration → ruling
+
+### Milestone Contract
+Best for: Large projects with staged payments
+
+```rust
+let mut contract = Contract::milestone("client", "contractor", 3);
+// 3 milestones, each with: fund → deliver → confirm
+```
+
+### Subscription
+Best for: Recurring payments
+
+```rust
+let mut contract = Contract::subscription("payer", "recipient");
+// Includes: pause, resume, cancel, payment timeout → suspend
+```
+
+### Auction
+Best for: Competitive bidding
+
+```rust
+let mut contract = Contract::auction("seller", 2);  // min 2 bidders
+// start → bid* → close → select_winner → pay → transfer
+```
+
 ## Negotiating Contracts
 
 ### Proposing
