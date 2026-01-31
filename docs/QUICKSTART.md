@@ -33,10 +33,6 @@ modal contract create
 # Create identities
 modal id create --path alice.passfile
 modal id create --path bob.passfile
-
-# Get their IDs
-ALICE=$(cat alice.passfile | jq -r '.id')
-BOB=$(cat bob.passfile | jq -r '.id')
 ```
 
 ### 2. Set Up State, Model & Rules
@@ -44,11 +40,11 @@ BOB=$(cat bob.passfile | jq -r '.id')
 ```bash
 # Initialize directories
 modal c checkout
-mkdir -p state/users model rules
+mkdir -p rules
 
 # Add identities to state
-echo "$ALICE" > state/users/alice.id
-echo "$BOB" > state/users/bob.id
+modal c set-named-id /users/alice.id alice
+modal c set-named-id /users/bob.id bob
 ```
 
 Create **model/default.modality** — proves the rules can be satisfied:

@@ -13,10 +13,6 @@ modal contract create
 # Create identities for Alice and Bob
 modal id create --path alice.passfile
 modal id create --path bob.passfile
-
-# Get their IDs
-ALICE=$(cat alice.passfile | jq -r '.id')
-BOB=$(cat bob.passfile | jq -r '.id')
 ```
 
 ## Step 2: Alice Sets Up Users, Model & Authorization Rule
@@ -24,11 +20,11 @@ BOB=$(cat bob.passfile | jq -r '.id')
 ```bash
 # Initialize directories
 modal c checkout
-mkdir -p state/users rules model
+mkdir -p rules
 
 # Add user IDs
-echo "$ALICE" > state/users/alice.id
-echo "$BOB" > state/users/bob.id
+modal c set-named-id /users/alice.id alice
+modal c set-named-id /users/bob.id bob
 
 # Add the model (proves the rule is satisfiable)
 cat > model/default.modality << 'EOF'
@@ -151,19 +147,14 @@ modal contract create
 # Create identities
 modal id create --path alice.passfile
 modal id create --path bob.passfile
-ALICE=$(cat alice.passfile | jq -r '.id')
-BOB=$(cat bob.passfile | jq -r '.id')
-
-echo "Alice: $ALICE"
-echo "Bob: $BOB"
 
 # Initialize directories
 modal c checkout
-mkdir -p state/users state/data rules model
+mkdir -p state/data rules
 
 # Alice sets up users, model, and authorization rule
-echo "$ALICE" > state/users/alice.id
-echo "$BOB" > state/users/bob.id
+modal c set-named-id /users/alice.id alice
+modal c set-named-id /users/bob.id bob
 
 cat > model/default.modality << 'EOF'
 export default model {

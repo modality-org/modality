@@ -44,19 +44,17 @@ modal contract create
 # Create buyer and seller identities
 modal id create --path buyer.passfile
 modal id create --path seller.passfile
-BUYER=$(cat buyer.passfile | jq -r '.id')
-SELLER=$(cat seller.passfile | jq -r '.id')
 ```
 
 ### 2. Create State, Model & Rules
 
 ```bash
 modal c checkout
-mkdir -p state/users model rules
+mkdir -p rules
 
 # Add identities
-echo "$BUYER" > state/users/buyer.id
-echo "$SELLER" > state/users/seller.id
+modal c set-named-id /users/buyer.id buyer
+modal c set-named-id /users/seller.id seller
 ```
 
 **model/default.modality** — proves the rules are satisfiable:

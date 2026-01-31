@@ -99,13 +99,11 @@ modal id create --path bob.passfile
 
 ```bash
 modal c checkout
-mkdir -p state/users model rules
+mkdir -p rules
 
 # Add identities
-ALICE=$(cat alice.passfile | jq -r '.id')
-BOB=$(cat bob.passfile | jq -r '.id')
-echo "$ALICE" > state/users/alice.id
-echo "$BOB" > state/users/bob.id
+modal c set-named-id /users/alice.id alice
+modal c set-named-id /users/bob.id bob
 ```
 
 Create **model/default.modality**:
