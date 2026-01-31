@@ -200,12 +200,11 @@ impl Contract {
         let action_upper = action.to_uppercase();
         
         // Build the action properties
-        let mut builder = ActionBuilder::new()
+        let signed_action = ActionBuilder::new()
             .with(&action_upper)
             .with(&format!("SIGNED_BY_{}", agent_upper))
-            .signed_by(agent);
-        
-        let signed_action = builder.build();
+            .signed_by(agent)
+            .build();
         
         match self.instance.commit(signed_action) {
             Ok(record) => Ok(ActionResult {

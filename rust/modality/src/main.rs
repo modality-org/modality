@@ -40,6 +40,9 @@ enum Commands {
         command: NodeCommands,
     },
 
+    #[command(about = "Agent contract operations (create, propose, execute)")]
+    Contract(cmds::contract::Opts),
+
     #[command(about = "Upgrade modality to the latest version")]
     Upgrade(cmds::upgrade::Opts),
 }
@@ -101,6 +104,7 @@ async fn main() -> Result<()> {
         Commands::Node { command } => match command {
             NodeCommands::Inspect(opts) => cmds::inspect::run(opts).await?,
         },
+        Commands::Contract(opts) => cmds::contract::run(opts).await?,
         Commands::Upgrade(opts) => cmds::upgrade::run(opts).await?,
     }
 
