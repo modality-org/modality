@@ -120,14 +120,26 @@ pub enum FormulaExpr {
     /// Modal operators (action-labeled)
     /// <action> φ - "there exists an action-transition to a state satisfying φ"
     Diamond(Vec<Property>, Box<FormulaExpr>),
+    /// [] φ - "all transitions lead to states satisfying φ" (unlabeled box)
     /// [action] φ - "all action-transitions lead to states satisfying φ"
     Box(Vec<Property>, Box<FormulaExpr>),
     /// [<action>] φ - "committed diamond": can do action AND cannot refuse
     /// Semantically equivalent to: [-action] false & <+action> φ
     /// This is the "must" form - committed to being able to take the action
     DiamondBox(Vec<Property>, Box<FormulaExpr>),
-    /// Temporal operators (LTL - future-looking only)
+    /// Fixed point operators (modal mu-calculus)
+    /// Bound variable reference
+    Var(String),
+    /// lfp(X, φ) - least fixed point: smallest set satisfying X = φ[X]
+    /// Used for "eventually" style properties (inductive/reachability)
+    Lfp(String, Box<FormulaExpr>),
+    /// gfp(X, φ) - greatest fixed point: largest set satisfying X = φ[X]  
+    /// Used for "always" style properties (coinductive/invariants)
+    Gfp(String, Box<FormulaExpr>),
+    /// Temporal operators (syntactic sugar - desugar to fixed points)
+    /// eventually(f) ≡ lfp(X, <>X | f)
     Eventually(Box<FormulaExpr>),
+    /// always(f) ≡ gfp(X, []X & f)
     Always(Box<FormulaExpr>),
     Until(Box<FormulaExpr>, Box<FormulaExpr>),
     Next(Box<FormulaExpr>),
@@ -223,7 +235,87 @@ impl FormulaExpr {
                 Box::new(r.expand_diamond_box()),
             ),
             FormulaExpr::Next(phi) => FormulaExpr::Next(Box::new(phi.expand_diamond_box())),
-            // Literals and props don't contain DiamondBox
+            // Fixed point operators
+            FormulaExpr::Lfp(var, phi) => FormulaExpr::Lfp(var.clone(), Box::new(phi.expand_diamond_box())),
+            FormulaExpr::Gfp(var, phi) => FormulaExpr::Gfp(var.clone(), Box::new(phi.expand_diamond_box())),
+            // Literals, props, and vars don't contain DiamondBox
+            other => other.clone(),
+        }
+    }
+    
+    /// Desugar temporal operators to their fixed point equivalents
+    /// always(f) ≡ gfp(X, []X & f)
+    /// eventually(f) ≡ lfp(X, <>X | f)
+    pub fn desugar_temporal(&self) -> FormulaExpr {
+        match self {
+            // always(f) → gfp(X, []X & f)
+            FormulaExpr::Always(phi) => {
+                let inner = phi.desugar_temporal();
+                FormulaExpr::Gfp(
+                    "X".to_string(),
+                    Box::new(FormulaExpr::And(
+                        Box::new(FormulaExpr::Box(vec![], Box::new(FormulaExpr::Var("X".to_string())))),
+                        Box::new(inner),
+                    )),
+                )
+            }
+            // eventually(f) → lfp(X, <>X | f)
+            FormulaExpr::Eventually(phi) => {
+                let inner = phi.desugar_temporal();
+                FormulaExpr::Lfp(
+                    "X".to_string(),
+                    Box::new(FormulaExpr::Or(
+                        Box::new(FormulaExpr::Diamond(vec![], Box::new(FormulaExpr::Var("X".to_string())))),
+                        Box::new(inner),
+                    )),
+                )
+            }
+            // until(p, q) → lfp(X, q | (p & <>X))
+            FormulaExpr::Until(p, q) => {
+                let p_inner = p.desugar_temporal();
+                let q_inner = q.desugar_temporal();
+                FormulaExpr::Lfp(
+                    "X".to_string(),
+                    Box::new(FormulaExpr::Or(
+                        Box::new(q_inner),
+                        Box::new(FormulaExpr::And(
+                            Box::new(p_inner),
+                            Box::new(FormulaExpr::Diamond(vec![], Box::new(FormulaExpr::Var("X".to_string())))),
+                        )),
+                    )),
+                )
+            }
+            // Recursively desugar subformulas
+            FormulaExpr::And(l, r) => FormulaExpr::And(
+                Box::new(l.desugar_temporal()),
+                Box::new(r.desugar_temporal()),
+            ),
+            FormulaExpr::Or(l, r) => FormulaExpr::Or(
+                Box::new(l.desugar_temporal()),
+                Box::new(r.desugar_temporal()),
+            ),
+            FormulaExpr::Not(inner) => FormulaExpr::Not(Box::new(inner.desugar_temporal())),
+            FormulaExpr::Implies(l, r) => FormulaExpr::Implies(
+                Box::new(l.desugar_temporal()),
+                Box::new(r.desugar_temporal()),
+            ),
+            FormulaExpr::Paren(inner) => FormulaExpr::Paren(Box::new(inner.desugar_temporal())),
+            FormulaExpr::Diamond(props, phi) => FormulaExpr::Diamond(
+                props.clone(),
+                Box::new(phi.desugar_temporal()),
+            ),
+            FormulaExpr::Box(props, phi) => FormulaExpr::Box(
+                props.clone(),
+                Box::new(phi.desugar_temporal()),
+            ),
+            FormulaExpr::DiamondBox(props, phi) => FormulaExpr::DiamondBox(
+                props.clone(),
+                Box::new(phi.desugar_temporal()),
+            ),
+            FormulaExpr::Next(phi) => FormulaExpr::Next(Box::new(phi.desugar_temporal())),
+            FormulaExpr::Lfp(var, phi) => FormulaExpr::Lfp(var.clone(), Box::new(phi.desugar_temporal())),
+            FormulaExpr::Gfp(var, phi) => FormulaExpr::Gfp(var.clone(), Box::new(phi.desugar_temporal())),
+            // Literals, props, and vars pass through
             other => other.clone(),
         }
     }

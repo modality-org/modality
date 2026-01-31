@@ -766,4 +766,126 @@ formula alwaysMust {
             _ => panic!("Expected And in expansion, got {:?}", expanded),
         }
     }
+
+    #[test]
+    fn test_parse_lfp() {
+        // lfp(X, φ) - least fixed point
+        let content = r#"
+formula reachable {
+    lfp(X, target | <>X)
+}
+"#;
+        
+        let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
+        assert_eq!(formulas.len(), 1);
+        
+        let formula = &formulas[0];
+        assert_eq!(formula.name, "reachable");
+        
+        match &formula.expression {
+            FormulaExpr::Lfp(var, _) => {
+                assert_eq!(var, "X");
+            }
+            _ => panic!("Expected Lfp, got {:?}", formula.expression),
+        }
+    }
+
+    #[test]
+    fn test_parse_gfp() {
+        // gfp(X, φ) - greatest fixed point
+        let content = r#"
+formula invariant {
+    gfp(X, safe & []X)
+}
+"#;
+        
+        let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
+        assert_eq!(formulas.len(), 1);
+        
+        let formula = &formulas[0];
+        assert_eq!(formula.name, "invariant");
+        
+        match &formula.expression {
+            FormulaExpr::Gfp(var, _) => {
+                assert_eq!(var, "X");
+            }
+            _ => panic!("Expected Gfp, got {:?}", formula.expression),
+        }
+    }
+
+    #[test]
+    fn test_parse_unlabeled_box_diamond() {
+        // [] φ and <> φ - unlabeled modal operators
+        let content = r#"
+formula allNext {
+    []safe
+}
+"#;
+        
+        let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
+        assert_eq!(formulas.len(), 1);
+        
+        match &formulas[0].expression {
+            FormulaExpr::Box(props, _) => {
+                assert!(props.is_empty(), "Expected empty properties for unlabeled box");
+            }
+            _ => panic!("Expected Box, got {:?}", formulas[0].expression),
+        }
+
+        let content2 = r#"
+formula someNext {
+    <>goal
+}
+"#;
+        
+        let formulas2 = parse_all_formulas_content_lalrpop(content2).unwrap();
+        match &formulas2[0].expression {
+            FormulaExpr::Diamond(props, _) => {
+                assert!(props.is_empty(), "Expected empty properties for unlabeled diamond");
+            }
+            _ => panic!("Expected Diamond, got {:?}", formulas2[0].expression),
+        }
+    }
+
+    #[test]
+    fn test_desugar_temporal_to_fixpoint() {
+        // Test that always/eventually desugar correctly
+        let always_safe = FormulaExpr::Always(Box::new(FormulaExpr::Prop("safe".to_string())));
+        let desugared = always_safe.desugar_temporal();
+        
+        // always(safe) → gfp(X, []X & safe)
+        match desugared {
+            FormulaExpr::Gfp(var, inner) => {
+                assert_eq!(var, "X");
+                // inner should be And(Box([], Var(X)), Prop(safe))
+                match *inner {
+                    FormulaExpr::And(box_part, prop_part) => {
+                        assert!(matches!(*box_part, FormulaExpr::Box(props, _) if props.is_empty()));
+                        assert!(matches!(*prop_part, FormulaExpr::Prop(name) if name == "safe"));
+                    }
+                    _ => panic!("Expected And inside Gfp"),
+                }
+            }
+            _ => panic!("Expected Gfp from always, got {:?}", desugared),
+        }
+
+        let eventually_goal = FormulaExpr::Eventually(Box::new(FormulaExpr::Prop("goal".to_string())));
+        let desugared2 = eventually_goal.desugar_temporal();
+        
+        // eventually(goal) → lfp(X, <>X | goal)
+        match desugared2 {
+            FormulaExpr::Lfp(var, inner) => {
+                assert_eq!(var, "X");
+                // inner should be Or(Diamond([], Var(X)), Prop(goal))
+                match *inner {
+                    FormulaExpr::Or(diamond_part, prop_part) => {
+                        assert!(matches!(*diamond_part, FormulaExpr::Diamond(props, _) if props.is_empty()));
+                        assert!(matches!(*prop_part, FormulaExpr::Prop(name) if name == "goal"));
+                    }
+                    _ => panic!("Expected Or inside Lfp"),
+                }
+            }
+            _ => panic!("Expected Lfp from eventually, got {:?}", desugared2),
+        }
+    }
 } 

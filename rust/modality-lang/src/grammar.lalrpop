@@ -275,13 +275,21 @@ FormulaAtom: FormulaExpr = {
         FormulaExpr::Paren(Box::new(expr))
     },
     // Modal operators (action-labeled)
-    // <action> φ - diamond (possibility)
+    // <action> φ - diamond (possibility) with action label
     "<" <properties:PropertyList> ">" <expr:FormulaAtom> => {
         FormulaExpr::Diamond(properties, Box::new(expr))
     },
-    // [action] φ - box (necessity)
+    // <> φ - unlabeled diamond (some transition exists)
+    "<" ">" <expr:FormulaAtom> => {
+        FormulaExpr::Diamond(vec![], Box::new(expr))
+    },
+    // [action] φ - box (necessity) with action label
     "[" <properties:PropertyList> "]" <expr:FormulaAtom> => {
         FormulaExpr::Box(properties, Box::new(expr))
+    },
+    // [] φ - unlabeled box (all transitions)
+    "[" "]" <expr:FormulaAtom> => {
+        FormulaExpr::Box(vec![], Box::new(expr))
     },
     // [<action>] φ - diamond-box (committed): can do AND cannot refuse
     // Semantically: [-action] false & <+action> φ
@@ -294,10 +302,29 @@ FormulaAtom: FormulaExpr = {
     "must" <expr:FormulaAtom> => {
         FormulaExpr::desugar_must(expr)
     },
-    // Temporal operators
+    // Fixed point operators (modal mu-calculus)
+    // lfp(X, φ) - least fixed point
+    "lfp" "(" <var:Ident> "," <expr:FormulaExpr> ")" => {
+        FormulaExpr::Lfp(var, Box::new(expr))
+    },
+    // gfp(X, φ) - greatest fixed point
+    "gfp" "(" <var:Ident> "," <expr:FormulaExpr> ")" => {
+        FormulaExpr::Gfp(var, Box::new(expr))
+    },
+    // μX.φ - alternate notation for lfp
+    "μ" <var:Ident> "." <expr:FormulaAtom> => {
+        FormulaExpr::Lfp(var, Box::new(expr))
+    },
+    // νX.φ - alternate notation for gfp
+    "ν" <var:Ident> "." <expr:FormulaAtom> => {
+        FormulaExpr::Gfp(var, Box::new(expr))
+    },
+    // Temporal operators (syntactic sugar for fixed points)
+    // eventually(f) ≡ lfp(X, <>X | f)
     "eventually" "(" <expr:FormulaExpr> ")" => {
         FormulaExpr::Eventually(Box::new(expr))
     },
+    // always(f) ≡ gfp(X, []X & f)
     "always" "(" <expr:FormulaExpr> ")" => {
         FormulaExpr::Always(Box::new(expr))
     },

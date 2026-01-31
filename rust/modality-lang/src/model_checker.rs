@@ -136,6 +136,20 @@ impl ModelChecker {
             FormulaExpr::Next(expr) => {
                 self.evaluate_next(expr)
             }
+            FormulaExpr::Var(name) => {
+                // Variable lookup - should be handled in fixed point context
+                // For now, treat as proposition (will be substituted during fixed point eval)
+                self.all_states()
+                    .into_iter()
+                    .filter(|s| s.node_name == *name)
+                    .collect()
+            }
+            FormulaExpr::Lfp(var, expr) => {
+                self.evaluate_lfp(var, expr)
+            }
+            FormulaExpr::Gfp(var, expr) => {
+                self.evaluate_gfp(var, expr)
+            }
         }
     }
     
@@ -286,6 +300,123 @@ impl ModelChecker {
         }
         
         result
+    }
+    
+    /// Evaluate lfp(X, φ): least fixed point
+    /// Start with empty set, iterate until fixed point
+    fn evaluate_lfp(&self, var: &str, expr: &FormulaExpr) -> Vec<State> {
+        let mut result: Vec<State> = Vec::new();
+        let mut changed = true;
+        
+        while changed {
+            // Substitute current result for variable X in the formula
+            let substituted = self.substitute_var(expr, var, &result);
+            let new_result = self.evaluate_formula(&substituted);
+            
+            // Check if we've reached a fixed point
+            changed = new_result.len() != result.len() || 
+                      !new_result.iter().all(|s| result.contains(s));
+            result = new_result;
+        }
+        
+        result
+    }
+    
+    /// Evaluate gfp(X, φ): greatest fixed point
+    /// Start with all states, iterate until fixed point
+    fn evaluate_gfp(&self, var: &str, expr: &FormulaExpr) -> Vec<State> {
+        let mut result = self.all_states();
+        let mut changed = true;
+        
+        while changed {
+            // Substitute current result for variable X in the formula
+            let substituted = self.substitute_var(expr, var, &result);
+            let new_result = self.evaluate_formula(&substituted);
+            
+            // Intersect with current result (gfp is monotonically decreasing)
+            let intersection = self.intersect_states(&result, &new_result);
+            
+            // Check if we've reached a fixed point
+            changed = intersection.len() != result.len();
+            result = intersection;
+        }
+        
+        result
+    }
+    
+    /// Substitute a variable with a set of states in a formula
+    /// Returns a formula where Var(name) is replaced with an Or of Prop(state_name)
+    fn substitute_var(&self, expr: &FormulaExpr, var: &str, states: &[State]) -> FormulaExpr {
+        match expr {
+            FormulaExpr::Var(name) if name == var => {
+                // Replace variable with disjunction of state propositions
+                if states.is_empty() {
+                    FormulaExpr::False
+                } else {
+                    states.iter().skip(1).fold(
+                        FormulaExpr::Prop(states[0].node_name.clone()),
+                        |acc, s| FormulaExpr::Or(
+                            Box::new(acc),
+                            Box::new(FormulaExpr::Prop(s.node_name.clone()))
+                        )
+                    )
+                }
+            }
+            FormulaExpr::And(l, r) => FormulaExpr::And(
+                Box::new(self.substitute_var(l, var, states)),
+                Box::new(self.substitute_var(r, var, states)),
+            ),
+            FormulaExpr::Or(l, r) => FormulaExpr::Or(
+                Box::new(self.substitute_var(l, var, states)),
+                Box::new(self.substitute_var(r, var, states)),
+            ),
+            FormulaExpr::Not(inner) => FormulaExpr::Not(
+                Box::new(self.substitute_var(inner, var, states))
+            ),
+            FormulaExpr::Implies(l, r) => FormulaExpr::Implies(
+                Box::new(self.substitute_var(l, var, states)),
+                Box::new(self.substitute_var(r, var, states)),
+            ),
+            FormulaExpr::Paren(inner) => FormulaExpr::Paren(
+                Box::new(self.substitute_var(inner, var, states))
+            ),
+            FormulaExpr::Diamond(props, phi) => FormulaExpr::Diamond(
+                props.clone(),
+                Box::new(self.substitute_var(phi, var, states)),
+            ),
+            FormulaExpr::Box(props, phi) => FormulaExpr::Box(
+                props.clone(),
+                Box::new(self.substitute_var(phi, var, states)),
+            ),
+            FormulaExpr::DiamondBox(props, phi) => FormulaExpr::DiamondBox(
+                props.clone(),
+                Box::new(self.substitute_var(phi, var, states)),
+            ),
+            FormulaExpr::Eventually(phi) => FormulaExpr::Eventually(
+                Box::new(self.substitute_var(phi, var, states))
+            ),
+            FormulaExpr::Always(phi) => FormulaExpr::Always(
+                Box::new(self.substitute_var(phi, var, states))
+            ),
+            FormulaExpr::Until(l, r) => FormulaExpr::Until(
+                Box::new(self.substitute_var(l, var, states)),
+                Box::new(self.substitute_var(r, var, states)),
+            ),
+            FormulaExpr::Next(phi) => FormulaExpr::Next(
+                Box::new(self.substitute_var(phi, var, states))
+            ),
+            // Nested fixed points: only substitute if var is different
+            FormulaExpr::Lfp(v, phi) if v != var => FormulaExpr::Lfp(
+                v.clone(),
+                Box::new(self.substitute_var(phi, var, states)),
+            ),
+            FormulaExpr::Gfp(v, phi) if v != var => FormulaExpr::Gfp(
+                v.clone(),
+                Box::new(self.substitute_var(phi, var, states)),
+            ),
+            // Don't substitute bound variables or literals
+            other => other.clone(),
+        }
     }
 
     /// Evaluate diamond operator: <properties> phi
