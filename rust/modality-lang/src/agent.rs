@@ -59,6 +59,66 @@ pub struct Contract {
 impl Contract {
     // ==================== Contract Creation ====================
 
+    /// Create an empty contract (no model, no parties)
+    /// 
+    /// Parties can add rules and actions via commits
+    pub fn empty() -> Self {
+        use crate::ast::{Model, Part};
+        
+        // Create a minimal model with just an init state
+        let mut model = Model::new("Empty".to_string());
+        let mut part = Part::new("main".to_string());
+        part.add_transition(crate::ast::Transition::new("init".to_string(), "init".to_string()));
+        model.add_part(part);
+        
+        Self {
+            instance: ContractInstance::new(model, HashMap::new()).unwrap(),
+            contract_type: "empty".to_string(),
+            party_names: vec![],
+        }
+    }
+
+    /// Create a delegation contract
+    pub fn delegation(principal: &str, agent: &str) -> Self {
+        let model = templates::delegation(principal, agent);
+        let mut parties = HashMap::new();
+        parties.insert(principal.to_string(), principal.to_string());
+        parties.insert(agent.to_string(), agent.to_string());
+        
+        Self {
+            instance: ContractInstance::new(model, parties).unwrap(),
+            contract_type: "delegation".to_string(),
+            party_names: vec![principal.to_string(), agent.to_string()],
+        }
+    }
+
+    /// Create an auction contract
+    pub fn auction(seller: &str) -> Self {
+        let model = templates::auction(seller);
+        let mut parties = HashMap::new();
+        parties.insert(seller.to_string(), seller.to_string());
+        
+        Self {
+            instance: ContractInstance::new(model, parties).unwrap(),
+            contract_type: "auction".to_string(),
+            party_names: vec![seller.to_string()],
+        }
+    }
+
+    /// Create a subscription contract
+    pub fn subscription(provider: &str, subscriber: &str) -> Self {
+        let model = templates::subscription(provider, subscriber);
+        let mut parties = HashMap::new();
+        parties.insert(provider.to_string(), provider.to_string());
+        parties.insert(subscriber.to_string(), subscriber.to_string());
+        
+        Self {
+            instance: ContractInstance::new(model, parties).unwrap(),
+            contract_type: "subscription".to_string(),
+            party_names: vec![provider.to_string(), subscriber.to_string()],
+        }
+    }
+
     /// Create an escrow contract
     /// 
     /// Flow: depositor deposits → deliverer delivers → depositor releases
@@ -186,33 +246,6 @@ impl Contract {
             instance: ContractInstance::new(model, parties).unwrap(),
             contract_type: format!("milestone_{}", milestones),
             party_names: vec![client.to_string(), contractor.to_string()],
-        }
-    }
-
-    /// Recurring payment (subscription) contract
-    pub fn subscription(payer: &str, recipient: &str) -> Self {
-        let model = patterns::recurring_payment(payer, recipient);
-        let mut parties = HashMap::new();
-        parties.insert(payer.to_string(), payer.to_string());
-        parties.insert(recipient.to_string(), recipient.to_string());
-        
-        Self {
-            instance: ContractInstance::new(model, parties).unwrap(),
-            contract_type: "subscription".to_string(),
-            party_names: vec![payer.to_string(), recipient.to_string()],
-        }
-    }
-
-    /// Auction contract
-    pub fn auction(seller: &str, min_bidders: usize) -> Self {
-        let model = patterns::auction(seller, min_bidders);
-        let mut parties = HashMap::new();
-        parties.insert(seller.to_string(), seller.to_string());
-        
-        Self {
-            instance: ContractInstance::new(model, parties).unwrap(),
-            contract_type: format!("auction_{}_bidders", min_bidders),
-            party_names: vec![seller.to_string()],
         }
     }
 

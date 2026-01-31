@@ -11,19 +11,11 @@ pub struct Opts {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    /// Create a new contract
+    /// Create a new empty contract
     Create {
-        /// Contract type: escrow, handshake, service, swap, multisig
+        /// Optional template: escrow, handshake, service, swap, delegation, etc.
         #[arg(short = 't', long)]
-        r#type: String,
-        
-        /// First party name
-        #[arg(long)]
-        party_a: String,
-        
-        /// Second party name
-        #[arg(long)]
-        party_b: String,
+        template: Option<String>,
         
         /// Output file (default: stdout)
         #[arg(short, long)]
@@ -128,8 +120,8 @@ pub enum Command {
 
 pub async fn run(opts: &Opts) -> Result<()> {
     match &opts.command {
-        Command::Create { r#type, party_a, party_b, output } => {
-            create_contract(r#type, party_a, party_b, output.as_ref())
+        Command::Create { template, output } => {
+            create_contract(template.as_deref(), output.as_ref())
         }
         Command::Propose { r#type, from, to, terms, output } => {
             propose_contract(r#type, from, to, terms.as_deref(), output.as_ref())
@@ -158,16 +150,23 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 }
 
-fn create_contract(contract_type: &str, party_a: &str, party_b: &str, output: Option<&PathBuf>) -> Result<()> {
+fn create_contract(template: Option<&str>, output: Option<&PathBuf>) -> Result<()> {
     use modality_lang::agent::Contract;
     
-    let contract = match contract_type {
-        "escrow" => Contract::escrow(party_a, party_b),
-        "handshake" => Contract::handshake(party_a, party_b),
-        "service" | "service_agreement" => Contract::service_agreement(party_a, party_b),
-        "swap" | "atomic_swap" => Contract::atomic_swap(party_a, party_b),
-        "cooperation" | "mutual_cooperation" => Contract::mutual_cooperation(party_a, party_b),
-        other => return Err(anyhow::anyhow!("Unknown contract type: '{}'. Options: escrow, handshake, service, swap, cooperation", other)),
+    let contract = match template {
+        None => Contract::empty(),
+        Some("escrow") => Contract::escrow("PartyA", "PartyB"),
+        Some("handshake") => Contract::handshake("PartyA", "PartyB"),
+        Some("service") | Some("service_agreement") => Contract::service_agreement("Provider", "Consumer"),
+        Some("swap") | Some("atomic_swap") => Contract::atomic_swap("PartyA", "PartyB"),
+        Some("cooperation") | Some("mutual_cooperation") => Contract::mutual_cooperation("PartyA", "PartyB"),
+        Some("delegation") => Contract::delegation("Principal", "Agent"),
+        Some("auction") => Contract::auction("Seller"),
+        Some("subscription") => Contract::subscription("Provider", "Subscriber"),
+        Some(other) => return Err(anyhow::anyhow!(
+            "Unknown template: '{}'. Options: escrow, handshake, service, swap, cooperation, delegation, auction, subscription\n\
+            Or omit --template to create an empty contract.", other
+        )),
     };
     
     let json = contract.to_json()?;
