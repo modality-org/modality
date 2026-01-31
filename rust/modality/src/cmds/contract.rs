@@ -369,15 +369,15 @@ fn parse_contract_file(file: &PathBuf) -> Result<()> {
         }
         for stmt in &commit.statements {
             match stmt {
-                CommitStatement::AddParty(name) => println!("    add_party: {}", name),
-                CommitStatement::AddRule { name, .. } => {
-                    println!("    add_rule: {}", name.as_deref().unwrap_or("(anonymous)"));
-                }
-                CommitStatement::DomainAction(props) => {
-                    let props_str: Vec<String> = props.iter()
+                CommitStatement::Do { properties, formula } => {
+                    let props_str: Vec<String> = properties.iter()
                         .map(|p| format!("{}{}", if p.sign == modality_lang::ast::PropertySign::Plus { "+" } else { "-" }, p.name))
                         .collect();
-                    println!("    do: {}", props_str.join(" "));
+                    if formula.is_some() {
+                        println!("    do: {} {{ <formula> }}", props_str.join(" "));
+                    } else {
+                        println!("    do: {}", props_str.join(" "));
+                    }
                 }
                 _ => {}
             }

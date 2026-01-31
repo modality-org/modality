@@ -539,36 +539,36 @@ test MyTest {
     fn test_parse_contract_handshake() {
         use crate::ast::CommitStatement;
         
-        // Meta-actions (add_party, add_rule, model) don't move in the governing model
-        // Domain actions (do +X) must be valid transitions
+        // Every commit is a transition in the model.
+        // +RULE actions carry formulas, +READY actions just execute.
         let content = r#"
 contract handshake {
   commit {
     signed_by A
     model {
       part flow {
-        init --> a_done: +A_READY
-        a_done --> both_done: +B_READY
+        init --> a_ruled: +RULE +by_A
+        a_ruled --> b_ruled: +RULE +by_B
+        b_ruled --> a_ready: +READY +by_A
+        a_ready --> done: +READY +by_B
       }
     }
-    add_party A
-    add_rule { eventually(both_done) }
+    do +RULE +by_A { eventually(done) }
   }
 
   commit {
     signed_by B
-    add_party B
-    add_rule { eventually(both_done) }
+    do +RULE +by_B { eventually(done) }
   }
 
   commit {
     signed_by A
-    do +A_READY
+    do +READY +by_A
   }
 
   commit {
     signed_by B
-    do +B_READY
+    do +READY +by_B
   }
 }
 "#;
@@ -578,30 +578,58 @@ contract handshake {
         assert_eq!(contract.name, "handshake");
         assert_eq!(contract.commits.len(), 4);
         
-        // First commit: A with model (meta-actions)
+        // First commit: A provides model, does +RULE +by_A with formula
         let commit0 = &contract.commits[0];
         assert_eq!(commit0.signed_by, "A");
         assert!(commit0.model.is_some());
-        assert_eq!(commit0.statements.len(), 2); // add_party + add_rule
-        assert!(matches!(&commit0.statements[0], CommitStatement::AddParty(name) if name == "A"));
-        assert!(matches!(&commit0.statements[1], CommitStatement::AddRule { .. }));
+        assert_eq!(commit0.statements.len(), 1);
+        match &commit0.statements[0] {
+            CommitStatement::Do { properties, formula } => {
+                assert_eq!(properties[0].name, "RULE");
+                assert_eq!(properties[1].name, "by_A");
+                assert!(formula.is_some());
+            }
+            _ => panic!("Expected Do statement"),
+        }
         
-        // Second commit: B joins (meta-actions only, no model change)
+        // Second commit: B does +RULE +by_B with formula
         let commit1 = &contract.commits[1];
         assert_eq!(commit1.signed_by, "B");
-        assert!(commit1.model.is_none()); // B uses A's model
-        assert_eq!(commit1.statements.len(), 2);
+        assert!(commit1.model.is_none());
+        assert_eq!(commit1.statements.len(), 1);
+        match &commit1.statements[0] {
+            CommitStatement::Do { properties, formula } => {
+                assert_eq!(properties[0].name, "RULE");
+                assert_eq!(properties[1].name, "by_B");
+                assert!(formula.is_some());
+            }
+            _ => panic!("Expected Do statement"),
+        }
         
-        // Third commit: A executes domain action (moves init --> a_done)
+        // Third commit: A does +READY +by_A
         let commit2 = &contract.commits[2];
         assert_eq!(commit2.signed_by, "A");
         assert_eq!(commit2.statements.len(), 1);
-        assert!(matches!(&commit2.statements[0], CommitStatement::DomainAction(_)));
+        match &commit2.statements[0] {
+            CommitStatement::Do { properties, formula } => {
+                assert_eq!(properties[0].name, "READY");
+                assert_eq!(properties[1].name, "by_A");
+                assert!(formula.is_none());
+            }
+            _ => panic!("Expected Do statement"),
+        }
         
-        // Fourth commit: B executes domain action (moves a_done --> both_done)
+        // Fourth commit: B does +READY +by_B
         let commit3 = &contract.commits[3];
         assert_eq!(commit3.signed_by, "B");
         assert_eq!(commit3.statements.len(), 1);
-        assert!(matches!(&commit3.statements[0], CommitStatement::DomainAction(_)));
+        match &commit3.statements[0] {
+            CommitStatement::Do { properties, formula } => {
+                assert_eq!(properties[0].name, "READY");
+                assert_eq!(properties[1].name, "by_B");
+                assert!(formula.is_none());
+            }
+            _ => panic!("Expected Do statement"),
+        }
     }
 } 

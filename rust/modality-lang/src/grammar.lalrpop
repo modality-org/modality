@@ -271,10 +271,10 @@ CommitDecl: ContractCommit = {
         let mut commit = ContractCommit::new(String::new());
         if let Some(statements) = stmts {
             for stmt in statements {
-                match stmt {
-                    CommitStatement::SignedBy(signer) => commit.signed_by = signer,
-                    CommitStatement::Model(model) => commit.model = Some(model),
-                    other => commit.add_statement(other),
+                match &stmt {
+                    CommitStatement::SignedBy(signer) => commit.signed_by = signer.clone(),
+                    CommitStatement::Model(model) => commit.model = Some(model.clone()),
+                    CommitStatement::Do { .. } => commit.add_statement(stmt),
                 }
             }
         }
@@ -304,15 +304,9 @@ CommitStatement: CommitStatement = {
         CommitStatement::Model(model)
     },
     
-    // add_party X
-    "add_party" <name:Ident> => CommitStatement::AddParty(name),
+    // do +PROPERTY (simple domain action)
+    "do" <props:PropertyList> => CommitStatement::Do { properties: props, formula: None },
     
-    // add_rule { formula_expr }
-    "add_rule" "{" <expr:FormulaExpr> "}" => CommitStatement::AddRule { name: None, formula: expr },
-    
-    // add_rule name { formula_expr }
-    "add_rule" <name:Ident> "{" <expr:FormulaExpr> "}" => CommitStatement::AddRule { name: Some(name), formula: expr },
-    
-    // Domain action: do +PROPERTY or do +PROPERTY +PROPERTY2 ...
-    "do" <props:PropertyList> => CommitStatement::DomainAction(props)
+    // do +RULE { formula } (domain action with attached formula)
+    "do" <props:PropertyList> "{" <expr:FormulaExpr> "}" => CommitStatement::Do { properties: props, formula: Some(expr) }
 };

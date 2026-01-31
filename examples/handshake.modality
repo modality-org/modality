@@ -1,42 +1,36 @@
-// Simplest contract: A and B shake hands
+// Two agents shake hands with enforced rules
 //
-// Meta-actions (add_party, add_rule, model) don't move in the governing model.
-// Domain actions (do +X) must be valid transitions.
-//
-// The governing model tracks domain state, not contract negotiation.
+// Every commit is a transition in the governing model.
+// +RULE actions carry formulas. +READY actions execute.
 
 contract handshake {
 
-  // Negotiation phase: meta-actions only (no domain state change)
-  
   commit {
     signed_by A
     model {
       part flow {
-        init --> a_done: +A_READY
-        a_done --> both_done: +B_READY
+        init --> a_ruled: +RULE +by_A
+        a_ruled --> b_ruled: +RULE +by_B
+        b_ruled --> a_ready: +READY +by_A
+        a_ready --> done: +READY +by_B
       }
     }
-    add_party A
-    add_rule { eventually(both_done) }
+    do +RULE +by_A { eventually(done) }
   }
 
   commit {
     signed_by B
-    add_party B
-    add_rule { eventually(both_done) }
+    do +RULE +by_B { eventually(done) }
   }
 
-  // Execution phase: domain actions (move in the governing model)
-  
   commit {
     signed_by A
-    do +A_READY
+    do +READY +by_A
   }
 
   commit {
     signed_by B
-    do +B_READY
+    do +READY +by_B
   }
 
 }
