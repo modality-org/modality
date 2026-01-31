@@ -82,17 +82,16 @@ impl CommitFile {
     }
 }
 
-/// Known path extensions for contract data
+/// Known path extensions (Modality types)
 const KNOWN_EXTENSIONS: &[&str] = &[
+    ".bool",      // Boolean
+    ".text",      // Text string
+    ".date",      // Date
+    ".datetime",  // Date and time
     ".json",      // JSON data
-    ".wasm",      // WebAssembly programs
-    ".rule",      // Verification rules/formulas  
-    ".modality",  // Modality definitions
-    ".txt",       // Plain text
     ".md",        // Markdown
-    ".key",       // Keys/identifiers
-    ".sig",       // Signatures
-    ".state",     // State data
+    ".pubkey",    // Public key
+    ".wasm",      // WebAssembly programs
 ];
 
 impl CommitAction {
@@ -131,10 +130,10 @@ impl CommitAction {
     }
     
     fn validate_rule(&self) -> Result<()> {
-        // Rules should end in .rule or .modality
+        // Rules should end in .json (they're JSON-encoded formulas)
         if let Some(path) = &self.path {
-            if !path.ends_with(".rule") && !path.ends_with(".modality") {
-                anyhow::bail!("Rule path '{}' must end with .rule or .modality", path);
+            if !path.ends_with(".json") {
+                anyhow::bail!("Rule path '{}' must end with .json", path);
             }
         }
         Ok(())
