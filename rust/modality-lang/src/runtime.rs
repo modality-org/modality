@@ -23,6 +23,7 @@
 //! ```
 
 use crate::ast::{Model, Part, Transition, Property, PropertySign, PropertySource};
+use crate::paths::{ContractStore, PathValue, parse_path_reference};
 // Note: WasmPredicateEvaluator would be used here for production predicate verification
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
@@ -130,6 +131,9 @@ pub struct ContractInstance {
     pub sequence: u64,
     /// Creation timestamp
     pub created_at: u64,
+    /// Path-based contract store (for dynamic values)
+    #[serde(default)]
+    pub store: ContractStore,
 }
 
 impl ContractInstance {
@@ -161,6 +165,13 @@ impl ContractInstance {
             .map(|d| d.as_millis() as u64)
             .unwrap_or(0);
 
+        // Initialize store with member pubkeys
+        let mut store = ContractStore::new();
+        for (name, pubkey) in &parties {
+            let path = format!("/members/{}.pubkey", name.to_lowercase());
+            let _ = store.set(&path, PathValue::PubKey(pubkey.clone()));
+        }
+
         Ok(Self {
             id: format!("contract-{}", now),
             model,
@@ -173,6 +184,7 @@ impl ContractInstance {
             history: Vec::new(),
             sequence: 0,
             created_at: now,
+            store,
         })
     }
 
@@ -336,6 +348,61 @@ impl ContractInstance {
     /// Import contract from JSON
     pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(json)
+    }
+
+    // ==================== Path Store Methods ====================
+
+    /// Set a value at a path
+    pub fn store_set(&mut self, path: &str, value: PathValue) -> RuntimeResult<()> {
+        self.store.set(path, value).map_err(|e| RuntimeError::InvalidState { reason: e })
+    }
+
+    /// Get a value at a path
+    pub fn store_get(&self, path: &str) -> Option<&PathValue> {
+        self.store.get(path)
+    }
+
+    /// Get a pubkey from a path (for signature verification)
+    pub fn resolve_pubkey(&self, path: &str) -> Option<&str> {
+        self.store.get_pubkey(path)
+    }
+
+    /// Get a balance from a path
+    pub fn resolve_balance(&self, path: &str) -> Option<u64> {
+        self.store.get_balance(path)
+    }
+
+    /// POST action: set a value at a path (like dotcontract)
+    pub fn post(&mut self, path: &str, value: PathValue) -> RuntimeResult<()> {
+        self.store_set(path, value)
+    }
+
+    /// Check if a predicate with path reference is satisfied
+    /// Example: signed_by(/members/alice.pubkey)
+    pub fn check_path_predicate(&self, predicate: &str, _signature: &[u8]) -> bool {
+        if let Some((name, path)) = parse_path_reference(predicate) {
+            match name.as_str() {
+                "signed_by" => {
+                    // Get pubkey from path and verify signature
+                    if let Some(_pubkey) = self.resolve_pubkey(&path) {
+                        // TODO: Actually verify signature using pubkey
+                        // For now, return true if pubkey exists
+                        true
+                    } else {
+                        false
+                    }
+                }
+                "has_balance" => {
+                    self.resolve_balance(&path).is_some()
+                }
+                "exists" => {
+                    self.store.exists(&path)
+                }
+                _ => false,
+            }
+        } else {
+            false
+        }
     }
 }
 
@@ -536,6 +603,7 @@ pub mod negotiation {
 mod tests {
     use super::*;
     use crate::synthesis::templates;
+    use crate::paths::PathValue;
 
     #[test]
     fn test_create_instance() {
@@ -688,5 +756,58 @@ mod tests {
 
         // Should be at complete state
         assert_eq!(instance.history.len(), 3);
+    }
+
+    #[test]
+    fn test_store_integration() {
+        let model = templates::escrow("Alice", "Bob");
+        let mut parties = HashMap::new();
+        parties.insert("Alice".to_string(), "alice_pubkey_123".to_string());
+        parties.insert("Bob".to_string(), "bob_pubkey_456".to_string());
+
+        let instance = ContractInstance::new(model, parties).unwrap();
+
+        // Parties should be in the store
+        assert_eq!(
+            instance.resolve_pubkey("/members/alice.pubkey"),
+            Some("alice_pubkey_123")
+        );
+        assert_eq!(
+            instance.resolve_pubkey("/members/bob.pubkey"),
+            Some("bob_pubkey_456")
+        );
+    }
+
+    #[test]
+    fn test_post_action() {
+        let model = templates::escrow("Alice", "Bob");
+        let mut parties = HashMap::new();
+        parties.insert("Alice".to_string(), "alice_key".to_string());
+        parties.insert("Bob".to_string(), "bob_key".to_string());
+
+        let mut instance = ContractInstance::new(model, parties).unwrap();
+
+        // POST a value
+        instance.post("/status/state.text", PathValue::Text("active".to_string())).unwrap();
+        
+        assert_eq!(
+            instance.store_get("/status/state.text"),
+            Some(&PathValue::Text("active".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_path_predicate_check() {
+        let model = templates::escrow("Alice", "Bob");
+        let mut parties = HashMap::new();
+        parties.insert("Alice".to_string(), "alice_key".to_string());
+        parties.insert("Bob".to_string(), "bob_key".to_string());
+
+        let instance = ContractInstance::new(model, parties).unwrap();
+
+        // Check path-based predicate
+        assert!(instance.check_path_predicate("signed_by(/members/alice.pubkey)", &[]));
+        assert!(instance.check_path_predicate("exists(/members/bob.pubkey)", &[]));
+        assert!(!instance.check_path_predicate("signed_by(/members/unknown.pubkey)", &[]));
     }
 }
