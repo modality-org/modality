@@ -53,8 +53,8 @@ modal c checkout
 mkdir -p rules
 
 # Add identities
-modal c set-named-id /users/buyer.id buyer
-modal c set-named-id /users/seller.id seller
+modal c set /users/buyer.id $(modal id get --path ./buyer.passfile)
+modal c set /users/seller.id $(modal id get --path ./seller.passfile)
 ```
 
 **model/default.modality** — proves the rules are satisfiable:

@@ -23,8 +23,8 @@ modal c checkout
 mkdir -p rules
 
 # Add user IDs
-modal c set-named-id /users/alice.id alice
-modal c set-named-id /users/bob.id bob
+modal c set /users/alice.id $(modal id get --path ./alice.passfile)
+modal c set /users/bob.id $(modal id get --path ./bob.passfile)
 
 # Add the model (proves the rule is satisfiable)
 cat > model/default.modality << 'EOF'
@@ -153,8 +153,8 @@ modal c checkout
 mkdir -p state/data rules
 
 # Alice sets up users, model, and authorization rule
-modal c set-named-id /users/alice.id alice
-modal c set-named-id /users/bob.id bob
+modal c set /users/alice.id $(modal id get --path ./alice.passfile)
+modal c set /users/bob.id $(modal id get --path ./bob.passfile)
 
 cat > model/default.modality << 'EOF'
 export default model {

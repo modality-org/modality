@@ -43,8 +43,8 @@ modal c checkout
 mkdir -p rules
 
 # Add identities to state
-modal c set-named-id /users/alice.id alice
-modal c set-named-id /users/bob.id bob
+modal c set /users/alice.id $(modal id get --path ./alice.passfile)
+modal c set /users/bob.id $(modal id get --path ./bob.passfile)
 ```
 
 Create **model/default.modality** — proves the rules can be satisfied:
