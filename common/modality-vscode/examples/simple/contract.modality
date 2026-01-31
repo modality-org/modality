@@ -1,0 +1,7 @@
+import modality/uuid
+import modality/append_commits_in_file
+
+contract SimpleContract:
+  uuid: #uuid()
+  commits:
+    #insert_ordered_commits("./ordered_commits.txt", "./commits")

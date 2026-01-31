@@ -1,0 +1,81 @@
+define #user1:
+  id: 12D3KooWGv3tXpFDBBWHheJbhru5C3PcTUqEEj6m5nVhv3T34ueV
+
+define #user2:
+  id: ...
+
+define #user3:
+  id: ...
+
+define #user4:
+  id: ...
+
+contract SimpleContract:
+  commits:
+    commit:
+      comment: start a contract for user1
+      rule AlwaysSignedByUser1: <<
+        always( must( include_sig_from( 12D3KooWGv3tXpFDBBWHheJbhru5C3PcTUqEEj6m5nVhv3T34ueV  ) ) )
+        until post_to( /config/revoke-rule/AlwaysSignedByUser1.notice )
+      // synthesized evolution
+      evolution:
+        model:
+          graph g1:
+            node n1:
+              arrow:
+                to: n1
+                label: <<
+                  +include_sig( #user1.id )
+                  -post_to( /config/revoke-rule/AlwaysSignedByUser1.notice )
+              arrow:
+                to: n2
+                label: <<
+                  +include_sig( #user1.id )
+                  +post_to( /config/revoke-rule/AlwaysSignedByUser1.notice )
+            node n2:
+              arrow:
+                to: n2
+        mappings:
+          mapping:
+            source: g1.n1
+            target: g1.n1
+    commit:
+      comment: add some docs
+      post:
+        to: /README.md
+        value: <<
+          # Example Contract
+
+          Hello world this is going to be an example contract.
+
+          Anyone can use it, but not yet...
+      signatures:
+        signature:
+          id: #user1.id
+          digest: ...
+    commit:
+      comment: adding admins
+      post:
+        to: /config/admins.peerid.set
+        value:
+          - #user1.id
+          - #user2.id
+      post:
+        to: /config/members.peerid.set
+        value:
+          - #user1.id
+          - #user2.id
+          - #user3.id
+      post:
+        to: /config/revoke-rule/AlwaysSignedByUser1.notice
+        value: revoking rule 1
+      rule ConfigAlwaysSignedByAdmin: <<
+        always( must(
+          include_sig_from( /config/admins.peerid.set )
+          or not post_to( /config )
+        ) )
+        until post_to( /config/revoke-rule/ConfigAlwaysSignedByAdmin.notice )
+      signatures:
+        signature:
+          id: #user1.id
+          digest: ...

@@ -1,0 +1,5 @@
+commit:
+  uuid: #uuid()
+  post:
+    to: /README.md
+    value: #

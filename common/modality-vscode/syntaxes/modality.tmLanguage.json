@@ -1,0 +1,564 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Modality",
+  "patterns": [
+    {
+			"include": "#define"
+		},
+    {
+      "include": "#import"
+    },
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#top_level_section"
+    }
+  ],
+  "repository": {
+    "define": {
+      "patterns": [
+        {
+          "begin": "^(define)\\s*(#[_$[:alpha:]][_$[:alnum:]]*)(:)",
+          "end": "^$",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.other"
+            },
+            "2": {
+              "name": "label.top-level.modality markup.heading"
+            }
+          },
+          "patterns": [
+            { "include": "#comment" },
+            { "include": "#simple_kv" }
+          ]
+        }
+      ]
+    },
+    "macro": {
+      "patterns": [
+        {
+          "match": "(#[_$[:alpha:]][_$[:alnum:]]*)",
+          "captures": {
+            "1": {
+              "name": "label.top-level.modality markup.heading"
+            }
+          }
+        }
+      ]
+    },
+    "statements": {
+      "patterns": [
+        {
+          "include": "#import"
+        },
+        {
+					"include": "#section"
+				}
+      ]
+    },
+    "import": {
+      "patterns": [
+        {
+          "match": "(import)\\s*([_$[:alpha:]][\\.\\/_$[:alnum:]]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.other"
+            },
+            "2": {
+              "name": ""
+            }
+          }
+        },
+        {
+          "match": "(#[_$[:alpha:]][_$[:alnum:]]*)",
+          "captures": {
+            "1": {
+              "name": "label.top-level.modality markup.heading"
+            }
+          }
+        }
+      ]
+    },
+    "simple_kv": {
+      "patterns": [{
+        "match": "^\\s*([_$[:alnum:]]*):\\s*(.*)\\s*",
+        "captures": {
+          "1": {
+            "name": "keyword.control"
+          }
+        }
+      }]
+    },
+    "uuid": {
+      "patterns": [
+        {
+          "match": "\\s*(.*-.*-.*-.*-.*)\\s*",
+          "captures": {
+            "1": { 
+              "name": "variable.parameter"
+            }
+          }
+        }
+      ]
+    },
+    "uuid_kv": {
+      "patterns": [{
+        "begin": "^\\s*(uuid)\\s*(:)\\s*",
+        "end": "\\s*$",
+        "beginCaptures": {
+          "1": {
+            "name": "keyword.control"
+          }
+        },
+        "patterns": [
+          {"include": "#uuid"},
+          {"include": "#macro"},
+          {"include": "#comment"}
+        ]
+      }]
+    },
+    "top_level_section": {
+			"patterns": [
+        {"include": "#contract_decl"},
+        {"include": "#commit_decl"},
+        {"include": "#evolution_decl"},
+        {"include": "#model_decl"},
+        {"include": "#formula_decl"},
+        {"include": "#rule_decl"}
+      ]
+    },
+    "contract_decl": {
+      "patterns": [
+        {
+          "begin": "^(\\s*)(contract)\\s*([_$[:alpha:]][_$[:alnum:]]*){0,1}(:)\\s*",
+          "end": "^(?!(\\1\\s+|\\s*$))",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.other"
+            },
+            "3": {
+              "name": "entity.name.class"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comment"
+            },
+            { 
+              "include": "#contract_attrs"
+            }
+          ]
+        }
+      ]
+    },
+    "contract_attrs": {
+      "patterns": [
+        { "include": "#macro" },
+        { "include": "#uuid_kv" },
+        {
+          "begin": "^(\\s*)(commits)\\s*(:)\\s*$",
+          "end": "^(?!(\\1\\s+|\\s*$))",
+          "captures": {
+            "2": {
+              "name": "keyword.control"
+            }
+          },
+          "patterns": [
+            {"include": "#commit_decl"},
+            {"include": "#macro"}
+          ]
+        },
+        {
+          "begin": "^(\\s*)(commits)\\s*(:)\\s*",
+          "end": "\\s*$",
+          "captures": {
+            "2": {
+              "name": "keyword.control"
+            }
+          },
+          "patterns": [
+            {"include": "#macro"}
+          ]
+        }
+      ]
+    },
+    "commit_decl": {
+      "patterns": [
+        {
+          "begin": "^(\\s*)(commit)\\s*([_$[:alpha:]][_$[:alnum:]]*){0,1}(:)\\s*",
+          "end": "^(?!(\\1\\s+|\\s*$))",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.other"
+            },
+            "3": {
+              "name": "entity.name.class"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comment"
+            },
+            { 
+              "include": "#commit_attrs"
+            }
+          ]
+        }
+      ]
+    },
+    "commit_attrs": {
+      "patterns": [
+        { "include": "#uuid_kv" },
+        { "include": "#rule_decl" },
+        { "include": "#evolution_decl" },
+        { "include": "#message_decl_multiline" },
+        {
+          "match": "(post|)\\s*(:)\\s*(.*)$",
+          "captures": {
+            "1": {
+              "name": "entity.name.method"
+            }
+          }
+        },
+				{
+					"match": "^\\s*([_$[:alpha:]][-_$[:alnum:]]*)\\s*(:)\\s*",
+					"captures": {
+						"1": {
+							"name": "entity.name.label"
+						},
+						"2": {
+							"name": "punctuation.separator.label.js"
+						}
+					}
+				}
+			]
+		},
+    "comment": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block",
+          "begin": "(/\\*)(?:\\s*((@)internal)(?=\\s|(\\*/)))?",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "message_decl_multiline": {
+      "begin": "^(\\s*)(comment)\\s*:\\s*(<<)\\s*",
+      "end": "^(?!(\\1\\s+|\\s*$))",
+      "beginCaptures": {
+        "2": {
+          "name": "keyword.control"
+        },
+        "3": {
+          "name": "keyword.operator"
+        }
+      },
+      "patterns": [
+        {"include": "#comment"},
+        {"include": "#anything"}
+      ]
+    },
+    "formula_decl": {
+      "patterns": [
+        {"include": "#formula_decl_multiline"},
+        {"include": "#formula_decl_oneline"}
+      ]
+    },
+    "formula_decl_oneline": {
+      "begin": "^\\s*(formula)\\s*([_$[:alpha:]][_$[:alnum:]]*){0,1}:\\s*",
+      "end": "\\s*$",
+      "beginCaptures": {
+        "1": {
+          "name": "modality.formula_decl_oneline.keyword keyword.control"
+        },
+        "2": {
+          "name": "modality.formula_decl_oneline.name entity.name"
+        }
+      },
+      "patterns": [
+        {"include": "#comment"},
+        {"include": "#formula_text"}
+      ]
+    },
+    "formula_decl_multiline": {
+      "begin": "^(\\s*)(formula)\\s*([_$[:alpha:]][_$[:alnum:]]*){0,1}:\\s*(<<)\\s*",
+      "end": "^(?!(\\1\\s+|\\s*$))",
+      "beginCaptures": {
+        "2": {
+          "name": "keyword.control"
+        },
+        "3": {
+          "name": "entity.name.class"
+        },
+        "4": {
+          "name": "keyword.operator"
+        }
+      },
+      "patterns": [
+        {"include": "#comment"},
+        {"include": "#formula_text"}
+      ]
+    },
+    "rule_decl": {
+      "patterns": [
+        {"include": "#rule_decl_multiline"},
+        {"include": "#rule_decl_oneline"}
+      ]
+    },
+    "rule_decl_oneline": {
+      "begin": "^\\s*(rule)\\s*([_$[:alpha:]][_$[:alnum:]]*){0,1}:\\s*",
+      "end": "\\s*$",
+      "beginCaptures": {
+        "1": {
+          "name": "modality.rule_decl_oneline.keyword keyword.control"
+        },
+        "2": {
+          "name": "modality.rule_decl_oneline.name entity.name"
+        }
+      },
+      "patterns": [
+        {"include": "#comment"},
+        {"include": "#formula_text"}
+      ]
+    },
+    "rule_decl_multiline": {
+      "begin": "^(\\s*)(rule)\\s*([_$[:alpha:]][_$[:alnum:]]*){0,1}:\\s*(<<)\\s*",
+      "end": "^(?!(\\1\\s+|\\s*$))",
+      "beginCaptures": {
+        "2": {
+          "name": "keyword.control"
+        },
+        "3": {
+          "name": "entity.name.class"
+        },
+        "4": {
+          "name": "keyword.operator"
+        }
+      },
+      "patterns": [
+        {"include": "#comment"},
+        {"include": "#formula_text"}
+      ]
+    },
+    "formula_text": {
+      "patterns": [
+        {"include": "#formula_code"},
+        {"include": "#comment"}
+      ]
+    },
+    "formula_code": {
+      "match": "([^//])",
+      "captures": {
+        "1": {
+          "name": "modality.formula_code constant.regexp"
+        }
+      }
+    },
+    "evolution_decl": {
+      "patterns": [
+        {
+          "begin": "^(\\s*)(evolution)\\s*([_$[:alpha:]][_$[:alnum:]]*){0,1}(:)\\s*",
+          "end": "^(?!(\\1\\s+|\\s*$))",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.other"
+            },
+            "3": {
+              "name": "entity.name.class"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#macro"
+            },
+            {
+              "include": "#comment"
+            },
+            { 
+              "include": "#evolution_attrs"
+            }
+          ]
+        }
+      ]
+    },    
+    "evolution_attrs": {
+      "patterns": [
+        { "include": "#uuid_kv" },
+        { "include": "#model_decl" },
+        { "include": "#mappings_decl" }
+			]
+		},
+    "model_decl": {
+      "patterns": [
+        {
+          "begin": "^(\\s*)(model)\\s*([_$[:alpha:]][_$[:alnum:]]*){0,1}(:)\\s*",
+          "end": "^(?!(\\1\\s+|\\s*$))",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.other"
+            },
+            "3": {
+              "name": "entity.name.class"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comment"
+            },
+            { 
+              "include": "#model_attrs"
+            }
+          ]
+        }
+      ]
+    },    
+    "model_attrs": {
+      "patterns": [
+        { "include": "#uuid_kv" },
+        { "include": "#rule_decl" },
+        { "include": "#graph_decl" }
+			]
+		},
+    "graph_decl": {
+      "patterns": [
+        {
+          "begin": "^(\\s*)(graph)\\s*([_$[:alpha:]][_$[:alnum:]]*){0,1}(:)\\s*",
+          "end": "^(?!(\\1\\s+|\\s*$))",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.other"
+            },
+            "3": {
+              "name": "entity.name.class"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comment"
+            },
+            { 
+              "include": "#node_decl"
+            }
+          ]
+        }
+      ]
+    },
+    "node_decl": {
+      "patterns": [
+        {
+          "begin": "^(\\s*)(node)\\s*([_$[:alpha:]][_$[:alnum:]]*){0,1}(:)\\s*",
+          "end": "^(?!(\\1\\s+|\\s*$))",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.other"
+            },
+            "3": {
+              "name": "entity.name.class"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comment"
+            },
+            { 
+              "include": "#arrow_decl"
+            }
+          ]
+        }
+      ]
+    },
+    "arrow_decl": {
+      "patterns": [
+        {
+          "begin": "^(\\s*)(arrow)\\s*([_$[:alpha:]][_$[:alnum:]]*){0,1}(:)\\s*",
+          "end": "^(?!(\\1\\s+|\\s*$))",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.other"
+            },
+            "3": {
+              "name": "entity.name.class"
+            }
+          },
+          "patterns": [
+            { "include": "#comment" },
+            { "include": "#uuid_kv"},
+            { "include": "#arrow_attr_to_kv" },
+            { "include": "#arrow_attr_label_multiline" },
+            { "include": "#arrow_attr_label_kv" }
+          ]
+        }
+      ]
+    },
+    "arrow_attr_to_kv": {
+      "patterns": [{
+        "begin": "^\\s*(to)\\s*(:)\\s*",
+        "end": "\\s*$",
+        "beginCaptures": {
+          "1": {
+            "name": "keyword.control"
+          }
+        },
+        "patterns": [
+          {"include": "#anything"},
+          {"include": "#macro"}
+        ]
+      }]
+    },
+    "arrow_attr_label_kv": {
+      "patterns": [{
+        "begin": "^\\s*(label)\\s*(:)\\s*",
+        "end": "\\s*$",
+        "beginCaptures": {
+          "1": {
+            "name": "keyword.control"
+          }
+        },
+        "patterns": [
+          {"include": "#anything"},
+          {"include": "#macro"}
+        ]
+      }]
+    },
+    "arrow_attr_label_multiline": {
+      "begin": "^(\\s*)(label)\\s*([_$[:alpha:]][_$[:alnum:]]*){0,1}:\\s*(<<\\||<<)\\s*",
+      "end": "^(?!(\\1\\s+|\\s*$))",
+      "beginCaptures": {
+        "2": {
+          "name": "keyword.control"
+        },
+        "3": {
+          "name": "entity.name.class"
+        },
+        "4": {
+          "name": "keyword.operator"
+        }
+      },
+      "patterns": [
+        {"include": "#comment"},
+        {"include": "#anything"}
+      ]
+    },
+    "anything": {
+      "match": "(.*)"
+    },
+    "strings": {
+      "name": "string.quoted.double.modality",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.modality",
+          "match": "\\\\."
+        }
+      ]
+    }
+  },
+  "scopeName": "source.modality"
+}

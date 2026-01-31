@@ -1,0 +1,69 @@
+// initial model, this is provided as a constant
+model InitialModel:
+  graph g1:
+    n1 -> n1
+
+// test rules on models
+// assertRule will stop the script
+// tryRule will just output to stderr
+test:
+  assertRule( rule`always( < +blue > true )`, InitialModel ) // okay, can always +blue
+  tryRule( rule`always( <[ +blue ]> true )`, InitialModel ) // error +blue not required!
+
+model Model1:
+  graph g1:
+    n1 -> n1: +blue
+
+test:
+  assertRule( rule`always( <[ +blue ]> true )`, Model1 ) // okay
+
+// can also create named rules
+rule AlwaysBlue:
+  always( <[ +blue ]> true )
+
+test:
+  assertRule( AlwaysBlue, Model1 )
+
+test:
+  assertRule( rule`always < +green > true`, Model1 )
+  assertRule( rule`always <[ +green ]> true`, Model1 )
+
+model Model2:
+  graph g1:
+    n1 -> n2: +blue
+    n2 -> n3: +blue
+    n3 -> n1: +blue
+
+test:
+  assertRule( AlwaysBlue, Model2 )
+
+model Model3:
+  graph g1:
+    n1 -> n2: +blue
+    n2 -> n3: +blue
+
+test:
+  assertRule( AlwaysBlue, Model2 ) // fails!
+
+run:
+  drawModel(Model3) >> output/Model3.png
+
+model Model4:
+  createFromRules:
+    AlwaysBlue
+    rule`always <[ +green ]> true`
+
+run:
+  createModelForRules(
+    "Model2",
+    AlwaysBlue
+    rule`always <[ +green ]> true`
+  ) >> output/Model2.modality
+
+
+contract Contract1:
+
+
+
+rule AlwaysSignedByUser1:
+  always( <[ +include_sig_from(12D3KooWGv3tXpFDBBWHheJbhru5C3PcTUqEEj6m5nVhv3T34ueV) ]> true) until revoked

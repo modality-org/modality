@@ -1,0 +1,130 @@
+/* This is an example .modality file for testing grammar highlighting */
+
+/// COMMENTS
+// here's a comment
+/* here's a potentially multi-line comment */
+
+/// IMPORTS
+import modality/uuid
+import modality/files/attach
+import modality/evolution/synthesize
+import modality/commits/append_commits_in_file
+
+/// MACROS
+// define macros in script
+define #user1:
+  name: User 1
+  pub: 12D3KooWGv3tXpFDBBWHheJbhru5C3PcTUqEEj6m5nVhv3T34ueV
+
+define #user2: 
+  name: User 2
+  pub: 12D3KooWDujTykpRHbXpi9mFDJnJAwwvq3SHNcq4cEag3yig8CXj
+
+formula: always (true)
+
+formula AlwaysTrueFormula: always (true)
+
+formula: << // indented multiline formula
+  eventually ( true )
+formula EventuallyTrueFormula: << // indented named multiline formula
+  /* comment in formula code */
+  eventually (
+    must ( 
+      true
+    )
+  )
+
+/// CONTRACTS
+contract: // unamed contract
+  uuid: 30b6953f-499b-406d-8f8a-92a2f7775fa9
+
+contract BasicContract: // named contract
+  uuid: #uuid()
+  commits:
+    #append_commits_in_file()
+    #append_commits_in_file("./simulation.modality")
+    commit NamedCommit:
+      uuid: 0916cf62-768d-4a2d-b78b-4bf12ca7a6c3
+    commit: // unamed commit
+      uuid: 5ec208d4-fa20-4d82-91ba-4e00f24e736e
+
+/// RULES
+rule: always(true) // unnamed rule
+
+rule AlwaysTrue: always(true) // named rule
+
+rule: << // indented multiline rule
+  eventually ( true )
+rule EventuallyTrue: << // indented named multiline rule
+  /* comment in rule code */
+  eventually (
+    must ( 
+      true
+    )
+  )
+
+/// COMMITS
+commit:
+  uuid: #uuid() // macro to generate uuid
+  comment: << // indented multiline text cutting final line break
+    start a contract where only user1 and user2 can commit
+    and both must sign for change in /joint-decisions
+  post:
+    to: /README.md
+    // macro that hashes local file => attachment://0xCF83E1357EEF...
+    value: #attach(./contents/README.md)
+  rule: AlwaysTrue
+  rule: <<
+    always( must(
+      include_sig( #user1.pub ) or include_sig( #user2.pub )
+    ) )
+  rule: <<
+    always( must(
+      when post_to(/joint-decisions)
+      also include_sig( #user1.pub ) and include_sig( #user2.pub )
+    ) )
+  evolution: #synthesize()
+
+commit:
+  uuid: 07c12565-6301-4d2e-8fc0-7cef3b3da9bc
+
+/// MODELS
+model m1:
+  graph g1:
+    node s1:
+      arrow:
+        to: m1.g1.s1
+        label: +include_sig(#user1.pub) -post_to(/joint-decisions)
+      arrow:
+        // implicit to: going to self
+        label: <<|// indented multiline text cutting all line breaks
+          +include_sig(#user2.pub) // required present
+          -post_to(/joint-decisions) // required absent
+      arrow:
+        label: <<|
+          +include_sig(#user1.pub)
+          +include_sig(#user2.pub)
+          ?post_to(/join-decisions) // optional explicit lack of requirement
+
+/// EVOLUTIONS
+evolution:
+  model: m1
+  mappings:
+    #: // unnamed entry
+      source:
+        graph: initial
+        node: initial
+      target:
+        graph: m1.g1
+        node: m1.g1.s1
+  apply: first
+
+/// PREDICATES
+// TODO
+
+predicate GreaterThan:
+  params:
+
+  eval:
+
+  relations:

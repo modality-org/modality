@@ -1,0 +1,25 @@
+{
+  "name": "modality-vscode",
+  "displayName": "Modality VSCode Extension",
+  "description": "Syntax highlighting for Modality",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.87.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "modality",
+      "aliases": ["Modality", "modality"],
+      "extensions": [".modality"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "modality",
+      "scopeName": "source.modality",
+      "path": "./syntaxes/modality.tmLanguage.json"
+    }]
+  }
+}
