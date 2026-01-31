@@ -1,0 +1,80 @@
+// Agent Swarm Coordination Contract
+//
+// Orchestrator coordinates multiple worker agents to complete a task.
+// Workers commit to subtasks and deliver results.
+// Orchestrator aggregates and rewards.
+//
+// Key properties:
+// - Workers can't claim rewards without delivery
+// - Orchestrator can reassign stalled subtasks
+// - Results must be signed by the assigned worker
+
+model SwarmTask {
+  part assignment {
+    // Orchestrator posts task with bounty
+    init --> posted: +POST_TASK +bounty_amount(bounty) +signed_by(orchestrator)
+    
+    // Workers claim subtasks
+    posted --> claimed: +CLAIM +subtask_id(id) +signed_by(worker_a)
+    posted --> claimed: +CLAIM +subtask_id(id) +signed_by(worker_b)
+    posted --> claimed: +CLAIM +subtask_id(id) +signed_by(worker_c)
+    
+    // Multiple claims allowed (different subtasks)
+    claimed --> claimed: +CLAIM +subtask_id(new_id) +signed_by(worker_a)
+    claimed --> claimed: +CLAIM +subtask_id(new_id) +signed_by(worker_b)
+    
+    // Orchestrator can reassign if worker goes silent
+    claimed --> posted: +REASSIGN +subtask_id(id) +signed_by(orchestrator)
+  }
+  
+  part execution {
+    // Workers submit results
+    init --> submitted: +SUBMIT +subtask_id(id) +result_hash(hash) +signed_by(worker_a)
+    init --> submitted: +SUBMIT +subtask_id(id) +result_hash(hash) +signed_by(worker_b)
+    init --> submitted: +SUBMIT +subtask_id(id) +result_hash(hash) +signed_by(worker_c)
+    
+    // Orchestrator verifies
+    submitted --> verified: +VERIFY +subtask_id(id) +signed_by(orchestrator)
+    submitted --> rejected: +REJECT +subtask_id(id) +reason(why) +signed_by(orchestrator)
+    
+    // Rejected work can be resubmitted
+    rejected --> submitted: +SUBMIT +subtask_id(id) +result_hash(new_hash) +signed_by(worker_a)
+    
+    // All verified → complete
+    verified --> complete: +ALL_VERIFIED
+  }
+  
+  part payment {
+    // Rewards distributed after completion
+    init --> distributing: +START_DISTRIBUTION +signed_by(orchestrator)
+    
+    // Each worker gets paid for verified work
+    distributing --> paid: +PAY_WORKER +worker_id(id) +amount(share) +signed_by(orchestrator)
+    paid --> paid: +PAY_WORKER +worker_id(next_id) +amount(share) +signed_by(orchestrator)
+    
+    // All paid → finalized
+    paid --> finalized: +FINALIZE +signed_by(orchestrator)
+  }
+}
+
+// Rules
+
+// Can't pay without verification
+formula PaymentRequiresVerification {
+  [+PAY_WORKER] <+VERIFY> true
+}
+
+// Only orchestrator distributes
+formula OrchestratorControlsPayment {
+  [+PAY_WORKER] <+signed_by(orchestrator)> true
+}
+
+// Workers sign their own submissions
+formula WorkerSignsOwnWork {
+  [+SUBMIT +signed_by(worker_a)] <+CLAIM +signed_by(worker_a)> true
+}
+
+// Reassignment requires orchestrator
+formula OnlyOrchestratorReassigns {
+  [+REASSIGN] <+signed_by(orchestrator)> true
+}

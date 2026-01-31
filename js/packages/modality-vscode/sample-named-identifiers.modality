@@ -1,27 +1,24 @@
 // Sample file to test named identifier highlighting
 
-model TrafficLight:
-  part RedLight:
-    formula isRed: true
-    action turnRed: true
+model TrafficLight {
+  part RedLight {
+    off --> on: +turnRed
+    on --> off: +turnOff
+  }
   
-  part GreenLight:
-    formula isGreen: true
-    action turnGreen: true
+  part GreenLight {
+    off --> on: +turnGreen
+    on --> off: +turnOff
+  }
   
-  part YellowLight:
-    formula isYellow: true
-    action turnYellow: true
+  part YellowLight {
+    off --> on: +turnYellow
+    on --> off: +turnOff
+  }
+}
 
-formula TrafficFlow:
-  <+red> isRed and
-  <+green> isGreen and
-  <+yellow> isYellow
-
-action ChangeLight:
-  when <+red> isRed also <+green> turnGreen
-  when <+green> isGreen also <+yellow> turnYellow
-  when <+yellow> isYellow also <+red> turnRed
-
-test TrafficLightTest:
-  TrafficFlow --> ChangeLight 
+formula TrafficFlow {
+  <+turnRed> true and
+  <+turnGreen> true and
+  <+turnYellow> true
+}

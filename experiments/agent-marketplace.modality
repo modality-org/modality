@@ -1,0 +1,61 @@
+// Agent Marketplace: Service Exchange
+//
+// Scenario: Agents offer services, others can purchase.
+// Escrow ensures fair exchange.
+//
+// Actors: Seller, Buyer, (implicit: Marketplace as enforcer)
+
+model ServiceMarketplace {
+  part listing {
+    // Seller lists service
+    init --> listed: +LIST_SERVICE +PRICE +SIGNED_BY_SELLER
+    
+    // Buyer shows interest
+    listed --> negotiating: +INQUIRY +SIGNED_BY_BUYER
+    listed --> listed: +INQUIRY +SIGNED_BY_BUYER  // multiple inquiries ok
+    
+    // Price agreed, buyer deposits
+    listed --> escrowed: +DEPOSIT +SIGNED_BY_BUYER
+    negotiating --> escrowed: +DEPOSIT +SIGNED_BY_BUYER
+    
+    // Seller delivers service
+    escrowed --> delivered: +DELIVER +SIGNED_BY_SELLER
+    
+    // Buyer confirms receipt
+    delivered --> confirmed: +CONFIRM +SIGNED_BY_BUYER
+    
+    // Buyer disputes (didn't get what was promised)
+    delivered --> disputed: +DISPUTE +SIGNED_BY_BUYER
+    
+    // Payment released to seller
+    confirmed --> complete: +RELEASE_PAYMENT
+    
+    // Dispute resolution (simplified: buyer wins or seller wins)
+    disputed --> refunded: +REFUND +SIGNED_BY_ARBITER
+    disputed --> complete: +RELEASE_PAYMENT +SIGNED_BY_ARBITER
+    
+    // Terminal states
+    complete --> complete
+    refunded --> refunded
+  }
+}
+
+// Rule: Deposit required before delivery
+formula DepositBeforeDelivery {
+  [+DELIVER] <+DEPOSIT> true
+}
+
+// Rule: No release without confirmation or arbitration
+formula PaymentProtection {
+  [+RELEASE_PAYMENT] (<+CONFIRM> true or <+SIGNED_BY_ARBITER> true)
+}
+
+// Rule: Seller can't release payment to self
+formula SellerCantSelfPay {
+  always ([-RELEASE_PAYMENT +SIGNED_BY_SELLER] true)
+}
+
+// Rule: Buyer gets refund if dispute succeeds
+formula DisputeRefund {
+  <+DISPUTE> eventually (<+REFUND> true or <+RELEASE_PAYMENT> true)
+}

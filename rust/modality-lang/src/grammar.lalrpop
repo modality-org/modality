@@ -1,4 +1,4 @@
-use crate::ast::{Model, Part, Transition, Property, PropertySign, Formula, FormulaExpr, PartState, TopLevelItem, Action, ActionCall, Test, TestStatement};
+use crate::ast::{Model, Part, Transition, Property, PropertySign, PropertySource, Formula, FormulaExpr, PartState, TopLevelItem, Action, ActionCall, Test, TestStatement};
 
 grammar;
 
@@ -26,7 +26,7 @@ pub Model: Model = {
 };
 
 ModelDecl: Model = {
-    "model" <name:Ident> ":" <parts:Part*> => {
+    "model" <name:Ident> "{" <parts:Part*> "}" => {
         let mut model = Model::new(name);
         for part in parts {
             model.add_part(part);
@@ -36,7 +36,7 @@ ModelDecl: Model = {
 };
 
 Part: Part = {
-    "part" <name:Ident> ":" <transitions:Transition*> => {
+    "part" <name:Ident> "{" <transitions:Transition*> "}" => {
         let mut part = Part::new(name);
         for transition in transitions {
             part.add_transition(transition);
@@ -69,7 +69,21 @@ PropertyList: Vec<Property> = {
 
 Property: Property = {
     "+" <name:Ident> => Property::new(PropertySign::Plus, name),
-    "-" <name:Ident> => Property::new(PropertySign::Minus, name)
+    "-" <name:Ident> => Property::new(PropertySign::Minus, name),
+    // Predicate function call: +signed_by("pubkey") or +has_amount(100)
+    "+" <name:Ident> "(" <arg:PredicateArg> ")" => {
+        Property::new_predicate_from_call(name, arg)
+    },
+    // Negated predicate: -signed_by("pubkey")
+    "-" <name:Ident> "(" <arg:PredicateArg> ")" => {
+        Property::new_predicate_from_call_negated(name, arg)
+    }
+};
+
+// Predicate arguments can be strings or identifiers
+PredicateArg: String = {
+    <s:StringLiteral> => s,
+    <i:Ident> => i
 };
 
 // Action parsing
@@ -78,7 +92,7 @@ pub Action: Action = {
 };
 
 ActionDecl: Action = {
-    "action" <name:Ident> ":" <properties:PropertyList> => {
+    "action" <name:Ident> "{" <properties:PropertyList> "}" => {
         Action::new(name, properties)
     }
 };
@@ -92,17 +106,45 @@ ActionCallExpr: ActionCall = {
     "action" "(" <arg:StringLiteral> ")" => ActionCall::new(arg)
 };
 
-// Test parsing - simplified for now
+// Test parsing
 pub Test: Test = {
     <test:TestDecl> => test
 };
 
 TestDecl: Test = {
-    "test" ":" => {
-        Test::new(None)
+    "test" "{" <statements:TestStatementList?> "}" => {
+        Test::with_statements(None, statements.unwrap_or_default())
     },
-    "test" <name:Ident> ":" => {
-        Test::new(Some(name))
+    "test" <name:Ident> "{" <statements:TestStatementList?> "}" => {
+        Test::with_statements(Some(name), statements.unwrap_or_default())
+    }
+};
+
+TestStatementList: Vec<TestStatement> = {
+    <stmt:TestStatement> => vec![stmt],
+    <stmts:TestStatementList> <stmt:TestStatement> => {
+        let mut list = stmts;
+        list.push(stmt);
+        list
+    }
+};
+
+TestStatement: TestStatement = {
+    // Assignment: m = clone(ModelName)
+    <var:Ident> "=" "clone" "(" <model:Ident> ")" => {
+        TestStatement::Assignment(var, format!("clone({})", model))
+    },
+    // Method call: m.commit(ActionName)
+    <var:Ident> "." "commit" "(" <action:Ident> ")" => {
+        TestStatement::Commit(format!("{}.commit({})", var, action))
+    },
+    // Method call with action literal: m.commit(action("+hello"))
+    <var:Ident> "." "commit" "(" "action" "(" <arg:StringLiteral> ")" ")" => {
+        TestStatement::ActionCall(format!("{}.commit(action({}))", var, arg))
+    },
+    // Assertion: assert m.satisfies(FormulaName)
+    "assert" <var:Ident> "." "satisfies" "(" <formula:Ident> ")" => {
+        TestStatement::Assignment(format!("assert_{}", var), format!("satisfies({})", formula))
     }
 };
 
@@ -119,7 +161,7 @@ pub Formula: Formula = {
 };
 
 FormulaDecl: Formula = {
-    "formula" <name:Ident> ":" <expr:FormulaExpr> => {
+    "formula" <name:Ident> "{" <expr:FormulaExpr> "}" => {
         Formula::new(name, expr)
     }
 };
@@ -145,6 +187,9 @@ FormulaAndExpr: FormulaExpr = {
 FormulaAtom: FormulaExpr = {
     "true" => FormulaExpr::True,
     "false" => FormulaExpr::False,
+    "not" <expr:FormulaAtom> => {
+        FormulaExpr::Not(Box::new(expr))
+    },
     "(" <expr:FormulaExpr> ")" => {
         FormulaExpr::Paren(Box::new(expr))
     },
@@ -158,4 +203,4 @@ FormulaAtom: FormulaExpr = {
 
 Ident: String = {
     r#"[a-zA-Z_][a-zA-Z0-9_]*"# => <>.to_string()
-}; 
+};

@@ -1,23 +1,22 @@
-model SimpleModel:
-    part StateMachine:
-        idle --> active: +start
-        active --> processing: +request
-        processing --> active: +response
-        processing --> idle: +timeout
-        active --> idle: +stop
+model SimpleModel {
+  part StateMachine {
+    idle --> active: +start
+    active --> processing: +request
+    processing --> active: +response
+    processing --> idle: +timeout
+    active --> idle: +stop
+  }
 
-    part Controller:
-        init --> running: +boot
-        running --> paused: +pause
-        paused --> running: +resume
-        running --> stopped: +shutdown
+  part Controller {
+    init --> running: +boot
+    running --> paused: +pause
+    paused --> running: +resume
+    running --> stopped: +shutdown
+  }
+}
 
-formula AlwaysEventuallyActive:
-    always eventually active
+formula AlwaysEventuallyActive {
+  always eventually active
+}
 
-action StartSystem:
-    +start
-    +boot
-
-test BasicFlow:
-    idle --> active --> processing --> active --> idle 
+action StartSystem { +start +boot }

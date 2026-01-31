@@ -1,0 +1,52 @@
+// Demo: WASM Predicate Properties
+//
+// signed_by(pubkey) is a WASM predicate that verifies the commit
+// contains a valid cryptographic signature from the specified public key.
+//
+// The predicate WASM module at /_code/modal/signed_by.wasm receives:
+// - The commit data (payload being committed)
+// - Args: { "arg": "<pubkey>" }
+// And returns true/false based on signature verification.
+
+model SecureEscrow {
+  part flow {
+    // Buyer deposits - requires valid signature from buyer
+    init --> deposited: +DEPOSIT +signed_by(buyer_pubkey)
+    
+    // Seller delivers - requires valid signature from seller
+    deposited --> delivered: +DELIVER +signed_by(seller_pubkey)
+    
+    // Buyer confirms receipt - requires buyer signature
+    delivered --> confirmed: +CONFIRM +signed_by(buyer_pubkey)
+    
+    // Escrow releases payment
+    confirmed --> complete: +RELEASE +signed_by(escrow_pubkey)
+  }
+}
+
+model MultiSigTreasury {
+  part approvals {
+    // Requires 2-of-3 multisig for withdrawal
+    init --> proposed: +PROPOSE +signed_by(alice_pubkey)
+    init --> proposed: +PROPOSE +signed_by(bob_pubkey)
+    init --> proposed: +PROPOSE +signed_by(carol_pubkey)
+    
+    // Second signature to approve
+    proposed --> approved: +APPROVE +signed_by(alice_pubkey)
+    proposed --> approved: +APPROVE +signed_by(bob_pubkey)
+    proposed --> approved: +APPROVE +signed_by(carol_pubkey)
+    
+    // Execute after approval
+    approved --> executed: +EXECUTE
+  }
+}
+
+// Formula: Deposits must be signed
+formula DepositRequiresSignature {
+  [+DEPOSIT] <+signed_by(buyer_pubkey)> true
+}
+
+// Formula: No release without confirmation
+formula NoReleaseWithoutConfirm {
+  [-RELEASE +CONFIRM] true or [+CONFIRM] <+RELEASE> true
+}

@@ -1,0 +1,106 @@
+// Agent Cooperation Contract: Mutual Non-Defection
+// 
+// Scenario: Alice and Bob agree to cooperate. Neither can defect.
+// Each commit must be signed by either party.
+// Once someone defects, the contract is violated (but we prevent this by design).
+
+// Governing model for mutual cooperation
+model MutualCooperation {
+  part contract {
+    // Both parties can commit, but neither can defect
+    active --> active: +SIGNED_BY_ALICE -DEFECT
+    active --> active: +SIGNED_BY_BOB -DEFECT
+    // If someone cooperates explicitly, that's also valid
+    active --> active: +SIGNED_BY_ALICE +COOPERATE -DEFECT
+    active --> active: +SIGNED_BY_BOB +COOPERATE -DEFECT
+  }
+}
+
+// Rule: All commits must be signed by Alice or Bob
+formula RequireSignature {
+  always (must +SIGNED_BY_ALICE or must +SIGNED_BY_BOB)
+}
+
+// Rule: Defection is never allowed
+formula NoDefection {
+  always [-DEFECT] true
+}
+
+// Combined rule (what the contract enforces)
+formula ContractRules {
+  always (
+    (must +SIGNED_BY_ALICE or must +SIGNED_BY_BOB) 
+    and [-DEFECT] true
+  )
+}
+
+// ---
+
+// Alternative: Tit-for-Tat style contract
+// Start cooperating, mirror opponent's last action
+
+model TitForTat {
+  part game {
+    // Initial state: both cooperate
+    mutual_coop --> mutual_coop: +COOPERATE -DEFECT
+    
+    // If Alice defects, Bob can retaliate
+    mutual_coop --> alice_defected: +SIGNED_BY_ALICE +DEFECT
+    alice_defected --> mutual_defect: +SIGNED_BY_BOB +DEFECT
+    alice_defected --> mutual_coop: +SIGNED_BY_BOB +COOPERATE
+    
+    // If Bob defects, Alice can retaliate
+    mutual_coop --> bob_defected: +SIGNED_BY_BOB +DEFECT
+    bob_defected --> mutual_defect: +SIGNED_BY_ALICE +DEFECT
+    bob_defected --> mutual_coop: +SIGNED_BY_ALICE +COOPERATE
+    
+    // Mutual defection is a sink (bad outcome)
+    mutual_defect --> mutual_defect
+  }
+}
+
+// ---
+
+// Simple handshake: Both must sign to activate
+model Handshake {
+  part agreement {
+    // Waiting for first signature
+    pending --> alice_signed: +SIGNED_BY_ALICE -SIGNED_BY_BOB
+    pending --> bob_signed: +SIGNED_BY_BOB -SIGNED_BY_ALICE
+    
+    // Waiting for second signature
+    alice_signed --> active: +SIGNED_BY_BOB
+    bob_signed --> active: +SIGNED_BY_ALICE
+    
+    // Once active, either can commit
+    active --> active: +SIGNED_BY_ALICE
+    active --> active: +SIGNED_BY_BOB
+  }
+}
+
+formula HandshakeComplete {
+  eventually <+SIGNED_BY_ALICE> <+SIGNED_BY_BOB> true
+}
+
+// ---
+
+// Escrow pattern: Alice deposits, Bob delivers, Alice releases
+model AgentEscrow {
+  part escrow {
+    // Alice deposits funds
+    init --> deposited: +SIGNED_BY_ALICE +DEPOSIT
+    
+    // Bob delivers the goods
+    deposited --> delivered: +SIGNED_BY_BOB +DELIVER
+    
+    // Alice releases the escrow
+    delivered --> complete: +SIGNED_BY_ALICE +RELEASE
+    
+    // Complete state
+    complete --> complete
+  }
+}
+
+formula EscrowFlow {
+  <+DEPOSIT> <+DELIVER> <+RELEASE> true
+}

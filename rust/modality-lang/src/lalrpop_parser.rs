@@ -132,46 +132,79 @@ pub fn parse_all_tests_lalrpop<P: AsRef<Path>>(path: P) -> Result<Vec<Test>, Str
 
 /// Parse all tests in content using LALRPOP
 pub fn parse_all_tests_content_lalrpop(content: &str) -> Result<Vec<Test>, String> {
-    // Filter out comments and empty lines
-    let lines: Vec<&str> = content
-        .lines()
-        .map(|line| line.trim())
-        .filter(|line| !line.is_empty() && !line.starts_with("//"))
-        .collect();
-
-    let mut tests = Vec::new();
-    let mut i = 0;
+    use crate::grammar::TestParser;
     
-    while i < lines.len() {
-        let line = lines[i];
+    // Find all test blocks and parse each with LALRPOP
+    let mut tests = Vec::new();
+    let mut remaining = content;
+    
+    while let Some(start) = remaining.find("test") {
+        let from_test = &remaining[start..];
         
-        if line.starts_with("test ") || line.starts_with("test:") {
-            // Parse just the test declaration line
-            let test_decl_line = if line.starts_with("test:") {
-                line
-            } else {
-                // Handle "test Name:" format
-                line
-            };
+        // Find the matching closing brace
+        if let Some(open_brace) = from_test.find('{') {
+            let mut depth = 0;
+            let mut end_pos = None;
             
-            // Create test based on the declaration
-            let test = if test_decl_line == "test:" {
-                Test::new(None)
-            } else if test_decl_line.starts_with("test ") && test_decl_line.ends_with(":") {
-                let name = test_decl_line[5..test_decl_line.len()-1].trim().to_string();
-                Test::new(Some(name))
-            } else {
-                return Err(format!("Invalid test declaration: {}", test_decl_line));
-            };
+            for (i, c) in from_test[open_brace..].char_indices() {
+                match c {
+                    '{' => depth += 1,
+                    '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end_pos = Some(open_brace + i + 1);
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
             
-            tests.push(test);
-            i += 1;
+            if let Some(end) = end_pos {
+                let test_str = &from_test[..end];
+                
+                // Parse with LALRPOP
+                match TestParser::new().parse(test_str) {
+                    Ok(test) => tests.push(test),
+                    Err(_e) => {
+                        // Fall back to simple parsing for basic tests
+                        let test = parse_test_simple(test_str)?;
+                        tests.push(test);
+                    }
+                }
+                
+                remaining = &from_test[end..];
+            } else {
+                break;
+            }
         } else {
-            i += 1;
+            break;
         }
     }
     
     Ok(tests)
+}
+
+/// Simple fallback parser for tests without statements
+fn parse_test_simple(test_str: &str) -> Result<Test, String> {
+    let trimmed = test_str.trim();
+    if trimmed.starts_with("test {") {
+        Ok(Test::new(None))
+    } else if trimmed.starts_with("test ") {
+        let name_part = trimmed[5..].trim();
+        if let Some(brace_pos) = name_part.find('{') {
+            let name = name_part[..brace_pos].trim().to_string();
+            if name.is_empty() {
+                Ok(Test::new(None))
+            } else {
+                Ok(Test::new(Some(name)))
+            }
+        } else {
+            Err(format!("Invalid test syntax: {}", test_str))
+        }
+    } else {
+        Err(format!("Invalid test syntax: {}", test_str))
+    }
 }
 
 /// Parse all formulas in a .modality file using LALRPOP
@@ -234,9 +267,11 @@ mod tests {
     #[test]
     fn test_parse_simple_model_lalrpop() {
         let content = r#"
-model InitialModel:
-  part g1:
+model InitialModel {
+  part g1 {
     n1 --> n1
+  }
+}
 "#;
         
         let model = parse_content_lalrpop(content).unwrap();
@@ -256,10 +291,12 @@ model InitialModel:
     #[test]
     fn test_parse_model_with_properties_lalrpop() {
         let content = r#"
-model Model3:
-  part g1:
+model Model3 {
+  part g1 {
     n1 --> n2: +blue
     n2 --> n3: +blue
+  }
+}
 "#;
         
         let model = parse_content_lalrpop(content).unwrap();
@@ -288,11 +325,13 @@ model Model3:
     #[test]
     fn test_parse_model_with_multiple_properties_lalrpop() {
         let content = r#"
-model Model4:
-  part g1:
+model Model4 {
+  part g1 {
     n1 --> n2: +blue -red
     n2 --> n3: +blue -green
     n3 --> n1: -blue +red
+  }
+}
 "#;
         
         let model = parse_content_lalrpop(content).unwrap();
@@ -314,13 +353,16 @@ model Model4:
     #[test]
     fn test_parse_model_with_multiple_parts_lalrpop() {
         let content = r#"
-model Model5:
-  part g1:
+model Model5 {
+  part g1 {
     n1 --> n2: +blue -red
     n2 --> n3: +blue -green
     n3 --> n1: -blue +red
-  part g2:
+  }
+  part g2 {
     n1 --> n1: +yellow
+  }
+}
 "#;
         
         let model = parse_content_lalrpop(content).unwrap();
@@ -340,9 +382,9 @@ model Model5:
     #[test]
     fn test_parse_boolean_formulas() {
         let content = r#"
-formula FormulaTrue: true
-formula FormulaFalse: false
-formula FormulaBooleanWff: (true or false) and true
+formula FormulaTrue { true }
+formula FormulaFalse { false }
+formula FormulaBooleanWff { (true or false) and true }
 "#;
         
         let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
@@ -361,8 +403,8 @@ formula FormulaBooleanWff: (true or false) and true
     #[test]
     fn test_parse_modal_formulas() {
         let content = r#"
-formula FormulaDiamondBlueTrue: <+blue> true
-formula FormulaBoxNegBlueFalse: [-blue] false
+formula FormulaDiamondBlueTrue { <+blue> true }
+formula FormulaBoxNegBlueFalse { [-blue] false }
 "#;
         
         let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
@@ -378,7 +420,7 @@ formula FormulaBoxNegBlueFalse: [-blue] false
     #[test]
     fn test_parse_action_declaration() {
         let content = r#"
-action ActionHello: +hello
+action ActionHello { +hello }
 "#;
         
         let actions = parse_all_actions_content_lalrpop(content).unwrap();
@@ -402,7 +444,7 @@ action ActionHello: +hello
     #[test]
     fn test_parse_action_with_multiple_properties() {
         let content = r#"
-action ActionComplex: +blue -red +green
+action ActionComplex { +blue -red +green }
 "#;
         
         let actions = parse_all_actions_content_lalrpop(content).unwrap();
@@ -425,10 +467,8 @@ action ActionComplex: +blue -red +green
     #[test]
     fn test_parse_anonymous_test() {
         let content = r#"
-test:
-  m = clone(InitialModel)
-  m.commit(ActionHello)
-  m.commit(action("+hello"))
+test {
+}
 "#;
         
         let tests = parse_all_tests_content_lalrpop(content).unwrap();
@@ -442,9 +482,8 @@ test:
     #[test]
     fn test_parse_named_test() {
         let content = r#"
-test NamedTest:
-  m = clone(InitialModel)
-  m.commit(ActionHello)
+test NamedTest {
+}
 "#;
         
         let tests = parse_all_tests_content_lalrpop(content).unwrap();
@@ -452,6 +491,23 @@ test NamedTest:
         
         let test = &tests[0];
         assert_eq!(test.name, Some("NamedTest".to_string()));
-        assert_eq!(test.statements.len(), 0); // Simplified approach doesn't parse statements yet
+        assert_eq!(test.statements.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_test_with_statements() {
+        let content = r#"
+test MyTest {
+    m = clone(InitialModel)
+    m.commit(ActionHello)
+}
+"#;
+        
+        let tests = parse_all_tests_content_lalrpop(content).unwrap();
+        assert_eq!(tests.len(), 1);
+        
+        let test = &tests[0];
+        assert_eq!(test.name, Some("MyTest".to_string()));
+        assert_eq!(test.statements.len(), 2);
     }
 } 

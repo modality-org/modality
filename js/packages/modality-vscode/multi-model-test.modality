@@ -1,33 +1,23 @@
-model SimpleModel:
-
-part StateMachine:
+model SimpleModel {
+  part StateMachine {
     idle --> active: +start
     active --> processing: +request
     processing --> active: +response
     processing --> idle: +timeout
     active --> idle: +stop
+  }
+}
 
-model ComplexModel:
-
-part Controller:
+model ComplexModel {
+  part Controller {
     init --> running: +boot
     running --> paused: +pause
     paused --> running: +resume
     running --> stopped: +shutdown
+  }
 
-part Network:
+  part Network {
     disconnected --> connecting: +connect
     connecting --> connected: +success
-    connecting --> disconnected: +timeout
-    connected --> disconnected: +disconnect
-
-model TestModel:
-    // This model has no parts or transitions
-    // The CodeLens button should still appear
-
-formula AlwaysEventuallyActive:
-    always eventually active
-
-action StartSystem:
-    +start
-    +boot 
+  }
+}

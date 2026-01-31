@@ -184,6 +184,30 @@ impl Property {
         }
     }
 
+    /// Create a predicate property from a function call in the grammar
+    /// e.g., +signed_by("alice_pubkey") -> predicate that verifies signature
+    pub fn new_predicate_from_call(name: String, arg: String) -> Self {
+        let path = format!("/_code/modal/{}.wasm", name);
+        let args = serde_json::json!({ "arg": arg });
+        Self {
+            sign: PropertySign::Plus,
+            name,
+            source: Some(PropertySource::Predicate { path, args }),
+        }
+    }
+
+    /// Create a negated predicate property from a function call
+    /// e.g., -signed_by("alice_pubkey") -> requires signature NOT present
+    pub fn new_predicate_from_call_negated(name: String, arg: String) -> Self {
+        let path = format!("/_code/modal/{}.wasm", name);
+        let args = serde_json::json!({ "arg": arg });
+        Self {
+            sign: PropertySign::Minus,
+            name,
+            source: Some(PropertySource::Predicate { path, args }),
+        }
+    }
+
     /// Check if this is a static property
     pub fn is_static(&self) -> bool {
         matches!(self.source, Some(PropertySource::Static) | None)
@@ -234,6 +258,11 @@ impl Test {
             name,
             statements: Vec::new(),
         }
+    }
+
+    /// Create a new test with statements
+    pub fn with_statements(name: Option<String>, statements: Vec<TestStatement>) -> Self {
+        Self { name, statements }
     }
 
     /// Add a statement to this test
