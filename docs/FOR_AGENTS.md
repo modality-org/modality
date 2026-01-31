@@ -132,6 +132,64 @@ formula NeitherCanCheat {
 
 ---
 
+## How Contracts Actually Work
+
+A contract is an **append-only log of signed commits**. You don't agree on a fixed state machine upfront — you build it incrementally.
+
+### The Default: Anything Goes
+
+Every contract starts with a maximally permissive model:
+
+```
+* --> *  (empty label, self-loop)
+```
+
+This means: any action is allowed. The blank slate.
+
+### Adding Rules
+
+Each party adds their protection rules:
+
+```
+Commit 0 (Alice):
+  - AddParty: Alice
+  - AddRule: "[+DELIVER] eventually(paid | refunded)"
+  - Model: (state machine satisfying this rule)
+
+Commit 1 (Bob):
+  - AddParty: Bob  
+  - AddRule: "[+PAY] eventually(delivered | refunded)"
+  - Model: (state machine satisfying BOTH rules)
+```
+
+Each `AddRule` must come with a model that satisfies ALL accumulated rules. You can't add contradictory rules — no model would pass validation.
+
+### Executing Actions
+
+Once rules are set, parties execute domain actions:
+
+```
+Commit 2 (Alice): +DELIVER
+Commit 3 (Bob): +PAY
+```
+
+Each action is validated against the governing model and all rules.
+
+### Any Commit Can Update the Model
+
+As long as the new model satisfies all rules, any commit can propose a refined model. This allows the contract to evolve while maintaining all guarantees.
+
+### Why This Design?
+
+1. **No upfront agreement needed** — start with nothing, add constraints
+2. **Self-enforcing** — contradictory rules can't be added
+3. **Full auditability** — every change is in the log
+4. **Deterministic** — same log = same state
+
+See [CONTRACT_LOG.md](./CONTRACT_LOG.md) for full details.
+
+---
+
 ## The Syntax in 60 Seconds
 
 ```modality
