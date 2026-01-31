@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
-use crate::ast::{Model, Formula, Action, ActionCall, Test};
-use crate::grammar::{TopLevelParser, FormulaParser, ActionParser, ActionCallParser};
+use crate::ast::{Model, Formula, Action, ActionCall, Test, Contract};
+use crate::grammar::{TopLevelParser, FormulaParser, ActionParser, ActionCallParser, ContractDeclParser};
 
 /// Parse a .modality file using LALRPOP and return a Model
 pub fn parse_file_lalrpop<P: AsRef<Path>>(path: P) -> Result<Model, String> {
@@ -259,6 +259,30 @@ pub fn parse_all_formulas_content_lalrpop(content: &str) -> Result<Vec<Formula>,
     Ok(formulas)
 }
 
+/// Parse a contract from content
+pub fn parse_contract_content(content: &str) -> Result<Contract, String> {
+    // Filter out comments
+    let filtered_content: String = content
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim();
+            !trimmed.starts_with("//")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    
+    let parser = ContractDeclParser::new();
+    parser.parse(&filtered_content)
+        .map_err(|e| format!("Parse error: {:?}", e))
+}
+
+/// Parse a contract from a file
+pub fn parse_contract_file<P: AsRef<Path>>(path: P) -> Result<Contract, String> {
+    let content = fs::read_to_string(path)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
+    parse_contract_content(&content)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -509,5 +533,55 @@ test MyTest {
         let test = &tests[0];
         assert_eq!(test.name, Some("MyTest".to_string()));
         assert_eq!(test.statements.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_contract_handshake() {
+        use crate::ast::CommitStatement;
+        
+        let content = r#"
+contract handshake {
+  commit signed_by(A) with model {
+    part flow {
+      init --> done: +DONE
+    }
+  } {
+    add_party A
+    add_rule { eventually(done) }
+  }
+
+  commit signed_by(B) {
+    add_party B
+  }
+
+  commit signed_by(A) {
+    do +DONE
+  }
+}
+"#;
+        
+        let contract = parse_contract_content(content).unwrap();
+        
+        assert_eq!(contract.name, "handshake");
+        assert_eq!(contract.commits.len(), 3);
+        
+        // First commit: A with model
+        let commit0 = &contract.commits[0];
+        assert_eq!(commit0.signed_by, "A");
+        assert!(commit0.model.is_some());
+        assert_eq!(commit0.statements.len(), 2);
+        assert!(matches!(&commit0.statements[0], CommitStatement::AddParty(name) if name == "A"));
+        assert!(matches!(&commit0.statements[1], CommitStatement::AddRule { .. }));
+        
+        // Second commit: B joins
+        let commit1 = &contract.commits[1];
+        assert_eq!(commit1.signed_by, "B");
+        assert!(commit1.model.is_none());
+        assert_eq!(commit1.statements.len(), 1);
+        
+        // Third commit: A executes
+        let commit2 = &contract.commits[2];
+        assert_eq!(commit2.signed_by, "A");
+        assert!(matches!(&commit2.statements[0], CommitStatement::DomainAction(_)));
     }
 } 

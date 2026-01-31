@@ -293,4 +293,63 @@ pub enum TopLevelItem {
     Formula(Formula),
     Action(Action),
     Test(Test),
+    Contract(Contract),
+}
+
+/// A contract is an append-only log of commits
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Contract {
+    pub name: String,
+    pub commits: Vec<ContractCommit>,
+}
+
+/// A commit in a contract log
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ContractCommit {
+    pub signed_by: String,
+    pub model: Option<Model>,
+    pub statements: Vec<CommitStatement>,
+}
+
+/// Statements within a commit
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum CommitStatement {
+    AddParty(String),
+    AddRule { name: Option<String>, formula: FormulaExpr },
+    DomainAction(Vec<Property>),
+}
+
+impl Contract {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            commits: Vec::new(),
+        }
+    }
+    
+    pub fn add_commit(&mut self, commit: ContractCommit) {
+        self.commits.push(commit);
+    }
+}
+
+impl ContractCommit {
+    pub fn new(signed_by: String) -> Self {
+        Self {
+            signed_by,
+            model: None,
+            statements: Vec::new(),
+        }
+    }
+    
+    pub fn with_model(signed_by: String, model: Model) -> Self {
+        Self {
+            signed_by,
+            model: Some(model),
+            statements: Vec::new(),
+        }
+    }
+    
+    pub fn add_statement(&mut self, stmt: CommitStatement) {
+        self.statements.push(stmt);
+    }
 } 

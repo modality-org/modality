@@ -1,0 +1,29 @@
+// Simplest contract: A and B shake hands
+//
+// A creates the contract with a model and a rule
+// B joins
+// A executes the action
+
+contract handshake {
+
+  // A creates contract, provides model, adds their protection rule
+  commit signed_by(A) with model {
+    part flow {
+      init --> done: +DONE
+    }
+  } {
+    add_party A
+    add_rule { eventually(done) }
+  }
+
+  // B joins the contract
+  commit signed_by(B) {
+    add_party B
+  }
+
+  // A executes the action
+  commit signed_by(A) {
+    do +DONE
+  }
+
+}

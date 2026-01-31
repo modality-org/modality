@@ -1,4 +1,4 @@
-use crate::ast::{Model, Part, Transition, Property, PropertySign, PropertySource, Formula, FormulaExpr, PartState, TopLevelItem, Action, ActionCall, Test, TestStatement};
+use crate::ast::{Model, Part, Transition, Property, PropertySign, PropertySource, Formula, FormulaExpr, PartState, TopLevelItem, Action, ActionCall, Test, TestStatement, Contract, ContractCommit, CommitStatement};
 
 grammar;
 
@@ -18,7 +18,8 @@ TopLevelItem: TopLevelItem = {
     <model:Model> => TopLevelItem::Model(model),
     <formula:Formula> => TopLevelItem::Formula(formula),
     <action:Action> => TopLevelItem::Action(action),
-    <test:Test> => TopLevelItem::Test(test)
+    <test:Test> => TopLevelItem::Test(test),
+    <contract:ContractDecl> => TopLevelItem::Contract(contract)
 };
 
 pub Model: Model = {
@@ -251,4 +252,65 @@ FormulaAtom: FormulaExpr = {
 
 Ident: String = {
     r#"[a-zA-Z_][a-zA-Z0-9_]*"# => <>.to_string()
+};
+
+// Contract parsing
+pub ContractDecl: Contract = {
+    "contract" <name:Ident> "{" <commits:CommitDecl*> "}" => {
+        let mut contract = Contract::new(name);
+        for commit in commits {
+            contract.add_commit(commit);
+        }
+        contract
+    }
+};
+
+CommitDecl: ContractCommit = {
+    // commit signed_by(X) { statements }
+    "commit" "signed_by" "(" <signer:Ident> ")" "{" <stmts:CommitStatementList?> "}" => {
+        let mut commit = ContractCommit::new(signer);
+        if let Some(statements) = stmts {
+            for stmt in statements {
+                commit.add_statement(stmt);
+            }
+        }
+        commit
+    },
+    // commit signed_by(X) with model { ... } { statements }
+    "commit" "signed_by" "(" <signer:Ident> ")" "with" "model" "{" <parts:Part*> "}" "{" <stmts:CommitStatementList?> "}" => {
+        let mut model = Model::new("inline".to_string());
+        for part in parts {
+            model.add_part(part);
+        }
+        let mut commit = ContractCommit::with_model(signer, model);
+        if let Some(statements) = stmts {
+            for stmt in statements {
+                commit.add_statement(stmt);
+            }
+        }
+        commit
+    }
+};
+
+CommitStatementList: Vec<CommitStatement> = {
+    <stmt:CommitStatement> => vec![stmt],
+    <stmts:CommitStatementList> <stmt:CommitStatement> => {
+        let mut list = stmts;
+        list.push(stmt);
+        list
+    }
+};
+
+CommitStatement: CommitStatement = {
+    // add_party X
+    "add_party" <name:Ident> => CommitStatement::AddParty(name),
+    
+    // add_rule { formula_expr }
+    "add_rule" "{" <expr:FormulaExpr> "}" => CommitStatement::AddRule { name: None, formula: expr },
+    
+    // add_rule name { formula_expr }
+    "add_rule" <name:Ident> "{" <expr:FormulaExpr> "}" => CommitStatement::AddRule { name: Some(name), formula: expr },
+    
+    // Domain action: do +PROPERTY or do +PROPERTY +PROPERTY2 ...
+    "do" <props:PropertyList> => CommitStatement::DomainAction(props)
 };
