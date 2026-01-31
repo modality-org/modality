@@ -1,0 +1,70 @@
+// Agent Service Contract
+//
+// A contract between an AI agent (Provider) and a client (Consumer).
+// Provider agrees to perform a task. Consumer agrees to pay.
+// Both are bound by cryptographic signatures.
+//
+// This demonstrates real agent-to-agent cooperation.
+
+model ServiceContract {
+  part negotiation {
+    // Provider offers service with terms
+    init --> offered: +OFFER +terms_hash(offer_hash) +signed_by(provider_pubkey)
+    
+    // Consumer can counter-offer
+    offered --> countered: +COUNTER +terms_hash(counter_hash) +signed_by(consumer_pubkey)
+    countered --> offered: +COUNTER +terms_hash(new_hash) +signed_by(provider_pubkey)
+    
+    // Consumer accepts offer
+    offered --> accepted: +ACCEPT +signed_by(consumer_pubkey)
+    
+    // Provider confirms and begins work
+    accepted --> active: +CONFIRM +signed_by(provider_pubkey)
+  }
+  
+  part execution {
+    // Provider delivers work
+    init --> delivered: +DELIVER +content_hash(work_hash) +signed_by(provider_pubkey)
+    
+    // Consumer reviews
+    delivered --> approved: +APPROVE +signed_by(consumer_pubkey)
+    delivered --> revision_requested: +REVISION +signed_by(consumer_pubkey)
+    
+    // Provider can revise
+    revision_requested --> delivered: +DELIVER +content_hash(revised_hash) +signed_by(provider_pubkey)
+    
+    // Payment released on approval
+    approved --> paid: +PAY +amount(agreed_amount) +signed_by(escrow_pubkey)
+  }
+  
+  part dispute {
+    // Either party can initiate dispute
+    init --> disputed: +DISPUTE +signed_by(provider_pubkey)
+    init --> disputed: +DISPUTE +signed_by(consumer_pubkey)
+    
+    // Arbiter resolves
+    disputed --> resolved_provider: +RESOLVE +FOR_PROVIDER +signed_by(arbiter_pubkey)
+    disputed --> resolved_consumer: +RESOLVE +FOR_CONSUMER +signed_by(arbiter_pubkey)
+    
+    // Payment follows resolution
+    resolved_provider --> paid: +PAY +signed_by(escrow_pubkey)
+    resolved_consumer --> refunded: +REFUND +signed_by(escrow_pubkey)
+  }
+}
+
+// Rules
+
+// No payment without delivery
+formula PaymentRequiresDelivery {
+  [+PAY] <+DELIVER> true
+}
+
+// Disputes can only happen after acceptance
+formula DisputeRequiresActive {
+  [+DISPUTE] <+CONFIRM> true
+}
+
+// Provider must sign their own deliveries
+formula ProviderDeliversOwnWork {
+  [+DELIVER] <+signed_by(provider_pubkey)> true
+}
