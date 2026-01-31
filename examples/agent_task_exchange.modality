@@ -1,0 +1,116 @@
+// Agent Task Exchange
+//
+// Two agents cooperate: one requests a task, the other fulfills it.
+// Neither trusts the other. The contract ensures fair exchange.
+//
+// Requester: wants work done, has payment
+// Executor: can do work, wants payment
+//
+// The formulas guarantee: no work without payment, no payment without work.
+
+model TaskExchange {
+  part flow {
+    // Requester posts task with escrowed payment
+    init --> posted: +POST_TASK +signed_by(requester)
+    
+    // Executor claims the task
+    posted --> claimed: +CLAIM +signed_by(executor)
+    
+    // Executor submits result
+    claimed --> submitted: +SUBMIT_RESULT +signed_by(executor)
+    
+    // Requester accepts (triggers payment)
+    submitted --> paid: +ACCEPT +signed_by(requester)
+    
+    // Requester rejects (dispute)
+    submitted --> disputed: +REJECT +signed_by(requester)
+    
+    // Arbiter resolves dispute
+    disputed --> paid: +RELEASE +signed_by(arbiter)
+    disputed --> refunded: +REFUND +signed_by(arbiter)
+    
+    // Task expires if unclaimed
+    posted --> expired: +EXPIRE
+    
+    // Terminal states
+    paid --> paid
+    refunded --> refunded
+    expired --> expired
+  }
+}
+
+// ============================================================
+// FORMULAS THAT AGENTS CAN VERIFY BEFORE PARTICIPATING
+// ============================================================
+
+// For the REQUESTER: "If I post a task, I'll either get work done or get refunded"
+formula RequesterProtection {
+  [+POST_TASK] eventually(paid | refunded | expired)
+}
+
+// For the EXECUTOR: "If I submit work, I'll eventually get paid or dispute resolved"
+formula ExecutorProtection {
+  [+SUBMIT_RESULT] eventually(paid | refunded)
+}
+
+// MUTUAL: No one loses funds - they end up somewhere valid
+formula FundsConservation {
+  always(eventually(paid | refunded | expired))
+}
+
+// SAFETY: Can't be both paid and refunded
+formula NoDoublePay {
+  always(not(paid & refunded))
+}
+
+// ORDERING: Payment requires submitted work
+formula PaymentRequiresWork {
+  [+ACCEPT] submitted
+}
+
+// ORDERING: Refund only through dispute
+formula RefundOnlyViaDispute {
+  [+REFUND] disputed
+}
+
+// FAIRNESS: Executor can always submit after claiming
+formula ExecutorCanSubmit {
+  claimed -> eventually(submitted | expired)
+}
+
+// LIVENESS: Disputes must resolve
+formula DisputeResolution {
+  [+REJECT] eventually(paid | refunded)
+}
+
+// ============================================================
+// HOW AGENTS USE THIS
+// ============================================================
+//
+// Before participating, each agent:
+// 1. Fetches the contract model
+// 2. Runs: modality model check task_exchange.modality
+// 3. Verifies the formulas that protect THEM pass
+//
+// Requester checks: RequesterProtection, FundsConservation
+// Executor checks: ExecutorProtection, PaymentRequiresWork
+//
+// If formulas pass, they KNOW the contract is safe.
+// No trust required - just math.
+//
+// Example agent flow:
+//
+//   Requester                          Executor
+//   ---------                          --------
+//   1. Verify contract formulas
+//   2. POST_TASK (sign + escrow)
+//                                      3. Verify contract formulas
+//                                      4. CLAIM (sign)
+//                                      5. Do the work
+//                                      6. SUBMIT_RESULT (sign)
+//   7. Review result
+//   8. ACCEPT (sign) → payment released
+//                                      9. Receive payment
+//
+// At no point did either agent trust the other.
+// The contract enforced fair exchange.

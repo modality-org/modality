@@ -1,0 +1,36 @@
+// Two agents shake hands with enforced rules
+//
+// Every commit is a transition in the governing model.
+// add_rule transitions as +ADD_RULE, do +X as domain actions.
+
+contract handshake {
+
+  commit {
+    signed_by A "0xA_SIG_COMMIT_0"
+    model {
+      part flow {
+        init --> a_ruled: +ADD_RULE +signed_by(A)
+        a_ruled --> b_ruled: +ADD_RULE +signed_by(B)
+        b_ruled --> a_ready: +READY +signed_by(A)
+        a_ready --> done: +READY +signed_by(B)
+      }
+    }
+    add_rule { eventually(done) }
+  }
+
+  commit {
+    signed_by B "0xB_SIG_COMMIT_1"
+    add_rule { eventually(done) }
+  }
+
+  commit {
+    signed_by A "0xA_SIG_COMMIT_2"
+    do +READY
+  }
+
+  commit {
+    signed_by B "0xB_SIG_COMMIT_3"
+    do +READY
+  }
+
+}

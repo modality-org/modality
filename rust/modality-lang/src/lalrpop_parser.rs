@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
-use crate::ast::{Model, Formula, Action, ActionCall, Test};
-use crate::grammar::{TopLevelParser, FormulaParser, ActionParser, ActionCallParser};
+use crate::ast::{Model, Formula, Action, ActionCall, Test, Contract};
+use crate::grammar::{TopLevelParser, FormulaParser, ActionParser, ActionCallParser, ContractDeclParser};
 
 /// Parse a .modality file using LALRPOP and return a Model
 pub fn parse_file_lalrpop<P: AsRef<Path>>(path: P) -> Result<Model, String> {
@@ -259,6 +259,30 @@ pub fn parse_all_formulas_content_lalrpop(content: &str) -> Result<Vec<Formula>,
     Ok(formulas)
 }
 
+/// Parse a contract from content
+pub fn parse_contract_content(content: &str) -> Result<Contract, String> {
+    // Filter out comments
+    let filtered_content: String = content
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim();
+            !trimmed.starts_with("//")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    
+    let parser = ContractDeclParser::new();
+    parser.parse(&filtered_content)
+        .map_err(|e| format!("Parse error: {:?}", e))
+}
+
+/// Parse a contract from a file
+pub fn parse_contract_file<P: AsRef<Path>>(path: P) -> Result<Contract, String> {
+    let content = fs::read_to_string(path)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
+    parse_contract_content(&content)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -509,5 +533,89 @@ test MyTest {
         let test = &tests[0];
         assert_eq!(test.name, Some("MyTest".to_string()));
         assert_eq!(test.statements.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_contract_handshake() {
+        use crate::ast::CommitStatement;
+        
+        // Every commit is a transition in the model.
+        // add_rule transitions as +ADD_RULE, do +X as domain actions.
+        let content = r#"
+contract handshake {
+  commit {
+    signed_by A "0xA_SIG_0"
+    model {
+      part flow {
+        init --> a_ruled: +ADD_RULE +signed_by(A)
+        a_ruled --> b_ruled: +ADD_RULE +signed_by(B)
+        b_ruled --> a_ready: +READY +signed_by(A)
+        a_ready --> done: +READY +signed_by(B)
+      }
+    }
+    add_rule { eventually(done) }
+  }
+
+  commit {
+    signed_by B "0xB_SIG_1"
+    add_rule { eventually(done) }
+  }
+
+  commit {
+    signed_by A "0xA_SIG_2"
+    do +READY
+  }
+
+  commit {
+    signed_by B "0xB_SIG_3"
+    do +READY
+  }
+}
+"#;
+        
+        let contract = parse_contract_content(content).unwrap();
+        
+        assert_eq!(contract.name, "handshake");
+        assert_eq!(contract.commits.len(), 4);
+        
+        // First commit: A provides model, add_rule
+        let commit0 = &contract.commits[0];
+        assert_eq!(commit0.signed_by, "A");
+        assert_eq!(commit0.signature, "0xA_SIG_0");
+        assert!(commit0.model.is_some());
+        assert_eq!(commit0.statements.len(), 1);
+        assert!(matches!(&commit0.statements[0], CommitStatement::AddRule(_)));
+        
+        // Second commit: B add_rule
+        let commit1 = &contract.commits[1];
+        assert_eq!(commit1.signed_by, "B");
+        assert_eq!(commit1.signature, "0xB_SIG_1");
+        assert!(commit1.model.is_none());
+        assert_eq!(commit1.statements.len(), 1);
+        assert!(matches!(&commit1.statements[0], CommitStatement::AddRule(_)));
+        
+        // Third commit: A does +READY
+        let commit2 = &contract.commits[2];
+        assert_eq!(commit2.signed_by, "A");
+        assert_eq!(commit2.signature, "0xA_SIG_2");
+        assert_eq!(commit2.statements.len(), 1);
+        match &commit2.statements[0] {
+            CommitStatement::Do(properties) => {
+                assert_eq!(properties[0].name, "READY");
+            }
+            _ => panic!("Expected Do statement"),
+        }
+        
+        // Fourth commit: B does +READY
+        let commit3 = &contract.commits[3];
+        assert_eq!(commit3.signed_by, "B");
+        assert_eq!(commit3.signature, "0xB_SIG_3");
+        assert_eq!(commit3.statements.len(), 1);
+        match &commit3.statements[0] {
+            CommitStatement::Do(properties) => {
+                assert_eq!(properties[0].name, "READY");
+            }
+            _ => panic!("Expected Do statement"),
+        }
     }
 } 

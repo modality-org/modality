@@ -1,0 +1,85 @@
+// Service Agreement with Enforcing Formulas
+//
+// A provider offers a service, consumer accepts, provider delivers, consumer pays.
+// Formulas ensure the protocol is fair to both parties.
+
+model ServiceAgreement {
+  part flow {
+    init --> offered: +OFFER +signed_by(provider)
+    offered --> accepted: +ACCEPT +signed_by(consumer)
+    offered --> expired: +EXPIRE
+    accepted --> completed: +COMPLETE +signed_by(provider)
+    accepted --> cancelled: +CANCEL +signed_by(consumer)
+    completed --> paid: +PAY +signed_by(consumer)
+    completed --> disputed: +DISPUTE +signed_by(consumer)
+    disputed --> paid: +PAY +signed_by(arbiter)
+    disputed --> refunded: +REFUND +signed_by(arbiter)
+    
+    // Terminal states
+    expired --> expired
+    cancelled --> cancelled
+    paid --> paid
+    refunded --> refunded
+  }
+}
+
+// ============================================================
+// ENFORCING FORMULAS
+// ============================================================
+
+// 1. Offer must be resolved (accepted, or expires)
+formula OfferResolution {
+  [+OFFER] eventually(accepted | expired)
+}
+
+// 2. Acceptance leads to outcome
+formula AcceptanceLeadsToOutcome {
+  [+ACCEPT] eventually(paid | refunded | cancelled)
+}
+
+// 3. Completion requires acceptance first
+formula CompletionRequiresAcceptance {
+  [+COMPLETE] accepted
+}
+
+// 4. Payment only after completion
+formula PaymentAfterCompletion {
+  [+PAY] completed
+}
+
+// 5. No payment without completion (stronger: globally)
+formula NoPaymentWithoutWork {
+  always(paid -> completed)
+}
+
+// 6. Dispute freezes until resolution
+formula DisputeFreeze {
+  [+DISPUTE] (not(paid) until (paid | refunded))
+}
+
+// 7. Arbiter only acts on disputes
+formula ArbiterOnlyOnDispute {
+  [+PAY +signed_by(arbiter)] disputed &
+  [+REFUND +signed_by(arbiter)] disputed
+}
+
+// 8. Consumer can always cancel before completion
+formula ConsumerCanCancel {
+  accepted -> eventually(completed | cancelled)
+}
+
+// 9. Provider gets paid for completed work (liveness)
+formula ProviderGetsPaid {
+  completed -> eventually(paid | disputed)
+}
+
+// 10. Mutual exclusion of terminal states
+formula MutualExclusion {
+  always(
+    not(paid & refunded) &
+    not(paid & cancelled) &
+    not(refunded & cancelled) &
+    not(expired & paid) &
+    not(expired & refunded)
+  )
+}

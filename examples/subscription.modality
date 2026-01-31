@@ -1,0 +1,78 @@
+// Subscription: Recurring access with periodic payments
+// Useful for API access, service agreements, memberships
+
+model Subscription {
+  part access {
+    // Subscribe with payment
+    init --> subscribed: +SUBSCRIBE +PAY +signed_by(subscriber)
+    
+    // Access the service (multiple times)
+    subscribed --> subscribed: +ACCESS +signed_by(subscriber)
+    
+    // Renew subscription
+    subscribed --> subscribed: +RENEW +PAY +signed_by(subscriber)
+    
+    // Subscription expires (time-based)
+    subscribed --> expired: +EXPIRE
+    
+    // Subscriber cancels
+    subscribed --> cancelled: +CANCEL +signed_by(subscriber)
+    
+    // Resubscribe from expired state
+    expired --> subscribed: +RESUBSCRIBE +PAY +signed_by(subscriber)
+    
+    // Resubscribe from cancelled state
+    cancelled --> subscribed: +RESUBSCRIBE +PAY +signed_by(subscriber)
+  }
+}
+
+// Guarantee: No access without active subscription
+formula NoAccessWithoutSubscription {
+  [+ACCESS] <state: subscribed> true
+}
+
+// Guarantee: Every subscription requires payment
+formula PaymentRequired {
+  [+SUBSCRIBE] <+PAY> true
+  [+RENEW] <+PAY> true
+  [+RESUBSCRIBE] <+PAY> true
+}
+
+// Guarantee: Only subscriber can cancel
+formula OnlySubscriberCancels {
+  [+CANCEL] <+signed_by(subscriber)> true
+}
+
+// Test: Basic subscription lifecycle
+test SubscriptionLifecycle {
+  s = clone(Subscription)
+  
+  // Subscribe
+  s.commit(+SUBSCRIBE +PAY +signed_by(subscriber))
+  assert s.state == "subscribed"
+  
+  // Access service
+  s.commit(+ACCESS +signed_by(subscriber))
+  assert s.state == "subscribed"
+  
+  // Renew
+  s.commit(+RENEW +PAY +signed_by(subscriber))
+  assert s.state == "subscribed"
+  
+  // Cancel
+  s.commit(+CANCEL +signed_by(subscriber))
+  assert s.state == "cancelled"
+}
+
+// Test: Expiration and resubscription
+test ExpirationFlow {
+  s = clone(Subscription)
+  
+  s.commit(+SUBSCRIBE +PAY +signed_by(subscriber))
+  s.commit(+EXPIRE)
+  assert s.state == "expired"
+  
+  // Resubscribe
+  s.commit(+RESUBSCRIBE +PAY +signed_by(subscriber))
+  assert s.state == "subscribed"
+}

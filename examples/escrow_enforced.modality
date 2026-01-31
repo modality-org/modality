@@ -1,0 +1,82 @@
+// Escrow Contract with Enforcing Formulas
+//
+// The formulas here are the specification. The state machine is one valid
+// implementation. Any model satisfying these formulas is safe.
+//
+// Key insight: [+ACTION] F means "after every ACTION, F holds going forward"
+// This is the event-anchored pattern - formulas fire when actions occur.
+
+model Escrow {
+  part flow {
+    init --> deposited: +DEPOSIT +signed_by(buyer)
+    deposited --> delivered: +DELIVER +signed_by(seller)
+    delivered --> released: +RELEASE +signed_by(buyer)
+    delivered --> disputed: +DISPUTE +signed_by(buyer)
+    disputed --> refunded: +REFUND +signed_by(arbiter)
+    disputed --> released: +RELEASE +signed_by(arbiter)
+    
+    // Terminal states loop to self
+    released --> released
+    refunded --> refunded
+  }
+}
+
+// ============================================================
+// ENFORCING FORMULAS
+// These are strong enough that any model satisfying them is safe.
+// The state machine above is just one valid implementation.
+// ============================================================
+
+// 1. Contract Termination: From init, we must eventually reach a terminal state
+formula ContractTerminates {
+  init -> eventually(released | refunded)
+}
+
+// 2. Deposit Leads to Resolution: Once deposited, funds must resolve
+//    This is an event-anchored formula: after DEPOSIT, obligation kicks in
+formula DepositLeadsToResolution {
+  [+DEPOSIT] eventually(released | refunded)
+}
+
+// 3. No Double Spend: Can never be both released AND refunded
+//    This is a global safety property
+formula NoDoubleSpend {
+  always(not(released & refunded))
+}
+
+// 4. Delivery Required for Buyer Release: Buyer can only release after delivery
+//    [+RELEASE +signed_by(buyer)] means "after buyer-signed release..."
+formula DeliveryBeforeBuyerRelease {
+  [+RELEASE +signed_by(buyer)] delivered
+}
+
+// 5. Dispute Must Resolve: Once disputed, must eventually resolve
+formula DisputeMustResolve {
+  [+DISPUTE] eventually(released | refunded)
+}
+
+// 6. Funds Frozen During Dispute: No release until arbiter rules
+//    This uses "until" - funds stay frozen until resolution
+formula FrozenDuringDispute {
+  [+DISPUTE] (not(released) until (refunded | released))
+}
+
+// 7. Only Valid Signers: All state changes require valid signatures
+formula OnlyValidSigners {
+  always(
+    [+DEPOSIT] signed_by(buyer) &
+    [+DELIVER] signed_by(seller) &
+    [+DISPUTE] signed_by(buyer) &
+    ([+RELEASE] signed_by(buyer) | [+RELEASE] signed_by(arbiter)) &
+    [+REFUND] signed_by(arbiter)
+  )
+}
+
+// 8. No Stuck States: From any non-terminal state, termination is reachable
+//    (This is implicit in the state machine but made explicit here)
+formula NoDeadlock {
+  init -> eventually(released | refunded) &
+  deposited -> eventually(released | refunded) &
+  delivered -> eventually(released | refunded) &
+  disputed -> eventually(released | refunded)
+}

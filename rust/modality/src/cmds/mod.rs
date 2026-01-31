@@ -1,4 +1,5 @@
 pub mod check;
+pub mod contract;
 pub mod id;
 pub mod inspect;
 pub mod mermaid;

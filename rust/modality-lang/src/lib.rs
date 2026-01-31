@@ -10,6 +10,14 @@ pub mod wasm;
 pub mod model_checker;
 pub mod synthesis;
 pub mod printer;
+pub mod evolution;
+pub mod runtime;
+pub mod agent;
+pub mod patterns;
+pub mod paths;
+pub mod crypto;
+pub mod contract_log;
+pub mod nl_mapper;
 
 // Include the generated parser
 use lalrpop_util::lalrpop_mod;
@@ -21,6 +29,11 @@ pub use mermaid::{generate_mermaid_diagram, generate_mermaid_diagrams, generate_
 pub use model_checker::{ModelChecker, State, ModelCheckResult};
 pub use synthesis::{synthesize, synthesize_from_pattern, identify_pattern, SynthesisResult, RulePattern};
 pub use printer::print_model;
+pub use evolution::{EvolvableContract, Amendment, Proposal, ProposalStatus, Approval, EvolutionRecord};
+pub use runtime::{ContractInstance, SignedAction, CommitRecord, ContractState, ActionBuilder, RuntimeError, RuntimeResult, AvailableTransition};
+pub use runtime::negotiation::{Proposal as NegotiationProposal, CounterProposal, ProposalStatus as NegotiationStatus};
+pub use crypto::{verify_ed25519, sign_ed25519, generate_keypair, sha256, VerifyResult};
+pub use contract_log::{ContractLog, Commit, Action as CommitAction, DerivedState};
 
 // Re-export the generated parser
 pub use grammar::ModelParser;

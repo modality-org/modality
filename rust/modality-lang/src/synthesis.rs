@@ -407,6 +407,176 @@ pub mod templates {
         model
     }
 
+    /// Delegation: principal grants agent authority to act on their behalf
+    pub fn delegation(principal: &str, agent: &str) -> Model {
+        let mut model = Model::new("Delegation".to_string());
+        let mut part = Part::new("authority".to_string());
+        
+        let signer_principal = format!("SIGNED_BY_{}", principal.to_uppercase());
+        let signer_agent = format!("SIGNED_BY_{}", agent.to_uppercase());
+        
+        // init --> delegated: +DELEGATE +SIGNED_BY_PRINCIPAL
+        let mut t1 = Transition::new("init".to_string(), "delegated".to_string());
+        t1.add_property(Property::new(PropertySign::Plus, "DELEGATE".to_string()));
+        t1.add_property(Property::new(PropertySign::Plus, signer_principal.clone()));
+        part.add_transition(t1);
+        
+        // delegated --> delegated: +ACT_ON_BEHALF +SIGNED_BY_AGENT
+        let mut t2 = Transition::new("delegated".to_string(), "delegated".to_string());
+        t2.add_property(Property::new(PropertySign::Plus, "ACT_ON_BEHALF".to_string()));
+        t2.add_property(Property::new(PropertySign::Plus, signer_agent.clone()));
+        part.add_transition(t2);
+        
+        // delegated --> revoked: +REVOKE +SIGNED_BY_PRINCIPAL
+        let mut t3 = Transition::new("delegated".to_string(), "revoked".to_string());
+        t3.add_property(Property::new(PropertySign::Plus, "REVOKE".to_string()));
+        t3.add_property(Property::new(PropertySign::Plus, signer_principal.clone()));
+        part.add_transition(t3);
+        
+        // revoked --> revoked (terminal, no more agent actions)
+        part.add_transition(Transition::new("revoked".to_string(), "revoked".to_string()));
+        
+        model.add_part(part);
+        model
+    }
+
+    /// Auction: seller lists, bidders bid, highest wins, payment completes
+    pub fn auction(seller: &str) -> Model {
+        let mut model = Model::new("Auction".to_string());
+        let mut part = Part::new("bidding".to_string());
+        
+        let signer_seller = format!("SIGNED_BY_{}", seller.to_uppercase());
+        
+        // init --> listed: +LIST +SIGNED_BY_SELLER
+        let mut t1 = Transition::new("init".to_string(), "listed".to_string());
+        t1.add_property(Property::new(PropertySign::Plus, "LIST".to_string()));
+        t1.add_property(Property::new(PropertySign::Plus, signer_seller.clone()));
+        part.add_transition(t1);
+        
+        // listed --> listed: +BID (any signed bidder can bid)
+        let mut t2 = Transition::new("listed".to_string(), "listed".to_string());
+        t2.add_property(Property::new(PropertySign::Plus, "BID".to_string()));
+        part.add_transition(t2);
+        
+        // listed --> closed: +CLOSE +SIGNED_BY_SELLER
+        let mut t3 = Transition::new("listed".to_string(), "closed".to_string());
+        t3.add_property(Property::new(PropertySign::Plus, "CLOSE".to_string()));
+        t3.add_property(Property::new(PropertySign::Plus, signer_seller.clone()));
+        part.add_transition(t3);
+        
+        // closed --> paid: +PAY (winner pays)
+        let mut t4 = Transition::new("closed".to_string(), "paid".to_string());
+        t4.add_property(Property::new(PropertySign::Plus, "PAY".to_string()));
+        part.add_transition(t4);
+        
+        // paid --> complete: +TRANSFER +SIGNED_BY_SELLER
+        let mut t5 = Transition::new("paid".to_string(), "complete".to_string());
+        t5.add_property(Property::new(PropertySign::Plus, "TRANSFER".to_string()));
+        t5.add_property(Property::new(PropertySign::Plus, signer_seller.clone()));
+        part.add_transition(t5);
+        
+        // complete --> complete
+        part.add_transition(Transition::new("complete".to_string(), "complete".to_string()));
+        
+        model.add_part(part);
+        model
+    }
+
+    /// Subscription: recurring access with periodic payment
+    pub fn subscription(provider: &str, subscriber: &str) -> Model {
+        let mut model = Model::new("Subscription".to_string());
+        let mut part = Part::new("access".to_string());
+        
+        let signer_provider = format!("SIGNED_BY_{}", provider.to_uppercase());
+        let signer_subscriber = format!("SIGNED_BY_{}", subscriber.to_uppercase());
+        
+        // init --> subscribed: +SUBSCRIBE +PAY +SIGNED_BY_SUBSCRIBER
+        let mut t1 = Transition::new("init".to_string(), "subscribed".to_string());
+        t1.add_property(Property::new(PropertySign::Plus, "SUBSCRIBE".to_string()));
+        t1.add_property(Property::new(PropertySign::Plus, "PAY".to_string()));
+        t1.add_property(Property::new(PropertySign::Plus, signer_subscriber.clone()));
+        part.add_transition(t1);
+        
+        // subscribed --> subscribed: +ACCESS +SIGNED_BY_SUBSCRIBER
+        let mut t2 = Transition::new("subscribed".to_string(), "subscribed".to_string());
+        t2.add_property(Property::new(PropertySign::Plus, "ACCESS".to_string()));
+        t2.add_property(Property::new(PropertySign::Plus, signer_subscriber.clone()));
+        part.add_transition(t2);
+        
+        // subscribed --> subscribed: +RENEW +PAY +SIGNED_BY_SUBSCRIBER
+        let mut t3 = Transition::new("subscribed".to_string(), "subscribed".to_string());
+        t3.add_property(Property::new(PropertySign::Plus, "RENEW".to_string()));
+        t3.add_property(Property::new(PropertySign::Plus, "PAY".to_string()));
+        t3.add_property(Property::new(PropertySign::Plus, signer_subscriber.clone()));
+        part.add_transition(t3);
+        
+        // subscribed --> expired: +EXPIRE (auto or provider action)
+        let mut t4 = Transition::new("subscribed".to_string(), "expired".to_string());
+        t4.add_property(Property::new(PropertySign::Plus, "EXPIRE".to_string()));
+        part.add_transition(t4);
+        
+        // subscribed --> cancelled: +CANCEL +SIGNED_BY_SUBSCRIBER
+        let mut t5 = Transition::new("subscribed".to_string(), "cancelled".to_string());
+        t5.add_property(Property::new(PropertySign::Plus, "CANCEL".to_string()));
+        t5.add_property(Property::new(PropertySign::Plus, signer_subscriber.clone()));
+        part.add_transition(t5);
+        
+        // expired/cancelled --> subscribed: +RESUBSCRIBE +PAY
+        let mut t6 = Transition::new("expired".to_string(), "subscribed".to_string());
+        t6.add_property(Property::new(PropertySign::Plus, "RESUBSCRIBE".to_string()));
+        t6.add_property(Property::new(PropertySign::Plus, "PAY".to_string()));
+        t6.add_property(Property::new(PropertySign::Plus, signer_subscriber.clone()));
+        part.add_transition(t6);
+        
+        model.add_part(part);
+        model
+    }
+
+    /// Milestone-based project: phases with payments
+    pub fn milestone(client: &str, contractor: &str, milestones: &[&str]) -> Model {
+        let mut model = Model::new("MilestoneProject".to_string());
+        let mut part = Part::new("project".to_string());
+        
+        let signer_client = format!("SIGNED_BY_{}", client.to_uppercase());
+        let signer_contractor = format!("SIGNED_BY_{}", contractor.to_uppercase());
+        
+        // init --> started: +START +SIGNED_BY_CLIENT
+        let mut t_start = Transition::new("init".to_string(), "started".to_string());
+        t_start.add_property(Property::new(PropertySign::Plus, "START".to_string()));
+        t_start.add_property(Property::new(PropertySign::Plus, signer_client.clone()));
+        part.add_transition(t_start);
+        
+        // For each milestone: previous_state --> milestone_complete: +COMPLETE_X +SIGNED_BY_CONTRACTOR
+        // Then: milestone_complete --> milestone_paid: +PAY_X +SIGNED_BY_CLIENT
+        let mut prev_state = "started".to_string();
+        
+        for (i, milestone_name) in milestones.iter().enumerate() {
+            let complete_state = format!("{}_complete", milestone_name.to_lowercase().replace(' ', "_"));
+            let paid_state = format!("{}_paid", milestone_name.to_lowercase().replace(' ', "_"));
+            
+            // Contractor completes milestone
+            let mut t_complete = Transition::new(prev_state.clone(), complete_state.clone());
+            t_complete.add_property(Property::new(PropertySign::Plus, format!("COMPLETE_{}", milestone_name.to_uppercase().replace(' ', "_"))));
+            t_complete.add_property(Property::new(PropertySign::Plus, signer_contractor.clone()));
+            part.add_transition(t_complete);
+            
+            // Client pays for milestone
+            let mut t_pay = Transition::new(complete_state.clone(), paid_state.clone());
+            t_pay.add_property(Property::new(PropertySign::Plus, format!("PAY_{}", milestone_name.to_uppercase().replace(' ', "_"))));
+            t_pay.add_property(Property::new(PropertySign::Plus, signer_client.clone()));
+            part.add_transition(t_pay);
+            
+            prev_state = paid_state;
+        }
+        
+        // Final state
+        part.add_transition(Transition::new(prev_state.clone(), "finished".to_string()));
+        part.add_transition(Transition::new("finished".to_string(), "finished".to_string()));
+        
+        model.add_part(part);
+        model
+    }
+
     /// Service agreement: offer → accept → deliver → confirm → pay
     pub fn service_agreement(provider: &str, consumer: &str) -> Model {
         let mut model = Model::new("ServiceAgreement".to_string());
@@ -500,6 +670,43 @@ mod tests {
         assert_eq!(model.parts.len(), 1);
         let part = &model.parts[0];
         assert_eq!(part.name, "contract");
+    }
+    
+    #[test]
+    fn test_delegation_template() {
+        let model = templates::delegation("Principal", "Agent");
+        assert_eq!(model.name, "Delegation");
+        assert_eq!(model.parts.len(), 1);
+        let part = &model.parts[0];
+        // Should have: init→delegated, delegated→delegated (act), delegated→revoked, revoked→revoked
+        assert!(part.transitions.len() >= 4);
+    }
+    
+    #[test]
+    fn test_auction_template() {
+        let model = templates::auction("Seller");
+        assert_eq!(model.name, "Auction");
+        assert_eq!(model.parts.len(), 1);
+        let part = &model.parts[0];
+        // Should have: init→listed, listed→listed (bid), listed→closed, closed→paid, paid→complete, complete→complete
+        assert!(part.transitions.len() >= 6);
+    }
+    
+    #[test]
+    fn test_subscription_template() {
+        let model = templates::subscription("Provider", "Subscriber");
+        assert_eq!(model.name, "Subscription");
+        assert_eq!(model.parts.len(), 1);
+    }
+    
+    #[test]
+    fn test_milestone_template() {
+        let model = templates::milestone("Client", "Contractor", &["Design", "Build", "Test"]);
+        assert_eq!(model.name, "MilestoneProject");
+        assert_eq!(model.parts.len(), 1);
+        // Should have transitions for each milestone (complete + pay) plus start and finish
+        let part = &model.parts[0];
+        assert!(part.transitions.len() >= 7); // start + 3*(complete+pay) + finish
     }
     
     #[test]

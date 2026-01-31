@@ -102,15 +102,23 @@ pub enum FormulaExpr {
     /// Boolean literals
     True,
     False,
+    /// State propositions (node names)
+    Prop(String),
     /// Boolean operations
     And(Box<FormulaExpr>, Box<FormulaExpr>),
     Or(Box<FormulaExpr>, Box<FormulaExpr>),
     Not(Box<FormulaExpr>),
+    Implies(Box<FormulaExpr>, Box<FormulaExpr>),
     /// Parenthesized expressions
     Paren(Box<FormulaExpr>),
-    /// Modal operators
+    /// Modal operators (action-labeled)
     Diamond(Vec<Property>, Box<FormulaExpr>),
     Box(Vec<Property>, Box<FormulaExpr>),
+    /// Temporal operators (LTL - future-looking only)
+    Eventually(Box<FormulaExpr>),
+    Always(Box<FormulaExpr>),
+    Until(Box<FormulaExpr>, Box<FormulaExpr>),
+    Next(Box<FormulaExpr>),
 }
 
 impl Model {
@@ -285,4 +293,69 @@ pub enum TopLevelItem {
     Formula(Formula),
     Action(Action),
     Test(Test),
+    Contract(Contract),
+}
+
+/// A contract is an append-only log of commits
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Contract {
+    pub name: String,
+    pub commits: Vec<ContractCommit>,
+}
+
+/// A commit in a contract log
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ContractCommit {
+    pub signed_by: String,
+    pub signature: String,
+    pub model: Option<Model>,
+    pub statements: Vec<CommitStatement>,
+}
+
+/// Statements within a commit
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum CommitStatement {
+    SignedBy { party: String, signature: String },
+    Model(Model),
+    /// Add a rule (transitions as +ADD_RULE in model)
+    AddRule(FormulaExpr),
+    /// Domain action
+    Do(Vec<Property>),
+}
+
+impl Contract {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            commits: Vec::new(),
+        }
+    }
+    
+    pub fn add_commit(&mut self, commit: ContractCommit) {
+        self.commits.push(commit);
+    }
+}
+
+impl ContractCommit {
+    pub fn new(signed_by: String, signature: String) -> Self {
+        Self {
+            signed_by,
+            signature,
+            model: None,
+            statements: Vec::new(),
+        }
+    }
+    
+    pub fn with_model(signed_by: String, signature: String, model: Model) -> Self {
+        Self {
+            signed_by,
+            signature,
+            model: Some(model),
+            statements: Vec::new(),
+        }
+    }
+    
+    pub fn add_statement(&mut self, stmt: CommitStatement) {
+        self.statements.push(stmt);
+    }
 } 

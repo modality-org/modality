@@ -132,6 +132,72 @@ formula NeitherCanCheat {
 
 ---
 
+## How Contracts Actually Work
+
+A contract is an **append-only log of signed commits**. Every commit is a transition in the governing model.
+
+### The Model
+
+The first party provides a governing model that defines all possible transitions:
+
+```modality
+model {
+  part flow {
+    init --> a_ruled: +ADD_RULE +signed_by(A)
+    a_ruled --> b_ruled: +ADD_RULE +signed_by(B)
+    b_ruled --> a_ready: +READY +signed_by(A)
+    a_ready --> done: +READY +signed_by(B)
+  }
+}
+```
+
+### Every Commit is a Transition
+
+```modality
+contract handshake {
+
+  commit {
+    signed_by A "0xA_SIG_0"
+    model { ... }                    // A provides the model
+    add_rule { eventually(done) }    // Transitions: init --> a_ruled
+  }
+
+  commit {
+    signed_by B "0xB_SIG_1"
+    add_rule { eventually(done) }    // Transitions: a_ruled --> b_ruled
+  }
+
+  commit {
+    signed_by A "0xA_SIG_2"
+    do +READY                        // Transitions: b_ruled --> a_ready
+  }
+
+  commit {
+    signed_by B "0xB_SIG_3"
+    do +READY                        // Transitions: a_ready --> done
+  }
+
+}
+```
+
+### Rules
+
+- `add_rule { formula }` adds a constraint (transitions as `+ADD_RULE`)
+- `do +ACTION` executes a domain action
+- Properties like `+by_A` must match the `signed_by`
+- All rules must remain satisfiable
+
+### Why This Design?
+
+1. **Every action is explicit** — transitions in the model
+2. **Self-enforcing** — invalid transitions rejected
+3. **Full auditability** — every commit is in the log
+4. **Deterministic** — same log = same state
+
+See [CONTRACT_LOG.md](./CONTRACT_LOG.md) for full details.
+
+---
+
 ## The Syntax in 60 Seconds
 
 ```modality
@@ -190,10 +256,46 @@ They can re-verify independently. Trust through transparency.
 
 ---
 
+## Natural Language Synthesis (NEW!)
+
+Don't know the syntax? Just describe what you want:
+
+```bash
+modality model synthesize --describe "escrow where buyer deposits and seller delivers"
+```
+
+Output:
+```
+Detected pattern: escrow (confidence: 100%)
+Parties: ["Buyer", "Seller"]
+
+model Escrow {
+  part flow {
+    init --> deposited: +DEPOSIT +SIGNED_BY_BUYER
+    deposited --> delivered: +DELIVER +SIGNED_BY_SELLER
+    delivered --> complete: +RELEASE +SIGNED_BY_BUYER
+    complete --> complete
+  }
+}
+```
+
+Available patterns:
+- `escrow` - Buyer deposits, seller delivers, buyer releases
+- `handshake` - Both parties must sign
+- `atomic_swap` - Both commit before either can claim
+- `delegation` - Principal grants agent authority
+- `auction` - Bidders bid, highest wins
+- `subscription` - Recurring access with payments
+- `milestone` - Phased project with payments
+
+See [NL_SYNTHESIS.md](./NL_SYNTHESIS.md) for full details.
+
+---
+
 ## What's Coming
 
 - **ModalMoney**: A blockchain for verifiable agent contracts
-- **Synthesis**: Describe what you want in natural language, get a verified contract
+- **LLM Integration**: More sophisticated natural language understanding
 - **Composition**: Combine contracts safely with verified interfaces
 
 ---

@@ -1,0 +1,112 @@
+// Example: DAO Governance with Evolving Rules
+//
+// This model shows how a DAO can evolve its rules over time:
+// 1. Start with basic governance
+// 2. Add new capabilities via amendments
+// 3. Replace entire governance model via upgrade
+//
+// Evolution happens through propose → vote → execute cycle
+
+// VERSION 1: Basic DAO Governance
+model DAOv1 {
+    // Basic operation cycle
+    active --> proposing: +PROPOSE +signed_by("member")
+    proposing --> voting: +OPEN_VOTE
+    voting --> voting: +VOTE +signed_by("member")
+    voting --> approved: +THRESHOLD_MET
+    voting --> rejected: +THRESHOLD_NOT_MET
+    approved --> executed: +EXECUTE
+    executed --> active: +COMPLETE
+    rejected --> active: +COMPLETE
+}
+
+// AMENDMENT 1: Add treasury management
+// Proposed by Alice, requires 2/3 approval
+model DAOv1_Amendment1 {
+    // All original transitions from v1, plus:
+    active --> proposing: +PROPOSE +signed_by("member")
+    proposing --> voting: +OPEN_VOTE
+    voting --> voting: +VOTE +signed_by("member")
+    voting --> approved: +THRESHOLD_MET
+    voting --> rejected: +THRESHOLD_NOT_MET
+    approved --> executed: +EXECUTE
+    executed --> active: +COMPLETE
+    rejected --> active: +COMPLETE
+    
+    // NEW: Treasury operations
+    active --> treasury_action: +PROPOSE_SPEND +signed_by("treasurer")
+    treasury_action --> voting: +TREASURY_VOTE
+}
+
+// VERSION 2: Complete Upgrade with New Structure
+// Replaces v1 entirely when approved by supermajority
+model DAOv2 {
+    // New tiered governance
+    idle --> proposal_pending: +PROPOSE +signed_by("member")
+    
+    // Fast-track for small changes (simple majority)
+    proposal_pending --> fast_track: +FAST_TRACK +SMALL_CHANGE
+    fast_track --> fast_voting: +OPEN_FAST_VOTE
+    fast_voting --> executed: +SIMPLE_MAJORITY
+    
+    // Standard track for medium changes (2/3 majority)
+    proposal_pending --> standard: +STANDARD +MEDIUM_CHANGE
+    standard --> standard_voting: +OPEN_STANDARD_VOTE
+    standard_voting --> executed: +SUPERMAJORITY
+    
+    // Constitutional track for major changes (3/4 + delay)
+    proposal_pending --> constitutional: +CONSTITUTIONAL +MAJOR_CHANGE
+    constitutional --> delay_period: +OPEN_CONSTITUTIONAL_VOTE
+    delay_period --> constitutional_voting: +DELAY_COMPLETE
+    constitutional_voting --> executed: +CONSTITUTIONAL_MAJORITY
+    
+    executed --> idle: +COMPLETE
+    
+    // Veto mechanism (not in v1)
+    fast_voting --> vetoed: +VETO +signed_by("council")
+    standard_voting --> vetoed: +VETO +signed_by("council")
+    vetoed --> idle: +COMPLETE
+}
+
+// Formula: No execution without proper approval
+formula no_unauthorized_execute {
+    [+EXECUTE -THRESHOLD_MET -SIMPLE_MAJORITY -SUPERMAJORITY -CONSTITUTIONAL_MAJORITY] false
+}
+
+// Formula: Veto requires council signature
+formula veto_requires_council {
+    [+VETO -signed_by("council")] false
+}
+
+// Test: Evolution from v1 to v2
+test evolution_scenario {
+    dao = DAOv1.clone()
+    
+    // Normal v1 operation
+    dao.commit(+PROPOSE +signed_by("Alice"))
+    dao.commit(+OPEN_VOTE)
+    dao.commit(+VOTE +signed_by("Bob"))
+    dao.commit(+VOTE +signed_by("Carol"))
+    dao.commit(+THRESHOLD_MET)
+    dao.commit(+EXECUTE)
+    dao.commit(+COMPLETE)
+    
+    // Upgrade proposal
+    dao.commit(+PROPOSE +signed_by("Alice"))  // Propose upgrade to v2
+    dao.commit(+OPEN_VOTE)
+    dao.commit(+VOTE +signed_by("Alice"))
+    dao.commit(+VOTE +signed_by("Bob"))
+    dao.commit(+VOTE +signed_by("Carol"))
+    dao.commit(+VOTE +signed_by("Dave"))
+    dao.commit(+THRESHOLD_MET)  // Supermajority achieved
+    
+    // After execute, model is replaced
+    dao = DAOv2.clone()  // New governing model
+    
+    // Test new capabilities
+    dao.commit(+PROPOSE +signed_by("Alice"))
+    dao.commit(+FAST_TRACK +SMALL_CHANGE)
+    dao.commit(+OPEN_FAST_VOTE)
+    dao.commit(+SIMPLE_MAJORITY)
+    dao.commit(+COMPLETE)
+}

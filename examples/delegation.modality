@@ -1,0 +1,58 @@
+// Delegation: Principal grants Agent authority to act on their behalf
+// This pattern is useful for AI agents who need to delegate tasks
+
+model Delegation {
+  part authority {
+    // Principal grants delegation
+    init --> delegated: +DELEGATE +signed_by(principal)
+    
+    // Agent can act on behalf (multiple times)
+    delegated --> delegated: +ACT_ON_BEHALF +signed_by(agent)
+    
+    // Principal can revoke at any time
+    delegated --> revoked: +REVOKE +signed_by(principal)
+    
+    // Once revoked, no more agent actions
+    revoked --> revoked
+  }
+}
+
+// Guarantee: No agent actions after revocation
+formula NoActionsAfterRevoke {
+  always(
+    [-REVOKE] eventually(can_act) or
+    [+REVOKE] never(+ACT_ON_BEHALF)
+  )
+}
+
+// Guarantee: Only agent can act on behalf
+formula OnlyAgentCanAct {
+  [+ACT_ON_BEHALF] <+signed_by(agent)> true
+}
+
+// Guarantee: Only principal can delegate or revoke
+formula PrincipalControlsAuthority {
+  [+DELEGATE] <+signed_by(principal)> true
+  [+REVOKE] <+signed_by(principal)> true
+}
+
+// Test: Basic delegation flow
+test DelegationFlow {
+  d = clone(Delegation)
+  
+  // Principal delegates
+  d.commit(+DELEGATE +signed_by(principal))
+  assert d.state == "delegated"
+  
+  // Agent acts
+  d.commit(+ACT_ON_BEHALF +signed_by(agent))
+  assert d.state == "delegated"
+  
+  // Agent acts again
+  d.commit(+ACT_ON_BEHALF +signed_by(agent))
+  assert d.state == "delegated"
+  
+  // Principal revokes
+  d.commit(+REVOKE +signed_by(principal))
+  assert d.state == "revoked"
+}

@@ -74,12 +74,19 @@ impl ModelChecker {
     fn evaluate_formula(&self, expr: &FormulaExpr) -> Vec<State> {
         match expr {
             FormulaExpr::True => {
-                // Current states satisfy true
-                self.current_states()
+                // All states satisfy true
+                self.all_states()
             }
             FormulaExpr::False => {
                 // No states satisfy false
                 Vec::new()
+            }
+            FormulaExpr::Prop(name) => {
+                // States where current node name matches the proposition
+                self.all_states()
+                    .into_iter()
+                    .filter(|s| s.node_name == *name)
+                    .collect()
             }
             FormulaExpr::And(left, right) => {
                 let left_states = self.evaluate_formula(left);
@@ -93,8 +100,14 @@ impl ModelChecker {
             }
             FormulaExpr::Not(expr) => {
                 let expr_states = self.evaluate_formula(expr);
-                let current_states = self.current_states();
-                self.difference_states(&current_states, &expr_states)
+                let all_states = self.all_states();
+                self.difference_states(&all_states, &expr_states)
+            }
+            FormulaExpr::Implies(left, right) => {
+                // P -> Q is equivalent to !P | Q
+                let not_left = FormulaExpr::Not(left.clone());
+                let or_expr = FormulaExpr::Or(Box::new(not_left), right.clone());
+                self.evaluate_formula(&or_expr)
             }
             FormulaExpr::Paren(expr) => {
                 self.evaluate_formula(expr)
@@ -105,7 +118,168 @@ impl ModelChecker {
             FormulaExpr::Box(properties, expr) => {
                 self.evaluate_box(properties, expr)
             }
+            FormulaExpr::Eventually(expr) => {
+                self.evaluate_eventually(expr)
+            }
+            FormulaExpr::Always(expr) => {
+                self.evaluate_always(expr)
+            }
+            FormulaExpr::Until(left, right) => {
+                self.evaluate_until(left, right)
+            }
+            FormulaExpr::Next(expr) => {
+                self.evaluate_next(expr)
+            }
         }
+    }
+    
+    /// Evaluate eventually(P): states from which a P-state is reachable
+    /// Uses backward reachability (least fixed point)
+    fn evaluate_eventually(&self, expr: &FormulaExpr) -> Vec<State> {
+        let target_states = self.evaluate_formula(expr);
+        let mut result = target_states.clone();
+        let mut changed = true;
+        
+        // Fixed point: keep adding states that can reach the result set
+        while changed {
+            changed = false;
+            let current_result = result.clone();
+            
+            for part in &self.model.parts {
+                for transition in &part.transitions {
+                    let from_state = State {
+                        part_name: part.name.clone(),
+                        node_name: transition.from.clone(),
+                    };
+                    let to_state = State {
+                        part_name: part.name.clone(),
+                        node_name: transition.to.clone(),
+                    };
+                    
+                    // If to_state is in result and from_state is not, add from_state
+                    if current_result.contains(&to_state) && !result.contains(&from_state) {
+                        result.push(from_state);
+                        changed = true;
+                    }
+                }
+            }
+        }
+        
+        result
+    }
+    
+    /// Evaluate always(P): states where P holds on all reachable states
+    /// Uses forward reachability check (greatest fixed point)
+    fn evaluate_always(&self, expr: &FormulaExpr) -> Vec<State> {
+        let p_states = self.evaluate_formula(expr);
+        let all_states = self.all_states();
+        
+        // Start with all states, remove those that can reach a non-P state
+        let mut result = all_states.clone();
+        let mut changed = true;
+        
+        while changed {
+            changed = false;
+            let current_result = result.clone();
+            
+            for state in &current_result {
+                // Check if this state satisfies P
+                if !p_states.contains(state) {
+                    if result.contains(state) {
+                        result.retain(|s| s != state);
+                        changed = true;
+                    }
+                    continue;
+                }
+                
+                // Check if any outgoing transition leads to a state not in result
+                let part = self.model.parts.iter().find(|p| p.name == state.part_name);
+                if let Some(part) = part {
+                    for transition in &part.transitions {
+                        if transition.from == state.node_name {
+                            let to_state = State {
+                                part_name: part.name.clone(),
+                                node_name: transition.to.clone(),
+                            };
+                            if !current_result.contains(&to_state) {
+                                if result.contains(state) {
+                                    result.retain(|s| s != state);
+                                    changed = true;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        result
+    }
+    
+    /// Evaluate P until Q: P holds until Q becomes true
+    /// Least fixed point: Q or (P and exists next state in Until(P,Q))
+    fn evaluate_until(&self, left: &FormulaExpr, right: &FormulaExpr) -> Vec<State> {
+        let p_states = self.evaluate_formula(left);
+        let q_states = self.evaluate_formula(right);
+        
+        // Start with Q states
+        let mut result = q_states.clone();
+        let mut changed = true;
+        
+        while changed {
+            changed = false;
+            let current_result = result.clone();
+            
+            for part in &self.model.parts {
+                for transition in &part.transitions {
+                    let from_state = State {
+                        part_name: part.name.clone(),
+                        node_name: transition.from.clone(),
+                    };
+                    let to_state = State {
+                        part_name: part.name.clone(),
+                        node_name: transition.to.clone(),
+                    };
+                    
+                    // If from_state satisfies P, to_state is in result, and from_state not in result
+                    if p_states.contains(&from_state) 
+                        && current_result.contains(&to_state) 
+                        && !result.contains(&from_state) 
+                    {
+                        result.push(from_state);
+                        changed = true;
+                    }
+                }
+            }
+        }
+        
+        result
+    }
+    
+    /// Evaluate next(P): states with a transition to a P-state
+    fn evaluate_next(&self, expr: &FormulaExpr) -> Vec<State> {
+        let target_states = self.evaluate_formula(expr);
+        let mut result = Vec::new();
+        
+        for part in &self.model.parts {
+            for transition in &part.transitions {
+                let from_state = State {
+                    part_name: part.name.clone(),
+                    node_name: transition.from.clone(),
+                };
+                let to_state = State {
+                    part_name: part.name.clone(),
+                    node_name: transition.to.clone(),
+                };
+                
+                if target_states.contains(&to_state) && !result.contains(&from_state) {
+                    result.push(from_state);
+                }
+            }
+        }
+        
+        result
     }
 
     /// Evaluate diamond operator: <properties> phi

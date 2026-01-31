@@ -1,0 +1,87 @@
+// Milestone-Based Project: Multi-phase work with staged payments
+// Common pattern for development contracts, freelance work
+
+model MilestoneProject {
+  part project {
+    // Client starts the project
+    init --> started: +START +signed_by(client)
+    
+    // Phase 1: Design
+    started --> design_complete: +COMPLETE_DESIGN +signed_by(contractor)
+    design_complete --> design_paid: +PAY_DESIGN +signed_by(client)
+    
+    // Phase 2: Build
+    design_paid --> build_complete: +COMPLETE_BUILD +signed_by(contractor)
+    build_complete --> build_paid: +PAY_BUILD +signed_by(client)
+    
+    // Phase 3: Test
+    build_paid --> test_complete: +COMPLETE_TEST +signed_by(contractor)
+    test_complete --> test_paid: +PAY_TEST +signed_by(client)
+    
+    // Project finished
+    test_paid --> finished: +FINALIZE
+    finished --> finished
+  }
+}
+
+// Guarantee: No payment without completion
+formula PayOnlyForCompleted {
+  [+PAY_DESIGN] <+COMPLETE_DESIGN> true
+  [+PAY_BUILD] <+COMPLETE_BUILD> true
+  [+PAY_TEST] <+COMPLETE_TEST> true
+}
+
+// Guarantee: Phases are sequential
+formula SequentialPhases {
+  [+COMPLETE_BUILD] <+PAY_DESIGN> true
+  [+COMPLETE_TEST] <+PAY_BUILD> true
+}
+
+// Guarantee: Only contractor completes work
+formula ContractorCompletesWork {
+  [+COMPLETE_DESIGN] <+signed_by(contractor)> true
+  [+COMPLETE_BUILD] <+signed_by(contractor)> true
+  [+COMPLETE_TEST] <+signed_by(contractor)> true
+}
+
+// Guarantee: Only client pays
+formula ClientPays {
+  [+PAY_DESIGN] <+signed_by(client)> true
+  [+PAY_BUILD] <+signed_by(client)> true
+  [+PAY_TEST] <+signed_by(client)> true
+}
+
+// Test: Full project lifecycle
+test FullProject {
+  p = clone(MilestoneProject)
+  
+  // Start
+  p.commit(+START +signed_by(client))
+  assert p.state == "started"
+  
+  // Design phase
+  p.commit(+COMPLETE_DESIGN +signed_by(contractor))
+  p.commit(+PAY_DESIGN +signed_by(client))
+  
+  // Build phase
+  p.commit(+COMPLETE_BUILD +signed_by(contractor))
+  p.commit(+PAY_BUILD +signed_by(client))
+  
+  // Test phase
+  p.commit(+COMPLETE_TEST +signed_by(contractor))
+  p.commit(+PAY_TEST +signed_by(client))
+  
+  // Finalize
+  p.commit(+FINALIZE)
+  assert p.state == "finished"
+}
+
+// Test: Cannot skip phases
+test CannotSkipPhases {
+  p = clone(MilestoneProject)
+  
+  p.commit(+START +signed_by(client))
+  
+  // Try to pay without completion - should fail
+  // (This would be rejected by the model checker)
+}

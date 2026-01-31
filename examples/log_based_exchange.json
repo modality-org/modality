@@ -1,0 +1,98 @@
+{
+  "id": "exchange_001",
+  "commits": [
+    {
+      "commit_id": 0,
+      "actions": [
+        {
+          "type": "AddParty",
+          "party": "0xA1B2C3...",
+          "name": "Alice"
+        },
+        {
+          "type": "AddRule",
+          "name": "AliceProtection",
+          "formula": {
+            "name": "AliceProtection",
+            "expression": {
+              "Eventually": {
+                "Or": [
+                  { "Prop": "paid" },
+                  { "Prop": "refunded" }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "signed_by": "0xA1B2C3...",
+      "signature": "sig_alice_0",
+      "timestamp": 1706700000
+    },
+    {
+      "commit_id": 1,
+      "actions": [
+        {
+          "type": "AddParty",
+          "party": "0xD4E5F6...",
+          "name": "Bob"
+        },
+        {
+          "type": "AddRule",
+          "name": "BobProtection",
+          "formula": {
+            "name": "BobProtection",
+            "expression": {
+              "Eventually": {
+                "Or": [
+                  { "Prop": "delivered" },
+                  { "Prop": "refunded" }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "signed_by": "0xD4E5F6...",
+      "signature": "sig_bob_1",
+      "timestamp": 1706700100
+    },
+    {
+      "commit_id": 2,
+      "actions": [
+        { "type": "Finalize" }
+      ],
+      "signed_by": "0xA1B2C3...",
+      "signature": "sig_alice_2",
+      "timestamp": 1706700200
+    },
+    {
+      "commit_id": 3,
+      "actions": [
+        {
+          "type": "Domain",
+          "properties": [
+            { "sign": "Plus", "name": "DELIVER" }
+          ]
+        }
+      ],
+      "signed_by": "0xA1B2C3...",
+      "signature": "sig_alice_3",
+      "timestamp": 1706700300
+    },
+    {
+      "commit_id": 4,
+      "actions": [
+        {
+          "type": "Domain",
+          "properties": [
+            { "sign": "Plus", "name": "PAY" }
+          ]
+        }
+      ],
+      "signed_by": "0xD4E5F6...",
+      "signature": "sig_bob_4",
+      "timestamp": 1706700400
+    }
+  ]
+}

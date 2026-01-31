@@ -1,4 +1,4 @@
-use crate::ast::{Model, Part, Transition, Property, PropertySign, PropertySource, Formula, FormulaExpr, PartState, TopLevelItem, Action, ActionCall, Test, TestStatement};
+use crate::ast::{Model, Part, Transition, Property, PropertySign, PropertySource, Formula, FormulaExpr, PartState, TopLevelItem, Action, ActionCall, Test, TestStatement, Contract, ContractCommit, CommitStatement};
 
 grammar;
 
@@ -18,7 +18,8 @@ TopLevelItem: TopLevelItem = {
     <model:Model> => TopLevelItem::Model(model),
     <formula:Formula> => TopLevelItem::Formula(formula),
     <action:Action> => TopLevelItem::Action(action),
-    <test:Test> => TopLevelItem::Test(test)
+    <test:Test> => TopLevelItem::Test(test),
+    <contract:ContractDecl> => TopLevelItem::Contract(contract)
 };
 
 pub Model: Model = {
@@ -70,13 +71,21 @@ PropertyList: Vec<Property> = {
 Property: Property = {
     "+" <name:Ident> => Property::new(PropertySign::Plus, name),
     "-" <name:Ident> => Property::new(PropertySign::Minus, name),
-    // Predicate function call: +signed_by("pubkey") or +has_amount(100)
+    // Predicate function call: +name("arg") or +name(arg)
     "+" <name:Ident> "(" <arg:PredicateArg> ")" => {
         Property::new_predicate_from_call(name, arg)
     },
-    // Negated predicate: -signed_by("pubkey")
+    // Negated predicate: -name("arg")
     "-" <name:Ident> "(" <arg:PredicateArg> ")" => {
         Property::new_predicate_from_call_negated(name, arg)
+    },
+    // Special case: +signed_by(X) - keyword used as predicate name
+    "+" "signed_by" "(" <arg:PredicateArg> ")" => {
+        Property::new_predicate_from_call("signed_by".to_string(), arg)
+    },
+    // Special case: -signed_by(X)
+    "-" "signed_by" "(" <arg:PredicateArg> ")" => {
+        Property::new_predicate_from_call_negated("signed_by".to_string(), arg)
     }
 };
 
@@ -171,36 +180,144 @@ FormulaExpr: FormulaExpr = {
 };
 
 FormulaOrExpr: FormulaExpr = {
-    <expr:FormulaAndExpr> => expr,
-    <expr:FormulaOrExpr> "or" <expr2:FormulaAndExpr> => {
+    <expr:FormulaImpliesExpr> => expr,
+    <expr:FormulaOrExpr> "or" <expr2:FormulaImpliesExpr> => {
+        FormulaExpr::Or(Box::new(expr), Box::new(expr2))
+    },
+    <expr:FormulaOrExpr> "|" <expr2:FormulaImpliesExpr> => {
         FormulaExpr::Or(Box::new(expr), Box::new(expr2))
     }
 };
 
+FormulaImpliesExpr: FormulaExpr = {
+    <expr:FormulaAndExpr> => expr,
+    <expr:FormulaAndExpr> "->" <expr2:FormulaImpliesExpr> => {
+        FormulaExpr::Implies(Box::new(expr), Box::new(expr2))
+    },
+    <expr:FormulaAndExpr> "implies" <expr2:FormulaImpliesExpr> => {
+        FormulaExpr::Implies(Box::new(expr), Box::new(expr2))
+    }
+};
+
 FormulaAndExpr: FormulaExpr = {
-    <expr:FormulaAtom> => expr,
-    <expr:FormulaAndExpr> "and" <expr2:FormulaAtom> => {
+    <expr:FormulaUntilExpr> => expr,
+    <expr:FormulaAndExpr> "and" <expr2:FormulaUntilExpr> => {
         FormulaExpr::And(Box::new(expr), Box::new(expr2))
+    },
+    <expr:FormulaAndExpr> "&" <expr2:FormulaUntilExpr> => {
+        FormulaExpr::And(Box::new(expr), Box::new(expr2))
+    }
+};
+
+FormulaUntilExpr: FormulaExpr = {
+    <expr:FormulaAtom> => expr,
+    <expr:FormulaAtom> "until" <expr2:FormulaUntilExpr> => {
+        FormulaExpr::Until(Box::new(expr), Box::new(expr2))
     }
 };
 
 FormulaAtom: FormulaExpr = {
     "true" => FormulaExpr::True,
     "false" => FormulaExpr::False,
+    // State proposition (node name)
+    <name:Ident> => FormulaExpr::Prop(name),
+    // Negation
     "not" <expr:FormulaAtom> => {
         FormulaExpr::Not(Box::new(expr))
     },
+    "!" <expr:FormulaAtom> => {
+        FormulaExpr::Not(Box::new(expr))
+    },
+    // Parentheses
     "(" <expr:FormulaExpr> ")" => {
         FormulaExpr::Paren(Box::new(expr))
     },
+    // Modal operators (action-labeled)
     "<" <properties:PropertyList> ">" <expr:FormulaAtom> => {
         FormulaExpr::Diamond(properties, Box::new(expr))
     },
     "[" <properties:PropertyList> "]" <expr:FormulaAtom> => {
         FormulaExpr::Box(properties, Box::new(expr))
+    },
+    // Temporal operators
+    "eventually" "(" <expr:FormulaExpr> ")" => {
+        FormulaExpr::Eventually(Box::new(expr))
+    },
+    "always" "(" <expr:FormulaExpr> ")" => {
+        FormulaExpr::Always(Box::new(expr))
+    },
+    "next" "(" <expr:FormulaExpr> ")" => {
+        FormulaExpr::Next(Box::new(expr))
+    },
+    // Unicode temporal operators
+    "◇" "(" <expr:FormulaExpr> ")" => {
+        FormulaExpr::Eventually(Box::new(expr))
+    },
+    "□" "(" <expr:FormulaExpr> ")" => {
+        FormulaExpr::Always(Box::new(expr))
     }
 };
 
 Ident: String = {
     r#"[a-zA-Z_][a-zA-Z0-9_]*"# => <>.to_string()
+};
+
+// Contract parsing
+pub ContractDecl: Contract = {
+    "contract" <name:Ident> "{" <commits:CommitDecl*> "}" => {
+        let mut contract = Contract::new(name);
+        for commit in commits {
+            contract.add_commit(commit);
+        }
+        contract
+    }
+};
+
+CommitDecl: ContractCommit = {
+    // commit { statements }
+    "commit" "{" <stmts:CommitStatementList?> "}" => {
+        let mut commit = ContractCommit::new(String::new(), String::new());
+        if let Some(statements) = stmts {
+            for stmt in statements {
+                match &stmt {
+                    CommitStatement::SignedBy { party, signature } => {
+                        commit.signed_by = party.clone();
+                        commit.signature = signature.clone();
+                    }
+                    CommitStatement::Model(model) => commit.model = Some(model.clone()),
+                    CommitStatement::AddRule(_) | CommitStatement::Do(_) => commit.add_statement(stmt),
+                }
+            }
+        }
+        commit
+    }
+};
+
+CommitStatementList: Vec<CommitStatement> = {
+    <stmt:CommitStatement> => vec![stmt],
+    <stmts:CommitStatementList> <stmt:CommitStatement> => {
+        let mut list = stmts;
+        list.push(stmt);
+        list
+    }
+};
+
+CommitStatement: CommitStatement = {
+    // signed_by X "signature"
+    "signed_by" <party:Ident> <sig:StringLiteral> => CommitStatement::SignedBy { party, signature: sig },
+    
+    // model { parts }
+    "model" "{" <parts:Part*> "}" => {
+        let mut model = Model::new("inline".to_string());
+        for part in parts {
+            model.add_part(part);
+        }
+        CommitStatement::Model(model)
+    },
+    
+    // add_rule { formula } (adds rule, transitions as +ADD_RULE in model)
+    "add_rule" "{" <expr:FormulaExpr> "}" => CommitStatement::AddRule(expr),
+    
+    // do +PROPERTY (domain action)
+    "do" <props:PropertyList> => CommitStatement::Do(props)
 };
