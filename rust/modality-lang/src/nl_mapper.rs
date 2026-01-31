@@ -70,7 +70,9 @@ fn get_pattern_keywords() -> Vec<PatternKeywords> {
             keywords: vec![
                 "escrow", "hold funds", "release payment", "deposit", 
                 "third party holds", "conditional release", "buyer seller",
-                "deliver then pay", "payment protection"
+                "deliver then pay", "payment protection", "funds held",
+                "secure payment", "goods delivered", "release funds",
+                "payment on delivery", "delivery confirmed"
             ],
             weight: 1.0,
         },
@@ -95,7 +97,9 @@ fn get_pattern_keywords() -> Vec<PatternKeywords> {
             pattern: ContractPattern::AtomicSwap,
             keywords: vec![
                 "atomic swap", "swap", "exchange", "trade",
-                "both commit", "simultaneous", "cross-chain"
+                "both commit", "simultaneous", "cross-chain",
+                "trustless exchange", "token swap", "crypto swap",
+                "asset exchange", "peer to peer exchange"
             ],
             weight: 1.0,
         },
@@ -111,7 +115,9 @@ fn get_pattern_keywords() -> Vec<PatternKeywords> {
             pattern: ContractPattern::ServiceAgreement,
             keywords: vec![
                 "service", "offer accept", "deliver confirm",
-                "provider consumer", "work for payment", "contract work"
+                "provider consumer", "work for payment", "contract work",
+                "freelance", "gig", "job completion", "task payment",
+                "service rendered", "work delivered", "invoice"
             ],
             weight: 1.0,
         },
@@ -119,7 +125,9 @@ fn get_pattern_keywords() -> Vec<PatternKeywords> {
             pattern: ContractPattern::Delegation,
             keywords: vec![
                 "delegate", "delegation", "authorize", "on behalf",
-                "proxy", "agent authority", "grant permission", "revoke"
+                "proxy", "agent authority", "grant permission", "revoke",
+                "power of attorney", "representative", "empowerment",
+                "act for me", "signing authority", "delegated access"
             ],
             weight: 1.0,
         },
