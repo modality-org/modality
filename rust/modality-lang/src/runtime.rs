@@ -114,6 +114,19 @@ pub struct ContractState {
     pub termination_reason: Option<String>,
 }
 
+/// An event emitted by the contract
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContractEvent {
+    /// Timestamp when event was emitted
+    pub timestamp: u64,
+    /// Sequence number at time of emission
+    pub sequence: u64,
+    /// Type of event
+    pub event_type: String,
+    /// Event data
+    pub data: serde_json::Value,
+}
+
 /// A running contract instance
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContractInstance {
@@ -134,6 +147,9 @@ pub struct ContractInstance {
     /// Path-based contract store (for dynamic values)
     #[serde(default)]
     pub store: ContractStore,
+    /// Event log
+    #[serde(default)]
+    pub events: Vec<ContractEvent>,
 }
 
 impl ContractInstance {
@@ -185,6 +201,7 @@ impl ContractInstance {
             sequence: 0,
             created_at: now,
             store,
+            events: Vec::new(),
         })
     }
 
@@ -516,6 +533,38 @@ impl ContractInstance {
         } else {
             0
         }
+    }
+
+    // ==================== Event Logging ====================
+
+    /// Emit an event to the contract log
+    pub fn emit_event(&mut self, event_type: &str, data: serde_json::Value) {
+        let event = ContractEvent {
+            timestamp: self.now_ms(),
+            sequence: self.sequence,
+            event_type: event_type.to_string(),
+            data,
+        };
+        self.events.push(event);
+    }
+
+    /// Get all events
+    pub fn get_events(&self) -> &[ContractEvent] {
+        &self.events
+    }
+
+    /// Get events of a specific type
+    pub fn get_events_by_type(&self, event_type: &str) -> Vec<&ContractEvent> {
+        self.events.iter()
+            .filter(|e| e.event_type == event_type)
+            .collect()
+    }
+
+    /// Get events since a sequence number
+    pub fn get_events_since(&self, since_seq: u64) -> Vec<&ContractEvent> {
+        self.events.iter()
+            .filter(|e| e.sequence > since_seq)
+            .collect()
     }
 }
 
@@ -1105,5 +1154,41 @@ mod tests {
         assert!(instance.is_past_deadline("/escrow/deadline.int"));
         assert!(!instance.is_before_deadline("/escrow/deadline.int"));
         assert_eq!(instance.time_until_deadline("/escrow/deadline.int"), 0);
+    }
+
+    #[test]
+    fn test_event_logging() {
+        let model = templates::escrow("Alice", "Bob");
+        let mut parties = HashMap::new();
+        parties.insert("Alice".to_string(), "alice_key".to_string());
+        parties.insert("Bob".to_string(), "bob_key".to_string());
+
+        let mut instance = ContractInstance::new(model, parties).unwrap();
+
+        // Emit some events
+        instance.emit_event("deposit", serde_json::json!({
+            "from": "Alice",
+            "amount": 100
+        }));
+        instance.emit_event("transfer", serde_json::json!({
+            "from": "Alice",
+            "to": "Bob",
+            "amount": 50
+        }));
+        instance.emit_event("deposit", serde_json::json!({
+            "from": "Bob",
+            "amount": 25
+        }));
+
+        // Check all events
+        let events = instance.get_events();
+        assert_eq!(events.len(), 3);
+
+        // Filter by type
+        let deposits = instance.get_events_by_type("deposit");
+        assert_eq!(deposits.len(), 2);
+
+        let transfers = instance.get_events_by_type("transfer");
+        assert_eq!(transfers.len(), 1);
     }
 }
