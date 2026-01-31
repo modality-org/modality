@@ -5,6 +5,51 @@ pub fn generate_mermaid_diagram(model: &Model) -> String {
     let mut diagram = String::new();
     diagram.push_str("stateDiagram-v2\n");
     
+    // Handle direct transitions (new simple syntax)
+    if !model.transitions.is_empty() {
+        // Add initial state marker if specified
+        if let Some(initial) = &model.initial {
+            diagram.push_str(&format!("    [*] --> {}\n", initial));
+        }
+        
+        // Collect all nodes
+        let mut nodes = std::collections::HashSet::new();
+        for transition in &model.transitions {
+            nodes.insert(&transition.from);
+            nodes.insert(&transition.to);
+        }
+        
+        for node in &nodes {
+            diagram.push_str(&format!("    {}\n", node));
+        }
+        
+        // Add transitions
+        for transition in &model.transitions {
+            let edge_label = if transition.properties.is_empty() {
+                String::new()
+            } else {
+                let props: Vec<String> = transition.properties.iter()
+                    .map(|p| {
+                        let sign = if p.sign == PropertySign::Plus { "+" } else { "-" };
+                        if let Some(source) = &p.source {
+                            if let crate::ast::PropertySource::Predicate { args, .. } = source {
+                                if let Some(arg) = args.get("arg") {
+                                    return format!("{}{}({})", sign, p.name, arg.as_str().unwrap_or(""));
+                                }
+                            }
+                        }
+                        format!("{}{}", sign, p.name)
+                    })
+                    .collect();
+                format!(": {}", props.join(" "))
+            };
+            
+            diagram.push_str(&format!("    {} --> {}{}\n", 
+                transition.from, transition.to, edge_label));
+        }
+    }
+    
+    // Handle parts (legacy syntax)
     for (_part_idx, part) in model.parts.iter().enumerate() {
         if model.parts.len() > 1 {
             diagram.push_str(&format!("    state {} {{\n", part.name));
