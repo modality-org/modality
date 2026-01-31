@@ -82,6 +82,19 @@ impl CommitFile {
     }
 }
 
+/// Known path extensions for contract data
+const KNOWN_EXTENSIONS: &[&str] = &[
+    ".json",      // JSON data
+    ".wasm",      // WebAssembly programs
+    ".rule",      // Verification rules/formulas  
+    ".modality",  // Modality definitions
+    ".txt",       // Plain text
+    ".md",        // Markdown
+    ".key",       // Keys/identifiers
+    ".sig",       // Signatures
+    ".state",     // State data
+];
+
 impl CommitAction {
     /// Validate the action based on its method
     pub fn validate(&self) -> Result<()> {
@@ -90,9 +103,41 @@ impl CommitAction {
             "send" => self.validate_send(),
             "recv" => self.validate_recv(),
             "invoke" => self.validate_invoke(),
-            "post" | "rule" | "genesis" => Ok(()), // existing methods
+            "post" => self.validate_post(),
+            "rule" => self.validate_rule(),
+            "genesis" => Ok(()), // genesis is special, no path validation
             _ => Err(anyhow::anyhow!("Unknown method: {}", self.method)),
         }
+    }
+    
+    /// Validate path has a known extension
+    fn validate_path_extension(&self) -> Result<()> {
+        if let Some(path) = &self.path {
+            // Check if path ends with a known extension
+            let has_known_ext = KNOWN_EXTENSIONS.iter().any(|ext| path.ends_with(ext));
+            if !has_known_ext {
+                anyhow::bail!(
+                    "Path '{}' must end with a known extension: {}",
+                    path,
+                    KNOWN_EXTENSIONS.join(", ")
+                );
+            }
+        }
+        Ok(())
+    }
+    
+    fn validate_post(&self) -> Result<()> {
+        self.validate_path_extension()
+    }
+    
+    fn validate_rule(&self) -> Result<()> {
+        // Rules should end in .rule or .modality
+        if let Some(path) = &self.path {
+            if !path.ends_with(".rule") && !path.ends_with(".modality") {
+                anyhow::bail!("Rule path '{}' must end with .rule or .modality", path);
+            }
+        }
+        Ok(())
     }
 
     fn validate_create(&self) -> Result<()> {
