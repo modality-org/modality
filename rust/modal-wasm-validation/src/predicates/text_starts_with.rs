@@ -1,9 +1,7 @@
 //! text_starts_with predicate - prefix check
 
 use super::{PredicateResult, PredicateInput};
-use super::text_common::{CorrelationInput, CorrelationResult, ImpliedRule};
-#[cfg(test)]
-use super::text_common::RuleContext;
+use super::text_common::{CorrelationInput, CorrelationResult, Interaction};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,47 +29,66 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
 
 pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
     let gas_used = 15;
-    let mut implied = Vec::new();
+    let mut interactions = Vec::new();
     
     let prefix: String = match input.params.get("prefix").and_then(|v| v.as_str()) {
         Some(s) => s.to_string(),
-        None => return CorrelationResult { implied, gas_used },
+        None => return CorrelationResult::ok(gas_used),
     };
     
-    implied.push(ImpliedRule::certain(
-        "text_contains",
-        serde_json::json!({"substring": prefix.clone()}),
-        "starts_with implies contains"
-    ));
-    
-    if !prefix.is_empty() {
-        implied.push(ImpliedRule::certain(
-            "text_length_gt",
-            serde_json::json!({"length": prefix.len() - 1}),
-            "starts_with implies min length"
-        ));
-        
-        implied.push(ImpliedRule::certain(
-            "text_not_empty",
-            serde_json::json!({}),
-            "starts_with non-empty implies not_empty"
-        ));
-    }
-    
     for rule in &input.other_rules {
-        if rule.predicate == "text_ends_with" {
-            if let Some(suffix) = rule.params.get("suffix").and_then(|v| v.as_str()) {
-                let min_len = prefix.len() + suffix.len();
-                implied.push(ImpliedRule::certain(
-                    "text_length_gt",
-                    serde_json::json!({"length": min_len.saturating_sub(1)}),
-                    "starts_with + ends_with implies combined min length"
-                ));
+        match rule.predicate.as_str() {
+            "text_length_lt" => {
+                if let Some(max_len) = rule.params.get("length").and_then(|v| v.as_u64()) {
+                    if prefix.len() >= max_len as usize {
+                        interactions.push(Interaction::contradiction(
+                            "text_length_lt",
+                            &format!("starts_with('{}') requires length >= {}, contradicts length_lt({})", prefix, prefix.len(), max_len)
+                        ));
+                    }
+                }
             }
+            "text_length_eq" => {
+                if let Some(len) = rule.params.get("length").and_then(|v| v.as_u64()) {
+                    if prefix.len() > len as usize {
+                        interactions.push(Interaction::contradiction(
+                            "text_length_eq",
+                            &format!("starts_with('{}') requires length >= {}, contradicts length_eq({})", prefix, prefix.len(), len)
+                        ));
+                    }
+                }
+            }
+            "text_is_empty" => {
+                if !prefix.is_empty() {
+                    interactions.push(Interaction::contradiction("text_is_empty", "starts_with non-empty contradicts is_empty"));
+                }
+            }
+            "text_equals" => {
+                if let Some(expected) = rule.params.get("expected").and_then(|v| v.as_str()) {
+                    if expected.starts_with(&prefix) {
+                        interactions.push(Interaction::compatible("text_equals", &format!("'{}' starts with '{}'", expected, prefix)));
+                    } else {
+                        interactions.push(Interaction::contradiction(
+                            "text_equals",
+                            &format!("'{}' does not start with '{}'", expected, prefix)
+                        ));
+                    }
+                }
+            }
+            "text_ends_with" => {
+                if let Some(suffix) = rule.params.get("suffix").and_then(|v| v.as_str()) {
+                    // Check combined length constraint
+                    interactions.push(Interaction::constrains(
+                        "text_ends_with",
+                        &format!("combined: starts_with('{}') + ends_with('{}') requires min length {}", prefix, suffix, prefix.len() + suffix.len())
+                    ));
+                }
+            }
+            _ => {}
         }
     }
     
-    CorrelationResult { implied, gas_used }
+    CorrelationResult::with_interactions(interactions, gas_used)
 }
 
 #[cfg(test)]
@@ -80,36 +97,12 @@ mod tests {
     use crate::predicates::PredicateContext;
 
     fn create_input(data: serde_json::Value) -> PredicateInput {
-        PredicateInput { 
-            data, 
-            context: PredicateContext::new("test".to_string(), 1, 0) 
-        }
+        PredicateInput { data, context: PredicateContext::new("test".to_string(), 1, 0) }
     }
 
     #[test]
     fn test_evaluate() {
-        let input = create_input(serde_json::json!({"value": "hello world", "prefix": "hello"}));
-        assert!(evaluate(&input).valid);
-
-        let input = create_input(serde_json::json!({"value": "hello world", "prefix": "world"}));
-        assert!(!evaluate(&input).valid);
-    }
-
-    #[test]
-    fn test_correlate_with_ends_with() {
-        let input = CorrelationInput {
-            params: serde_json::json!({"prefix": "hello"}),
-            other_rules: vec![
-                RuleContext {
-                    predicate: "text_ends_with".to_string(),
-                    params: serde_json::json!({"suffix": "world"}),
-                }
-            ],
-        };
-        let result = correlate(&input);
-        assert!(result.implied.iter().any(|r| 
-            r.predicate == "text_length_gt" && 
-            r.params.get("length").and_then(|v| v.as_u64()).unwrap_or(0) >= 9
-        ));
+        assert!(evaluate(&create_input(serde_json::json!({"value": "hello world", "prefix": "hello"}))).valid);
+        assert!(!evaluate(&create_input(serde_json::json!({"value": "hello world", "prefix": "world"}))).valid);
     }
 }

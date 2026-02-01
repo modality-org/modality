@@ -1,7 +1,7 @@
 //! text_contains predicate - substring check
 
 use super::{PredicateResult, PredicateInput};
-use super::text_common::{CorrelationInput, CorrelationResult, ImpliedRule};
+use super::text_common::{CorrelationInput, CorrelationResult, Interaction};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,28 +29,62 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
 
 pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
     let gas_used = 15;
-    let mut implied = Vec::new();
+    let mut interactions = Vec::new();
     
     let substring: String = match input.params.get("substring").and_then(|v| v.as_str()) {
         Some(s) => s.to_string(),
-        None => return CorrelationResult { implied, gas_used },
+        None => return CorrelationResult::ok(gas_used),
     };
     
-    if !substring.is_empty() {
-        implied.push(ImpliedRule::certain(
-            "text_length_gt",
-            serde_json::json!({"length": substring.len() - 1}),
-            "contains substring implies min length"
-        ));
-        
-        implied.push(ImpliedRule::certain(
-            "text_not_empty",
-            serde_json::json!({}),
-            "contains non-empty implies not_empty"
-        ));
+    for rule in &input.other_rules {
+        match rule.predicate.as_str() {
+            "text_length_lt" => {
+                if let Some(max_len) = rule.params.get("length").and_then(|v| v.as_u64()) {
+                    if substring.len() >= max_len as usize {
+                        interactions.push(Interaction::contradiction(
+                            "text_length_lt",
+                            &format!("contains('{}') requires length >= {}, contradicts length_lt({})", substring, substring.len(), max_len)
+                        ));
+                    }
+                }
+            }
+            "text_length_eq" => {
+                if let Some(len) = rule.params.get("length").and_then(|v| v.as_u64()) {
+                    if substring.len() > len as usize {
+                        interactions.push(Interaction::contradiction(
+                            "text_length_eq",
+                            &format!("contains('{}') requires length >= {}, contradicts length_eq({})", substring, substring.len(), len)
+                        ));
+                    } else {
+                        interactions.push(Interaction::compatible(
+                            "text_length_eq",
+                            &format!("length {} can contain '{}'", len, substring)
+                        ));
+                    }
+                }
+            }
+            "text_is_empty" => {
+                if !substring.is_empty() {
+                    interactions.push(Interaction::contradiction("text_is_empty", "contains non-empty contradicts is_empty"));
+                }
+            }
+            "text_equals" => {
+                if let Some(expected) = rule.params.get("expected").and_then(|v| v.as_str()) {
+                    if expected.contains(&substring) {
+                        interactions.push(Interaction::compatible("text_equals", &format!("'{}' contains '{}'", expected, substring)));
+                    } else {
+                        interactions.push(Interaction::contradiction(
+                            "text_equals",
+                            &format!("'{}' does not contain '{}'", expected, substring)
+                        ));
+                    }
+                }
+            }
+            _ => {}
+        }
     }
     
-    CorrelationResult { implied, gas_used }
+    CorrelationResult::with_interactions(interactions, gas_used)
 }
 
 #[cfg(test)]
@@ -59,18 +93,12 @@ mod tests {
     use crate::predicates::PredicateContext;
 
     fn create_input(data: serde_json::Value) -> PredicateInput {
-        PredicateInput { 
-            data, 
-            context: PredicateContext::new("test".to_string(), 1, 0) 
-        }
+        PredicateInput { data, context: PredicateContext::new("test".to_string(), 1, 0) }
     }
 
     #[test]
     fn test_evaluate() {
-        let input = create_input(serde_json::json!({"value": "hello world", "substring": "wor"}));
-        assert!(evaluate(&input).valid);
-
-        let input = create_input(serde_json::json!({"value": "hello world", "substring": "xyz"}));
-        assert!(!evaluate(&input).valid);
+        assert!(evaluate(&create_input(serde_json::json!({"value": "hello world", "substring": "wor"}))).valid);
+        assert!(!evaluate(&create_input(serde_json::json!({"value": "hello world", "substring": "xyz"}))).valid);
     }
 }

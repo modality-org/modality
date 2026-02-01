@@ -1,7 +1,7 @@
 //! text_equals_ignore_case predicate - case-insensitive string match
 
 use super::{PredicateResult, PredicateInput};
-use super::text_common::{CorrelationInput, CorrelationResult, ImpliedRule};
+use super::text_common::{CorrelationInput, CorrelationResult, Interaction};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,28 +30,46 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
 
 pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
     let gas_used = 20;
-    let mut implied = Vec::new();
+    let mut interactions = Vec::new();
     
     let expected: String = match input.params.get("expected").and_then(|v| v.as_str()) {
         Some(s) => s.to_string(),
-        None => return CorrelationResult { implied, gas_used },
+        None => return CorrelationResult::ok(gas_used),
     };
     
-    implied.push(ImpliedRule::certain(
-        "text_length_eq",
-        serde_json::json!({"length": expected.len()}),
-        "equals_ignore_case implies exact length"
-    ));
-    
-    if !expected.is_empty() {
-        implied.push(ImpliedRule::certain(
-            "text_not_empty",
-            serde_json::json!({}),
-            "equals_ignore_case non-empty implies not_empty"
-        ));
+    for rule in &input.other_rules {
+        match rule.predicate.as_str() {
+            "text_length_eq" => {
+                if let Some(len) = rule.params.get("length").and_then(|v| v.as_u64()) {
+                    if expected.len() == len as usize {
+                        interactions.push(Interaction::compatible("text_length_eq", &format!("'{}' has length {}", expected, len)));
+                    } else {
+                        interactions.push(Interaction::contradiction(
+                            "text_length_eq",
+                            &format!("equals_ignore_case('{}') has length {}, contradicts length_eq({})", expected, expected.len(), len)
+                        ));
+                    }
+                }
+            }
+            "text_is_empty" => {
+                if expected.is_empty() {
+                    interactions.push(Interaction::compatible("text_is_empty", "equals_ignore_case('') is empty"));
+                } else {
+                    interactions.push(Interaction::contradiction("text_is_empty", &format!("equals_ignore_case('{}') is not empty", expected)));
+                }
+            }
+            "text_not_empty" => {
+                if !expected.is_empty() {
+                    interactions.push(Interaction::compatible("text_not_empty", "equals_ignore_case non-empty"));
+                } else {
+                    interactions.push(Interaction::contradiction("text_not_empty", "equals_ignore_case('') is empty"));
+                }
+            }
+            _ => {}
+        }
     }
     
-    CorrelationResult { implied, gas_used }
+    CorrelationResult::with_interactions(interactions, gas_used)
 }
 
 #[cfg(test)]
@@ -60,21 +78,13 @@ mod tests {
     use crate::predicates::PredicateContext;
 
     fn create_input(data: serde_json::Value) -> PredicateInput {
-        PredicateInput { 
-            data, 
-            context: PredicateContext::new("test".to_string(), 1, 0) 
-        }
+        PredicateInput { data, context: PredicateContext::new("test".to_string(), 1, 0) }
     }
 
     #[test]
     fn test_evaluate() {
-        let input = create_input(serde_json::json!({"value": "Hello", "expected": "hello"}));
-        assert!(evaluate(&input).valid);
-
-        let input = create_input(serde_json::json!({"value": "WORLD", "expected": "WoRLd"}));
-        assert!(evaluate(&input).valid);
-
-        let input = create_input(serde_json::json!({"value": "Hello", "expected": "World"}));
-        assert!(!evaluate(&input).valid);
+        assert!(evaluate(&create_input(serde_json::json!({"value": "Hello", "expected": "hello"}))).valid);
+        assert!(evaluate(&create_input(serde_json::json!({"value": "WORLD", "expected": "WoRLd"}))).valid);
+        assert!(!evaluate(&create_input(serde_json::json!({"value": "Hello", "expected": "World"}))).valid);
     }
 }

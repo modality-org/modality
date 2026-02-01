@@ -2,37 +2,73 @@
 
 use serde::{Deserialize, Serialize};
 
-/// A correlated/implied rule from predicate analysis
+/// Result of correlation analysis - checks for contradictions with other rules
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CorrelationResult {
+    /// Whether this predicate is compatible with all other rules
+    pub compatible: bool,
+    /// Specific interactions detected
+    pub interactions: Vec<Interaction>,
+    /// Gas consumed during correlation
+    pub gas_used: u64,
+}
+
+/// An interaction between this predicate and another
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ImpliedRule {
-    /// The predicate name (e.g., "text_not_empty", "text_length_eq")
-    pub predicate: String,
-    /// Parameters for the implied predicate
-    pub params: serde_json::Value,
-    /// Confidence level (1.0 = certain, <1.0 = probabilistic)
-    pub confidence: f64,
-    /// Explanation of why this rule is implied
+pub struct Interaction {
+    /// The other predicate this interacts with
+    pub with_predicate: String,
+    /// Type of interaction
+    pub kind: InteractionKind,
+    /// Explanation
     pub reason: String,
 }
 
-impl ImpliedRule {
-    pub fn certain(predicate: &str, params: serde_json::Value, reason: &str) -> Self {
-        Self {
-            predicate: predicate.to_string(),
-            params,
-            confidence: 1.0,
-            reason: reason.to_string(),
-        }
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum InteractionKind {
+    /// Rules are compatible, no conflict
+    Compatible,
+    /// Rules contradict - cannot both be true
+    Contradiction,
+    /// Rules constrain each other (adds implicit bounds)
+    Constrains,
+}
+
+impl CorrelationResult {
+    pub fn ok(gas_used: u64) -> Self {
+        Self { compatible: true, interactions: vec![], gas_used }
+    }
+    
+    pub fn with_interactions(interactions: Vec<Interaction>, gas_used: u64) -> Self {
+        let compatible = !interactions.iter().any(|i| i.kind == InteractionKind::Contradiction);
+        Self { compatible, interactions, gas_used }
     }
 }
 
-/// Result of correlation analysis
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CorrelationResult {
-    /// Implied rules derived from this predicate
-    pub implied: Vec<ImpliedRule>,
-    /// Gas consumed during correlation
-    pub gas_used: u64,
+impl Interaction {
+    pub fn compatible(with: &str, reason: &str) -> Self {
+        Self {
+            with_predicate: with.to_string(),
+            kind: InteractionKind::Compatible,
+            reason: reason.to_string(),
+        }
+    }
+    
+    pub fn contradiction(with: &str, reason: &str) -> Self {
+        Self {
+            with_predicate: with.to_string(),
+            kind: InteractionKind::Contradiction,
+            reason: reason.to_string(),
+        }
+    }
+    
+    pub fn constrains(with: &str, reason: &str) -> Self {
+        Self {
+            with_predicate: with.to_string(),
+            kind: InteractionKind::Constrains,
+            reason: reason.to_string(),
+        }
+    }
 }
 
 /// Input for correlation - includes other rules in context
@@ -40,7 +76,7 @@ pub struct CorrelationResult {
 pub struct CorrelationInput {
     /// This predicate's parameters
     pub params: serde_json::Value,
-    /// Other rules in the contract (predicate name -> params)
+    /// Other rules on the same path
     pub other_rules: Vec<RuleContext>,
 }
 
