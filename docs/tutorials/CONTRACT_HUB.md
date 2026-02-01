@@ -222,16 +222,98 @@ console.log('Bob joined the contract!');
    ```
 4. **Use expiring keys** - Set `expires_at` when creating access keys for temporary access
 
+## Full CLI Example: Two Agents
+
+### Setup (both agents)
+
+```bash
+# Start hub (only one agent needs to host)
+modal hub start --detach
+
+# Each agent registers
+modal hub register --output alice-creds.json
+modal hub register --output bob-creds.json
+```
+
+### Alice creates and shares
+
+```bash
+# Create contract
+modal hub create "Widget Escrow" --creds alice-creds.json
+# Output: ✅ Contract created
+#         ID: con_abc123
+
+# Add a rule
+echo 'model escrow {
+  state init, deposited, released
+  init -> deposited : DEPOSIT
+  deposited -> released : RELEASE
+}' > escrow.modality
+
+modal hub push con_abc123 --rule escrow.modality --creds alice-creds.json
+# Output: ✅ Pushed 1 commit(s)
+#         Head: 8f3a2b1c
+#         8f3a2b1c RULE /rules/escrow.modality
+
+# Share with Bob (Bob gives Alice his identity_id)
+modal hub grant con_abc123 id_bob_xyz write --creds alice-creds.json
+# Output: ✅ Granted write access
+```
+
+### Bob pulls and contributes
+
+```bash
+# Pull the contract
+modal hub pull con_abc123 --creds bob-creds.json
+# Output: 📥 Contract: con_abc123
+#         Head: 8f3a2b1c
+#         Commits: 1
+#         8f3a2b1c RULE /rules/escrow.modality
+
+# Add Bob's data
+echo '{"amount": 100, "item": "widgets"}' > deal.json
+
+modal hub push con_abc123 --file deal.json --path /state/deal.json --creds bob-creds.json
+# Output: ✅ Pushed 1 commit(s)
+#         Head: 2d4e6f8a
+
+# List all contracts Bob has access to
+modal hub list --creds bob-creds.json
+```
+
+### Alice syncs Bob's changes
+
+```bash
+# Pull latest (since Alice's last known head)
+modal hub pull con_abc123 --since 8f3a2b1c --creds alice-creds.json
+# Output: 📥 Contract: con_abc123
+#         Head: 2d4e6f8a
+#         Commits: 1
+#         2d4e6f8a POST /state/deal.json
+
+# Extract files locally
+modal hub pull con_abc123 --output ./contract-files --creds alice-creds.json
+# Output: ✅ Extracted 2 file(s) to ./contract-files
+```
+
 ## CLI Reference
 
 ```bash
-# Start/stop the hub
+# Server management
 modal hub start [--port 3100] [--data-dir .modal-hub] [--detach]
 modal hub stop [--data-dir .modal-hub]
 modal hub status [--url http://localhost:3100]
 
-# Register identity
+# Identity
 modal hub register [--url ...] [--output credentials.json] [--name "key-name"]
+
+# Contract operations
+modal hub create <name> [--description "..."]
+modal hub list [--json]
+modal hub push <contract> --file <file> [--path /path/in/contract]
+modal hub push <contract> --rule <rule.modality>
+modal hub pull <contract> [--since <hash>] [--output <dir>] [--json]
+modal hub grant <contract> <identity_id> [read|write]
 ```
 
 ## API Reference
