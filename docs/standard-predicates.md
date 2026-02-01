@@ -144,3 +144,98 @@ Then reference it as:
 - From same contract: `/_code/custom/my_predicate.wasm`
 - From other contracts: `@{contract_id}/_code/custom/my_predicate.wasm`
 
+
+## Threshold Predicate (n-of-m Multisig)
+
+### threshold
+Verifies that at least n unique valid signatures exist from a set of authorized signers.
+
+**Usage**:
+```javascript
+const result = await executor.evaluate_predicate(
+  contractId,
+  "/_code/modal/threshold.wasm",
+  {
+    threshold: 2,                    // Minimum signatures required
+    signers: [                       // Authorized public keys (hex)
+      "abc123...",
+      "def456...",
+      "ghi789..."
+    ],
+    message: "68656c6c6f",           // Message to verify (hex)
+    signatures: [
+      { signer: "abc123...", signature: "sig1..." },
+      { signer: "def456...", signature: "sig2..." }
+    ]
+  },
+  context
+);
+```
+
+**Modality syntax**:
+```modality
+// 2-of-3 multisig on EXECUTE action
+always ([+EXECUTE] implies threshold(2, /treasury/signers))
+```
+
+**Features**:
+- Prevents same signer from signing twice
+- Rejects unauthorized signers
+- Configurable threshold (1-of-n to n-of-n)
+
+## Oracle Predicate (External Attestation)
+
+### oracle_attests
+Verifies a signed attestation from a trusted oracle.
+
+**Usage**:
+```javascript
+const result = await executor.evaluate_predicate(
+  contractId,
+  "/_code/modal/oracle_attests.wasm",
+  {
+    attestation: {
+      oracle_pubkey: "oracle_pk_hex...",
+      claim: "delivery_confirmed",
+      value: "true",
+      contract_id: "current_contract",
+      timestamp: 1769951000,
+      signature: "oracle_sig_hex..."
+    },
+    expected_claim: "delivery_confirmed",
+    expected_value: "true",           // Optional
+    trusted_oracles: ["oracle_pk_hex..."],
+    max_age_seconds: 3600             // 0 = no limit
+  },
+  context
+);
+```
+
+**Modality syntax**:
+```modality
+// Release requires oracle confirmation of delivery
+always ([+RELEASE] implies oracle_attests(/oracles/delivery, "delivered", "true"))
+```
+
+**Security features**:
+- Verifies oracle signature over structured data
+- Enforces attestation freshness (max age)
+- Binds attestation to specific contract (prevents replay)
+- Allows multiple trusted oracles
+
+### oracle_bool
+Simplified boolean oracle check - verifies oracle attests `value = "true"`.
+
+```javascript
+// Equivalent to oracle_attests with expected_value: "true"
+const result = await executor.evaluate_predicate(
+  contractId,
+  "/_code/modal/oracle_bool.wasm",
+  {
+    attestation: {...},
+    trusted_oracles: [...],
+    max_age_seconds: 3600
+  },
+  context
+);
+```
