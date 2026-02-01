@@ -7,6 +7,7 @@
 use wasm_bindgen::prelude::*;
 use crate::predicates::PredicateInput;
 use crate::predicates::{signed_by, amount_in_range, has_property, timestamp_valid, post_to_path, text};
+use crate::predicates::text::CorrelationInput;
 
 /// Memory allocator for WASM
 #[no_mangle]
@@ -488,5 +489,138 @@ pub fn evaluate_text_length_lt(input_json: &str) -> String {
             format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
         }
     }
+}
+
+// ============================================================================
+// CORRELATE bindings - derive implied rules from predicate + context
+// ============================================================================
+
+// Helper to handle correlate calls
+fn correlate_helper(input_json: &str, correlate_fn: fn(&CorrelationInput) -> text::CorrelationResult) -> String {
+    match serde_json::from_str::<CorrelationInput>(input_json) {
+        Ok(input) => {
+            let result = correlate_fn(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"implied":[],"gas_used":10,"error":"{}"}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"implied":[],"gas_used":10,"error":"Invalid input: {}"}}"#, e)
+        }
+    }
+}
+
+// WASM correlate bindings
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn correlate_text_equals(input_json: &str) -> String {
+    correlate_helper(input_json, text::equals_correlate)
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn correlate_text_equals_ignore_case(input_json: &str) -> String {
+    correlate_helper(input_json, text::equals_ignore_case_correlate)
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn correlate_text_contains(input_json: &str) -> String {
+    correlate_helper(input_json, text::contains_correlate)
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn correlate_text_starts_with(input_json: &str) -> String {
+    correlate_helper(input_json, text::starts_with_correlate)
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn correlate_text_ends_with(input_json: &str) -> String {
+    correlate_helper(input_json, text::ends_with_correlate)
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn correlate_text_is_empty(input_json: &str) -> String {
+    correlate_helper(input_json, text::is_empty_correlate)
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn correlate_text_not_empty(input_json: &str) -> String {
+    correlate_helper(input_json, text::not_empty_correlate)
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn correlate_text_length_eq(input_json: &str) -> String {
+    correlate_helper(input_json, text::length_eq_correlate)
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn correlate_text_length_gt(input_json: &str) -> String {
+    correlate_helper(input_json, text::length_gt_correlate)
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn correlate_text_length_lt(input_json: &str) -> String {
+    correlate_helper(input_json, text::length_lt_correlate)
+}
+
+// Native correlate bindings
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn correlate_text_equals(input_json: &str) -> String {
+    correlate_helper(input_json, text::equals_correlate)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn correlate_text_equals_ignore_case(input_json: &str) -> String {
+    correlate_helper(input_json, text::equals_ignore_case_correlate)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn correlate_text_contains(input_json: &str) -> String {
+    correlate_helper(input_json, text::contains_correlate)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn correlate_text_starts_with(input_json: &str) -> String {
+    correlate_helper(input_json, text::starts_with_correlate)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn correlate_text_ends_with(input_json: &str) -> String {
+    correlate_helper(input_json, text::ends_with_correlate)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn correlate_text_is_empty(input_json: &str) -> String {
+    correlate_helper(input_json, text::is_empty_correlate)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn correlate_text_not_empty(input_json: &str) -> String {
+    correlate_helper(input_json, text::not_empty_correlate)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn correlate_text_length_eq(input_json: &str) -> String {
+    correlate_helper(input_json, text::length_eq_correlate)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn correlate_text_length_gt(input_json: &str) -> String {
+    correlate_helper(input_json, text::length_gt_correlate)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn correlate_text_length_lt(input_json: &str) -> String {
+    correlate_helper(input_json, text::length_lt_correlate)
 }
 
