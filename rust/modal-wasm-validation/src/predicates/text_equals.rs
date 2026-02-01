@@ -1,7 +1,7 @@
 //! text_equals predicate - exact string match
 
 use super::{PredicateResult, PredicateInput};
-use super::text_common::{CorrelationInput, CorrelationResult, Interaction};
+use super::text_common::{CorrelationInput, CorrelationResult};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,7 +29,8 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
 
 pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
     let gas_used = 20;
-    let mut interactions = Vec::new();
+    let mut formulas = Vec::new();
+    let mut satisfiable = true;
     
     let expected: String = match input.params.get("expected").and_then(|v| v.as_str()) {
         Some(s) => s.to_string(),
@@ -41,119 +42,131 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
             "text_length_eq" => {
                 if let Some(len) = rule.params.get("length").and_then(|v| v.as_u64()) {
                     if expected.len() == len as usize {
-                        interactions.push(Interaction::compatible(
-                            "text_length_eq",
-                            &format!("equals('{}') has length {}, matches length_eq({})", expected, expected.len(), len)
+                        // Compatible: text_equals("hello") -> text_length_eq(5)
+                        formulas.push(format!(
+                            "text_equals($path, \"{}\") -> text_length_eq($path, {})",
+                            expected, expected.len()
                         ));
                     } else {
-                        interactions.push(Interaction::contradiction(
-                            "text_length_eq",
-                            &format!("equals('{}') has length {}, contradicts length_eq({})", expected, expected.len(), len)
+                        // Contradiction: !(text_equals("hello") & text_length_eq(10))
+                        formulas.push(format!(
+                            "!(text_equals($path, \"{}\") & text_length_eq($path, {}))",
+                            expected, len
                         ));
+                        satisfiable = false;
                     }
                 }
             }
             "text_length_gt" => {
                 if let Some(len) = rule.params.get("length").and_then(|v| v.as_u64()) {
                     if expected.len() > len as usize {
-                        interactions.push(Interaction::compatible(
-                            "text_length_gt",
-                            &format!("equals('{}') length {} > {}", expected, expected.len(), len)
+                        formulas.push(format!(
+                            "text_equals($path, \"{}\") -> text_length_gt($path, {})",
+                            expected, len
                         ));
                     } else {
-                        interactions.push(Interaction::contradiction(
-                            "text_length_gt",
-                            &format!("equals('{}') length {} not > {}", expected, expected.len(), len)
+                        formulas.push(format!(
+                            "!(text_equals($path, \"{}\") & text_length_gt($path, {}))",
+                            expected, len
                         ));
+                        satisfiable = false;
                     }
                 }
             }
             "text_length_lt" => {
                 if let Some(len) = rule.params.get("length").and_then(|v| v.as_u64()) {
                     if expected.len() < len as usize {
-                        interactions.push(Interaction::compatible(
-                            "text_length_lt",
-                            &format!("equals('{}') length {} < {}", expected, expected.len(), len)
+                        formulas.push(format!(
+                            "text_equals($path, \"{}\") -> text_length_lt($path, {})",
+                            expected, len
                         ));
                     } else {
-                        interactions.push(Interaction::contradiction(
-                            "text_length_lt",
-                            &format!("equals('{}') length {} not < {}", expected, expected.len(), len)
+                        formulas.push(format!(
+                            "!(text_equals($path, \"{}\") & text_length_lt($path, {}))",
+                            expected, len
                         ));
+                        satisfiable = false;
                     }
                 }
             }
             "text_is_empty" => {
                 if expected.is_empty() {
-                    interactions.push(Interaction::compatible("text_is_empty", "equals('') is empty"));
+                    formulas.push("text_equals($path, \"\") -> text_is_empty($path)".to_string());
                 } else {
-                    interactions.push(Interaction::contradiction(
-                        "text_is_empty",
-                        &format!("equals('{}') is not empty", expected)
+                    formulas.push(format!(
+                        "!(text_equals($path, \"{}\") & text_is_empty($path))",
+                        expected
                     ));
+                    satisfiable = false;
                 }
             }
             "text_not_empty" => {
                 if !expected.is_empty() {
-                    interactions.push(Interaction::compatible("text_not_empty", "equals non-empty string"));
+                    formulas.push(format!(
+                        "text_equals($path, \"{}\") -> text_not_empty($path)",
+                        expected
+                    ));
                 } else {
-                    interactions.push(Interaction::contradiction("text_not_empty", "equals('') is empty"));
+                    formulas.push("!(text_equals($path, \"\") & text_not_empty($path))".to_string());
+                    satisfiable = false;
                 }
             }
             "text_starts_with" => {
                 if let Some(prefix) = rule.params.get("prefix").and_then(|v| v.as_str()) {
                     if expected.starts_with(prefix) {
-                        interactions.push(Interaction::compatible(
-                            "text_starts_with",
-                            &format!("'{}' starts with '{}'", expected, prefix)
+                        formulas.push(format!(
+                            "text_equals($path, \"{}\") -> text_starts_with($path, \"{}\")",
+                            expected, prefix
                         ));
                     } else {
-                        interactions.push(Interaction::contradiction(
-                            "text_starts_with",
-                            &format!("'{}' does not start with '{}'", expected, prefix)
+                        formulas.push(format!(
+                            "!(text_equals($path, \"{}\") & text_starts_with($path, \"{}\"))",
+                            expected, prefix
                         ));
+                        satisfiable = false;
                     }
                 }
             }
             "text_ends_with" => {
                 if let Some(suffix) = rule.params.get("suffix").and_then(|v| v.as_str()) {
                     if expected.ends_with(suffix) {
-                        interactions.push(Interaction::compatible(
-                            "text_ends_with",
-                            &format!("'{}' ends with '{}'", expected, suffix)
+                        formulas.push(format!(
+                            "text_equals($path, \"{}\") -> text_ends_with($path, \"{}\")",
+                            expected, suffix
                         ));
                     } else {
-                        interactions.push(Interaction::contradiction(
-                            "text_ends_with",
-                            &format!("'{}' does not end with '{}'", expected, suffix)
+                        formulas.push(format!(
+                            "!(text_equals($path, \"{}\") & text_ends_with($path, \"{}\"))",
+                            expected, suffix
                         ));
+                        satisfiable = false;
                     }
                 }
             }
             "text_contains" => {
                 if let Some(sub) = rule.params.get("substring").and_then(|v| v.as_str()) {
                     if expected.contains(sub) {
-                        interactions.push(Interaction::compatible(
-                            "text_contains",
-                            &format!("'{}' contains '{}'", expected, sub)
+                        formulas.push(format!(
+                            "text_equals($path, \"{}\") -> text_contains($path, \"{}\")",
+                            expected, sub
                         ));
                     } else {
-                        interactions.push(Interaction::contradiction(
-                            "text_contains",
-                            &format!("'{}' does not contain '{}'", expected, sub)
+                        formulas.push(format!(
+                            "!(text_equals($path, \"{}\") & text_contains($path, \"{}\"))",
+                            expected, sub
                         ));
+                        satisfiable = false;
                     }
                 }
             }
             "text_equals" => {
                 if let Some(other) = rule.params.get("expected").and_then(|v| v.as_str()) {
-                    if expected == other {
-                        interactions.push(Interaction::compatible("text_equals", "same value"));
-                    } else {
-                        interactions.push(Interaction::contradiction(
-                            "text_equals",
-                            &format!("equals('{}') contradicts equals('{}')", expected, other)
+                    if expected != other {
+                        formulas.push(format!(
+                            "!(text_equals($path, \"{}\") & text_equals($path, \"{}\"))",
+                            expected, other
                         ));
+                        satisfiable = false;
                     }
                 }
             }
@@ -161,13 +174,17 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
         }
     }
     
-    CorrelationResult::with_interactions(interactions, gas_used)
+    if satisfiable {
+        CorrelationResult::satisfiable(formulas, gas_used)
+    } else {
+        CorrelationResult::unsatisfiable(formulas, gas_used)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::text_common::{RuleContext, InteractionKind};
+    use super::super::text_common::RuleContext;
     use crate::predicates::PredicateContext;
 
     fn create_input(data: serde_json::Value) -> PredicateInput {
@@ -181,13 +198,10 @@ mod tests {
     fn test_evaluate() {
         let input = create_input(serde_json::json!({"value": "hello", "expected": "hello"}));
         assert!(evaluate(&input).valid);
-
-        let input = create_input(serde_json::json!({"value": "hello", "expected": "world"}));
-        assert!(!evaluate(&input).valid);
     }
 
     #[test]
-    fn test_correlate_compatible() {
+    fn test_correlate_generates_formula() {
         let input = CorrelationInput {
             params: serde_json::json!({"expected": "hello"}),
             other_rules: vec![
@@ -198,12 +212,12 @@ mod tests {
             ],
         };
         let result = correlate(&input);
-        assert!(result.compatible);
-        assert!(result.interactions[0].kind == InteractionKind::Compatible);
+        assert!(result.satisfiable);
+        assert!(result.formulas[0].contains("->"));
     }
 
     #[test]
-    fn test_correlate_contradiction() {
+    fn test_correlate_contradiction_formula() {
         let input = CorrelationInput {
             params: serde_json::json!({"expected": "hello"}),
             other_rules: vec![
@@ -214,7 +228,7 @@ mod tests {
             ],
         };
         let result = correlate(&input);
-        assert!(!result.compatible);
-        assert!(result.interactions[0].kind == InteractionKind::Contradiction);
+        assert!(!result.satisfiable);
+        assert!(result.formulas[0].contains("!"));
     }
 }

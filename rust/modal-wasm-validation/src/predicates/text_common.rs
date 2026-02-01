@@ -2,72 +2,28 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Result of correlation analysis - checks for contradictions with other rules
+/// Result of correlation analysis - generates formulas for interacting predicates
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CorrelationResult {
-    /// Whether this predicate is compatible with all other rules
-    pub compatible: bool,
-    /// Specific interactions detected
-    pub interactions: Vec<Interaction>,
+    /// Generated formulas expressing the correlation rules
+    pub formulas: Vec<String>,
+    /// Whether all rules are satisfiable together
+    pub satisfiable: bool,
     /// Gas consumed during correlation
     pub gas_used: u64,
 }
 
-/// An interaction between this predicate and another
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Interaction {
-    /// The other predicate this interacts with
-    pub with_predicate: String,
-    /// Type of interaction
-    pub kind: InteractionKind,
-    /// Explanation
-    pub reason: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum InteractionKind {
-    /// Rules are compatible, no conflict
-    Compatible,
-    /// Rules contradict - cannot both be true
-    Contradiction,
-    /// Rules constrain each other (adds implicit bounds)
-    Constrains,
-}
-
 impl CorrelationResult {
     pub fn ok(gas_used: u64) -> Self {
-        Self { compatible: true, interactions: vec![], gas_used }
+        Self { formulas: vec![], satisfiable: true, gas_used }
     }
     
-    pub fn with_interactions(interactions: Vec<Interaction>, gas_used: u64) -> Self {
-        let compatible = !interactions.iter().any(|i| i.kind == InteractionKind::Contradiction);
-        Self { compatible, interactions, gas_used }
-    }
-}
-
-impl Interaction {
-    pub fn compatible(with: &str, reason: &str) -> Self {
-        Self {
-            with_predicate: with.to_string(),
-            kind: InteractionKind::Compatible,
-            reason: reason.to_string(),
-        }
+    pub fn satisfiable(formulas: Vec<String>, gas_used: u64) -> Self {
+        Self { formulas, satisfiable: true, gas_used }
     }
     
-    pub fn contradiction(with: &str, reason: &str) -> Self {
-        Self {
-            with_predicate: with.to_string(),
-            kind: InteractionKind::Contradiction,
-            reason: reason.to_string(),
-        }
-    }
-    
-    pub fn constrains(with: &str, reason: &str) -> Self {
-        Self {
-            with_predicate: with.to_string(),
-            kind: InteractionKind::Constrains,
-            reason: reason.to_string(),
-        }
+    pub fn unsatisfiable(formulas: Vec<String>, gas_used: u64) -> Self {
+        Self { formulas, satisfiable: false, gas_used }
     }
 }
 

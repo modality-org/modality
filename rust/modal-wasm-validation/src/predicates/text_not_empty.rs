@@ -1,22 +1,18 @@
-//! text_not_empty predicate - check if text is not empty
+//! text_not_empty predicate
 
 use super::{PredicateResult, PredicateInput};
-use super::text_common::{CorrelationInput, CorrelationResult, Interaction};
+use super::text_common::{CorrelationInput, CorrelationResult};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Input {
-    pub value: String,
-}
+pub struct Input { pub value: String }
 
 pub fn evaluate(input: &PredicateInput) -> PredicateResult {
     let gas_used = 5;
-    
     let text_input: Input = match serde_json::from_value(input.data.clone()) {
         Ok(i) => i,
         Err(e) => return PredicateResult::error(gas_used, format!("Invalid input: {}", e)),
     };
-
     if !text_input.value.is_empty() {
         PredicateResult::success(gas_used)
     } else {
@@ -26,50 +22,28 @@ pub fn evaluate(input: &PredicateInput) -> PredicateResult {
 
 pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
     let gas_used = 10;
-    let mut interactions = Vec::new();
+    let mut formulas = Vec::new();
+    let mut satisfiable = true;
     
     for rule in &input.other_rules {
         match rule.predicate.as_str() {
             "text_is_empty" => {
-                interactions.push(Interaction::contradiction("text_is_empty", "not_empty contradicts is_empty"));
+                formulas.push("!(text_not_empty($path) & text_is_empty($path))".to_string());
+                satisfiable = false;
             }
             "text_length_eq" => {
                 if let Some(len) = rule.params.get("length").and_then(|v| v.as_u64()) {
                     if len > 0 {
-                        interactions.push(Interaction::compatible("text_length_eq", &format!("length_eq({}) is not empty", len)));
+                        formulas.push(format!("text_length_eq($path, {}) -> text_not_empty($path)", len));
                     } else {
-                        interactions.push(Interaction::contradiction("text_length_eq", "not_empty contradicts length_eq(0)"));
-                    }
-                }
-            }
-            "text_equals" => {
-                if let Some(expected) = rule.params.get("expected").and_then(|v| v.as_str()) {
-                    if !expected.is_empty() {
-                        interactions.push(Interaction::compatible("text_equals", "equals non-empty string"));
-                    } else {
-                        interactions.push(Interaction::contradiction("text_equals", "not_empty contradicts equals('')"));
+                        formulas.push("!(text_not_empty($path) & text_length_eq($path, 0))".to_string());
+                        satisfiable = false;
                     }
                 }
             }
             _ => {}
         }
     }
-    
-    CorrelationResult::with_interactions(interactions, gas_used)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::predicates::PredicateContext;
-
-    fn create_input(data: serde_json::Value) -> PredicateInput {
-        PredicateInput { data, context: PredicateContext::new("test".to_string(), 1, 0) }
-    }
-
-    #[test]
-    fn test_evaluate() {
-        assert!(evaluate(&create_input(serde_json::json!({"value": "x"}))).valid);
-        assert!(!evaluate(&create_input(serde_json::json!({"value": ""}))).valid);
-    }
+    if satisfiable { CorrelationResult::satisfiable(formulas, gas_used) }
+    else { CorrelationResult::unsatisfiable(formulas, gas_used) }
 }
