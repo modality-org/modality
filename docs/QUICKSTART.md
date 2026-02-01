@@ -167,7 +167,9 @@ No valid model = commit rejected. This prevents contradictory or impossible rule
 
 1. Read [FOR_AGENTS.md](FOR_AGENTS.md) - Why verification matters for agents
 2. Follow [MULTI_PARTY_CONTRACT.md](./tutorials/MULTI_PARTY_CONTRACT.md) - Full tutorial
-3. Join Discord - Get help, share ideas
+3. Try [MULTISIG_TREASURY.md](./tutorials/MULTISIG_TREASURY.md) - 2-of-3 multisig
+4. Try [ORACLE_ESCROW.md](./tutorials/ORACLE_ESCROW.md) - External verification
+5. Join Discord - Get help, share ideas
 
 ---
 
