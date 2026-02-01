@@ -44,6 +44,17 @@ cp "$WASM_FILE" "$WASM_DIR/amount_in_range.wasm"
 cp "$WASM_FILE" "$WASM_DIR/has_property.wasm"
 cp "$WASM_FILE" "$WASM_DIR/timestamp_valid.wasm"
 cp "$WASM_FILE" "$WASM_DIR/post_to_path.wasm"
+# Text predicates
+cp "$WASM_FILE" "$WASM_DIR/text_equals.wasm"
+cp "$WASM_FILE" "$WASM_DIR/text_equals_ignore_case.wasm"
+cp "$WASM_FILE" "$WASM_DIR/text_contains.wasm"
+cp "$WASM_FILE" "$WASM_DIR/text_starts_with.wasm"
+cp "$WASM_FILE" "$WASM_DIR/text_ends_with.wasm"
+cp "$WASM_FILE" "$WASM_DIR/text_is_empty.wasm"
+cp "$WASM_FILE" "$WASM_DIR/text_not_empty.wasm"
+cp "$WASM_FILE" "$WASM_DIR/text_length_eq.wasm"
+cp "$WASM_FILE" "$WASM_DIR/text_length_gt.wasm"
+cp "$WASM_FILE" "$WASM_DIR/text_length_lt.wasm"
 
 echo "✓ Built predicate WASM modules:"
 ls -lh "$WASM_DIR"/*.wasm

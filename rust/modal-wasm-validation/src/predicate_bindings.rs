@@ -6,7 +6,7 @@
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 use crate::predicates::PredicateInput;
-use crate::predicates::{signed_by, amount_in_range, has_property, timestamp_valid, post_to_path};
+use crate::predicates::{signed_by, amount_in_range, has_property, timestamp_valid, post_to_path, text};
 
 /// Memory allocator for WASM
 #[no_mangle]
@@ -100,6 +100,168 @@ pub fn evaluate_post_to_path(input_json: &str) -> String {
     }
 }
 
+// Text predicates WASM bindings
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_text_equals(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::equals(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_text_equals_ignore_case(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::equals_ignore_case(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_text_contains(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::contains(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_text_starts_with(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::starts_with(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_text_ends_with(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::ends_with(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_text_is_empty(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::is_empty(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_text_not_empty(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::not_empty(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_text_length_eq(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::length_eq(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_text_length_gt(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::length_gt(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_text_length_lt(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::length_lt(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
 // Native interface (for testing and non-WASM use)
 #[cfg(not(target_arch = "wasm32"))]
 pub fn evaluate_signed_by(input_json: &str) -> String {
@@ -166,6 +328,158 @@ pub fn evaluate_post_to_path(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
             let result = post_to_path::evaluate(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+// Text predicates native bindings
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_text_equals(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::equals(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_text_equals_ignore_case(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::equals_ignore_case(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_text_contains(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::contains(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_text_starts_with(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::starts_with(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_text_ends_with(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::ends_with(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_text_is_empty(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::is_empty(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_text_not_empty(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::not_empty(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_text_length_eq(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::length_eq(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_text_length_gt(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::length_gt(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e)
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_text_length_lt(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = text::length_lt(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
