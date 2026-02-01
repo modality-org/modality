@@ -187,3 +187,85 @@ modality model check escrow.modality --formula "always([+RELEASE] implies eventu
 ```
 
 If verification fails, the synthesizer refines the model.
+
+## New Heuristics: Threshold and Oracle
+
+### Heuristic 8: Threshold (n-of-m Multisig)
+
+Formula: `[+X] implies threshold(n, [A, B, C, ...])`
+(X requires n signatures from the list)
+
+**Synthesis:** Create collecting states for signatures.
+
+```
+Input:  [+EXECUTE] implies threshold(2, [/users/a.id, /users/b.id, /users/c.id])
+Output:
+  init --> init: +PROPOSE
+  init --> one_sig_a: +APPROVE_A +signed_by(/users/a.id)
+  init --> one_sig_b: +APPROVE_B +signed_by(/users/b.id)
+  init --> one_sig_c: +APPROVE_C +signed_by(/users/c.id)
+  one_sig_a --> executed: +APPROVE_B +signed_by(/users/b.id)
+  one_sig_a --> executed: +APPROVE_C +signed_by(/users/c.id)
+  one_sig_b --> executed: +APPROVE_A +signed_by(/users/a.id)
+  one_sig_b --> executed: +APPROVE_C +signed_by(/users/c.id)
+  one_sig_c --> executed: +APPROVE_A +signed_by(/users/a.id)
+  one_sig_c --> executed: +APPROVE_B +signed_by(/users/b.id)
+  executed --> executed: +DONE
+```
+
+**Optimized:** Use threshold predicate directly on single transition:
+```
+  init --> executed: +EXECUTE +threshold(2, /signers)
+```
+
+### Heuristic 9: Oracle Attestation
+
+Formula: `[+X] implies oracle_attests(O, claim, value)`
+(X requires oracle attestation)
+
+**Synthesis:** Add oracle requirement to transition.
+
+```
+Input:  [+RELEASE] implies oracle_attests(/oracles/delivery, "delivered", "true")
+Output:
+  pending --> released: +RELEASE +oracle_attests(/oracles/delivery, "delivered", "true")
+```
+
+**With timeout fallback:**
+```
+Input:  ([+RELEASE] implies oracle_attests(...)) & 
+        ([+TIMEOUT_REFUND] implies (after(deadline) & signed_by(buyer)))
+Output:
+  pending --> released: +RELEASE +oracle_attests(/oracles/delivery, "delivered", "true")
+  pending --> refunded: +TIMEOUT_REFUND +after(/deadline) +signed_by(/users/buyer.id)
+```
+
+### Heuristic 10: Graduated Thresholds
+
+Formula: `([+LOW_RISK_ACTION] implies threshold(1, signers)) &
+         ([+HIGH_RISK_ACTION] implies threshold(2, signers)) &
+         ([+CRITICAL_ACTION] implies threshold(3, signers))`
+
+**Synthesis:** Different actions have different threshold requirements.
+
+```
+Input:  Low risk = 1-of-3, High risk = 2-of-3, Critical = 3-of-3
+Output:
+  active --> active: +LOW_RISK +threshold(1, /treasury/signers)
+  active --> pending_high: +PROPOSE_HIGH
+  pending_high --> active: +EXEC_HIGH +threshold(2, /treasury/signers)
+  active --> pending_critical: +PROPOSE_CRITICAL  
+  pending_critical --> changed: +EXEC_CRITICAL +threshold(3, /treasury/signers)
+```
+
+## Pattern Recognition
+
+When synthesizing from natural language, look for these patterns:
+
+| Pattern | Trigger Words | Heuristic |
+|---------|---------------|-----------|
+| Multisig | "2-of-3", "quorum", "multiple approvals" | Threshold |
+| Oracle | "external verification", "oracle", "trusted third party" | Oracle attestation |
+| Deadline | "within X days", "timeout", "deadline" | before/after timestamps |
+| Escrow | "hold funds", "release on", "escrow" | Ordering + auth |
+| Atomic swap | "commit", "reveal", "hash lock" | Hash predicates |
