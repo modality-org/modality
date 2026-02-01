@@ -25,6 +25,17 @@ pub mod bool_is_false;
 pub mod bool_equals;
 pub mod bool_not;
 
+// Number predicates
+pub mod num_equals;
+pub mod num_gt;
+pub mod num_lt;
+pub mod num_gte;
+pub mod num_lte;
+pub mod num_between;
+pub mod num_positive;
+pub mod num_negative;
+pub mod num_zero;
+
 /// Result of a predicate evaluation
 /// Predicates return booleans that become propositions
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
