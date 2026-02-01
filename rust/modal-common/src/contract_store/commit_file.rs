@@ -25,6 +25,16 @@ pub struct CommitHead {
     pub signatures: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub evolution: Option<Value>,
+    /// One-step rule: a formula that applies only to this commit, not accumulated
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub one_step_rule: Option<OneStepRule>,
+}
+
+/// A rule that applies only to the commit it's attached to
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OneStepRule {
+    /// The formula to evaluate (e.g., "threshold(2, [/users/alice.id, /users/bob.id])")
+    pub formula: String,
 }
 
 impl CommitFile {
@@ -35,6 +45,7 @@ impl CommitFile {
                 parent: None,
                 signatures: None,
                 evolution: None,
+                one_step_rule: None,
             },
         }
     }
@@ -46,8 +57,15 @@ impl CommitFile {
                 parent: Some(parent_id),
                 signatures: None,
                 evolution: None,
+                one_step_rule: None,
             },
         }
+    }
+
+    /// Set a one-step rule on this commit
+    pub fn with_one_step_rule(mut self, formula: String) -> Self {
+        self.head.one_step_rule = Some(OneStepRule { formula });
+        self
     }
 
     pub fn add_action(&mut self, method: String, path: Option<String>, value: Value) {

@@ -1,6 +1,7 @@
 pub mod config;
 pub mod commit_file;
 pub mod refs;
+pub mod one_step_rule;
 
 #[cfg(test)]
 mod tests;
@@ -9,8 +10,13 @@ use anyhow::Result;
 use std::path::{Path, PathBuf};
 
 pub use config::ContractConfig;
-pub use commit_file::CommitFile;
+pub use commit_file::{CommitFile, OneStepRule};
 pub use refs::Refs;
+pub use one_step_rule::{
+    CommitSignature, OneStepFormula,
+    parse_formula, parse_signatures,
+    evaluate_formula, validate_one_step_rule,
+};
 
 pub struct ContractStore {
     pub root_dir: PathBuf,
