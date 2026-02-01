@@ -21,6 +21,14 @@ pub struct Opts {
     #[arg(long)]
     pub formulas: Option<String>,
     
+    /// Generate LLM prompt for NL → Formulas (Step 1)
+    #[arg(long)]
+    pub generate_prompt: bool,
+    
+    /// LLM response containing generated formulas
+    #[arg(long)]
+    pub llm_response: Option<String>,
+    
     /// Output file path
     #[arg(short, long)]
     pub output: Option<PathBuf>,
@@ -47,6 +55,117 @@ pub struct Opts {
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
+    // Step 1a: Generate LLM prompt for NL → Formulas
+    if opts.generate_prompt {
+        if let Some(description) = &opts.describe {
+            println!("📝 LLM Prompt for Rule Generation (Step 1)\n");
+            println!("{}", "=".repeat(60));
+            println!("{}", modality_lang::llm_synthesis::generate_prompt(description));
+            println!("{}", "=".repeat(60));
+            println!("\n💡 Send this prompt to Claude/GPT, then use --llm-response with the output");
+            return Ok(());
+        } else {
+            return Err(anyhow::anyhow!("--generate-prompt requires --describe"));
+        }
+    }
+    
+    // Step 1b + 2: Parse LLM response and synthesize
+    if let Some(llm_response) = &opts.llm_response {
+        println!("🔧 Two-Step Pipeline: LLM Response → Model\n");
+        
+        // Parse formulas from LLM response
+        let formulas = modality_lang::llm_synthesis::parse_llm_response(llm_response);
+        
+        if formulas.is_empty() {
+            return Err(anyhow::anyhow!("No formulas found in LLM response"));
+        }
+        
+        println!("📋 Extracted formulas:");
+        for (i, f) in formulas.iter().enumerate() {
+            println!("  F{}: {}", i + 1, f);
+        }
+        println!();
+        
+        // Use heuristic extraction from formula strings
+        let mut constraints = modality_lang::formula_synthesis::SynthesisConstraints::default();
+        
+        for f in &formulas {
+            // Look for patterns like [+ACTION]
+            for word in f.split(|c: char| !c.is_alphanumeric() && c != '_') {
+                if word.chars().all(|c| c.is_uppercase() || c == '_') && word.len() > 1 
+                   && word != "PAY" && word != "DELIVER" && word != "RELEASE" // Will be added via ordering
+                {
+                    // Don't add here, let ordering/auth handle it
+                }
+            }
+            
+            // Look for ordering: [+X] implies eventually(<+Y> true)
+            if f.contains("implies") && f.contains("eventually") {
+                if let Some(box_start) = f.find("[+") {
+                    let rest = &f[box_start + 2..];
+                    if let Some(box_end) = rest.find(']') {
+                        let action = rest[..box_end].trim();
+                        if let Some(ev_start) = f.find("<+") {
+                            let ev_rest = &f[ev_start + 2..];
+                            if let Some(ev_end) = ev_rest.find('>') {
+                                let prereq = ev_rest[..ev_end].trim();
+                                if prereq != "signed_by" && !prereq.starts_with("signed_by") {
+                                    constraints.ordering.push((action.to_string(), prereq.to_string()));
+                                    constraints.actions.insert(action.to_string());
+                                    constraints.actions.insert(prereq.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Look for authorization: [+X] implies <+signed_by(path)> true
+            if f.contains("signed_by") {
+                if let Some(start) = f.find("signed_by(") {
+                    let rest = &f[start + 10..];
+                    if let Some(end) = rest.find(')') {
+                        let signer = rest[..end].trim().to_string();
+                        // Find which action this is for
+                        if let Some(box_start) = f.find("[+") {
+                            let box_rest = &f[box_start + 2..];
+                            if let Some(box_end) = box_rest.find(']') {
+                                let action = box_rest[..box_end].trim().to_string();
+                                constraints.actions.insert(action.clone());
+                                constraints.authorization
+                                    .entry(action)
+                                    .or_insert_with(Vec::new)
+                                    .push(signer);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        println!("📊 Extracted constraints:");
+        println!("  Actions: {:?}", constraints.actions);
+        println!("  Ordering: {:?}", constraints.ordering);
+        println!("  Authorization: {:?}", constraints.authorization);
+        println!();
+        
+        let model = modality_lang::formula_synthesis::synthesize_from_constraints("Contract", &constraints);
+        
+        println!("✅ Synthesized model:\n");
+        let output = modality_lang::print_model(&model);
+        println!("{}", output);
+        
+        if let Some(output_path) = &opts.output {
+            if let Some(parent) = output_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(output_path, &output)?;
+            println!("\n📁 Written to {}", output_path.display());
+        }
+        
+        return Ok(());
+    }
+    
     if opts.list {
         println!("Available templates:\n");
         println!("  escrow              Two-party escrow with deposit/deliver/release");

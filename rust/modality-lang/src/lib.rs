@@ -19,6 +19,7 @@ pub mod crypto;
 pub mod contract_log;
 pub mod nl_mapper;
 pub mod formula_synthesis;
+pub mod llm_synthesis;
 
 // Include the generated parser
 use lalrpop_util::lalrpop_mod;

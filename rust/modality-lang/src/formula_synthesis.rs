@@ -262,7 +262,14 @@ pub fn synthesize_from_constraints(
     
     let mut model = Model::new(name.to_string());
     model.set_initial("init".to_string());
-    model.transitions = transitions;
+    
+    // Wrap transitions in a part for proper printing
+    let mut part = Part::new("flow".to_string());
+    for t in transitions {
+        part.add_transition(t);
+    }
+    model.add_part(part);
+    
     model
 }
 
