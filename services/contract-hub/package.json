@@ -1,0 +1,21 @@
+{
+  "name": "@modality/contract-hub",
+  "version": "0.1.0",
+  "description": "Centralized HTTP service for Modality contract push/pull",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test src/*.test.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "@noble/ed25519": "^2.0.0",
+    "better-sqlite3": "^9.4.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "node": ">=18.0.0"
+  }
+}
