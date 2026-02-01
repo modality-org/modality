@@ -25,15 +25,15 @@ pub struct CommitHead {
     pub signatures: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub evolution: Option<Value>,
-    /// One-step rule: a formula that applies only to this commit, not accumulated
+    /// Rule that applies only to this commit, not accumulated into contract ruleset
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub one_step_rule: Option<OneStepRule>,
+    pub rule_for_this_commit: Option<RuleForThisCommit>,
 }
 
 /// A rule that applies only to the commit it's attached to
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OneStepRule {
-    /// The formula to evaluate (e.g., "threshold(2, [/users/alice.id, /users/bob.id])")
+pub struct RuleForThisCommit {
+    /// The formula to evaluate (e.g., "signed_by_n(2, [/users/alice.id, /users/bob.id])")
     pub formula: String,
 }
 
@@ -45,7 +45,7 @@ impl CommitFile {
                 parent: None,
                 signatures: None,
                 evolution: None,
-                one_step_rule: None,
+                rule_for_this_commit: None,
             },
         }
     }
@@ -57,14 +57,14 @@ impl CommitFile {
                 parent: Some(parent_id),
                 signatures: None,
                 evolution: None,
-                one_step_rule: None,
+                rule_for_this_commit: None,
             },
         }
     }
 
-    /// Set a one-step rule on this commit
-    pub fn with_one_step_rule(mut self, formula: String) -> Self {
-        self.head.one_step_rule = Some(OneStepRule { formula });
+    /// Set a rule that applies only to this commit
+    pub fn with_rule_for_this_commit(mut self, formula: String) -> Self {
+        self.head.rule_for_this_commit = Some(RuleForThisCommit { formula });
         self
     }
 

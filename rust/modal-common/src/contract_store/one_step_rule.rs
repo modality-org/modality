@@ -1,15 +1,15 @@
-//! One-Step Rule Validation
+//! Rule For This Commit Validation
 //!
-//! A one-step rule is a formula that applies only to the commit it's attached to.
-//! Unlike persistent rules (added via RULE method), one-step rules are not accumulated
+//! A `rule_for_this_commit` is a formula that applies only to the commit it's attached to.
+//! Unlike persistent rules (added via RULE method), these are not accumulated
 //! into the contract's ongoing ruleset.
 //!
 //! Common use case: threshold signatures
 //! ```json
 //! {
 //!   "head": {
-//!     "one_step_rule": {
-//!       "formula": "threshold(2, [/users/alice.id, /users/bob.id, /users/carol.id])"
+//!     "rule_for_this_commit": {
+//!       "formula": "signed_by_n(2, [/users/alice.id, /users/bob.id, /users/carol.id])"
 //!     },
 //!     "signatures": [
 //!       { "signer": "/users/alice.id", "sig": "..." },
@@ -48,39 +48,39 @@ pub fn parse_signatures(signatures_value: &Value) -> Result<Vec<CommitSignature>
     }
 }
 
-/// One-step rule formula types
+/// Commit rule formula types
 #[derive(Debug, Clone)]
-pub enum OneStepFormula {
-    /// threshold(n, [signer1, signer2, ...])
+pub enum CommitRuleFormula {
+    /// signed_by_n(n, [signer1, signer2, ...])
     /// Requires at least n valid signatures from the given signers
-    Threshold {
+    SignedByN {
         required: usize,
         signers: Vec<String>,
     },
     /// signed_by(signer) - single signature required
     SignedBy(String),
     /// Conjunction: formula1 & formula2
-    And(Box<OneStepFormula>, Box<OneStepFormula>),
+    And(Box<CommitRuleFormula>, Box<CommitRuleFormula>),
     /// Disjunction: formula1 | formula2  
-    Or(Box<OneStepFormula>, Box<OneStepFormula>),
+    Or(Box<CommitRuleFormula>, Box<CommitRuleFormula>),
 }
 
-/// Parse a one-step rule formula string
-pub fn parse_formula(formula: &str) -> Result<OneStepFormula> {
+/// Parse a commit rule formula string
+pub fn parse_formula(formula: &str) -> Result<CommitRuleFormula> {
     let formula = formula.trim();
     
     // Handle conjunction (lowest precedence)
     if let Some(pos) = find_top_level_operator(formula, '&') {
         let left = parse_formula(&formula[..pos])?;
         let right = parse_formula(&formula[pos + 1..])?;
-        return Ok(OneStepFormula::And(Box::new(left), Box::new(right)));
+        return Ok(CommitRuleFormula::And(Box::new(left), Box::new(right)));
     }
     
     // Handle disjunction
     if let Some(pos) = find_top_level_operator(formula, '|') {
         let left = parse_formula(&formula[..pos])?;
         let right = parse_formula(&formula[pos + 1..])?;
-        return Ok(OneStepFormula::Or(Box::new(left), Box::new(right)));
+        return Ok(CommitRuleFormula::Or(Box::new(left), Box::new(right)));
     }
     
     // Handle parentheses
@@ -88,18 +88,18 @@ pub fn parse_formula(formula: &str) -> Result<OneStepFormula> {
         return parse_formula(&formula[1..formula.len()-1]);
     }
     
-    // Handle threshold(n, [...])
-    if formula.starts_with("threshold(") && formula.ends_with(')') {
-        return parse_threshold(formula);
+    // Handle signed_by_n(n, [...])
+    if formula.starts_with("signed_by_n(") && formula.ends_with(')') {
+        return parse_signed_by_n(formula);
     }
     
     // Handle signed_by(path)
     if formula.starts_with("signed_by(") && formula.ends_with(')') {
         let inner = &formula[10..formula.len()-1];
-        return Ok(OneStepFormula::SignedBy(inner.trim().to_string()));
+        return Ok(CommitRuleFormula::SignedBy(inner.trim().to_string()));
     }
     
-    bail!("Cannot parse one-step formula: {}", formula);
+    bail!("Cannot parse commit rule formula: {}", formula);
 }
 
 /// Find operator at top level (not inside parentheses or brackets)
@@ -120,23 +120,23 @@ fn find_top_level_operator(s: &str, op: char) -> Option<usize> {
     None
 }
 
-/// Parse threshold(n, [signer1, signer2, ...])
-fn parse_threshold(formula: &str) -> Result<OneStepFormula> {
-    // Extract the content inside threshold(...)
-    let inner = &formula[10..formula.len()-1];
+/// Parse signed_by_n(n, [signer1, signer2, ...])
+fn parse_signed_by_n(formula: &str) -> Result<CommitRuleFormula> {
+    // Extract the content inside signed_by_n(...)
+    let inner = &formula[12..formula.len()-1];
     
     // Find the comma separating n from the array
     let comma_pos = inner.find(',')
-        .ok_or_else(|| anyhow::anyhow!("threshold requires format: threshold(n, [signers])"))?;
+        .ok_or_else(|| anyhow::anyhow!("signed_by_n requires format: signed_by_n(n, [signers])"))?;
     
     let n_str = inner[..comma_pos].trim();
     let required: usize = n_str.parse()
-        .map_err(|_| anyhow::anyhow!("threshold count must be a number, got: {}", n_str))?;
+        .map_err(|_| anyhow::anyhow!("signed_by_n count must be a number, got: {}", n_str))?;
     
     // Parse the array of signers
     let array_str = inner[comma_pos + 1..].trim();
     if !array_str.starts_with('[') || !array_str.ends_with(']') {
-        bail!("threshold second argument must be an array: [signer1, signer2, ...]");
+        bail!("signed_by_n second argument must be an array: [signer1, signer2, ...]");
     }
     
     let signers_str = &array_str[1..array_str.len()-1];
@@ -147,43 +147,43 @@ fn parse_threshold(formula: &str) -> Result<OneStepFormula> {
         .collect();
     
     if required > signers.len() {
-        bail!("threshold {} exceeds number of signers {}", required, signers.len());
+        bail!("signed_by_n {} exceeds number of signers {}", required, signers.len());
     }
     
-    Ok(OneStepFormula::Threshold { required, signers })
+    Ok(CommitRuleFormula::SignedByN { required, signers })
 }
 
-/// Evaluate a one-step formula against a set of signatures
+/// Evaluate a commit rule formula against a set of signatures
 /// 
 /// Note: This checks the structural requirement (sufficient signers present).
 /// The cryptographic signature verification should happen elsewhere using
 /// the actual message and public keys.
 pub fn evaluate_formula(
-    formula: &OneStepFormula, 
+    formula: &CommitRuleFormula, 
     present_signers: &[String],
 ) -> bool {
     match formula {
-        OneStepFormula::Threshold { required, signers } => {
+        CommitRuleFormula::SignedByN { required, signers } => {
             // Count how many of the required signers are present
             let count = signers.iter()
                 .filter(|s| present_signers.contains(s))
                 .count();
             count >= *required
         }
-        OneStepFormula::SignedBy(signer) => {
+        CommitRuleFormula::SignedBy(signer) => {
             present_signers.contains(signer)
         }
-        OneStepFormula::And(left, right) => {
+        CommitRuleFormula::And(left, right) => {
             evaluate_formula(left, present_signers) && evaluate_formula(right, present_signers)
         }
-        OneStepFormula::Or(left, right) => {
+        CommitRuleFormula::Or(left, right) => {
             evaluate_formula(left, present_signers) || evaluate_formula(right, present_signers)
         }
     }
 }
 
-/// Validate a commit's one-step rule against its signatures
-pub fn validate_one_step_rule(
+/// Validate a commit's rule_for_this_commit against its signatures
+pub fn validate_rule_for_this_commit(
     formula_str: &str,
     signatures: &[CommitSignature],
 ) -> Result<()> {
@@ -198,7 +198,7 @@ pub fn validate_one_step_rule(
         Ok(())
     } else {
         bail!(
-            "One-step rule not satisfied: {} (present signers: {:?})",
+            "rule_for_this_commit not satisfied: {} (present signers: {:?})",
             formula_str,
             present_signers
         )
@@ -210,16 +210,16 @@ mod tests {
     use super::*;
     
     #[test]
-    fn test_parse_threshold() {
-        let formula = parse_formula("threshold(2, [/users/alice.id, /users/bob.id, /users/carol.id])").unwrap();
+    fn test_parse_signed_by_n() {
+        let formula = parse_formula("signed_by_n(2, [/users/alice.id, /users/bob.id, /users/carol.id])").unwrap();
         
         match formula {
-            OneStepFormula::Threshold { required, signers } => {
+            CommitRuleFormula::SignedByN { required, signers } => {
                 assert_eq!(required, 2);
                 assert_eq!(signers.len(), 3);
                 assert_eq!(signers[0], "/users/alice.id");
             }
-            _ => panic!("Expected Threshold formula"),
+            _ => panic!("Expected SignedByN formula"),
         }
     }
     
@@ -228,7 +228,7 @@ mod tests {
         let formula = parse_formula("signed_by(/users/alice.id)").unwrap();
         
         match formula {
-            OneStepFormula::SignedBy(signer) => {
+            CommitRuleFormula::SignedBy(signer) => {
                 assert_eq!(signer, "/users/alice.id");
             }
             _ => panic!("Expected SignedBy formula"),
@@ -240,14 +240,14 @@ mod tests {
         let formula = parse_formula("signed_by(/users/alice.id) & signed_by(/users/bob.id)").unwrap();
         
         match formula {
-            OneStepFormula::And(_, _) => {}
+            CommitRuleFormula::And(_, _) => {}
             _ => panic!("Expected And formula"),
         }
     }
     
     #[test]
-    fn test_evaluate_threshold_success() {
-        let formula = OneStepFormula::Threshold {
+    fn test_evaluate_signed_by_n_success() {
+        let formula = CommitRuleFormula::SignedByN {
             required: 2,
             signers: vec![
                 "/users/alice.id".to_string(),
@@ -265,8 +265,8 @@ mod tests {
     }
     
     #[test]
-    fn test_evaluate_threshold_failure() {
-        let formula = OneStepFormula::Threshold {
+    fn test_evaluate_signed_by_n_failure() {
+        let formula = CommitRuleFormula::SignedByN {
             required: 2,
             signers: vec![
                 "/users/alice.id".to_string(),
@@ -282,14 +282,14 @@ mod tests {
     }
     
     #[test]
-    fn test_validate_one_step_rule_success() {
+    fn test_validate_rule_for_this_commit_success() {
         let sigs = vec![
             CommitSignature { signer: "/users/alice.id".to_string(), sig: "sig1".to_string() },
             CommitSignature { signer: "/users/bob.id".to_string(), sig: "sig2".to_string() },
         ];
         
-        let result = validate_one_step_rule(
-            "threshold(2, [/users/alice.id, /users/bob.id, /users/carol.id])",
+        let result = validate_rule_for_this_commit(
+            "signed_by_n(2, [/users/alice.id, /users/bob.id, /users/carol.id])",
             &sigs,
         );
         
@@ -297,13 +297,13 @@ mod tests {
     }
     
     #[test]
-    fn test_validate_one_step_rule_failure() {
+    fn test_validate_rule_for_this_commit_failure() {
         let sigs = vec![
             CommitSignature { signer: "/users/alice.id".to_string(), sig: "sig1".to_string() },
         ];
         
-        let result = validate_one_step_rule(
-            "threshold(2, [/users/alice.id, /users/bob.id, /users/carol.id])",
+        let result = validate_rule_for_this_commit(
+            "signed_by_n(2, [/users/alice.id, /users/bob.id, /users/carol.id])",
             &sigs,
         );
         

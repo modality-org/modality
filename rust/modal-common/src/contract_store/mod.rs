@@ -10,12 +10,12 @@ use anyhow::Result;
 use std::path::{Path, PathBuf};
 
 pub use config::ContractConfig;
-pub use commit_file::{CommitFile, OneStepRule};
+pub use commit_file::{CommitFile, RuleForThisCommit};
 pub use refs::Refs;
 pub use one_step_rule::{
-    CommitSignature, OneStepFormula,
+    CommitSignature, CommitRuleFormula,
     parse_formula, parse_signatures,
-    evaluate_formula, validate_one_step_rule,
+    evaluate_formula, validate_rule_for_this_commit,
 };
 
 pub struct ContractStore {
