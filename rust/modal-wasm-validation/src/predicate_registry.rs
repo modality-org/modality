@@ -5,7 +5,15 @@
 
 use crate::predicates::{PredicateInput, PredicateResult};
 use crate::predicates::text_common::{CorrelationInput, CorrelationResult};
-use crate::predicates::*;
+use crate::predicates::{
+    text_equals, text_equals_ignore_case, text_contains, text_starts_with,
+    text_ends_with, text_is_empty, text_not_empty, text_length_eq,
+    text_length_gt, text_length_lt,
+    bool_is_true, bool_is_false, bool_equals, bool_not,
+    num_equals, num_gt, num_lt, num_gte, num_lte, num_between,
+    num_positive, num_negative, num_zero,
+    timestamp, hash,
+};
 
 /// Evaluate a predicate by name
 pub fn evaluate_by_name(predicate: &str, input: &PredicateInput) -> Option<PredicateResult> {
@@ -38,6 +46,19 @@ pub fn evaluate_by_name(predicate: &str, input: &PredicateInput) -> Option<Predi
         "num_positive" => Some(num_positive::evaluate(input)),
         "num_negative" => Some(num_negative::evaluate(input)),
         "num_zero" => Some(num_zero::evaluate(input)),
+        
+        // Timestamp predicates
+        "timestamp_before" => Some(timestamp::evaluate_before(input)),
+        "timestamp_after" => Some(timestamp::evaluate_after(input)),
+        "timestamp_within" => Some(timestamp::evaluate_within(input)),
+        "timestamp_expired" => Some(timestamp::evaluate_expired(input)),
+        "timestamp_near" => Some(timestamp::evaluate_near(input)),
+        
+        // Hash predicates
+        "sha256_matches" => Some(hash::evaluate_sha256_matches(input)),
+        "hash_equals" => Some(hash::evaluate_hash_equals(input)),
+        "commitment_verify" => Some(hash::evaluate_commitment(input)),
+        "hash_format" => Some(hash::evaluate_hash_format(input)),
         
         _ => None,
     }
@@ -75,6 +96,17 @@ pub fn correlate_by_name(predicate: &str, input: &CorrelationInput) -> Option<Co
         "num_negative" => Some(num_negative::correlate(input)),
         "num_zero" => Some(num_zero::correlate(input)),
         
+        // Timestamp predicates
+        "timestamp_before" => Some(timestamp::correlate_before(input)),
+        "timestamp_after" => Some(timestamp::correlate_after(input)),
+        "timestamp_within" => Some(timestamp::correlate_within(input)),
+        "timestamp_expired" => Some(timestamp::correlate_expired(input)),
+        
+        // Hash predicates
+        "sha256_matches" => Some(hash::correlate_sha256_matches(input)),
+        "hash_equals" => Some(hash::correlate_hash_equals(input)),
+        "commitment_verify" => Some(hash::correlate_commitment(input)),
+        
         _ => None,
     }
 }
@@ -110,6 +142,19 @@ pub fn list_predicates() -> Vec<PredicateInfo> {
         PredicateInfo::new("num_positive", "number", "Check > 0", &[]),
         PredicateInfo::new("num_negative", "number", "Check < 0", &[]),
         PredicateInfo::new("num_zero", "number", "Check == 0", &[]),
+        
+        // Timestamp predicates
+        PredicateInfo::new("timestamp_before", "timestamp", "Before deadline", &["deadline"]),
+        PredicateInfo::new("timestamp_after", "timestamp", "After deadline", &["deadline"]),
+        PredicateInfo::new("timestamp_within", "timestamp", "In time window", &["start", "end"]),
+        PredicateInfo::new("timestamp_expired", "timestamp", "Deadline passed", &["deadline", "current"]),
+        PredicateInfo::new("timestamp_near", "timestamp", "Within tolerance of target", &["target", "tolerance"]),
+        
+        // Hash predicates
+        PredicateInfo::new("sha256_matches", "hash", "SHA-256 verification", &["data", "expected_hash"]),
+        PredicateInfo::new("hash_equals", "hash", "Compare hashes", &["hash1", "hash2"]),
+        PredicateInfo::new("commitment_verify", "hash", "Commitment scheme verification", &["preimage", "salt", "commitment"]),
+        PredicateInfo::new("hash_format", "hash", "Valid hash format", &["hash", "algorithm"]),
     ]
 }
 
@@ -191,7 +236,7 @@ mod tests {
     #[test]
     fn test_list_predicates() {
         let predicates = list_predicates();
-        assert!(predicates.len() >= 23); // 10 text + 4 bool + 9 number
+        assert!(predicates.len() >= 32); // 10 text + 4 bool + 9 number + 5 timestamp + 4 hash
     }
 
     #[test]
@@ -204,5 +249,11 @@ mod tests {
         
         let num_predicates = predicates_for_type("number");
         assert_eq!(num_predicates.len(), 9);
+        
+        let timestamp_predicates = predicates_for_type("timestamp");
+        assert_eq!(timestamp_predicates.len(), 5);
+        
+        let hash_predicates = predicates_for_type("hash");
+        assert_eq!(hash_predicates.len(), 4);
     }
 }

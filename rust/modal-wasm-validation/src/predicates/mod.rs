@@ -36,6 +36,12 @@ pub mod num_positive;
 pub mod num_negative;
 pub mod num_zero;
 
+// Timestamp predicates
+pub mod timestamp;
+
+// Hash predicates (for commitment schemes)
+pub mod hash;
+
 /// Result of a predicate evaluation
 /// Predicates return booleans that become propositions
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
