@@ -5,7 +5,19 @@ pub mod amount_in_range;
 pub mod has_property;
 pub mod timestamp_valid;
 pub mod post_to_path;
-pub mod text;
+
+// Text predicates - each in its own file
+pub mod text_common;
+pub mod text_equals;
+pub mod text_equals_ignore_case;
+pub mod text_contains;
+pub mod text_starts_with;
+pub mod text_ends_with;
+pub mod text_is_empty;
+pub mod text_not_empty;
+pub mod text_length_eq;
+pub mod text_length_gt;
+pub mod text_length_lt;
 
 /// Result of a predicate evaluation
 /// Predicates return booleans that become propositions

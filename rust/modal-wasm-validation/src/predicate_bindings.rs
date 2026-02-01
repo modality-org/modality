@@ -6,8 +6,13 @@
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 use crate::predicates::PredicateInput;
-use crate::predicates::{signed_by, amount_in_range, has_property, timestamp_valid, post_to_path, text};
-use crate::predicates::text::CorrelationInput;
+use crate::predicates::{signed_by, amount_in_range, has_property, timestamp_valid, post_to_path};
+use crate::predicates::{
+    text_common, text_equals, text_equals_ignore_case, text_contains,
+    text_starts_with, text_ends_with, text_is_empty, text_not_empty,
+    text_length_eq, text_length_gt, text_length_lt,
+};
+use crate::predicates::text_common::CorrelationInput;
 
 /// Memory allocator for WASM
 #[no_mangle]
@@ -108,7 +113,7 @@ pub fn evaluate_post_to_path(input_json: &str) -> String {
 pub fn evaluate_text_equals(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::equals(&input);
+            let result = text_equals::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -124,7 +129,7 @@ pub fn evaluate_text_equals(input_json: &str) -> String {
 pub fn evaluate_text_equals_ignore_case(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::equals_ignore_case(&input);
+            let result = text_equals_ignore_case::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -140,7 +145,7 @@ pub fn evaluate_text_equals_ignore_case(input_json: &str) -> String {
 pub fn evaluate_text_contains(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::contains(&input);
+            let result = text_contains::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -156,7 +161,7 @@ pub fn evaluate_text_contains(input_json: &str) -> String {
 pub fn evaluate_text_starts_with(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::starts_with(&input);
+            let result = text_starts_with::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -172,7 +177,7 @@ pub fn evaluate_text_starts_with(input_json: &str) -> String {
 pub fn evaluate_text_ends_with(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::ends_with(&input);
+            let result = text_ends_with::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -188,7 +193,7 @@ pub fn evaluate_text_ends_with(input_json: &str) -> String {
 pub fn evaluate_text_is_empty(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::is_empty(&input);
+            let result = text_is_empty::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -204,7 +209,7 @@ pub fn evaluate_text_is_empty(input_json: &str) -> String {
 pub fn evaluate_text_not_empty(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::not_empty(&input);
+            let result = text_not_empty::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -220,7 +225,7 @@ pub fn evaluate_text_not_empty(input_json: &str) -> String {
 pub fn evaluate_text_length_eq(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::length_eq(&input);
+            let result = text_length_eq::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -236,7 +241,7 @@ pub fn evaluate_text_length_eq(input_json: &str) -> String {
 pub fn evaluate_text_length_gt(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::length_gt(&input);
+            let result = text_length_gt::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -252,7 +257,7 @@ pub fn evaluate_text_length_gt(input_json: &str) -> String {
 pub fn evaluate_text_length_lt(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::length_lt(&input);
+            let result = text_length_lt::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -345,7 +350,7 @@ pub fn evaluate_post_to_path(input_json: &str) -> String {
 pub fn evaluate_text_equals(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::equals(&input);
+            let result = text_equals::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -360,7 +365,7 @@ pub fn evaluate_text_equals(input_json: &str) -> String {
 pub fn evaluate_text_equals_ignore_case(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::equals_ignore_case(&input);
+            let result = text_equals_ignore_case::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -375,7 +380,7 @@ pub fn evaluate_text_equals_ignore_case(input_json: &str) -> String {
 pub fn evaluate_text_contains(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::contains(&input);
+            let result = text_contains::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -390,7 +395,7 @@ pub fn evaluate_text_contains(input_json: &str) -> String {
 pub fn evaluate_text_starts_with(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::starts_with(&input);
+            let result = text_starts_with::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -405,7 +410,7 @@ pub fn evaluate_text_starts_with(input_json: &str) -> String {
 pub fn evaluate_text_ends_with(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::ends_with(&input);
+            let result = text_ends_with::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -420,7 +425,7 @@ pub fn evaluate_text_ends_with(input_json: &str) -> String {
 pub fn evaluate_text_is_empty(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::is_empty(&input);
+            let result = text_is_empty::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -435,7 +440,7 @@ pub fn evaluate_text_is_empty(input_json: &str) -> String {
 pub fn evaluate_text_not_empty(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::not_empty(&input);
+            let result = text_not_empty::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -450,7 +455,7 @@ pub fn evaluate_text_not_empty(input_json: &str) -> String {
 pub fn evaluate_text_length_eq(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::length_eq(&input);
+            let result = text_length_eq::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -465,7 +470,7 @@ pub fn evaluate_text_length_eq(input_json: &str) -> String {
 pub fn evaluate_text_length_gt(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::length_gt(&input);
+            let result = text_length_gt::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -480,7 +485,7 @@ pub fn evaluate_text_length_gt(input_json: &str) -> String {
 pub fn evaluate_text_length_lt(input_json: &str) -> String {
     match serde_json::from_str::<PredicateInput>(input_json) {
         Ok(input) => {
-            let result = text::length_lt(&input);
+            let result = text_length_lt::evaluate(&input);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
             })
@@ -496,7 +501,7 @@ pub fn evaluate_text_length_lt(input_json: &str) -> String {
 // ============================================================================
 
 // Helper to handle correlate calls
-fn correlate_helper(input_json: &str, correlate_fn: fn(&CorrelationInput) -> text::CorrelationResult) -> String {
+fn correlate_helper(input_json: &str, correlate_fn: fn(&CorrelationInput) -> text_common::CorrelationResult) -> String {
     match serde_json::from_str::<CorrelationInput>(input_json) {
         Ok(input) => {
             let result = correlate_fn(&input);
@@ -515,112 +520,112 @@ fn correlate_helper(input_json: &str, correlate_fn: fn(&CorrelationInput) -> tex
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn correlate_text_equals(input_json: &str) -> String {
-    correlate_helper(input_json, text::equals_correlate)
+    correlate_helper(input_json, text_equals::correlate)
 }
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn correlate_text_equals_ignore_case(input_json: &str) -> String {
-    correlate_helper(input_json, text::equals_ignore_case_correlate)
+    correlate_helper(input_json, text_equals_ignore_case::correlate)
 }
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn correlate_text_contains(input_json: &str) -> String {
-    correlate_helper(input_json, text::contains_correlate)
+    correlate_helper(input_json, text_contains::correlate)
 }
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn correlate_text_starts_with(input_json: &str) -> String {
-    correlate_helper(input_json, text::starts_with_correlate)
+    correlate_helper(input_json, text_starts_with::correlate)
 }
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn correlate_text_ends_with(input_json: &str) -> String {
-    correlate_helper(input_json, text::ends_with_correlate)
+    correlate_helper(input_json, text_ends_with::correlate)
 }
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn correlate_text_is_empty(input_json: &str) -> String {
-    correlate_helper(input_json, text::is_empty_correlate)
+    correlate_helper(input_json, text_is_empty::correlate)
 }
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn correlate_text_not_empty(input_json: &str) -> String {
-    correlate_helper(input_json, text::not_empty_correlate)
+    correlate_helper(input_json, text_not_empty::correlate)
 }
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn correlate_text_length_eq(input_json: &str) -> String {
-    correlate_helper(input_json, text::length_eq_correlate)
+    correlate_helper(input_json, text_length_eq::correlate)
 }
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn correlate_text_length_gt(input_json: &str) -> String {
-    correlate_helper(input_json, text::length_gt_correlate)
+    correlate_helper(input_json, text_length_gt::correlate)
 }
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn correlate_text_length_lt(input_json: &str) -> String {
-    correlate_helper(input_json, text::length_lt_correlate)
+    correlate_helper(input_json, text_length_lt::correlate)
 }
 
 // Native correlate bindings
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn correlate_text_equals(input_json: &str) -> String {
-    correlate_helper(input_json, text::equals_correlate)
+    correlate_helper(input_json, text_equals::correlate)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn correlate_text_equals_ignore_case(input_json: &str) -> String {
-    correlate_helper(input_json, text::equals_ignore_case_correlate)
+    correlate_helper(input_json, text_equals_ignore_case::correlate)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn correlate_text_contains(input_json: &str) -> String {
-    correlate_helper(input_json, text::contains_correlate)
+    correlate_helper(input_json, text_contains::correlate)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn correlate_text_starts_with(input_json: &str) -> String {
-    correlate_helper(input_json, text::starts_with_correlate)
+    correlate_helper(input_json, text_starts_with::correlate)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn correlate_text_ends_with(input_json: &str) -> String {
-    correlate_helper(input_json, text::ends_with_correlate)
+    correlate_helper(input_json, text_ends_with::correlate)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn correlate_text_is_empty(input_json: &str) -> String {
-    correlate_helper(input_json, text::is_empty_correlate)
+    correlate_helper(input_json, text_is_empty::correlate)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn correlate_text_not_empty(input_json: &str) -> String {
-    correlate_helper(input_json, text::not_empty_correlate)
+    correlate_helper(input_json, text_not_empty::correlate)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn correlate_text_length_eq(input_json: &str) -> String {
-    correlate_helper(input_json, text::length_eq_correlate)
+    correlate_helper(input_json, text_length_eq::correlate)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn correlate_text_length_gt(input_json: &str) -> String {
-    correlate_helper(input_json, text::length_gt_correlate)
+    correlate_helper(input_json, text_length_gt::correlate)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn correlate_text_length_lt(input_json: &str) -> String {
-    correlate_helper(input_json, text::length_lt_correlate)
+    correlate_helper(input_json, text_length_lt::correlate)
 }
 
