@@ -42,6 +42,12 @@ pub mod timestamp;
 // Hash predicates (for commitment schemes)
 pub mod hash;
 
+// Threshold predicates (n-of-m multisig)
+pub mod threshold;
+
+// Oracle predicates (external attestation)
+pub mod oracle;
+
 /// Result of a predicate evaluation
 /// Predicates return booleans that become propositions
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
