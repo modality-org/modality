@@ -1,0 +1,11 @@
+// Escrow with predicates only (no raw propositions)
+// Every action must be verifiable via a predicate
+
+model EscrowVerifiable {
+  part flow {
+    pending --> deposited: +signed_by(/users/buyer.id)
+    deposited --> delivered: +signed_by(/users/seller.id)
+    delivered --> complete: +signed_by(/users/buyer.id)
+    complete --> complete
+  }
+}

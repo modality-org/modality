@@ -7,3 +7,4 @@ pub mod model_create;
 pub mod passfile;
 pub mod synthesize;
 pub mod upgrade;
+pub mod validate;

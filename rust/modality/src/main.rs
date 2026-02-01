@@ -91,6 +91,9 @@ enum ModelCommands {
 
     #[command(about = "Synthesize a model from a template")]
     Synthesize(cmds::synthesize::Opts),
+    
+    #[command(about = "Validate a contract model (predicates only, no raw propositions)")]
+    Validate(cmds::validate::Opts),
 }
 
 #[derive(Subcommand)]
@@ -118,6 +121,7 @@ async fn main() -> Result<()> {
             ModelCommands::Check(opts) => cmds::check::run(opts).await?,
             ModelCommands::Create(opts) => cmds::model_create::run(opts).await?,
             ModelCommands::Synthesize(opts) => cmds::synthesize::run(opts).await?,
+            ModelCommands::Validate(opts) => cmds::validate::run(opts).await?,
         },
         Commands::Node { command } => match command {
             NodeCommands::Inspect(opts) => cmds::inspect::run(opts).await?,
