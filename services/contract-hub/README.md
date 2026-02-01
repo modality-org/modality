@@ -139,6 +139,42 @@ await client.pull(contract_id);
 await client.grantAccess(contract_id, 'id_other_user', 'read');
 ```
 
+## Commit Validation
+
+The hub validates all commits on push by default:
+
+| Check | Description |
+|-------|-------------|
+| **Parent chain** | First commit must have parent = current head (or null). Subsequent commits must chain correctly. |
+| **Signature** | If commit has `signature`, verifies ed25519 signature against `signer_key`. |
+| **Hash** | Warns if computed hash doesn't match (for debugging). |
+| **Structure** | Requires `hash` and `data` fields. |
+
+### Validation Errors
+
+```json
+{
+  "error": "Commit validation failed",
+  "validation_errors": [
+    "commits[0]: parent 'abc123' not found in contract history",
+    "commits[1]: signature verification failed"
+  ]
+}
+```
+
+### Signed Commits
+
+To sign a commit:
+```javascript
+const message = `${commit.hash}:${commit.parent || ''}:${JSON.stringify(commit.data)}`;
+const signature = ed25519.sign(message, privateKey);
+
+commit.signature = {
+  signature: hex(signature),
+  signer_key: hex(publicKey)
+};
+```
+
 ## Security Model
 
 | Concern | Solution |
@@ -148,6 +184,7 @@ await client.grantAccess(contract_id, 'id_other_user', 'read');
 | Replay attacks | Timestamp checking (5 min window) |
 | Man-in-the-middle | All requests signed |
 | Access control | Permissions granted to identities, not access keys |
+| Invalid commits | Validated on push (parent chain, signatures) |
 
 ## Data Storage
 

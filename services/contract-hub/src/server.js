@@ -9,6 +9,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { ContractStore } from './store.js';
 import { AuthMiddleware } from './auth.js';
+import { validateCommits } from './validate.js';
 
 const app = express();
 const PORT = process.env.PORT || 3100;
@@ -230,12 +231,17 @@ app.get('/contracts/:contractId', auth.verify(), (req, res) => {
  * Push commits to a contract
  * POST /contracts/:contractId/push
  * Auth: Signature header (must be owner or have write access)
- * Body: { commits: [{ hash, data, parent?, signature? }] }
+ * Body: { commits: [{ hash, data, parent?, signature? }], skipValidation?: boolean }
+ * 
+ * Validates commits by default:
+ * - Parent chain integrity
+ * - Signature verification (if signed)
+ * - Hash verification
  */
 app.post('/contracts/:contractId/push', auth.verify(), async (req, res) => {
   try {
     const { contractId } = req.params;
-    const { commits } = req.body;
+    const { commits, skipValidation } = req.body;
     
     if (!commits || !Array.isArray(commits)) {
       return res.status(400).json({ error: 'commits array required' });
@@ -249,6 +255,17 @@ app.post('/contracts/:contractId/push', auth.verify(), async (req, res) => {
     // Check write access (based on identity)
     if (info.owner !== req.identityId && !info.writers?.includes(req.identityId)) {
       return res.status(403).json({ error: 'Write access denied' });
+    }
+    
+    // Validate commits (unless explicitly skipped by owner)
+    if (!skipValidation || info.owner !== req.identityId) {
+      const validation = await validateCommits(store, contractId, commits);
+      if (!validation.valid) {
+        return res.status(400).json({ 
+          error: 'Commit validation failed',
+          validation_errors: validation.errors
+        });
+      }
     }
     
     const result = store.pushCommits(contractId, commits);
