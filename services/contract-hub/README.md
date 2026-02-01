@@ -149,6 +149,40 @@ The hub validates all commits on push by default:
 | **Signature** | If commit has `signature`, verifies ed25519 signature against `signer_key`. |
 | **Hash** | Warns if computed hash doesn't match (for debugging). |
 | **Structure** | Requires `hash` and `data` fields. |
+| **Contract logic** | ACTION commits must be valid transitions in the governing model. |
+
+## Contract Logic Validation
+
+When a contract has a model (rules), the hub validates that ACTION commits are valid state transitions:
+
+```
+# Model defines valid transitions
+model escrow {
+  state init, deposited, released
+  init -> deposited : DEPOSIT [+signed_by(/parties/seller.id)]
+  deposited -> released : RELEASE [+signed_by(/parties/buyer.id)]
+}
+```
+
+**Validation checks:**
+1. Action must be allowed from current state
+2. Guard conditions must be satisfied (e.g., signature requirements)
+3. State machine transitions must be valid
+
+**Example invalid action:**
+```json
+{
+  "error": "Commit validation failed",
+  "validation_errors": [
+    "commits[0]: Action 'RELEASE' not allowed from state 'init'"
+  ]
+}
+```
+
+**Commit types:**
+- `POST` - Data commits (party registration, etc.)
+- `RULE` - Model/rule definitions
+- `ACTION` - Domain actions (validated against model)
 
 ### Validation Errors
 

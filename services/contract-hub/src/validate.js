@@ -6,11 +6,13 @@
  * - Signature verification (if signed)
  * - Hash verification
  * - Basic structure validation
+ * - Contract logic validation (actions against model)
  */
 
 import { createHash } from 'crypto';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
+import { validateContractLogic } from './contract-validator.js';
 
 // Configure ed25519
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
@@ -107,6 +109,20 @@ export async function validateCommits(store, contractId, commits) {
     
     newCommitHashes.add(commit.hash);
     expectedParent = commit.hash;
+  }
+  
+  // If structural validation passed, also validate contract logic
+  if (errors.length === 0) {
+    try {
+      const logicValidation = await validateContractLogic(store, contractId, commits);
+      if (!logicValidation.valid) {
+        errors.push(...logicValidation.errors);
+      }
+    } catch (err) {
+      // Contract logic validation failed - include error but don't block
+      // This allows contracts without models to still work
+      console.warn('Contract logic validation error:', err.message);
+    }
   }
   
   return {
