@@ -179,10 +179,12 @@ Transition: state --> paid: +PAY +amount_gte(100) +signed_by(/users/buyer.id)
 
 ## Priority Order
 
-1. `signed_by` ✅ (already implemented)
-2. `threshold` — essential for multisig
-3. `before`/`after` — essential for deadlines
-4. `hash_matches` — essential for atomic swaps
-5. `amount_equals` — essential for payments
-6. `oracle_attests` — for external verification
-7. `state_equals` — for complex conditions
+1. `signed_by` ✅ (implemented)
+2. `threshold` ✅ (implemented - n-of-m multisig)
+3. `before`/`after` ✅ (implemented - timestamp predicates)
+4. `hash_matches` ✅ (implemented - SHA256, hash equality)
+5. `amount_equals` ✅ (implemented - num_equals, num_gte, etc.)
+6. `oracle_attests` ✅ (implemented - external attestation)
+7. `state_equals` ✅ (implemented - text_equals, bool_equals, etc.)
+
+All core predicates implemented! 🎉

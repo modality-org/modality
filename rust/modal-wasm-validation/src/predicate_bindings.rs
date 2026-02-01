@@ -14,6 +14,7 @@ use crate::predicates::{
     bool_is_true, bool_is_false, bool_equals, bool_not,
     num_equals, num_gt, num_lt, num_gte, num_lte, num_between,
     num_positive, num_negative, num_zero,
+    threshold, oracle,
 };
 use crate::predicates::text_common::CorrelationInput;
 
@@ -867,4 +868,142 @@ num_correlate_bindings!(correlate_num_between, num_between);
 num_correlate_bindings!(correlate_num_positive, num_positive);
 num_correlate_bindings!(correlate_num_negative, num_negative);
 num_correlate_bindings!(correlate_num_zero, num_zero);
+
+// ============================================================================
+// THRESHOLD PREDICATE BINDINGS (n-of-m multisig)
+// ============================================================================
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_threshold(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = threshold::evaluate_threshold(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":20,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => format!(r#"{{"valid":false,"gas_used":20,"errors":["Invalid input: {}"]}}"#, e),
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_threshold(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = threshold::evaluate_threshold(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":20,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => format!(r#"{{"valid":false,"gas_used":20,"errors":["Invalid input: {}"]}}"#, e),
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_threshold_valid(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = threshold::evaluate_threshold_valid(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":5,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => format!(r#"{{"valid":false,"gas_used":5,"errors":["Invalid input: {}"]}}"#, e),
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_threshold_valid(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = threshold::evaluate_threshold_valid(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":5,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => format!(r#"{{"valid":false,"gas_used":5,"errors":["Invalid input: {}"]}}"#, e),
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn correlate_threshold(input_json: &str) -> String {
+    correlate_helper(input_json, threshold::correlate_threshold)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn correlate_threshold(input_json: &str) -> String {
+    correlate_helper(input_json, threshold::correlate_threshold)
+}
+
+// ============================================================================
+// ORACLE PREDICATE BINDINGS (external attestation)
+// ============================================================================
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_oracle_attests(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = oracle::evaluate_oracle_attests(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":150,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => format!(r#"{{"valid":false,"gas_used":150,"errors":["Invalid input: {}"]}}"#, e),
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_oracle_attests(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = oracle::evaluate_oracle_attests(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":150,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => format!(r#"{{"valid":false,"gas_used":150,"errors":["Invalid input: {}"]}}"#, e),
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_oracle_bool(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = oracle::evaluate_oracle_bool(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":150,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => format!(r#"{{"valid":false,"gas_used":150,"errors":["Invalid input: {}"]}}"#, e),
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_oracle_bool(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = oracle::evaluate_oracle_bool(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":150,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => format!(r#"{{"valid":false,"gas_used":150,"errors":["Invalid input: {}"]}}"#, e),
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn correlate_oracle(input_json: &str) -> String {
+    correlate_helper(input_json, oracle::correlate_oracle)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn correlate_oracle(input_json: &str) -> String {
+    correlate_helper(input_json, oracle::correlate_oracle)
+}
 
