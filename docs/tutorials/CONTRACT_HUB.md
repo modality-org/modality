@@ -222,78 +222,113 @@ console.log('Bob joined the contract!');
    ```
 4. **Use expiring keys** - Set `expires_at` when creating access keys for temporary access
 
-## Full CLI Example: Two Agents
+## Full CLI Example: Two Agents Using `modal c`
 
-### Setup (both agents)
+The native `modal c push` and `modal c pull` commands work with the hub when you use an HTTP URL as the remote.
+
+### Setup
 
 ```bash
-# Start hub (only one agent needs to host)
+# Start hub (one agent hosts it)
 modal hub start --detach
 
 # Each agent registers
-modal hub register --output alice-creds.json
-modal hub register --output bob-creds.json
+modal hub register --output .modal-hub/credentials.json
 ```
+
+### Alice: Create and Push Contract
+
+```bash
+# Create a new contract directory
+mkdir my-escrow && cd my-escrow
+
+# Initialize contract
+modal c create --name "Widget Escrow"
+
+# Add the hub as a remote
+modal c set-remote origin http://localhost:3100
+
+# Create some files
+mkdir -p state rules
+
+echo '{"seller": "alice", "buyer": "bob", "amount": 100}' > state/deal.json
+
+echo 'model escrow {
+  state init, deposited, released
+  init -> deposited : DEPOSIT
+  deposited -> released : RELEASE
+}' > rules/escrow.modality
+
+# Commit everything
+modal c commit --all -m "Initial escrow setup"
+
+# Push to hub
+modal c push --remote origin
+# Output: ✅ Successfully pushed 1 commit(s) to hub!
+#         Contract ID: con_abc123
+#         Remote: origin (http://localhost:3100)
+```
+
+### Bob: Clone and Contribute
+
+```bash
+# Create local contract directory
+mkdir escrow-copy && cd escrow-copy
+
+# Initialize with same contract ID
+modal c create --contract-id con_abc123
+
+# Add remote
+modal c set-remote origin http://localhost:3100
+
+# Pull Alice's commits
+modal c pull --remote origin
+# Output: ✅ Successfully pulled 1 commit(s)!
+
+# Add Bob's signature
+echo '{"signed_by": "bob", "timestamp": "2026-02-01"}' > state/bob-ack.json
+
+# Commit and push
+modal c commit --all -m "Bob acknowledges deal"
+modal c push --remote origin
+```
+
+### Alice: Sync Bob's Changes
+
+```bash
+# Pull new commits
+modal c pull --remote origin
+# Output: ✅ Successfully pulled 1 commit(s)!
+#         Pulled commits:
+#           - 2d4e6f8a
+```
+
+## Alternative: Direct Hub Commands
+
+You can also use the `modal hub` commands directly without the contract store:
 
 ### Alice creates and shares
 
 ```bash
 # Create contract
-modal hub create "Widget Escrow" --creds alice-creds.json
-# Output: ✅ Contract created
-#         ID: con_abc123
+modal hub create "Widget Escrow" --creds .modal-hub/credentials.json
+# Output: ID: con_abc123
 
-# Add a rule
-echo 'model escrow {
-  state init, deposited, released
-  init -> deposited : DEPOSIT
-  deposited -> released : RELEASE
-}' > escrow.modality
+# Push a rule file
+modal hub push con_abc123 --rule escrow.modality
 
-modal hub push con_abc123 --rule escrow.modality --creds alice-creds.json
-# Output: ✅ Pushed 1 commit(s)
-#         Head: 8f3a2b1c
-#         8f3a2b1c RULE /rules/escrow.modality
-
-# Share with Bob (Bob gives Alice his identity_id)
-modal hub grant con_abc123 id_bob_xyz write --creds alice-creds.json
-# Output: ✅ Granted write access
+# Share with Bob
+modal hub grant con_abc123 id_bob_xyz write
 ```
 
 ### Bob pulls and contributes
 
 ```bash
-# Pull the contract
-modal hub pull con_abc123 --creds bob-creds.json
-# Output: 📥 Contract: con_abc123
-#         Head: 8f3a2b1c
-#         Commits: 1
-#         8f3a2b1c RULE /rules/escrow.modality
+# Pull
+modal hub pull con_abc123
 
-# Add Bob's data
-echo '{"amount": 100, "item": "widgets"}' > deal.json
-
-modal hub push con_abc123 --file deal.json --path /state/deal.json --creds bob-creds.json
-# Output: ✅ Pushed 1 commit(s)
-#         Head: 2d4e6f8a
-
-# List all contracts Bob has access to
-modal hub list --creds bob-creds.json
-```
-
-### Alice syncs Bob's changes
-
-```bash
-# Pull latest (since Alice's last known head)
-modal hub pull con_abc123 --since 8f3a2b1c --creds alice-creds.json
-# Output: 📥 Contract: con_abc123
-#         Head: 2d4e6f8a
-#         Commits: 1
-#         2d4e6f8a POST /state/deal.json
-
-# Extract files locally
-modal hub pull con_abc123 --output ./contract-files --creds alice-creds.json
-# Output: ✅ Extracted 2 file(s) to ./contract-files
+# Push data
+modal hub push con_abc123 --file deal.json --path /state/deal.json
 ```
 
 ## CLI Reference
