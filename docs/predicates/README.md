@@ -31,6 +31,20 @@ Predicates are the building blocks for contract rules. Each predicate has two fu
 | `bool_equals` | Check equals value | `expected: bool` |
 | `bool_not` | Check is NOT value | `of: bool` |
 
+### Number Predicates (for numeric values)
+
+| Predicate | Description | Parameters |
+|-----------|-------------|------------|
+| `num_equals` | Exact match (epsilon) | `expected: number` |
+| `num_gt` | Greater than | `threshold: number` |
+| `num_lt` | Less than | `threshold: number` |
+| `num_gte` | Greater than or equal | `threshold: number` |
+| `num_lte` | Less than or equal | `threshold: number` |
+| `num_between` | In range (exclusive) | `min: number, max: number` |
+| `num_positive` | Check > 0 | (none) |
+| `num_negative` | Check < 0 | (none) |
+| `num_zero` | Check == 0 | (none) |
+
 ## How Correlate Works
 
 When multiple predicates apply to the same path, `correlate` generates formulas that express their logical relationship:

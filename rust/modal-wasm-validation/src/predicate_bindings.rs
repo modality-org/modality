@@ -12,6 +12,8 @@ use crate::predicates::{
     text_starts_with, text_ends_with, text_is_empty, text_not_empty,
     text_length_eq, text_length_gt, text_length_lt,
     bool_is_true, bool_is_false, bool_equals, bool_not,
+    num_equals, num_gt, num_lt, num_gte, num_lte, num_between,
+    num_positive, num_negative, num_zero,
 };
 use crate::predicates::text_common::CorrelationInput;
 
@@ -793,4 +795,76 @@ pub fn correlate_bool_equals(input_json: &str) -> String {
 pub fn correlate_bool_not(input_json: &str) -> String {
     correlate_helper(input_json, bool_not::correlate)
 }
+
+// ============================================================================
+// NUMBER PREDICATE BINDINGS
+// ============================================================================
+
+macro_rules! num_predicate_bindings {
+    ($name:ident, $module:ident) => {
+        #[cfg(target_arch = "wasm32")]
+        #[wasm_bindgen]
+        pub fn $name(input_json: &str) -> String {
+            match serde_json::from_str::<PredicateInput>(input_json) {
+                Ok(input) => {
+                    let result = $module::evaluate(&input);
+                    serde_json::to_string(&result).unwrap_or_else(|e| {
+                        format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+                    })
+                }
+                Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+            }
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        pub fn $name(input_json: &str) -> String {
+            match serde_json::from_str::<PredicateInput>(input_json) {
+                Ok(input) => {
+                    let result = $module::evaluate(&input);
+                    serde_json::to_string(&result).unwrap_or_else(|e| {
+                        format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+                    })
+                }
+                Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+            }
+        }
+    };
+}
+
+macro_rules! num_correlate_bindings {
+    ($name:ident, $module:ident) => {
+        #[cfg(target_arch = "wasm32")]
+        #[wasm_bindgen]
+        pub fn $name(input_json: &str) -> String {
+            correlate_helper(input_json, $module::correlate)
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        pub fn $name(input_json: &str) -> String {
+            correlate_helper(input_json, $module::correlate)
+        }
+    };
+}
+
+// Evaluate bindings
+num_predicate_bindings!(evaluate_num_equals, num_equals);
+num_predicate_bindings!(evaluate_num_gt, num_gt);
+num_predicate_bindings!(evaluate_num_lt, num_lt);
+num_predicate_bindings!(evaluate_num_gte, num_gte);
+num_predicate_bindings!(evaluate_num_lte, num_lte);
+num_predicate_bindings!(evaluate_num_between, num_between);
+num_predicate_bindings!(evaluate_num_positive, num_positive);
+num_predicate_bindings!(evaluate_num_negative, num_negative);
+num_predicate_bindings!(evaluate_num_zero, num_zero);
+
+// Correlate bindings
+num_correlate_bindings!(correlate_num_equals, num_equals);
+num_correlate_bindings!(correlate_num_gt, num_gt);
+num_correlate_bindings!(correlate_num_lt, num_lt);
+num_correlate_bindings!(correlate_num_gte, num_gte);
+num_correlate_bindings!(correlate_num_lte, num_lte);
+num_correlate_bindings!(correlate_num_between, num_between);
+num_correlate_bindings!(correlate_num_positive, num_positive);
+num_correlate_bindings!(correlate_num_negative, num_negative);
+num_correlate_bindings!(correlate_num_zero, num_zero);
 
