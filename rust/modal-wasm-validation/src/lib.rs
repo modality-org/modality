@@ -6,6 +6,7 @@ pub mod validators;
 pub mod wasm_bindings;
 pub mod predicates;
 pub mod predicate_bindings;
+pub mod predicate_registry;
 pub mod programs;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
