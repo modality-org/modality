@@ -518,6 +518,45 @@ impl Formula {
     }
 }
 
+/// A rule that applies only to the commit it's attached to
+/// Used for threshold signatures and other commit-time validation
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RuleForThisCommit {
+    /// The formula expression (e.g., signed_by_n(2, [...]))
+    pub expression: CommitRuleExpr,
+}
+
+/// Expressions valid in a rule_for_this_commit
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum CommitRuleExpr {
+    /// signed_by_n(n, [signer1, signer2, ...]) - threshold signature
+    SignedByN { required: usize, signers: Vec<String> },
+    /// signed_by(path) - single required signature
+    SignedBy(String),
+    /// Conjunction
+    And(Box<CommitRuleExpr>, Box<CommitRuleExpr>),
+    /// Disjunction
+    Or(Box<CommitRuleExpr>, Box<CommitRuleExpr>),
+}
+
+impl RuleForThisCommit {
+    pub fn new(expression: CommitRuleExpr) -> Self {
+        Self { expression }
+    }
+    
+    pub fn signed_by(signer: String) -> Self {
+        Self {
+            expression: CommitRuleExpr::SignedBy(signer),
+        }
+    }
+    
+    pub fn signed_by_n(required: usize, signers: Vec<String>) -> Self {
+        Self {
+            expression: CommitRuleExpr::SignedByN { required, signers },
+        }
+    }
+}
+
 /// Represents a top-level item in a modality file
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TopLevelItem {
@@ -526,6 +565,7 @@ pub enum TopLevelItem {
     Action(Action),
     Test(Test),
     Contract(Contract),
+    RuleForThisCommit(RuleForThisCommit),
 }
 
 /// Helper enum for parsing model body items

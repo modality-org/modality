@@ -1,4 +1,4 @@
-use crate::ast::{Model, Part, Transition, Property, PropertySign, PropertySource, Formula, FormulaExpr, PartState, TopLevelItem, Action, ActionCall, Test, TestStatement, Contract, ContractCommit, CommitStatement, ModelBodyItem};
+use crate::ast::{Model, Part, Transition, Property, PropertySign, PropertySource, Formula, FormulaExpr, PartState, TopLevelItem, Action, ActionCall, Test, TestStatement, Contract, ContractCommit, CommitStatement, ModelBodyItem, RuleForThisCommit, CommitRuleExpr};
 
 grammar;
 
@@ -19,7 +19,8 @@ TopLevelItem: TopLevelItem = {
     <formula:Formula> => TopLevelItem::Formula(formula),
     <action:Action> => TopLevelItem::Action(action),
     <test:Test> => TopLevelItem::Test(test),
-    <contract:ContractDecl> => TopLevelItem::Contract(contract)
+    <contract:ContractDecl> => TopLevelItem::Contract(contract),
+    <rule:RuleForThisCommitDecl> => TopLevelItem::RuleForThisCommit(rule)
 };
 
 pub Model: Model = {
@@ -396,4 +397,55 @@ CommitStatement: CommitStatement = {
     
     // do +PROPERTY (domain action)
     "do" <props:PropertyList> => CommitStatement::Do(props)
+};
+
+// Rule for this commit - applies only to the current commit
+pub RuleForThisCommitDecl: RuleForThisCommit = {
+    "rule_for_this_commit" "{" <expr:CommitRuleExpr> "}" => {
+        RuleForThisCommit::new(expr)
+    }
+};
+
+CommitRuleExpr: CommitRuleExpr = {
+    <expr:CommitRuleOrExpr> => expr
+};
+
+CommitRuleOrExpr: CommitRuleExpr = {
+    <expr:CommitRuleAndExpr> => expr,
+    <left:CommitRuleOrExpr> "|" <right:CommitRuleAndExpr> => {
+        CommitRuleExpr::Or(Box::new(left), Box::new(right))
+    }
+};
+
+CommitRuleAndExpr: CommitRuleExpr = {
+    <expr:CommitRuleAtom> => expr,
+    <left:CommitRuleAndExpr> "&" <right:CommitRuleAtom> => {
+        CommitRuleExpr::And(Box::new(left), Box::new(right))
+    }
+};
+
+CommitRuleAtom: CommitRuleExpr = {
+    // signed_by_n(n, [signer1, signer2, ...])
+    "signed_by_n" "(" <n:Number> "," "[" <signers:SignerList> "]" ")" => {
+        CommitRuleExpr::SignedByN { required: n, signers }
+    },
+    // signed_by(path)
+    "signed_by" "(" <signer:PredicateArg> ")" => {
+        CommitRuleExpr::SignedBy(signer)
+    },
+    // Parentheses
+    "(" <expr:CommitRuleExpr> ")" => expr
+};
+
+SignerList: Vec<String> = {
+    <signer:PredicateArg> => vec![signer],
+    <signers:SignerList> "," <signer:PredicateArg> => {
+        let mut list = signers;
+        list.push(signer);
+        list
+    }
+};
+
+Number: usize = {
+    r#"[0-9]+"# => <>.parse().unwrap()
 };

@@ -283,6 +283,25 @@ pub fn parse_contract_file<P: AsRef<Path>>(path: P) -> Result<Contract, String> 
     parse_contract_content(&content)
 }
 
+/// Parse a rule_for_this_commit from content
+pub fn parse_rule_for_this_commit_content(content: &str) -> Result<crate::ast::RuleForThisCommit, String> {
+    use crate::grammar::RuleForThisCommitDeclParser;
+    
+    // Filter out comments and empty lines
+    let filtered_content: String = content
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim();
+            !trimmed.is_empty() && !trimmed.starts_with("//")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    
+    let parser = RuleForThisCommitDeclParser::new();
+    parser.parse(&filtered_content)
+        .map_err(|e| format!("Parse error: {:?}", e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -829,6 +848,69 @@ formula someNext {
                 }
             }
             _ => panic!("Expected Lfp from eventually, got {:?}", desugared2),
+        }
+    }
+
+    #[test]
+    fn test_parse_rule_for_this_commit() {
+        use crate::ast::CommitRuleExpr;
+        
+        // Test signed_by_n with path literals
+        let content = r#"
+rule_for_this_commit {
+    signed_by_n(2, [/users/alice.id, /users/bob.id, /users/carol.id])
+}
+"#;
+        
+        let rule = parse_rule_for_this_commit_content(content).unwrap();
+        match &rule.expression {
+            CommitRuleExpr::SignedByN { required, signers } => {
+                assert_eq!(*required, 2);
+                assert_eq!(signers.len(), 3);
+                assert_eq!(signers[0], "/users/alice.id");
+                assert_eq!(signers[1], "/users/bob.id");
+                assert_eq!(signers[2], "/users/carol.id");
+            }
+            _ => panic!("Expected SignedByN, got {:?}", rule.expression),
+        }
+    }
+
+    #[test]
+    fn test_parse_rule_for_this_commit_signed_by() {
+        use crate::ast::CommitRuleExpr;
+        
+        let content = r#"
+rule_for_this_commit {
+    signed_by(/users/alice.id)
+}
+"#;
+        
+        let rule = parse_rule_for_this_commit_content(content).unwrap();
+        match &rule.expression {
+            CommitRuleExpr::SignedBy(signer) => {
+                assert_eq!(signer, "/users/alice.id");
+            }
+            _ => panic!("Expected SignedBy, got {:?}", rule.expression),
+        }
+    }
+
+    #[test]
+    fn test_parse_rule_for_this_commit_conjunction() {
+        use crate::ast::CommitRuleExpr;
+        
+        let content = r#"
+rule_for_this_commit {
+    signed_by(/users/alice.id) & signed_by(/users/bob.id)
+}
+"#;
+        
+        let rule = parse_rule_for_this_commit_content(content).unwrap();
+        match &rule.expression {
+            CommitRuleExpr::And(left, right) => {
+                assert!(matches!(left.as_ref(), CommitRuleExpr::SignedBy(s) if s == "/users/alice.id"));
+                assert!(matches!(right.as_ref(), CommitRuleExpr::SignedBy(s) if s == "/users/bob.id"));
+            }
+            _ => panic!("Expected And, got {:?}", rule.expression),
         }
     }
 } 
