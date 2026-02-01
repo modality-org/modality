@@ -13,3 +13,4 @@ pub mod multiaddr_list;
 pub mod shuffle;
 pub mod merkle;
 pub mod contract_store;
+pub mod hub_client;

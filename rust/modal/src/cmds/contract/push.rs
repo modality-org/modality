@@ -4,15 +4,16 @@ use serde_json::json;
 use std::path::PathBuf;
 
 use modal_common::contract_store::ContractStore;
+use modal_common::hub_client::{HubClient, HubCredentials, is_hub_url};
 use modal_node::actions::request;
 use modal_node::node::Node;
 
 #[derive(Debug, Parser)]
-#[command(about = "Push commits to chain validators")]
+#[command(about = "Push commits to chain validators or hub")]
 pub struct Opts {
-    /// Target node multiaddress (e.g., /ip4/127.0.0.1/tcp/10101/p2p/12D3...)
+    /// Target node multiaddress or hub URL (http://...)
     #[clap(long)]
-    remote: String,
+    remote: Option<String>,
     
     /// Remote name (default: origin)
     #[clap(long, default_value = "origin")]
@@ -25,6 +26,10 @@ pub struct Opts {
     /// Node directory for config (optional, for identity)
     #[clap(long)]
     node_dir: Option<PathBuf>,
+    
+    /// Hub credentials file (for HTTP hub remotes)
+    #[clap(long)]
+    hub_creds: Option<PathBuf>,
     
     /// Output format (json or text)
     #[clap(long, default_value = "text")]
@@ -43,11 +48,17 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let store = ContractStore::open(&contract_dir)?;
     let mut config = store.load_config()?;
 
-    // Add or update remote in config
-    if config.get_remote(&opts.remote_name).is_none() {
-        config.add_remote(opts.remote_name.clone(), opts.remote.clone());
+    // Get remote URL
+    let remote_url = if let Some(url) = &opts.remote {
+        // Add or update remote in config
+        config.add_remote(opts.remote_name.clone(), url.clone());
         store.save_config(&config)?;
-    }
+        url.clone()
+    } else {
+        config.get_remote(&opts.remote_name)
+            .ok_or_else(|| anyhow::anyhow!("Remote '{}' not found. Use --remote to specify.", opts.remote_name))?
+            .url.clone()
+    };
 
     // Get unpushed commits
     let unpushed = store.get_unpushed_commits(&opts.remote_name)?;
@@ -69,66 +80,49 @@ pub async fn run(opts: &Opts) -> Result<()> {
     for commit_id in &unpushed {
         let commit = store.load_commit(commit_id)?;
         commits_data.push(json!({
-            "commit_id": commit_id,
-            "body": commit.body,
-            "head": commit.head,
+            "hash": commit_id,
+            "parent": commit.head.parent,
+            "data": commit.body,
         }));
     }
 
-    // Create a minimal node config for making requests
-    let node_config = if let Some(node_dir) = &opts.node_dir {
-        let config_path = node_dir.join("config.json");
-        if config_path.exists() {
-            let config_json = std::fs::read_to_string(&config_path)?;
-            let mut config: modal_node::config::Config = serde_json::from_str(&config_json)?;
-            // Remove storage_path to use in-memory datastore
-            config.storage_path = None;
-            config.logs_path = None;
-            // Load passfile if it exists
-            let passfile_path = node_dir.join("node.passfile");
-            if passfile_path.exists() {
-                config.passfile_path = Some(passfile_path);
-            }
-            config
-        } else {
-            modal_node::config::Config::default()
+    // Check if this is an HTTP hub or p2p remote
+    if is_hub_url(&remote_url) {
+        // HTTP Hub push
+        let creds_path = opts.hub_creds.clone()
+            .unwrap_or_else(|| contract_dir.join(".modal-hub/credentials.json"));
+        
+        if !creds_path.exists() {
+            anyhow::bail!(
+                "Hub credentials not found at {:?}\nRun: modal hub register",
+                creds_path
+            );
         }
-    } else {
-        modal_node::config::Config::default()
-    };
-
-    let mut node = Node::from_config(node_config).await?;
-
-    // Send push request
-    let request_data = json!({
-        "contract_id": config.contract_id,
-        "commits": commits_data,
-    });
-
-    let response = request::run(
-        &mut node,
-        opts.remote.clone(),
-        "/contract/push".to_string(),
-        serde_json::to_string(&request_data)?,
-    ).await?;
-
-    if response.ok {
+        
+        let creds = HubCredentials::load(&creds_path)?;
+        let hub = HubClient::new(&creds)?;
+        
+        let (pushed, head) = hub.push(&config.contract_id, commits_data).await?;
+        
         // Update remote HEAD
-        if let Some(last_commit) = unpushed.last() {
-            store.set_remote_head(&opts.remote_name, last_commit)?;
+        if let Some(h) = &head {
+            store.set_remote_head(&opts.remote_name, h)?;
         }
-
+        
         if opts.output == "json" {
             println!("{}", serde_json::to_string_pretty(&json!({
                 "status": "pushed",
-                "pushed_count": unpushed.len(),
+                "pushed_count": pushed,
                 "commits": unpushed,
-                "response": response.data,
+                "head": head,
             }))?);
         } else {
-            println!("✅ Successfully pushed {} commit(s)!", unpushed.len());
+            println!("✅ Successfully pushed {} commit(s) to hub!", pushed);
             println!("   Contract ID: {}", config.contract_id);
-            println!("   Remote: {} ({})", opts.remote_name, opts.remote);
+            println!("   Remote: {} ({})", opts.remote_name, remote_url);
+            if let Some(h) = head {
+                println!("   Head: {}", h);
+            }
             println!();
             println!("Pushed commits:");
             for commit_id in &unpushed {
@@ -136,7 +130,65 @@ pub async fn run(opts: &Opts) -> Result<()> {
             }
         }
     } else {
-        anyhow::bail!("Failed to push commits: {:?}", response.errors);
+        // P2P node push
+        let node_config = if let Some(node_dir) = &opts.node_dir {
+            let config_path = node_dir.join("config.json");
+            if config_path.exists() {
+                let config_json = std::fs::read_to_string(&config_path)?;
+                let mut config: modal_node::config::Config = serde_json::from_str(&config_json)?;
+                config.storage_path = None;
+                config.logs_path = None;
+                let passfile_path = node_dir.join("node.passfile");
+                if passfile_path.exists() {
+                    config.passfile_path = Some(passfile_path);
+                }
+                config
+            } else {
+                modal_node::config::Config::default()
+            }
+        } else {
+            modal_node::config::Config::default()
+        };
+
+        let mut node = Node::from_config(node_config).await?;
+
+        let request_data = json!({
+            "contract_id": config.contract_id,
+            "commits": commits_data,
+        });
+
+        let response = request::run(
+            &mut node,
+            remote_url.clone(),
+            "/contract/push".to_string(),
+            serde_json::to_string(&request_data)?,
+        ).await?;
+
+        if response.ok {
+            if let Some(last_commit) = unpushed.last() {
+                store.set_remote_head(&opts.remote_name, last_commit)?;
+            }
+
+            if opts.output == "json" {
+                println!("{}", serde_json::to_string_pretty(&json!({
+                    "status": "pushed",
+                    "pushed_count": unpushed.len(),
+                    "commits": unpushed,
+                    "response": response.data,
+                }))?);
+            } else {
+                println!("✅ Successfully pushed {} commit(s)!", unpushed.len());
+                println!("   Contract ID: {}", config.contract_id);
+                println!("   Remote: {} ({})", opts.remote_name, remote_url);
+                println!();
+                println!("Pushed commits:");
+                for commit_id in &unpushed {
+                    println!("  - {}", commit_id);
+                }
+            }
+        } else {
+            anyhow::bail!("Failed to push commits: {:?}", response.errors);
+        }
     }
 
     Ok(())
