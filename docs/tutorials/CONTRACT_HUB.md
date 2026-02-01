@@ -1,13 +1,24 @@
-# Contract Hub Tutorial
+# Contract Push/Pull Tutorial
 
-Host and share Modality contracts with other agents using the Contract Hub.
+Push and pull Modality contracts to a **hub** (centralized) or **chain** (decentralized).
 
 ## Overview
 
-The Contract Hub is a centralized service for storing and syncing contracts. It uses two-tier ed25519 authentication:
+Modality contracts can sync to:
+- **Hub** - Centralized HTTP service (fast, easy setup)
+- **Chain** - Decentralized p2p network (trustless, validators)
 
-- **Identity key** (long-term): Proves ownership, rarely used
-- **Access key** (session): Used for API calls, can be rotated
+Both use the same `modal c push` and `modal c pull` commands.
+
+## Hub vs Chain
+
+| Feature | Hub | Chain |
+|---------|-----|-------|
+| URL format | `http://...` | `/ip4/.../p2p/...` |
+| Auth | ed25519 keypairs | Node identity |
+| Validation | Server-side | Consensus |
+| Speed | Fast | Depends on network |
+| Trust | Hub operator | Validators |
 
 ## Quick Start
 
@@ -331,23 +342,98 @@ modal hub pull con_abc123
 modal hub push con_abc123 --file deal.json --path /state/deal.json
 ```
 
+## Pushing to Chain (Decentralized)
+
+Instead of a hub, push to chain validators for decentralized consensus.
+
+### Setup
+
+```bash
+# Start a local node (or connect to existing network)
+modal net start --config testnet
+
+# Get your node's multiaddress
+modal net info
+# Output: /ip4/127.0.0.1/tcp/10101/p2p/12D3KooW...
+```
+
+### Add Chain Remote
+
+```bash
+cd my-contract
+
+# Add chain as remote
+modal c remote add chain /ip4/127.0.0.1/tcp/10101/p2p/12D3KooW...
+
+# List remotes
+modal c remote list
+# Output:
+#   hub (hub) -> http://localhost:3100
+#   chain (chain) -> /ip4/127.0.0.1/tcp/10101/p2p/12D3KooW...
+```
+
+### Push to Chain
+
+```bash
+# Push to chain validators
+modal c push --remote chain
+# Output: ✅ Successfully pushed 2 commit(s)!
+#         Contract ID: con_abc123
+#         Remote: chain (/ip4/...)
+```
+
+### Pull from Chain
+
+```bash
+# Pull from chain
+modal c pull --remote chain
+```
+
+## Multi-Remote Workflow
+
+Use both hub and chain for redundancy:
+
+```bash
+# Add both remotes
+modal c remote add hub http://hub.modality.network
+modal c remote add chain /ip4/validator.modality.network/tcp/10101/p2p/...
+
+# Push to hub first (fast)
+modal c push --remote hub
+
+# Then push to chain (consensus)
+modal c push --remote chain
+
+# Pull from either
+modal c pull --remote hub
+modal c pull --remote chain
+```
+
 ## CLI Reference
 
 ```bash
-# Server management
+# Remote management
+modal c remote add <name> <url>    # Add remote (auto-detects hub/chain)
+modal c remote remove <name>       # Remove remote
+modal c remote list                # List all remotes
+modal c remote get <name>          # Show remote URL
+
+# Push/Pull (works with hub or chain)
+modal c push [--remote <name>]     # Push to remote
+modal c pull [--remote <name>]     # Pull from remote
+
+# Hub server management
 modal hub start [--port 3100] [--data-dir .modal-hub] [--detach]
 modal hub stop [--data-dir .modal-hub]
 modal hub status [--url http://localhost:3100]
 
-# Identity
-modal hub register [--url ...] [--output credentials.json] [--name "key-name"]
+# Hub identity
+modal hub register [--url ...] [--output credentials.json]
 
-# Contract operations
-modal hub create <name> [--description "..."]
-modal hub list [--json]
-modal hub push <contract> --file <file> [--path /path/in/contract]
-modal hub push <contract> --rule <rule.modality>
-modal hub pull <contract> [--since <hash>] [--output <dir>] [--json]
+# Direct hub commands (no contract store)
+modal hub create <name>
+modal hub push <contract> --file <file> [--path /path]
+modal hub pull <contract>
 modal hub grant <contract> <identity_id> [read|write]
 ```
 

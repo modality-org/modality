@@ -20,3 +20,4 @@ pub mod assets;
 pub mod wasm_upload;
 pub mod pack;
 pub mod unpack;
+pub mod remote;
