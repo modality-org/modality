@@ -1,0 +1,53 @@
+// Treasury Multisig Contract
+// 
+// A 2-of-3 multisig treasury where any 2 of 3 keyholders can:
+// - Approve withdrawals
+// - Add/remove signers (with all 3 required)
+//
+// Uses the threshold predicate for flexible n-of-m verification.
+
+model treasury {
+  initial locked
+  
+  // Standard withdrawal: 2-of-3 approval
+  locked -> pending_withdrawal [+PROPOSE_WITHDRAWAL +signed_by(/treasury/proposer.id)]
+  pending_withdrawal -> locked [+CANCEL +signed_by(/treasury/proposer.id)]
+  pending_withdrawal -> withdrawn [+EXECUTE +threshold(2, /treasury/signers)]
+  withdrawn -> locked [+RESET]
+  
+  // Emergency: all 3 required to change signers
+  locked -> signer_change [+PROPOSE_SIGNER_CHANGE +threshold(3, /treasury/signers)]
+  signer_change -> locked [+CONFIRM_SIGNER_CHANGE +threshold(3, /treasury/signers)]
+  signer_change -> locked [+CANCEL_SIGNER_CHANGE +signed_by(/treasury/proposer.id)]
+}
+
+// Protection: withdrawals must have valid threshold signatures
+rule withdrawal_protection {
+  starting_at $PARENT
+  formula {
+    always (
+      [+EXECUTE] implies threshold(2, /treasury/signers)
+    )
+  }
+}
+
+// Protection: signer changes require unanimous consent  
+rule signer_change_protection {
+  starting_at $PARENT
+  formula {
+    always (
+      [+PROPOSE_SIGNER_CHANGE] implies threshold(3, /treasury/signers) &
+      [+CONFIRM_SIGNER_CHANGE] implies threshold(3, /treasury/signers)
+    )
+  }
+}
+
+// Protection: only proposer can cancel their own proposal
+rule cancel_protection {
+  starting_at $PARENT
+  formula {
+    always (
+      [+CANCEL] implies signed_by(/treasury/proposer.id)
+    )
+  }
+}

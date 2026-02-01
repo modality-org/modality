@@ -1,0 +1,71 @@
+// Oracle-Verified Escrow Contract
+//
+// Buyer deposits funds, seller delivers goods.
+// A trusted oracle verifies delivery before funds release.
+// Includes timeout for buyer protection.
+//
+// Uses the oracle_attests predicate for external verification.
+
+model oracle_escrow {
+  initial awaiting_deposit
+  
+  // Buyer deposits funds
+  awaiting_deposit -> funded [+DEPOSIT +signed_by(/users/buyer.id) +amount_gte(/escrow/price)]
+  
+  // Seller ships goods
+  funded -> shipped [+SHIP +signed_by(/users/seller.id)]
+  
+  // Oracle confirms delivery -> funds released to seller
+  shipped -> completed [+RELEASE +oracle_attests(/oracles/delivery, "delivered", "true")]
+  
+  // Dispute: oracle says not delivered -> buyer refund
+  shipped -> refunded [+REFUND +oracle_attests(/oracles/delivery, "delivered", "false")]
+  
+  // Timeout: if oracle doesn't respond within deadline, buyer can reclaim
+  shipped -> refunded [+TIMEOUT_REFUND +signed_by(/users/buyer.id) +after(/escrow/deadline)]
+  
+  // Terminal states
+  completed -> completed [+DONE]
+  refunded -> refunded [+DONE]
+}
+
+// Protection: release requires oracle attestation of delivery
+rule release_requires_oracle {
+  starting_at $PARENT
+  formula {
+    always (
+      [+RELEASE] implies oracle_attests(/oracles/delivery, "delivered", "true")
+    )
+  }
+}
+
+// Protection: refund requires oracle denial OR timeout
+rule refund_conditions {
+  starting_at $PARENT
+  formula {
+    always (
+      [+REFUND] implies oracle_attests(/oracles/delivery, "delivered", "false") |
+      [+TIMEOUT_REFUND] implies (signed_by(/users/buyer.id) & after(/escrow/deadline))
+    )
+  }
+}
+
+// Protection: only buyer can deposit
+rule deposit_protection {
+  starting_at $PARENT
+  formula {
+    always (
+      [+DEPOSIT] implies signed_by(/users/buyer.id)
+    )
+  }
+}
+
+// Protection: only seller can ship
+rule ship_protection {
+  starting_at $PARENT
+  formula {
+    always (
+      [+SHIP] implies signed_by(/users/seller.id)
+    )
+  }
+}
