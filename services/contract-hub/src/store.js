@@ -76,9 +76,33 @@ export class ContractStore {
         PRIMARY KEY (contract_id, hash)
       );
       
+      -- Proposals (for threshold signature commits)
+      CREATE TABLE IF NOT EXISTS proposals (
+        id TEXT PRIMARY KEY,
+        contract_id TEXT NOT NULL REFERENCES contracts(id),
+        payload TEXT NOT NULL,
+        threshold_required INTEGER NOT NULL,
+        threshold_signers TEXT NOT NULL,
+        proposed_by TEXT NOT NULL,
+        proposed_at INTEGER NOT NULL,
+        expires_at INTEGER,
+        status TEXT NOT NULL DEFAULT 'pending',
+        finalized_at INTEGER,
+        finalized_commit TEXT
+      );
+      
+      CREATE TABLE IF NOT EXISTS proposal_approvals (
+        proposal_id TEXT NOT NULL REFERENCES proposals(id),
+        signer TEXT NOT NULL,
+        signature TEXT NOT NULL,
+        approved_at INTEGER NOT NULL,
+        PRIMARY KEY (proposal_id, signer)
+      );
+      
       -- Indexes
       CREATE INDEX IF NOT EXISTS idx_contracts_owner ON contracts(owner);
       CREATE INDEX IF NOT EXISTS idx_commits_parent ON commits(contract_id, parent);
+      CREATE INDEX IF NOT EXISTS idx_proposals_contract ON proposals(contract_id, status);
     `);
   }
   
@@ -363,6 +387,115 @@ export class ContractStore {
     } catch {
       return str;
     }
+  }
+  
+  // ============================================================================
+  // PROPOSAL OPERATIONS
+  // ============================================================================
+  
+  createProposal(contractId, proposal) {
+    const now = Date.now();
+    
+    this.db.prepare(`
+      INSERT INTO proposals (id, contract_id, payload, threshold_required, threshold_signers,
+                            proposed_by, proposed_at, expires_at, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+    `).run(
+      proposal.id,
+      contractId,
+      JSON.stringify(proposal.payload),
+      proposal.threshold.required,
+      JSON.stringify(proposal.threshold.signers),
+      proposal.proposed_by,
+      proposal.proposed_at || now,
+      proposal.expires_at || null
+    );
+    
+    return proposal.id;
+  }
+  
+  getProposal(contractId, proposalId) {
+    const row = this.db.prepare(`
+      SELECT * FROM proposals WHERE contract_id = ? AND id = ?
+    `).get(contractId, proposalId);
+    
+    if (!row) return null;
+    
+    // Get approvals
+    const approvals = this.db.prepare(`
+      SELECT signer, signature, approved_at FROM proposal_approvals WHERE proposal_id = ?
+    `).all(proposalId);
+    
+    return {
+      id: row.id,
+      payload: JSON.parse(row.payload),
+      threshold: {
+        required: row.threshold_required,
+        signers: JSON.parse(row.threshold_signers)
+      },
+      proposed_by: row.proposed_by,
+      proposed_at: row.proposed_at,
+      expires_at: row.expires_at,
+      status: row.status,
+      finalized_at: row.finalized_at,
+      finalized_commit: row.finalized_commit,
+      approvals: Object.fromEntries(approvals.map(a => [a.signer, { signature: a.signature, approved_at: a.approved_at }]))
+    };
+  }
+  
+  listProposals(contractId, status = null) {
+    let query = 'SELECT id, status, proposed_by, proposed_at, expires_at FROM proposals WHERE contract_id = ?';
+    const params = [contractId];
+    
+    if (status) {
+      query += ' AND status = ?';
+      params.push(status);
+    }
+    
+    query += ' ORDER BY proposed_at DESC';
+    
+    return this.db.prepare(query).all(...params);
+  }
+  
+  addProposalApproval(proposalId, signer, signature) {
+    const now = Date.now();
+    
+    this.db.prepare(`
+      INSERT INTO proposal_approvals (proposal_id, signer, signature, approved_at)
+      VALUES (?, ?, ?, ?)
+    `).run(proposalId, signer, signature, now);
+    
+    // Return current approval count
+    const count = this.db.prepare(`
+      SELECT COUNT(*) as count FROM proposal_approvals WHERE proposal_id = ?
+    `).get(proposalId);
+    
+    return count.count;
+  }
+  
+  updateProposalStatus(proposalId, status, finalizedCommit = null) {
+    const now = Date.now();
+    
+    if (status === 'finalized') {
+      this.db.prepare(`
+        UPDATE proposals SET status = ?, finalized_at = ?, finalized_commit = ? WHERE id = ?
+      `).run(status, now, finalizedCommit, proposalId);
+    } else {
+      this.db.prepare(`
+        UPDATE proposals SET status = ? WHERE id = ?
+      `).run(status, proposalId);
+    }
+  }
+  
+  expirePendingProposals(contractId) {
+    const now = Date.now();
+    
+    const result = this.db.prepare(`
+      UPDATE proposals SET status = 'expired'
+      WHERE contract_id = ? AND status = 'pending' AND expires_at IS NOT NULL AND expires_at < ?
+    `).run(contractId, now);
+    
+    return result.changes;
   }
   
   close() {
