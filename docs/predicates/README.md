@@ -45,6 +45,25 @@ Predicates are the building blocks for contract rules. Each predicate has two fu
 | `num_negative` | Check < 0 | (none) |
 | `num_zero` | Check == 0 | (none) |
 
+### Timestamp Predicates (for temporal constraints)
+
+| Predicate | Description | Parameters |
+|-----------|-------------|------------|
+| `timestamp_before` | Before deadline | `deadline: i64` |
+| `timestamp_after` | After deadline | `deadline: i64` |
+| `timestamp_within` | In time window | `start: i64, end: i64` |
+| `timestamp_expired` | Deadline passed | `deadline: i64, current: i64` |
+| `timestamp_near` | Within tolerance | `target: i64, tolerance: i64` |
+
+### Hash Predicates (for commitment schemes)
+
+| Predicate | Description | Parameters |
+|-----------|-------------|------------|
+| `sha256_matches` | SHA-256 verification | `data: hex, expected_hash: hex` |
+| `hash_equals` | Compare hashes | `hash1: hex, hash2: hex` |
+| `commitment_verify` | Commitment scheme | `preimage: hex, salt: hex, commitment: hex` |
+| `hash_format` | Valid hash format | `hash: hex, algorithm: string` |
+
 ## How Correlate Works
 
 When multiple predicates apply to the same path, `correlate` generates formulas that express their logical relationship:
