@@ -242,6 +242,48 @@ my-contract/
 
 ---
 
+## Available Predicates
+
+Predicates are the building blocks for contract rules. They evaluate to true/false and can be composed with logical operators.
+
+### Core Predicates
+
+| Predicate | Purpose | Example |
+|-----------|---------|---------|
+| `signed_by(path)` | Verify ed25519 signature | `+signed_by(/users/alice.id)` |
+| `threshold(n, signers)` | n-of-m multisig | `+threshold(2, /treasury/signers)` |
+| `before(deadline)` | Time constraint | `+before(/state/deadline)` |
+| `after(deadline)` | Time constraint | `+after(/state/deadline)` |
+| `oracle_attests(oracle, claim, value)` | External verification | `+oracle_attests(/oracles/delivery, "delivered", "true")` |
+
+### Data Predicates
+
+| Predicate | Purpose | Example |
+|-----------|---------|---------|
+| `num_gte(value)` | Amount check | `+num_gte(/escrow/price)` |
+| `hash_matches(commitment)` | Hash verification | `+hash_matches(/state/commitment)` |
+| `text_equals(expected)` | String comparison | `+text_equals(/state/status, "approved")` |
+
+### Example: 2-of-3 Treasury
+
+```modality
+model treasury {
+  initial locked
+  locked -> pending [+PROPOSE +signed_by(/treasury/proposer.id)]
+  pending -> executed [+EXECUTE +threshold(2, /treasury/signers)]
+  executed -> locked [+RESET]
+}
+
+rule withdrawal_requires_quorum {
+  starting_at $PARENT
+  formula {
+    always ([+EXECUTE] implies threshold(2, /treasury/signers))
+  }
+}
+```
+
+---
+
 ## The Key Insight
 
 When you add a rule, you must provide a model that proves satisfiability:
