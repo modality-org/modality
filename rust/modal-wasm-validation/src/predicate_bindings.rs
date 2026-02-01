@@ -11,6 +11,7 @@ use crate::predicates::{
     text_common, text_equals, text_equals_ignore_case, text_contains,
     text_starts_with, text_ends_with, text_is_empty, text_not_empty,
     text_length_eq, text_length_gt, text_length_lt,
+    bool_is_true, bool_is_false, bool_equals, bool_not,
 };
 use crate::predicates::text_common::CorrelationInput;
 
@@ -627,5 +628,169 @@ pub fn correlate_text_length_gt(input_json: &str) -> String {
 #[cfg(not(target_arch = "wasm32"))]
 pub fn correlate_text_length_lt(input_json: &str) -> String {
     correlate_helper(input_json, text_length_lt::correlate)
+}
+
+// ============================================================================
+// BOOL PREDICATE BINDINGS
+// ============================================================================
+
+// WASM evaluate bindings for bool
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_bool_is_true(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = bool_is_true::evaluate(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_bool_is_false(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = bool_is_false::evaluate(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_bool_equals(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = bool_equals::evaluate(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn evaluate_bool_not(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = bool_not::evaluate(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+    }
+}
+
+// Native evaluate bindings for bool
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_bool_is_true(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = bool_is_true::evaluate(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_bool_is_false(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = bool_is_false::evaluate(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_bool_equals(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = bool_equals::evaluate(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn evaluate_bool_not(input_json: &str) -> String {
+    match serde_json::from_str::<PredicateInput>(input_json) {
+        Ok(input) => {
+            let result = bool_not::evaluate(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"valid":false,"gas_used":10,"errors":["{}"]}}"#, e)
+            })
+        }
+        Err(e) => format!(r#"{{"valid":false,"gas_used":10,"errors":["Invalid input: {}"]}}"#, e),
+    }
+}
+
+// WASM correlate bindings for bool
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn correlate_bool_is_true(input_json: &str) -> String {
+    correlate_helper(input_json, bool_is_true::correlate)
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn correlate_bool_is_false(input_json: &str) -> String {
+    correlate_helper(input_json, bool_is_false::correlate)
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn correlate_bool_equals(input_json: &str) -> String {
+    correlate_helper(input_json, bool_equals::correlate)
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn correlate_bool_not(input_json: &str) -> String {
+    correlate_helper(input_json, bool_not::correlate)
+}
+
+// Native correlate bindings for bool
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn correlate_bool_is_true(input_json: &str) -> String {
+    correlate_helper(input_json, bool_is_true::correlate)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn correlate_bool_is_false(input_json: &str) -> String {
+    correlate_helper(input_json, bool_is_false::correlate)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn correlate_bool_equals(input_json: &str) -> String {
+    correlate_helper(input_json, bool_equals::correlate)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn correlate_bool_not(input_json: &str) -> String {
+    correlate_helper(input_json, bool_not::correlate)
 }
 

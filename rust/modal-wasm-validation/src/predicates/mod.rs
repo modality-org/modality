@@ -19,6 +19,12 @@ pub mod text_length_eq;
 pub mod text_length_gt;
 pub mod text_length_lt;
 
+// Bool predicates
+pub mod bool_is_true;
+pub mod bool_is_false;
+pub mod bool_equals;
+pub mod bool_not;
+
 /// Result of a predicate evaluation
 /// Predicates return booleans that become propositions
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
