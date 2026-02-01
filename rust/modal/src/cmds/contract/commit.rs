@@ -68,6 +68,11 @@ pub struct Opts {
     /// Commit message (optional, stored in commit)
     #[clap(short = 'm', long)]
     message: Option<String>,
+    
+    /// ACTION commit (JSON or path to JSON file)
+    /// Format: {"method":"ACTION","action":"DO_THING","data":{...}}
+    #[clap(long)]
+    action: Option<String>,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
@@ -130,6 +135,36 @@ pub async fn run(opts: &Opts) -> Result<()> {
             println!("Nothing to commit (working directories match committed state).");
             return Ok(());
         }
+    } else if let Some(action_input) = &opts.action {
+        // ACTION commit from JSON
+        let action_json: Value = if action_input.ends_with(".json") {
+            // Load from file
+            let content = std::fs::read_to_string(action_input)?;
+            serde_json::from_str(&content)?
+        } else {
+            // Parse as inline JSON
+            serde_json::from_str(action_input)?
+        };
+        
+        // Extract fields from action JSON
+        let method = action_json.get("method")
+            .and_then(|v| v.as_str())
+            .unwrap_or("ACTION")
+            .to_string();
+        
+        let action_name = action_json.get("action")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        
+        let data = action_json.get("data").cloned();
+        
+        // Build the action value
+        let value = serde_json::json!({
+            "action": action_name,
+            "data": data
+        });
+        
+        commit.add_action(method, opts.path.clone(), value);
     } else {
         // Single action commit (original behavior)
         let value = match opts.method.as_str() {
