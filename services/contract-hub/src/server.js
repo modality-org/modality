@@ -364,6 +364,200 @@ app.post('/contracts/:contractId/access', auth.verify(), (req, res) => {
 });
 
 // ============================================================================
+// PROPOSAL OPERATIONS (threshold signatures)
+// ============================================================================
+
+import { createProposal, addApproval, finalizeProposal, cancelProposal } from './proposals.js';
+
+/**
+ * Create a proposal (commit requiring threshold signatures)
+ * POST /contracts/:contractId/propose
+ */
+app.post('/contracts/:contractId/propose', auth.verify(), async (req, res) => {
+  try {
+    const { contractId } = req.params;
+    const { payload, threshold_required, signers, expires_at } = req.body;
+    
+    if (!payload || !threshold_required || !signers) {
+      return res.status(400).json({ error: 'payload, threshold_required, and signers required' });
+    }
+    
+    const info = store.getContract(contractId);
+    if (!info) {
+      return res.status(404).json({ error: 'Contract not found' });
+    }
+    
+    // Check write access
+    if (info.owner !== req.identityId && !info.writers?.includes(req.identityId)) {
+      return res.status(403).json({ error: 'Write access denied' });
+    }
+    
+    // Create proposal
+    const proposal = createProposal({
+      payload,
+      thresholdRequired: threshold_required,
+      signers,
+      expiresAt: expires_at,
+      proposedBy: req.identityId
+    });
+    
+    // Store it
+    store.createProposal(contractId, proposal);
+    
+    // Proposer's signature counts as first approval
+    store.addProposalApproval(proposal.id, req.identityId, req.accessInfo?.public_key || 'proposer');
+    
+    res.status(201).json({
+      proposal_id: proposal.id,
+      status: 'pending',
+      approvals: 1,
+      required: threshold_required
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * List proposals for a contract
+ * GET /contracts/:contractId/proposals
+ */
+app.get('/contracts/:contractId/proposals', auth.verify(), (req, res) => {
+  const { contractId } = req.params;
+  const { status } = req.query;
+  
+  const info = store.getContract(contractId);
+  if (!info) {
+    return res.status(404).json({ error: 'Contract not found' });
+  }
+  
+  // Check read access
+  if (info.owner !== req.identityId && !info.readers?.includes(req.identityId)) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  
+  const proposals = store.listProposals(contractId, status);
+  res.json({ proposals });
+});
+
+/**
+ * Get proposal details
+ * GET /contracts/:contractId/proposals/:proposalId
+ */
+app.get('/contracts/:contractId/proposals/:proposalId', auth.verify(), (req, res) => {
+  const { contractId, proposalId } = req.params;
+  
+  const info = store.getContract(contractId);
+  if (!info) {
+    return res.status(404).json({ error: 'Contract not found' });
+  }
+  
+  if (info.owner !== req.identityId && !info.readers?.includes(req.identityId)) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  
+  const proposal = store.getProposal(contractId, proposalId);
+  if (!proposal) {
+    return res.status(404).json({ error: 'Proposal not found' });
+  }
+  
+  res.json(proposal);
+});
+
+/**
+ * Approve a proposal
+ * POST /contracts/:contractId/proposals/:proposalId/approve
+ */
+app.post('/contracts/:contractId/proposals/:proposalId/approve', auth.verify(), async (req, res) => {
+  try {
+    const { contractId, proposalId } = req.params;
+    
+    const info = store.getContract(contractId);
+    if (!info) {
+      return res.status(404).json({ error: 'Contract not found' });
+    }
+    
+    if (info.owner !== req.identityId && !info.writers?.includes(req.identityId)) {
+      return res.status(403).json({ error: 'Write access denied' });
+    }
+    
+    const proposal = store.getProposal(contractId, proposalId);
+    if (!proposal) {
+      return res.status(404).json({ error: 'Proposal not found' });
+    }
+    
+    // Add approval using the logic from proposals.js
+    const result = addApproval(proposal, req.identityId, req.accessInfo?.public_key || 'approved');
+    
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+    
+    // Persist the approval
+    const approvalCount = store.addProposalApproval(proposalId, req.identityId, req.accessInfo?.public_key || 'approved');
+    
+    // Check if threshold met
+    if (approvalCount >= proposal.threshold.required) {
+      // Finalize - apply the payload as a commit
+      const finalResult = finalizeProposal(proposal);
+      
+      if (finalResult.success) {
+        // Push the payload as a real commit
+        const commits = [{
+          hash: 'finalized_' + proposalId,
+          parent: info.head,
+          data: proposal.payload,
+          proposal_id: proposalId,
+          signers: finalResult.signers
+        }];
+        
+        const pushResult = store.pushCommits(contractId, commits);
+        store.updateProposalStatus(proposalId, 'finalized', pushResult.head);
+        
+        return res.json({
+          approved: true,
+          finalized: true,
+          commit_hash: pushResult.head,
+          signers: finalResult.signers
+        });
+      }
+    }
+    
+    res.json({
+      approved: true,
+      finalized: false,
+      approval_count: approvalCount,
+      required: proposal.threshold.required
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * Cancel a proposal
+ * POST /contracts/:contractId/proposals/:proposalId/cancel
+ */
+app.post('/contracts/:contractId/proposals/:proposalId/cancel', auth.verify(), (req, res) => {
+  const { contractId, proposalId } = req.params;
+  
+  const proposal = store.getProposal(contractId, proposalId);
+  if (!proposal) {
+    return res.status(404).json({ error: 'Proposal not found' });
+  }
+  
+  const result = cancelProposal(proposal, req.identityId);
+  
+  if (!result.success) {
+    return res.status(400).json({ error: result.error });
+  }
+  
+  store.updateProposalStatus(proposalId, 'cancelled');
+  
+  res.json({ cancelled: true, proposal_id: proposalId });
+});
+
+// ============================================================================
 // START SERVER
 // ============================================================================
 
