@@ -27,16 +27,16 @@ app.get('/health', (req, res) => {
 });
 
 // ============================================================================
-// ACCESS KEY MANAGEMENT
+// IDENTITY MANAGEMENT (long-term keys)
 // ============================================================================
 
 /**
- * Register a new access key
- * POST /access/register
+ * Register a new identity
+ * POST /identity/register
  * Body: { public_key: hex }
- * Returns: { access_id, public_key }
+ * Returns: { identity_id, public_key }
  */
-app.post('/access/register', async (req, res) => {
+app.post('/identity/register', async (req, res) => {
   try {
     const { public_key } = req.body;
     if (!public_key || typeof public_key !== 'string') {
@@ -48,23 +48,132 @@ app.post('/access/register', async (req, res) => {
       return res.status(400).json({ error: 'public_key must be 64 hex chars (32 bytes)' });
     }
     
-    const accessId = store.registerAccess(public_key.toLowerCase());
-    res.json({ access_id: accessId, public_key: public_key.toLowerCase() });
+    const identityId = store.registerIdentity(public_key.toLowerCase());
+    res.json({ identity_id: identityId, public_key: public_key.toLowerCase() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 /**
- * Get access info
+ * Get identity info
+ * GET /identity/:identityId
+ */
+app.get('/identity/:identityId', (req, res) => {
+  const info = store.getIdentity(req.params.identityId);
+  if (!info) {
+    return res.status(404).json({ error: 'Identity not found' });
+  }
+  res.json(info);
+});
+
+// ============================================================================
+// ACCESS KEY MANAGEMENT (session keys)
+// ============================================================================
+
+/**
+ * Create a new access key for an identity
+ * POST /access/create
+ * Body: { identity_id, access_public_key, name?, expires_at?, signature }
+ * signature = identity key signs: "create_access:" + access_public_key + ":" + timestamp
+ * Returns: { access_id, identity_id, public_key }
+ */
+app.post('/access/create', async (req, res) => {
+  try {
+    const { identity_id, access_public_key, name, expires_at, signature, timestamp } = req.body;
+    
+    if (!identity_id || !access_public_key || !signature || !timestamp) {
+      return res.status(400).json({ 
+        error: 'Required: identity_id, access_public_key, signature, timestamp' 
+      });
+    }
+    
+    // Validate hex format
+    if (!/^[0-9a-fA-F]{64}$/.test(access_public_key)) {
+      return res.status(400).json({ error: 'access_public_key must be 64 hex chars' });
+    }
+    
+    // Check timestamp (within 5 minutes)
+    const ts = parseInt(timestamp, 10);
+    const now = Date.now();
+    if (isNaN(ts) || Math.abs(now - ts) > 5 * 60 * 1000) {
+      return res.status(400).json({ error: 'Invalid or expired timestamp' });
+    }
+    
+    // Get identity and verify signature
+    const identity = store.getIdentity(identity_id);
+    if (!identity) {
+      return res.status(404).json({ error: 'Identity not found' });
+    }
+    
+    // Verify identity signed this access key creation
+    const verified = await auth.verifySignature(
+      identity.public_key,
+      `create_access:${access_public_key}:${timestamp}`,
+      signature
+    );
+    
+    if (!verified) {
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+    
+    const accessId = store.createAccessKey(identity_id, access_public_key.toLowerCase(), {
+      name,
+      expiresAt: expires_at
+    });
+    
+    res.json({ 
+      access_id: accessId, 
+      identity_id,
+      public_key: access_public_key.toLowerCase() 
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * List access keys for an identity
+ * GET /access/list
+ * Auth: Access key header (must belong to identity)
+ */
+app.get('/access/list', auth.verify(), (req, res) => {
+  const keys = store.listAccessKeys(req.identityId);
+  res.json({ access_keys: keys });
+});
+
+/**
+ * Revoke an access key
+ * POST /access/revoke
+ * Auth: Access key header
+ * Body: { access_id }
+ */
+app.post('/access/revoke', auth.verify(), (req, res) => {
+  const { access_id } = req.body;
+  if (!access_id) {
+    return res.status(400).json({ error: 'access_id required' });
+  }
+  
+  const revoked = store.revokeAccessKey(access_id, req.identityId);
+  if (!revoked) {
+    return res.status(404).json({ error: 'Access key not found or not owned by you' });
+  }
+  
+  res.json({ revoked: true, access_id });
+});
+
+/**
+ * Get access key info
  * GET /access/:accessId
  */
 app.get('/access/:accessId', (req, res) => {
   const info = store.getAccess(req.params.accessId);
   if (!info) {
-    return res.status(404).json({ error: 'Access not found' });
+    return res.status(404).json({ error: 'Access key not found or expired' });
   }
-  res.json(info);
+  // Don't expose identity_public_key
+  const { identity_public_key, ...safe } = info;
+  res.json(safe);
 });
 
 // ============================================================================
@@ -81,8 +190,8 @@ app.get('/access/:accessId', (req, res) => {
 app.post('/contracts', auth.verify(), async (req, res) => {
   try {
     const { name, description } = req.body || {};
-    const contractId = store.createContract(req.accessId, { name, description });
-    res.status(201).json({ contract_id: contractId, owner: req.accessId });
+    const contractId = store.createContract(req.identityId, { name, description });
+    res.status(201).json({ contract_id: contractId, owner: req.identityId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -94,7 +203,7 @@ app.post('/contracts', auth.verify(), async (req, res) => {
  * Auth: Signature header
  */
 app.get('/contracts', auth.verify(), (req, res) => {
-  const contracts = store.listContracts(req.accessId);
+  const contracts = store.listContracts(req.identityId);
   res.json({ contracts });
 });
 
@@ -109,8 +218,8 @@ app.get('/contracts/:contractId', auth.verify(), (req, res) => {
     return res.status(404).json({ error: 'Contract not found' });
   }
   
-  // Check access
-  if (info.owner !== req.accessId && !info.readers?.includes(req.accessId)) {
+  // Check access (based on identity, not access key)
+  if (info.owner !== req.identityId && !info.readers?.includes(req.identityId)) {
     return res.status(403).json({ error: 'Access denied' });
   }
   
@@ -137,8 +246,8 @@ app.post('/contracts/:contractId/push', auth.verify(), async (req, res) => {
       return res.status(404).json({ error: 'Contract not found' });
     }
     
-    // Check write access
-    if (info.owner !== req.accessId && !info.writers?.includes(req.accessId)) {
+    // Check write access (based on identity)
+    if (info.owner !== req.identityId && !info.writers?.includes(req.identityId)) {
       return res.status(403).json({ error: 'Write access denied' });
     }
     
@@ -164,8 +273,8 @@ app.get('/contracts/:contractId/pull', auth.verify(), (req, res) => {
     return res.status(404).json({ error: 'Contract not found' });
   }
   
-  // Check read access
-  if (info.owner !== req.accessId && !info.readers?.includes(req.accessId)) {
+  // Check read access (based on identity)
+  if (info.owner !== req.identityId && !info.readers?.includes(req.identityId)) {
     return res.status(403).json({ error: 'Read access denied' });
   }
   
@@ -203,18 +312,18 @@ app.get('/contracts/:contractId/commits/:hash', auth.verify(), (req, res) => {
 });
 
 /**
- * Grant access to a contract
+ * Grant access to a contract (grants to an identity, not access key)
  * POST /contracts/:contractId/access
  * Auth: Signature header (must be owner)
- * Body: { access_id, permission: 'read' | 'write' }
+ * Body: { identity_id, permission: 'read' | 'write' }
  */
 app.post('/contracts/:contractId/access', auth.verify(), (req, res) => {
   try {
     const { contractId } = req.params;
-    const { access_id, permission } = req.body;
+    const { identity_id, permission } = req.body;
     
-    if (!access_id || !permission) {
-      return res.status(400).json({ error: 'access_id and permission required' });
+    if (!identity_id || !permission) {
+      return res.status(400).json({ error: 'identity_id and permission required' });
     }
     
     if (!['read', 'write'].includes(permission)) {
@@ -226,12 +335,12 @@ app.post('/contracts/:contractId/access', auth.verify(), (req, res) => {
       return res.status(404).json({ error: 'Contract not found' });
     }
     
-    if (info.owner !== req.accessId) {
+    if (info.owner !== req.identityId) {
       return res.status(403).json({ error: 'Only owner can grant access' });
     }
     
-    store.grantAccess(contractId, access_id, permission);
-    res.json({ granted: true, access_id, permission });
+    store.grantAccess(contractId, identity_id, permission);
+    res.json({ granted: true, identity_id, permission });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

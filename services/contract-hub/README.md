@@ -1,6 +1,18 @@
 # Contract Hub
 
-Centralized HTTP service for push/pull of Modality contracts with ed25519 keypair authentication.
+Centralized HTTP service for push/pull of Modality contracts with two-tier ed25519 authentication.
+
+## Two-Tier Key Architecture
+
+**Identity Key** (long-term)
+- Proves ownership of contracts
+- Used to create/revoke access keys
+- Keep secure, use sparingly
+
+**Access Key** (session)
+- Used for day-to-day API authentication
+- Can be rotated, expired, revoked
+- Sign all API requests
 
 ## Quick Start
 
@@ -15,37 +27,60 @@ npm start
 PORT=3100 DATA_DIR=./data npm start
 ```
 
-## Authentication
+## Workflow
 
-All authenticated endpoints require three headers:
-
-```
-X-Access-Id: <your_access_id>
-X-Timestamp: <unix_ms_timestamp>
-X-Signature: <ed25519_signature>
-```
-
-The signature signs: `METHOD:PATH:TIMESTAMP:BODY_HASH`
-
-### Generate Keypair
+### 1. Generate Keys
 
 ```javascript
 import { ContractHubClient } from './src/client.js';
 
-const { privateKey, publicKey } = await ContractHubClient.generateKeypair();
-console.log('Private key (keep secret):', privateKey);
-console.log('Public key:', publicKey);
+// Generate identity keypair (keep private key VERY secure)
+const identity = await ContractHubClient.generateKeypair();
+console.log('Identity private key:', identity.privateKey); // SAVE SECURELY
+console.log('Identity public key:', identity.publicKey);
+
+// Generate access keypair (for API use)
+const access = await ContractHubClient.generateKeypair();
+console.log('Access public key:', access.publicKey);
 ```
 
-### Register Access
+### 2. Register Identity
 
 ```bash
-curl -X POST http://localhost:3100/access/register \
+curl -X POST http://localhost:3100/identity/register \
   -H "Content-Type: application/json" \
-  -d '{"public_key": "YOUR_PUBLIC_KEY_HEX"}'
+  -d '{"public_key": "IDENTITY_PUBLIC_KEY_HEX"}'
 ```
 
-Returns: `{ "access_id": "acc_xxx", "public_key": "..." }`
+Returns: `{ "identity_id": "id_xxx", "public_key": "..." }`
+
+### 3. Create Access Key
+
+Sign with identity key to create an access key:
+
+```bash
+# Signature = identity_private_key.sign("create_access:" + access_public_key + ":" + timestamp)
+curl -X POST http://localhost:3100/access/create \
+  -H "Content-Type: application/json" \
+  -d '{
+    "identity_id": "id_xxx",
+    "access_public_key": "ACCESS_PUBLIC_KEY_HEX",
+    "timestamp": "1769957000000",
+    "signature": "IDENTITY_SIGNATURE_HEX",
+    "name": "laptop"
+  }'
+```
+
+Returns: `{ "access_id": "acc_xxx", "identity_id": "id_xxx", "public_key": "..." }`
+
+### 4. Use Access Key for API Calls
+
+All authenticated endpoints require:
+```
+X-Access-Id: acc_xxx
+X-Timestamp: <unix_ms>
+X-Signature: access_private_key.sign(METHOD:PATH:TIMESTAMP:BODY_HASH)
+```
 
 ## API Endpoints
 
@@ -54,76 +89,71 @@ Returns: `{ "access_id": "acc_xxx", "public_key": "..." }`
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health check |
-| POST | `/access/register` | Register public key |
+| POST | `/identity/register` | Register identity key |
+| POST | `/access/create` | Create access key (requires identity signature) |
 
-### Auth Required
+### Auth Required (Access Key)
 
 | Method | Path | Description |
 |--------|------|-------------|
+| GET | `/access/list` | List your access keys |
+| POST | `/access/revoke` | Revoke an access key |
 | POST | `/contracts` | Create contract |
 | GET | `/contracts` | List your contracts |
 | GET | `/contracts/:id` | Get contract info |
 | POST | `/contracts/:id/push` | Push commits |
 | GET | `/contracts/:id/pull` | Pull commits |
-| GET | `/contracts/:id/commits/:hash` | Get specific commit |
-| POST | `/contracts/:id/access` | Grant access |
+| POST | `/contracts/:id/access` | Grant access to identity |
 
 ## Client Example
 
 ```javascript
 import { ContractHubClient } from './src/client.js';
 
-// Generate or load keypair
-const { privateKey, publicKey } = await ContractHubClient.generateKeypair();
+// Generate keypairs
+const identityKeys = await ContractHubClient.generateKeypair();
+const accessKeys = await ContractHubClient.generateKeypair();
 
-// Create client (unauthenticated for registration)
 const client = new ContractHubClient('http://localhost:3100');
 
-// Register and get access ID
-const { access_id } = await client.register(publicKey);
-console.log('Access ID:', access_id);
+// Register identity
+const { identity_id } = await client.registerIdentity(identityKeys.publicKey);
 
-// Configure client with credentials
+// Create access key (signed by identity)
+const { access_id } = await client.createAccessKey(
+  identity_id, 
+  accessKeys.publicKey,
+  identityKeys.privateKey  // Signs the creation request
+);
+
+// Configure client with access credentials
 client.accessId = access_id;
-client.privateKey = privateKey;
+client.privateKey = accessKeys.privateKey;
 
-// Create a contract
-const { contract_id } = await client.createContract('My Contract', 'A test contract');
-console.log('Contract ID:', contract_id);
+// Now use the API
+const { contract_id } = await client.createContract('My Contract');
+await client.push(contract_id, commits);
+await client.pull(contract_id);
 
-// Push commits
-await client.push(contract_id, [
-  { hash: 'abc123', data: { message: 'Hello' }, parent: null }
-]);
-
-// Pull commits
-const { commits } = await client.pull(contract_id);
-console.log('Commits:', commits);
-
-// Grant read access to another user
-await client.grantAccess(contract_id, 'acc_other_user', 'read');
+// Grant access to another identity
+await client.grantAccess(contract_id, 'id_other_user', 'read');
 ```
 
-## Workflow
+## Security Model
 
-1. **Generate keypair** - Create ed25519 keypair for authentication
-2. **Register** - Submit public key, receive access ID
-3. **Create contract** - Initialize new contract storage
-4. **Push** - Upload commits (signed changes)
-5. **Pull** - Download commits (sync)
-6. **Grant access** - Share with other users
+| Concern | Solution |
+|---------|----------|
+| Long-term key compromise | Identity key rarely used, only for access key management |
+| Session key compromise | Revoke access key, create new one |
+| Replay attacks | Timestamp checking (5 min window) |
+| Man-in-the-middle | All requests signed |
+| Access control | Permissions granted to identities, not access keys |
 
 ## Data Storage
 
-SQLite database in `DATA_DIR/contracts.db` with tables:
-- `access` - Access keys
-- `contracts` - Contract metadata
-- `contract_access` - Access control
+SQLite database with tables:
+- `identities` - Long-term identity keys
+- `access` - Session access keys (linked to identity)
+- `contracts` - Contract metadata (owned by identity)
+- `contract_access` - Access control (granted to identity)
 - `commits` - Contract commits
-
-## Security
-
-- Ed25519 signatures prevent unauthorized access
-- Timestamp checking prevents replay attacks (5 min window)
-- Access control per contract (owner, readers, writers)
-- No password storage - pure keypair authentication

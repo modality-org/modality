@@ -44,17 +44,54 @@ export class ContractHubClient {
   }
   
   // ============================================================================
-  // REGISTRATION
+  // IDENTITY REGISTRATION
   // ============================================================================
   
   /**
-   * Register a public key and get an access ID
+   * Register an identity (long-term key)
    */
-  async register(publicKeyHex) {
-    const res = await this.request('POST', '/access/register', {
+  async registerIdentity(publicKeyHex) {
+    return this.request('POST', '/identity/register', {
       public_key: publicKeyHex
     }, false);
-    return res;
+  }
+  
+  /**
+   * Create an access key for an identity
+   * @param identityId - The identity to create access for
+   * @param accessPublicKey - Public key for the new access key
+   * @param identityPrivateKey - Identity private key to sign the request
+   * @param options - { name?, expiresAt? }
+   */
+  async createAccessKey(identityId, accessPublicKey, identityPrivateKey, options = {}) {
+    const timestamp = Date.now().toString();
+    const message = `create_access:${accessPublicKey}:${timestamp}`;
+    const messageBytes = new TextEncoder().encode(message);
+    const privateKey = hexToBytes(identityPrivateKey);
+    const signature = await ed.signAsync(messageBytes, privateKey);
+    
+    return this.request('POST', '/access/create', {
+      identity_id: identityId,
+      access_public_key: accessPublicKey,
+      timestamp,
+      signature: bytesToHex(signature),
+      name: options.name,
+      expires_at: options.expiresAt
+    }, false);
+  }
+  
+  /**
+   * List access keys (requires auth)
+   */
+  async listAccessKeys() {
+    return this.request('GET', '/access/list');
+  }
+  
+  /**
+   * Revoke an access key
+   */
+  async revokeAccessKey(accessId) {
+    return this.request('POST', '/access/revoke', { access_id: accessId });
   }
   
   // ============================================================================
@@ -108,11 +145,11 @@ export class ContractHubClient {
   }
   
   /**
-   * Grant access to another user
+   * Grant access to another identity
    */
-  async grantAccess(contractId, accessId, permission) {
+  async grantAccess(contractId, identityId, permission) {
     return this.request('POST', `/contracts/${contractId}/access`, {
-      access_id: accessId,
+      identity_id: identityId,
       permission
     });
   }

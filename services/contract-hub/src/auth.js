@@ -64,9 +64,10 @@ export class AuthMiddleware {
           return res.status(401).json({ error: 'Invalid signature' });
         }
         
-        // Attach access ID to request
+        // Attach access ID and identity ID to request
         req.accessId = accessId;
         req.accessInfo = accessInfo;
+        req.identityId = accessInfo.identity_id;
         
         next();
       } catch (err) {
@@ -83,6 +84,20 @@ export class AuthMiddleware {
     const bytes = new TextEncoder().encode(str);
     const hash = sha512(bytes);
     return bytesToHex(hash.slice(0, 16)); // First 16 bytes as hex
+  }
+  
+  /**
+   * Verify a signature against a public key
+   */
+  async verifySignature(publicKeyHex, message, signatureHex) {
+    try {
+      const messageBytes = new TextEncoder().encode(message);
+      const sigBytes = hexToBytes(signatureHex);
+      const pubkeyBytes = hexToBytes(publicKeyHex);
+      return await ed.verifyAsync(sigBytes, messageBytes, pubkeyBytes);
+    } catch {
+      return false;
+    }
   }
 }
 

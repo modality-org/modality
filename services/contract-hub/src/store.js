@@ -27,17 +27,28 @@ export class ContractStore {
   
   initSchema() {
     this.db.exec(`
-      -- Access keys (authentication)
-      CREATE TABLE IF NOT EXISTS access (
+      -- Identities (long-term ownership keys)
+      CREATE TABLE IF NOT EXISTS identities (
         id TEXT PRIMARY KEY,
         public_key TEXT UNIQUE NOT NULL,
         created_at INTEGER NOT NULL
       );
       
-      -- Contracts
+      -- Access keys (session keys for API auth, linked to identity)
+      CREATE TABLE IF NOT EXISTS access (
+        id TEXT PRIMARY KEY,
+        identity_id TEXT NOT NULL REFERENCES identities(id),
+        public_key TEXT UNIQUE NOT NULL,
+        name TEXT,
+        expires_at INTEGER,
+        revoked INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL
+      );
+      
+      -- Contracts (owned by identities, not access keys)
       CREATE TABLE IF NOT EXISTS contracts (
         id TEXT PRIMARY KEY,
-        owner TEXT NOT NULL REFERENCES access(id),
+        owner TEXT NOT NULL REFERENCES identities(id),
         name TEXT,
         description TEXT,
         head TEXT,
@@ -45,13 +56,13 @@ export class ContractStore {
         updated_at INTEGER NOT NULL
       );
       
-      -- Contract access control
+      -- Contract access control (grants to identities, not access keys)
       CREATE TABLE IF NOT EXISTS contract_access (
         contract_id TEXT NOT NULL REFERENCES contracts(id),
-        access_id TEXT NOT NULL REFERENCES access(id),
+        identity_id TEXT NOT NULL REFERENCES identities(id),
         permission TEXT NOT NULL CHECK(permission IN ('read', 'write')),
         granted_at INTEGER NOT NULL,
-        PRIMARY KEY (contract_id, access_id)
+        PRIMARY KEY (contract_id, identity_id)
       );
       
       -- Commits
@@ -72,16 +83,16 @@ export class ContractStore {
   }
   
   // ============================================================================
-  // ACCESS MANAGEMENT
+  // IDENTITY MANAGEMENT (long-term keys)
   // ============================================================================
   
-  registerAccess(publicKey) {
-    const id = 'acc_' + randomUUID().replace(/-/g, '').slice(0, 16);
+  registerIdentity(publicKey) {
+    const id = 'id_' + randomUUID().replace(/-/g, '').slice(0, 16);
     const now = Date.now();
     
     try {
       this.db.prepare(`
-        INSERT INTO access (id, public_key, created_at)
+        INSERT INTO identities (id, public_key, created_at)
         VALUES (?, ?, ?)
       `).run(id, publicKey, now);
       
@@ -90,7 +101,7 @@ export class ContractStore {
       if (err.message.includes('UNIQUE constraint')) {
         // Public key already registered, return existing ID
         const existing = this.db.prepare(
-          'SELECT id FROM access WHERE public_key = ?'
+          'SELECT id FROM identities WHERE public_key = ?'
         ).get(publicKey);
         return existing.id;
       }
@@ -98,25 +109,105 @@ export class ContractStore {
     }
   }
   
-  getAccess(accessId) {
+  getIdentity(identityId) {
     return this.db.prepare(`
       SELECT id, public_key, created_at
-      FROM access WHERE id = ?
+      FROM identities WHERE id = ?
+    `).get(identityId);
+  }
+  
+  getIdentityByPublicKey(publicKey) {
+    return this.db.prepare(`
+      SELECT id, public_key, created_at
+      FROM identities WHERE public_key = ?
+    `).get(publicKey);
+  }
+  
+  // ============================================================================
+  // ACCESS KEY MANAGEMENT (session keys)
+  // ============================================================================
+  
+  createAccessKey(identityId, accessPublicKey, { name, expiresAt } = {}) {
+    const id = 'acc_' + randomUUID().replace(/-/g, '').slice(0, 16);
+    const now = Date.now();
+    
+    // Verify identity exists
+    const identity = this.getIdentity(identityId);
+    if (!identity) {
+      throw new Error('Identity not found');
+    }
+    
+    try {
+      this.db.prepare(`
+        INSERT INTO access (id, identity_id, public_key, name, expires_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(id, identityId, accessPublicKey, name || null, expiresAt || null, now);
+      
+      return id;
+    } catch (err) {
+      if (err.message.includes('UNIQUE constraint')) {
+        throw new Error('Access key public key already registered');
+      }
+      throw err;
+    }
+  }
+  
+  getAccess(accessId) {
+    const access = this.db.prepare(`
+      SELECT a.id, a.identity_id, a.public_key, a.name, a.expires_at, a.revoked, a.created_at,
+             i.public_key as identity_public_key
+      FROM access a
+      JOIN identities i ON a.identity_id = i.id
+      WHERE a.id = ?
     `).get(accessId);
+    
+    if (!access) return null;
+    
+    // Check if expired or revoked
+    if (access.revoked) {
+      return null;
+    }
+    if (access.expires_at && access.expires_at < Date.now()) {
+      return null;
+    }
+    
+    return access;
+  }
+  
+  listAccessKeys(identityId) {
+    return this.db.prepare(`
+      SELECT id, public_key, name, expires_at, revoked, created_at
+      FROM access WHERE identity_id = ? AND revoked = 0
+      ORDER BY created_at DESC
+    `).all(identityId);
+  }
+  
+  revokeAccessKey(accessId, identityId) {
+    const result = this.db.prepare(`
+      UPDATE access SET revoked = 1 
+      WHERE id = ? AND identity_id = ?
+    `).run(accessId, identityId);
+    return result.changes > 0;
   }
   
   // ============================================================================
   // CONTRACT MANAGEMENT
   // ============================================================================
   
-  createContract(ownerId, { name, description } = {}) {
+  createContract(identityId, { name, description } = {}) {
     const id = 'con_' + randomUUID().replace(/-/g, '').slice(0, 16);
     const now = Date.now();
+    
+    // Verify identity exists
+    const identity = this.getIdentity(identityId);
+    if (!identity) {
+      throw new Error('Identity not found');
+    }
     
     this.db.prepare(`
       INSERT INTO contracts (id, owner, name, description, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(id, ownerId, name || null, description || null, now, now);
+    `).run(id, identityId, name || null, description || null, now, now);
     
     return id;
   }
@@ -129,33 +220,39 @@ export class ContractStore {
     
     if (!contract) return null;
     
-    // Get access list
+    // Get access list (identities, not access keys)
     const access = this.db.prepare(`
-      SELECT access_id, permission
+      SELECT identity_id, permission
       FROM contract_access WHERE contract_id = ?
     `).all(contractId);
     
-    contract.readers = access.filter(a => a.permission === 'read').map(a => a.access_id);
-    contract.writers = access.filter(a => a.permission === 'write').map(a => a.access_id);
+    contract.readers = access.filter(a => a.permission === 'read').map(a => a.identity_id);
+    contract.writers = access.filter(a => a.permission === 'write').map(a => a.identity_id);
     
     return contract;
   }
   
-  listContracts(ownerId) {
+  listContracts(identityId) {
     return this.db.prepare(`
       SELECT id, owner, name, description, head, created_at, updated_at
       FROM contracts WHERE owner = ?
       ORDER BY updated_at DESC
-    `).all(ownerId);
+    `).all(identityId);
   }
   
-  grantAccess(contractId, accessId, permission) {
+  grantAccess(contractId, identityId, permission) {
     const now = Date.now();
     
+    // Verify identity exists
+    const identity = this.getIdentity(identityId);
+    if (!identity) {
+      throw new Error('Identity not found');
+    }
+    
     this.db.prepare(`
-      INSERT OR REPLACE INTO contract_access (contract_id, access_id, permission, granted_at)
+      INSERT OR REPLACE INTO contract_access (contract_id, identity_id, permission, granted_at)
       VALUES (?, ?, ?, ?)
-    `).run(contractId, accessId, permission, now);
+    `).run(contractId, identityId, permission, now);
   }
   
   // ============================================================================
