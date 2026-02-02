@@ -101,6 +101,11 @@ impl WasmExecutor {
         Ok(result_str)
     }
 
+    /// Get the gas limit for this executor
+    pub fn gas_limit(&self) -> u64 {
+        self.gas_limit
+    }
+
     /// Get remaining gas after execution
     pub fn remaining_gas(&self) -> u64 {
         // Note: This requires storing the Store, which we currently don't do
@@ -136,13 +141,13 @@ mod tests {
     #[test]
     fn test_executor_creation() {
         let executor = WasmExecutor::new(1_000_000);
-        assert_eq!(executor.gas_limit, 1_000_000);
+        assert_eq!(executor.gas_limit(), 1_000_000);
     }
 
     #[test]
     fn test_executor_default() {
         let executor = WasmExecutor::default();
-        assert_eq!(executor.gas_limit, DEFAULT_GAS_LIMIT);
+        assert_eq!(executor.gas_limit(), DEFAULT_GAS_LIMIT);
     }
 }
 

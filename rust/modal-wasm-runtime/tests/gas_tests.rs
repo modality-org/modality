@@ -21,15 +21,15 @@ fn test_gas_limit_enforcement() {
 #[test]
 fn test_default_gas_limit() {
     let executor = WasmExecutor::new(DEFAULT_GAS_LIMIT);
-    assert_eq!(executor.gas_limit, DEFAULT_GAS_LIMIT);
-    assert_eq!(executor.gas_limit, 10_000_000);
+    assert_eq!(executor.gas_limit(), DEFAULT_GAS_LIMIT);
+    assert_eq!(executor.gas_limit(), 10_000_000);
 }
 
 #[test]
 fn test_max_gas_limit() {
     let executor = WasmExecutor::new(MAX_GAS_LIMIT);
-    assert_eq!(executor.gas_limit, MAX_GAS_LIMIT);
-    assert_eq!(executor.gas_limit, 100_000_000);
+    assert_eq!(executor.gas_limit(), MAX_GAS_LIMIT);
+    assert_eq!(executor.gas_limit(), 100_000_000);
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn test_gas_limit_prevents_infinite_loop() {
     let low_gas_executor = WasmExecutor::new(1000);
     let high_gas_executor = WasmExecutor::new(1_000_000);
     
-    assert!(low_gas_executor.gas_limit < high_gas_executor.gas_limit);
+    assert!(low_gas_executor.gas_limit() < high_gas_executor.gas_limit());
 }
 
 #[test]
@@ -78,7 +78,7 @@ fn test_executor_with_different_gas_limits() {
     
     for (i, executor) in executors.iter().enumerate() {
         let expected = 1_000 * 10_u64.pow(i as u32);
-        assert_eq!(executor.gas_limit, expected);
+        assert_eq!(executor.gas_limit(), expected);
     }
 }
 
