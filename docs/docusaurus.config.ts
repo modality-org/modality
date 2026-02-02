@@ -95,7 +95,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Modality. Inspired by <a href="https://scholar.google.com/citations?user=X0LE5YYAAAAJ" target="_blank">Bud Mishra</a>'s work on formal verification.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Modality. Inspired by <a href="https://scholar.google.com/citations?user=kXVBr20AAAAJ&hl=en&oi=ao" target="_blank">Bud Mishra</a>'s work on formal verification.`,
     },
     prism: {
       theme: prismThemes.github,

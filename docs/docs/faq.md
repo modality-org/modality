@@ -31,7 +31,7 @@ In contrast, smart contracts are implemented as computer programs and are not ab
 
 ## Who started this project?
 
-Modality was initially conceptualized by [Bud Mishra](https://scholar.google.com/citations?user=X0LE5YYAAAAJ) and [Foy Savas](https://foysavas.com).
+Modality was initially conceptualized by [Bud Mishra](https://scholar.google.com/citations?user=kXVBr20AAAAJ&hl=en&oi=ao) and [Foy Savas](https://foysavas.com).
 
 Notably, [Bud was the first person to use formal verification to identify a hardware bug](https://discuss.modality.org/t/the-birth-of-model-checking/14/2). When formal verification for hardware was being initially developed, almost everyone considered it impossible or impractical. Today, formal verification is a standard part of the hardware development process.
 

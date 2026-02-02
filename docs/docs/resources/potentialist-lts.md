@@ -77,7 +77,7 @@ This framework is ideal for AI agent cooperation because:
 
 ## Further Reading
 
-- [Bud Mishra](https://scholar.google.com/citations?user=X0LE5YYAAAAJ) — Father of hardware formal verification
+- [Bud Mishra](https://scholar.google.com/citations?user=kXVBr20AAAAJ&hl=en&oi=ao) — Father of hardware formal verification
 - Linnebo & Studd — *Generality and the Foundations of Set Theory*
 - Hamkins — *The Modal Logic of Set-Theoretic Potentialism*
 - Stirling — *Modal and Temporal Properties of Processes*
