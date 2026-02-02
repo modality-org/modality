@@ -36,7 +36,7 @@ modal contract create
 modal c checkout
 ```
 
-## Step 3: Alice Sets Up Users, Model & Authorization Rule
+## Step 3: Alice Sets Up Users, Rules & Model
 
 ```bash
 # Add user IDs using named passfiles
@@ -44,20 +44,7 @@ modal c set-named-id /users/alice.id --named alice
 modal c set-named-id /users/bob.id --named bob
 ```
 
-Create `model/default.modality`:
-
-```modality
-export default model {
-  initial idle
-  
-  idle -> committed [+signed_by(/users/alice.id)]
-  idle -> committed [+signed_by(/users/bob.id)]
-  committed -> committed [+signed_by(/users/alice.id)]
-  committed -> committed [+signed_by(/users/bob.id)]
-}
-```
-
-Create `rules/auth.modality`:
+Create `rules/auth.modality` — the authorization rule:
 
 ```modality
 export default rule {
@@ -69,6 +56,19 @@ export default rule {
 ```
 
 This rule requires every commit to be signed by either Alice or Bob.
+
+Create `model/default.modality` — the state machine that satisfies the rule:
+
+```modality
+export default model {
+  initial idle
+  
+  idle -> committed [+signed_by(/users/alice.id)]
+  idle -> committed [+signed_by(/users/bob.id)]
+  committed -> committed [+signed_by(/users/alice.id)]
+  committed -> committed [+signed_by(/users/bob.id)]
+}
+```
 
 ## Step 4: Alice Commits the Setup (Signed)
 
@@ -111,10 +111,10 @@ my-contract/
 │   │   └── bob.id       # Public key only
 │   └── data/
 │       └── message.text
-├── model/
-│   └── default.modality
-└── rules/
-    └── auth.modality
+├── rules/               # Rules first
+│   └── auth.modality
+└── model/               # Model satisfies rules
+    └── default.modality
 ```
 
 Private keys stay in your home directory:

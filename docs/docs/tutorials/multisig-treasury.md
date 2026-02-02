@@ -14,76 +14,99 @@ A treasury contract where:
 - Any 2 can approve withdrawals
 - All 3 required to change keyholders
 
-## Step 1: Create the Contract
+## Step 1: Create Identities
+
+```bash
+# Create keyholder identities
+modal id create --name alice
+modal id create --name bob
+modal id create --name carol
+```
+
+## Step 2: Create the Contract
 
 ```bash
 mkdir treasury && cd treasury
 modal contract create
-
-# Create keyholder identities
-modal id create --path alice.passfile
-modal id create --path bob.passfile
-modal id create --path carol.passfile
+modal c checkout
 ```
 
-## Step 2: Set Up State
+## Step 3: Set Up State
 
 ```bash
-modal c checkout
-mkdir -p state/treasury
-
 # Add keyholder identities
-modal c set /treasury/alice.id $(modal id get --path ./alice.passfile)
-modal c set /treasury/bob.id $(modal id get --path ./bob.passfile)
-modal c set /treasury/carol.id $(modal id get --path ./carol.passfile)
+modal c set-named-id /treasury/alice.id --named alice
+modal c set-named-id /treasury/bob.id --named bob
+modal c set-named-id /treasury/carol.id --named carol
 
 # Create signers list
-echo '{"signers": ["/treasury/alice.id", "/treasury/bob.id", "/treasury/carol.id"]}' \
-  > state/treasury/config.json
+mkdir -p state/treasury
+echo '["/treasury/alice.id", "/treasury/bob.id", "/treasury/carol.id"]' \
+  > state/treasury/signers.json
 ```
 
-## Step 3: Define the Model
+## Step 4: Define the Rules
 
-Create `model/treasury.modality`:
+Create `rules/treasury-auth.modality`:
 
 ```modality
-model treasury {
-  initial locked
-  
-  // Propose withdrawal (any keyholder)
-  locked -> pending [+PROPOSE +signed_by(/treasury/alice.id)]
-  locked -> pending [+PROPOSE +signed_by(/treasury/bob.id)]
-  locked -> pending [+PROPOSE +signed_by(/treasury/carol.id)]
-  
-  // Execute withdrawal (2-of-3)
-  pending -> executed [+EXECUTE +threshold(2, /treasury/signers)]
-  
-  // Reset after execution
-  executed -> locked [+RESET]
+export default rule {
+  starting_at $PARENT
+  formula {
+    // All commits must be signed by a keyholder
+    signed_by(/treasury/alice.id) | signed_by(/treasury/bob.id) | signed_by(/treasury/carol.id)
+  }
 }
 ```
 
-## Step 4: Test the Flow
+## Step 5: Define the Model
+
+Create `model/treasury.modality` — the state machine satisfying the rules:
+
+```modality
+export default model {
+  initial locked
+  
+  // Propose withdrawal (any keyholder)
+  locked -> pending [+signed_by(/treasury/alice.id)]
+  locked -> pending [+signed_by(/treasury/bob.id)]
+  locked -> pending [+signed_by(/treasury/carol.id)]
+  
+  // Execute withdrawal (2-of-3)
+  pending -> executed [+threshold(2, /treasury/signers.json)]
+  
+  // Reset after execution
+  executed -> locked [+signed_by(/treasury/alice.id)]
+  executed -> locked [+signed_by(/treasury/bob.id)]
+  executed -> locked [+signed_by(/treasury/carol.id)]
+}
+```
+
+## Step 6: Commit and Test
+
+```bash
+modal c commit --all --sign alice -m "Initialize treasury"
+```
 
 ### Propose a Withdrawal
 
 ```bash
-modal c act PROPOSE --sign alice.passfile
-modal c commit --all --sign alice.passfile -m "Alice proposes withdrawal"
+echo '{"amount": 100, "to": "recipient_address"}' > state/treasury/proposal.json
+modal c commit --all --sign alice -m "Alice proposes withdrawal"
 ```
 
 ### First Approval (Bob)
 
 ```bash
-modal c act APPROVE --sign bob.passfile
-modal c commit --all --sign bob.passfile -m "Bob approves"
+modal c commit --all --sign bob -m "Bob approves"
 ```
 
 ### Second Approval & Execute (Carol)
 
+With 2 signatures collected, the withdrawal can execute:
+
 ```bash
-modal c act EXECUTE --sign carol.passfile
-modal c commit --all --sign carol.passfile -m "Execute withdrawal"
+modal c commit --all --sign carol -m "Execute withdrawal"
 ```
 
 ## How Threshold Works
@@ -103,16 +126,19 @@ The `threshold(n, signers_path)` predicate:
 ## Advanced: Graduated Thresholds
 
 ```modality
-model graduated_treasury {
+export default model {
   initial active
   
   // Low-value: 1-of-3
-  active -> active [+SMALL_WITHDRAWAL +threshold(1, /treasury/signers)]
+  active -> active [+threshold(1, /treasury/signers.json)]
   
-  // High-value: 2-of-3
-  active -> active [+LARGE_WITHDRAWAL +threshold(2, /treasury/signers)]
+  // High-value: 2-of-3  
+  active -> pending_large [+signed_by(/treasury/alice.id)]
+  active -> pending_large [+signed_by(/treasury/bob.id)]
+  active -> pending_large [+signed_by(/treasury/carol.id)]
+  pending_large -> active [+threshold(2, /treasury/signers.json)]
   
   // Add/remove signer: 3-of-3 (unanimous)
-  active -> active [+CHANGE_SIGNERS +threshold(3, /treasury/signers)]
+  active -> active [+threshold(3, /treasury/signers.json)]
 }
 ```

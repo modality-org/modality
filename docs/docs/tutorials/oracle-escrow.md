@@ -16,65 +16,40 @@ An escrow where:
 - Funds release only after oracle verification
 - Timeout protects buyer if oracle fails
 
-## Step 1: Create the Contract
+## Step 1: Create Identities
+
+```bash
+# Create participant identities
+modal id create --name buyer
+modal id create --name seller
+modal id create --name delivery_oracle
+```
+
+## Step 2: Create the Contract
 
 ```bash
 mkdir escrow && cd escrow
 modal contract create
-
-# Create participant identities
-modal id create --path buyer.passfile
-modal id create --path seller.passfile
-modal id create --path oracle.passfile
+modal c checkout
 ```
 
-## Step 2: Set Up State
+## Step 3: Set Up State
 
 ```bash
-modal c checkout
-
 # Add identities
-modal c set /users/buyer.id $(modal id get --path ./buyer.passfile)
-modal c set /users/seller.id $(modal id get --path ./seller.passfile)
-modal c set /oracles/delivery.id $(modal id get --path ./oracle.passfile)
+modal c set-named-id /users/buyer.id --named buyer
+modal c set-named-id /users/seller.id --named seller
+modal c set-named-id /oracles/delivery.id --named delivery_oracle
 
 # Set escrow terms
+mkdir -p state/escrow
 echo '{"price": 100, "currency": "USDC"}' > state/escrow/terms.json
 
-# Set deadline
-echo '{"deadline": 1770000000}' > state/escrow/timeout.json
+# Set timeout deadline
+echo "2026-03-01T00:00:00Z" > state/escrow/timeout.datetime
 ```
 
-## Step 3: Define the Model
-
-Create `model/escrow.modality`:
-
-```modality
-model oracle_escrow {
-  initial awaiting_deposit
-  
-  // Buyer deposits funds
-  awaiting_deposit -> funded [+DEPOSIT +signed_by(/users/buyer.id)]
-  
-  // Seller ships goods
-  funded -> shipped [+SHIP +signed_by(/users/seller.id)]
-  
-  // Oracle confirms delivery -> release to seller
-  shipped -> completed [+RELEASE +oracle_attests(/oracles/delivery.id, "delivered", "true")]
-  
-  // Oracle denies delivery -> refund buyer
-  shipped -> refunded [+DISPUTE_REFUND +oracle_attests(/oracles/delivery.id, "delivered", "false")]
-  
-  // Timeout: buyer can reclaim after deadline
-  shipped -> refunded [+TIMEOUT_REFUND +signed_by(/users/buyer.id) +after(/escrow/timeout.datetime)]
-  
-  // Terminal states
-  completed -> completed [+DONE]
-  refunded -> refunded [+DONE]
-}
-```
-
-## Step 4: Add Protection Rules
+## Step 4: Define the Rules
 
 Create `rules/escrow-auth.modality`:
 
@@ -88,38 +63,70 @@ export default rule {
 }
 ```
 
-The model structure enforces the flow (deposit → ship → release). Rules constrain *who* can commit at each stage.
+## Step 5: Define the Model
 
-## Step 4: Execute the Contract
+Create `model/escrow.modality` — the state machine satisfying the rules:
+
+```modality
+export default model {
+  initial awaiting_deposit
+  
+  // Buyer deposits funds
+  awaiting_deposit -> funded [+signed_by(/users/buyer.id)]
+  
+  // Seller ships goods
+  funded -> shipped [+signed_by(/users/seller.id)]
+  
+  // Oracle confirms delivery -> release to seller
+  shipped -> completed [+oracle_attests(/oracles/delivery.id, "delivered", "true")]
+  
+  // Oracle denies delivery -> refund buyer
+  shipped -> refunded [+oracle_attests(/oracles/delivery.id, "delivered", "false")]
+  
+  // Timeout: buyer can reclaim after deadline
+  shipped -> refunded [+signed_by(/users/buyer.id), +after(/escrow/timeout.datetime)]
+  
+  // Terminal states (self-loop)
+  completed -> completed [+signed_by(/users/buyer.id)]
+  completed -> completed [+signed_by(/users/seller.id)]
+  refunded -> refunded [+signed_by(/users/buyer.id)]
+  refunded -> refunded [+signed_by(/users/seller.id)]
+}
+```
+
+## Step 6: Commit the Setup
+
+```bash
+modal c commit --all --sign buyer -m "Initialize escrow"
+```
+
+## Step 7: Execute the Contract
 
 ### Happy Path: Delivery Confirmed
 
 ```bash
 # 1. Buyer deposits
-modal c act DEPOSIT --sign buyer.passfile
-modal c commit --all --sign buyer.passfile -m "Buyer deposits"
+modal c commit --all --sign buyer -m "Buyer deposits"
 
 # 2. Seller ships
-modal c act SHIP --sign seller.passfile
-modal c commit --all --sign seller.passfile -m "Seller ships"
+modal c commit --all --sign seller -m "Seller ships"
 
 # 3. Oracle attests delivery
-modal c act RELEASE --attestation delivery_attestation.json
-modal c commit --all -m "Oracle confirms, funds released"
+modal c commit --all --sign delivery_oracle -m "Oracle confirms, funds released"
 ```
 
 ### Dispute Path: Delivery Failed
 
 ```bash
-modal c act DISPUTE_REFUND --attestation non_delivery_attestation.json
-modal c commit --all -m "Oracle denies delivery, buyer refunded"
+modal c commit --all --sign delivery_oracle -m "Oracle denies delivery, buyer refunded"
 ```
 
 ### Timeout Path: Oracle Unresponsive
 
+After the timeout deadline:
+
 ```bash
-modal c act TIMEOUT_REFUND --sign buyer.passfile
-modal c commit --all --sign buyer.passfile -m "Timeout refund"
+modal c commit --all --sign buyer -m "Timeout refund"
 ```
 
 ## Security Properties
@@ -130,3 +137,4 @@ modal c commit --all --sign buyer.passfile -m "Timeout refund"
 | **Integrity** | Signature covers all attestation data |
 | **Freshness** | Max age prevents replay |
 | **Binding** | Contract ID prevents cross-contract replay |
+| **Timeout** | Buyer protected if oracle fails |
