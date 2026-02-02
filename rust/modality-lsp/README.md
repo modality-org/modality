@@ -5,8 +5,11 @@ Language Server Protocol implementation for `.modality` files.
 ## Features
 
 - **Diagnostics**: Real-time parse error reporting
-- **Completions**: Snippets for models, rules, formulas, and predicates
-- **Hover**: Documentation for keywords, operators, and predicates
+- **Completions**: Context-aware snippets for models, rules, formulas, predicates, and states
+- **Hover**: Documentation for keywords, operators, predicates, and states
+- **Go to Definition**: Jump to state and action definitions
+- **Find References**: Find all usages of states and actions
+- **Document Symbols**: Outline view showing models, rules, states, actions, and tests
 
 ## Installation
 
@@ -71,6 +74,22 @@ file-types = ["modality"]
 language-server = { command = "modality-lsp" }
 ```
 
+### Zed
+
+Add to settings:
+
+```json
+{
+  "lsp": {
+    "modality": {
+      "binary": {
+        "path": "modality-lsp"
+      }
+    }
+  }
+}
+```
+
 ## Supported Capabilities
 
 | Capability | Status |
@@ -80,13 +99,16 @@ language-server = { command = "modality-lsp" }
 | textDocument/didClose | ✅ |
 | textDocument/completion | ✅ |
 | textDocument/hover | ✅ |
+| textDocument/definition | ✅ |
+| textDocument/references | ✅ |
+| textDocument/documentSymbol | ✅ |
 | textDocument/publishDiagnostics | ✅ |
 
 ## Roadmap
 
-- [ ] Go to definition for states and actions
-- [ ] Find references
-- [ ] Document symbols
 - [ ] Semantic tokens (enhanced highlighting)
 - [ ] Code actions (quick fixes)
 - [ ] Formatting
+- [ ] Rename symbol
+- [ ] Workspace symbols (cross-file navigation)
+- [ ] Signature help
