@@ -1,3 +1,4 @@
+/* Dark theme (default) */
 :root {
     --bg: #0d1117;
     --bg-secondary: #161b22;
@@ -7,6 +8,19 @@
     --accent2: #7ee787;
     --border: #30363d;
     --sidebar-width: 280px;
+    --code-bg: #161b22;
+}
+
+/* Light theme */
+[data-theme="light"] {
+    --bg: #ffffff;
+    --bg-secondary: #f6f8fa;
+    --fg: #24292f;
+    --fg-muted: #57606a;
+    --accent: #0969da;
+    --accent2: #1a7f37;
+    --border: #d0d7de;
+    --code-bg: #f6f8fa;
 }
 
 * {
@@ -40,6 +54,15 @@ body {
     padding: 0 1.5rem 1.5rem;
     border-bottom: 1px solid var(--border);
     margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.sidebar-header .logo-section {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
 }
 
 .sidebar-header .logo {
@@ -56,7 +79,51 @@ body {
 .sidebar-header .version {
     font-size: 0.75rem;
     color: var(--fg-muted);
-    margin-left: 0.5rem;
+}
+
+/* Theme Toggle */
+.theme-toggle {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.4rem 0.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.theme-toggle:hover {
+    background: var(--border);
+}
+
+.theme-toggle svg {
+    width: 16px;
+    height: 16px;
+    fill: var(--fg-muted);
+    transition: fill 0.2s;
+}
+
+.theme-toggle:hover svg {
+    fill: var(--fg);
+}
+
+/* Show sun in dark mode, moon in light mode */
+.theme-toggle .sun-icon {
+    display: block;
+}
+
+.theme-toggle .moon-icon {
+    display: none;
+}
+
+[data-theme="light"] .theme-toggle .sun-icon {
+    display: none;
+}
+
+[data-theme="light"] .theme-toggle .moon-icon {
+    display: block;
 }
 
 .sidebar-section {
@@ -95,6 +162,26 @@ body {
     color: var(--accent);
     border-left: 2px solid var(--accent);
     padding-left: calc(2rem - 2px);
+}
+
+/* Mobile menu button */
+.menu-toggle {
+    display: none;
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 1001;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.5rem;
+    cursor: pointer;
+}
+
+.menu-toggle svg {
+    width: 24px;
+    height: 24px;
+    fill: var(--fg);
 }
 
 /* Main Content */
@@ -154,7 +241,7 @@ a:hover {
 }
 
 code {
-    background: var(--bg-secondary);
+    background: var(--code-bg);
     padding: 0.2rem 0.4rem;
     border-radius: 4px;
     font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
@@ -162,7 +249,7 @@ code {
 }
 
 pre {
-    background: var(--bg-secondary);
+    background: var(--code-bg);
     padding: 1.5rem;
     border-radius: 8px;
     overflow-x: auto;
@@ -230,6 +317,10 @@ footer {
 
 /* Responsive */
 @media (max-width: 900px) {
+    .menu-toggle {
+        display: block;
+    }
+    
     .sidebar {
         transform: translateX(-100%);
         transition: transform 0.3s;
@@ -240,9 +331,10 @@ footer {
         transform: translateX(0);
     }
     
-    .content {
+    .content,
+    .markdown-body {
         margin-left: 0;
-        padding: 2rem;
+        padding: 4rem 1.5rem 2rem;
     }
 }
 
@@ -321,4 +413,20 @@ footer {
 .markdown-body strong {
     color: var(--fg);
     font-weight: 600;
+}
+
+/* Overlay for mobile sidebar */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+}
+
+.sidebar-overlay.active {
+    display: block;
 }

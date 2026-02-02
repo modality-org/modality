@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oracle Escrow - Modality Docs</title>
+    <link rel="stylesheet" href="../static/styles.css">
+    <script src="../static/theme.js"></script>
+</head>
+<body>
+    <button class="menu-toggle" onclick="toggleMenu()">
+        <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+    </button>
+
+    <div class="sidebar-overlay"></div>
+
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-section">
+                <a href="../" class="logo">Modality</a>
+                <span class="version">v0.1</span>
+            </div>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+                <svg class="sun-icon" viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg>
+                <svg class="moon-icon" viewBox="0 0 24 24"><path d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 01-4.4 2.26 5.403 5.403 0 01-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>
+            </button>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Getting Started</div>
+            <ul>
+                <li><a href="../getting-started/">Overview</a></li>
+                <li><a href="../getting-started/#installation">Installation</a></li>
+                <li><a href="../getting-started/#your-first-contract-in-5-minutes">First Contract</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Core Concepts</div>
+            <ul>
+                <li><a href="../concepts/">Overview</a></li>
+                <li><a href="../concepts/#contracts-as-append-only-logs">Append-Only Logs</a></li>
+                <li><a href="../concepts/#state-machines-models">State Machines</a></li>
+                <li><a href="../concepts/#temporal-modal-logic-rules">Modal Logic</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Language Reference</div>
+            <ul>
+                <li><a href="../language/">Overview</a></li>
+                <li><a href="../language/#model-syntax">Model Syntax</a></li>
+                <li><a href="../language/#rule-syntax">Rule Syntax</a></li>
+                <li><a href="../language/#predicates-reference">Predicates</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">CLI Reference</div>
+            <ul>
+                <li><a href="../cli/">Overview</a></li>
+                <li><a href="../cli/#contract-commands">Contract Commands</a></li>
+                <li><a href="../cli/#identity-commands">Identity Commands</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Tutorials</div>
+            <ul>
+                <li><a href="multi-party-contract.html">Multi-Party Contracts</a></li>
+                <li><a href="multisig-treasury.html">Multisig Treasury</a></li>
+                <li><a href="oracle-escrow.html" class="active">Oracle Escrow</a></li>
+                <li><a href="contract-hub.html">Contract Hub</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Resources</div>
+            <ul>
+                <li><a href="../rfc-0001.html">RFC Specification</a></li>
+                <li><a href="https://github.com/modality-org/modality" target="_blank">GitHub ↗</a></li>
+            </ul>
+        </div>
+    </nav>
+    
+    <main class="markdown-body">
+        <h1>Building an Oracle-Verified Escrow</h1>
+        <p>Learn to create an escrow contract with external delivery verification using the <code>oracle_attests</code> predicate.</p>
+
+        <h2>What We're Building</h2>
+        <p>An escrow where:</p>
+        <ul>
+            <li>Buyer deposits funds</li>
+            <li>Seller ships goods</li>
+            <li>Trusted oracle confirms delivery</li>
+            <li>Funds release only after oracle verification</li>
+            <li>Timeout protects buyer if oracle fails</li>
+        </ul>
+
+        <hr>
+
+        <h2>Step 1: Create the Contract</h2>
+<pre><code>mkdir escrow && cd escrow
+modal contract create
+
+# Create participant identities
+modal id create --path buyer.passfile
+modal id create --path seller.passfile
+modal id create --path oracle.passfile</code></pre>
+
+        <hr>
+
+        <h2>Step 2: Set Up State</h2>
+<pre><code>modal c checkout
+
+# Add identities
+modal c set /users/buyer.id $(modal id get --path ./buyer.passfile)
+modal c set /users/seller.id $(modal id get --path ./seller.passfile)
+modal c set /oracles/delivery.id $(modal id get --path ./oracle.passfile)
+
+# Set escrow terms
+echo '{"price": 100, "currency": "USDC"}' > state/escrow/terms.json
+
+# Set deadline (Unix timestamp)
+echo '{"deadline": 1770000000}' > state/escrow/timeout.json</code></pre>
+
+        <hr>
+
+        <h2>Step 3: Define the Model</h2>
+        <p>Create <code>model/escrow.modality</code>:</p>
+<pre><code>model oracle_escrow {
+  initial awaiting_deposit
+  
+  // Buyer deposits funds
+  awaiting_deposit -> funded [+DEPOSIT +signed_by(/users/buyer.id)]
+  
+  // Seller ships goods
+  funded -> shipped [+SHIP +signed_by(/users/seller.id)]
+  
+  // Oracle confirms delivery -> release to seller
+  shipped -> completed [+RELEASE +oracle_attests(/oracles/delivery, "delivered", "true")]
+  
+  // Oracle denies delivery -> refund buyer
+  shipped -> refunded [+DISPUTE_REFUND +oracle_attests(/oracles/delivery, "delivered", "false")]
+  
+  // Timeout: buyer can reclaim after deadline
+  shipped -> refunded [+TIMEOUT_REFUND +signed_by(/users/buyer.id) +after(/escrow/timeout)]
+  
+  // Terminal states
+  completed -> completed [+DONE]
+  refunded -> refunded [+DONE]
+}</code></pre>
+
+        <hr>
+
+        <h2>Step 4: Execute the Contract</h2>
+
+        <h3>Happy Path: Delivery Confirmed</h3>
+<pre><code># 1. Buyer deposits
+modal c act DEPOSIT --sign buyer.passfile
+modal c commit --all --sign buyer.passfile -m "Buyer deposits"
+
+# 2. Seller ships
+modal c act SHIP --sign seller.passfile
+modal c commit --all --sign seller.passfile -m "Seller ships"
+
+# 3. Oracle attests delivery
+modal c act RELEASE --attestation delivery_attestation.json
+modal c commit --all -m "Oracle confirms, funds released"</code></pre>
+
+        <h3>Dispute Path: Delivery Failed</h3>
+<pre><code># Oracle attests non-delivery
+modal c act DISPUTE_REFUND --attestation non_delivery_attestation.json
+modal c commit --all -m "Oracle denies delivery, buyer refunded"</code></pre>
+
+        <h3>Timeout Path: Oracle Unresponsive</h3>
+<pre><code># Buyer reclaims after timeout
+modal c act TIMEOUT_REFUND --sign buyer.passfile
+modal c commit --all --sign buyer.passfile -m "Timeout refund"</code></pre>
+
+        <hr>
+
+        <h2>How Oracle Attestation Works</h2>
+        <p>The oracle creates a signed attestation:</p>
+<pre><code>{
+  "oracle_pubkey": "abc123...",
+  "claim": "delivered",
+  "value": "true",
+  "contract_id": "escrow_xyz",
+  "timestamp": 1769953000,
+  "signature": "oracle_signature..."
+}</code></pre>
+
+        <p>The <code>oracle_attests</code> predicate verifies:</p>
+        <ul>
+            <li>✅ Oracle is in the trusted list</li>
+            <li>✅ Signature is valid</li>
+            <li>✅ Claim type matches expected</li>
+            <li>✅ Value matches expected</li>
+            <li>✅ Contract ID matches</li>
+            <li>✅ Attestation isn't too old</li>
+        </ul>
+
+        <hr>
+
+        <h2>Security Properties</h2>
+        <table>
+            <tr><th>Property</th><th>Protection</th></tr>
+            <tr><td><strong>Authenticity</strong></td><td>Only trusted oracle can attest</td></tr>
+            <tr><td><strong>Integrity</strong></td><td>Signature covers all attestation data</td></tr>
+            <tr><td><strong>Freshness</strong></td><td>Max age prevents replay</td></tr>
+            <tr><td><strong>Binding</strong></td><td>Contract ID prevents cross-contract replay</td></tr>
+        </table>
+
+        <hr>
+
+        <h2>Advanced: Multiple Oracles</h2>
+        <p>For high-value escrows, require multiple oracle confirmations:</p>
+<pre><code>// 2-of-3 oracles must confirm delivery
+shipped -> completed [+RELEASE +threshold(2, /oracles/delivery_quorum)]</code></pre>
+    </main>
+</body>
+</html>

@@ -5,12 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Language Reference - Modality Docs</title>
     <link rel="stylesheet" href="../static/styles.css">
+    <script src="../static/theme.js"></script>
 </head>
 <body>
+    <button class="menu-toggle" onclick="toggleMenu()">
+        <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+    </button>
+
+    <div class="sidebar-overlay"></div>
+
     <nav class="sidebar">
         <div class="sidebar-header">
-            <a href="../" class="logo">Modality</a>
-            <span class="version">v0.1</span>
+            <div class="logo-section">
+                <a href="../" class="logo">Modality</a>
+                <span class="version">v0.1</span>
+            </div>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+                <svg class="sun-icon" viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg>
+                <svg class="moon-icon" viewBox="0 0 24 24"><path d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 01-4.4 2.26 5.403 5.403 0 01-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>
+            </button>
         </div>
         
         <div class="sidebar-section">
@@ -29,6 +42,8 @@
                 <li><a href="../concepts/#contracts-as-append-only-logs">Append-Only Logs</a></li>
                 <li><a href="../concepts/#state-machines-models">State Machines</a></li>
                 <li><a href="../concepts/#temporal-modal-logic-rules">Modal Logic</a></li>
+                <li><a href="../concepts/#cryptographic-predicates">Predicates</a></li>
+                <li><a href="../concepts/#potentialist-state-machines">Potentialism</a></li>
             </ul>
         </div>
         
@@ -49,13 +64,26 @@
                 <li><a href="../cli/">Overview</a></li>
                 <li><a href="../cli/#contract-commands">Contract Commands</a></li>
                 <li><a href="../cli/#identity-commands">Identity Commands</a></li>
+                <li><a href="../cli/#predicate-commands">Predicate Commands</a></li>
+                <li><a href="../cli/#node-commands">Node Commands</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Tutorials</div>
+            <ul>
+                <li><a href="../tutorials/multi-party-contract.html">Multi-Party Contracts</a></li>
+                <li><a href="../tutorials/multisig-treasury.html">Multisig Treasury</a></li>
+                <li><a href="../tutorials/oracle-escrow.html">Oracle Escrow</a></li>
+                <li><a href="../tutorials/contract-hub.html">Contract Hub</a></li>
             </ul>
         </div>
         
         <div class="sidebar-section">
             <div class="sidebar-title">Resources</div>
             <ul>
-                <li><a href="../RFC-0001-MODAL-CONTRACTS.html">RFC Specification</a></li>
+                <li><a href="../rfc-0001.html">RFC Specification</a></li>
+                <li><a href="../papers/potentialist-lts.html">Potentialist LTS Paper</a></li>
                 <li><a href="https://github.com/modality-org/modality" target="_blank">GitHub ↗</a></li>
             </ul>
         </div>
@@ -109,40 +137,7 @@
   // Buyer releases payment
   transition RELEASE: delivered -&gt; released
     +signed_by(/parties/buyer.id)
-  
-  // Either party disputes
-  transition DISPUTE: funded -&gt; disputed
-    +signed_by(/parties/buyer.id)
-  transition DISPUTE: funded -&gt; disputed
-    +signed_by(/parties/seller.id)
-  
-  // Arbiter resolves dispute
-  transition RESOLVE_RELEASE: disputed -&gt; released
-    +signed_by(/parties/arbiter.id)
 }</code></pre>
-
-        <h3>State Declarations</h3>
-<pre><code>// List of all states
-states { state1, state2, state3 }
-
-// Initial state (required)
-initial state1
-
-// Terminal states (optional) - self-loop implied
-terminal state2, state3</code></pre>
-
-        <h3>Transitions</h3>
-<pre><code>// Basic transition
-transition ACTION_NAME: from_state -&gt; to_state
-
-// With predicates (all must be satisfied)
-transition ACTION_NAME: from_state -&gt; to_state
-  +predicate1(args)
-  +predicate2(args)
-
-// Multiple transitions with same action (non-deterministic)
-transition DISPUTE: funded -&gt; disputed
-transition DISPUTE: delivered -&gt; disputed</code></pre>
 
         <hr>
 
@@ -150,67 +145,30 @@ transition DISPUTE: delivered -&gt; disputed</code></pre>
         <p>Rules express <strong>temporal constraints</strong> using modal mu-calculus.</p>
 
         <h3>Basic Structure</h3>
-<pre><code>rule &lt;name&gt; {
-  starting_at &lt;commit_ref&gt;
-  formula {
-    &lt;modal_formula&gt;
-  }
-}
-
-// Or as default export
-export default rule {
+<pre><code>export default rule {
   starting_at $PARENT
   formula {
     &lt;modal_formula&gt;
   }
 }</code></pre>
 
-        <h3>Anchoring (<code>starting_at</code>)</h3>
-<pre><code>starting_at $PARENT           // Parent of this commit
-starting_at $ROOT             // Genesis commit
-starting_at abc123...         // Specific commit hash</code></pre>
-
         <h3>Modal Operators</h3>
         <table>
             <tr><th>Operator</th><th>Meaning</th></tr>
             <tr><td><code>[ACTION] φ</code></td><td>After ALL ACTION transitions, φ holds</td></tr>
             <tr><td><code>&lt;ACTION&gt; φ</code></td><td>After SOME ACTION transition, φ holds</td></tr>
-            <tr><td><code>[-ACTION] φ</code></td><td>If ACTION is refused/impossible, φ holds</td></tr>
+            <tr><td><code>[-ACTION] φ</code></td><td>If ACTION is refused, φ holds</td></tr>
             <tr><td><code>[&lt;+ACTION&gt;] φ</code></td><td>Committed: CAN do ACTION and CANNOT refuse</td></tr>
         </table>
 
-        <h3>Temporal Operators (Syntactic Sugar)</h3>
+        <h3>Temporal Operators</h3>
 <pre><code>always(φ)           // φ holds forever (invariant)
-                    // = gfp(X, φ & []X)
-
 eventually(φ)       // φ holds now or sometime later
-                    // = lfp(X, φ | &lt;&gt;X)
-
-until(p, q)         // p holds until q becomes true
-                    // = lfp(X, q | (p & &lt;&gt;X))</code></pre>
+until(p, q)         // p holds until q becomes true</code></pre>
 
         <h3>Fixed Points</h3>
-<pre><code>// Greatest fixed point (νX) - invariants, safety
-gfp(X, property & []X)
-
-// Least fixed point (μX) - reachability, liveness
-lfp(X, target | &lt;&gt;X)
-
-// Unicode alternatives
-νX. (property & []X)
-μX. (target | &lt;&gt;X)</code></pre>
-
-        <h3>Boolean Connectives</h3>
-<pre><code>φ & ψ           // Conjunction (and)
-φ | ψ           // Disjunction (or)
-!φ              // Negation (not)
-φ -&gt; ψ          // Implication
-true            // Always true
-false           // Always false</code></pre>
-
-        <h3>State Propositions</h3>
-<pre><code>@state_name     // True when in state_name
-@pending        // True when in pending state</code></pre>
+<pre><code>gfp(X, property & []X)    // Greatest fixed point (νX) - safety
+lfp(X, target | &lt;&gt;X)      // Least fixed point (μX) - liveness</code></pre>
 
         <hr>
 
@@ -218,87 +176,43 @@ false           // Always false</code></pre>
 
         <h3>Signature Predicates</h3>
 <pre><code>+signed_by(/path/to/identity.id)
-// Commit must be signed by this ed25519 key
-
-+threshold(/signers/list, n, m)
-// n-of-m signatures from the list required
-
-+signed_by_n(/signers/list, n)
-// At least n signatures from the list</code></pre>
++threshold(/signers/list, n, m)      // n-of-m multisig
++signed_by_n(/signers/list, n)       // At least n sigs</code></pre>
 
         <h3>Oracle Predicates</h3>
 <pre><code>+oracle_attests(/oracle.id, "condition")
-// Oracle attests to a condition
-
-+oracle_attests_fresh(/oracle.id, "condition", max_age_seconds)
-// Oracle attestation within time limit</code></pre>
++oracle_attests_fresh(/oracle.id, "condition", max_age_seconds)</code></pre>
 
         <h3>Time Predicates</h3>
 <pre><code>+before(/deadlines/cutoff.datetime)
-// Current time is before deadline
-
-+after(/deadlines/start.datetime)
-// Current time is after start time</code></pre>
++after(/deadlines/start.datetime)</code></pre>
 
         <h3>Comparison Predicates</h3>
-<pre><code>// Numeric comparisons
-+num_eq(/path/a.num, /path/b.num)     // a == b
-+num_gt(/path/a.num, /path/b.num)     // a &gt; b
-+num_gte(/path/a.num, /path/b.num)    // a &gt;= b
-+num_lt(/path/a.num, /path/b.num)     // a &lt; b
-+num_lte(/path/a.num, /path/b.num)    // a &lt;= b
-
-// Text comparisons
-+text_eq(/path/a.text, /path/b.text)
-+text_contains(/path/a.text, "substring")
-
-// Boolean
-+bool_true(/path/flag.bool)
-+bool_false(/path/flag.bool)</code></pre>
+<pre><code>+num_eq(/a.num, /b.num)       // a == b
++num_gt(/a.num, /b.num)       // a &gt; b
++num_gte(/a.num, /b.num)      // a &gt;= b
++text_eq(/a.text, /b.text)
++bool_true(/flag.bool)</code></pre>
 
         <h3>Hash Predicates</h3>
-<pre><code>+hash_matches(/commitments/secret.hash, /revealed/value.text)
-// SHA256 of revealed value matches stored hash</code></pre>
-
-        <h3>Custom WASM Predicates</h3>
-<pre><code>+wasm(/predicates/my_predicate.wasm, arg1, arg2)
-// Call custom WASM predicate with arguments</code></pre>
+<pre><code>+hash_matches(/commitment.hash, /revealed.text)</code></pre>
 
         <hr>
 
         <h2 id="path-syntax">Path Syntax</h2>
         <p>Paths reference data in the contract state:</p>
-<pre><code>/directory/subdirectory/file.type</code></pre>
 
-        <h3>Path Types</h3>
         <table>
             <tr><th>Extension</th><th>Type</th><th>Example</th></tr>
             <tr><td><code>.id</code></td><td>ed25519 public key</td><td><code>/parties/alice.id</code></td></tr>
             <tr><td><code>.num</code></td><td>Numeric value</td><td><code>/terms/price.num</code></td></tr>
-            <tr><td><code>.text</code></td><td>Text string</td><td><code>/metadata/description.text</code></td></tr>
+            <tr><td><code>.text</code></td><td>Text string</td><td><code>/metadata/desc.text</code></td></tr>
             <tr><td><code>.bool</code></td><td>Boolean</td><td><code>/flags/approved.bool</code></td></tr>
             <tr><td><code>.datetime</code></td><td>ISO 8601 timestamp</td><td><code>/deadlines/expiry.datetime</code></td></tr>
-            <tr><td><code>.date</code></td><td>Date (YYYY-MM-DD)</td><td><code>/terms/start.date</code></td></tr>
             <tr><td><code>.hash</code></td><td>SHA256 hash</td><td><code>/commitments/secret.hash</code></td></tr>
             <tr><td><code>.json</code></td><td>JSON data</td><td><code>/config/settings.json</code></td></tr>
             <tr><td><code>.wasm</code></td><td>WASM module</td><td><code>/predicates/custom.wasm</code></td></tr>
-            <tr><td><code>.modality</code></td><td>Model/rule file</td><td><code>/model/default.modality</code></td></tr>
         </table>
-
-        <hr>
-
-        <h2>Comments</h2>
-<pre><code>// Single-line comment
-
-/* 
-   Multi-line
-   comment
-*/
-
-model escrow {
-  // States for the escrow workflow
-  states { pending, funded }
-}</code></pre>
     </main>
 </body>
 </html>

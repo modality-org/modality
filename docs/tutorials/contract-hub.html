@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contract Hub - Modality Docs</title>
+    <link rel="stylesheet" href="../static/styles.css">
+    <script src="../static/theme.js"></script>
+</head>
+<body>
+    <button class="menu-toggle" onclick="toggleMenu()">
+        <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+    </button>
+
+    <div class="sidebar-overlay"></div>
+
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-section">
+                <a href="../" class="logo">Modality</a>
+                <span class="version">v0.1</span>
+            </div>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+                <svg class="sun-icon" viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg>
+                <svg class="moon-icon" viewBox="0 0 24 24"><path d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 01-4.4 2.26 5.403 5.403 0 01-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>
+            </button>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Getting Started</div>
+            <ul>
+                <li><a href="../getting-started/">Overview</a></li>
+                <li><a href="../getting-started/#installation">Installation</a></li>
+                <li><a href="../getting-started/#your-first-contract-in-5-minutes">First Contract</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Core Concepts</div>
+            <ul>
+                <li><a href="../concepts/">Overview</a></li>
+                <li><a href="../concepts/#contracts-as-append-only-logs">Append-Only Logs</a></li>
+                <li><a href="../concepts/#state-machines-models">State Machines</a></li>
+                <li><a href="../concepts/#temporal-modal-logic-rules">Modal Logic</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Language Reference</div>
+            <ul>
+                <li><a href="../language/">Overview</a></li>
+                <li><a href="../language/#model-syntax">Model Syntax</a></li>
+                <li><a href="../language/#rule-syntax">Rule Syntax</a></li>
+                <li><a href="../language/#predicates-reference">Predicates</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">CLI Reference</div>
+            <ul>
+                <li><a href="../cli/">Overview</a></li>
+                <li><a href="../cli/#contract-commands">Contract Commands</a></li>
+                <li><a href="../cli/#identity-commands">Identity Commands</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Tutorials</div>
+            <ul>
+                <li><a href="multi-party-contract.html">Multi-Party Contracts</a></li>
+                <li><a href="multisig-treasury.html">Multisig Treasury</a></li>
+                <li><a href="oracle-escrow.html">Oracle Escrow</a></li>
+                <li><a href="contract-hub.html" class="active">Contract Hub</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Resources</div>
+            <ul>
+                <li><a href="../rfc-0001.html">RFC Specification</a></li>
+                <li><a href="https://github.com/modality-org/modality" target="_blank">GitHub ↗</a></li>
+            </ul>
+        </div>
+    </nav>
+    
+    <main class="markdown-body">
+        <h1>Contract Hub Tutorial</h1>
+        <p>Push and pull Modality contracts to a <strong>hub</strong> (centralized) or <strong>chain</strong> (decentralized).</p>
+
+        <h2>Hub vs Chain</h2>
+        <table>
+            <tr><th>Feature</th><th>Hub</th><th>Chain</th></tr>
+            <tr><td>URL format</td><td><code>http://...</code></td><td><code>/ip4/.../p2p/...</code></td></tr>
+            <tr><td>Auth</td><td>ed25519 keypairs</td><td>Node identity</td></tr>
+            <tr><td>Validation</td><td>Server-side</td><td>Consensus</td></tr>
+            <tr><td>Speed</td><td>Fast</td><td>Depends on network</td></tr>
+            <tr><td>Trust</td><td>Hub operator</td><td>Validators</td></tr>
+        </table>
+
+        <hr>
+
+        <h2>Quick Start</h2>
+
+        <h3>1. Start the Hub</h3>
+<pre><code># Start in background on port 3100
+modal hub start --detach
+
+# Check it's running
+modal hub status</code></pre>
+
+        <h3>2. Register Your Identity</h3>
+<pre><code>modal hub register</code></pre>
+        <p>This saves credentials to <code>.modal-hub/credentials.json</code>.</p>
+
+        <h3>3. Create a Contract on Hub</h3>
+<pre><code># Create local contract
+modal c create
+
+# Create on hub
+modal hub create "My Contract" --description "Description here"</code></pre>
+
+        <hr>
+
+        <h2>Push/Pull Workflow</h2>
+
+        <h3>Add a Remote</h3>
+<pre><code>modal c remote add hub http://localhost:3100/contracts/my-contract</code></pre>
+
+        <h3>Push Changes</h3>
+<pre><code>modal c push hub</code></pre>
+
+        <h3>Pull Changes</h3>
+<pre><code>modal c pull hub</code></pre>
+
+        <hr>
+
+        <h2>Multi-Party Collaboration</h2>
+
+        <h3>Alice Creates the Contract</h3>
+<pre><code>modal hub create "Escrow with Bob"
+# Output: Contract ID: con_abc123
+
+modal c remote add hub http://localhost:3100/contracts/con_abc123
+modal c push hub</code></pre>
+
+        <h3>Alice Grants Bob Access</h3>
+<pre><code>modal hub grant con_abc123 --identity bob_id_xyz --role writer</code></pre>
+
+        <h3>Bob Clones and Contributes</h3>
+<pre><code># Bob clones
+modal c clone http://localhost:3100/contracts/con_abc123
+
+# Bob adds his changes
+modal c set /parties/bob.id $(modal id get --path ./bob.passfile)
+modal c commit --all --sign bob.passfile -m "Bob joins"
+modal c push hub</code></pre>
+
+        <hr>
+
+        <h2>Access Control</h2>
+        <table>
+            <tr><th>Role</th><th>Permissions</th></tr>
+            <tr><td><code>owner</code></td><td>Full control (push, grant, delete)</td></tr>
+            <tr><td><code>writer</code></td><td>Push commits</td></tr>
+            <tr><td><code>reader</code></td><td>Pull only</td></tr>
+        </table>
+
+        <h3>Grant Access</h3>
+<pre><code>modal hub grant &lt;contract_id&gt; --identity &lt;id&gt; --role writer</code></pre>
+
+        <h3>Revoke Access</h3>
+<pre><code>modal hub revoke &lt;contract_id&gt; --identity &lt;id&gt;</code></pre>
+
+        <hr>
+
+        <h2>Two-Tier Authentication</h2>
+        <p>The hub uses two ed25519 keypairs:</p>
+        <ul>
+            <li><strong>Identity Key</strong> — Long-lived, represents your permanent identity</li>
+            <li><strong>Access Key</strong> — Short-lived, rotatable session key</li>
+        </ul>
+
+        <p>This design means if an access key is compromised, you can revoke it without changing your identity.</p>
+
+        <hr>
+
+        <h2>Chain Sync (Decentralized)</h2>
+        <p>For trustless operation, sync to the chain instead:</p>
+<pre><code># Add chain remote
+modal c remote add chain /ip4/validator.modality.network/tcp/4001/p2p/12D3KooW...
+
+# Push to chain
+modal c push chain</code></pre>
+
+        <p>Chain commits are validated by consensus — no single party can censor or tamper.</p>
+    </main>
+</body>
+</html>
