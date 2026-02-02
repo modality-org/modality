@@ -174,12 +174,8 @@ pub fn evaluate_threshold_valid(input: &PredicateInput) -> PredicateResult {
 pub fn correlate_threshold(inputs: &[CorrelationInput]) -> CorrelationResult {
     // Threshold predicates on the same signer set can have contradictions
     // e.g., threshold(3, [...]) AND threshold(1, [...]) - the 3 dominates
-    // For now, return no contradictions (complex to detect without signer set comparison)
-    CorrelationResult {
-        contradictions: Vec::new(),
-        implications: Vec::new(),
-        formulas: Vec::new(),
-    }
+    // For now, return satisfiable (complex to detect without signer set comparison)
+    CorrelationResult::ok(10)
 }
 
 #[cfg(test)]

@@ -102,9 +102,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 println!("  modal c remote add chain /ip4/127.0.0.1/tcp/10101/p2p/...");
             } else {
                 println!("Remotes:");
-                for (name, remote) in remotes {
+                for remote in remotes {
                     let remote_type = if remote.url.starts_with("http") { "hub" } else { "chain" };
-                    println!("  {} ({}) -> {}", name, remote_type, remote.url);
+                    println!("  {} ({}) -> {}", remote.name, remote_type, remote.url);
                 }
             }
         }

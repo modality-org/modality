@@ -30,6 +30,14 @@ impl ContractConfig {
         self.remotes.iter().find(|r| r.name == name)
     }
 
+    pub fn remove_remote(&mut self, name: &str) {
+        self.remotes.retain(|r| r.name != name);
+    }
+
+    pub fn list_remotes(&self) -> &[Remote] {
+        &self.remotes
+    }
+
     pub fn load(path: &Path) -> Result<Self> {
         let content = std::fs::read_to_string(path)?;
         let config: ContractConfig = serde_json::from_str(&content)?;

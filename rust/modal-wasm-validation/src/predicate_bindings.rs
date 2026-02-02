@@ -504,11 +504,26 @@ pub fn evaluate_text_length_lt(input_json: &str) -> String {
 // CORRELATE bindings - derive implied rules from predicate + context
 // ============================================================================
 
-// Helper to handle correlate calls
+// Helper to handle correlate calls (single input)
 fn correlate_helper(input_json: &str, correlate_fn: fn(&CorrelationInput) -> text_common::CorrelationResult) -> String {
     match serde_json::from_str::<CorrelationInput>(input_json) {
         Ok(input) => {
             let result = correlate_fn(&input);
+            serde_json::to_string(&result).unwrap_or_else(|e| {
+                format!(r#"{{"implied":[],"gas_used":10,"error":"{}"}}"#, e)
+            })
+        }
+        Err(e) => {
+            format!(r#"{{"implied":[],"gas_used":10,"error":"Invalid input: {}"}}"#, e)
+        }
+    }
+}
+
+// Helper to handle correlate calls (batch/slice input - for threshold, oracle)
+fn correlate_helper_batch(input_json: &str, correlate_fn: fn(&[CorrelationInput]) -> text_common::CorrelationResult) -> String {
+    match serde_json::from_str::<CorrelationInput>(input_json) {
+        Ok(input) => {
+            let result = correlate_fn(&[input]);
             serde_json::to_string(&result).unwrap_or_else(|e| {
                 format!(r#"{{"implied":[],"gas_used":10,"error":"{}"}}"#, e)
             })
@@ -930,12 +945,12 @@ pub fn evaluate_threshold_valid(input_json: &str) -> String {
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn correlate_threshold(input_json: &str) -> String {
-    correlate_helper(input_json, threshold::correlate_threshold)
+    correlate_helper_batch(input_json, threshold::correlate_threshold)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn correlate_threshold(input_json: &str) -> String {
-    correlate_helper(input_json, threshold::correlate_threshold)
+    correlate_helper_batch(input_json, threshold::correlate_threshold)
 }
 
 // ============================================================================
@@ -999,11 +1014,11 @@ pub fn evaluate_oracle_bool(input_json: &str) -> String {
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn correlate_oracle(input_json: &str) -> String {
-    correlate_helper(input_json, oracle::correlate_oracle)
+    correlate_helper_batch(input_json, oracle::correlate_oracle)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn correlate_oracle(input_json: &str) -> String {
-    correlate_helper(input_json, oracle::correlate_oracle)
+    correlate_helper_batch(input_json, oracle::correlate_oracle)
 }
 

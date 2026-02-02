@@ -190,11 +190,7 @@ pub fn evaluate_oracle_bool(input: &PredicateInput) -> PredicateResult {
 pub fn correlate_oracle(inputs: &[CorrelationInput]) -> CorrelationResult {
     // Oracle predicates don't typically contradict each other
     // unless they check the same claim with different expected values
-    CorrelationResult {
-        contradictions: Vec::new(),
-        implications: Vec::new(),
-        formulas: Vec::new(),
-    }
+    CorrelationResult::ok(10)
 }
 
 #[cfg(test)]
