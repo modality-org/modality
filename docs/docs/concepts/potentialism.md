@@ -5,14 +5,14 @@ title: Potentialism
 
 # Potentialist State Machines
 
-The deepest concept: a contract is not a fixed state machine — it's one **actualization** from a space of **potential** state machines.
+The deepest concept: a contract is not a fixed labeled transition system — it's one **actualization** from a space of **potential** labeled transition systems.
 
 ## The Insight
 
 When Alice and Bob start a contract:
 
-1. **Potential is infinite** — Any state machine is possible
-2. **Alice adds a rule** — Potential shrinks to state machines satisfying her rule
+1. **Potential is infinite** — Any labeled transition system is possible
+2. **Alice adds a rule** — Potential shrinks to labeled transition systems satisfying her rule
 3. **Bob adds a rule** — Potential shrinks further
 4. **Rules accumulate** — The space of valid futures only contracts, never expands
 
@@ -25,7 +25,7 @@ This is why Modality contracts are safe: each party adds their protection, and n
 ## Visualizing Potential
 
 ```
-Initial: All possible state machines
+Initial: All possible labeled transition systems
     │
     ▼
 ┌─────────────────────────────────┐

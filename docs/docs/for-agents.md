@@ -191,7 +191,7 @@ Predicates are the building blocks for rules. They evaluate to true/false based 
 
 ## The Key Insight
 
-**Models** define what transitions are possible (the state machine).
+**Models** define what transitions are possible (the labeled transition system).
 
 **Rules** constrain who can commit based on state and signatures.
 

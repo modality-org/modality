@@ -73,7 +73,7 @@ Or view the synthesized model first:
 modality model synthesize --rule rules/auth.modality
 ```
 
-The synthesizer generates a state machine where all transitions require the appropriate signatures.
+The synthesizer generates a labeled transition system where all transitions require the appropriate signatures.
 
 ## Step 6: Commit the Setup (Signed)
 

@@ -5,7 +5,7 @@ title: Overview
 
 # Getting Started with Modality
 
-Modality is a verification language for AI agent cooperation. It lets agents define cooperation protocols as state machines with temporal modal formulas that constrain behavior.
+Modality is a verification language for AI agent cooperation. It lets agents define cooperation protocols as labeled transition systems with temporal modal formulas that constrain behavior.
 
 ## Why Modality?
 

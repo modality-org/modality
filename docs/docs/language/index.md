@@ -19,7 +19,7 @@ This document covers the complete syntax for Modality's model and rule definitio
 
 ## Quick Links
 
-- [Model Syntax](./model-syntax) — Define state machines
+- [Model Syntax](./model-syntax) — Define labeled transition systems
 - [Rule Syntax](./rule-syntax) — Define temporal constraints
 - [Predicates](./predicates) — Cryptographic conditions
 - [Path Types](./path-types) — Data type references

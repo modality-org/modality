@@ -5,7 +5,7 @@ title: Model Syntax
 
 # Model Syntax
 
-Models define **state machines** — the allowed behaviors of a contract.
+Models define **labeled transition systems** — the allowed behaviors of a contract.
 
 ## Basic Structure
 
