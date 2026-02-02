@@ -1,81 +1,60 @@
 #!/bin/bash
-# Install Modality VSCode extension via symbolic link
-# Works for both VSCode and Cursor
+# Install Modality VSCode Extension
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# Find VS Code extensions directory
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    VSCODE_DIR="$HOME/.vscode/extensions"
+    CURSOR_DIR="$HOME/.cursor/extensions"
+    VSCODIUM_DIR="$HOME/.vscode-oss/extensions"
+elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    VSCODE_DIR="$HOME/.vscode/extensions"
+    CURSOR_DIR="$HOME/.cursor/extensions"
+    VSCODIUM_DIR="$HOME/.vscode-oss/extensions"
+else
+    VSCODE_DIR="$APPDATA/Code/User/extensions"
+    CURSOR_DIR="$APPDATA/Cursor/User/extensions"
+    VSCODIUM_DIR="$APPDATA/VSCodium/User/extensions"
+fi
+
 EXT_NAME="modality-vscode"
 
-# Colors
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
+# Install npm dependencies
+echo "Installing dependencies..."
+npm install
 
-install_extension() {
-    local editor_name=$1
-    local ext_dir=$2
+# Compile TypeScript
+echo "Compiling extension..."
+npm run compile
+
+# Install to all found editors
+install_to() {
+    local dir="$1"
+    local name="$2"
     
-    if [ -d "$ext_dir" ]; then
-        local target="$ext_dir/$EXT_NAME"
-        
-        # Remove existing if present
-        if [ -L "$target" ] || [ -d "$target" ]; then
-            echo -e "${YELLOW}Removing existing $editor_name extension...${NC}"
-            rm -rf "$target"
+    if [ -d "$dir" ] || [ -d "$(dirname "$dir")" ]; then
+        echo "Installing to $name..."
+        mkdir -p "$dir/$EXT_NAME"
+        cp -r package.json language-configuration.json syntaxes out "$dir/$EXT_NAME/"
+        if [ -d "examples" ]; then
+            cp -r examples "$dir/$EXT_NAME/"
         fi
-        
-        # Create symlink
-        ln -s "$SCRIPT_DIR" "$target"
-        echo -e "${GREEN}✓ Installed for $editor_name${NC}"
-        echo "  $target -> $SCRIPT_DIR"
-        return 0
-    else
-        return 1
+        echo "✓ Installed to $name"
     fi
 }
 
-echo "Installing Modality extension..."
-echo
+install_to "$VSCODE_DIR" "VS Code"
+install_to "$CURSOR_DIR" "Cursor"
+install_to "$VSCODIUM_DIR" "VSCodium"
 
-INSTALLED=0
-
-# VSCode
-if [ -d "$HOME/.vscode/extensions" ]; then
-    install_extension "VSCode" "$HOME/.vscode/extensions" && ((INSTALLED++))
-elif [ -d "$HOME/.vscode-server/extensions" ]; then
-    install_extension "VSCode Server" "$HOME/.vscode-server/extensions" && ((INSTALLED++))
-fi
-
-# Cursor
-if [ -d "$HOME/.cursor/extensions" ]; then
-    install_extension "Cursor" "$HOME/.cursor/extensions" && ((INSTALLED++))
-fi
-
-# VSCodium
-if [ -d "$HOME/.vscode-oss/extensions" ]; then
-    install_extension "VSCodium" "$HOME/.vscode-oss/extensions" && ((INSTALLED++))
-fi
-
-# macOS paths
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    if [ -d "$HOME/Library/Application Support/Code/User/extensions" ]; then
-        install_extension "VSCode (macOS)" "$HOME/Library/Application Support/Code/User/extensions" && ((INSTALLED++))
-    fi
-    if [ -d "$HOME/Library/Application Support/Cursor/User/extensions" ]; then
-        install_extension "Cursor (macOS)" "$HOME/Library/Application Support/Cursor/User/extensions" && ((INSTALLED++))
-    fi
-fi
-
-echo
-if [ $INSTALLED -gt 0 ]; then
-    echo -e "${GREEN}Done! Restart your editor to activate.${NC}"
-else
-    echo -e "${RED}No supported editors found.${NC}"
-    echo "Looked for:"
-    echo "  - ~/.vscode/extensions"
-    echo "  - ~/.cursor/extensions"
-    echo "  - ~/.vscode-oss/extensions"
-    exit 1
-fi
+echo ""
+echo "Installation complete!"
+echo ""
+echo "Make sure modality-lsp is installed:"
+echo "  cd rust && cargo install --path modality-lsp"
+echo ""
+echo "Restart your editor to activate the extension."

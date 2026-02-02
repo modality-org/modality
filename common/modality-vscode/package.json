@@ -1,25 +1,83 @@
 {
   "name": "modality-vscode",
-  "displayName": "Modality VSCode Extension",
-  "description": "Syntax highlighting for Modality",
-  "version": "0.0.1",
+  "displayName": "Modality",
+  "description": "Language support for Modality - modal contracts and verification",
+  "version": "0.1.0",
+  "publisher": "modality-org",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/modality-org/modality"
+  },
   "engines": {
-    "vscode": "^1.87.0"
+    "vscode": "^1.75.0"
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Linters",
+    "Formatters"
   ],
+  "activationEvents": [
+    "onLanguage:modality"
+  ],
+  "main": "./out/extension.js",
   "contributes": {
-    "languages": [{
-      "id": "modality",
-      "aliases": ["Modality", "modality"],
-      "extensions": [".modality"],
-      "configuration": "./language-configuration.json"
-    }],
-    "grammars": [{
-      "language": "modality",
-      "scopeName": "source.modality",
-      "path": "./syntaxes/modality.tmLanguage.json"
-    }]
+    "languages": [
+      {
+        "id": "modality",
+        "aliases": ["Modality", "modality"],
+        "extensions": [".modality"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "modality",
+        "scopeName": "source.modality",
+        "path": "./syntaxes/modality.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Modality",
+      "properties": {
+        "modality.lsp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the Modality Language Server"
+        },
+        "modality.lsp.path": {
+          "type": "string",
+          "default": "modality-lsp",
+          "description": "Path to the modality-lsp binary"
+        },
+        "modality.lsp.trace.server": {
+          "type": "string",
+          "enum": ["off", "messages", "verbose"],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the language server"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "modality.restartServer",
+        "title": "Modality: Restart Language Server"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.75.0",
+    "typescript": "^5.0.0",
+    "@vscode/vsce": "^2.22.0"
   }
 }

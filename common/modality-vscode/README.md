@@ -1,122 +1,104 @@
 # Modality VSCode Extension
 
-Syntax highlighting for the Modality verification language.
+Language support for Modality - modal contracts and verification.
 
 ## Features
 
-- Syntax highlighting for `.modality` files
-- Support for brace-based syntax
-- Highlighting for:
-  - Models and parts
-  - Transitions with properties
-  - Formulas (modal, temporal, fixed points)
-  - Rules and contracts
-  - Comments
+- **Syntax Highlighting**: TextMate grammar for `.modality` files
+- **Diagnostics**: Real-time parse error detection
+- **Completions**: Snippets for models, rules, formulas, predicates
+- **Hover**: Documentation for keywords and operators
+- **Go to Definition**: Navigate to state and action definitions
+- **Find References**: Find all usages of symbols
+- **Document Symbols**: Outline view (Ctrl+Shift+O)
+- **Semantic Tokens**: Enhanced highlighting
+- **Formatting**: Format document (Shift+Alt+F)
+- **Code Actions**: Quick fixes and refactorings
 
-## Syntax Overview
+## Requirements
 
-### Models
+The extension requires the `modality-lsp` language server. Install it:
+
+```bash
+# From the modality repo
+cd rust
+cargo install --path modality-lsp
+
+# Or from crates.io (when published)
+cargo install modality-lsp
+```
+
+## Installation
+
+### From VSIX
+
+1. Download the `.vsix` file from releases
+2. In VSCode: Extensions → ... → Install from VSIX
+
+### From Source
+
+```bash
+cd common/modality-vscode
+npm install
+npm run compile
+npm run package
+code --install-extension modality-vscode-*.vsix
+```
+
+### Manual Install (Development)
+
+```bash
+./install.sh
+```
+
+## Configuration
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `modality.lsp.enabled` | `true` | Enable the language server |
+| `modality.lsp.path` | `modality-lsp` | Path to LSP binary |
+| `modality.lsp.trace.server` | `off` | Trace LSP communication |
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `Modality: Restart Language Server` | Restart the LSP |
+
+## Example
 
 ```modality
-model Escrow {
-  initial init
-  
-  init -> deposited [+DEPOSIT +signed_by(/users/buyer.id)]
-  deposited -> delivered [+DELIVER]
-  delivered -> released [+RELEASE]
-}
-
-// With parts
-model MultiParty {
-  part flow {
-    idle -> active [+signed_by(/users/alice.id)]
-    active -> done [+COMPLETE]
+model escrow {
+  states { idle, funded, complete }
+  initial { idle }
+  transitions {
+    idle -[DEPOSIT]-> funded
+    funded -[RELEASE]-> complete
   }
 }
-```
 
-### Formulas
-
-```modality
-// Modal operators
-formula CanPay { <+PAY> true }           // Diamond: exists transition
-formula AllSafe { [+ACT] safe }          // Box: all transitions
-formula Committed { [<+SIGN>] true }     // Diamondbox: committed
-
-// Temporal operators
-formula AlwaysSafe { always(safe) }
-formula ReachGoal { eventually(goal) }
-formula WaitForDone { pending until done }
-
-// Fixed points (mu-calculus)
-formula Reachable { lfp(X, goal | <>X) }
-formula Invariant { gfp(X, safe & []X) }
-```
-
-### Rules
-
-```modality
 export default rule {
   starting_at $PARENT
   formula {
     always (
-      [<+signed_by(/users/alice.id)>] true | 
-      [<+signed_by(/users/bob.id)>] true
+      [<+RELEASE>] signed_by(/parties/seller.id)
     )
   }
 }
 ```
 
-### Contracts
-
-```modality
-contract Handshake {
-  commit {
-    signed_by A "0xSIGNATURE"
-    add_rule { always([<+signed_by(A)>] true | [<+signed_by(B)>] true) }
-  }
-  
-  commit {
-    signed_by B "0xSIGNATURE"
-    do +READY
-  }
-}
-```
-
-## Formula Operators
-
-| Operator | Syntax | Meaning |
-|----------|--------|---------|
-| Diamond | `<+A> φ` | Some +A transition leads to φ |
-| Box | `[+A] φ` | All +A transitions lead to φ |
-| Diamondbox | `[<+A>] φ` | Committed: can do +A, cannot refuse |
-| Always | `always(φ)` | φ holds forever on all paths |
-| Eventually | `eventually(φ)` | φ holds at some future state |
-| Until | `p until q` | p holds until q becomes true |
-| LFP | `lfp(X, φ)` | Least fixed point (reachability) |
-| GFP | `gfp(X, φ)` | Greatest fixed point (invariants) |
-
-## Installation
-
-1. Copy this folder to your VSCode extensions directory:
-   - Windows: `%USERPROFILE%\.vscode\extensions\`
-   - macOS/Linux: `~/.vscode/extensions/`
-2. Restart VSCode
-3. Open a `.modality` file
-
 ## Development
 
 ```bash
-# Install dependencies
-npm install
-
-# Compile
-npm run compile
+# Watch mode
+npm run watch
 
 # Package
-vsce package
+npm run package
 ```
 
-## License
+## Links
 
-MIT
+- [Modality Documentation](https://docs.modality.org)
+- [Modality GitHub](https://github.com/modality-org/modality)
+- [Language Server](../../rust/modality-lsp/)
