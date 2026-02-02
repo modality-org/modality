@@ -6,7 +6,7 @@
 
 <div align="center">
 
-⚙️ [Documentation](https://docs.modality.org) | 🌟 [Examples](https://github.com/modality-org/modality/tree/main/examples) | 💬 [Community](https://discord.gg/modality)
+⚙️ [Documentation](https://docs.modality.org) | 🌟 [Examples](https://github.com/modality-org/modality/tree/main/examples) | 💬 [Community](https://discord.gg/KpYFdrfnkS)
 
 </div>
 
