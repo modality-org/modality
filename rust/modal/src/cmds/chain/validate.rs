@@ -85,7 +85,7 @@ async fn test_fork_detection(datastore: Arc<Mutex<DatastoreManager>>) -> Result<
     let observer = ChainObserver::new_with_fork_config(datastore.clone(), fork_config);
     observer.initialize().await?;
     
-    let genesis = Block::genesis(1, "genesis_peer".to_string());
+    let genesis = Block::default_genesis(1);
     let genesis_mb = block_to_miner_block(&genesis);
     observer.process_gossiped_block(genesis_mb).await?;
     
@@ -138,7 +138,7 @@ async fn test_gap_detection(datastore: Arc<Mutex<DatastoreManager>>) -> Result<T
     let observer = ChainObserver::new_with_fork_config(datastore.clone(), fork_config);
     observer.initialize().await?;
     
-    let genesis = Block::genesis(1, "genesis_peer".to_string());
+    let genesis = Block::default_genesis(1);
     let genesis_mb = block_to_miner_block(&genesis);
     observer.process_gossiped_block(genesis_mb).await?;
     
@@ -191,7 +191,7 @@ async fn test_missing_parent(datastore: Arc<Mutex<DatastoreManager>>) -> Result<
     let observer = ChainObserver::new_with_fork_config(datastore.clone(), fork_config);
     observer.initialize().await?;
     
-    let genesis = Block::genesis(1, "genesis_peer".to_string());
+    let genesis = Block::default_genesis(1);
     let genesis_mb = block_to_miner_block(&genesis);
     observer.process_gossiped_block(genesis_mb).await?;
     
@@ -241,7 +241,7 @@ async fn test_chain_integrity(datastore: Arc<Mutex<DatastoreManager>>) -> Result
     let observer = ChainObserver::new_with_fork_config(datastore.clone(), fork_config);
     observer.initialize().await?;
     
-    let genesis = Block::genesis(1, "genesis".to_string());
+    let genesis = Block::default_genesis(1);
     let genesis_mb = block_to_miner_block(&genesis);
     observer.process_gossiped_block(genesis_mb).await?;
     
@@ -294,7 +294,7 @@ async fn test_orphan_promotion(datastore: Arc<Mutex<DatastoreManager>>) -> Resul
     let observer = ChainObserver::new_with_fork_config(datastore.clone(), fork_config);
     observer.initialize().await?;
     
-    let genesis = Block::genesis(1, "genesis".to_string());
+    let genesis = Block::default_genesis(1);
     observer.process_gossiped_block(block_to_miner_block(&genesis)).await?;
     
     let block_1 = create_and_mine_block(1, genesis.header.hash.clone(), "peer".to_string(), 1);

@@ -516,7 +516,8 @@ fn parse_contract_file(file: &PathBuf) -> Result<()> {
 }
 
 fn verify_contract(model_path: &PathBuf, formula: Option<&str>) -> Result<()> {
-    use modality_lang::{parse_file_lalrpop, ModelChecker};
+    use modality_lang::parse_file_lalrpop;
+    // TODO: Use ModelChecker when formula verification is implemented
     
     // Parse the model
     let model = parse_file_lalrpop(model_path.to_str().unwrap())
