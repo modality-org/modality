@@ -76,18 +76,19 @@ model oracle_escrow {
 
 ## Step 4: Add Protection Rules
 
-Create `rules/buyer-protection.modality`:
+Create `rules/escrow-auth.modality`:
 
 ```modality
 export default rule {
   starting_at $PARENT
   formula {
-    always ([<+RELEASE>] bool_true(/status/shipped.bool))
+    // All commits must be from a known party or oracle
+    signed_by(/users/buyer.id) | signed_by(/users/seller.id) | signed_by(/oracles/delivery.id)
   }
 }
 ```
 
-This ensures RELEASE can only happen after shipping (tracked in contract state).
+The model structure enforces the flow (deposit → ship → release). Rules constrain *who* can commit at each stage.
 
 ## Step 4: Execute the Contract
 

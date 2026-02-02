@@ -58,7 +58,7 @@ false           // Always false
 
 ## State Predicates in Formulas
 
-Instead of bare propositions, reference contract state via paths:
+Rules constrain *who can commit* based on contract state. Use path-based predicates:
 
 ```modality
 // Check a boolean flag
@@ -67,8 +67,11 @@ bool_true(/status/delivered.bool)
 // Check text value
 text_eq(/status.text, "delivered")
 
-// Combine with modal operators
-always ([<+RELEASE>] bool_true(/status/delivered.bool))
+// Authorization based on state
+!bool_true(/status/delivered.bool) -> signed_by(/parties/buyer.id)
+
+// Committed to sign (diamondbox with predicate)
+[<+signed_by(/parties/seller.id)>] true
 ```
 
-This ensures formulas are grounded in actual contract state, not abstract state machine names.
+Rules don't reference action names — the model determines valid actions. Rules gate *who* can commit based on state.

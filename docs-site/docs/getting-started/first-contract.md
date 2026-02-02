@@ -58,23 +58,29 @@ model escrow {
 
 ## 5. Add Protection Rules
 
-Rules can reference contract state via paths. Create `rules/buyer-protection.modality`:
+Rules constrain *who can commit* based on contract state. Create `rules/buyer-protection.modality`:
 
 ```modality
 export default rule {
   starting_at $PARENT
   formula {
-    always ([<+RELEASE>] bool_true(/status/delivered.bool))
+    signed_by(/parties/alice.id) | signed_by(/parties/bob.id)
   }
 }
 ```
 
-This says: "RELEASE can only be committed if `/status/delivered.bool` is true."
+This says: "Every commit must be signed by Alice or Bob."
 
-The contract state tracks status:
-```
-state/status/delivered.bool  # set to "true" by DELIVER transition
-state/status/released.bool   # set to "true" by RELEASE transition
+For state-dependent authorization:
+
+```modality
+export default rule {
+  starting_at $PARENT
+  formula {
+    // Only buyer can commit when not yet delivered
+    !bool_true(/status/delivered.bool) -> signed_by(/parties/buyer.id)
+  }
+}
 ```
 
 ## 6. Commit and Verify
