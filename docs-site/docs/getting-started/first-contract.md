@@ -56,9 +56,28 @@ model escrow {
 }
 ```
 
-The model structure itself enforces ordering: RELEASE can only happen from `delivered` state, so DELIVER must precede RELEASE.
+## 5. Add Protection Rules
 
-## 5. Commit and Verify
+Rules can reference contract state via paths. Create `rules/buyer-protection.modality`:
+
+```modality
+export default rule {
+  starting_at $PARENT
+  formula {
+    always ([<+RELEASE>] bool_true(/status/delivered.bool))
+  }
+}
+```
+
+This says: "RELEASE can only be committed if `/status/delivered.bool` is true."
+
+The contract state tracks status:
+```
+state/status/delivered.bool  # set to "true" by DELIVER transition
+state/status/released.bool   # set to "true" by RELEASE transition
+```
+
+## 6. Commit and Verify
 
 ```bash
 # Commit all changes

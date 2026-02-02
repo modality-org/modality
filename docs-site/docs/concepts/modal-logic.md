@@ -55,3 +55,20 @@ lfp(X, target | <>X)
 true            // Always true
 false           // Always false
 ```
+
+## State Predicates in Formulas
+
+Instead of bare propositions, reference contract state via paths:
+
+```modality
+// Check a boolean flag
+bool_true(/status/delivered.bool)
+
+// Check text value
+text_eq(/status.text, "delivered")
+
+// Combine with modal operators
+always ([<+RELEASE>] bool_true(/status/delivered.bool))
+```
+
+This ensures formulas are grounded in actual contract state, not abstract state machine names.

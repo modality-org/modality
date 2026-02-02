@@ -60,19 +60,34 @@ model oracle_escrow {
   funded -> shipped [+SHIP +signed_by(/users/seller.id)]
   
   // Oracle confirms delivery -> release to seller
-  shipped -> completed [+RELEASE +oracle_attests(/oracles/delivery, "delivered", "true")]
+  shipped -> completed [+RELEASE +oracle_attests(/oracles/delivery.id, "delivered", "true")]
   
   // Oracle denies delivery -> refund buyer
-  shipped -> refunded [+DISPUTE_REFUND +oracle_attests(/oracles/delivery, "delivered", "false")]
+  shipped -> refunded [+DISPUTE_REFUND +oracle_attests(/oracles/delivery.id, "delivered", "false")]
   
   // Timeout: buyer can reclaim after deadline
-  shipped -> refunded [+TIMEOUT_REFUND +signed_by(/users/buyer.id) +after(/escrow/timeout)]
+  shipped -> refunded [+TIMEOUT_REFUND +signed_by(/users/buyer.id) +after(/escrow/timeout.datetime)]
   
   // Terminal states
   completed -> completed [+DONE]
   refunded -> refunded [+DONE]
 }
 ```
+
+## Step 4: Add Protection Rules
+
+Create `rules/buyer-protection.modality`:
+
+```modality
+export default rule {
+  starting_at $PARENT
+  formula {
+    always ([<+RELEASE>] bool_true(/status/shipped.bool))
+  }
+}
+```
+
+This ensures RELEASE can only happen after shipping (tracked in contract state).
 
 ## Step 4: Execute the Contract
 
