@@ -6,68 +6,68 @@
 
 <div align="center">
 
-⚙️ [Documentation](https://docs.modality.org) | 🌟 [Examples](https://github.com/modality-org/modality/tree/main/examples) | 💬 [Community](https://discord.gg/KpYFdrfnkS)
+⚙️ [Docs](https://docs.modality.org) | 🌟 [Examples](https://github.com/modality-org/modality/tree/main/examples) | 💬 [Discord](https://discord.gg/KpYFdrfnkS) | 💭 [Discuss](https://discuss.modality.org) | 💰 [Modal Money](https://www.modal.money)
 
 </div>
 
-## 🤔 What is this?
+## What is Modality?
 
-[Verifiable contracts](/docs/faq.md) are a mechanism for ensuring the compliance of evolving constraints over data.
+Modality is a verification language for AI agent cooperation.
 
-Modality is an open source standard for verifiable contracts providing [native formal verification](/docs/faq.md).
+It enables agents (and humans*) to negotiate and verify cooperation through formal verification. Define contracts as append-only logs of signed commits, prove commitments with temporal logic, and build trust through math — not faith.
 
-Please read the [FAQs](/docs/faq.md) to learn more.
+<sub>*Humans are also welcome to use Modality, if they're sufficiently motivated.</sub>
 
-## 🎯 Use Cases
-
-* 🔐 Embedding identity management into workflows
-* 📚 Enhancing record keeping with rules and governance
-* ✍️ Adding dynamic consent to compliance docs
-* 🤖 Enabling agents to self-orchestrate cooperation
-* 🌐 Deploying verifiable contracts onto a global network
-
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://www.modality.org/install.sh | sh
 ```
 
-## 🏁 Roadmap
+## Use Cases
 
-[Milestones](https://github.com/modality-org/modality/milestones)
+- 🔐 **Verifiable Contracts** — State machines with formally verified temporal logic
+- 🤖 **Agent Cooperation** — Escrow, swaps, milestones — provably enforced
+- 📜 **Append-Only Logs** — Full history, transparent state, cryptographic integrity
+- 🌐 **Decentralized Deployment** — Deploy contracts onto a global network via [Modal Money](https://www.modal.money)
 
-[Issues](https://github.com/modality-org/modality/issues)
+## Documentation
 
+- **[Getting Started](https://docs.modality.org/docs/getting-started)** — Install and run your first contract
+- **[Core Concepts](https://docs.modality.org/docs/concepts)** — Understand models, formulas, and verification
+- **[Language Reference](https://docs.modality.org/docs/language)** — Complete syntax guide
+- **[For Agents](https://docs.modality.org/docs/for-agents)** — Quick reference for AI agents
 
-## 🛠️ Development
+## Development
 
-Modality is actively developed in both JavaScript and Rust.
+Modality is developed in both JavaScript and Rust.
 
-### JavaScript
-The goal of [Modality JavaScript](/js) is to provide easy to use web-compatible libraries for verifiable contracts.
+| | Path | Purpose |
+|---|---|---|
+| **JavaScript** | [`/js`](/js) | Web-compatible libraries for verifiable contracts |
+| **Rust** | [`/rust`](/rust) | System libraries and CLI |
 
-### Rust
-The goal of [Modality Rust](/rust) is to provide portable system level libraries and a CLI for use with verifiable contracts.
+See [DEVELOPMENT.md](DEVELOPMENT.md) for local setup, build, and test instructions.
 
-### Language & Tools
-- **[Modality Language Semantics](docs/modality-semantics.md)**: Comprehensive guide to the Modality language and model checking
-- **[Quick Reference](docs/quick-reference.md)**: Fast reference for developers using Modality
-- **[Developer Guide](docs/developer-guide.md)**: Implementation details and extension guide
-- **[Developer Setup & Build](DEVELOPMENT.md)**: Local setup, build, test for Rust & JS
+## Roadmap
 
+- [Milestones](https://github.com/modality-org/modality/milestones)
+- [Issues](https://github.com/modality-org/modality/issues)
 
-## 🌍 Community & Support
+## Community
 
-- 📂 [GitHub Issues](https://github.com/modality-org/modality/issues): Report bugs or request features.
-- 💬 Join the [Modality Discourse](https://discuss.modality.org/): Connect with other users and contributors.
-- 🗣️ Join the [Modality Discord](https://discord.gg/KpYFdrfnkS): Chat and join community meetings on Discord.
+- 💬 [Discord](https://discord.gg/KpYFdrfnkS) — Chat and community meetings
+- 💭 [Discuss](https://discuss.modality.org) — Forum for deeper conversations
+- 📂 [GitHub Issues](https://github.com/modality-org/modality/issues) — Report bugs or request features
 
 ---
 
-## 🧑‍💻 Contributors
+<div align="center">
 
-<a href="https://github.com/modality-org/modality/parts/contributors"><img src="https://contrib.rocks/image?repo=modality-org/modality" /></a>
+**Contributors**
 
-## Star History
+<a href="https://github.com/modality-org/modality/graphs/contributors"><img src="https://contrib.rocks/image?repo=modality-org/modality" /></a>
 
 [![Star History Chart](https://api.star-history.com/svg?repos=modality-org/modality&type=Date)](https://star-history.com/#modality-org/modality&Date)
+
+</div>
