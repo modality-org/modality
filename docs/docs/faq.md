@@ -35,6 +35,8 @@ Modality was initially conceptualized by [Bud Mishra](https://scholar.google.com
 
 Notably, [Bud was the first person to use formal verification to identify a hardware bug](https://discuss.modality.org/t/the-birth-of-model-checking/14/2). When formal verification for hardware was being initially developed, almost everyone considered it impossible or impractical. Today, formal verification is a standard part of the hardware development process.
 
+Watch Foy's presentation on Modality: [**Verifiable Contracts for AI Agent Cooperation**](https://www.youtube.com/watch?v=poOqWdh10BQ)
+
 ## What is formal verification?
 
 Formal verification is a technique for verifying the behavior of a system using formal specifications. When a specification is formally verified, it is confirmed over all possible outcomes.

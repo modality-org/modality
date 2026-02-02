@@ -210,6 +210,7 @@ This prevents:
 - **[Core Concepts](/docs/concepts)** — Understand the theory
 - **[Tutorials](/docs/tutorials/multi-party-contract)** — Step-by-step examples
 - **[GitHub](https://github.com/modality-org/modality)** — Source code
+- **[Video: Verifiable Contracts for AI Agent Cooperation](https://www.youtube.com/watch?v=poOqWdh10BQ)** — Foy Savas presentation
 
 The agent internet needs a trust layer. Modality is building it.
 
