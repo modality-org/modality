@@ -6,7 +6,7 @@ title: Potentialist LTS Paper
 # Potentialist State Machines and Labeled Transition Systems
 
 :::info
-Full paper available at [GitHub](https://github.com/modality-org/modality/blob/main/docs/papers/POTENTIALIST-LTS.md)
+Full paper available at [GitHub](https://github.com/modality-org/modality/blob/main/papers/POTENTIALIST-LTS.md)
 :::
 
 ## Abstract
