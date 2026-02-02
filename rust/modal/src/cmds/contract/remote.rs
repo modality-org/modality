@@ -56,6 +56,7 @@ enum Commands {
     },
 }
 
+#[allow(dead_code)]
 pub async fn run(opts: &Opts) -> Result<()> {
     match &opts.command {
         Commands::Add { name, url, dir } => {

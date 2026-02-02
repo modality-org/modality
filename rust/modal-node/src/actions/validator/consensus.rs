@@ -211,6 +211,7 @@ fn create_validator_block(
 }
 
 /// Spawn a background task to run the Shoal consensus loop.
+#[allow(dead_code)]
 pub async fn spawn_consensus_loop(
     shoal_validator: modal_validator::ShoalValidator,
     datastore: Arc<Mutex<DatastoreManager>>,
