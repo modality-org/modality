@@ -33,29 +33,29 @@ This paper develops the formal framework and connects it to practical contract v
 
 ### 2.1 Definition
 
-A **labeled transition system** is a tuple $\mathcal{L} = (S, S_0, \Lambda, \rightarrow)$ where:
+A **labeled transition system** is a tuple `\mathcal\{L\} = (S, S_0, \Lambda, \rightarrow)` where:
 
-- $S$ is a set of states
-- $S_0 \subseteq S$ is the set of initial states
-- $\Lambda$ is a set of labels (actions)
-- $\rightarrow \subseteq S \times \Lambda \times S$ is the transition relation
+- `S` is a set of states
+- `S_0 \subseteq S` is the set of initial states
+- `\Lambda` is a set of labels (actions)
+- `\rightarrow \subseteq S \times \Lambda \times S` is the transition relation
 
-We write $s \xrightarrow{a} s'$ for $(s, a, s') \in \rightarrow$.
+We write `s \xrightarrow\{a\} s'` for `(s, a, s') \in \rightarrow`.
 
 ### 2.2 Modal Logic over LTS
 
 The modal mu-calculus interprets formulas over LTS:
 
-$$
+```
 \phi ::= p \mid \neg\phi \mid \phi \land \phi \mid \langle a \rangle \phi \mid [a] \phi \mid \mu X. \phi \mid \nu X. \phi \mid X
-$$
+```
 
-- $\langle a \rangle \phi$ — there exists an $a$-transition to a state satisfying $\phi$
-- $[a] \phi$ — all $a$-transitions lead to states satisfying $\phi$
-- $\mu X. \phi$ — least fixed point (reachability)
-- $\nu X. \phi$ — greatest fixed point (invariants)
+- `\langle a \rangle \phi` — there exists an `a`-transition to a state satisfying `\phi`
+- `[a] \phi` — all `a`-transitions lead to states satisfying `\phi`
+- `\mu X. \phi` — least fixed point (reachability)
+- `\nu X. \phi` — greatest fixed point (invariants)
 
-A state $s$ satisfies $\phi$ (written $s \models \phi$) is defined inductively. An LTS $\mathcal{L}$ satisfies $\phi$ if all initial states satisfy it: $\mathcal{L} \models \phi \iff \forall s_0 \in S_0. s_0 \models \phi$.
+A state `s` satisfies `\phi` (written `s \models \phi`) is defined inductively. An LTS `\mathcal\{L\}` satisfies `\phi` if all initial states satisfy it: `\mathcal\{L\} \models \phi \iff \forall s_0 \in S_0. s_0 \models \phi`.
 
 ---
 
@@ -74,8 +74,8 @@ The potentialist view, associated with Aristotle's distinction between actual an
 
 Recent work (Linnebo, Studd, Hamkins) formalizes potentialism using modal logic:
 
-- $\Diamond \phi$ — it is *potentially* the case that $\phi$
-- $\Box \phi$ — it is *necessarily* the case that $\phi$ (in all extensions)
+- `\Diamond \phi` — it is *potentially* the case that `\phi`
+- `\Box \phi` — it is *necessarily* the case that `\phi` (in all extensions)
 
 A key principle is **directedness**: any two extensions have a common extension. This ensures coherence — the structure can grow in multiple directions without contradiction.
 
@@ -89,57 +89,57 @@ We apply this perspective to LTS: the current system is *actual*, but it exists 
 
 ### 4.1 LTS Extension
 
-Given two LTS $\mathcal{L} = (S, S_0, \Lambda, \rightarrow)$ and $\mathcal{L}' = (S', S'_0, \Lambda', \rightarrow')$, we say $\mathcal{L}'$ **extends** $\mathcal{L}$ (written $\mathcal{L} \preceq \mathcal{L}'$) iff:
+Given two LTS `\mathcal\{L\} = (S, S_0, \Lambda, \rightarrow)` and `\mathcal\{L\}' = (S', S'_0, \Lambda', \rightarrow')`, we say `\mathcal\{L\}'` **extends** `\mathcal\{L\}` (written `\mathcal\{L\} \preceq \mathcal\{L\}'`) iff:
 
-1. $S \subseteq S'$
-2. $S_0 = S'_0$ (initial states preserved)
-3. $\Lambda \subseteq \Lambda'$
-4. $\rightarrow \subseteq \rightarrow'$
+1. `S \subseteq S'`
+2. `S_0 = S'_0` (initial states preserved)
+3. `\Lambda \subseteq \Lambda'`
+4. `\rightarrow \subseteq \rightarrow'`
 
 Extension is reflexive, transitive, and antisymmetric — a partial order on LTS.
 
 ### 4.2 Covenants
 
-A **covenant** is a closed formula $\phi$ in hybrid temporal modal logic. The **covenant language** extends mu-calculus with:
+A **covenant** is a closed formula `\phi` in hybrid temporal modal logic. The **covenant language** extends mu-calculus with:
 
-- **Nominals**: $@_s \phi$ — $\phi$ holds at named state $s$
-- **Temporal anchoring**: $\mathsf{starting\_at}(s, \phi)$ — $\phi$ holds from state $s$ onward
-- **Hybrid binders**: $\downarrow x. \phi$ — bind current state to $x$
+- **Nominals**: `@_s \phi` — `\phi` holds at named state `s`
+- **Temporal anchoring**: `\mathsf\{starting\_at\}(s, \phi)` — `\phi` holds from state `s` onward
+- **Hybrid binders**: `\downarrow x. \phi` — bind current state to `x`
 
 ### 4.3 Potentialist LTS
 
-A **potentialist LTS** is a tuple $\mathcal{P} = (\mathcal{L}, \Gamma)$ where:
+A **potentialist LTS** is a tuple `\mathcal\{P\} = (\mathcal\{L\}, \Gamma)` where:
 
-- $\mathcal{L}$ is the current (actual) LTS
-- $\Gamma = [\phi_1, \phi_2, \ldots, \phi_n]$ is an ordered, append-only list of covenants
+- `\mathcal\{L\}` is the current (actual) LTS
+- `\Gamma = [\phi_1, \phi_2, \ldots, \phi_n]` is an ordered, append-only list of covenants
 
-The **validity condition**: $\mathcal{L} \models \bigwedge \Gamma$ — the actual LTS satisfies all covenants.
+The **validity condition**: `\mathcal\{L\} \models \bigwedge \Gamma` — the actual LTS satisfies all covenants.
 
 ### 4.4 Valid Extensions
 
-Given $\mathcal{P} = (\mathcal{L}, \Gamma)$, an LTS $\mathcal{L}'$ is a **valid extension** iff:
+Given `\mathcal\{P\} = (\mathcal\{L\}, \Gamma)`, an LTS `\mathcal\{L\}'` is a **valid extension** iff:
 
-1. $\mathcal{L} \preceq \mathcal{L}'$
-2. $\mathcal{L}' \models \bigwedge \Gamma$
+1. `\mathcal\{L\} \preceq \mathcal\{L\}'`
+2. `\mathcal\{L\}' \models \bigwedge \Gamma`
 
-The **potential space** of $\mathcal{P}$ is:
-$$
-\mathsf{Pot}(\mathcal{P}) = \{ \mathcal{L}' \mid \mathcal{L} \preceq \mathcal{L}' \land \mathcal{L}' \models \bigwedge \Gamma \}
-$$
+The **potential space** of `\mathcal\{P\}` is:
+```
+\mathsf\{Pot\}(\mathcal\{P\}) = \\{ \mathcal\{L\}' \mid \mathcal\{L\} \preceq \mathcal\{L\}' \land \mathcal\{L\}' \models \bigwedge \Gamma \\}
+```
 
 ### 4.5 Covenant Addition
 
-Adding a covenant $\phi_{n+1}$ to $\mathcal{P} = (\mathcal{L}, [\phi_1, \ldots, \phi_n])$:
+Adding a covenant `\phi_\{n+1\}` to `\mathcal\{P\} = (\mathcal\{L\}, [\phi_1, \ldots, \phi_n])`:
 
-$$
-\mathcal{P}' = (\mathcal{L}, [\phi_1, \ldots, \phi_n, \phi_{n+1}])
-$$
+```
+\mathcal\{P\}' = (\mathcal\{L\}, [\phi_1, \ldots, \phi_n, \phi_\{n+1\}])
+```
 
-This is valid iff $\mathcal{L} \models \phi_{n+1}$. The new potential space satisfies:
+This is valid iff `\mathcal\{L\} \models \phi_\{n+1\}`. The new potential space satisfies:
 
-$$
-\mathsf{Pot}(\mathcal{P}') \subseteq \mathsf{Pot}(\mathcal{P})
-$$
+```
+\mathsf\{Pot\}(\mathcal\{P\}') \subseteq \mathsf\{Pot\}(\mathcal\{P\})
+```
 
 Covenants can only *shrink* the potential space, never expand it.
 
@@ -151,42 +151,42 @@ Covenants can only *shrink* the potential space, never expand it.
 
 We use a hybrid extension of the modal mu-calculus:
 
-$$
-\begin{aligned}
+```
+\begin\{aligned\}
 \phi ::= \; & p \mid \neg\phi \mid \phi \land \phi \mid \phi \lor \phi \mid \phi \to \phi \\
 \mid \; & \langle a \rangle \phi \mid [a] \phi \mid \langle\langle a \rangle\rangle \phi \mid \langle\rangle\phi \mid []\phi \\
 \mid \; & \mu X. \phi \mid \nu X. \phi \mid X \\
-\mid \; & @_s \phi \mid \downarrow x. \phi \mid \mathsf{starting\_at}(s, \phi)
-\end{aligned}
-$$
+\mid \; & @_s \phi \mid \downarrow x. \phi \mid \mathsf\{starting\_at\}(s, \phi)
+\end\{aligned\}
+```
 
 Where:
-- $\langle\langle a \rangle\rangle \phi$ is the **diamondbox**: $\neg\langle \bar{a} \rangle \top \land \langle a \rangle \phi$ (committed to $a$)
-- $@_s \phi$ evaluates $\phi$ at state $s$
-- $\downarrow x. \phi$ binds current state to $x$
-- $\mathsf{starting\_at}(s, \phi)$ anchors $\phi$ to state $s$
+- `\langle\langle a \rangle\rangle \phi` is the **diamondbox**: `\neg\langle \bar\{a\} \rangle \top \land \langle a \rangle \phi` (committed to `a`)
+- `@_s \phi` evaluates `\phi` at state `s`
+- `\downarrow x. \phi` binds current state to `x`
+- `\mathsf\{starting\_at\}(s, \phi)` anchors `\phi` to state `s`
 
 ### 5.2 Temporal Operators as Fixed Points
 
 Standard temporal operators derive from fixed points:
 
-$$
-\begin{aligned}
-\mathsf{always}(\phi) &\equiv \nu X. \phi \land []X \\
-\mathsf{eventually}(\phi) &\equiv \mu X. \phi \lor \langle\rangle X \\
-\phi \; \mathsf{until} \; \psi &\equiv \mu X. \psi \lor (\phi \land \langle\rangle X)
-\end{aligned}
-$$
+```
+\begin\{aligned\}
+\mathsf\{always\}(\phi) &\equiv \nu X. \phi \land []X \\
+\mathsf\{eventually\}(\phi) &\equiv \mu X. \phi \lor \langle\rangle X \\
+\phi \; \mathsf\{until\} \; \psi &\equiv \mu X. \psi \lor (\phi \land \langle\rangle X)
+\end\{aligned\}
+```
 
 ### 5.3 Anchored Formulas
 
-In potentialist LTS, formulas often anchor to specific states. The $\mathsf{starting\_at}$ operator is crucial:
+In potentialist LTS, formulas often anchor to specific states. The `\mathsf\{starting\_at\}` operator is crucial:
 
-$$
-\mathsf{starting\_at}(s, \mathsf{always}(\phi))
-$$
+```
+\mathsf\{starting\_at\}(s, \mathsf\{always\}(\phi))
+```
 
-This says: "from state $s$ onward, $\phi$ always holds." The covenant doesn't constrain states before $s$, allowing historical structure to be preserved while governing future evolution.
+This says: "from state `s` onward, `\phi` always holds." The covenant doesn't constrain states before `s`, allowing historical structure to be preserved while governing future evolution.
 
 ---
 
@@ -194,29 +194,29 @@ This says: "from state $s$ onward, $\phi$ always holds." The covenant doesn't co
 
 ### 6.1 Monotonicity
 
-**Theorem (Covenant Monotonicity)**: For any potentialist LTS $\mathcal{P} = (\mathcal{L}, \Gamma)$ and covenant $\phi$:
+**Theorem (Covenant Monotonicity)**: For any potentialist LTS `\mathcal\{P\} = (\mathcal\{L\}, \Gamma)` and covenant `\phi`:
 
-$$
-\mathsf{Pot}((\mathcal{L}, \Gamma \cdot \phi)) \subseteq \mathsf{Pot}((\mathcal{L}, \Gamma))
-$$
+```
+\mathsf\{Pot\}((\mathcal\{L\}, \Gamma \cdot \phi)) \subseteq \mathsf\{Pot\}((\mathcal\{L\}, \Gamma))
+```
 
-*Proof*: Any $\mathcal{L}'$ satisfying $\bigwedge(\Gamma \cdot \phi)$ must satisfy $\bigwedge\Gamma$. $\square$
+*Proof*: Any `\mathcal\{L\}'` satisfying `\bigwedge(\Gamma \cdot \phi)` must satisfy `\bigwedge\Gamma`. `\square`
 
 Covenants only restrict; the potential space never grows.
 
 ### 6.2 Consistency
 
-A covenant list $\Gamma$ is **consistent at** $\mathcal{L}$ iff $\mathsf{Pot}((\mathcal{L}, \Gamma)) \neq \emptyset$.
+A covenant list `\Gamma` is **consistent at** `\mathcal\{L\}` iff `\mathsf\{Pot\}((\mathcal\{L\}, \Gamma)) \neq \emptyset`.
 
-**Theorem (Consistency Preservation)**: If $(\mathcal{L}, \Gamma)$ is consistent and $\mathcal{L}'$ is a valid extension, then $(\mathcal{L}', \Gamma)$ is consistent.
+**Theorem (Consistency Preservation)**: If `(\mathcal\{L\}, \Gamma)` is consistent and `\mathcal\{L\}'` is a valid extension, then `(\mathcal\{L\}', \Gamma)` is consistent.
 
-*Proof*: $\mathcal{L}' \in \mathsf{Pot}((\mathcal{L}, \Gamma))$, so $\mathcal{L}' \in \mathsf{Pot}((\mathcal{L}', \Gamma))$. $\square$
+*Proof*: `\mathcal\{L\}' \in \mathsf\{Pot\}((\mathcal\{L\}, \Gamma))`, so `\mathcal\{L\}' \in \mathsf\{Pot\}((\mathcal\{L\}', \Gamma))`. `\square`
 
 ### 6.3 Directedness
 
 The potential space may or may not be directed (any two extensions have a common extension). In general:
 
-**Proposition**: $\mathsf{Pot}(\mathcal{P})$ is directed iff for all $\mathcal{L}_1, \mathcal{L}_2 \in \mathsf{Pot}(\mathcal{P})$, there exists $\mathcal{L}_3 \in \mathsf{Pot}(\mathcal{P})$ with $\mathcal{L}_1, \mathcal{L}_2 \preceq \mathcal{L}_3$.
+**Proposition**: `\mathsf\{Pot\}(\mathcal\{P\})` is directed iff for all `\mathcal\{L\}_1, \mathcal\{L\}_2 \in \mathsf\{Pot\}(\mathcal\{P\})`, there exists `\mathcal\{L\}_3 \in \mathsf\{Pot\}(\mathcal\{P\})` with `\mathcal\{L\}_1, \mathcal\{L\}_2 \preceq \mathcal\{L\}_3`.
 
 This depends on the covenants. Certain formulas (e.g., disjunctive invariants) can create branching potential spaces.
 
@@ -226,11 +226,11 @@ This depends on the covenants. Certain formulas (e.g., disjunctive invariants) c
 
 ### 7.1 The Satisfiability Problem
 
-Given $(\mathcal{L}, \Gamma)$ and a new covenant $\phi$, determine:
+Given `(\mathcal\{L\}, \Gamma)` and a new covenant `\phi`, determine:
 
-$$
-\exists \mathcal{L}' \succeq \mathcal{L}. \; \mathcal{L}' \models \bigwedge\Gamma \land \phi
-$$
+```
+\exists \mathcal\{L\}' \succeq \mathcal\{L\}. \; \mathcal\{L\}' \models \bigwedge\Gamma \land \phi
+```
 
 This is the **potentialist satisfiability problem**: can we extend the current LTS to satisfy all covenants including the new one?
 
@@ -240,7 +240,7 @@ This is the **potentialist satisfiability problem**: can we extend the current L
 1. The covenant language is the modal mu-calculus
 2. Extensions are bounded (finite state/label additions)
 
-*Proof sketch*: Reduce to mu-calculus satisfiability over finite LTS, which is EXPTIME-complete. $\square$
+*Proof sketch*: Reduce to mu-calculus satisfiability over finite LTS, which is EXPTIME-complete. `\square`
 
 For unbounded extensions, satisfiability becomes undecidable in general.
 
@@ -262,25 +262,25 @@ This shifts from decision problem to verification: check that the proposed witne
 
 In practical P-LTS, labels carry structure beyond atomic names:
 
-$$
+```
 a ::= +p(args) \mid -p(args)
-$$
+```
 
-Where $p$ is a predicate and $+/-$ indicates polarity (must hold / must not hold).
+Where `p` is a predicate and `+/-` indicates polarity (must hold / must not hold).
 
 ### 8.2 Predicate Labels
 
 Common predicates:
-- $\mathsf{signed\_by}(\mathit{path})$ — cryptographic signature
-- $\mathsf{threshold}(n, \mathit{path})$ — $n$-of-$m$ multisig
-- $\mathsf{before}(\mathit{time})$ — temporal deadline
-- $\mathsf{oracle}(\mathit{source}, \mathit{claim})$ — external attestation
+- `\mathsf\{signed\_by\}(\mathit\{path\})` — cryptographic signature
+- `\mathsf\{threshold\}(n, \mathit\{path\})` — `n`-of-`m` multisig
+- `\mathsf\{before\}(\mathit\{time\})` — temporal deadline
+- `\mathsf\{oracle\}(\mathit\{source\}, \mathit\{claim\})` — external attestation
 
-A transition $s \xrightarrow{+\mathsf{signed\_by}(\mathtt{/users/alice})} s'$ requires Alice's signature to execute.
+A transition `s \xrightarrow\{+\mathsf\{signed\_by\}(\mathtt\{/users/alice\})\} s'` requires Alice's signature to execute.
 
 ### 8.3 Label Satisfaction
 
-An action $\alpha$ **satisfies** label $a = +p(args)$ iff predicate $p$ evaluates to true on $\alpha$'s context. It satisfies $-p(args)$ iff $p$ evaluates to false.
+An action `\alpha` **satisfies** label `a = +p(args)` iff predicate `p` evaluates to true on `\alpha`'s context. It satisfies `-p(args)` iff `p` evaluates to false.
 
 ---
 
@@ -297,13 +297,13 @@ A modal contract is a potentialist LTS where:
 
 The **commit log** records the history of actualizations:
 
-$$
-\mathcal{L}_0 \xrightarrow{\phi_1} \mathcal{L}_1 \xrightarrow{\phi_2} \mathcal{L}_2 \xrightarrow{\alpha_1} \mathcal{L}_3 \cdots
-$$
+```
+\mathcal\{L\}_0 \xrightarrow\{\phi_1\} \mathcal\{L\}_1 \xrightarrow\{\phi_2\} \mathcal\{L\}_2 \xrightarrow\{\alpha_1\} \mathcal\{L\}_3 \cdots
+```
 
 Each step either:
-- Adds a covenant (extends $\Gamma$, may extend $\mathcal{L}$)
-- Executes an action (transitions within current $\mathcal{L}$)
+- Adds a covenant (extends `\Gamma`, may extend `\mathcal\{L\}`)
+- Executes an action (transitions within current `\mathcal\{L\}`)
 
 ### 9.3 Multi-Party Evolution
 
@@ -321,14 +321,14 @@ The append-only nature ensures earlier protections cannot be revoked.
 
 ### 10.1 Simple Handshake
 
-Initial P-LTS $\mathcal{P}_0$:
-- $\mathcal{L}_0$: single state $\mathtt{init}$
-- $\Gamma_0 = []$
+Initial P-LTS `\mathcal\{P\}_0`:
+- `\mathcal\{L\}_0`: single state `\mathtt\{init\}`
+- `\Gamma_0 = []`
 
 Alice adds covenant:
-$$
-\phi_A = \mathsf{starting\_at}(\mathtt{init}, \mathsf{eventually}(\mathtt{done}))
-$$
+```
+\phi_A = \mathsf\{starting\_at\}(\mathtt\{init\}, \mathsf\{eventually\}(\mathtt\{done\}))
+```
 
 With model witness extending to:
 ```
@@ -336,13 +336,13 @@ init --[+signed_by(A)]--> a_ready --[+signed_by(B)]--> done
 ```
 
 Bob adds covenant:
-$$
-\phi_B = \mathsf{starting\_at}(\mathtt{init}, \mathsf{eventually}(\mathtt{done}))
-$$
+```
+\phi_B = \mathsf\{starting\_at\}(\mathtt\{init\}, \mathsf\{eventually\}(\mathtt\{done\}))
+```
 
-Same formula — the potential space now requires reaching $\mathtt{done}$.
+Same formula — the potential space now requires reaching `\mathtt\{done\}`.
 
-Execution: Alice signs (→ $\mathtt{a\_ready}$), Bob signs (→ $\mathtt{done}$). Both covenants satisfied.
+Execution: Alice signs (→ `\mathtt\{a\_ready\}`), Bob signs (→ `\mathtt\{done\}`). Both covenants satisfied.
 
 ### 10.2 Escrow with Extension
 
@@ -352,9 +352,9 @@ init --[+signed_by(buyer)]--> deposited --[+signed_by(seller)]--> delivered --[+
 ```
 
 Covenant: "release requires prior delivery"
-$$
-\mathsf{always}([\mathtt{release}] \Rightarrow \langle\mathtt{deliver}\rangle\top)
-$$
+```
+\mathsf\{always\}([\mathtt\{release\}] \Rightarrow \langle\mathtt\{deliver\}\rangle\top)
+```
 
 Later, parties agree to add dispute resolution. Extended model:
 ```
@@ -363,18 +363,18 @@ disputed --[+signed_by(arbiter)]--> released
 ```
 
 New covenant: "arbiter resolution respects delivery status"
-$$
-@_{\mathtt{disputed}}([\mathtt{release}] \Rightarrow \langle\mathtt{deliver}\rangle\top)
-$$
+```
+@_\{\mathtt\{disputed\}\}([\mathtt\{release\}] \Rightarrow \langle\mathtt\{deliver\}\rangle\top)
+```
 
 The extension is valid — it satisfies all existing covenants while adding new structure.
 
 ### 10.3 Incompatible Extension Attempt
 
 Suppose Alice's covenant requires:
-$$
-\mathsf{always}([\mathtt{+withdraw}] \Rightarrow \langle\mathtt{+signed\_by(alice)}\rangle\top)
-$$
+```
+\mathsf\{always\}([\mathtt\{+withdraw\}] \Rightarrow \langle\mathtt\{+signed\_by(alice)\}\rangle\top)
+```
 
 Bob attempts to add a model where:
 ```
