@@ -6,6 +6,9 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 use modality_lang::parse_content_lalrpop;
 
+mod semantic_tokens;
+use semantic_tokens::{compute_semantic_tokens, tokens_to_lsp, get_legend};
+
 /// Document state stored for each open file
 struct Document {
     content: Rope,
@@ -722,6 +725,16 @@ impl LanguageServer for ModalityLanguageServer {
                 definition_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Left(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
+                semantic_tokens_provider: Some(
+                    SemanticTokensServerCapabilities::SemanticTokensOptions(
+                        SemanticTokensOptions {
+                            legend: get_legend(),
+                            full: Some(SemanticTokensFullOptions::Bool(true)),
+                            range: Some(false),
+                            ..Default::default()
+                        },
+                    ),
+                ),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -863,6 +876,33 @@ impl LanguageServer for ModalityLanguageServer {
         if let Some(doc) = self.documents.get(&uri) {
             let symbols: Vec<DocumentSymbol> = doc.symbols.iter().map(symbol_info_to_document_symbol).collect();
             return Ok(Some(DocumentSymbolResponse::Nested(symbols)));
+        }
+        
+        Ok(None)
+    }
+
+    async fn semantic_tokens_full(
+        &self,
+        params: SemanticTokensParams,
+    ) -> Result<Option<SemanticTokensResult>> {
+        let uri = params.text_document.uri.to_string();
+        
+        if let Some(doc) = self.documents.get(&uri) {
+            let text = doc.content.to_string();
+            let tokens = compute_semantic_tokens(&text);
+            let delta_tokens = tokens_to_lsp(tokens);
+            
+            // Convert to flat u32 array as required by LSP protocol
+            // Each token is 5 u32s: deltaLine, deltaStart, length, tokenType, tokenModifiers
+            let data: Vec<u32> = delta_tokens
+                .into_iter()
+                .flat_map(|t| [t.line, t.start, t.length, t.token_type, t.modifiers])
+                .collect();
+            
+            return Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
+                result_id: None,
+                data,
+            })));
         }
         
         Ok(None)
