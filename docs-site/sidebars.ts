@@ -2,6 +2,7 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 
 const sidebars: SidebarsConfig = {
   docsSidebar: [
+    'for-agents',
     {
       type: 'category',
       label: 'Getting Started',
@@ -56,12 +57,20 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Reference',
+      items: [
+        'reference/standard-predicates',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Resources',
       items: [
         'resources/rfc-0001',
         'resources/potentialist-lts',
       ],
     },
+    'faq',
   ],
 };
 
