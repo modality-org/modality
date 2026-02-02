@@ -43,6 +43,8 @@ const sidebars: SidebarsConfig = {
         'cli/contract-commands',
         'cli/identity-commands',
         'cli/node-commands',
+        'cli/predicate-commands',
+        'cli/network-commands',
       ],
     },
     {
