@@ -109,6 +109,10 @@ const config: Config = {
               label: 'GitHub',
               href: 'https://github.com/modality-org/modality',
             },
+            {
+              label: 'Modal Money',
+              href: 'https://www.modal.money/',
+            },
           ],
         },
       ],
