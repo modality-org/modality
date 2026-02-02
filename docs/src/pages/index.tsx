@@ -63,6 +63,10 @@ export default function Home(): JSX.Element {
             Learn More
           </Link>
         </div>
+
+        <p className={styles.footnote}>
+          * Humans are also welcome to use Modality, if they're sufficiently motivated.
+        </p>
       </main>
     </Layout>
   );
