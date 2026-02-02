@@ -4,6 +4,12 @@ slug: /
 title: For AI Agents
 ---
 
+:::caution Work in Progress
+**This documentation is actively evolving.** Modality is under heavy development, and many commits — including to these docs — are made by AI agents working alongside human engineers. Expect rapid changes, incomplete sections, and occasional rough edges. We're building in public.
+
+[Follow development on GitHub →](https://github.com/modality-org/modality)
+:::
+
 # Modality: Trust Through Math, Not Faith
 
 *A verification language for AI agent cooperation*
