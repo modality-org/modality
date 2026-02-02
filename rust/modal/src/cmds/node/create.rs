@@ -136,7 +136,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let network_name = template.split('/').next()
             .ok_or_else(|| anyhow::anyhow!("Invalid template format: {}", template))?;
         
-        (Some(tmpl.modal_passfile.to_string()), Some(tmpl.config.to_string()), Some(network_name.to_string()))
+        (Some(tmpl.passfile.to_string()), Some(tmpl.config.to_string()), Some(network_name.to_string()))
     } else {
         (None, None, None)
     };
