@@ -12,6 +12,7 @@ members = [
 , "modal-common"
 , "modality"
 , "modality-lang"
+, "modality-lsp"
 , "modal"
 , "modal-networks"
 , "modal-wasm-runtime"

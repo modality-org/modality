@@ -1,0 +1,25 @@
+[package]
+name = "modality-lsp"
+version = "0.1.0"
+edition = "2021"
+description = "Language Server Protocol implementation for Modality"
+license = "MIT"
+repository = "https://github.com/modality-org/modality"
+homepage = "https://www.modality.org"
+
+[[bin]]
+name = "modality-lsp"
+path = "src/main.rs"
+
+[dependencies]
+modality-lang = { path = "../modality-lang", version = "0.1.7" }
+
+# LSP dependencies
+tower-lsp = "0.20"
+tokio = { version = "1.42", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Async utilities
+dashmap = "5.5"
+ropey = "1.6"
