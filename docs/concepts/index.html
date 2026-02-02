@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Core Concepts - Modality Docs</title>
+    <link rel="stylesheet" href="../static/styles.css">
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <a href="../" class="logo">Modality</a>
+            <span class="version">v0.1</span>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Getting Started</div>
+            <ul>
+                <li><a href="../getting-started/">Overview</a></li>
+                <li><a href="../getting-started/#installation">Installation</a></li>
+                <li><a href="../getting-started/#your-first-contract-in-5-minutes">First Contract</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Core Concepts</div>
+            <ul>
+                <li><a href="./" class="active">Overview</a></li>
+                <li><a href="#contracts-as-append-only-logs">Append-Only Logs</a></li>
+                <li><a href="#state-machines-models">State Machines</a></li>
+                <li><a href="#temporal-modal-logic-rules">Modal Logic</a></li>
+                <li><a href="#cryptographic-predicates">Predicates</a></li>
+                <li><a href="#potentialist-state-machines">Potentialism</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Language Reference</div>
+            <ul>
+                <li><a href="../language/">Overview</a></li>
+                <li><a href="../language/#model-syntax">Model Syntax</a></li>
+                <li><a href="../language/#rule-syntax">Rule Syntax</a></li>
+                <li><a href="../language/#predicates-reference">Predicates</a></li>
+                <li><a href="../language/#path-syntax">Path Types</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">CLI Reference</div>
+            <ul>
+                <li><a href="../cli/">Overview</a></li>
+                <li><a href="../cli/#contract-commands">Contract Commands</a></li>
+                <li><a href="../cli/#identity-commands">Identity Commands</a></li>
+                <li><a href="../cli/#predicate-commands">Predicate Commands</a></li>
+                <li><a href="../cli/#node-commands">Node Commands</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Resources</div>
+            <ul>
+                <li><a href="../RFC-0001-MODAL-CONTRACTS.html">RFC Specification</a></li>
+                <li><a href="https://github.com/modality-org/modality" target="_blank">GitHub ↗</a></li>
+            </ul>
+        </div>
+    </nav>
+    
+    <main class="markdown-body">
+        <h1>Core Concepts</h1>
+        <p>This guide explains the fundamental concepts behind Modality.</p>
+
+        <hr>
+
+        <h2 id="contracts-as-append-only-logs">Contracts as Append-Only Logs</h2>
+        <p>A Modality contract is an <strong>append-only log of signed commits</strong>. Each commit can:</p>
+        <ul>
+            <li>Add or modify <strong>state</strong> (data files)</li>
+            <li>Add <strong>rules</strong> (temporal formulas that constrain behavior)</li>
+            <li>Perform <strong>actions</strong> (state transitions in the model)</li>
+        </ul>
+
+<pre><code>Commit 0: Genesis
+  └─ Created contract
+
+Commit 1: Alice signs
+  ├─ state/parties/alice.id = "ed25519:abc..."
+  └─ rules/alice.modality = "always (...)"
+
+Commit 2: Bob signs  
+  ├─ state/parties/bob.id = "ed25519:def..."
+  └─ rules/bob.modality = "always (...)"
+
+Commit 3: Alice deposits (ACTION)
+  └─ action: DEPOSIT</code></pre>
+
+        <h3>Key Properties</h3>
+        <ul>
+            <li><strong>Immutable</strong>: Once committed, history cannot change</li>
+            <li><strong>Ordered</strong>: Commits form a linear sequence</li>
+            <li><strong>Signed</strong>: Each commit is cryptographically signed</li>
+            <li><strong>Validated</strong>: Action commits are validated against ALL accumulated rules</li>
+        </ul>
+
+        <hr>
+
+        <h2 id="state-machines-models">State Machines (Models)</h2>
+        <p>A <strong>model</strong> defines the allowed behaviors as a labeled transition system (LTS):</p>
+
+<pre><code>model escrow {
+  states { pending, funded, delivered, released, refunded }
+  initial pending
+  terminal released, refunded
+  
+  transition DEPOSIT: pending -> funded
+    +signed_by(/parties/buyer.id)
+  
+  transition DELIVER: funded -> delivered
+    +signed_by(/parties/seller.id)
+  
+  transition RELEASE: delivered -> released
+    +signed_by(/parties/buyer.id)
+}</code></pre>
+
+        <h3>Components</h3>
+        <table>
+            <tr><th>Component</th><th>Description</th></tr>
+            <tr><td><code>states</code></td><td>All possible states the contract can be in</td></tr>
+            <tr><td><code>initial</code></td><td>The starting state</td></tr>
+            <tr><td><code>terminal</code></td><td>End states (self-loop implied)</td></tr>
+            <tr><td><code>transition</code></td><td>A labeled edge: ACTION: from -> to</td></tr>
+            <tr><td><code>+predicate</code></td><td>Conditions that must hold for the transition</td></tr>
+        </table>
+
+        <hr>
+
+        <h2 id="temporal-modal-logic-rules">Temporal Modal Logic (Rules)</h2>
+        <p>Rules express constraints using <strong>modal mu-calculus</strong> — a logic that reasons about what's possible, necessary, and how things evolve over time.</p>
+
+<pre><code>rule buyer_protection {
+  starting_at $PARENT
+  formula {
+    always (
+      [&lt;+RELEASE&gt;] eventually delivered
+    )
+  }
+}</code></pre>
+
+        <h3>Modal Operators</h3>
+        <table>
+            <tr><th>Operator</th><th>Meaning</th></tr>
+            <tr><td><code>[A] φ</code></td><td>After ALL A-transitions, φ holds</td></tr>
+            <tr><td><code>&lt;A&gt; φ</code></td><td>After SOME A-transition, φ holds</td></tr>
+            <tr><td><code>[-A] φ</code></td><td>If A is refused, φ holds</td></tr>
+            <tr><td><code>[&lt;+A&gt;] φ</code></td><td>Committed: must do A, and φ holds after</td></tr>
+        </table>
+
+        <h3>Temporal Operators (Sugar)</h3>
+        <table>
+            <tr><th>Operator</th><th>Meaning</th></tr>
+            <tr><td><code>always φ</code></td><td>φ holds now and forever</td></tr>
+            <tr><td><code>eventually φ</code></td><td>φ holds now or sometime later</td></tr>
+            <tr><td><code>until(p, q)</code></td><td>p holds until q becomes true</td></tr>
+        </table>
+
+        <hr>
+
+        <h2 id="cryptographic-predicates">Cryptographic Predicates</h2>
+        <p>Predicates bind <strong>real-world identity</strong> to <strong>logical constraints</strong>:</p>
+
+        <h3>Signature Verification</h3>
+<pre><code>+signed_by(/parties/alice.id)</code></pre>
+        <p>Requires the commit to be signed by the ed25519 key at that path.</p>
+
+        <h3>Threshold Signatures (Multisig)</h3>
+<pre><code>+threshold(/signers, 2, 3)</code></pre>
+        <p>Requires 2-of-3 signers from the list.</p>
+
+        <h3>Oracle Attestations</h3>
+<pre><code>+oracle_attests(/oracles/price-feed.id, "price > 100")</code></pre>
+        <p>Requires an external oracle to attest to a condition.</p>
+
+        <h3>Timestamps</h3>
+<pre><code>+after(/deadlines/expiry.datetime)
++before(/deadlines/cutoff.datetime)</code></pre>
+
+        <hr>
+
+        <h2 id="potentialist-state-machines">Potentialist State Machines</h2>
+        <p>The deepest concept: a contract is not a fixed state machine — it's one <strong>actualization</strong> from a space of <strong>potential</strong> state machines.</p>
+
+        <h3>The Insight</h3>
+        <p>When Alice and Bob start a contract:</p>
+        <ol>
+            <li><strong>Potential is infinite</strong> — Any state machine is possible</li>
+            <li><strong>Alice adds a rule</strong> — Potential shrinks to state machines satisfying her rule</li>
+            <li><strong>Bob adds a rule</strong> — Potential shrinks further</li>
+            <li><strong>Rules accumulate</strong> — The space of valid futures only contracts, never expands</li>
+        </ol>
+
+        <h3>Monotonicity Theorem</h3>
+        <blockquote>Adding a covenant (rule) can only shrink the space of valid extensions, never expand it.</blockquote>
+
+        <p>This is why Modality contracts are safe: each party adds their protection, and no one can add a rule that invalidates existing protections.</p>
+
+        <hr>
+
+        <h2>Summary</h2>
+        <table>
+            <tr><th>Concept</th><th>Purpose</th></tr>
+            <tr><td><strong>Append-only log</strong></td><td>Immutable, ordered history</td></tr>
+            <tr><td><strong>State machines</strong></td><td>Finite, verifiable behaviors</td></tr>
+            <tr><td><strong>Modal logic</strong></td><td>Express temporal constraints</td></tr>
+            <tr><td><strong>Predicates</strong></td><td>Bind identity to logic</td></tr>
+            <tr><td><strong>Potentialism</strong></td><td>Safe accumulation of rules</td></tr>
+        </table>
+
+        <h2>Next Steps</h2>
+        <ul>
+            <li><a href="../language/">Language Reference</a> — Syntax details</li>
+            <li><a href="../cli/">CLI Reference</a> — Working with contracts</li>
+        </ul>
+    </main>
+</body>
+</html>

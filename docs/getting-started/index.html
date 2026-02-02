@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Getting Started - Modality Docs</title>
+    <link rel="stylesheet" href="../static/styles.css">
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <a href="../" class="logo">Modality</a>
+            <span class="version">v0.1</span>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Getting Started</div>
+            <ul>
+                <li><a href="./" class="active">Overview</a></li>
+                <li><a href="#installation">Installation</a></li>
+                <li><a href="#your-first-contract-in-5-minutes">First Contract</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Core Concepts</div>
+            <ul>
+                <li><a href="../concepts/">Overview</a></li>
+                <li><a href="../concepts/#contracts-as-append-only-logs">Append-Only Logs</a></li>
+                <li><a href="../concepts/#state-machines-models">State Machines</a></li>
+                <li><a href="../concepts/#temporal-modal-logic-rules">Modal Logic</a></li>
+                <li><a href="../concepts/#cryptographic-predicates">Predicates</a></li>
+                <li><a href="../concepts/#potentialist-state-machines">Potentialism</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Language Reference</div>
+            <ul>
+                <li><a href="../language/">Overview</a></li>
+                <li><a href="../language/#model-syntax">Model Syntax</a></li>
+                <li><a href="../language/#rule-syntax">Rule Syntax</a></li>
+                <li><a href="../language/#predicates-reference">Predicates</a></li>
+                <li><a href="../language/#path-syntax">Path Types</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">CLI Reference</div>
+            <ul>
+                <li><a href="../cli/">Overview</a></li>
+                <li><a href="../cli/#contract-commands">Contract Commands</a></li>
+                <li><a href="../cli/#identity-commands">Identity Commands</a></li>
+                <li><a href="../cli/#predicate-commands">Predicate Commands</a></li>
+                <li><a href="../cli/#node-commands">Node Commands</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Resources</div>
+            <ul>
+                <li><a href="../RFC-0001-MODAL-CONTRACTS.html">RFC Specification</a></li>
+                <li><a href="https://github.com/modality-org/modality" target="_blank">GitHub ↗</a></li>
+            </ul>
+        </div>
+    </nav>
+    
+    <main class="markdown-body">
+        <h1>Getting Started with Modality</h1>
+        
+        <p>Modality is a verification language for AI agent cooperation. It lets agents define cooperation protocols as state machines with temporal modal formulas that constrain behavior.</p>
+
+        <h2>Why Modality?</h2>
+        
+        <p>In a world of AI agents making deals, "trust me" isn't good enough. Agents need to:</p>
+        <ul>
+            <li><strong>Negotiate</strong> cooperation terms formally</li>
+            <li><strong>Prove</strong> their commitments mathematically</li>
+            <li><strong>Verify</strong> that all parties will behave as agreed</li>
+        </ul>
+        
+        <p>Modality makes this possible through:</p>
+        <ul>
+            <li><strong>State machines</strong> that model allowed behaviors</li>
+            <li><strong>Temporal logic</strong> that expresses constraints over time</li>
+            <li><strong>Cryptographic predicates</strong> that bind real-world identity to actions</li>
+            <li><strong>Append-only contracts</strong> where rules accumulate and potential shrinks to mutual agreement</li>
+        </ul>
+
+        <h2 id="installation">Installation</h2>
+        
+<pre><code># Clone the repo
+git clone https://github.com/modality-org/modality.git
+cd modality/rust
+
+# Build
+cargo build --release
+
+# Add to path
+export PATH="$PATH:$(pwd)/target/release"
+
+# Verify installation
+modal --version</code></pre>
+
+        <h2 id="your-first-contract-in-5-minutes">Your First Contract in 5 Minutes</h2>
+
+        <h3>1. Create a Contract</h3>
+<pre><code>mkdir my-escrow && cd my-escrow
+modal contract create</code></pre>
+        <p>This creates a <code>.contract/</code> directory to track commits.</p>
+
+        <h3>2. Create Identities</h3>
+<pre><code>modal id create --path alice.passfile
+modal id create --path bob.passfile</code></pre>
+
+        <h3>3. Initialize State</h3>
+<pre><code>modal c checkout
+mkdir -p state rules
+
+# Add party identities
+modal c set /parties/alice.id $(modal id get --path ./alice.passfile)
+modal c set /parties/bob.id $(modal id get --path ./bob.passfile)</code></pre>
+
+        <h3>4. Define the Model</h3>
+        <p>Create <code>model/escrow.modality</code>:</p>
+<pre><code>model escrow {
+  states { pending, funded, delivered, released, refunded }
+  initial pending
+  terminal released, refunded
+  
+  transition DEPOSIT: pending -> funded
+    +signed_by(/parties/alice.id)
+  
+  transition DELIVER: funded -> delivered
+    +signed_by(/parties/bob.id)
+  
+  transition RELEASE: delivered -> released
+    +signed_by(/parties/alice.id)
+  
+  transition REFUND: funded -> refunded
+    +signed_by(/parties/bob.id)
+}</code></pre>
+
+        <h3>5. Add Protection Rules</h3>
+        <p>Create <code>rules/alice-protection.modality</code>:</p>
+<pre><code>export default rule {
+  starting_at $PARENT
+  formula {
+    always (
+      [&lt;+RELEASE&gt;] eventually delivered
+    )
+  }
+}</code></pre>
+        <p>This rule says: Alice can only release funds if delivery has happened.</p>
+
+        <h3>6. Commit and Verify</h3>
+<pre><code># Commit all changes
+modal c commit --all --sign alice.passfile -m "Initial escrow setup"
+
+# Check status
+modal c status</code></pre>
+
+        <h2>What's Next?</h2>
+        <ul>
+            <li><a href="../concepts/">Core Concepts</a> — Understand the theory</li>
+            <li><a href="../cli/">CLI Reference</a> — All commands explained</li>
+            <li><a href="../language/">Language Reference</a> — Model and rule syntax</li>
+        </ul>
+    </main>
+</body>
+</html>

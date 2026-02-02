@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLI Reference - Modality Docs</title>
+    <link rel="stylesheet" href="../static/styles.css">
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <a href="../" class="logo">Modality</a>
+            <span class="version">v0.1</span>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Getting Started</div>
+            <ul>
+                <li><a href="../getting-started/">Overview</a></li>
+                <li><a href="../getting-started/#installation">Installation</a></li>
+                <li><a href="../getting-started/#your-first-contract-in-5-minutes">First Contract</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Core Concepts</div>
+            <ul>
+                <li><a href="../concepts/">Overview</a></li>
+                <li><a href="../concepts/#contracts-as-append-only-logs">Append-Only Logs</a></li>
+                <li><a href="../concepts/#state-machines-models">State Machines</a></li>
+                <li><a href="../concepts/#temporal-modal-logic-rules">Modal Logic</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Language Reference</div>
+            <ul>
+                <li><a href="../language/">Overview</a></li>
+                <li><a href="../language/#model-syntax">Model Syntax</a></li>
+                <li><a href="../language/#rule-syntax">Rule Syntax</a></li>
+                <li><a href="../language/#predicates-reference">Predicates</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">CLI Reference</div>
+            <ul>
+                <li><a href="./" class="active">Overview</a></li>
+                <li><a href="#contract-commands">Contract Commands</a></li>
+                <li><a href="#identity-commands">Identity Commands</a></li>
+                <li><a href="#passfile-commands">Passfile Commands</a></li>
+                <li><a href="#predicate-commands">Predicate Commands</a></li>
+                <li><a href="#node-commands">Node Commands</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Resources</div>
+            <ul>
+                <li><a href="../RFC-0001-MODAL-CONTRACTS.html">RFC Specification</a></li>
+                <li><a href="https://github.com/modality-org/modality" target="_blank">GitHub ↗</a></li>
+            </ul>
+        </div>
+    </nav>
+    
+    <main class="markdown-body">
+        <h1>CLI Reference</h1>
+        <p>The <code>modal</code> command-line tool is your interface to Modality.</p>
+
+        <h2>Command Overview</h2>
+        <table>
+            <tr><th>Command</th><th>Description</th></tr>
+            <tr><td><code>modal contract</code></td><td>Contract management (create, commit, push, pull)</td></tr>
+            <tr><td><code>modal id</code></td><td>Identity management (create, derive, get)</td></tr>
+            <tr><td><code>modal passfile</code></td><td>Passfile encryption/decryption</td></tr>
+            <tr><td><code>modal predicate</code></td><td>Predicate management and testing</td></tr>
+            <tr><td><code>modal node</code></td><td>Network node operations</td></tr>
+            <tr><td><code>modal status</code></td><td>Show contract status (if in contract directory)</td></tr>
+        </table>
+
+        <hr>
+
+        <h2 id="contract-commands">Contract Commands (<code>modal contract</code> / <code>modal c</code>)</h2>
+
+        <h3>Create a Contract</h3>
+<pre><code>modal contract create
+modal c create</code></pre>
+        <p>Creates a new contract in the current directory. Initializes <code>.contract/</code> for tracking commits.</p>
+
+        <h3>Checkout State</h3>
+<pre><code>modal c checkout</code></pre>
+        <p>Extracts the current state from commits to the <code>state/</code> directory for editing.</p>
+
+        <h3>Set State Values</h3>
+<pre><code># Set a value at a path
+modal c set /path/to/file.txt "content"
+
+# Set from a file
+modal c set /data/config.json --file ./local-config.json
+
+# Set an ID from a passfile
+modal c set-named-id /parties/alice.id alice</code></pre>
+
+        <h3>Commit Changes</h3>
+<pre><code># Commit all changes (state + rules)
+modal c commit --all -m "Description"
+
+# Commit with signature
+modal c commit --all --sign alice.passfile -m "Signed commit"
+
+# Commit only state changes
+modal c commit --state -m "State update"
+
+# Commit an action
+modal c commit --action '{"type":"DEPOSIT","amount":100}' --sign alice.passfile</code></pre>
+
+        <h3>View History</h3>
+<pre><code># Show commit log
+modal c log
+
+# Show detailed log
+modal c log --verbose</code></pre>
+
+        <h3>Check Status</h3>
+<pre><code>modal c status
+modal status  # shortcut when in contract directory</code></pre>
+
+        <h3>View Differences</h3>
+<pre><code>modal c diff</code></pre>
+
+        <h3>Push to Network/Hub</h3>
+<pre><code># Push to a hub
+modal c push http://hub.example.com/contracts/my-contract
+
+# Push to chain validators
+modal c push /ip4/validator.modality.network/...</code></pre>
+
+        <h3>Pull from Network/Hub</h3>
+<pre><code>modal c pull http://hub.example.com/contracts/my-contract</code></pre>
+
+        <h3>Get Contract Info</h3>
+<pre><code># Get contract ID
+modal c id
+
+# Get current commit ID  
+modal c commit-id
+
+# Get state value
+modal c get /parties/alice.id</code></pre>
+
+        <h3>Pack/Unpack Contracts</h3>
+<pre><code># Pack contract into a portable file
+modal c pack --output my-contract.contract
+
+# Unpack a contract file
+modal c unpack my-contract.contract --output ./restored-contract</code></pre>
+
+        <hr>
+
+        <h2 id="identity-commands">Identity Commands (<code>modal id</code>)</h2>
+
+        <h3>Create a New Identity</h3>
+<pre><code># Create with default path
+modal id create --path alice.passfile
+
+# Create with password protection
+modal id create --path alice.passfile --password</code></pre>
+
+        <h3>Derive Sub-Identity</h3>
+<pre><code>modal id derive --path alice.passfile --sub "escrow-key" --output alice-escrow.passfile</code></pre>
+
+        <h3>Get Public ID</h3>
+<pre><code>modal id get --path alice.passfile
+# Output: ed25519:abc123...</code></pre>
+
+        <hr>
+
+        <h2 id="passfile-commands">Passfile Commands (<code>modal passfile</code>)</h2>
+
+        <h3>Encrypt a Passfile</h3>
+<pre><code>modal passfile encrypt --path alice.passfile --password</code></pre>
+
+        <h3>Decrypt a Passfile</h3>
+<pre><code>modal passfile decrypt --path alice.passfile.enc --password</code></pre>
+
+        <hr>
+
+        <h2 id="predicate-commands">Predicate Commands (<code>modal predicate</code>)</h2>
+
+        <h3>List Available Predicates</h3>
+<pre><code>modal predicate list</code></pre>
+
+        <h3>Get Predicate Info</h3>
+<pre><code>modal predicate info signed_by
+modal predicate info threshold</code></pre>
+
+        <h3>Test a Predicate</h3>
+<pre><code>modal predicate test signed_by --args '{"id_path":"/parties/alice.id"}' --commit ./test-commit</code></pre>
+
+        <h3>Create Custom Predicate</h3>
+<pre><code>modal predicate create --name my_predicate --output ./predicates/my_predicate</code></pre>
+
+        <hr>
+
+        <h2 id="node-commands">Node Commands (<code>modal node</code>)</h2>
+
+        <h3>Create a Node</h3>
+<pre><code>modal node create --path ./my-node</code></pre>
+
+        <h3>Start/Stop a Node</h3>
+<pre><code>modal node start --path ./my-node
+modal node stop --path ./my-node
+modal node restart --path ./my-node</code></pre>
+
+        <h3>View Node Info</h3>
+<pre><code>modal node info --path ./my-node
+modal node address --path ./my-node
+modal node logs --path ./my-node</code></pre>
+
+        <h3>Run a Node (Foreground)</h3>
+<pre><code># Run as miner
+modal node run-miner --path ./my-node
+
+# Run as validator
+modal node run-validator --path ./my-node
+
+# Run as observer
+modal node run-observer --path ./my-node</code></pre>
+
+        <h3>Sync with Network</h3>
+<pre><code>modal node sync --path ./my-node</code></pre>
+
+        <hr>
+
+        <h2>Common Patterns</h2>
+
+        <h3>Create and Initialize a Contract</h3>
+<pre><code>mkdir my-contract && cd my-contract
+modal c create
+modal id create --path alice.passfile
+modal id create --path bob.passfile
+modal c checkout
+modal c set /parties/alice.id $(modal id get --path ./alice.passfile)
+modal c set /parties/bob.id $(modal id get --path ./bob.passfile)
+modal c commit --all --sign alice.passfile -m "Initial setup"</code></pre>
+
+        <h3>Execute an Action</h3>
+<pre><code>modal c commit --action '{"type":"DEPOSIT"}' --sign alice.passfile -m "Deposited funds"</code></pre>
+
+        <hr>
+
+        <h2>Environment Variables</h2>
+        <table>
+            <tr><th>Variable</th><th>Description</th></tr>
+            <tr><td><code>MODAL_NODE_PATH</code></td><td>Default node directory</td></tr>
+            <tr><td><code>MODAL_NETWORK</code></td><td>Default network (mainnet/testnet)</td></tr>
+            <tr><td><code>MODAL_HUB_URL</code></td><td>Default hub URL for push/pull</td></tr>
+        </table>
+    </main>
+</body>
+</html>

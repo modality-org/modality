@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Language Reference - Modality Docs</title>
+    <link rel="stylesheet" href="../static/styles.css">
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <a href="../" class="logo">Modality</a>
+            <span class="version">v0.1</span>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Getting Started</div>
+            <ul>
+                <li><a href="../getting-started/">Overview</a></li>
+                <li><a href="../getting-started/#installation">Installation</a></li>
+                <li><a href="../getting-started/#your-first-contract-in-5-minutes">First Contract</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Core Concepts</div>
+            <ul>
+                <li><a href="../concepts/">Overview</a></li>
+                <li><a href="../concepts/#contracts-as-append-only-logs">Append-Only Logs</a></li>
+                <li><a href="../concepts/#state-machines-models">State Machines</a></li>
+                <li><a href="../concepts/#temporal-modal-logic-rules">Modal Logic</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Language Reference</div>
+            <ul>
+                <li><a href="./" class="active">Overview</a></li>
+                <li><a href="#model-syntax">Model Syntax</a></li>
+                <li><a href="#rule-syntax">Rule Syntax</a></li>
+                <li><a href="#predicates-reference">Predicates</a></li>
+                <li><a href="#path-syntax">Path Types</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">CLI Reference</div>
+            <ul>
+                <li><a href="../cli/">Overview</a></li>
+                <li><a href="../cli/#contract-commands">Contract Commands</a></li>
+                <li><a href="../cli/#identity-commands">Identity Commands</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Resources</div>
+            <ul>
+                <li><a href="../RFC-0001-MODAL-CONTRACTS.html">RFC Specification</a></li>
+                <li><a href="https://github.com/modality-org/modality" target="_blank">GitHub ↗</a></li>
+            </ul>
+        </div>
+    </nav>
+    
+    <main class="markdown-body">
+        <h1>Language Reference</h1>
+        <p>This document covers the complete syntax for Modality's model and rule definitions.</p>
+
+        <h2>File Types</h2>
+        <table>
+            <tr><th>Extension</th><th>Purpose</th><th>Location</th></tr>
+            <tr><td><code>.modality</code></td><td>Model or rule definitions</td><td><code>model/</code> or <code>rules/</code></td></tr>
+            <tr><td><code>.id</code></td><td>Public identity (ed25519 pubkey)</td><td><code>state/</code></td></tr>
+            <tr><td><code>.passfile</code></td><td>Private key (for signing)</td><td>Project root</td></tr>
+            <tr><td><code>.hash</code></td><td>SHA256 hash commitment</td><td><code>state/</code></td></tr>
+            <tr><td><code>.datetime</code></td><td>ISO 8601 timestamp</td><td><code>state/</code></td></tr>
+        </table>
+
+        <hr>
+
+        <h2 id="model-syntax">Model Syntax</h2>
+        <p>Models define <strong>state machines</strong> — the allowed behaviors of a contract.</p>
+
+        <h3>Basic Structure</h3>
+<pre><code>model &lt;name&gt; {
+  states { &lt;state1&gt;, &lt;state2&gt;, ... }
+  initial &lt;state&gt;
+  terminal &lt;state1&gt;, &lt;state2&gt;, ...
+  
+  transition &lt;ACTION&gt;: &lt;from_state&gt; -&gt; &lt;to_state&gt;
+    +&lt;predicate1&gt;
+    +&lt;predicate2&gt;
+}</code></pre>
+
+        <h3>Complete Example</h3>
+<pre><code>model escrow {
+  states { pending, funded, delivered, released, refunded, disputed }
+  initial pending
+  terminal released, refunded
+  
+  // Buyer deposits funds
+  transition DEPOSIT: pending -&gt; funded
+    +signed_by(/parties/buyer.id)
+    +num_gte(/deposit/amount.num, /terms/price.num)
+  
+  // Seller delivers goods
+  transition DELIVER: funded -&gt; delivered
+    +signed_by(/parties/seller.id)
+  
+  // Buyer releases payment
+  transition RELEASE: delivered -&gt; released
+    +signed_by(/parties/buyer.id)
+  
+  // Either party disputes
+  transition DISPUTE: funded -&gt; disputed
+    +signed_by(/parties/buyer.id)
+  transition DISPUTE: funded -&gt; disputed
+    +signed_by(/parties/seller.id)
+  
+  // Arbiter resolves dispute
+  transition RESOLVE_RELEASE: disputed -&gt; released
+    +signed_by(/parties/arbiter.id)
+}</code></pre>
+
+        <h3>State Declarations</h3>
+<pre><code>// List of all states
+states { state1, state2, state3 }
+
+// Initial state (required)
+initial state1
+
+// Terminal states (optional) - self-loop implied
+terminal state2, state3</code></pre>
+
+        <h3>Transitions</h3>
+<pre><code>// Basic transition
+transition ACTION_NAME: from_state -&gt; to_state
+
+// With predicates (all must be satisfied)
+transition ACTION_NAME: from_state -&gt; to_state
+  +predicate1(args)
+  +predicate2(args)
+
+// Multiple transitions with same action (non-deterministic)
+transition DISPUTE: funded -&gt; disputed
+transition DISPUTE: delivered -&gt; disputed</code></pre>
+
+        <hr>
+
+        <h2 id="rule-syntax">Rule Syntax</h2>
+        <p>Rules express <strong>temporal constraints</strong> using modal mu-calculus.</p>
+
+        <h3>Basic Structure</h3>
+<pre><code>rule &lt;name&gt; {
+  starting_at &lt;commit_ref&gt;
+  formula {
+    &lt;modal_formula&gt;
+  }
+}
+
+// Or as default export
+export default rule {
+  starting_at $PARENT
+  formula {
+    &lt;modal_formula&gt;
+  }
+}</code></pre>
+
+        <h3>Anchoring (<code>starting_at</code>)</h3>
+<pre><code>starting_at $PARENT           // Parent of this commit
+starting_at $ROOT             // Genesis commit
+starting_at abc123...         // Specific commit hash</code></pre>
+
+        <h3>Modal Operators</h3>
+        <table>
+            <tr><th>Operator</th><th>Meaning</th></tr>
+            <tr><td><code>[ACTION] φ</code></td><td>After ALL ACTION transitions, φ holds</td></tr>
+            <tr><td><code>&lt;ACTION&gt; φ</code></td><td>After SOME ACTION transition, φ holds</td></tr>
+            <tr><td><code>[-ACTION] φ</code></td><td>If ACTION is refused/impossible, φ holds</td></tr>
+            <tr><td><code>[&lt;+ACTION&gt;] φ</code></td><td>Committed: CAN do ACTION and CANNOT refuse</td></tr>
+        </table>
+
+        <h3>Temporal Operators (Syntactic Sugar)</h3>
+<pre><code>always(φ)           // φ holds forever (invariant)
+                    // = gfp(X, φ & []X)
+
+eventually(φ)       // φ holds now or sometime later
+                    // = lfp(X, φ | &lt;&gt;X)
+
+until(p, q)         // p holds until q becomes true
+                    // = lfp(X, q | (p & &lt;&gt;X))</code></pre>
+
+        <h3>Fixed Points</h3>
+<pre><code>// Greatest fixed point (νX) - invariants, safety
+gfp(X, property & []X)
+
+// Least fixed point (μX) - reachability, liveness
+lfp(X, target | &lt;&gt;X)
+
+// Unicode alternatives
+νX. (property & []X)
+μX. (target | &lt;&gt;X)</code></pre>
+
+        <h3>Boolean Connectives</h3>
+<pre><code>φ & ψ           // Conjunction (and)
+φ | ψ           // Disjunction (or)
+!φ              // Negation (not)
+φ -&gt; ψ          // Implication
+true            // Always true
+false           // Always false</code></pre>
+
+        <h3>State Propositions</h3>
+<pre><code>@state_name     // True when in state_name
+@pending        // True when in pending state</code></pre>
+
+        <hr>
+
+        <h2 id="predicates-reference">Predicates Reference</h2>
+
+        <h3>Signature Predicates</h3>
+<pre><code>+signed_by(/path/to/identity.id)
+// Commit must be signed by this ed25519 key
+
++threshold(/signers/list, n, m)
+// n-of-m signatures from the list required
+
++signed_by_n(/signers/list, n)
+// At least n signatures from the list</code></pre>
+
+        <h3>Oracle Predicates</h3>
+<pre><code>+oracle_attests(/oracle.id, "condition")
+// Oracle attests to a condition
+
++oracle_attests_fresh(/oracle.id, "condition", max_age_seconds)
+// Oracle attestation within time limit</code></pre>
+
+        <h3>Time Predicates</h3>
+<pre><code>+before(/deadlines/cutoff.datetime)
+// Current time is before deadline
+
++after(/deadlines/start.datetime)
+// Current time is after start time</code></pre>
+
+        <h3>Comparison Predicates</h3>
+<pre><code>// Numeric comparisons
++num_eq(/path/a.num, /path/b.num)     // a == b
++num_gt(/path/a.num, /path/b.num)     // a &gt; b
++num_gte(/path/a.num, /path/b.num)    // a &gt;= b
++num_lt(/path/a.num, /path/b.num)     // a &lt; b
++num_lte(/path/a.num, /path/b.num)    // a &lt;= b
+
+// Text comparisons
++text_eq(/path/a.text, /path/b.text)
++text_contains(/path/a.text, "substring")
+
+// Boolean
++bool_true(/path/flag.bool)
++bool_false(/path/flag.bool)</code></pre>
+
+        <h3>Hash Predicates</h3>
+<pre><code>+hash_matches(/commitments/secret.hash, /revealed/value.text)
+// SHA256 of revealed value matches stored hash</code></pre>
+
+        <h3>Custom WASM Predicates</h3>
+<pre><code>+wasm(/predicates/my_predicate.wasm, arg1, arg2)
+// Call custom WASM predicate with arguments</code></pre>
+
+        <hr>
+
+        <h2 id="path-syntax">Path Syntax</h2>
+        <p>Paths reference data in the contract state:</p>
+<pre><code>/directory/subdirectory/file.type</code></pre>
+
+        <h3>Path Types</h3>
+        <table>
+            <tr><th>Extension</th><th>Type</th><th>Example</th></tr>
+            <tr><td><code>.id</code></td><td>ed25519 public key</td><td><code>/parties/alice.id</code></td></tr>
+            <tr><td><code>.num</code></td><td>Numeric value</td><td><code>/terms/price.num</code></td></tr>
+            <tr><td><code>.text</code></td><td>Text string</td><td><code>/metadata/description.text</code></td></tr>
+            <tr><td><code>.bool</code></td><td>Boolean</td><td><code>/flags/approved.bool</code></td></tr>
+            <tr><td><code>.datetime</code></td><td>ISO 8601 timestamp</td><td><code>/deadlines/expiry.datetime</code></td></tr>
+            <tr><td><code>.date</code></td><td>Date (YYYY-MM-DD)</td><td><code>/terms/start.date</code></td></tr>
+            <tr><td><code>.hash</code></td><td>SHA256 hash</td><td><code>/commitments/secret.hash</code></td></tr>
+            <tr><td><code>.json</code></td><td>JSON data</td><td><code>/config/settings.json</code></td></tr>
+            <tr><td><code>.wasm</code></td><td>WASM module</td><td><code>/predicates/custom.wasm</code></td></tr>
+            <tr><td><code>.modality</code></td><td>Model/rule file</td><td><code>/model/default.modality</code></td></tr>
+        </table>
+
+        <hr>
+
+        <h2>Comments</h2>
+<pre><code>// Single-line comment
+
+/* 
+   Multi-line
+   comment
+*/
+
+model escrow {
+  // States for the escrow workflow
+  states { pending, funded }
+}</code></pre>
+    </main>
+</body>
+</html>

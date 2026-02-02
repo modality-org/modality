@@ -4,135 +4,90 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modality - Verification Language for Agent Cooperation</title>
-    <style>
-        :root {
-            --bg: #0d1117;
-            --fg: #c9d1d9;
-            --accent: #58a6ff;
-            --accent2: #7ee787;
-            --muted: #8b949e;
-            --border: #30363d;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-            background: var(--bg);
-            color: var(--fg);
-            line-height: 1.6;
-            min-height: 100vh;
-        }
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 4rem 2rem;
-        }
-        h1 {
-            font-size: 3rem;
-            margin-bottom: 0.5rem;
-            background: linear-gradient(135deg, var(--accent), var(--accent2));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .tagline {
-            font-size: 1.4rem;
-            color: var(--muted);
-            margin-bottom: 3rem;
-        }
-        .section {
-            margin-bottom: 3rem;
-        }
-        h2 {
-            color: var(--accent);
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 0.5rem;
-        }
-        p { margin-bottom: 1rem; }
-        code {
-            background: #161b22;
-            padding: 0.2rem 0.4rem;
-            border-radius: 4px;
-            font-family: 'SF Mono', Consolas, monospace;
-            font-size: 0.9em;
-        }
-        pre {
-            background: #161b22;
-            padding: 1.5rem;
-            border-radius: 8px;
-            overflow-x: auto;
-            margin: 1rem 0;
-            border: 1px solid var(--border);
-        }
-        pre code {
-            background: none;
-            padding: 0;
-        }
-        .links {
-            display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
-            margin-top: 2rem;
-        }
-        .links a {
-            display: inline-block;
-            padding: 0.75rem 1.5rem;
-            background: var(--accent);
-            color: var(--bg);
-            text-decoration: none;
-            border-radius: 6px;
-            font-weight: 600;
-            transition: opacity 0.2s;
-        }
-        .links a:hover { opacity: 0.9; }
-        .links a.secondary {
-            background: transparent;
-            border: 1px solid var(--border);
-            color: var(--fg);
-        }
-        .feature-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
-            margin-top: 1.5rem;
-        }
-        .feature {
-            background: #161b22;
-            padding: 1.5rem;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-        }
-        .feature h3 {
-            color: var(--accent2);
-            margin-bottom: 0.5rem;
-        }
-        .feature p {
-            color: var(--muted);
-            font-size: 0.95rem;
-            margin-bottom: 0;
-        }
-        footer {
-            margin-top: 4rem;
-            padding-top: 2rem;
-            border-top: 1px solid var(--border);
-            color: var(--muted);
-            font-size: 0.9rem;
-        }
-        footer a { color: var(--accent); }
-    </style>
+    <link rel="stylesheet" href="static/styles.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Modality</h1>
-        <p class="tagline">A verification language for AI agent cooperation</p>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <a href="/" class="logo">Modality</a>
+            <span class="version">v0.1</span>
+        </div>
         
-        <div class="section">
+        <div class="sidebar-section">
+            <div class="sidebar-title">Getting Started</div>
+            <ul>
+                <li><a href="getting-started/">Overview</a></li>
+                <li><a href="getting-started/#installation">Installation</a></li>
+                <li><a href="getting-started/#your-first-contract">First Contract</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Core Concepts</div>
+            <ul>
+                <li><a href="concepts/">Overview</a></li>
+                <li><a href="concepts/#contracts-as-append-only-logs">Append-Only Logs</a></li>
+                <li><a href="concepts/#state-machines-models">State Machines</a></li>
+                <li><a href="concepts/#temporal-modal-logic-rules">Modal Logic</a></li>
+                <li><a href="concepts/#cryptographic-predicates">Predicates</a></li>
+                <li><a href="concepts/#potentialist-state-machines">Potentialism</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Language Reference</div>
+            <ul>
+                <li><a href="language/">Overview</a></li>
+                <li><a href="language/#model-syntax">Model Syntax</a></li>
+                <li><a href="language/#rule-syntax">Rule Syntax</a></li>
+                <li><a href="language/#predicates-reference">Predicates</a></li>
+                <li><a href="language/#path-syntax">Path Types</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">CLI Reference</div>
+            <ul>
+                <li><a href="cli/">Overview</a></li>
+                <li><a href="cli/#contract-commands-modal-contract--modal-c">Contract Commands</a></li>
+                <li><a href="cli/#identity-commands-modal-id">Identity Commands</a></li>
+                <li><a href="cli/#predicate-commands-modal-predicate">Predicate Commands</a></li>
+                <li><a href="cli/#node-commands-modal-node">Node Commands</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Tutorials</div>
+            <ul>
+                <li><a href="tutorials/MULTI_PARTY_CONTRACT.html">Multi-Party Contracts</a></li>
+                <li><a href="tutorials/MULTISIG_TREASURY.html">Multisig Treasury</a></li>
+                <li><a href="tutorials/ORACLE_ESCROW.html">Oracle Escrow</a></li>
+                <li><a href="tutorials/CONTRACT_HUB.html">Contract Hub</a></li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-title">Resources</div>
+            <ul>
+                <li><a href="RFC-0001-MODAL-CONTRACTS.html">RFC Specification</a></li>
+                <li><a href="papers/POTENTIALIST-LTS.html">Potentialist LTS Paper</a></li>
+                <li><a href="https://github.com/modality-org/modality" target="_blank">GitHub ↗</a></li>
+            </ul>
+        </div>
+    </nav>
+    
+    <main class="content">
+        <div class="hero">
+            <h1>Modality</h1>
+            <p class="tagline">A verification language for AI agent cooperation</p>
+        </div>
+        
+        <section>
             <h2>The Problem</h2>
             <p>In a world of AI agents making deals, "trust me" isn't good enough. Agents need a way to negotiate cooperation and <strong>prove</strong> their commitments — not just promise them.</p>
-        </div>
+        </section>
 
-        <div class="section">
+        <section>
             <h2>The Solution</h2>
             <p>Modality lets agents define cooperation protocols as <strong>state machines</strong> with <strong>temporal modal formulas</strong> that constrain behavior. Each party adds their protective rules, and the system verifies that all commitments can be satisfied.</p>
             
@@ -149,9 +104,9 @@
   transition RELEASE: delivered -> released
     +signed_by(/parties/buyer.id)
 }</code></pre>
-        </div>
+        </section>
 
-        <div class="section">
+        <section>
             <h2>Key Features</h2>
             <div class="feature-grid">
                 <div class="feature">
@@ -171,38 +126,32 @@
                     <p>Every rule requires an explicit state machine demonstrating satisfiability. No empty promises.</p>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <div class="section">
-            <h2>Documentation</h2>
-            <div class="feature-grid">
-                <div class="feature">
-                    <h3><a href="getting-started/" style="color: var(--accent2); text-decoration: none;">Getting Started</a></h3>
-                    <p>Install Modality and create your first contract in 5 minutes.</p>
-                </div>
-                <div class="feature">
-                    <h3><a href="concepts/" style="color: var(--accent2); text-decoration: none;">Core Concepts</a></h3>
-                    <p>Understand state machines, temporal logic, and potentialist contracts.</p>
-                </div>
-                <div class="feature">
-                    <h3><a href="cli/" style="color: var(--accent2); text-decoration: none;">CLI Reference</a></h3>
-                    <p>Complete reference for all modal commands.</p>
-                </div>
-                <div class="feature">
-                    <h3><a href="language/" style="color: var(--accent2); text-decoration: none;">Language Reference</a></h3>
-                    <p>Model and rule syntax, predicates, path types.</p>
-                </div>
-            </div>
-            <div class="links" style="margin-top: 2rem;">
-                <a href="https://github.com/modality-org/modality">GitHub Repository</a>
-                <a href="tutorials/" class="secondary">Tutorials</a>
-                <a href="RFC-0001-MODAL-CONTRACTS.md" class="secondary">RFC Spec</a>
-            </div>
-        </div>
+        <section>
+            <h2>Quick Start</h2>
+<pre><code># Install
+git clone https://github.com/modality-org/modality.git
+cd modality/rust && cargo build --release
+
+# Create a contract
+mkdir my-contract && cd my-contract
+modal contract create
+
+# Create identities
+modal id create --path alice.passfile
+modal id create --path bob.passfile
+
+# Initialize and commit
+modal c checkout
+modal c set /parties/alice.id $(modal id get --path ./alice.passfile)
+modal c commit --all --sign alice.passfile -m "Initial setup"</code></pre>
+            <p><a href="getting-started/" class="cta">Read the full Getting Started guide →</a></p>
+        </section>
 
         <footer>
             <p>Built by <a href="https://github.com/foysavas">Foy Savas</a> and <a href="https://github.com/geroldsteiner67">Gerold Steiner</a>. Inspired by the work of Bud Mishra on formal verification.</p>
         </footer>
-    </div>
+    </main>
 </body>
 </html>
