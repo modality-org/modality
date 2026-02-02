@@ -99,7 +99,11 @@ const config: Config = {
           items: [
             {
               label: 'Discord',
-              href: 'https://discord.gg/modality',
+              href: 'https://discord.gg/KpYFdrfnkS',
+            },
+            {
+              label: 'Discuss',
+              href: 'https://discuss.modality.org/',
             },
             {
               label: 'GitHub',
