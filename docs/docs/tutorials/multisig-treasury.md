@@ -59,9 +59,33 @@ export default rule {
 }
 ```
 
-## Step 5: Define the Model
+Create `rules/treasury-threshold.modality`:
 
-Create `model/treasury.modality` — the state machine satisfying the rules:
+```modality
+export default rule {
+  starting_at $PARENT
+  formula {
+    // Withdrawals require 2-of-3
+    always([+WITHDRAW] implies <+threshold(2, /treasury/signers.json)> true)
+  }
+}
+```
+
+## Step 5: Synthesize the Model
+
+Use the multisig template:
+
+```bash
+modality model synthesize --template multisig -o model/treasury.modality
+```
+
+Or synthesize from your rules:
+
+```bash
+modality model synthesize --rule rules/treasury-auth.modality -o model/treasury.modality
+```
+
+The generated model enforces your threshold requirements:
 
 ```modality
 export default model {
@@ -123,22 +147,12 @@ The `threshold(n, signers_path)` predicate:
 - Rejects unauthorized signers
 - Works with any n-of-m configuration
 
-## Advanced: Graduated Thresholds
+## Available Templates
 
-```modality
-export default model {
-  initial active
-  
-  // Low-value: 1-of-3
-  active -> active [+threshold(1, /treasury/signers.json)]
-  
-  // High-value: 2-of-3  
-  active -> pending_large [+signed_by(/treasury/alice.id)]
-  active -> pending_large [+signed_by(/treasury/bob.id)]
-  active -> pending_large [+signed_by(/treasury/carol.id)]
-  pending_large -> active [+threshold(2, /treasury/signers.json)]
-  
-  // Add/remove signer: 3-of-3 (unanimous)
-  active -> active [+threshold(3, /treasury/signers.json)]
-}
+List all synthesis templates:
+
+```bash
+modality model synthesize --list
 ```
+
+Templates include: `escrow`, `handshake`, `mutual_cooperation`, `atomic_swap`, `multisig`, `service_agreement`, `delegation`, `auction`, `subscription`, `milestone`.

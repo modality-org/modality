@@ -36,13 +36,15 @@ modal contract create
 modal c checkout
 ```
 
-## Step 3: Alice Sets Up Users, Rules & Model
+## Step 3: Set Up Users
 
 ```bash
 # Add user IDs using named passfiles
 modal c set-named-id /users/alice.id --named alice
 modal c set-named-id /users/bob.id --named bob
 ```
+
+## Step 4: Define the Rules
 
 Create `rules/auth.modality` — the authorization rule:
 
@@ -57,20 +59,23 @@ export default rule {
 
 This rule requires every commit to be signed by either Alice or Bob.
 
-Create `model/default.modality` — the state machine that satisfies the rule:
+## Step 5: Synthesize the Model
 
-```modality
-export default model {
-  initial idle
-  
-  idle -> committed [+signed_by(/users/alice.id)]
-  idle -> committed [+signed_by(/users/bob.id)]
-  committed -> committed [+signed_by(/users/alice.id)]
-  committed -> committed [+signed_by(/users/bob.id)]
-}
+Generate a model that satisfies the rules:
+
+```bash
+modality model synthesize --rule rules/auth.modality -o model/default.modality
 ```
 
-## Step 4: Alice Commits the Setup (Signed)
+Or view the synthesized model first:
+
+```bash
+modality model synthesize --rule rules/auth.modality
+```
+
+The synthesizer generates a state machine where all transitions require the appropriate signatures.
+
+## Step 6: Commit the Setup (Signed)
 
 ```bash
 modal c commit --all --sign alice
@@ -78,7 +83,7 @@ modal c commit --all --sign alice
 
 From this point on, all commits must be signed by Alice or Bob.
 
-## Step 5: Make Signed Changes
+## Step 7: Make Signed Changes
 
 ```bash
 # Alice posts a message
@@ -91,7 +96,7 @@ echo "Hello from Bob" > state/data/message.text
 modal c commit --all --sign bob
 ```
 
-## Step 6: View Status & Log
+## Step 8: View Status & Log
 
 ```bash
 modal c status
@@ -113,7 +118,7 @@ my-contract/
 │       └── message.text
 ├── rules/               # Rules first
 │   └── auth.modality
-└── model/               # Model satisfies rules
+└── model/               # Synthesized model
     └── default.modality
 ```
 

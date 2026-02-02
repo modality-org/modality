@@ -63,9 +63,33 @@ export default rule {
 }
 ```
 
-## Step 5: Define the Model
+Create `rules/escrow-flow.modality` — ordering constraints:
 
-Create `model/escrow.modality` — the state machine satisfying the rules:
+```modality
+export default rule {
+  starting_at $PARENT
+  formula {
+    // Release requires prior delivery attestation
+    always([+RELEASE] implies <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true)
+  }
+}
+```
+
+## Step 5: Synthesize the Model
+
+Use the escrow template as a starting point:
+
+```bash
+modality model synthesize --template escrow --party-a buyer --party-b seller -o model/escrow.modality
+```
+
+Or describe your requirements in natural language:
+
+```bash
+modality model synthesize --describe "escrow where buyer deposits, seller ships, oracle confirms delivery before release"
+```
+
+Review and customize the generated model for oracle integration:
 
 ```modality
 export default model {
