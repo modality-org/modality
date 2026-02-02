@@ -29,7 +29,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/modality-org/modality/tree/main/docs-site/',
+          editUrl: 'https://github.com/modality-org/modality/tree/main/docs/',
         },
         blog: false,
         theme: {
