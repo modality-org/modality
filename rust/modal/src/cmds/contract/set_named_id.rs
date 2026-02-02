@@ -10,7 +10,7 @@ pub struct Opts {
     /// Path within state/ (e.g., /users/alice.id)
     path: String,
     
-    /// Path to passfile OR name (looks in ~/.modality/<name>.passfile, ./<name>.passfile)
+    /// Path to passfile OR name (looks in ~/.modality/<name>.modal_passfile, ./<name>.modal_passfile)
     name: String,
     
     /// Contract directory (defaults to current directory)
@@ -50,29 +50,29 @@ pub async fn run(opts: &Opts) -> Result<()> {
 fn resolve_identity(name: &str) -> Result<String> {
     let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Cannot find home directory"))?;
     
-    // Try as direct path first (e.g., alice.passfile or /path/to/alice.passfile)
+    // Try as direct path first (e.g., alice.modal_passfile or /path/to/alice.modal_passfile)
     let direct_path = PathBuf::from(name);
     if direct_path.exists() {
         let keypair = Keypair::from_json_file(direct_path.to_str().unwrap())?;
         return Ok(keypair.as_public_address());
     }
     
-    // Try ~/.modality/<name>.passfile
-    let passfile_path = home.join(".modality").join(format!("{}.passfile", name));
+    // Try ~/.modality/<name>.modal_passfile
+    let passfile_path = home.join(".modality").join(format!("{}.modal_passfile", name));
     if passfile_path.exists() {
         let keypair = Keypair::from_json_file(passfile_path.to_str().unwrap())?;
         return Ok(keypair.as_public_address());
     }
     
-    // Try current directory <name>.passfile
-    let local_path = PathBuf::from(format!("{}.passfile", name));
+    // Try current directory <name>.modal_passfile
+    let local_path = PathBuf::from(format!("{}.modal_passfile", name));
     if local_path.exists() {
         let keypair = Keypair::from_json_file(local_path.to_str().unwrap())?;
         return Ok(keypair.as_public_address());
     }
     
-    // Try ~/.modality/identities/<name>.passfile (alternate location)
-    let identities_path = home.join(".modality").join("identities").join(format!("{}.passfile", name));
+    // Try ~/.modality/identities/<name>.modal_passfile (alternate location)
+    let identities_path = home.join(".modality").join("identities").join(format!("{}.modal_passfile", name));
     if identities_path.exists() {
         let keypair = Keypair::from_json_file(identities_path.to_str().unwrap())?;
         return Ok(keypair.as_public_address());

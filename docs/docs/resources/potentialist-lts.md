@@ -155,14 +155,14 @@ We use a hybrid extension of the modal mu-calculus:
 $$
 \begin{aligned}
 \phi ::= \; & p \mid \neg\phi \mid \phi \land \phi \mid \phi \lor \phi \mid \phi \to \phi \\
-\mid \; & \langle a \rangle \phi \mid [a] \phi \mid \langle\langle a \rangle\rangle \phi \mid \langle\rangle\phi \mid []\phi \\
+\mid \; & \langle a \rangle \phi \mid [a] \phi \mid [\langle a \rangle] \phi \mid \langle\rangle\phi \mid []\phi \\
 \mid \; & \mu X. \phi \mid \nu X. \phi \mid X \\
 \mid \; & @_s \phi \mid \downarrow x. \phi \mid \mathsf{starting\_at}(s, \phi)
 \end{aligned}
 $$
 
 Where:
-- $\langle\langle a \rangle\rangle \phi$ is the **diamondbox**: $\neg\langle \bar{a} \rangle \top \land \langle a \rangle \phi$ (committed to $a$)
+- $[\langle a \rangle] \phi$ is the **diamondbox**: $\neg\langle \bar{a} \rangle \top \land \langle a \rangle \phi$ (committed to $a$)
 - $@_s \phi$ evaluates $\phi$ at state $s$
 - $\downarrow x. \phi$ binds current state to $x$
 - $\mathsf{starting\_at}(s, \phi)$ anchors $\phi$ to state $s$

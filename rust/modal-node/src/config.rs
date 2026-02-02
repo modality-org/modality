@@ -127,7 +127,7 @@ impl Config {
                    3. The node was not created properly\n\
                 \n\
                 💡 To fix:\n\
-                   - If using a node directory, ensure node.passfile exists\n\
+                   - If using a node directory, ensure node.modal_passfile exists\n\
                    - If the node is new, run 'modal node create --dir <dir>' first\n\
                    - Check that config.json has the correct 'passfile_path'",
                 passfile_path.display()

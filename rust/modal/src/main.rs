@@ -145,7 +145,7 @@ enum NodeCommands {
     #[command(about = "Display the listening addresses of a node")]
     Address(cmds::node::address::Opts),
 
-    #[command(about = "Create a new node directory with config.json and node.passfile")]
+    #[command(about = "Create a new node directory with config.json and node.modal_passfile")]
     Create(cmds::node::create::Opts),
 
     #[command(about = "Display information about a node")]

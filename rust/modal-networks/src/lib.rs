@@ -162,27 +162,27 @@ pub mod templates {
     pub fn get(path: &str) -> Option<NodeTemplate> {
         match path {
             "devnet1/node1" => Some(NodeTemplate {
-                passfile: include_str!("../templates/devnet1/node1/node.passfile"),
+                passfile: include_str!("../templates/devnet1/node1/node.modal_passfile"),
                 config: include_str!("../templates/devnet1/node1/config.json"),
             }),
             "devnet2/node1" => Some(NodeTemplate {
-                passfile: include_str!("../templates/devnet2/node1/node.passfile"),
+                passfile: include_str!("../templates/devnet2/node1/node.modal_passfile"),
                 config: include_str!("../templates/devnet2/node1/config.json"),
             }),
             "devnet2/node2" => Some(NodeTemplate {
-                passfile: include_str!("../templates/devnet2/node2/node.passfile"),
+                passfile: include_str!("../templates/devnet2/node2/node.modal_passfile"),
                 config: include_str!("../templates/devnet2/node2/config.json"),
             }),
             "devnet3/node1" => Some(NodeTemplate {
-                passfile: include_str!("../templates/devnet3/node1/node.passfile"),
+                passfile: include_str!("../templates/devnet3/node1/node.modal_passfile"),
                 config: include_str!("../templates/devnet3/node1/config.json"),
             }),
             "devnet3/node2" => Some(NodeTemplate {
-                passfile: include_str!("../templates/devnet3/node2/node.passfile"),
+                passfile: include_str!("../templates/devnet3/node2/node.modal_passfile"),
                 config: include_str!("../templates/devnet3/node2/config.json"),
             }),
             "devnet3/node3" => Some(NodeTemplate {
-                passfile: include_str!("../templates/devnet3/node3/node.passfile"),
+                passfile: include_str!("../templates/devnet3/node3/node.modal_passfile"),
                 config: include_str!("../templates/devnet3/node3/config.json"),
             }),
             _ => None,

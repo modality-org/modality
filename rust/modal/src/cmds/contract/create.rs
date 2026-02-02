@@ -85,7 +85,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("  1. cd {}", dir.display());
         println!("  2. Edit model/default.modality to define your state machine");
         println!("  3. Add rules in rules/*.modality");
-        println!("  4. modal c commit --all --sign your.passfile");
+        println!("  4. modal c commit --all --sign your.modal_passfile");
     }
 
     Ok(())

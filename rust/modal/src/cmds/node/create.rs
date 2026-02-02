@@ -7,7 +7,7 @@ use modal_common::keypair::Keypair;
 use modality::constants::{TESTNET_BOOTSTRAPPERS, DEFAULT_AUTOUPGRADE_BASE_URL, DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS};
 
 #[derive(Debug, Parser)]
-#[command(about = "Create a new node directory with config.json and node.passfile")]
+#[command(about = "Create a new node directory with config.json and node.modal_passfile")]
 pub struct Opts {
     /// Path to the node directory to create (defaults to current directory if no config.json exists)
     #[clap(long)]
@@ -136,7 +136,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let network_name = template.split('/').next()
             .ok_or_else(|| anyhow::anyhow!("Invalid template format: {}", template))?;
         
-        (Some(tmpl.passfile.to_string()), Some(tmpl.config.to_string()), Some(network_name.to_string()))
+        (Some(tmpl.modal_passfile.to_string()), Some(tmpl.config.to_string()), Some(network_name.to_string()))
     } else {
         (None, None, None)
     };
@@ -175,8 +175,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
     std::fs::create_dir_all(&node_dir)
         .with_context(|| format!("Failed to create node directory at {}", node_dir.display()))?;
 
-    // Check if node.passfile already exists in the directory
-    let passfile_path = node_dir.join("node.passfile");
+    // Check if node.modal_passfile already exists in the directory
+    let passfile_path = node_dir.join("node.modal_passfile");
     let existing_passfile = passfile_path.exists();
 
     // Load existing keypair or generate a new one
@@ -208,7 +208,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         (kp, None, None, true)
     } else if existing_passfile {
         // Load existing passfile
-        println!("📂 Found existing node.passfile, loading identity...");
+        println!("📂 Found existing node.modal_passfile, loading identity...");
         let passfile_str = passfile_path.to_str().ok_or_else(|| {
             anyhow::anyhow!("Invalid passfile path: contains non-Unicode characters")
         })?;
@@ -346,7 +346,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         (vec![], None)
     };
 
-    // Create node.passfile (only if we didn't load from existing)
+    // Create node.modal_passfile (only if we didn't load from existing)
     if !loaded_from_existing {
         let passfile_str = passfile_path.to_str().ok_or_else(|| {
             anyhow::anyhow!("Invalid passfile path: contains non-Unicode characters")
@@ -378,7 +378,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         // Start with default config
         json!({
             "id": peer_id,
-            "passfile_path": "./node.passfile",
+            "passfile_path": "./node.modal_passfile",
             "data_dir": opts.data_dir,
             "logs_path": "./logs",
             "logs_enabled": opts.logs_enabled.unwrap_or(true),
@@ -395,7 +395,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     if let Some(obj) = config.as_object_mut() {
         // Always update the ID to match the keypair
         obj.insert("id".to_string(), json!(peer_id));
-        obj.insert("passfile_path".to_string(), json!("./node.passfile"));
+        obj.insert("passfile_path".to_string(), json!("./node.modal_passfile"));
         
         // Only override data_dir if explicitly provided (not default)
         // The default is "./data" from clap, but we don't want to override template configs with it

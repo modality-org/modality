@@ -138,7 +138,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 let mut config: modal_node::config::Config = serde_json::from_str(&config_json)?;
                 config.storage_path = None;
                 config.logs_path = None;
-                let passfile_path = node_dir.join("node.passfile");
+                let passfile_path = node_dir.join("node.modal_passfile");
                 if passfile_path.exists() {
                     config.passfile_path = Some(passfile_path);
                 }

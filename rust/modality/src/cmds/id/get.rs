@@ -7,7 +7,7 @@ use modal_common::keypair::Keypair;
 #[derive(Debug, Parser)]
 #[command(about = "Get the public ID from a passfile by name or path")]
 pub struct Opts {
-    /// Name of identity in ~/.modality/<name>.passfile
+    /// Name of identity in ~/.modality/<name>.modal_passfile
     #[clap(long)]
     name: Option<String>,
     
@@ -18,17 +18,17 @@ pub struct Opts {
 
 pub async fn run(opts: &Opts) -> Result<()> {
     let keypair = if let Some(name) = &opts.name {
-        // Look up from ~/.modality/<name>.passfile
+        // Look up from ~/.modality/<name>.modal_passfile
         let home = dirs::home_dir()
             .ok_or_else(|| anyhow::anyhow!("Cannot find home directory"))?;
         
-        // Try ~/.modality/<name>.passfile
-        let passfile_path = home.join(".modality").join(format!("{}.passfile", name));
+        // Try ~/.modality/<name>.modal_passfile
+        let passfile_path = home.join(".modality").join(format!("{}.modal_passfile", name));
         if passfile_path.exists() {
             Keypair::from_json_file(passfile_path.to_str().unwrap())?
         } else {
             // Try current directory
-            let local_path = PathBuf::from(format!("{}.passfile", name));
+            let local_path = PathBuf::from(format!("{}.modal_passfile", name));
             if local_path.exists() {
                 Keypair::from_json_file(local_path.to_str().unwrap())?
             } else {
