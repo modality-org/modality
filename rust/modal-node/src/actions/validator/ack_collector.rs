@@ -132,12 +132,14 @@ impl AckCollector {
     }
 
     /// Get our block for a round if it exists
+    // TODO: Wire up to validator consensus loop
     #[allow(dead_code)]
     pub fn get_our_block(&self, round: u64) -> Option<&ValidatorBlock> {
         self.our_pending_blocks.get(&round)
     }
 
     /// Get the collected acks for a round/peer combination
+    // TODO: Wire up to validator consensus loop
     #[allow(dead_code)]
     pub fn get_acks(&self, round: u64, peer_id: &str) -> Vec<Ack> {
         self.pending_acks

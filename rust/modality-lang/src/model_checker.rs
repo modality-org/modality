@@ -548,6 +548,7 @@ impl ModelChecker {
     }
 
     /// Get current possible states (if state information is available)
+    // TODO: Expose for debugging/introspection API
     #[allow(dead_code)]
     fn current_states(&self) -> Vec<State> {
         if let Some(state_info) = &self.model.state {

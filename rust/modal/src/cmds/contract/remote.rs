@@ -56,6 +56,7 @@ enum Commands {
     },
 }
 
+// TODO: Register in main.rs CLI under contract subcommands
 #[allow(dead_code)]
 pub async fn run(opts: &Opts) -> Result<()> {
     match &opts.command {

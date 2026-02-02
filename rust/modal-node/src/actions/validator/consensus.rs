@@ -211,6 +211,7 @@ fn create_validator_block(
 }
 
 /// Spawn a background task to run the Shoal consensus loop.
+// TODO: Integrate with node startup for validator mode
 #[allow(dead_code)]
 pub async fn spawn_consensus_loop(
     shoal_validator: modal_validator::ShoalValidator,
