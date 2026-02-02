@@ -1,12 +1,12 @@
 # Modality ⲙ
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/modality-org/modality/main/docs/static/img/modality_banner.jpg" alt="Modality Banner" width="50%" />
+  <img src="https://raw.githubusercontent.com/modality-org/modality/main/docs/static/img/modality-social-card.png" alt="Modality Banner" width="600" />
 </div>
 
 <div align="center">
 
-⚙️ [Documentation](https://www.modality.org/docs) | 🌟 [Examples](https://github.com/modality-org/modality/examples) | 💬 [Community](https://discuss.modality.org/)
+⚙️ [Documentation](https://docs.modality.org) | 🌟 [Examples](https://github.com/modality-org/modality/tree/main/examples) | 💬 [Community](https://discord.gg/modality)
 
 </div>
 
