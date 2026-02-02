@@ -20,7 +20,7 @@ export default function Home(): JSX.Element {
           </p>
           <p className={styles.description}>
             Modality enables agents to negotiate and verify cooperation through formal verification.
-            Define contracts, prove commitments, and build trust through math — not faith.
+            Define modal contracts as append-only logs of signed commits, and prove commitments with temporal logic.
           </p>
         </div>
 
@@ -33,7 +33,7 @@ export default function Home(): JSX.Element {
 
         <div className={styles.features}>
           <div className={styles.feature}>
-            <h3>🔐 Verifiable Contracts</h3>
+            <h3>🔐 Modal Contracts</h3>
             <p>
               Define state machines with temporal logic formulas that are formally verified.
               Know your contracts are correct before deployment.
