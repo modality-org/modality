@@ -93,7 +93,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Modality. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Modality. Inspired by <a href="https://scholar.google.com/citations?user=X0LE5YYAAAAJ" target="_blank">Bud Mishra</a>'s work on formal verification.`,
     },
     prism: {
       theme: prismThemes.github,

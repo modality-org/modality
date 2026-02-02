@@ -56,6 +56,8 @@ model escrow {
 }
 ```
 
+The model structure itself enforces ordering: RELEASE can only happen from `delivered` state, so DELIVER must precede RELEASE.
+
 ## 5. Commit and Verify
 
 ```bash

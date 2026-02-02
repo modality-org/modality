@@ -51,12 +51,12 @@ Create `rules/auth.modality`:
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
-    )
+    signed_by(/users/alice.id) | signed_by(/users/bob.id)
   }
 }
 ```
+
+This rule requires every commit to be signed by either Alice or Bob.
 
 ## Step 3: Alice Commits the Setup (Signed)
 
