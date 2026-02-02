@@ -24,6 +24,7 @@ cd rust && cargo build --release
 | `modal contract` | `modal c` | Contract management (create, commit, push, pull) |
 | `modal id` | `modal identity` | Identity management (create, derive, get) |
 | `modal passfile` | — | Passfile encryption/decryption |
+| `modal hub` | — | Contract hub server and collaboration |
 | `modal predicate` | — | Predicate listing and testing |
 | `modal program` | — | Program management |
 | `modal node` | — | Network node operations |
