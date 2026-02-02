@@ -171,7 +171,7 @@ pub fn evaluate_threshold_valid(input: &PredicateInput) -> PredicateResult {
 }
 
 /// Correlate threshold predicates
-pub fn correlate_threshold(inputs: &[CorrelationInput]) -> CorrelationResult {
+pub fn correlate_threshold(_inputs: &[CorrelationInput]) -> CorrelationResult {
     // Threshold predicates on the same signer set can have contradictions
     // e.g., threshold(3, [...]) AND threshold(1, [...]) - the 3 dominates
     // For now, return satisfiable (complex to detect without signer set comparison)

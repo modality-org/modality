@@ -487,7 +487,7 @@ pub mod templates {
         let mut model = Model::new("Subscription".to_string());
         let mut part = Part::new("access".to_string());
         
-        let signer_provider = format!("SIGNED_BY_{}", provider.to_uppercase());
+        let _signer_provider = format!("SIGNED_BY_{}", provider.to_uppercase());
         let signer_subscriber = format!("SIGNED_BY_{}", subscriber.to_uppercase());
         
         // init --> subscribed: +SUBSCRIBE +PAY +SIGNED_BY_SUBSCRIBER
@@ -550,7 +550,7 @@ pub mod templates {
         // Then: milestone_complete --> milestone_paid: +PAY_X +SIGNED_BY_CLIENT
         let mut prev_state = "started".to_string();
         
-        for (i, milestone_name) in milestones.iter().enumerate() {
+        for (_i, milestone_name) in milestones.iter().enumerate() {
             let complete_state = format!("{}_complete", milestone_name.to_lowercase().replace(' ', "_"));
             let paid_state = format!("{}_paid", milestone_name.to_lowercase().replace(' ', "_"));
             

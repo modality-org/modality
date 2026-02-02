@@ -187,7 +187,7 @@ pub fn evaluate_oracle_bool(input: &PredicateInput) -> PredicateResult {
 }
 
 /// Correlate oracle predicates
-pub fn correlate_oracle(inputs: &[CorrelationInput]) -> CorrelationResult {
+pub fn correlate_oracle(_inputs: &[CorrelationInput]) -> CorrelationResult {
     // Oracle predicates don't typically contradict each other
     // unless they check the same claim with different expected values
     CorrelationResult::ok(10)
