@@ -7,11 +7,13 @@ const config: Config = {
   tagline: 'A verification language for AI agent cooperation',
   favicon: 'img/favicon.ico',
 
-  url: 'https://modality.dev',
+  url: 'https://docs.modality.org',
   baseUrl: '/',
 
   organizationName: 'modality-org',
   projectName: 'modality',
+  deploymentBranch: 'gh-pages',
+  trailingSlash: false,
 
   onBrokenLinks: 'warn',
   onBrokenMarkdownLinks: 'warn',
