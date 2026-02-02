@@ -8,9 +8,11 @@ use modality_lang::parse_content_lalrpop;
 
 mod semantic_tokens;
 mod formatter;
+mod code_actions;
 
 use semantic_tokens::{compute_semantic_tokens, tokens_to_lsp, get_legend};
 use formatter::format_document;
+use code_actions::compute_code_actions;
 
 /// Document state stored for each open file
 struct Document {
@@ -739,6 +741,15 @@ impl LanguageServer for ModalityLanguageServer {
                     ),
                 ),
                 document_formatting_provider: Some(OneOf::Left(true)),
+                code_action_provider: Some(CodeActionProviderCapability::Options(
+                    CodeActionOptions {
+                        code_action_kinds: Some(vec![
+                            CodeActionKind::QUICKFIX,
+                            CodeActionKind::REFACTOR,
+                        ]),
+                        ..Default::default()
+                    },
+                )),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -922,6 +933,29 @@ impl LanguageServer for ModalityLanguageServer {
             let text = doc.content.to_string();
             let edits = format_document(&text, &params.options);
             return Ok(Some(edits));
+        }
+        
+        Ok(None)
+    }
+
+    async fn code_action(
+        &self,
+        params: CodeActionParams,
+    ) -> Result<Option<CodeActionResponse>> {
+        let uri_str = params.text_document.uri.to_string();
+        
+        if let Some(doc) = self.documents.get(&uri_str) {
+            let text = doc.content.to_string();
+            let actions = compute_code_actions(
+                &text,
+                params.range,
+                &params.context.diagnostics,
+                &params.text_document.uri,
+            );
+            
+            if !actions.is_empty() {
+                return Ok(Some(actions));
+            }
         }
         
         Ok(None)

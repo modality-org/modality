@@ -104,6 +104,7 @@ Add to settings:
 | textDocument/documentSymbol | ✅ |
 | textDocument/semanticTokens/full | ✅ |
 | textDocument/formatting | ✅ |
+| textDocument/codeAction | ✅ |
 | textDocument/publishDiagnostics | ✅ |
 
 ## Semantic Token Types
@@ -121,9 +122,16 @@ Add to settings:
 | macro | temporal operators (always, eventually) |
 | parameter | fixed-point variables (X in lfp) |
 
+## Code Actions
+
+| Action | Description |
+|--------|-------------|
+| Add missing state | Add a state referenced in transitions to the states block |
+| Add self-loop | Add self-loop for terminal states |
+| Wrap in always() | Refactor: wrap formula in always() for invariants |
+
 ## Roadmap
 
-- [ ] Code actions (quick fixes)
 - [ ] Rename symbol
 - [ ] Workspace symbols (cross-file navigation)
 - [ ] Signature help
