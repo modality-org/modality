@@ -7,7 +7,10 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 use modality_lang::parse_content_lalrpop;
 
 mod semantic_tokens;
+mod formatter;
+
 use semantic_tokens::{compute_semantic_tokens, tokens_to_lsp, get_legend};
+use formatter::format_document;
 
 /// Document state stored for each open file
 struct Document {
@@ -735,6 +738,7 @@ impl LanguageServer for ModalityLanguageServer {
                         },
                     ),
                 ),
+                document_formatting_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -903,6 +907,21 @@ impl LanguageServer for ModalityLanguageServer {
                 result_id: None,
                 data,
             })));
+        }
+        
+        Ok(None)
+    }
+
+    async fn formatting(
+        &self,
+        params: DocumentFormattingParams,
+    ) -> Result<Option<Vec<TextEdit>>> {
+        let uri = params.text_document.uri.to_string();
+        
+        if let Some(doc) = self.documents.get(&uri) {
+            let text = doc.content.to_string();
+            let edits = format_document(&text, &params.options);
+            return Ok(Some(edits));
         }
         
         Ok(None)

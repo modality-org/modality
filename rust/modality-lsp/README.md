@@ -102,13 +102,28 @@ Add to settings:
 | textDocument/definition | ✅ |
 | textDocument/references | ✅ |
 | textDocument/documentSymbol | ✅ |
+| textDocument/semanticTokens/full | ✅ |
+| textDocument/formatting | ✅ |
 | textDocument/publishDiagnostics | ✅ |
+
+## Semantic Token Types
+
+| Token | Applies To |
+|-------|-----------|
+| keyword | model, rule, formula, states, etc. |
+| type | state names |
+| function | predicates (signed_by, threshold) |
+| operator | modal operators ([<+>], <+>) |
+| variable | action names (UPPERCASE) |
+| string | paths (/path/to/id) |
+| number | numeric literals |
+| comment | // comments |
+| macro | temporal operators (always, eventually) |
+| parameter | fixed-point variables (X in lfp) |
 
 ## Roadmap
 
-- [ ] Semantic tokens (enhanced highlighting)
 - [ ] Code actions (quick fixes)
-- [ ] Formatting
 - [ ] Rename symbol
 - [ ] Workspace symbols (cross-file navigation)
 - [ ] Signature help
