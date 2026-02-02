@@ -5,7 +5,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'Modality',
   tagline: 'A verification language for AI agent cooperation',
-  favicon: 'img/favicon.ico',
+  favicon: 'img/favicon.svg',
 
   url: 'https://docs.modality.org',
   baseUrl: '/',
@@ -40,7 +40,7 @@ const config: Config = {
   ],
 
   themeConfig: {
-    image: 'img/modality-social-card.png',
+    image: 'img/modality-social-card.svg',
     navbar: {
       title: 'Modality',
       logo: {
