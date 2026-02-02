@@ -142,10 +142,10 @@ jobs:
         working-directory: docs
         run: npm run build
 
-  release-build:
-    name: Release Build
+  build-release:
+    name: Build (Release Mode)
     runs-on: ubuntu-latest
-    # Only run on main branch pushes to avoid slow builds on PRs
+    # Only run on main to verify release compilation - does NOT publish anything
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
@@ -176,6 +176,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake clang libssl-dev pkg-config
           
-      - name: Build release
+      - name: Verify release build compiles
         working-directory: rust
         run: cargo build --release
