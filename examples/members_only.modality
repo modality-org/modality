@@ -6,9 +6,9 @@
 // State:
 //   /members.json → ["alice_pubkey", "bob_pubkey", ...]
 //
-// Hub validates:
-//   - Any commit: at least one signer must be in /members.json
-//   - ADD_MEMBER action: ALL members must sign
+// Commits use rule_for_this_commit to specify signature requirements:
+//   - Regular posts: any_signed(/members.json)
+//   - ADD_MEMBER: all_signed(/members.json)
 
 model members_only {
   initial active
@@ -23,7 +23,24 @@ model members_only {
   active -> active [+REMOVE_MEMBER]
 }
 
-// Note: Validation is handled by hub, not modal rules.
-// Hub checks /members.json to determine:
-//   1. Who can commit (any member)
-//   2. ADD_MEMBER requires all members to sign
+// Example commit for posting data (any member can sign):
+// {
+//   "head": {
+//     "rule_for_this_commit": "any_signed(/members.json)",
+//     "signatures": [{"signer": "bob_key", "sig": "..."}]
+//   },
+//   "body": [{"method": "post", "path": "/data/hello.txt", "value": "Hello"}]
+// }
+
+// Example commit for adding a member (all must sign):
+// {
+//   "head": {
+//     "rule_for_this_commit": "all_signed(/members.json)",
+//     "signatures": [
+//       {"signer": "alice_key", "sig": "..."},
+//       {"signer": "bob_key", "sig": "..."},
+//       {"signer": "carol_key", "sig": "..."}
+//     ]
+//   },
+//   "body": [{"method": "post", "path": "/members.json", "value": ["alice_key", "bob_key", "carol_key", "dave_key"]}]
+// }

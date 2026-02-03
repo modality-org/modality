@@ -2,140 +2,155 @@
 
 A contract where only members can post, and adding new members requires unanimous consent.
 
+Rules are encoded in commits via `rule_for_this_commit`, not in hub handlers.
+
 ## State Structure
 
 ```
-/members.json → ["alice_pubkey", "bob_pubkey", "carol_pubkey"]
+/members.json → ["alice_key", "bob_key", "carol_key"]
 ```
 
-## Hub Validation
+## Formula Types
 
-1. **Any commit** → must be signed by at least one member
-2. **ADD_MEMBER action** → must be signed by ALL members
+- `any_signed(/members.json)` - at least one member must sign
+- `all_signed(/members.json)` - ALL members must sign
 
-## Setup
+## Commit Structure
 
-```bash
-modal hub start --port 3000 --data-dir ./members-hub
+Every commit specifies its signature requirement:
+
+```json
+{
+  "head": {
+    "rule_for_this_commit": "any_signed(/members.json)",
+    "signatures": [{"signer": "bob_key", "sig": "..."}]
+  },
+  "body": [...]
+}
 ```
 
-## 1. Create Contract (First Member)
+Hub evaluates `rule_for_this_commit` against signatures and contract state.
 
-```bash
-mkdir contract && cd contract
-modal contract create --id members_contract
+## Example: Initialize Contract
 
-# Create founder identity
-modal identity create alice
-ALICE_KEY=$(modal identity show alice --public-key)
+First commit has no members yet, so anyone can create:
 
-# Initialize with first member (anyone can add first member)
-modal contract commit --method post \
-  --path /members.json \
-  --value "[\"$ALICE_KEY\"]" \
-  --sign alice
-
-modal contract remote add origin http://localhost:3000
-modal contract push
+```json
+{
+  "head": {
+    "signatures": [{"signer": "alice_key", "sig": "..."}]
+  },
+  "body": [
+    {"method": "post", "path": "/members.json", "value": ["alice_key"]}
+  ]
+}
 ```
 
-## 2. Add Second Member (Alice Signs)
+## Example: Add Second Member
 
-```bash
-# Alice adds Bob - only Alice needs to sign (she's the only member)
-modal identity create bob
-BOB_KEY=$(modal identity show bob --public-key)
+Alice is the only member, so she alone can add Bob:
 
-modal contract commit --method post \
-  --path /members.json \
-  --value "[\"$ALICE_KEY\", \"$BOB_KEY\"]" \
-  --sign alice
-
-modal contract commit --method action --action ADD_MEMBER \
-  --params "{\"new_member\": \"$BOB_KEY\"}" \
-  --sign alice
-
-modal contract push
+```json
+{
+  "head": {
+    "rule_for_this_commit": "all_signed(/members.json)",
+    "signatures": [{"signer": "alice_key", "sig": "..."}]
+  },
+  "body": [
+    {"method": "post", "path": "/members.json", "value": ["alice_key", "bob_key"]}
+  ]
+}
 ```
 
-## 3. Add Third Member (Alice + Bob Sign)
+## Example: Add Third Member
 
-```bash
-modal identity create carol
-CAROL_KEY=$(modal identity show carol --public-key)
+Now both Alice and Bob must sign:
 
-# Both Alice AND Bob must sign
-modal contract commit --method post \
-  --path /members.json \
-  --value "[\"$ALICE_KEY\", \"$BOB_KEY\", \"$CAROL_KEY\"]" \
-  --sign alice --sign bob
-
-modal contract commit --method action --action ADD_MEMBER \
-  --params "{\"new_member\": \"$CAROL_KEY\"}" \
-  --sign alice --sign bob
-
-modal contract push
+```json
+{
+  "head": {
+    "rule_for_this_commit": "all_signed(/members.json)",
+    "signatures": [
+      {"signer": "alice_key", "sig": "..."},
+      {"signer": "bob_key", "sig": "..."}
+    ]
+  },
+  "body": [
+    {"method": "post", "path": "/members.json", "value": ["alice_key", "bob_key", "carol_key"]}
+  ]
+}
 ```
 
-## 4. Members Can Post Data
+## Example: Member Posts Data
 
-```bash
-# Bob posts some data (only his signature needed)
-modal contract commit --method post \
-  --path /data/hello.text \
-  --value "Hello from Bob" \
-  --sign bob
+Any member can post (using `any_signed`):
 
-modal contract push  # ✓ Accepted (Bob is a member)
+```json
+{
+  "head": {
+    "rule_for_this_commit": "any_signed(/members.json)",
+    "signatures": [{"signer": "bob_key", "sig": "..."}]
+  },
+  "body": [
+    {"method": "post", "path": "/data/message.txt", "value": "Hello from Bob"}
+  ]
+}
 ```
 
-## 5. Non-Member Rejected
+## Example: Non-Member Rejected
 
-```bash
-modal identity create stranger
-STRANGER_KEY=$(modal identity show stranger --public-key)
+Stranger tries to post:
 
-# Stranger tries to post
-modal contract commit --method post \
-  --path /data/hack.text \
-  --value "Unauthorized!" \
-  --sign stranger
-
-modal contract push
-# Error: -32060 - Commit must be signed by a member
+```json
+{
+  "head": {
+    "rule_for_this_commit": "any_signed(/members.json)",
+    "signatures": [{"signer": "stranger_key", "sig": "..."}]
+  },
+  "body": [
+    {"method": "post", "path": "/data/hack.txt", "value": "Unauthorized!"}
+  ]
+}
 ```
 
-## 6. Partial Signatures Rejected for ADD_MEMBER
+**Hub rejects:** `stranger_key` not in `/members.json`
 
-```bash
-modal identity create dave
-DAVE_KEY=$(modal identity show dave --public-key)
+## Example: Partial Signatures Rejected
 
-# Only Alice and Bob sign (Carol missing)
-modal contract commit --method post \
-  --path /members.json \
-  --value "[\"$ALICE_KEY\", \"$BOB_KEY\", \"$CAROL_KEY\", \"$DAVE_KEY\"]" \
-  --sign alice --sign bob
+Adding Dave but Carol didn't sign:
 
-modal contract commit --method action --action ADD_MEMBER \
-  --params "{\"new_member\": \"$DAVE_KEY\"}" \
-  --sign alice --sign bob
-
-modal contract push
-# Error: -32061 - ADD_MEMBER requires all 3 members to sign
+```json
+{
+  "head": {
+    "rule_for_this_commit": "all_signed(/members.json)",
+    "signatures": [
+      {"signer": "alice_key", "sig": "..."},
+      {"signer": "bob_key", "sig": "..."}
+    ]
+  },
+  "body": [
+    {"method": "post", "path": "/members.json", "value": ["alice_key", "bob_key", "carol_key", "dave_key"]}
+  ]
+}
 ```
+
+**Hub rejects:** `all_signed(/members.json)` requires carol_key
 
 ## Key Points
 
-1. **`/members.json`** is the source of truth for membership
-2. **First member** can be added by anyone (bootstrap)
-3. **Subsequent members** require ALL existing members to sign
-4. **Regular posts** need just one member's signature
-5. **No path interpolation** - hub reads /members.json directly
+1. **Rules in commits, not hub** - each commit declares its signature requirement
+2. **Formulas resolve state** - `all_signed(/members.json)` reads current members
+3. **Hub evaluates formulas** - `validate_rule_for_this_commit_with_state()`
+4. **Dynamic membership** - list grows/shrinks, formula always checks current state
+5. **No custom handlers** - generic formula evaluation handles all cases
 
-## Error Codes
+## Formula Reference
 
-| Code | Error | Description |
-|------|-------|-------------|
-| -32060 | Not a member | Commit signer not in /members.json |
-| -32061 | Incomplete signatures | ADD_MEMBER missing required signatures |
+| Formula | Meaning |
+|---------|---------|
+| `signed_by(key)` | Must be signed by specific key |
+| `signed_by_n(n, [k1, k2, ...])` | At least n of listed keys |
+| `any_signed(/path.json)` | At least one value from array at path |
+| `all_signed(/path.json)` | All values from array at path |
+| `f1 & f2` | Both formulas must hold |
+| `f1 \| f2` | Either formula must hold |
