@@ -1,57 +1,64 @@
 // Bank Deposits Contract
 //
-// A bank that accepts deposits from multiple parties.
-// Each party can only withdraw up to their deposited balance.
-//
-// Balances are tracked at /bank/balances/{party}.json
-// Parties are registered at /bank/parties/{name}.id
+// A multi-account bank on a single contract.
+// Each account's balance tracked at /bank/accounts/{account_id}.json
+// Withdrawals verified against balance using balance_sufficient predicate.
 
 model bank {
   initial open
   
-  // Anyone can deposit (must sign their own deposit)
-  open -> open [+DEPOSIT]
+  // Register new account (admin only)
+  open -> open [+REGISTER_ACCOUNT +signed_by(/bank/admin.id)]
   
-  // Withdrawals return to open state
+  // Deposit to any registered account
+  open -> open [+DEPOSIT +signed_by(/action/account.id)]
+  
+  // Withdraw from account (requires balance check)
   open -> open [+WITHDRAW]
   
-  // Bank admin can pause/resume
+  // Admin controls
   open -> paused [+PAUSE +signed_by(/bank/admin.id)]
   paused -> open [+RESUME +signed_by(/bank/admin.id)]
 }
 
-// Rule: deposits must be signed by the depositor
-rule deposit_must_be_signed {
-  starting_at $PARENT
-  formula {
-    always (
-      // DEPOSIT action must include depositor field
-      // and be signed by that depositor
-      [+DEPOSIT] implies signed_by(/action/depositor.id)
-    )
-  }
-}
-
-// Rule: withdrawals must be signed by the withdrawer
-// and amount must not exceed their balance
-rule withdrawal_authorization {
+// Rule: withdrawals must be signed by account owner AND have sufficient balance
+// The runtime extracts balance from /bank/accounts/{account_id}.json
+// and passes it to balance_sufficient predicate
+rule withdrawal_limit {
   starting_at $PARENT
   formula {
     always (
       [+WITHDRAW] implies (
-        signed_by(/action/withdrawer.id) &
-        lte(/action/amount, /bank/balances/{/action/withdrawer})
+        signed_by(/action/account.id) &
+        balance_sufficient(
+          /bank/accounts/{/action/account_id}.json:balance,
+          /action/amount
+        )
       )
     )
   }
 }
 
-// Rule: no withdrawals when paused
-rule no_withdraw_when_paused {
+// Rule: deposits must be signed by the depositing account
+rule deposit_authorization {
   starting_at $PARENT
   formula {
     always (
-      in_state(paused) implies [-WITHDRAW] true
+      [+DEPOSIT] implies signed_by(/action/account.id)
+    )
+  }
+}
+
+// Rule: no operations when paused except admin resume
+rule pause_protection {
+  starting_at $PARENT
+  formula {
+    always (
+      in_state(paused) implies (
+        [-DEPOSIT] true &
+        [-WITHDRAW] true &
+        [-REGISTER_ACCOUNT] true
+      )
     )
   }
 }

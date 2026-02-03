@@ -1,10 +1,19 @@
-# Bank Deposits Hub Scenario
+# Multi-Account Bank Hub Scenario
 
-Multi-party bank where depositors can only withdraw up to their balance.
+Single contract with multiple accounts. Each account can only withdraw up to their balance, enforced via `balance_sufficient` predicate.
+
+## Architecture
+
+```
+/bank/admin.id          → admin public key
+/bank/accounts/
+  alice.json            → { id: "...", balance: 500 }
+  bob.json              → { id: "...", balance: 1000 }
+  charlie.json          → { id: "...", balance: 250 }
+```
 
 ## Setup
 
-Start hub:
 ```bash
 modal hub start --port 3000 --data-dir ./bank-hub
 ```
@@ -13,148 +22,197 @@ modal hub start --port 3000 --data-dir ./bank-hub
 
 ```bash
 mkdir bank && cd bank
-modal contract create --id modal_bank_001
+modal contract create --id multi_account_bank
 
-# Register as bank admin
+# Create admin identity
 modal identity create admin
 ADMIN_ID=$(modal identity show admin --public-key)
 
-# Setup bank
+# Initialize bank
 modal contract commit --method post --path /bank/admin.id --value "$ADMIN_ID" --sign admin
 modal contract commit --method post --path /bank/name.text --value "Modal Bank" --sign admin
 
-# Add bank model
-cat > model.modality << 'EOF'
+# Add model
+modal contract commit --method post --path /bank/model.modality --value '
 model bank {
   initial open
-  open -> open [+DEPOSIT]
-  open -> open [+WITHDRAW]  
+  open -> open [+REGISTER_ACCOUNT +signed_by(/bank/admin.id)]
+  open -> open [+DEPOSIT +signed_by(/action/account.id)]
+  open -> open [+WITHDRAW]
   open -> paused [+PAUSE +signed_by(/bank/admin.id)]
   paused -> open [+RESUME +signed_by(/bank/admin.id)]
 }
-EOF
-modal contract commit --method post --path /bank/model.modality --file model.modality --sign admin
+' --sign admin
 
-# Add withdrawal rule
-cat > withdraw_rule.modality << 'EOF'
+# Add withdrawal rule with balance_sufficient predicate
+modal contract commit --method rule --value '
 rule withdrawal_limit {
   starting_at $PARENT
   formula {
     always (
       [+WITHDRAW] implies (
-        signed_by(/action/withdrawer.id) &
-        lte(/action/amount, /bank/balances/{/action/withdrawer})
+        signed_by(/action/account.id) &
+        balance_sufficient(
+          /bank/accounts/{/action/account_id}.json:balance,
+          /action/amount
+        )
       )
     )
   }
 }
-EOF
-modal contract commit --method rule --file withdraw_rule.modality --sign admin
+' --sign admin
 
 # Push to hub
 modal contract remote add origin http://localhost:3000
 modal contract push
 ```
 
-## 2. Alice Joins and Deposits
+## 2. Register Accounts
 
 ```bash
-mkdir ../alice && cd ../alice
-modal contract create --id modal_bank_001
-modal contract remote add origin http://localhost:3000
-modal contract pull
-
-# Create Alice's identity
+# Create identities for each user
 modal identity create alice
-ALICE_ID=$(modal identity show alice --public-key)
-
-# Register as party
-modal contract commit --method post --path /bank/parties/alice.id --value "$ALICE_ID" --sign alice
-
-# Initialize balance and deposit 500
-modal contract commit --method post --path /bank/balances/alice.json --value '{"amount": 500}' --sign alice
-modal contract commit --method action --action DEPOSIT --params '{"depositor": "alice", "amount": 500}' --sign alice
-
-modal contract push
-```
-
-## 3. Bob Joins and Deposits
-
-```bash
-mkdir ../bob && cd ../bob
-modal contract create --id modal_bank_001
-modal contract remote add origin http://localhost:3000
-modal contract pull
-
-# Create Bob's identity  
 modal identity create bob
-BOB_ID=$(modal identity show bob --public-key)
+modal identity create charlie
 
-# Register and deposit 1000
-modal contract commit --method post --path /bank/parties/bob.id --value "$BOB_ID" --sign bob
-modal contract commit --method post --path /bank/balances/bob.json --value '{"amount": 1000}' --sign bob
-modal contract commit --method action --action DEPOSIT --params '{"depositor": "bob", "amount": 1000}' --sign bob
+ALICE_ID=$(modal identity show alice --public-key)
+BOB_ID=$(modal identity show bob --public-key)
+CHARLIE_ID=$(modal identity show charlie --public-key)
+
+# Admin registers accounts
+modal contract commit --method post \
+  --path /bank/accounts/alice.json \
+  --value "{\"id\": \"$ALICE_ID\", \"balance\": 0}" \
+  --sign admin
+modal contract commit --method action --action REGISTER_ACCOUNT \
+  --params '{"account_id": "alice"}' --sign admin
+
+modal contract commit --method post \
+  --path /bank/accounts/bob.json \
+  --value "{\"id\": \"$BOB_ID\", \"balance\": 0}" \
+  --sign admin
+modal contract commit --method action --action REGISTER_ACCOUNT \
+  --params '{"account_id": "bob"}' --sign admin
+
+modal contract commit --method post \
+  --path /bank/accounts/charlie.json \
+  --value "{\"id\": \"$CHARLIE_ID\", \"balance\": 0}" \
+  --sign admin
+modal contract commit --method action --action REGISTER_ACCOUNT \
+  --params '{"account_id": "charlie"}' --sign admin
 
 modal contract push
 ```
 
-## 4. Alice Withdraws
+## 3. Deposits
 
 ```bash
-cd ../alice
-modal contract pull  # Get Bob's deposits
+# Alice deposits 500
+modal contract commit --method post \
+  --path /bank/accounts/alice.json \
+  --value "{\"id\": \"$ALICE_ID\", \"balance\": 500}" \
+  --sign alice
+modal contract commit --method action --action DEPOSIT \
+  --params '{"account_id": "alice", "amount": 500}' \
+  --sign alice
 
-# Alice withdraws 200 (valid: 200 <= 500)
-modal contract commit --method post --path /bank/balances/alice.json --value '{"amount": 300}' --sign alice
-modal contract commit --method action --action WITHDRAW --params '{"withdrawer": "alice", "amount": 200}' --sign alice
+# Bob deposits 1000
+modal contract commit --method post \
+  --path /bank/accounts/bob.json \
+  --value "{\"id\": \"$BOB_ID\", \"balance\": 1000}" \
+  --sign bob
+modal contract commit --method action --action DEPOSIT \
+  --params '{"account_id": "bob", "amount": 1000}' \
+  --sign bob
+
+# Charlie deposits 250
+modal contract commit --method post \
+  --path /bank/accounts/charlie.json \
+  --value "{\"id\": \"$CHARLIE_ID\", \"balance\": 250}" \
+  --sign charlie
+modal contract commit --method action --action DEPOSIT \
+  --params '{"account_id": "charlie", "amount": 250}' \
+  --sign charlie
 
 modal contract push
+```
+
+## 4. Valid Withdrawal
+
+```bash
+# Alice withdraws 200 (valid: 200 <= 500)
+modal contract commit --method post \
+  --path /bank/accounts/alice.json \
+  --value "{\"id\": \"$ALICE_ID\", \"balance\": 300}" \
+  --sign alice
+modal contract commit --method action --action WITHDRAW \
+  --params '{"account_id": "alice", "amount": 200}' \
+  --sign alice
+
+modal contract push  # ✓ Accepted
 ```
 
 ## 5. Invalid Withdrawal (Rejected)
 
 ```bash
-cd ../bob
-modal contract pull
+# Charlie tries to withdraw 500 (invalid: 500 > 250)
+modal contract commit --method post \
+  --path /bank/accounts/charlie.json \
+  --value "{\"id\": \"$CHARLIE_ID\", \"balance\": -250}" \
+  --sign charlie
+modal contract commit --method action --action WITHDRAW \
+  --params '{"account_id": "charlie", "amount": 500}' \
+  --sign charlie
 
-# Bob tries to withdraw 2000 (invalid: 2000 > 1000)
-# This would be rejected by the rule
-modal contract commit --method post --path /bank/balances/bob.json --value '{"amount": -1000}' --sign bob
-modal contract commit --method action --action WITHDRAW --params '{"withdrawer": "bob", "amount": 2000}' --sign bob
-
-modal contract push  # Hub rejects: violates withdrawal_limit rule
+modal contract push
+# Error: Rule violation: balance_sufficient(250, 500) = false
+# Insufficient balance for account 'charlie': have 250, need 500
 ```
 
-## 6. Check State
+## 6. Unauthorized Withdrawal (Rejected)
 
 ```bash
-cd ../bank
-modal contract pull
+# Bob tries to withdraw from Alice's account
+modal contract commit --method action --action WITHDRAW \
+  --params '{"account_id": "alice", "amount": 100}' \
+  --sign bob
+
+modal contract push
+# Error: Rule violation: signed_by(/action/account.id) = false
+# Withdrawal must be signed by account owner
+```
+
+## Predicate: balance_sufficient
+
+The `balance_sufficient` predicate validates:
+
+```rust
+Input {
+    balance: f64,  // from /bank/accounts/{id}.json:balance
+    amount: f64,   // from /action/amount
+    account: String
+}
+
+Returns: balance >= amount
+```
+
+Hub extracts balance from state at the path specified and passes to predicate.
+
+## State After Transactions
+
+```bash
 modal contract state
 
-# Output:
 # /bank/admin.id: "abc123..."
-# /bank/name.text: "Modal Bank"
-# /bank/parties/alice.id: "def456..."
-# /bank/parties/bob.id: "ghi789..."
-# /bank/balances/alice.json: {"amount": 300}
-# /bank/balances/bob.json: {"amount": 1000}
+# /bank/accounts/alice.json: {"id": "...", "balance": 300}
+# /bank/accounts/bob.json: {"id": "...", "balance": 1000}  
+# /bank/accounts/charlie.json: {"id": "...", "balance": 250}
 ```
 
 ## Key Points
 
-1. **Balance Tracking**: Each party's balance stored at `/bank/balances/{name}.json`
-2. **Withdrawal Rules**: `lte(/action/amount, /bank/balances/{/action/withdrawer})` ensures amount ≤ balance
-3. **Signature Required**: `signed_by(/action/withdrawer.id)` prevents others from withdrawing your funds
-4. **Hub Validation**: Hub rejects commits that violate rules before accepting them
-
-## State Machine
-
-```mermaid
-stateDiagram-v2
-    [*] --> open
-    open --> open: DEPOSIT
-    open --> open: WITHDRAW
-    open --> paused: PAUSE [admin]
-    paused --> open: RESUME [admin]
-```
+1. **Single contract, multiple accounts** - all in `/bank/accounts/`
+2. **Predicate-based validation** - `balance_sufficient` checks balance >= amount
+3. **Path interpolation** - `{/action/account_id}` resolves to account from action params
+4. **Two-layer auth** - must be signed by owner AND pass balance check
+5. **Hub enforces rules** - rejects commits that violate predicates

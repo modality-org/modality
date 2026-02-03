@@ -5,6 +5,7 @@ pub mod amount_in_range;
 pub mod has_property;
 pub mod timestamp_valid;
 pub mod post_to_path;
+pub mod balance_sufficient;
 
 // Text predicates - each in its own file
 pub mod text_common;
