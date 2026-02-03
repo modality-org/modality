@@ -4,43 +4,38 @@
 // Adding a new member requires ALL current members to sign.
 //
 // State:
-//   /members.json → ["alice_pubkey", "bob_pubkey", ...]
+//   /members/
+//     alice.id → "alice_pubkey"
+//     bob.id → "bob_pubkey"
+//     carol.id → "carol_pubkey"
 //
-// Commits use rule_for_this_commit to specify signature requirements:
-//   - Regular posts: any_signed(/members.json)
-//   - ADD_MEMBER: all_signed(/members.json)
+// Persistent rules enforce signature requirements.
 
 model members_only {
   initial active
   
-  // Members can post data
   active -> active [+POST]
-  
-  // Add new member (requires all current members)
   active -> active [+ADD_MEMBER]
-  
-  // Remove member (requires all remaining members)
   active -> active [+REMOVE_MEMBER]
 }
 
-// Example commit for posting data (any member can sign):
-// {
-//   "head": {
-//     "rule_for_this_commit": "any_signed(/members.json)",
-//     "signatures": [{"signer": "bob_key", "sig": "..."}]
-//   },
-//   "body": [{"method": "post", "path": "/data/hello.txt", "value": "Hello"}]
-// }
+// Any commit must be signed by at least one member
+rule member_required {
+  formula {
+    always (any_signed(/members))
+  }
+}
 
-// Example commit for adding a member (all must sign):
-// {
-//   "head": {
-//     "rule_for_this_commit": "all_signed(/members.json)",
-//     "signatures": [
-//       {"signer": "alice_key", "sig": "..."},
-//       {"signer": "bob_key", "sig": "..."},
-//       {"signer": "carol_key", "sig": "..."}
-//     ]
-//   },
-//   "body": [{"method": "post", "path": "/members.json", "value": ["alice_key", "bob_key", "carol_key", "dave_key"]}]
-// }
+// Adding a member requires ALL current members to sign
+rule add_member_unanimous {
+  formula {
+    always ([+ADD_MEMBER] implies all_signed(/members))
+  }
+}
+
+// Removing a member requires all REMAINING members to sign
+rule remove_member_unanimous {
+  formula {
+    always ([+REMOVE_MEMBER] implies all_signed(/members))
+  }
+}

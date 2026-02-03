@@ -231,19 +231,42 @@ pub fn evaluate_formula_with_state(
     }
 }
 
-/// Resolve a path in contract state to a list of strings
+/// Resolve a path in contract state to a list of identity strings
+/// 
+/// Supports two patterns:
+/// 1. Array value: /members.json → ["alice_key", "bob_key"]
+/// 2. Directory of .id files: /members → scans for /members/*.id values
 fn resolve_path_as_strings(state: &Value, path: &str) -> Vec<String> {
     let normalized = path.trim_start_matches('/');
     
-    state.get(normalized)
-        .or_else(|| state.get(path))
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                .collect()
-        })
-        .unwrap_or_default()
+    // First, try direct array lookup
+    if let Some(arr) = state.get(normalized).and_then(|v| v.as_array()) {
+        return arr.iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect();
+    }
+    
+    // Otherwise, scan for {path}/*.id entries in state
+    let prefix = if normalized.ends_with('/') {
+        normalized.to_string()
+    } else {
+        format!("{}/", normalized)
+    };
+    
+    let mut ids = Vec::new();
+    
+    if let Some(obj) = state.as_object() {
+        for (key, value) in obj {
+            // Match keys like "members/alice.id" when path is "members"
+            if key.starts_with(&prefix) && key.ends_with(".id") {
+                if let Some(id_value) = value.as_str() {
+                    ids.push(id_value.to_string());
+                }
+            }
+        }
+    }
+    
+    ids
 }
 
 /// Validate a commit's rule_for_this_commit against its signatures
@@ -441,10 +464,12 @@ mod tests {
     }
 
     #[test]
-    fn test_all_signed_success() {
-        let formula = CommitRuleFormula::AllSigned("/members.json".to_string());
+    fn test_all_signed_with_directory() {
+        let formula = CommitRuleFormula::AllSigned("/members".to_string());
         let state = serde_json::json!({
-            "members.json": ["alice_key", "bob_key", "carol_key"]
+            "members/alice.id": "alice_key",
+            "members/bob.id": "bob_key",
+            "members/carol.id": "carol_key"
         });
         let signers = vec![
             "alice_key".to_string(),
@@ -457,9 +482,11 @@ mod tests {
 
     #[test]
     fn test_all_signed_failure_missing_signer() {
-        let formula = CommitRuleFormula::AllSigned("/members.json".to_string());
+        let formula = CommitRuleFormula::AllSigned("/members".to_string());
         let state = serde_json::json!({
-            "members.json": ["alice_key", "bob_key", "carol_key"]
+            "members/alice.id": "alice_key",
+            "members/bob.id": "bob_key",
+            "members/carol.id": "carol_key"
         });
         // Missing carol_key
         let signers = vec!["alice_key".to_string(), "bob_key".to_string()];
@@ -469,8 +496,8 @@ mod tests {
 
     #[test]
     fn test_all_signed_empty_members_passes() {
-        let formula = CommitRuleFormula::AllSigned("/members.json".to_string());
-        let state = serde_json::json!({ "members.json": [] });
+        let formula = CommitRuleFormula::AllSigned("/members".to_string());
+        let state = serde_json::json!({});  // No members/*.id files
         let signers = vec!["anyone".to_string()];
         
         // Empty member list = trivially satisfied
@@ -478,10 +505,12 @@ mod tests {
     }
 
     #[test]
-    fn test_any_signed_success() {
-        let formula = CommitRuleFormula::AnySigned("/members.json".to_string());
+    fn test_any_signed_with_directory() {
+        let formula = CommitRuleFormula::AnySigned("/members".to_string());
         let state = serde_json::json!({
-            "members.json": ["alice_key", "bob_key", "carol_key"]
+            "members/alice.id": "alice_key",
+            "members/bob.id": "bob_key",
+            "members/carol.id": "carol_key"
         });
         // Only bob signed
         let signers = vec!["bob_key".to_string()];
@@ -491,9 +520,11 @@ mod tests {
 
     #[test]
     fn test_any_signed_failure_no_members_signed() {
-        let formula = CommitRuleFormula::AnySigned("/members.json".to_string());
+        let formula = CommitRuleFormula::AnySigned("/members".to_string());
         let state = serde_json::json!({
-            "members.json": ["alice_key", "bob_key", "carol_key"]
+            "members/alice.id": "alice_key",
+            "members/bob.id": "bob_key",
+            "members/carol.id": "carol_key"
         });
         // Stranger signed, not a member
         let signers = vec!["stranger_key".to_string()];
@@ -504,7 +535,8 @@ mod tests {
     #[test]
     fn test_validate_with_state_all_signed() {
         let state = serde_json::json!({
-            "members.json": ["alice_key", "bob_key"]
+            "members/alice.id": "alice_key",
+            "members/bob.id": "bob_key"
         });
         let sigs = vec![
             CommitSignature { signer: "alice_key".to_string(), sig: "sig1".to_string() },
@@ -512,7 +544,7 @@ mod tests {
         ];
         
         let result = validate_rule_for_this_commit_with_state(
-            "all_signed(/members.json)",
+            "all_signed(/members)",
             &sigs,
             &state,
         );
@@ -523,7 +555,9 @@ mod tests {
     #[test]
     fn test_validate_with_state_all_signed_fails() {
         let state = serde_json::json!({
-            "members.json": ["alice_key", "bob_key", "carol_key"]
+            "members/alice.id": "alice_key",
+            "members/bob.id": "bob_key",
+            "members/carol.id": "carol_key"
         });
         let sigs = vec![
             CommitSignature { signer: "alice_key".to_string(), sig: "sig1".to_string() },
@@ -532,11 +566,23 @@ mod tests {
         ];
         
         let result = validate_rule_for_this_commit_with_state(
-            "all_signed(/members.json)",
+            "all_signed(/members)",
             &sigs,
             &state,
         );
         
         assert!(result.is_err(), "Missing carol, should fail");
+    }
+
+    #[test]
+    fn test_all_signed_with_array_still_works() {
+        // Backward compat: array format still works
+        let formula = CommitRuleFormula::AllSigned("/signers.json".to_string());
+        let state = serde_json::json!({
+            "signers.json": ["alice_key", "bob_key"]
+        });
+        let signers = vec!["alice_key".to_string(), "bob_key".to_string()];
+        
+        assert!(evaluate_formula_with_state(&formula, &signers, &state));
     }
 }
