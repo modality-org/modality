@@ -56,6 +56,8 @@ const sidebars: SidebarsConfig = {
         'tutorials/multisig-treasury',
         'tutorials/oracle-escrow',
         'tutorials/contract-hub',
+        'tutorials/hub-and-assets',
+        'tutorials/js-sdk-hub',
       ],
     },
     {

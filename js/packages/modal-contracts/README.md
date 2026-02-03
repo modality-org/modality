@@ -174,6 +174,54 @@ const json = store.toJSON();
 const restored = ContractStore.fromJSON(json);
 ```
 
+### HubClient
+
+```javascript
+import { HubClient } from '@modality-dev/modal-contracts';
+
+const hub = new HubClient('http://localhost:3000');
+
+// Check hub health
+await hub.health();
+
+// Get contract info
+const info = await hub.getContract('my-contract', { includeState: true });
+
+// Submit commits
+await hub.submitCommit('my-contract', {
+  parent: null,
+  body: [{ method: 'post', path: '/data.json', value: { key: 'value' } }],
+  head: { signatures: { [publicKey]: signature } },
+});
+```
+
+### RemoteContract
+
+```javascript
+import { RemoteContract, Identity } from '@modality-dev/modal-contracts';
+
+const id = await Identity.generate();
+
+// Create contract synced with hub
+const contract = new RemoteContract({
+  id: 'my-contract',
+  hubUrl: 'http://localhost:3000',
+});
+await contract.init();
+
+// Make changes locally
+await contract.post('/data.json', { key: 'value' }, id);
+
+// Push to hub
+await contract.push();
+
+// Pull latest from hub
+await contract.pull();
+
+// Or sync both ways
+await contract.sync();
+```
+
 ## WASM Functions
 
 Direct access to Rust-powered parsing and verification:
