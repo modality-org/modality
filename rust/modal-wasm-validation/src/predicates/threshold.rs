@@ -83,7 +83,7 @@ pub fn evaluate_threshold(input: &PredicateInput) -> PredicateResult {
         let pubkey_bytes = match hex::decode(&sig_entry.signer) {
             Ok(b) => b,
             Err(_) => {
-                errors.push(format!("Invalid pubkey hex for signer"));
+                errors.push("Invalid pubkey hex for signer".to_string());
                 continue;
             }
         };

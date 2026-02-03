@@ -26,10 +26,8 @@ pub fn validate_program_result(result: &ProgramResult) -> Result<()> {
         }
 
         // Validate that actions requiring paths have them
-        if action.method == "post" || action.method == "rule" {
-            if action.path.is_none() {
-                anyhow::bail!("Action method '{}' requires a path", action.method);
-            }
+        if (action.method == "post" || action.method == "rule") && action.path.is_none() {
+            anyhow::bail!("Action method '{}' requires a path", action.method);
         }
     }
 

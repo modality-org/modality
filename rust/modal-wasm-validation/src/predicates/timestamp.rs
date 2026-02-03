@@ -196,24 +196,21 @@ pub fn correlate_after(input: &CorrelationInput) -> CorrelationResult {
     };
     
     for rule in &input.other_rules {
-        match rule.predicate.as_str() {
-            "timestamp_before" => {
-                if let Some(other_deadline) = rule.params.get("deadline").and_then(|v| v.as_i64()) {
-                    if deadline < other_deadline {
-                        formulas.push(format!(
-                            "timestamp_after($path, {}) & timestamp_before($path, {})",
-                            deadline, other_deadline
-                        ));
-                    } else {
-                        formulas.push(format!(
-                            "!(timestamp_after($path, {}) & timestamp_before($path, {}))",
-                            deadline, other_deadline
-                        ));
-                        satisfiable = false;
-                    }
+        if rule.predicate.as_str() == "timestamp_before" {
+            if let Some(other_deadline) = rule.params.get("deadline").and_then(|v| v.as_i64()) {
+                if deadline < other_deadline {
+                    formulas.push(format!(
+                        "timestamp_after($path, {}) & timestamp_before($path, {})",
+                        deadline, other_deadline
+                    ));
+                } else {
+                    formulas.push(format!(
+                        "!(timestamp_after($path, {}) & timestamp_before($path, {}))",
+                        deadline, other_deadline
+                    ));
+                    satisfiable = false;
                 }
             }
-            _ => {}
         }
     }
     
