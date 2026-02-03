@@ -65,6 +65,9 @@ pub enum CommitRuleFormula {
     /// any_signed(path) - at least one member at path must sign
     /// Reads array from contract state, requires at least ONE to be a signer
     AnySigned(String),
+    /// modifies(path_prefix) - commit modifies paths under this prefix
+    /// Returns true if any POST/DELETE in commit body touches paths starting with prefix
+    Modifies(String),
     /// Conjunction: formula1 & formula2
     And(Box<CommitRuleFormula>, Box<CommitRuleFormula>),
     /// Disjunction: formula1 | formula2  
@@ -115,6 +118,12 @@ pub fn parse_formula(formula: &str) -> Result<CommitRuleFormula> {
     if formula.starts_with("any_signed(") && formula.ends_with(')') {
         let inner = &formula[11..formula.len()-1];
         return Ok(CommitRuleFormula::AnySigned(inner.trim().to_string()));
+    }
+    
+    // Handle modifies(path) - commit touches paths under this prefix
+    if formula.starts_with("modifies(") && formula.ends_with(')') {
+        let inner = &formula[9..formula.len()-1];
+        return Ok(CommitRuleFormula::Modifies(inner.trim().to_string()));
     }
     
     bail!("Cannot parse commit rule formula: {}", formula);
@@ -171,62 +180,112 @@ fn parse_signed_by_n(formula: &str) -> Result<CommitRuleFormula> {
     Ok(CommitRuleFormula::SignedByN { required, signers })
 }
 
+/// Context for evaluating commit rule formulas
+#[derive(Debug, Clone, Default)]
+pub struct EvalContext<'a> {
+    /// Signers present on the commit
+    pub signers: &'a [String],
+    /// Current contract state (for resolving paths)
+    pub state: &'a Value,
+    /// Paths modified by the commit body
+    pub modified_paths: Vec<String>,
+}
+
+impl<'a> EvalContext<'a> {
+    pub fn new(signers: &'a [String], state: &'a Value, commit_body: &Value) -> Self {
+        let modified_paths = extract_modified_paths(commit_body);
+        Self { signers, state, modified_paths }
+    }
+}
+
+/// Extract paths modified by a commit body
+fn extract_modified_paths(body: &Value) -> Vec<String> {
+    let mut paths = Vec::new();
+    if let Some(actions) = body.as_array() {
+        for action in actions {
+            let method = action.get("method")
+                .and_then(|m| m.as_str())
+                .unwrap_or("");
+            
+            if matches!(method.to_lowercase().as_str(), "post" | "delete" | "rule") {
+                if let Some(path) = action.get("path").and_then(|p| p.as_str()) {
+                    paths.push(path.trim_start_matches('/').to_string());
+                }
+            }
+        }
+    }
+    paths
+}
+
 /// Evaluate a commit rule formula against a set of signatures
-/// 
-/// Note: This checks the structural requirement (sufficient signers present).
-/// The cryptographic signature verification should happen elsewhere using
-/// the actual message and public keys.
 pub fn evaluate_formula(
     formula: &CommitRuleFormula, 
     present_signers: &[String],
 ) -> bool {
-    evaluate_formula_with_state(formula, present_signers, &Value::Null)
+    let ctx = EvalContext {
+        signers: present_signers,
+        state: &Value::Null,
+        modified_paths: Vec::new(),
+    };
+    evaluate_formula_full(formula, &ctx)
 }
 
 /// Evaluate a commit rule formula with access to contract state
-/// 
-/// This allows formulas like all_signed(/members.json) to resolve
-/// the member list from contract state.
 pub fn evaluate_formula_with_state(
     formula: &CommitRuleFormula, 
     present_signers: &[String],
     contract_state: &Value,
 ) -> bool {
+    let ctx = EvalContext {
+        signers: present_signers,
+        state: contract_state,
+        modified_paths: Vec::new(),
+    };
+    evaluate_formula_full(formula, &ctx)
+}
+
+/// Evaluate a commit rule formula with full context
+pub fn evaluate_formula_full(
+    formula: &CommitRuleFormula, 
+    ctx: &EvalContext,
+) -> bool {
     match formula {
         CommitRuleFormula::SignedByN { required, signers } => {
             let count = signers.iter()
-                .filter(|s| present_signers.contains(s))
+                .filter(|s| ctx.signers.contains(s))
                 .count();
             count >= *required
         }
         CommitRuleFormula::SignedBy(signer) => {
-            present_signers.contains(signer)
+            ctx.signers.contains(signer)
         }
         CommitRuleFormula::AllSigned(path) => {
-            // Read array from state, require ALL to be signers
-            let members = resolve_path_as_strings(contract_state, path);
+            let members = resolve_path_as_strings(ctx.state, path);
             if members.is_empty() {
-                true // Empty list = trivially satisfied
+                true
             } else {
-                members.iter().all(|m| present_signers.contains(m))
+                members.iter().all(|m| ctx.signers.contains(m))
             }
         }
         CommitRuleFormula::AnySigned(path) => {
-            // Read array from state, require at least ONE to be a signer
-            let members = resolve_path_as_strings(contract_state, path);
+            let members = resolve_path_as_strings(ctx.state, path);
             if members.is_empty() {
-                true // Empty list = trivially satisfied (no restriction)
+                true
             } else {
-                members.iter().any(|m| present_signers.contains(m))
+                members.iter().any(|m| ctx.signers.contains(m))
             }
         }
+        CommitRuleFormula::Modifies(prefix) => {
+            let normalized = prefix.trim_start_matches('/');
+            ctx.modified_paths.iter().any(|p| {
+                p.starts_with(normalized) || p == normalized
+            })
+        }
         CommitRuleFormula::And(left, right) => {
-            evaluate_formula_with_state(left, present_signers, contract_state) 
-                && evaluate_formula_with_state(right, present_signers, contract_state)
+            evaluate_formula_full(left, ctx) && evaluate_formula_full(right, ctx)
         }
         CommitRuleFormula::Or(left, right) => {
-            evaluate_formula_with_state(left, present_signers, contract_state) 
-                || evaluate_formula_with_state(right, present_signers, contract_state)
+            evaluate_formula_full(left, ctx) || evaluate_formula_full(right, ctx)
         }
     }
 }
@@ -584,5 +643,121 @@ mod tests {
         let signers = vec!["alice_key".to_string(), "bob_key".to_string()];
         
         assert!(evaluate_formula_with_state(&formula, &signers, &state));
+    }
+
+    // ===== modifies() predicate tests =====
+
+    #[test]
+    fn test_parse_modifies() {
+        let formula = parse_formula("modifies(/members)").unwrap();
+        match formula {
+            CommitRuleFormula::Modifies(path) => {
+                assert_eq!(path, "/members");
+            }
+            _ => panic!("Expected Modifies formula"),
+        }
+    }
+
+    #[test]
+    fn test_modifies_matches_path() {
+        let formula = CommitRuleFormula::Modifies("/members".to_string());
+        let body = serde_json::json!([
+            {"method": "post", "path": "/members/dave.id", "value": "dave_key"}
+        ]);
+        let ctx = EvalContext::new(&[], &Value::Null, &body);
+        
+        assert!(evaluate_formula_full(&formula, &ctx));
+    }
+
+    #[test]
+    fn test_modifies_no_match() {
+        let formula = CommitRuleFormula::Modifies("/members".to_string());
+        let body = serde_json::json!([
+            {"method": "post", "path": "/data/notes.txt", "value": "hello"}
+        ]);
+        let ctx = EvalContext::new(&[], &Value::Null, &body);
+        
+        assert!(!evaluate_formula_full(&formula, &ctx));
+    }
+
+    #[test]
+    fn test_modifies_combined_with_signature() {
+        // modifies(/members) & all_signed(/members) 
+        let formula = parse_formula("modifies(/members) & all_signed(/members)").unwrap();
+        
+        let state = serde_json::json!({
+            "members/alice.id": "alice_key",
+            "members/bob.id": "bob_key"
+        });
+        let body = serde_json::json!([
+            {"method": "post", "path": "/members/carol.id", "value": "carol_key"}
+        ]);
+        let signers = vec!["alice_key".to_string(), "bob_key".to_string()];
+        let ctx = EvalContext::new(&signers, &state, &body);
+        
+        // Modifies /members: true, all_signed: true (alice + bob)
+        assert!(evaluate_formula_full(&formula, &ctx));
+    }
+
+    #[test]
+    fn test_modifies_data_any_signed() {
+        // modifies(/data) & any_signed(/members)
+        let formula = parse_formula("modifies(/data) & any_signed(/members)").unwrap();
+        
+        let state = serde_json::json!({
+            "members/alice.id": "alice_key",
+            "members/bob.id": "bob_key"
+        });
+        let body = serde_json::json!([
+            {"method": "post", "path": "/data/note.txt", "value": "hello"}
+        ]);
+        let signers = vec!["bob_key".to_string()];
+        let ctx = EvalContext::new(&signers, &state, &body);
+        
+        // Modifies /data: true, any_signed: true (bob is member)
+        assert!(evaluate_formula_full(&formula, &ctx));
+    }
+
+    #[test]
+    fn test_transition_guard_pattern() {
+        // This is the pattern for: "modifying /members requires all signatures"
+        // If modifies(/members) then must have all_signed(/members)
+        // Expressed as: !modifies(/members) | all_signed(/members)
+        // Or: modifies(/members) implies all_signed(/members)
+        
+        let state = serde_json::json!({
+            "members/alice.id": "alice_key",
+            "members/bob.id": "bob_key"
+        });
+        
+        // Case 1: Modifying members WITH all signatures - should pass
+        let body = serde_json::json!([
+            {"method": "post", "path": "/members/carol.id", "value": "carol_key"}
+        ]);
+        let signers = vec!["alice_key".to_string(), "bob_key".to_string()];
+        let ctx = EvalContext::new(&signers, &state, &body);
+        
+        let modifies_members = CommitRuleFormula::Modifies("/members".to_string());
+        let all_signed = CommitRuleFormula::AllSigned("/members".to_string());
+        
+        // Both should be true
+        assert!(evaluate_formula_full(&modifies_members, &ctx));
+        assert!(evaluate_formula_full(&all_signed, &ctx));
+        
+        // Case 2: Modifying members WITHOUT all signatures - all_signed fails
+        let signers_partial = vec!["alice_key".to_string()]; // missing bob
+        let ctx2 = EvalContext::new(&signers_partial, &state, &body);
+        
+        assert!(evaluate_formula_full(&modifies_members, &ctx2));
+        assert!(!evaluate_formula_full(&all_signed, &ctx2));
+        
+        // Case 3: NOT modifying members - don't need all signatures
+        let body_data = serde_json::json!([
+            {"method": "post", "path": "/data/note.txt", "value": "hello"}
+        ]);
+        let ctx3 = EvalContext::new(&signers_partial, &state, &body_data);
+        
+        assert!(!evaluate_formula_full(&modifies_members, &ctx3));
+        // all_signed still fails but doesn't matter since we're not modifying members
     }
 }
