@@ -136,6 +136,9 @@ impl ContractProcessor {
                 "post" => {
                     state_changes.push(self.process_post(contract_id, action).await?);
                 }
+                "repost" => {
+                    state_changes.push(self.process_repost(contract_id, action).await?);
+                }
                 "invoke" => {
                     // Process INVOKE action - execute program and process resulting actions
                     let invoke_changes = self.process_invoke(contract_id, commit_id, action).await?;
@@ -488,6 +491,104 @@ impl ContractProcessor {
             path: path.to_string(),
             value: value_str,
         })
+    }
+
+    /// Process a REPOST action during consensus
+    /// 
+    /// REPOST copies data from another contract into a local namespace.
+    /// Path format: $source_contract_id:/remote/path
+    /// 
+    /// Validates:
+    /// - Source contract exists
+    /// - Remote path exists in source contract
+    /// - Reposted value matches source contract's LATEST value (hub/network responsibility)
+    async fn process_repost(
+        &self,
+        contract_id: &str,
+        action: &Value,
+    ) -> Result<StateChange> {
+        let path = action.get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("REPOST action missing path"))?;
+        
+        let value = action.get("value")
+            .ok_or_else(|| anyhow::anyhow!("REPOST action missing value"))?;
+        
+        // Parse the repost path: $source_contract_id:/remote/path
+        let (source_contract_id, remote_path) = self.parse_repost_path(path)?;
+        
+        // Validate against source contract's latest state
+        let ds = self.datastore.lock().await;
+        
+        // Get the source value from the source contract
+        let source_key = format!("/contracts/{}{}", source_contract_id, remote_path);
+        let source_value_opt = ds.get_string(&source_key).await?;
+        
+        let source_value = source_value_opt
+            .ok_or_else(|| anyhow::anyhow!(
+                "REPOST rejected: path '{}' not found in source contract '{}'",
+                remote_path, source_contract_id
+            ))?;
+        
+        // Compare values - the reposted value must match the source's latest
+        let repost_value_str = if value.is_string() {
+            value.as_str().unwrap().to_string()
+        } else if value.is_number() {
+            value.to_string()
+        } else if value.is_boolean() {
+            value.as_bool().unwrap().to_string()
+        } else {
+            serde_json::to_string(value)?
+        };
+        
+        if repost_value_str != source_value {
+            anyhow::bail!(
+                "REPOST rejected: value does not match source contract's latest value at '{}'. \
+                 Expected '{}', got '{}'",
+                remote_path,
+                &source_value[..source_value.len().min(100)],
+                &repost_value_str[..repost_value_str.len().min(100)]
+            );
+        }
+        
+        // Store the reposted data in this contract's namespace
+        // Keep the full $contract_id:/path format as the key for provenance tracking
+        let store_key = format!("/contracts/{}/reposts/{}{}", contract_id, source_contract_id, remote_path);
+        ds.set_data_by_key(&store_key, repost_value_str.as_bytes()).await?;
+        
+        log::info!(
+            "REPOST validated: {} <- {}:{}",
+            contract_id, source_contract_id, remote_path
+        );
+        
+        Ok(StateChange::Posted {
+            contract_id: contract_id.to_string(),
+            path: path.to_string(),
+            value: repost_value_str,
+        })
+    }
+
+    /// Parse a REPOST path in format $source_contract_id:/remote/path
+    fn parse_repost_path(&self, path: &str) -> Result<(String, String)> {
+        if !path.starts_with('$') {
+            anyhow::bail!("REPOST path must start with '$', got: {}", path);
+        }
+        
+        let colon_pos = path.find(":/")
+            .ok_or_else(|| anyhow::anyhow!("REPOST path must contain ':/', got: {}", path))?;
+        
+        let contract_id = &path[1..colon_pos];
+        let remote_path = &path[colon_pos + 1..];
+        
+        if contract_id.is_empty() {
+            anyhow::bail!("REPOST path has empty contract_id");
+        }
+        
+        if remote_path.is_empty() || !remote_path.starts_with('/') {
+            anyhow::bail!("REPOST remote path must start with '/'");
+        }
+        
+        Ok((contract_id.to_string(), remote_path.to_string()))
     }
     
     /// Process a WASM POST action (path ends with .wasm)

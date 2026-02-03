@@ -310,6 +310,117 @@ export class ContractValidator {
 }
 
 /**
+ * Parse a REPOST path in format $contract_id:/path
+ * Returns { contractId, remotePath } or null if invalid
+ */
+export function parseRepostPath(path) {
+  if (!path || !path.startsWith('$')) return null;
+  
+  const colonPos = path.indexOf(':/');
+  if (colonPos === -1) return null;
+  
+  const contractId = path.substring(1, colonPos);
+  const remotePath = path.substring(colonPos + 1);
+  
+  if (!contractId || !remotePath || !remotePath.startsWith('/')) {
+    return null;
+  }
+  
+  return { contractId, remotePath };
+}
+
+/**
+ * Validate a REPOST commit against the source contract's latest state
+ * Hub/network responsibility: only allow reposting latest values
+ */
+export async function validateRepost(store, commit) {
+  const data = commit.data || commit.body?.[0];
+  if (!data) {
+    return { ok: false, error: 'Missing commit data' };
+  }
+  
+  const method = (data.method || '').toLowerCase();
+  if (method !== 'repost') {
+    return { ok: true }; // Not a repost, skip
+  }
+  
+  const path = data.path;
+  const value = data.value;
+  
+  // Parse the repost path
+  const parsed = parseRepostPath(path);
+  if (!parsed) {
+    return { 
+      ok: false, 
+      error: `Invalid REPOST path format: ${path}. Expected $contract_id:/path` 
+    };
+  }
+  
+  const { contractId: sourceContractId, remotePath } = parsed;
+  
+  // Fetch the source contract's current state
+  const sourceCommits = store.pullCommits(sourceContractId);
+  if (!sourceCommits || sourceCommits.length === 0) {
+    return {
+      ok: false,
+      error: `Source contract '${sourceContractId}' not found or has no commits`
+    };
+  }
+  
+  // Build source contract state
+  const sourceState = buildContractState(sourceCommits);
+  
+  // Get the value at the remote path
+  const normalizedPath = remotePath.startsWith('/') ? remotePath.substring(1) : remotePath;
+  const sourceValue = sourceState[normalizedPath] ?? sourceState[remotePath];
+  
+  if (sourceValue === undefined) {
+    return {
+      ok: false,
+      error: `Path '${remotePath}' not found in source contract '${sourceContractId}'`
+    };
+  }
+  
+  // Compare values (deep equality for objects)
+  const valuesMatch = JSON.stringify(sourceValue) === JSON.stringify(value);
+  
+  if (!valuesMatch) {
+    return {
+      ok: false,
+      error: `REPOST value does not match source contract's latest value at '${remotePath}'`
+    };
+  }
+  
+  return { ok: true };
+}
+
+/**
+ * Build contract state from commits (for REPOST validation)
+ */
+function buildContractState(commits) {
+  const state = {};
+  
+  for (const commit of commits) {
+    const body = commit.body || [commit.data].filter(Boolean);
+    
+    for (const action of body) {
+      const method = (action.method || action.type || '').toLowerCase();
+      const path = action.path;
+      const value = action.value ?? action.content;
+      
+      if (path && ['post', 'genesis', 'rule', 'repost'].includes(method)) {
+        // Normalize path (remove leading slash for storage)
+        const normalizedPath = path.startsWith('/') ? path.substring(1) : path;
+        state[normalizedPath] = value;
+        state[path] = value; // Also store with original path
+      }
+    }
+  }
+  
+  return state;
+}
+
+/**
  * Validate commits against contract model
  */
 export async function validateContractLogic(store, contractId, newCommits) {
@@ -328,9 +439,20 @@ export async function validateContractLogic(store, contractId, newCommits) {
     const prefix = `commits[${i}]`;
     
     try {
+      const data = commit.data || commit.body?.[0];
+      const method = (data?.method || data?.type || '').toLowerCase();
+      
+      // Validate REPOST commits against source contract
+      if (method === 'repost') {
+        const repostValidation = await validateRepost(store, commit);
+        if (!repostValidation.ok) {
+          errors.push(`${prefix}: ${repostValidation.error}`);
+          continue;
+        }
+      }
+      
       // Check if this is an ACTION commit
-      const data = commit.data;
-      if (data?.method === 'ACTION' || data?.type === 'ACTION') {
+      if (method === 'action') {
         const validation = validator.validateAction(data.action, data);
         if (!validation.ok) {
           errors.push(`${prefix}: ${validation.error}`);
