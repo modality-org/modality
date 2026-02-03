@@ -11,7 +11,7 @@ pub mod error;
 
 pub use types::*;
 pub use methods::*;
-pub use server::RpcServer;
+pub use server::{RpcServer, RpcServerConfig};
 pub use client::RpcClient;
 pub use error::RpcError;
 
