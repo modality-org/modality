@@ -17,6 +17,7 @@ use code_actions::compute_code_actions;
 /// Document state stored for each open file
 struct Document {
     content: Rope,
+    #[allow(dead_code)]
     version: i32,
     /// Cached symbols extracted from the document
     symbols: Vec<DocumentSymbolInfo>,

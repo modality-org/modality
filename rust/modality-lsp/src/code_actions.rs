@@ -228,7 +228,7 @@ fn suggest_wrap_in_always(text: &str, range: Range, uri: &Url) -> Option<CodeAct
 }
 
 /// Create a fix for a specific diagnostic
-fn fix_for_diagnostic(text: &str, diag: &Diagnostic, uri: &Url) -> Option<CodeAction> {
+fn fix_for_diagnostic(_text: &str, diag: &Diagnostic, _uri: &Url) -> Option<CodeAction> {
     let message = &diag.message;
     
     // Missing semicolon or similar

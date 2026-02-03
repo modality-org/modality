@@ -38,6 +38,7 @@ struct ContractData {
 
 /// Asset information
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct AssetInfo {
     asset_id: String,
     quantity: u64,
@@ -46,6 +47,7 @@ struct AssetInfo {
 
 /// Send information for RECV validation
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct SendInfo {
     asset_id: String,
     from_contract: String,
