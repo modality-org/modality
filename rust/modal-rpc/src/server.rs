@@ -80,18 +80,17 @@ impl<H: RpcHandler + 'static> RpcServer<H> {
             .parse()
             .expect("Invalid address");
 
-        let handler = self.handler.clone();
-        let subscriptions = self.subscriptions.clone();
+        let state = AppState {
+            handler: self.handler.clone(),
+            subscriptions: self.subscriptions.clone(),
+        };
 
         // Build the router
         let app = Router::new()
-            .route("/", post(handle_rpc_post::<H>))
-            .route("/ws", get(handle_websocket::<H>))
-            .route("/health", get(handle_health::<H>))
-            .with_state(AppState {
-                handler,
-                subscriptions,
-            });
+            .route("/", post(handle_rpc_post))
+            .route("/ws", get(handle_websocket))
+            .route("/health", get(handle_health))
+            .with_state(state);
 
         // Add CORS if enabled
         let app = if self.config.enable_cors {
@@ -116,17 +115,25 @@ impl<H: RpcHandler + 'static> RpcServer<H> {
 }
 
 /// Application state shared across handlers
-#[derive(Clone)]
 struct AppState<H: RpcHandler + 'static> {
     handler: Arc<H>,
     subscriptions: Arc<SubscriptionState>,
+}
+
+impl<H: RpcHandler + 'static> Clone for AppState<H> {
+    fn clone(&self) -> Self {
+        Self {
+            handler: self.handler.clone(),
+            subscriptions: self.subscriptions.clone(),
+        }
+    }
 }
 
 /// Handle POST requests (standard JSON-RPC)
 async fn handle_rpc_post<H: RpcHandler>(
     State(state): State<AppState<H>>,
     Json(request): Json<RpcRequest>,
-) -> impl IntoResponse {
+) -> Json<RpcResponse> {
     let response = process_request(&state.handler, request).await;
     Json(response)
 }
@@ -134,7 +141,7 @@ async fn handle_rpc_post<H: RpcHandler>(
 /// Handle health check endpoint
 async fn handle_health<H: RpcHandler>(
     State(state): State<AppState<H>>,
-) -> impl IntoResponse {
+) -> Json<serde_json::Value> {
     match state.handler.get_health().await {
         Ok(health) => Json(serde_json::json!({
             "status": health.status,

@@ -60,13 +60,13 @@ pub trait RpcHandler: Send + Sync {
     async fn submit_commit(&self, params: SubmitCommitParams) -> Result<SubmitCommitResponse, RpcError>;
     
     /// Subscribe to events (returns subscription ID)
-    async fn subscribe(&self, params: SubscribeParams) -> Result<SubscribeResponse, RpcError> {
+    async fn subscribe(&self, _params: SubscribeParams) -> Result<SubscribeResponse, RpcError> {
         // Default: not supported
         Err(RpcError::MethodNotFound("subscribe".to_string()))
     }
     
     /// Unsubscribe from events
-    async fn unsubscribe(&self, params: UnsubscribeParams) -> Result<bool, RpcError> {
+    async fn unsubscribe(&self, _params: UnsubscribeParams) -> Result<bool, RpcError> {
         // Default: not supported
         Err(RpcError::MethodNotFound("unsubscribe".to_string()))
     }
