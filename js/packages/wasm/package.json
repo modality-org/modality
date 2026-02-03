@@ -1,0 +1,29 @@
+{
+  "name": "@modality-dev/wasm",
+  "version": "0.1.0",
+  "description": "Modality WASM bindings - Rust-powered parsing, verification, and model checking",
+  "main": "src/index.js",
+  "module": "src/index.js",
+  "types": "src/index.d.ts",
+  "scripts": {
+    "build:wasm": "cd ../../.. && cd rust/modality-lang && wasm-pack build --target web --out-dir ../../js/packages/wasm/pkg",
+    "build": "npm run build:wasm",
+    "test": "NODE_OPTIONS=--experimental-vm-modules npx jest --passWithNoTests"
+  },
+  "author": "Modality",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "src",
+    "pkg"
+  ],
+  "exports": {
+    ".": "./src/index.js",
+    "./pkg": "./pkg/modality_lang.js"
+  },
+  "sideEffects": false,
+  "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "jest": "^29.7"
+  }
+}
