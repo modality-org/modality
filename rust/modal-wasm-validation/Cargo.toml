@@ -27,6 +27,7 @@ getrandom = { version = "0.2", features = ["js"] }
 [dev-dependencies]
 tokio = { version = "1.42.0", features = ["full", "test-util"] }
 wasm-bindgen-test = "0.3"
+rand = "0.8"
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = ["-O", "--enable-bulk-memory"]
