@@ -204,3 +204,4 @@ Before considering a contract "secure":
 5. **No rules = no protection** — the model alone guarantees nothing
 
 When designing a Modality contract, always ask: "What rules protect this?"
+
