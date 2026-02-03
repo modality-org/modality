@@ -44,6 +44,12 @@ pub enum RpcError {
 
     #[error("Timeout")]
     Timeout,
+
+    #[error("{message}")]
+    Custom { code: i32, message: String },
+
+    #[error("Internal error: {0}")]
+    Internal(String),
 }
 
 impl From<RpcError> for RpcErrorObject {
@@ -62,6 +68,8 @@ impl From<RpcError> for RpcErrorObject {
             RpcError::WebSocketError(msg) => RpcErrorObject::internal_error().with_data(serde_json::json!({ "details": msg })),
             RpcError::ConnectionError(msg) => RpcErrorObject::internal_error().with_data(serde_json::json!({ "details": msg })),
             RpcError::Timeout => RpcErrorObject::internal_error().with_data(serde_json::json!({ "details": "Request timed out" })),
+            RpcError::Custom { code, message } => RpcErrorObject::new(code, message),
+            RpcError::Internal(msg) => RpcErrorObject::internal_error().with_data(serde_json::json!({ "details": msg })),
         }
     }
 }

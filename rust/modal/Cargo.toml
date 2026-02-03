@@ -21,7 +21,10 @@ modal-observer = { path = "../modal-observer", version = "0.1.0" }
 modal-miner = { path = "../modal-miner", version = "0.1.0" }
 modal-networks = { path = "../modal-networks", version = "0.1.0" }
 modal-wasm-runtime = { path = "../modal-wasm-runtime", version = "0.1.0" }
+modal-rpc = { path = "../modal-rpc", version = "0.1.0" }
 anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4.1.11", features = ["cargo", "derive", "env"] }
 tokio = { version = "1.42.0", features = ["full"] }
 tokio-util = { version = "0.7", features = ["full"] }

@@ -68,6 +68,12 @@ enum Commands {
         command: ContractCommands,
     },
 
+    #[command(about = "Contract hub server commands")]
+    Hub {
+        #[command(subcommand)]
+        command: HubCommands,
+    },
+
     #[command(about = "Show status (contract status if in contract directory)")]
     Status(cmds::contract::status::Opts),
 
@@ -273,6 +279,12 @@ enum ContractCommands {
 }
 
 #[derive(Subcommand)]
+enum HubCommands {
+    #[command(about = "Start a contract hub server")]
+    Start(cmds::hub::start::Opts),
+}
+
+#[derive(Subcommand)]
 enum RunCommands {
     #[command(about = "Run a mining node")]
     Miner(cmds::node::run_miner::Opts),
@@ -403,6 +415,11 @@ async fn main() -> Result<()> {
                 ContractCommands::Pack(opts) => cmds::contract::pack::run(opts).await?,
                 ContractCommands::Unpack(opts) => cmds::contract::unpack::run(opts).await?,
                 ContractCommands::Repost(opts) => cmds::contract::repost::run(opts).await?,
+            }
+        }
+        Commands::Hub { command } => {
+            match command {
+                HubCommands::Start(opts) => cmds::hub::start::run(opts).await?,
             }
         }
         Commands::Run { command } => {
