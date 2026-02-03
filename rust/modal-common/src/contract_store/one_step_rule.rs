@@ -59,6 +59,12 @@ pub enum CommitRuleFormula {
     },
     /// signed_by(signer) - single signature required
     SignedBy(String),
+    /// all_signed(path) - all members at path must sign
+    /// Reads array from contract state, requires ALL to be signers
+    AllSigned(String),
+    /// any_signed(path) - at least one member at path must sign
+    /// Reads array from contract state, requires at least ONE to be a signer
+    AnySigned(String),
     /// Conjunction: formula1 & formula2
     And(Box<CommitRuleFormula>, Box<CommitRuleFormula>),
     /// Disjunction: formula1 | formula2  
@@ -97,6 +103,18 @@ pub fn parse_formula(formula: &str) -> Result<CommitRuleFormula> {
     if formula.starts_with("signed_by(") && formula.ends_with(')') {
         let inner = &formula[10..formula.len()-1];
         return Ok(CommitRuleFormula::SignedBy(inner.trim().to_string()));
+    }
+    
+    // Handle all_signed(path) - all members at path must sign
+    if formula.starts_with("all_signed(") && formula.ends_with(')') {
+        let inner = &formula[11..formula.len()-1];
+        return Ok(CommitRuleFormula::AllSigned(inner.trim().to_string()));
+    }
+    
+    // Handle any_signed(path) - at least one member at path must sign
+    if formula.starts_with("any_signed(") && formula.ends_with(')') {
+        let inner = &formula[11..formula.len()-1];
+        return Ok(CommitRuleFormula::AnySigned(inner.trim().to_string()));
     }
     
     bail!("Cannot parse commit rule formula: {}", formula);
@@ -162,9 +180,20 @@ pub fn evaluate_formula(
     formula: &CommitRuleFormula, 
     present_signers: &[String],
 ) -> bool {
+    evaluate_formula_with_state(formula, present_signers, &Value::Null)
+}
+
+/// Evaluate a commit rule formula with access to contract state
+/// 
+/// This allows formulas like all_signed(/members.json) to resolve
+/// the member list from contract state.
+pub fn evaluate_formula_with_state(
+    formula: &CommitRuleFormula, 
+    present_signers: &[String],
+    contract_state: &Value,
+) -> bool {
     match formula {
         CommitRuleFormula::SignedByN { required, signers } => {
-            // Count how many of the required signers are present
             let count = signers.iter()
                 .filter(|s| present_signers.contains(s))
                 .count();
@@ -173,19 +202,63 @@ pub fn evaluate_formula(
         CommitRuleFormula::SignedBy(signer) => {
             present_signers.contains(signer)
         }
+        CommitRuleFormula::AllSigned(path) => {
+            // Read array from state, require ALL to be signers
+            let members = resolve_path_as_strings(contract_state, path);
+            if members.is_empty() {
+                true // Empty list = trivially satisfied
+            } else {
+                members.iter().all(|m| present_signers.contains(m))
+            }
+        }
+        CommitRuleFormula::AnySigned(path) => {
+            // Read array from state, require at least ONE to be a signer
+            let members = resolve_path_as_strings(contract_state, path);
+            if members.is_empty() {
+                true // Empty list = trivially satisfied (no restriction)
+            } else {
+                members.iter().any(|m| present_signers.contains(m))
+            }
+        }
         CommitRuleFormula::And(left, right) => {
-            evaluate_formula(left, present_signers) && evaluate_formula(right, present_signers)
+            evaluate_formula_with_state(left, present_signers, contract_state) 
+                && evaluate_formula_with_state(right, present_signers, contract_state)
         }
         CommitRuleFormula::Or(left, right) => {
-            evaluate_formula(left, present_signers) || evaluate_formula(right, present_signers)
+            evaluate_formula_with_state(left, present_signers, contract_state) 
+                || evaluate_formula_with_state(right, present_signers, contract_state)
         }
     }
+}
+
+/// Resolve a path in contract state to a list of strings
+fn resolve_path_as_strings(state: &Value, path: &str) -> Vec<String> {
+    let normalized = path.trim_start_matches('/');
+    
+    state.get(normalized)
+        .or_else(|| state.get(path))
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Validate a commit's rule_for_this_commit against its signatures
 pub fn validate_rule_for_this_commit(
     formula_str: &str,
     signatures: &[CommitSignature],
+) -> Result<()> {
+    validate_rule_for_this_commit_with_state(formula_str, signatures, &Value::Null)
+}
+
+/// Validate a commit's rule_for_this_commit against its signatures and contract state
+pub fn validate_rule_for_this_commit_with_state(
+    formula_str: &str,
+    signatures: &[CommitSignature],
+    contract_state: &Value,
 ) -> Result<()> {
     let formula = parse_formula(formula_str)?;
     
@@ -194,7 +267,7 @@ pub fn validate_rule_for_this_commit(
         .map(|s| s.signer.clone())
         .collect();
     
-    if evaluate_formula(&formula, &present_signers) {
+    if evaluate_formula_with_state(&formula, &present_signers, contract_state) {
         Ok(())
     } else {
         bail!(
@@ -341,5 +414,129 @@ mod tests {
         // Neither - should fail
         let neither: Vec<String> = vec![];
         assert!(!evaluate_formula(&formula, &neither));
+    }
+
+    // ===== Dynamic member tests (all_signed / any_signed) =====
+
+    #[test]
+    fn test_parse_all_signed() {
+        let formula = parse_formula("all_signed(/members.json)").unwrap();
+        match formula {
+            CommitRuleFormula::AllSigned(path) => {
+                assert_eq!(path, "/members.json");
+            }
+            _ => panic!("Expected AllSigned formula"),
+        }
+    }
+
+    #[test]
+    fn test_parse_any_signed() {
+        let formula = parse_formula("any_signed(/members.json)").unwrap();
+        match formula {
+            CommitRuleFormula::AnySigned(path) => {
+                assert_eq!(path, "/members.json");
+            }
+            _ => panic!("Expected AnySigned formula"),
+        }
+    }
+
+    #[test]
+    fn test_all_signed_success() {
+        let formula = CommitRuleFormula::AllSigned("/members.json".to_string());
+        let state = serde_json::json!({
+            "members.json": ["alice_key", "bob_key", "carol_key"]
+        });
+        let signers = vec![
+            "alice_key".to_string(),
+            "bob_key".to_string(),
+            "carol_key".to_string(),
+        ];
+        
+        assert!(evaluate_formula_with_state(&formula, &signers, &state));
+    }
+
+    #[test]
+    fn test_all_signed_failure_missing_signer() {
+        let formula = CommitRuleFormula::AllSigned("/members.json".to_string());
+        let state = serde_json::json!({
+            "members.json": ["alice_key", "bob_key", "carol_key"]
+        });
+        // Missing carol_key
+        let signers = vec!["alice_key".to_string(), "bob_key".to_string()];
+        
+        assert!(!evaluate_formula_with_state(&formula, &signers, &state));
+    }
+
+    #[test]
+    fn test_all_signed_empty_members_passes() {
+        let formula = CommitRuleFormula::AllSigned("/members.json".to_string());
+        let state = serde_json::json!({ "members.json": [] });
+        let signers = vec!["anyone".to_string()];
+        
+        // Empty member list = trivially satisfied
+        assert!(evaluate_formula_with_state(&formula, &signers, &state));
+    }
+
+    #[test]
+    fn test_any_signed_success() {
+        let formula = CommitRuleFormula::AnySigned("/members.json".to_string());
+        let state = serde_json::json!({
+            "members.json": ["alice_key", "bob_key", "carol_key"]
+        });
+        // Only bob signed
+        let signers = vec!["bob_key".to_string()];
+        
+        assert!(evaluate_formula_with_state(&formula, &signers, &state));
+    }
+
+    #[test]
+    fn test_any_signed_failure_no_members_signed() {
+        let formula = CommitRuleFormula::AnySigned("/members.json".to_string());
+        let state = serde_json::json!({
+            "members.json": ["alice_key", "bob_key", "carol_key"]
+        });
+        // Stranger signed, not a member
+        let signers = vec!["stranger_key".to_string()];
+        
+        assert!(!evaluate_formula_with_state(&formula, &signers, &state));
+    }
+
+    #[test]
+    fn test_validate_with_state_all_signed() {
+        let state = serde_json::json!({
+            "members.json": ["alice_key", "bob_key"]
+        });
+        let sigs = vec![
+            CommitSignature { signer: "alice_key".to_string(), sig: "sig1".to_string() },
+            CommitSignature { signer: "bob_key".to_string(), sig: "sig2".to_string() },
+        ];
+        
+        let result = validate_rule_for_this_commit_with_state(
+            "all_signed(/members.json)",
+            &sigs,
+            &state,
+        );
+        
+        assert!(result.is_ok(), "All members signed, should pass");
+    }
+
+    #[test]
+    fn test_validate_with_state_all_signed_fails() {
+        let state = serde_json::json!({
+            "members.json": ["alice_key", "bob_key", "carol_key"]
+        });
+        let sigs = vec![
+            CommitSignature { signer: "alice_key".to_string(), sig: "sig1".to_string() },
+            CommitSignature { signer: "bob_key".to_string(), sig: "sig2".to_string() },
+            // Missing carol_key
+        ];
+        
+        let result = validate_rule_for_this_commit_with_state(
+            "all_signed(/members.json)",
+            &sigs,
+            &state,
+        );
+        
+        assert!(result.is_err(), "Missing carol, should fail");
     }
 }
