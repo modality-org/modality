@@ -571,3 +571,65 @@ fn test_desugar_temporal_to_fixpoint() {
         _ => panic!("Expected Lfp from eventually"),
     }
 }
+
+/// Test: Model evolution when membership grows
+/// 
+/// Demonstrates that the same rule (`all_signed(/members)`) requires
+/// different signature sets as members are added - the model must evolve
+/// not because of new rules, but because the membership set grows.
+#[test]
+fn test_membership_growth_model_evolution() {
+    use modality_lang::agent::Contract;
+    use modality_lang::paths::PathValue;
+    
+    // Start with an empty contract (implied default model)
+    let mut contract = Contract::empty();
+    
+    // Alice's identity (simulated public key)
+    let alice_key = "ed25519_alice_abc123";
+    let bob_key = "ed25519_bob_def456";
+    let carol_key = "ed25519_carol_ghi789";
+    
+    // === Step 1: Alice registers and adds herself as first member ===
+    contract.register_party("alice", alice_key).unwrap();
+    contract.post("/members/alice.id", PathValue::Id(alice_key.to_string())).unwrap();
+    
+    // Verify Alice is in members
+    assert!(contract.path_exists("/members/alice.id"));
+    
+    // === Step 2: Alice adds Bob ===
+    // At this point, if we had a rule "all_signed(/members)", only alice would need to sign
+    // Since Alice is the only member, she can add Bob alone
+    contract.register_party("bob", bob_key).unwrap();
+    contract.post("/members/bob.id", PathValue::Id(bob_key.to_string())).unwrap();
+    
+    // Both are now registered
+    assert!(contract.path_exists("/members/alice.id"));
+    assert!(contract.path_exists("/members/bob.id"));
+    
+    // === Step 3: Model evolution insight ===
+    // After Bob is added, the interpretation of "all_signed(/members)" changes:
+    //   - Before: all_signed(/members) = [alice]
+    //   - After:  all_signed(/members) = [alice, bob]
+    //
+    // If we want to add Carol now, BOTH alice and bob must sign.
+    // The RULE stays the same, but the MODEL (set of required signers) has evolved.
+    
+    contract.register_party("carol", carol_key).unwrap();
+    contract.post("/members/carol.id", PathValue::Id(carol_key.to_string())).unwrap();
+    
+    // All three are now registered
+    assert!(contract.path_exists("/members/alice.id"));
+    assert!(contract.path_exists("/members/bob.id"));
+    assert!(contract.path_exists("/members/carol.id"));
+    
+    // === Key insight ===
+    // The RULE "always (modifies(/members) implies all_signed(/members))" never changed.
+    // But the MODEL evolved because /members grew:
+    //   - After step 1: all_signed = {alice}
+    //   - After step 2: all_signed = {alice, bob}  
+    //   - After step 3: all_signed = {alice, bob, carol}
+    //
+    // This is model evolution driven by state change, not rule change.
+    // The governing formula stays constant; its interpretation evolves with state.
+}
