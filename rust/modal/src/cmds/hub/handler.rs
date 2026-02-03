@@ -550,6 +550,69 @@ impl HubHandler {
         Ok(())
     }
 
+    /// Validate members-only contract
+    /// Any commit must be signed by at least one member from /members.json
+    fn validate_member_signed(
+        &self,
+        contract_state: &Value,
+        commit_signers: &[String],
+    ) -> Result<(), RpcError> {
+        let members = contract_state.get("members.json")
+            .and_then(|m| m.as_array())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+            .unwrap_or_default();
+
+        // If no members list, contract is open (not a members-only contract)
+        if members.is_empty() {
+            return Ok(());
+        }
+
+        // Check if any signer is a member
+        for signer in commit_signers {
+            if members.contains(&signer.as_str()) {
+                return Ok(());
+            }
+        }
+
+        Err(RpcError::Custom {
+            code: -32060,
+            message: "Commit must be signed by a member".to_string(),
+        })
+    }
+
+    /// Validate ADD_MEMBER action - requires ALL current members to sign
+    fn validate_add_member(
+        &self,
+        contract_state: &Value,
+        commit_signers: &[String],
+    ) -> Result<(), RpcError> {
+        let members = contract_state.get("members.json")
+            .and_then(|m| m.as_array())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+            .unwrap_or_default();
+
+        // If no members yet, anyone can add first member
+        if members.is_empty() {
+            return Ok(());
+        }
+
+        // All members must sign
+        for member in &members {
+            if !commit_signers.iter().any(|s| s == *member) {
+                return Err(RpcError::Custom {
+                    code: -32061,
+                    message: format!(
+                        "ADD_MEMBER requires all {} members to sign, missing: {}",
+                        members.len(),
+                        &member[..16.min(member.len())]
+                    ),
+                });
+            }
+        }
+
+        Ok(())
+    }
+
     /// Validate WITHDRAW action for multi-account bank contracts
     /// Checks: signer matches account owner AND balance >= amount
     fn validate_withdraw(
@@ -938,20 +1001,25 @@ impl RpcHandler for HubHandler {
                             self.validate_recv(&params.contract_id, action, &contracts).await?;
                         }
                         "action" => {
-                            // Check for WITHDRAW action
                             let action_name = action.get("action")
                                 .and_then(|a| a.as_str())
                                 .unwrap_or("");
                             
-                            if action_name == "WITHDRAW" {
-                                // Build current state and get signers
-                                if let Some(contract) = contracts.get(&params.contract_id) {
-                                    let state = self.build_state(&contract.commits);
-                                    let signers: Vec<String> = head.get("signatures")
-                                        .and_then(|s| s.as_object())
-                                        .map(|obj| obj.keys().cloned().collect())
-                                        .unwrap_or_default();
-                                    self.validate_withdraw(action, &state, &signers)?;
+                            if let Some(contract) = contracts.get(&params.contract_id) {
+                                let state = self.build_state(&contract.commits);
+                                let signers: Vec<String> = head.get("signatures")
+                                    .and_then(|s| s.as_object())
+                                    .map(|obj| obj.keys().cloned().collect())
+                                    .unwrap_or_default();
+                                
+                                match action_name {
+                                    "WITHDRAW" => {
+                                        self.validate_withdraw(action, &state, &signers)?;
+                                    }
+                                    "ADD_MEMBER" => {
+                                        self.validate_add_member(&state, &signers)?;
+                                    }
+                                    _ => {}
                                 }
                             }
                         }
@@ -959,6 +1027,18 @@ impl RpcHandler for HubHandler {
                             // post, rule, genesis, etc. - no special validation needed
                         }
                     }
+                }
+            }
+            
+            // For contracts with /members.json, validate signer is a member
+            if let Some(contract) = contracts.get(&params.contract_id) {
+                let state = self.build_state(&contract.commits);
+                if state.get("members.json").is_some() {
+                    let signers: Vec<String> = head.get("signatures")
+                        .and_then(|s| s.as_object())
+                        .map(|obj| obj.keys().cloned().collect())
+                        .unwrap_or_default();
+                    self.validate_member_signed(&state, &signers)?;
                 }
             }
         }
@@ -1163,5 +1243,92 @@ mod tests {
         let action = make_withdraw_action("alice", 100.0);
         let signers = vec!["bob_key".to_string()];
         assert!(handler.validate_withdraw(&action, &state, &signers).is_err());
+    }
+
+    // ===== Member contract tests =====
+
+    fn make_members_state(members: &[&str]) -> Value {
+        json!({
+            "members.json": members
+        })
+    }
+
+    #[test]
+    fn test_member_signed_success() {
+        let handler = HubHandler::new("/tmp/test".into());
+        let state = make_members_state(&["alice_key", "bob_key", "carol_key"]);
+        let signers = vec!["bob_key".to_string()];
+
+        let result = handler.validate_member_signed(&state, &signers);
+        assert!(result.is_ok(), "Member should be allowed to sign");
+    }
+
+    #[test]
+    fn test_member_signed_non_member_rejected() {
+        let handler = HubHandler::new("/tmp/test".into());
+        let state = make_members_state(&["alice_key", "bob_key", "carol_key"]);
+        let signers = vec!["stranger_key".to_string()];
+
+        let result = handler.validate_member_signed(&state, &signers);
+        assert!(result.is_err(), "Non-member should be rejected");
+        
+        match result.unwrap_err() {
+            RpcError::Custom { code, .. } => assert_eq!(code, -32060),
+            _ => panic!("Expected Custom error"),
+        }
+    }
+
+    #[test]
+    fn test_member_signed_no_members_list_allows_anyone() {
+        let handler = HubHandler::new("/tmp/test".into());
+        let state = json!({});  // No members.json
+        let signers = vec!["anyone_key".to_string()];
+
+        let result = handler.validate_member_signed(&state, &signers);
+        assert!(result.is_ok(), "No members list = open contract");
+    }
+
+    #[test]
+    fn test_add_member_requires_all_signatures() {
+        let handler = HubHandler::new("/tmp/test".into());
+        let state = make_members_state(&["alice_key", "bob_key", "carol_key"]);
+        
+        // All 3 members sign
+        let signers = vec![
+            "alice_key".to_string(),
+            "bob_key".to_string(),
+            "carol_key".to_string(),
+        ];
+        assert!(handler.validate_add_member(&state, &signers).is_ok());
+    }
+
+    #[test]
+    fn test_add_member_fails_with_partial_signatures() {
+        let handler = HubHandler::new("/tmp/test".into());
+        let state = make_members_state(&["alice_key", "bob_key", "carol_key"]);
+        
+        // Only 2 of 3 members sign
+        let signers = vec!["alice_key".to_string(), "bob_key".to_string()];
+        
+        let result = handler.validate_add_member(&state, &signers);
+        assert!(result.is_err(), "ADD_MEMBER needs all members");
+        
+        match result.unwrap_err() {
+            RpcError::Custom { code, message } => {
+                assert_eq!(code, -32061);
+                assert!(message.contains("all 3 members"));
+            }
+            _ => panic!("Expected Custom error"),
+        }
+    }
+
+    #[test]
+    fn test_add_member_first_member_anyone_can_add() {
+        let handler = HubHandler::new("/tmp/test".into());
+        let state = json!({ "members.json": [] });  // Empty members list
+        let signers = vec!["founder_key".to_string()];
+
+        let result = handler.validate_add_member(&state, &signers);
+        assert!(result.is_ok(), "First member can be added by anyone");
     }
 }

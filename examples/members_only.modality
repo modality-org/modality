@@ -1,0 +1,29 @@
+// Members-Only Contract
+//
+// Only members can post to this contract.
+// Adding a new member requires ALL current members to sign.
+//
+// State:
+//   /members.json → ["alice_pubkey", "bob_pubkey", ...]
+//
+// Hub validates:
+//   - Any commit: at least one signer must be in /members.json
+//   - ADD_MEMBER action: ALL members must sign
+
+model members_only {
+  initial active
+  
+  // Members can post data
+  active -> active [+POST]
+  
+  // Add new member (requires all current members)
+  active -> active [+ADD_MEMBER]
+  
+  // Remove member (requires all remaining members)
+  active -> active [+REMOVE_MEMBER]
+}
+
+// Note: Validation is handled by hub, not modal rules.
+// Hub checks /members.json to determine:
+//   1. Who can commit (any member)
+//   2. ADD_MEMBER requires all members to sign
