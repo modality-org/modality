@@ -8,7 +8,7 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::{mpsc, oneshot, RwLock};
 use tokio::time::timeout;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
-use tracing::{info, warn, error};
+use tracing::{info, warn};
 
 use crate::types::*;
 use crate::error::RpcError;
