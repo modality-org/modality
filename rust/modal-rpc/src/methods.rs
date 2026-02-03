@@ -82,6 +82,58 @@ pub trait RpcHandler: Send + Sync {
     }
 }
 
+/// Blanket implementation for Arc<H> so we can share handlers across threads
+#[async_trait]
+impl<H: RpcHandler> RpcHandler for std::sync::Arc<H> {
+    async fn get_health(&self) -> Result<HealthResponse, RpcError> {
+        (**self).get_health().await
+    }
+    
+    async fn get_version(&self) -> Result<String, RpcError> {
+        (**self).get_version().await
+    }
+    
+    async fn get_block_height(&self) -> Result<BlockHeightResponse, RpcError> {
+        (**self).get_block_height().await
+    }
+    
+    async fn get_contract(&self, params: GetContractParams) -> Result<ContractResponse, RpcError> {
+        (**self).get_contract(params).await
+    }
+    
+    async fn get_contract_state(&self, contract_id: &str) -> Result<serde_json::Value, RpcError> {
+        (**self).get_contract_state(contract_id).await
+    }
+    
+    async fn get_commits(&self, params: GetCommitsParams) -> Result<CommitsResponse, RpcError> {
+        (**self).get_commits(params).await
+    }
+    
+    async fn get_commit(&self, contract_id: &str, hash: &str) -> Result<CommitDetail, RpcError> {
+        (**self).get_commit(contract_id, hash).await
+    }
+    
+    async fn submit_commit(&self, params: SubmitCommitParams) -> Result<SubmitCommitResponse, RpcError> {
+        (**self).submit_commit(params).await
+    }
+    
+    async fn subscribe(&self, params: SubscribeParams) -> Result<SubscribeResponse, RpcError> {
+        (**self).subscribe(params).await
+    }
+    
+    async fn unsubscribe(&self, params: UnsubscribeParams) -> Result<bool, RpcError> {
+        (**self).unsubscribe(params).await
+    }
+    
+    async fn get_network_info(&self) -> Result<NetworkInfoResponse, RpcError> {
+        (**self).get_network_info().await
+    }
+    
+    async fn get_validators(&self) -> Result<ValidatorsResponse, RpcError> {
+        (**self).get_validators().await
+    }
+}
+
 /// Dispatch an RPC request to the appropriate handler method
 pub async fn dispatch_request<H: RpcHandler>(
     handler: &H,
