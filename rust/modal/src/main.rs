@@ -267,6 +267,9 @@ enum ContractCommands {
     
     #[command(about = "Unpack a .contract file into a directory")]
     Unpack(cmds::contract::unpack::Opts),
+    
+    #[command(about = "Copy data from another contract into a local namespace")]
+    Repost(cmds::contract::repost::Opts),
 }
 
 #[derive(Subcommand)]
@@ -399,6 +402,7 @@ async fn main() -> Result<()> {
                 ContractCommands::WasmUpload(opts) => cmds::contract::wasm_upload::run(opts).await?,
                 ContractCommands::Pack(opts) => cmds::contract::pack::run(opts).await?,
                 ContractCommands::Unpack(opts) => cmds::contract::unpack::run(opts).await?,
+                ContractCommands::Repost(opts) => cmds::contract::repost::run(opts).await?,
             }
         }
         Commands::Run { command } => {

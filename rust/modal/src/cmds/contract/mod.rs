@@ -13,6 +13,7 @@ pub mod id;
 pub mod log;
 pub mod push;
 pub mod pull;
+pub mod repost;
 pub mod status;
 pub mod set;
 pub mod set_named_id;

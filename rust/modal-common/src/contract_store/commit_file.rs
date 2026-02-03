@@ -123,6 +123,7 @@ impl CommitAction {
             "invoke" => self.validate_invoke(),
             "post" => self.validate_post(),
             "rule" => self.validate_rule(),
+            "repost" => self.validate_repost(),
             "genesis" => Ok(()), // genesis is special, no path validation
             _ => Err(anyhow::anyhow!("Unknown method: {}", self.method)),
         }
@@ -216,6 +217,53 @@ impl CommitAction {
                 anyhow::bail!("Rule path '{}' must end with .modality", path);
             }
         }
+        Ok(())
+    }
+
+    fn validate_repost(&self) -> Result<()> {
+        // REPOST copies data from another contract into a local namespace
+        // Path format: $contract_id:/path/to/data.ext
+        // Example: $abc123def456:/announcements/latest.text
+        let path = self.path.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("REPOST action requires a path"))?;
+        
+        // Must start with $ to indicate external contract namespace
+        if !path.starts_with('$') {
+            anyhow::bail!(
+                "REPOST path must start with '$' to indicate source contract namespace, got: {}",
+                path
+            );
+        }
+        
+        // Must contain :/ separator between contract_id and path
+        let colon_pos = path.find(":/")
+            .ok_or_else(|| anyhow::anyhow!(
+                "REPOST path must be in format $contract_id:/path, got: {}",
+                path
+            ))?;
+        
+        // Extract and validate contract_id (between $ and :)
+        let contract_id = &path[1..colon_pos];
+        if contract_id.is_empty() {
+            anyhow::bail!("REPOST path has empty contract_id");
+        }
+        
+        // Extract and validate the remote path (after :)
+        let remote_path = &path[colon_pos + 1..];
+        if remote_path.is_empty() || !remote_path.starts_with('/') {
+            anyhow::bail!("REPOST remote path must start with '/', got: {}", remote_path);
+        }
+        
+        // Validate the remote path has a known extension
+        let has_known_ext = KNOWN_EXTENSIONS.iter().any(|ext| remote_path.ends_with(ext));
+        if !has_known_ext {
+            anyhow::bail!(
+                "REPOST remote path '{}' must end with a known extension: {}",
+                remote_path,
+                KNOWN_EXTENSIONS.join(", ")
+            );
+        }
+        
         Ok(())
     }
 
