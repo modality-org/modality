@@ -97,7 +97,7 @@ await contract.post('/parties/alice.id', alice.publicKeyHex, alice);
 await contract.post('/parties/bob.id', bob.publicKeyHex, alice);
 
 // Add escrow model
-await contract.post('/model.modality', `
+await contract.setModel(`
   model escrow {
     states { idle, funded, released }
     initial { idle }
@@ -274,6 +274,7 @@ contract.sync()              // Pull then push
 
 // Inherited from Contract
 contract.post(path, value, signer)
+contract.setModel(content, signer)
 contract.addRule(content, signer)
 contract.doAction(action, params, signer)
 contract.get(path)

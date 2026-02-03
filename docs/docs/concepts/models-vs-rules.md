@@ -23,15 +23,15 @@ model members_only {
 }
 ```
 
-But models live in contract state (typically at `/model.modality`). Any commit can replace them:
+But models can be replaced by any commit using the MODEL method:
 
 ```bash
 # Original model with guards
-modal contract commit --method post --path /model.modality \
+modal contract commit --method model \
   --value 'model secure { initial locked; locked -> unlocked [+signed_by(/admin.id)] }'
 
 # Attacker replaces with permissive model
-modal contract commit --method post --path /model.modality \
+modal contract commit --method model \
   --value 'model open { initial unlocked; unlocked -> unlocked [] }'
 ```
 
@@ -55,12 +55,12 @@ Now the attacker's attempt fails:
 
 ```bash
 # Attacker tries to replace model
-modal contract commit --method post --path /model.modality \
+modal contract commit --method model \
   --value 'model open { ... }' \
   --sign attacker
 
-# REJECTED: modifies(/) implies signed_by(/admin.id)
-# attacker is not /admin.id
+# REJECTED: rule violation
+# attacker is not authorized
 ```
 
 ## Why This Design?

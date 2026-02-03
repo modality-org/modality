@@ -84,8 +84,7 @@ modal contract commit \
 
 ```bash
 modal contract commit \
-  --method post \
-  --path /model.modality \
+  --method model \
   --value 'model members_only { initial active; active -> active [] }' \
   --sign alice
 ```
@@ -178,7 +177,6 @@ modal contract commit \
 ## Final State
 
 ```
-/model.modality
 /members/
   alice.id → "abc123..."
   bob.id → "def456..."

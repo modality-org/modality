@@ -30,6 +30,27 @@ Paths must end with a known extension:
 | `.wasm` | WebAssembly | Base64-encoded WASM |
 | `.modality` | Rules/formulas | Modality syntax |
 
+## MODEL
+
+Sets or replaces the contract's state machine model. Unlike rules, models can be replaced.
+
+```json
+{
+  "method": "model",
+  "value": "model escrow { initial idle; idle -> funded [DEPOSIT]; funded -> released [RELEASE] }"
+}
+```
+
+### CLI Usage
+
+```bash
+modal contract commit --method model \
+  --value 'model members_only { initial active; active -> active [] }' \
+  --sign alice
+```
+
+> **Note**: Models define structure but don't enforce security on their own. Use RULE methods to add protection that persists even if the model is replaced.
+
 ## RULE
 
 Adds a temporal logic constraint to the contract. Rules are accumulated over time and all must be satisfied.
