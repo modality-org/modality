@@ -158,7 +158,7 @@ impl HubHandler {
         })
     }
 
-    fn sort_commits_by_chain(&self, mut commits: Vec<StoredCommit>, head: &Option<String>) -> Vec<StoredCommit> {
+    fn sort_commits_by_chain(&self, commits: Vec<StoredCommit>, head: &Option<String>) -> Vec<StoredCommit> {
         if commits.is_empty() {
             return commits;
         }
@@ -349,7 +349,7 @@ impl HubHandler {
         HashMap<String, String>,
     ) {
         let mut assets = HashMap::new();
-        let mut balances = HashMap::new();
+        let balances = HashMap::new();
         let mut pending_sends = HashMap::new();
         let mut received_sends = HashMap::new();
 

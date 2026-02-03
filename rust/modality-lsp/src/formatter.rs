@@ -32,7 +32,7 @@ pub fn format_document(text: &str, options: &FormattingOptions) -> Vec<TextEdit>
 /// Format the text with proper indentation
 fn format_text(text: &str, indent: &str) -> String {
     let mut result = String::new();
-    let mut depth = 0;
+    let mut depth: usize = 0;
     let mut prev_was_blank = false;
     
     for line in text.lines() {

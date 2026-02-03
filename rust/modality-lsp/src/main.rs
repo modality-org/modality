@@ -907,11 +907,16 @@ impl LanguageServer for ModalityLanguageServer {
             let tokens = compute_semantic_tokens(&text);
             let delta_tokens = tokens_to_lsp(tokens);
             
-            // Convert to flat u32 array as required by LSP protocol
-            // Each token is 5 u32s: deltaLine, deltaStart, length, tokenType, tokenModifiers
-            let data: Vec<u32> = delta_tokens
+            // Convert to LSP SemanticToken structs
+            let data: Vec<tower_lsp::lsp_types::SemanticToken> = delta_tokens
                 .into_iter()
-                .flat_map(|t| [t.line, t.start, t.length, t.token_type, t.modifiers])
+                .map(|t| tower_lsp::lsp_types::SemanticToken {
+                    delta_line: t.line,
+                    delta_start: t.start,
+                    length: t.length,
+                    token_type: t.token_type,
+                    token_modifiers_bitset: t.modifiers,
+                })
                 .collect();
             
             return Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {

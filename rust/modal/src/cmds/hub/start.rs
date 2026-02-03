@@ -64,8 +64,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
     info!("Hub ready - accepting connections");
     info!("");
     info!("RPC endpoints:");
-    info!("  POST http://{}:{}/          (JSON-RPC)");
-    info!("  GET  http://{}:{}/health    (Health check)");
+    info!("  POST http://{}:{}/          (JSON-RPC)", opts.host, opts.port);
+    info!("  GET  http://{}:{}/health    (Health check)", opts.host, opts.port);
     info!("  WS   ws://{}:{}/ws          (WebSocket)", opts.host, opts.port);
     info!("");
 
