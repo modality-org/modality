@@ -10,6 +10,7 @@ import { createServer } from 'http';
 import { ContractStore } from './store.js';
 import { AuthMiddleware } from './auth.js';
 import { validateCommits } from './validate.js';
+import { createRpcHandler } from './rpc.js';
 
 const app = express();
 const PORT = process.env.PORT || 3100;
@@ -26,6 +27,34 @@ app.use(express.raw({ type: 'application/octet-stream', limit: '10mb' }));
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'contract-hub', version: '0.1.0' });
 });
+
+// ============================================================================
+// JSON-RPC ENDPOINT (no auth - public read access)
+// ============================================================================
+
+/**
+ * JSON-RPC 2.0 endpoint
+ * POST /rpc
+ * 
+ * Methods:
+ * - getHealth: Get hub status
+ * - getVersion: Get API version
+ * - getBlockHeight: Get pseudo block height (total commits)
+ * - getContract: Get contract info by ID
+ * - getContractState: Get derived contract state
+ * - getCommits: Get commits for a contract
+ * - getCommit: Get specific commit by hash
+ * - submitCommit: Submit a new commit (requires valid signatures)
+ * 
+ * Example:
+ * curl -X POST http://localhost:3100/rpc \
+ *   -H 'Content-Type: application/json' \
+ *   -d '{"jsonrpc":"2.0","id":1,"method":"getHealth","params":{}}'
+ */
+app.post('/rpc', createRpcHandler(store));
+
+// Also support root POST for compatibility
+app.post('/', createRpcHandler(store));
 
 // ============================================================================
 // IDENTITY MANAGEMENT (long-term keys)

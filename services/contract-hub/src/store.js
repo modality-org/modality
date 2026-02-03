@@ -498,6 +498,78 @@ export class ContractStore {
     return result.changes;
   }
   
+  /**
+   * Get overall stats for RPC
+   */
+  getStats() {
+    const contracts = this.db.prepare(`
+      SELECT COUNT(*) as count FROM contracts
+    `).get();
+    
+    const commits = this.db.prepare(`
+      SELECT COUNT(*) as count FROM commits
+    `).get();
+    
+    const identities = this.db.prepare(`
+      SELECT COUNT(*) as count FROM identities
+    `).get();
+    
+    return {
+      totalContracts: contracts.count,
+      totalCommits: commits.count,
+      totalIdentities: identities.count,
+    };
+  }
+  
+  /**
+   * Get derived state for a contract (replay commits)
+   */
+  getContractState(contractId) {
+    const commits = this.pullCommits(contractId);
+    if (!commits || commits.length === 0) {
+      return {};
+    }
+    
+    const state = {};
+    
+    for (const commit of commits) {
+      const data = commit.data;
+      if (!data) continue;
+      
+      // Handle POST commits (set value at path)
+      if (data.method === 'POST' && data.path) {
+        state[data.path] = data.body;
+      }
+      
+      // Handle DELETE commits
+      if (data.method === 'DELETE' && data.path) {
+        delete state[data.path];
+      }
+      
+      // Handle RULE commits (store in special key)
+      if (data.method === 'RULE') {
+        if (!state._rules) state._rules = [];
+        state._rules.push({
+          content: data.body,
+          commit: commit.hash,
+        });
+      }
+      
+      // Handle ACTION commits (store in special key)
+      if (data.method === 'ACTION') {
+        if (!state._actions) state._actions = [];
+        state._actions.push({
+          action: data.action,
+          params: data.params,
+          commit: commit.hash,
+          timestamp: commit.timestamp,
+        });
+      }
+    }
+    
+    return state;
+  }
+  
   close() {
     this.db.close();
   }
