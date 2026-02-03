@@ -550,6 +550,78 @@ impl HubHandler {
         Ok(())
     }
 
+    /// Validate WITHDRAW action for multi-account bank contracts
+    /// Checks: signer matches account owner AND balance >= amount
+    fn validate_withdraw(
+        &self,
+        action: &Value,
+        contract_state: &Value,
+        commit_signers: &[String],
+    ) -> Result<(), RpcError> {
+        let params = action.get("params")
+            .ok_or_else(|| RpcError::InvalidParams("WITHDRAW missing params".to_string()))?;
+
+        let account_id = params.get("account_id")
+            .and_then(|a| a.as_str())
+            .ok_or_else(|| RpcError::InvalidParams("WITHDRAW missing account_id".to_string()))?;
+
+        let amount = params.get("amount")
+            .and_then(|a| a.as_f64())
+            .ok_or_else(|| RpcError::InvalidParams("WITHDRAW missing amount".to_string()))?;
+
+        if amount <= 0.0 {
+            return Err(RpcError::Custom {
+                code: -32050,
+                message: "WITHDRAW amount must be positive".to_string(),
+            });
+        }
+
+        // Look up account at /bank/accounts/{account_id}.json
+        let account_path = format!("bank/accounts/{}.json", account_id);
+        let account_data = contract_state.get(&account_path)
+            .ok_or_else(|| RpcError::Custom {
+                code: -32051,
+                message: format!("Account '{}' not found", account_id),
+            })?;
+
+        // Get account owner ID
+        let owner_id = account_data.get("id")
+            .and_then(|i| i.as_str())
+            .ok_or_else(|| RpcError::Custom {
+                code: -32052,
+                message: format!("Account '{}' missing owner id", account_id),
+            })?;
+
+        // Verify signer matches account owner
+        if !commit_signers.contains(&owner_id.to_string()) {
+            return Err(RpcError::Custom {
+                code: -32053,
+                message: format!(
+                    "WITHDRAW must be signed by account owner '{}'",
+                    account_id
+                ),
+            });
+        }
+
+        // Get balance
+        let balance = account_data.get("balance")
+            .and_then(|b| b.as_f64())
+            .unwrap_or(0.0);
+
+        // Check balance >= amount
+        if balance < amount {
+            return Err(RpcError::Custom {
+                code: -32054,
+                message: format!(
+                    "Insufficient balance for '{}': have {}, need {}",
+                    account_id, balance, amount
+                ),
+            });
+        }
+
+        Ok(())
+    }
+
     /// Validate CREATE action
     async fn validate_create(
         &self,
@@ -865,6 +937,24 @@ impl RpcHandler for HubHandler {
                         "recv" => {
                             self.validate_recv(&params.contract_id, action, &contracts).await?;
                         }
+                        "action" => {
+                            // Check for WITHDRAW action
+                            let action_name = action.get("action")
+                                .and_then(|a| a.as_str())
+                                .unwrap_or("");
+                            
+                            if action_name == "WITHDRAW" {
+                                // Build current state and get signers
+                                if let Some(contract) = contracts.get(&params.contract_id) {
+                                    let state = self.build_state(&contract.commits);
+                                    let signers: Vec<String> = head.get("signatures")
+                                        .and_then(|s| s.as_object())
+                                        .map(|obj| obj.keys().cloned().collect())
+                                        .unwrap_or_default();
+                                    self.validate_withdraw(action, &state, &signers)?;
+                                }
+                            }
+                        }
                         _ => {
                             // post, rule, genesis, etc. - no special validation needed
                         }
@@ -922,5 +1012,156 @@ impl RpcHandler for HubHandler {
             hash,
             error: None,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_state_with_account(account_id: &str, owner_id: &str, balance: f64) -> Value {
+        json!({
+            format!("bank/accounts/{}.json", account_id): {
+                "id": owner_id,
+                "balance": balance
+            }
+        })
+    }
+
+    fn make_withdraw_action(account_id: &str, amount: f64) -> Value {
+        json!({
+            "method": "action",
+            "action": "WITHDRAW",
+            "params": {
+                "account_id": account_id,
+                "amount": amount
+            }
+        })
+    }
+
+    #[test]
+    fn test_validate_withdraw_success() {
+        let handler = HubHandler::new("/tmp/test".into());
+        let state = make_state_with_account("alice", "owner_key_123", 500.0);
+        let action = make_withdraw_action("alice", 200.0);
+        let signers = vec!["owner_key_123".to_string()];
+
+        let result = handler.validate_withdraw(&action, &state, &signers);
+        assert!(result.is_ok(), "Valid withdrawal should succeed");
+    }
+
+    #[test]
+    fn test_validate_withdraw_exact_balance() {
+        let handler = HubHandler::new("/tmp/test".into());
+        let state = make_state_with_account("alice", "owner_key_123", 500.0);
+        let action = make_withdraw_action("alice", 500.0);
+        let signers = vec!["owner_key_123".to_string()];
+
+        let result = handler.validate_withdraw(&action, &state, &signers);
+        assert!(result.is_ok(), "Withdrawal of exact balance should succeed");
+    }
+
+    #[test]
+    fn test_validate_withdraw_insufficient_balance() {
+        let handler = HubHandler::new("/tmp/test".into());
+        let state = make_state_with_account("alice", "owner_key_123", 100.0);
+        let action = make_withdraw_action("alice", 500.0);
+        let signers = vec!["owner_key_123".to_string()];
+
+        let result = handler.validate_withdraw(&action, &state, &signers);
+        assert!(result.is_err(), "Insufficient balance should fail");
+        
+        let err = result.unwrap_err();
+        match err {
+            RpcError::Custom { code, message } => {
+                assert_eq!(code, -32054);
+                assert!(message.contains("Insufficient balance"));
+            }
+            _ => panic!("Expected Custom error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_withdraw_wrong_signer() {
+        let handler = HubHandler::new("/tmp/test".into());
+        let state = make_state_with_account("alice", "owner_key_123", 500.0);
+        let action = make_withdraw_action("alice", 200.0);
+        let signers = vec!["wrong_key_456".to_string()];
+
+        let result = handler.validate_withdraw(&action, &state, &signers);
+        assert!(result.is_err(), "Wrong signer should fail");
+        
+        let err = result.unwrap_err();
+        match err {
+            RpcError::Custom { code, message } => {
+                assert_eq!(code, -32053);
+                assert!(message.contains("must be signed by account owner"));
+            }
+            _ => panic!("Expected Custom error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_withdraw_account_not_found() {
+        let handler = HubHandler::new("/tmp/test".into());
+        let state = json!({});
+        let action = make_withdraw_action("alice", 200.0);
+        let signers = vec!["owner_key_123".to_string()];
+
+        let result = handler.validate_withdraw(&action, &state, &signers);
+        assert!(result.is_err(), "Missing account should fail");
+        
+        let err = result.unwrap_err();
+        match err {
+            RpcError::Custom { code, message } => {
+                assert_eq!(code, -32051);
+                assert!(message.contains("not found"));
+            }
+            _ => panic!("Expected Custom error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_withdraw_negative_amount() {
+        let handler = HubHandler::new("/tmp/test".into());
+        let state = make_state_with_account("alice", "owner_key_123", 500.0);
+        let action = make_withdraw_action("alice", -100.0);
+        let signers = vec!["owner_key_123".to_string()];
+
+        let result = handler.validate_withdraw(&action, &state, &signers);
+        assert!(result.is_err(), "Negative amount should fail");
+        
+        let err = result.unwrap_err();
+        match err {
+            RpcError::Custom { code, message } => {
+                assert_eq!(code, -32050);
+                assert!(message.contains("must be positive"));
+            }
+            _ => panic!("Expected Custom error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_withdraw_multiple_accounts() {
+        let handler = HubHandler::new("/tmp/test".into());
+        let state = json!({
+            "bank/accounts/alice.json": { "id": "alice_key", "balance": 500.0 },
+            "bank/accounts/bob.json": { "id": "bob_key", "balance": 1000.0 }
+        });
+
+        // Alice withdraws from her account
+        let action = make_withdraw_action("alice", 200.0);
+        let signers = vec!["alice_key".to_string()];
+        assert!(handler.validate_withdraw(&action, &state, &signers).is_ok());
+
+        // Bob withdraws from his account
+        let action = make_withdraw_action("bob", 800.0);
+        let signers = vec!["bob_key".to_string()];
+        assert!(handler.validate_withdraw(&action, &state, &signers).is_ok());
+
+        // Bob cannot withdraw from Alice's account
+        let action = make_withdraw_action("alice", 100.0);
+        let signers = vec!["bob_key".to_string()];
+        assert!(handler.validate_withdraw(&action, &state, &signers).is_err());
     }
 }
