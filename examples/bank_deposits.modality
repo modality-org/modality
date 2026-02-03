@@ -1,0 +1,57 @@
+// Bank Deposits Contract
+//
+// A bank that accepts deposits from multiple parties.
+// Each party can only withdraw up to their deposited balance.
+//
+// Balances are tracked at /bank/balances/{party}.json
+// Parties are registered at /bank/parties/{name}.id
+
+model bank {
+  initial open
+  
+  // Anyone can deposit (must sign their own deposit)
+  open -> open [+DEPOSIT]
+  
+  // Withdrawals return to open state
+  open -> open [+WITHDRAW]
+  
+  // Bank admin can pause/resume
+  open -> paused [+PAUSE +signed_by(/bank/admin.id)]
+  paused -> open [+RESUME +signed_by(/bank/admin.id)]
+}
+
+// Rule: deposits must be signed by the depositor
+rule deposit_must_be_signed {
+  starting_at $PARENT
+  formula {
+    always (
+      // DEPOSIT action must include depositor field
+      // and be signed by that depositor
+      [+DEPOSIT] implies signed_by(/action/depositor.id)
+    )
+  }
+}
+
+// Rule: withdrawals must be signed by the withdrawer
+// and amount must not exceed their balance
+rule withdrawal_authorization {
+  starting_at $PARENT
+  formula {
+    always (
+      [+WITHDRAW] implies (
+        signed_by(/action/withdrawer.id) &
+        lte(/action/amount, /bank/balances/{/action/withdrawer})
+      )
+    )
+  }
+}
+
+// Rule: no withdrawals when paused
+rule no_withdraw_when_paused {
+  starting_at $PARENT
+  formula {
+    always (
+      in_state(paused) implies [-WITHDRAW] true
+    )
+  }
+}
