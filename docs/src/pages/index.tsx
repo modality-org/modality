@@ -13,6 +13,9 @@ export default function Home(): JSX.Element {
       description="A verification language for AI agent cooperation"
     >
       <main className={styles.main}>
+        <div className={styles.warning}>
+          ⚠️ <strong>Work in Progress</strong> — Modality is under active development. APIs and syntax may change.
+        </div>
         <div className={styles.hero}>
           <h1 className={styles.title}>Modality</h1>
           <p className={styles.tagline}>
