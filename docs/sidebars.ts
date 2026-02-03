@@ -17,6 +17,7 @@ const sidebars: SidebarsConfig = {
       label: 'Core Concepts',
       items: [
         'concepts/index',
+        'concepts/models-vs-rules',
         'concepts/append-only-logs',
         'concepts/state-machines',
         'concepts/modal-logic',
