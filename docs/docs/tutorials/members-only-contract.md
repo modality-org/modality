@@ -23,39 +23,56 @@ Each `.id` file contains that member's public key.
 
 ## The Model
 
+The model defines the state machine structure:
+
 ```modality
 model members_only {
   initial active
-  
-  // Modifying /data/* requires any member signature
-  active -> active [+any_signed(/members) +modifies(/data)]
-  
-  // Modifying /members/* requires ALL member signatures  
-  active -> active [+all_signed(/members) +modifies(/members)]
+  active -> active []
 }
 ```
 
-### How the predicates work
+Simple: one state, self-loop. The model doesn't enforce permissions - that's what rules are for.
 
-| Predicate | Meaning |
-|-----------|---------|
-| `any_signed(/members)` | At least one signer is in `/members/*.id` |
-| `all_signed(/members)` | All signers from `/members/*.id` are present |
-| `modifies(/data)` | Commit touches paths under `/data/` |
-| `modifies(/members)` | Commit touches paths under `/members/` |
+## The Rules
 
-Transitions combine predicates: the commit must satisfy ALL predicates on the transition.
+Rules are immutable once added. They enforce the constraints:
+
+```modality
+rule data_requires_member {
+  formula {
+    always (modifies(/data) implies any_signed(/members))
+  }
+}
+
+rule members_requires_all {
+  formula {
+    always (modifies(/members) implies all_signed(/members))
+  }
+}
+```
+
+### How rules work
+
+| Rule | Meaning |
+|------|---------|
+| `modifies(/data) implies any_signed(/members)` | IF touching /data THEN need member signature |
+| `modifies(/members) implies all_signed(/members)` | IF touching /members THEN need ALL signatures |
+
+Rules use `implies`: the predicate on the left triggers the requirement on the right.
+
+### Why rules, not just model?
+
+The model can be replaced. A malicious user could post a new model with no guards. But **rules are immutable** - once added, they apply to all future commits, including model changes.
 
 ## Walkthrough
 
 ### 1. Alice creates the contract
 
-Alice is the founder. She creates the contract and adds herself as the first member:
-
 ```bash
 modal contract create --id shared_notes
 
-# Alice adds herself (no existing members, so allowed)
+# Alice adds herself as first member
 modal contract commit \
   --method post \
   --path /members/alice.id \
@@ -69,15 +86,29 @@ modal contract commit \
 modal contract commit \
   --method post \
   --path /model.modality \
-  --value 'model members_only {
-    initial active
-    active -> active [+any_signed(/members) +modifies(/data)]
-    active -> active [+all_signed(/members) +modifies(/members)]
-  }' \
+  --value 'model members_only { initial active; active -> active [] }' \
   --sign alice
 ```
 
-### 3. Alice adds Bob
+### 3. Add the rules
+
+```bash
+# Rule: modifying /data requires any member
+modal contract commit \
+  --method rule \
+  --value 'rule data_requires_member { formula { always (modifies(/data) implies any_signed(/members)) } }' \
+  --sign alice
+
+# Rule: modifying /members requires ALL members
+modal contract commit \
+  --method rule \
+  --value 'rule members_requires_all { formula { always (modifies(/members) implies all_signed(/members)) } }' \
+  --sign alice
+```
+
+**These rules are now permanent.**
+
+### 4. Alice adds Bob
 
 Alice is the only member, so only she needs to sign:
 
@@ -89,9 +120,9 @@ modal contract commit \
   --sign alice
 ```
 
-✓ Passes: `modifies(/members)` + `all_signed(/members)` where members = [alice]
+✓ Passes: `modifies(/members)` triggers `all_signed(/members)` = [alice] ✓
 
-### 4. Alice and Bob add Carol
+### 5. Alice and Bob add Carol
 
 Now BOTH must sign:
 
@@ -104,21 +135,21 @@ modal contract commit \
   --sign bob
 ```
 
-✓ Passes: `all_signed(/members)` where members = [alice, bob]
+✓ Passes: `all_signed(/members)` = [alice, bob] ✓
 
-### 5. Any member can post data
+### 6. Any member can post data
 
 ```bash
 modal contract commit \
   --method post \
   --path /data/meeting-notes.md \
-  --value "# Meeting Notes\n\nDiscussed roadmap..." \
+  --value "# Meeting Notes..." \
   --sign bob
 ```
 
-✓ Passes: `modifies(/data)` + `any_signed(/members)` where bob ∈ members
+✓ Passes: `modifies(/data)` triggers `any_signed(/members)`, bob ∈ members ✓
 
-### 6. Non-members are rejected
+### 7. Non-members rejected
 
 ```bash
 modal contract commit \
@@ -130,7 +161,7 @@ modal contract commit \
 
 ✗ Rejected: `any_signed(/members)` fails — stranger ∉ members
 
-### 7. Partial signatures rejected for /members
+### 8. Partial signatures rejected
 
 ```bash
 modal contract commit \
@@ -142,7 +173,7 @@ modal contract commit \
   # Missing carol!
 ```
 
-✗ Rejected: `all_signed(/members)` fails — carol didn't sign
+✗ Rejected: `all_signed(/members)` requires carol
 
 ## Final State
 
@@ -156,65 +187,61 @@ modal contract commit \
   meeting-notes.md → "# Meeting Notes..."
 ```
 
-## How Evaluation Works
+Plus two immutable rules enforcing the membership requirements.
+
+## Rule Evaluation
 
 When a commit arrives:
 
 1. **Extract modified paths** from commit body
-2. **Find matching transition** where `modifies(X)` matches
-3. **Check signature predicates** for that transition
-4. **Accept or reject** based on predicate evaluation
+2. **Evaluate each rule's formula**
+3. **Check implications**: if left side true, right side must be true
+4. **Reject** if any rule fails
 
-```rust
-// Commit modifies /members/dave.id
-let body = json!([{"method": "post", "path": "/members/dave.id", ...}]);
+```
+Commit: POST /members/dave.id
 
-// Matches: active -> active [+all_signed(/members) +modifies(/members)]
-// Check: all_signed(/members) with current signers
-// Result: pass if all members signed, reject otherwise
+Rule: modifies(/members) implies all_signed(/members)
+  - modifies(/members) = true (touching /members/dave.id)
+  - all_signed(/members) = ? (check signers vs members)
+  - If signers include all members: PASS
+  - If missing any member: REJECT
 ```
 
 ## Variations
 
-### Read-only for non-members
+### Admin override
 
 ```modality
-model public_read {
-  initial active
-  
-  // Anyone can read (no signature needed for queries)
-  // Only members can write
-  active -> active [+any_signed(/members) +modifies(/)]
+rule admin_can_do_anything {
+  formula {
+    always (signed_by(/admin.id) implies true)
+  }
+}
+
+rule members_requires_all_unless_admin {
+  formula {
+    always (modifies(/members) implies (all_signed(/members) | signed_by(/admin.id)))
+  }
 }
 ```
 
-### Tiered permissions
+### Majority for membership changes
 
 ```modality
-model tiered {
-  initial active
-  
-  // Admins can modify anything
-  active -> active [+any_signed(/admins)]
-  
-  // Members can modify /data
-  active -> active [+any_signed(/members) +modifies(/data)]
-  
-  // Adding members needs admin
-  active -> active [+any_signed(/admins) +modifies(/members)]
+rule members_majority {
+  formula {
+    always (modifies(/members) implies threshold_signed(2, /members))
+  }
 }
 ```
 
-### Majority vote for membership
+### Lock certain paths
 
 ```modality
-model majority {
-  initial active
-  
-  // Data: any member
-  active -> active [+any_signed(/members) +modifies(/data)]
-  
-  // Members: majority (using threshold)
-  active -> active [+threshold_signed(2, /members) +modifies(/members)]
+rule config_immutable {
+  formula {
+    always (not modifies(/config))
+  }
 }
 ```
