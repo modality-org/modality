@@ -52,6 +52,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Tutorials',
       items: [
+        'tutorials/members-only-contract',
         'tutorials/multi-party-contract',
         'tutorials/multisig-treasury',
         'tutorials/oracle-escrow',
