@@ -14,12 +14,11 @@ use axum::{
     Json, Router,
 };
 use futures_util::{SinkExt, StreamExt};
-use tokio::sync::{broadcast, RwLock};
-use tracing::{info, warn, error};
+use tokio::sync::{broadcast, RwLock, Mutex};
+use tracing::{info, warn};
 
 use crate::types::*;
 use crate::methods::{dispatch_request, RpcHandler};
-use crate::error::RpcError;
 
 /// RPC Server configuration
 #[derive(Debug, Clone)]
@@ -43,6 +42,7 @@ impl Default for RpcServerConfig {
 
 /// Subscription state
 struct SubscriptionState {
+    #[allow(dead_code)]
     subscriptions: RwLock<HashMap<String, SubscribeParams>>,
     event_tx: broadcast::Sender<EventNotification>,
 }
@@ -70,7 +70,7 @@ impl<H: RpcHandler + 'static> RpcServer<H> {
     }
 
     /// Broadcast an event to subscribers
-    pub async fn broadcast_event(&self, event: EventNotification) {
+    pub fn broadcast_event(&self, event: EventNotification) {
         let _ = self.subscriptions.event_tx.send(event);
     }
 
@@ -156,15 +156,14 @@ async fn handle_websocket<H: RpcHandler>(
 
 /// Handle a WebSocket connection
 async fn handle_ws_connection<H: RpcHandler>(socket: WebSocket, state: AppState<H>) {
-    let (mut sender, mut receiver) = socket.split();
+    let (sender, mut receiver) = socket.split();
+    let sender = Arc::new(Mutex::new(sender));
     
     // Subscribe to events
     let mut event_rx = state.subscriptions.event_tx.subscribe();
     
     // Spawn a task to forward events to the client
-    let sender_clone = Arc::new(tokio::sync::Mutex::new(sender));
-    let sender_for_events = sender_clone.clone();
-    
+    let sender_for_events = sender.clone();
     let event_task = tokio::spawn(async move {
         while let Ok(event) = event_rx.recv().await {
             let msg = serde_json::to_string(&RpcResponse {
@@ -191,8 +190,8 @@ async fn handle_ws_connection<H: RpcHandler>(socket: WebSocket, state: AppState<
                         let response = process_request(&state.handler, request).await;
                         let response_text = serde_json::to_string(&response).unwrap();
                         
-                        let mut sender = sender_clone.lock().await;
-                        if sender.send(Message::Text(response_text)).await.is_err() {
+                        let mut sender_guard = sender.lock().await;
+                        if sender_guard.send(Message::Text(response_text)).await.is_err() {
                             break;
                         }
                     }
@@ -205,8 +204,8 @@ async fn handle_ws_connection<H: RpcHandler>(socket: WebSocket, state: AppState<
                         );
                         let response_text = serde_json::to_string(&response).unwrap();
                         
-                        let mut sender = sender_clone.lock().await;
-                        if sender.send(Message::Text(response_text)).await.is_err() {
+                        let mut sender_guard = sender.lock().await;
+                        if sender_guard.send(Message::Text(response_text)).await.is_err() {
                             break;
                         }
                     }
@@ -214,8 +213,8 @@ async fn handle_ws_connection<H: RpcHandler>(socket: WebSocket, state: AppState<
             }
             Ok(Message::Close(_)) => break,
             Ok(Message::Ping(data)) => {
-                let mut sender = sender_clone.lock().await;
-                let _ = sender.send(Message::Pong(data)).await;
+                let mut sender_guard = sender.lock().await;
+                let _ = sender_guard.send(Message::Pong(data)).await;
             }
             Err(e) => {
                 warn!("WebSocket error: {}", e);
