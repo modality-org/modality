@@ -38,6 +38,7 @@ pub struct AnchoredRule {
 pub struct ReplayCommit {
     pub index: usize,
     pub method: String,
+    #[allow(dead_code)]
     pub body: Value,
     /// For ACTION commits: the action labels
     pub action_labels: Vec<String>,
@@ -239,7 +240,7 @@ impl ModelValidator {
     /// Replay history to find current state set on a model
     fn replay_to_current_state(&self, model: &Model) -> Result<HashSet<String>, String> {
         // Start at initial states
-        let mut states = self.find_initial_states(model);
+        let states = self.find_initial_states(model);
 
         // Note: Full replay would require storing action history
         // For now, we return initial states if no action history is available
@@ -366,11 +367,13 @@ impl ModelValidator {
     }
 
     /// Get current state set
+    #[allow(dead_code)]
     pub fn current_states(&self) -> &HashSet<String> {
         &self.current_states
     }
 
     /// Get all rules
+    #[allow(dead_code)]
     pub fn rules(&self) -> &[AnchoredRule] {
         &self.rules
     }
