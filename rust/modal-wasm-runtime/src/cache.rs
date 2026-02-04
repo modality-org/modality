@@ -35,6 +35,12 @@ pub struct WasmModuleCache {
     misses: u64,
 }
 
+impl Default for WasmModuleCache {
+    fn default() -> Self {
+        Self::new(100, 50)
+    }
+}
+
 impl WasmModuleCache {
     /// Create a new cache with size limits
     /// 
@@ -50,11 +56,6 @@ impl WasmModuleCache {
             hits: 0,
             misses: 0,
         }
-    }
-
-    /// Create a cache with default limits (100 modules, 50MB)
-    pub fn default() -> Self {
-        Self::new(100, 50)
     }
 
     /// Generate cache key from contract ID, path, and hash

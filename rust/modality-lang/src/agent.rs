@@ -888,7 +888,7 @@ mod tests {
 
     #[test]
     fn test_is_turn() {
-        let mut contract = Contract::handshake("alice", "bob");
+        let contract = Contract::handshake("alice", "bob");
         // Both can sign initially
         assert!(contract.is_turn("alice"));
         assert!(contract.is_turn("bob"));
