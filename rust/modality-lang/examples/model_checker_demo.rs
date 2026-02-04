@@ -1,5 +1,4 @@
 use modality_lang::{
-    parse_content_lalrpop, 
     parse_all_formulas_content_lalrpop,
     ModelChecker,
     ast::{Model, Part, Transition, Property, PropertySign, PartState}
