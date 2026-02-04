@@ -592,7 +592,7 @@ fn test_membership_growth_model_evolution() {
     
     // === Step 1: Alice registers and adds herself as first member ===
     contract.register_party("alice", alice_key).unwrap();
-    contract.post("/members/alice.id", PathValue::Id(alice_key.to_string())).unwrap();
+    contract.post("/members/alice.id", PathValue::PubKey(alice_key.to_string())).unwrap();
     
     // Verify Alice is in members
     assert!(contract.path_exists("/members/alice.id"));
@@ -601,7 +601,7 @@ fn test_membership_growth_model_evolution() {
     // At this point, if we had a rule "all_signed(/members)", only alice would need to sign
     // Since Alice is the only member, she can add Bob alone
     contract.register_party("bob", bob_key).unwrap();
-    contract.post("/members/bob.id", PathValue::Id(bob_key.to_string())).unwrap();
+    contract.post("/members/bob.id", PathValue::PubKey(bob_key.to_string())).unwrap();
     
     // Both are now registered
     assert!(contract.path_exists("/members/alice.id"));
@@ -616,7 +616,7 @@ fn test_membership_growth_model_evolution() {
     // The RULE stays the same, but the MODEL (set of required signers) has evolved.
     
     contract.register_party("carol", carol_key).unwrap();
-    contract.post("/members/carol.id", PathValue::Id(carol_key.to_string())).unwrap();
+    contract.post("/members/carol.id", PathValue::PubKey(carol_key.to_string())).unwrap();
     
     // All three are now registered
     assert!(contract.path_exists("/members/alice.id"));
