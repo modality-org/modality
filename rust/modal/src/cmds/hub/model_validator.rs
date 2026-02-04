@@ -10,7 +10,7 @@
 //! - **Rule anchoring**: Each rule is anchored to the commit where it was added
 //! - **Replay**: New models must replay history to establish valid state mapping
 
-use modality_lang::{parse_content_lalrpop, Model, ModelChecker, Formula, FormulaExpr};
+use modality_lang::{parse_content_lalrpop, Model, ModelChecker, Formula};
 use serde_json::Value;
 use std::collections::HashSet;
 
@@ -105,7 +105,7 @@ impl ModelValidator {
     }
 
     /// Apply a MODEL commit
-    fn apply_model(&mut self, content: &str, commit_index: usize) -> Result<(), String> {
+    fn apply_model(&mut self, content: &str, _commit_index: usize) -> Result<(), String> {
         // Parse the new model
         let new_model = parse_content_lalrpop(content)
             .map_err(|e| format!("Invalid model syntax: {}", e))?;
@@ -359,13 +359,10 @@ impl ModelValidator {
         use modality_lang::grammar::FormulaParser;
         
         let parser = FormulaParser::new();
-        let expr = parser.parse(content)
+        let formula = parser.parse(content)
             .map_err(|e| format!("Formula parse error: {:?}", e))?;
 
-        Ok(Formula {
-            name: "rule".to_string(),
-            expression: expr,
-        })
+        Ok(formula)
     }
 
     /// Get current state set

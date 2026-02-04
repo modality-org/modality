@@ -52,6 +52,22 @@ impl ModelChecker {
         }
     }
 
+    /// Check if a formula is satisfied starting from a specific state name
+    /// 
+    /// Returns satisfied if the named state is among the states that satisfy the formula
+    pub fn check_formula_at_state(&self, formula: &Formula, state_name: &str) -> ModelCheckResult {
+        let satisfying_states = self.evaluate_formula(&formula.expression);
+        
+        // Check if any satisfying state has this node name
+        let is_satisfied = satisfying_states.iter().any(|s| s.node_name == state_name);
+        
+        ModelCheckResult {
+            formula: formula.clone(),
+            satisfying_states,
+            is_satisfied,
+        }
+    }
+
     /// Check if at least one state from each part satisfies the formula
     fn check_satisfaction_per_part(&self, satisfying_states: &[State]) -> bool {
         // Get all part names from the model
