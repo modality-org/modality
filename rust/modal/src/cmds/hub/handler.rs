@@ -733,6 +733,97 @@ impl HubHandler {
         Ok(())
     }
 
+    /// Validate MODEL commit: new model must satisfy all existing rules
+    fn validate_model(
+        &self,
+        contract_id: &str,
+        model_content: &str,
+        commits: &[StoredCommit],
+    ) -> Result<(), RpcError> {
+        use super::model_validator::{ModelValidator, ReplayCommit};
+
+        // Build replay commits from stored commits
+        let replay_commits: Vec<ReplayCommit> = commits.iter().enumerate()
+            .map(|(i, c)| {
+                let mut method = String::new();
+                let mut action_labels = Vec::new();
+                let mut rule_content = None;
+                let mut model_content = None;
+
+                if let Some(actions) = c.body.as_array() {
+                    for action in actions {
+                        let m = action.get("method")
+                            .and_then(|m| m.as_str())
+                            .unwrap_or("")
+                            .to_lowercase();
+                        
+                        if !m.is_empty() {
+                            method = m.clone();
+                        }
+
+                        match m.as_str() {
+                            "model" => {
+                                model_content = action.get("value")
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string());
+                            }
+                            "rule" => {
+                                rule_content = action.get("value")
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string());
+                            }
+                            "action" => {
+                                if let Some(labels) = action.get("labels").and_then(|l| l.as_array()) {
+                                    action_labels = labels.iter()
+                                        .filter_map(|l| l.as_str())
+                                        .map(|s| s.to_string())
+                                        .collect();
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                ReplayCommit {
+                    index: i,
+                    method,
+                    body: c.body.clone(),
+                    action_labels,
+                    rule_content,
+                    model_content,
+                }
+            })
+            .collect();
+
+        // Create validator from existing commits
+        let validator = ModelValidator::from_commits(&replay_commits)
+            .map_err(|e| RpcError::Custom {
+                code: -32050,
+                message: format!("Failed to build model validator: {}", e),
+            })?;
+
+        // Validate the new model
+        let result = validator.validate_new_model(model_content);
+
+        if !result.valid {
+            return Err(RpcError::Custom {
+                code: -32051,
+                message: format!(
+                    "MODEL commit rejected: {}",
+                    result.errors.join("; ")
+                ),
+            });
+        }
+
+        tracing::info!(
+            "MODEL validated for contract {}: states {:?}",
+            contract_id, result.current_states
+        );
+
+        Ok(())
+    }
+
     /// Apply commit actions to update contract state
     fn apply_commit_to_state(
         contract_id: &str,
@@ -999,6 +1090,16 @@ impl RpcHandler for HubHandler {
                         }
                         "recv" => {
                             self.validate_recv(&params.contract_id, action, &contracts).await?;
+                        }
+                        "model" => {
+                            // Validate MODEL commit: new model must satisfy all existing rules
+                            if let Some(contract) = contracts.get(&params.contract_id) {
+                                let model_content = action.get("value")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("");
+                                
+                                self.validate_model(&params.contract_id, model_content, &contract.commits)?;
+                            }
                         }
                         "action" => {
                             let action_name = action.get("action")
