@@ -1,4 +1,4 @@
-use modality_lang::{parse_file_lalrpop, PropertySign};
+use modality_lang::parse_file_lalrpop;
 
 fn main() {
     let path = std::env::args().nth(1).expect("Usage: parse_example <file>");

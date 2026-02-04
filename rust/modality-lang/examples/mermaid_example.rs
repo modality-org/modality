@@ -11,7 +11,7 @@ fn main() -> Result<(), String> {
     println!("✓ Successfully parsed {} models\n", models.len());
     
     // Generate diagrams for each model
-    for (i, model) in models.iter().enumerate() {
+    for (_i, model) in models.iter().enumerate() {
         println!("Model: {}", model.name);
         println!("Number of parts: {}", model.parts.len());
         
