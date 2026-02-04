@@ -234,11 +234,7 @@ async fn check_recent_blocks_check_only(
     
     let chain_length = canonical_blocks.len();
     
-    let start_index = if chain_length > window_size {
-        chain_length - window_size
-    } else {
-        0
-    };
+    let start_index = chain_length.saturating_sub(window_size);
     
     let mut blocks_by_index: HashMap<u64, &MinerBlock> = HashMap::new();
     for block in canonical_blocks {

@@ -190,8 +190,8 @@ fn parse_test_simple(test_str: &str) -> Result<Test, String> {
     let trimmed = test_str.trim();
     if trimmed.starts_with("test {") {
         Ok(Test::new(None))
-    } else if trimmed.starts_with("test ") {
-        let name_part = trimmed[5..].trim();
+    } else if let Some(rest) = trimmed.strip_prefix("test ") {
+        let name_part = rest.trim();
         if let Some(brace_pos) = name_part.find('{') {
             let name = name_part[..brace_pos].trim().to_string();
             if name.is_empty() {

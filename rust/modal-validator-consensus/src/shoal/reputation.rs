@@ -30,7 +30,7 @@ impl ReputationManager {
         // Get all validators sorted by reputation score (descending)
         let mut validators: Vec<(PublicKey, f64)> = self.state.scores
             .iter()
-            .map(|(key, &score)| (key.clone(), score))
+            .map(|(key, &score)| (*key, score))
             .collect();
         
         validators.sort_by(|a, b| {
@@ -43,8 +43,8 @@ impl ReputationManager {
         // Return top validator
         validators
             .first()
-            .map(|(key, _)| key.clone())
-            .unwrap_or_else(|| self.committee.validator_order[0].clone())
+            .map(|(key, _)| *key)
+            .unwrap_or_else(|| self.committee.validator_order[0])
     }
 
     /// Deterministic tie-breaking for leader selection
@@ -84,7 +84,7 @@ impl ReputationManager {
     pub fn get_all_scores(&self) -> Vec<(PublicKey, f64)> {
         self.state.scores
             .iter()
-            .map(|(key, &score)| (key.clone(), score))
+            .map(|(key, &score)| (*key, score))
             .collect()
     }
 
@@ -94,7 +94,7 @@ impl ReputationManager {
         let mut validators: Vec<(PublicKey, f64)> = self.state.scores
             .iter()
             .filter(|(key, _)| !exclude.contains(key))
-            .map(|(key, &score)| (key.clone(), score))
+            .map(|(key, &score)| (*key, score))
             .collect();
         
         validators.sort_by(|a, b| {
@@ -103,7 +103,7 @@ impl ReputationManager {
                 .then_with(|| self.deterministic_tie_break(round, &a.0, &b.0))
         });
 
-        validators.first().map(|(key, _)| key.clone())
+        validators.first().map(|(key, _)| *key)
     }
 }
 

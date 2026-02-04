@@ -606,8 +606,8 @@ impl MinerBlock {
         for block in all_blocks {
             // Check that block branches from all checkpoints before it
             for (checkpoint_index, checkpoint_hash) in checkpoints {
-                if block.index > *checkpoint_index {
-                    if !Self::branches_from_checkpoint_multi(
+                if block.index > *checkpoint_index
+                    && !Self::branches_from_checkpoint_multi(
                         mgr,
                         &block,
                         checkpoint_hash,
@@ -616,7 +616,6 @@ impl MinerBlock {
                         invalid_blocks.push(block.clone());
                         break;
                     }
-                }
             }
         }
         

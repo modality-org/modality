@@ -49,16 +49,16 @@ pub fn start_promotion_task(
             
             // Run promotion
             {
-                let mut mgr_lock = datastore.lock().await;
-                if let Err(e) = MinerBlock::run_promotion(&mut mgr_lock, current_epoch).await {
+                let mgr_lock = datastore.lock().await;
+                if let Err(e) = MinerBlock::run_promotion(&mgr_lock, current_epoch).await {
                     log::warn!("Block promotion task failed: {}", e);
                 }
             }
             
             // Run purge
             {
-                let mut mgr_lock = datastore.lock().await;
-                if let Err(e) = MinerBlock::run_purge(&mut mgr_lock, current_epoch).await {
+                let mgr_lock = datastore.lock().await;
+                if let Err(e) = MinerBlock::run_purge(&mgr_lock, current_epoch).await {
                     log::warn!("Block purge task failed: {}", e);
                 }
             }
@@ -91,7 +91,7 @@ pub async fn validate_and_cleanup_chain(
         let mut chain_is_valid = true;
         
         // Check for genesis
-        if all_blocks.iter().find(|b| b.index == 0).is_none() {
+        if !all_blocks.iter().any(|b| b.index == 0) {
             log::warn!("⚠️  Missing genesis block during chain validation");
             chain_is_valid = false;
         } else {

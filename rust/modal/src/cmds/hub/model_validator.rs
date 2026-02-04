@@ -309,7 +309,7 @@ impl ModelValidator {
 
         // Check formula from each possible state
         for state in states {
-            let result = checker.check_formula_at_state(&formula, state);
+            let result = checker.check_formula_at_state(formula, state);
             if !result.is_satisfied {
                 return false;
             }

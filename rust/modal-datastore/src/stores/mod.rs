@@ -52,6 +52,7 @@ pub trait Store {
     }
     
     /// Iterate over keys with a prefix
+    #[allow(clippy::type_complexity)]
     fn iterator(&self, prefix: &str) -> impl Iterator<Item = Result<(Box<[u8]>, Box<[u8]>)>> + '_ {
         let mut readopts = rocksdb::ReadOptions::default();
         readopts.set_iterate_lower_bound(format!("{}/", prefix).as_bytes());

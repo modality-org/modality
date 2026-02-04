@@ -1,3 +1,5 @@
+#![allow(clippy::collapsible_match)]
+
 mod cmds;
 mod constants;
 

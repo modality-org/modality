@@ -53,7 +53,7 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
                 if let Some(signer) = extract_diamond_signer(rhs) {
                     constraints.authorization
                         .entry(action_x.clone())
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(signer);
                     constraints.actions.insert(action_x.clone());
                 }
@@ -285,13 +285,13 @@ fn topological_sort(
     // Initialize all actions
     for action in all_actions {
         in_degree.entry(action.clone()).or_insert(0);
-        graph.entry(action.clone()).or_insert_with(Vec::new);
+        graph.entry(action.clone()).or_default();
     }
     
     // Build graph
     for (x, y) in ordering {
         // Y -> X (Y must come before X)
-        graph.entry(y.clone()).or_insert_with(Vec::new).push(x.clone());
+        graph.entry(y.clone()).or_default().push(x.clone());
         *in_degree.entry(x.clone()).or_insert(0) += 1;
     }
     
@@ -335,7 +335,7 @@ pub fn synthesize_from_formulas(name: &str, formulas: &[FormulaExpr]) -> Model {
         for (action, signers) in fc.authorization {
             constraints.authorization
                 .entry(action)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .extend(signers);
         }
         constraints.forbidden_after.extend(fc.forbidden_after);

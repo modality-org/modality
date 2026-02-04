@@ -147,10 +147,8 @@ impl Keypair {
         let base_secret = match &self.inner {
             KeypairOrPublicKey::Keypair(k) => {
                 // Use protobuf encoding to get the private key bytes
-                let encoded = k.to_protobuf_encoding()?;
-                // The ed25519 secret key is in the protobuf encoding
                 // For Ed25519, the protobuf encoding contains the secret key
-                encoded
+                k.to_protobuf_encoding()?
             }
             KeypairOrPublicKey::PublicKey(_) => {
                 return Err(anyhow!("Cannot derive from public key only"));

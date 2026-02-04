@@ -167,10 +167,10 @@ pub struct Committee {
 impl Committee {
     /// Create a new committee from a list of validators
     pub fn new(validators: Vec<Validator>) -> Self {
-        let validator_order: Vec<PublicKey> = validators.iter().map(|v| v.public_key.clone()).collect();
+        let validator_order: Vec<PublicKey> = validators.iter().map(|v| v.public_key).collect();
         let validators: HashMap<PublicKey, Validator> = validators
             .into_iter()
-            .map(|v| (v.public_key.clone(), v))
+            .map(|v| (v.public_key, v))
             .collect();
         
         Self {

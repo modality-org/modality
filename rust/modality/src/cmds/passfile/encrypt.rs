@@ -3,7 +3,7 @@ use clap::Parser;
 use rpassword::read_password;
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use modal_common::keypair::Keypair;
 
@@ -22,7 +22,7 @@ pub struct Opts {
     path: Option<PathBuf>,
 }
 
-pub async fn encrypt_passfile_file(path: &PathBuf, password: &str) -> Result<()> {
+pub async fn encrypt_passfile_file(path: &Path, password: &str) -> Result<()> {
     let keypair = Keypair::from_json_file(path.to_str().ok_or_else(|| {
         anyhow::anyhow!("Invalid file path: contains non-Unicode characters")
     })?)
@@ -39,7 +39,7 @@ pub async fn encrypt_passfile_file(path: &PathBuf, password: &str) -> Result<()>
                     "Invalid file path: contains non-Unicode characters"
                 )
             })?,
-            &password,
+            password,
         )
         .map_err(|e| {
             eprintln!("Failed to save encrypted keypair to file: {}", e);

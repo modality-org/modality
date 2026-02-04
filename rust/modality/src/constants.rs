@@ -1,5 +1,4 @@
 /// Network configuration constants
-
 /// Testnet bootstrapper addresses
 #[allow(dead_code)]
 pub const TESTNET_BOOTSTRAPPERS: &[&str] = &[

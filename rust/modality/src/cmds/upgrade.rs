@@ -3,7 +3,7 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(about = "Upgrade modality to the latest version")]
@@ -84,7 +84,7 @@ async fn fetch_manifest(base_url: &str, branch: &str, version: Option<&str>) -> 
     Ok(manifest)
 }
 
-async fn download_binary(url: &str, dest_path: &PathBuf) -> Result<()> {
+async fn download_binary(url: &str, dest_path: &Path) -> Result<()> {
     println!("⬇️  Downloading: {}", url);
     
     let response = reqwest::get(url)

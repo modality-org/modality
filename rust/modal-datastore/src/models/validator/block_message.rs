@@ -59,7 +59,7 @@ impl ValidatorBlockMessage {
                 keys.insert("type".to_string(), r#type.to_string());
                 keys.insert("peer_id".to_string(), peer_id.to_string());
 
-                if let Some(msg) = Self::find_one_from_store(&*store, keys).await? {
+                if let Some(msg) = Self::find_one_from_store(store, keys).await? {
                     messages.push(msg);
                 }
             }
@@ -83,7 +83,7 @@ impl ValidatorBlockMessage {
                 keys.insert("type".to_string(), r#type.to_string());
                 keys.insert("peer_id".to_string(), peer_id.to_string());
 
-                if let Some(msg) = Self::find_one_from_store(&*store, keys).await? {
+                if let Some(msg) = Self::find_one_from_store(store, keys).await? {
                     messages.push(msg);
                 }
             }
@@ -94,12 +94,12 @@ impl ValidatorBlockMessage {
 
     /// Save this message to the ValidatorActive store
     pub async fn save_to_active(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.validator_active()).await.map_err(|e| Error::Database(e.to_string()))
+        self.save_to_store(datastore.validator_active()).await.map_err(|e| Error::Database(e.to_string()))
     }
 
     /// Save this message to the ValidatorFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.validator_final()).await.map_err(|e| Error::Database(e.to_string()))
+        self.save_to_store(datastore.validator_final()).await.map_err(|e| Error::Database(e.to_string()))
     }
 }
 

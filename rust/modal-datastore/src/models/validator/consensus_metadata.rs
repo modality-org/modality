@@ -87,7 +87,7 @@ impl ConsensusMetadata {
     pub async fn get_current_multi(datastore: &DatastoreManager) -> Result<Self> {
         let keys = HashMap::from([("id".to_string(), "current".to_string())]);
         let store = datastore.validator_final();
-        match Self::find_one_from_store(&*store, keys).await {
+        match Self::find_one_from_store(store, keys).await {
             Ok(Some(metadata)) => Ok(metadata),
             _ => {
                 // Create default
@@ -120,6 +120,6 @@ impl ConsensusMetadata {
 
     /// Save this metadata to the ValidatorFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.validator_final()).await.map_err(|e| crate::Error::Database(e.to_string()))
+        self.save_to_store(datastore.validator_final()).await.map_err(|e| crate::Error::Database(e.to_string()))
     }
 }

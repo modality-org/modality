@@ -109,7 +109,7 @@ pub async fn handler(
     // **FIRST**: Check if a block exists at this index (fork choice)
     // This must happen BEFORE parent validation to handle competing blocks correctly
     {
-        let mut mgr = datastore_manager.lock().await;
+        let mgr = datastore_manager.lock().await;
         if let Some(existing) = MinerBlock::find_canonical_by_index_simple(&mgr, miner_block.index).await? {
             // We have a different block at the same index - this is a fork!
             // Apply fork choice rules in priority order:
@@ -171,7 +171,7 @@ pub async fn handler(
                     format!("Replaced by gossiped block (difficulty: {}, hash: {})", new_difficulty, &miner_block.hash[..16]),
                     Some(miner_block.hash.clone())
                 );
-                orphaned.save_to_active(&mut mgr).await?;
+                orphaned.save_to_active(&mgr).await?;
                 
                 // CASCADE ORPHANING: Find and orphan all canonical blocks built on the replaced block
                 let all_canonical = MinerBlock::find_all_canonical_multi(&mgr).await?;
@@ -197,7 +197,7 @@ pub async fn handler(
                                 &replaced_block_hash[..16], replaced_block_index),
                             None
                         );
-                        cascade_orphaned.save_to_active(&mut mgr).await?;
+                        cascade_orphaned.save_to_active(&mgr).await?;
                         
                         orphaned_hashes.insert(block.hash.clone());
                         cascade_orphaned_count += 1;
@@ -210,7 +210,7 @@ pub async fn handler(
                 }
                 
                 // Save new block as canonical
-                miner_block.save_to_active(&mut mgr).await?;
+                miner_block.save_to_active(&mgr).await?;
                 log::info!("Accepted gossiped block {} at index {}", &miner_block.hash[..16], miner_block.index);
                 
                 // Check if this updates the chain tip
@@ -365,8 +365,8 @@ pub async fn handler(
     log::info!("Accepting new gossiped block {} at index {}", &miner_block.hash[..16], miner_block.index);
     
     let current_tip = {
-        let mut mgr = datastore_manager.lock().await;
-        miner_block.save_to_active(&mut mgr).await?;
+        let mgr = datastore_manager.lock().await;
+        miner_block.save_to_active(&mgr).await?;
         
         MinerBlock::find_all_canonical_multi(&mgr).await?
             .into_iter()

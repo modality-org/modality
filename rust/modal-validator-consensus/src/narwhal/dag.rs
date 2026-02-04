@@ -45,7 +45,7 @@ impl DAG {
     pub fn insert(&mut self, cert: Certificate) -> Result<()> {
         let digest = cert.digest();
         let round = cert.header.round;
-        let author = cert.header.author.clone();
+        let author = cert.header.author;
 
         // Check for equivocation
         if self.detect_equivocation(&cert) {
@@ -72,11 +72,11 @@ impl DAG {
 
         // Update author index
         self.by_author
-            .entry(author.clone())
+            .entry(author)
             .or_default()
             .insert(round, digest);
 
-        log::debug!("inserted certificate {} for round {} from {:?}", hex::encode(&digest), round, &author);
+        log::debug!("inserted certificate {} for round {} from {:?}", hex::encode(digest), round, &author);
         
         Ok(())
     }

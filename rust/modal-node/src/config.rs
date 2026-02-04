@@ -217,9 +217,9 @@ impl Config {
     /// - Other networks: 10 (devnets, mainnet)
     pub fn get_initial_difficulty(&self) -> Option<u128> {
         // If explicitly set, use that value
-        if self.initial_difficulty.is_some() {
-            log::info!("Using explicitly configured initial_difficulty = {}", self.initial_difficulty.unwrap());
-            return self.initial_difficulty;
+        if let Some(difficulty) = self.initial_difficulty {
+            log::info!("Using explicitly configured initial_difficulty = {}", difficulty);
+            return Some(difficulty);
         }
 
         // Auto-detect testnet from bootstrappers and set difficulty to 1

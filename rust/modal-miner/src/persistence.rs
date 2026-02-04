@@ -83,7 +83,7 @@ impl BlockchainPersistence for DatastoreManager {
         
         miner_blocks
             .iter()
-            .map(|mb| miner_block_to_block(mb))
+            .map(miner_block_to_block)
             .collect()
     }
     

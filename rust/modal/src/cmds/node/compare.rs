@@ -45,7 +45,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let data_dir = config.data_dir.as_ref()
         .or(config.storage_path.as_ref())
         .context("No data_dir or storage_path in config")?;
-    let datastore_manager = DatastoreManager::open(&data_dir)?;
+    let datastore_manager = DatastoreManager::open(data_dir)?;
     
     // Get local chain info
     let local_blocks = MinerBlock::find_all_canonical_multi(&datastore_manager).await?;

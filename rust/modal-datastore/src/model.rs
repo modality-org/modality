@@ -15,7 +15,7 @@ pub trait Model: Sized + Serialize + for<'de> Deserialize<'de> {
         let mut model: Self = serde_json::from_value(obj.clone())
             .context("Failed to deserialize object")?;
         for &field in Self::FIELDS {
-            if !obj.get(field).is_some() {
+            if obj.get(field).is_none() {
                 if let Some(default_value) = Self::FIELD_DEFAULTS.iter().find(|&&(k, _)| k == field) {
                     let value = serde_json::to_value(default_value.1.clone())
                         .context("Failed to convert default value to JSON")?;

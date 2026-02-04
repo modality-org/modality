@@ -21,7 +21,7 @@ pub async fn handler(data: String, _datastore_manager: &mut DatastoreManager, co
   let msg = ConsensusMessage::CertifiedValidatorBlock {
     from: from.to_string(),
     to: String::new(),
-    block: block,
+    block,
   };
   consensus_tx.send(msg).await?;
   Ok(())

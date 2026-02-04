@@ -75,7 +75,7 @@ impl DAGState {
         datastore: &DatastoreManager,
         keys: HashMap<String, String>,
     ) -> Result<Option<Self>> {
-        Self::find_one_from_store(&*datastore.validator_final(), keys).await.map_err(|e| crate::Error::Database(e.to_string()))
+        Self::find_one_from_store(datastore.validator_final(), keys).await.map_err(|e| crate::Error::Database(e.to_string()))
     }
 
     /// Get the latest checkpoint
@@ -94,7 +94,7 @@ impl DAGState {
             if let Some(round_str) = parts.get(4) {
                 let keys = [("checkpoint_round".to_string(), round_str.to_string())].into_iter().collect();
                 
-                if let Some(checkpoint) = Self::find_one_from_store(&*store, keys).await? {
+                if let Some(checkpoint) = Self::find_one_from_store(store, keys).await? {
                     checkpoints.push(checkpoint);
                 }
             }
@@ -119,7 +119,7 @@ impl DAGState {
             if let Some(round_str) = parts.get(4) {
                 let keys = [("checkpoint_round".to_string(), round_str.to_string())].into_iter().collect();
                 
-                if let Some(checkpoint) = Self::find_one_from_store(&*store, keys).await? {
+                if let Some(checkpoint) = Self::find_one_from_store(store, keys).await? {
                     checkpoints.push(checkpoint);
                 }
             }
@@ -138,6 +138,6 @@ impl DAGState {
 
     /// Save this state to the ValidatorFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.validator_final()).await.map_err(|e| crate::Error::Database(e.to_string()))
+        self.save_to_store(datastore.validator_final()).await.map_err(|e| crate::Error::Database(e.to_string()))
     }
 }

@@ -685,7 +685,7 @@ impl ModalityLanguageServer {
             "false" => "**false**\n\nBoolean constant, never satisfied.",
             _ => {
                 // Check if it's a state in this document
-                if text.contains(&format!("states")) && text.contains(&word) {
+                if text.contains(&"states".to_string()) && text.contains(&word) {
                     return Some(Hover {
                         contents: HoverContents::Markup(MarkupContent {
                             kind: MarkupKind::Markdown,
@@ -992,8 +992,8 @@ fn find_block_end(lines: &[&str], start: usize) -> Option<usize> {
     let mut depth = 0;
     let mut found_open = false;
     
-    for i in start..lines.len() {
-        for c in lines[i].chars() {
+    for (i, line) in lines.iter().enumerate().skip(start) {
+        for c in line.chars() {
             if c == '{' {
                 depth += 1;
                 found_open = true;
@@ -1095,6 +1095,6 @@ async fn main() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let (service, socket) = LspService::new(|client| ModalityLanguageServer::new(client));
+    let (service, socket) = LspService::new(ModalityLanguageServer::new);
     Server::new(stdin, stdout, socket).serve(service).await;
 }

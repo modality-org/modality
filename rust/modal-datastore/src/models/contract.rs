@@ -56,7 +56,7 @@ impl Contract {
                         ("contract_id".to_string(), contract_id.to_string()),
                     ].into_iter().collect();
                     
-                    if let Some(contract) = Self::find_one_from_store(&*store, keys).await? {
+                    if let Some(contract) = Self::find_one_from_store(store, keys).await? {
                         contracts.push(contract);
                     }
                 }
@@ -70,12 +70,12 @@ impl Contract {
         let keys = [
             ("contract_id".to_string(), contract_id.to_string()),
         ].into_iter().collect();
-        Self::find_one_from_store(&*datastore.validator_final(), keys).await
+        Self::find_one_from_store(datastore.validator_final(), keys).await
     }
 
     /// Save this contract to the ValidatorFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.validator_final()).await
+        self.save_to_store(datastore.validator_final()).await
     }
 }
 
@@ -137,7 +137,7 @@ impl Commit {
                         ("commit_id".to_string(), cmid.to_string()),
                     ].into_iter().collect();
                     
-                    if let Some(commit) = Self::find_one_from_store(&*store, keys).await? {
+                    if let Some(commit) = Self::find_one_from_store(store, keys).await? {
                         commits.push(commit);
                     }
                 }
@@ -148,12 +148,12 @@ impl Commit {
     }
 
     pub async fn find_one_multi(datastore: &DatastoreManager, keys: HashMap<String, String>) -> Result<Option<Self>> {
-        Self::find_one_from_store(&*datastore.validator_final(), keys).await
+        Self::find_one_from_store(datastore.validator_final(), keys).await
     }
 
     /// Save this commit to the ValidatorFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.validator_final()).await
+        self.save_to_store(datastore.validator_final()).await
     }
 }
 
@@ -224,7 +224,7 @@ impl ContractAsset {
                         ("asset_id".to_string(), aid.to_string()),
                     ].into_iter().collect();
                     
-                    if let Some(asset) = Self::find_one_from_store(&*store, keys).await? {
+                    if let Some(asset) = Self::find_one_from_store(store, keys).await? {
                         assets.push(asset);
                     }
                 }
@@ -235,12 +235,12 @@ impl ContractAsset {
     }
 
     pub async fn find_one_multi(datastore: &DatastoreManager, keys: HashMap<String, String>) -> Result<Option<Self>> {
-        Self::find_one_from_store(&*datastore.validator_final(), keys).await
+        Self::find_one_from_store(datastore.validator_final(), keys).await
     }
 
     /// Save this asset to the ValidatorFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.validator_final()).await
+        self.save_to_store(datastore.validator_final()).await
     }
 }
 
@@ -308,7 +308,7 @@ impl AssetBalance {
                             ("owner_contract_id".to_string(), oid.to_string()),
                         ].into_iter().collect();
                         
-                        if let Some(balance) = Self::find_one_from_store(&*store, keys).await? {
+                        if let Some(balance) = Self::find_one_from_store(store, keys).await? {
                             balances.push(balance);
                         }
                     }
@@ -343,7 +343,7 @@ impl AssetBalance {
                         ("owner_contract_id".to_string(), oid.to_string()),
                     ].into_iter().collect();
                     
-                    if let Some(balance) = Self::find_one_from_store(&*store, keys).await? {
+                    if let Some(balance) = Self::find_one_from_store(store, keys).await? {
                         balances.push(balance);
                     }
                 }
@@ -354,12 +354,12 @@ impl AssetBalance {
     }
 
     pub async fn find_one_multi(datastore: &DatastoreManager, keys: HashMap<String, String>) -> Result<Option<Self>> {
-        Self::find_one_from_store(&*datastore.validator_final(), keys).await
+        Self::find_one_from_store(datastore.validator_final(), keys).await
     }
 
     /// Save this balance to the ValidatorFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.validator_final()).await
+        self.save_to_store(datastore.validator_final()).await
     }
 }
 
@@ -402,11 +402,11 @@ impl Model for ReceivedSend {
 
 impl ReceivedSend {
     pub async fn find_one_multi(datastore: &DatastoreManager, keys: HashMap<String, String>) -> Result<Option<Self>> {
-        Self::find_one_from_store(&*datastore.validator_final(), keys).await
+        Self::find_one_from_store(datastore.validator_final(), keys).await
     }
 
     /// Save this record to the ValidatorFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.validator_final()).await
+        self.save_to_store(datastore.validator_final()).await
     }
 }

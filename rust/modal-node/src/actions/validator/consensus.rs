@@ -478,7 +478,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                     }
                     
                     // Log progress
-                    if round % 10 == 0 {
+                    if round.is_multiple_of(10) {
                         log::info!("📦 Round {} block created (validator: {}, committee: {}, prev_certs: {})", 
                             round, 
                             &validator_peer_id[..16.min(validator_peer_id.len())],
@@ -488,7 +488,7 @@ pub async fn spawn_consensus_loop_with_checkpoints(
                     }
                     
                     // Run periodic finalization task
-                    if round % 5 == 0 {
+                    if round.is_multiple_of(5) {
                         run_finalization_task(&datastore, round).await;
                     }
                 }

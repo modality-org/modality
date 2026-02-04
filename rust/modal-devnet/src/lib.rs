@@ -16,6 +16,12 @@ lazy_static! {
 }
 pub struct Devnet;
 
+impl Default for Devnet {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Devnet {
     pub fn new() -> Self {
         Self
@@ -91,8 +97,7 @@ impl Devnet {
     pub fn index_of(&self, peerid: &str) -> Option<usize> {
         KEYPAIRS.values().position(|kp| {
             kp.get("id")
-                .and_then(|id| id.as_str())
-                .map_or(false, |id| id == peerid)
+                .and_then(|id| id.as_str()) == Some(peerid)
         })
     }
 
@@ -128,13 +133,13 @@ impl Devnet {
                 "prev_round_certs": prev_round_certs
             }))?;
             block.generate_sigs(&peers_hashmap[peer_id_str])?;
-            block.save_to_active(&ds).await?;
+            block.save_to_active(ds).await?;
             for acking_peer_id_str in round_scribes.clone() {
                 let ack = block.generate_ack(&peers_hashmap[acking_peer_id_str])?;
                 block.add_ack(ack)?;
             }
             block.generate_cert(&peers_hashmap[peer_id_str])?;
-            block.save_to_active(&ds).await?;
+            block.save_to_active(ds).await?;
         }
         ds.set_current_round(round_id + 1).await?;
         Ok(())

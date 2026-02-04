@@ -53,7 +53,7 @@ pub async fn handler(data: Option<serde_json::Value>, _datastore_manager: &Datas
       .map_err(|_| anyhow!("round_id must be a valid u64"))?;
     let ack = Ack { peer_id: peer_id.clone(), round_id, closing_sig, acker: acker.clone(), acker_sig };
   
-    let msg = ConsensusMessage::ValidatorBlockAck { from: acker, to: peer_id, ack: ack };
+    let msg = ConsensusMessage::ValidatorBlockAck { from: acker, to: peer_id, ack };
     consensus_tx.send(msg).await?;
 
     Ok(response)

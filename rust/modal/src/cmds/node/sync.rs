@@ -209,7 +209,7 @@ async fn sync_from_peer(
         node.connect_to_peer_multiaddr(peer_addr.clone())
     ).await;
     
-    if let Err(_) = connect_result {
+    if connect_result.is_err() {
         anyhow::bail!("Connection timeout");
     }
     connect_result??;

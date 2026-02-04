@@ -140,12 +140,12 @@ pub async fn mine_and_gossip_block(
         miner_block.index, miner_block.epoch, &miner_block.hash[..16], miner_block.target_difficulty);
     
     // Rolling integrity check
-    if miner_block.index > 0 && miner_block.index % ROLLING_INTEGRITY_CHECK_INTERVAL == 0 {
+    if miner_block.index > 0 && miner_block.index.is_multiple_of(ROLLING_INTEGRITY_CHECK_INTERVAL) {
         run_integrity_check(&datastore, miner_block.index).await;
     }
     
     // Log epoch changes
-    if miner_block.index > 0 && miner_block.index % BLOCKS_PER_EPOCH == 0 {
+    if miner_block.index > 0 && miner_block.index.is_multiple_of(BLOCKS_PER_EPOCH) {
         log::info!("🎯 EPOCH {} STARTED - New target difficulty: {}", miner_block.epoch, miner_block.target_difficulty);
         
         if let Some(tx) = epoch_transition_tx {

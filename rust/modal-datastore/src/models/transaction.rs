@@ -46,7 +46,7 @@ impl Transaction {
         let mut transactions = Vec::new();
 
         let store = datastore.validator_final();
-        let iterator = store.iterator(&prefix);
+        let iterator = store.iterator(prefix);
         for result in iterator {
             let (key, _) = result?;
             let key_str = String::from_utf8(key.to_vec())?;
@@ -70,7 +70,7 @@ impl Transaction {
             keys.insert("contract_id".to_string(), contract_id.to_string());
             keys.insert("commit_id".to_string(), commit_id.to_string());
 
-            if let Some(block) = Self::find_one_from_store(&*store, keys).await? {
+            if let Some(block) = Self::find_one_from_store(store, keys).await? {
                 transactions.push(block);
             }
         }
@@ -80,6 +80,6 @@ impl Transaction {
 
     /// Save this transaction to the ValidatorFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.validator_final()).await
+        self.save_to_store(datastore.validator_final()).await
     }
 }

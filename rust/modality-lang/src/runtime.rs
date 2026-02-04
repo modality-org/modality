@@ -405,10 +405,7 @@ impl ContractInstance {
                     // Get pubkey from path and verify signature
                     if let Some(pubkey) = self.resolve_pubkey(&path) {
                         // Actually verify the signature using ed25519
-                        match crate::crypto::verify_ed25519(pubkey, message, signature_hex) {
-                            crate::crypto::VerifyResult::Valid => true,
-                            _ => false,
-                        }
+                        matches!(crate::crypto::verify_ed25519(pubkey, message, signature_hex), crate::crypto::VerifyResult::Valid)
                     } else {
                         false
                     }
@@ -439,10 +436,7 @@ impl ContractInstance {
         signature_hex: &str,
     ) -> bool {
         if let Some(pubkey) = self.resolve_pubkey(signer_path) {
-            match crate::crypto::verify_ed25519(pubkey, action_json.as_bytes(), signature_hex) {
-                crate::crypto::VerifyResult::Valid => true,
-                _ => false,
-            }
+            matches!(crate::crypto::verify_ed25519(pubkey, action_json.as_bytes(), signature_hex), crate::crypto::VerifyResult::Valid)
         } else {
             false
         }
@@ -525,11 +519,7 @@ impl ContractInstance {
         if let Some(PathValue::Int(deadline)) = self.store.get(path) {
             let now = self.now_ms();
             let deadline_u64 = *deadline as u64;
-            if now < deadline_u64 {
-                deadline_u64 - now
-            } else {
-                0
-            }
+            deadline_u64.saturating_sub(now)
         } else {
             0
         }

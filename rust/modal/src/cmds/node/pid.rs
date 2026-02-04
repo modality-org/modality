@@ -60,7 +60,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             Ok(_) => {
                 // Process exists and is running
                 println!("{}", pid);
-                return Ok(());
+                Ok(())
             }
             Err(_) => {
                 bail!("PID file exists but process {} is not running (stale PID file)", pid);

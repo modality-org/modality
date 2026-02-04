@@ -69,7 +69,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Output results
     println!("🔍 Checking formula: {}", formula.name);
     println!("📋 Formula: {:?}", formula.expression);
-    println!("");
+    println!();
     
     if result.is_satisfied {
         println!("✅ Formula is satisfied (per-graph requirement)");
@@ -83,7 +83,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("❌ Formula is not satisfied (any state)");
     }
     
-    println!("");
+    println!();
     println!("📍 Satisfying states ({}):", result.satisfying_states.len());
     for state in &result.satisfying_states {
         println!("   - {}.{}", state.part_name, state.node_name);

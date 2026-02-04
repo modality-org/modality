@@ -37,6 +37,7 @@ pub struct MinerBlock {
 
 impl MinerBlock {
     /// Create a new canonical miner block
+    #[allow(clippy::too_many_arguments)]
     pub fn new_canonical(
         hash: String,
         index: u64,
@@ -76,6 +77,7 @@ impl MinerBlock {
     }
     
     /// Create a new orphaned block
+    #[allow(clippy::too_many_arguments)]
     pub fn new_orphaned(
         hash: String,
         index: u64,
@@ -288,6 +290,7 @@ impl Model for MinerBlock {
 impl MinerBlock {
     /// Create a new pending (non-canonical) block
     /// Used when syncing blocks that need verification before being made canonical
+    #[allow(clippy::too_many_arguments)]
     pub fn new_pending(
         hash: String,
         index: u64,

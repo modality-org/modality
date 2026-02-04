@@ -279,8 +279,7 @@ async fn send_find_ancestor_request(
         .ok_or_else(|| anyhow::anyhow!("Missing or invalid cumulative_difficulty in response"))?;
     
     let matches = data.get("matches")
-        .and_then(|v| v.as_array())
-        .map(|v| v.clone())
+        .and_then(|v| v.as_array()).cloned()
         .unwrap_or_default();
     
     Ok((highest_match, matches, remote_chain_length, remote_cumulative_difficulty))

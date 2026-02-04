@@ -404,11 +404,7 @@ async fn calculate_finalized_rounds(
     
     // Only show the last N rounds (configurable)
     let rounds_to_show = STATUS_FINALIZED_ROUNDS_TO_SHOW;
-    let start_round = if current_round > rounds_to_show {
-        current_round - rounds_to_show
-    } else {
-        0
-    };
+    let start_round = current_round.saturating_sub(rounds_to_show);
     
     for round_id in (start_round..current_round).rev() {
         // Get all blocks in this round

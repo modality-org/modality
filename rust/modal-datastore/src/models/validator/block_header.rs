@@ -28,7 +28,7 @@ impl Model for ValidatorBlockHeader {
     fn create_from_json(mut obj: serde_json::Value) -> Result<Self> {
         // Apply default values for missing fields
         for (field, default_value) in Self::FIELD_DEFAULTS {
-            if !obj.get(*field).is_some() {
+            if obj.get(*field).is_none() {
                 obj[*field] = default_value.clone();
             }
         }
@@ -86,7 +86,7 @@ impl ValidatorBlockHeader {
                 keys.insert("round_id".to_string(), round_id.to_string());
                 keys.insert("peer_id".to_string(), peer_id.to_string());
 
-                if let Some(block) = Self::find_one_from_store(&*store, keys).await? {
+                if let Some(block) = Self::find_one_from_store(store, keys).await? {
                     block_headers.push(block);
                 }
             }
@@ -112,7 +112,7 @@ impl ValidatorBlockHeader {
                 keys.insert("round_id".to_string(), round_id.to_string());
                 keys.insert("peer_id".to_string(), peer_id.to_string());
 
-                if let Some(block) = Self::find_one_from_store(&*store, keys).await? {
+                if let Some(block) = Self::find_one_from_store(store, keys).await? {
                     block_headers.push(block);
                 }
             }
@@ -138,12 +138,12 @@ impl ValidatorBlockHeader {
 
     /// Save this header to the ValidatorActive store
     pub async fn save_to_active(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.validator_active()).await
+        self.save_to_store(datastore.validator_active()).await
     }
 
     /// Save this header to the ValidatorFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.validator_final()).await
+        self.save_to_store(datastore.validator_final()).await
     }
 }
 

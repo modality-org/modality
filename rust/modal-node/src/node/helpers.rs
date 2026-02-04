@@ -22,7 +22,7 @@ pub fn extract_peer_id(multiaddr: Multiaddr) -> Option<PeerId> {
     let last_protocol = protocols.last()?;
 
     match last_protocol {
-        Protocol::P2p(peer_id) => Some(peer_id.clone()),
+        Protocol::P2p(peer_id) => Some(*peer_id),
         _ => None,
     }
 }

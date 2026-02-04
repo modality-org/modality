@@ -100,7 +100,7 @@ impl WasmModule {
         
         path.trim_end_matches(".wasm")
             .split('/')
-            .last()
+            .next_back()
             .map(|s| s.to_string())
     }
 
@@ -115,7 +115,7 @@ impl WasmModule {
             let mut keys = HashMap::new();
             keys.insert("contract_id".to_string(), contract_id.to_string());
             keys.insert("module_name".to_string(), module_name);
-            Self::find_one_from_store(&*datastore.validator_final(), keys).await
+            Self::find_one_from_store(datastore.validator_final(), keys).await
         } else {
             Ok(None)
         }

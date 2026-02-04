@@ -13,6 +13,12 @@ pub struct ModalityParser {
     // This struct can hold any state if needed in the future
 }
 
+impl Default for ModalityParser {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[wasm_bindgen]
 impl ModalityParser {
     #[wasm_bindgen(constructor)]

@@ -133,6 +133,7 @@ pub fn verify_merkle_proof(
 /// # Returns
 /// * Some(proof) where proof is a list of (sibling_hash, is_left) pairs
 /// * None if index is out of bounds
+#[allow(clippy::manual_is_multiple_of)]
 pub fn generate_merkle_proof(hashes: &[&str], index: usize) -> Option<Vec<(String, bool)>> {
     if index >= hashes.len() || hashes.is_empty() {
         return None;

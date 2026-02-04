@@ -2,6 +2,8 @@
 //!
 //! Supports the new @Signer shorthand for cleaner output.
 
+#![allow(clippy::collapsible_match, clippy::redundant_closure)]
+
 use crate::ast::{Model, Part, Transition, Property, PropertySign};
 
 /// Print a model to Modality syntax

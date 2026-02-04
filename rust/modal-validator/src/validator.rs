@@ -6,18 +6,12 @@ use tokio::sync::Mutex;
 
 /// Configuration for the validator
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct ValidatorConfig {
     /// Optional forced fork configuration for chain observation
     pub fork_config: Option<ForkConfig>,
 }
 
-impl Default for ValidatorConfig {
-    fn default() -> Self {
-        Self {
-            fork_config: None,
-        }
-    }
-}
 
 /// Validator for observing the blockchain without mining
 /// 

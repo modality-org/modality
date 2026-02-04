@@ -102,7 +102,7 @@ impl ReputationState {
         let mut validator_records: HashMap<PublicKey, Vec<PerformanceRecord>> = HashMap::new();
         for record in &self.recent_performance {
             validator_records
-                .entry(record.validator.clone())
+                .entry(record.validator)
                 .or_default()
                 .push(record.clone());
         }

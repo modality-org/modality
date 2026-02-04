@@ -265,8 +265,7 @@ impl MinerCheckpoint {
     ) -> Result<Option<Self>> {
         let all = Self::find_all_multi(mgr).await?;
         Ok(all.into_iter()
-            .filter(|c| c.last_block_index <= block_index)
-            .last())
+            .rfind(|c| c.last_block_index <= block_index))
     }
     
     /// Check if a block index is before any checkpoint

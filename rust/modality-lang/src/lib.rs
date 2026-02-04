@@ -1,6 +1,8 @@
 #![allow(unexpected_cfgs)]
 // Allow unused imports in generated grammar module
 #![allow(unused_imports)]
+// Allow empty line after outer attribute in generated grammar
+#![allow(clippy::empty_line_after_outer_attr)]
 
 pub mod ast;
 pub mod lexer;

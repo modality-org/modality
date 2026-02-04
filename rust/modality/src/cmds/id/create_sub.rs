@@ -133,7 +133,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         };
         opts.dir
             .clone()
-            .unwrap_or_else(|| default_dir)
+            .unwrap_or(default_dir)
             .join(format!("{}.mod_passfile", filename))
     };
 

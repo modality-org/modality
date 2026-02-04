@@ -41,13 +41,15 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let mut inspection_data: Option<InspectionData> = None;
 
     // Try reqres first if not in offline mode
-    if !opts.offline && opts.target.is_some() {
-        match try_reqres_inspect(&config, opts.target.as_ref().unwrap(), level).await {
-            Ok(data) => {
-                inspection_data = Some(data);
-            }
-            Err(e) => {
-                log::debug!("Reqres inspection failed: {}, falling back to offline mode", e);
+    if !opts.offline {
+        if let Some(ref target) = opts.target {
+            match try_reqres_inspect(&config, target, level).await {
+                Ok(data) => {
+                    inspection_data = Some(data);
+                }
+                Err(e) => {
+                    log::debug!("Reqres inspection failed: {}, falling back to offline mode", e);
+                }
             }
         }
     }

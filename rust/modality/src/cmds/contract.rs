@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use modal_common::keypair::Keypair;
 use modal_common::contract_store::{ContractStore, CommitFile};
@@ -160,7 +160,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             show_history(contract)
         }
         Command::Log { dir, limit, output } => {
-            show_log(dir.as_ref(), *limit, &output)
+            show_log(dir.as_ref(), *limit, output)
         }
         Command::Verify { model, formula } => {
             verify_contract(model, formula.as_deref())
@@ -291,7 +291,7 @@ fn show_status(contract_path: &PathBuf) -> Result<()> {
     let contract = Contract::from_json(&json)?;
     
     println!("{}", contract.summary());
-    println!("");
+    println!();
     
     let status = contract.status();
     println!("Contract ID: {}", contract.id());
@@ -515,7 +515,7 @@ fn parse_contract_file(file: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn verify_contract(model_path: &PathBuf, formula: Option<&str>) -> Result<()> {
+fn verify_contract(model_path: &Path, formula: Option<&str>) -> Result<()> {
     use modality_lang::parse_file_lalrpop;
     // TODO: Use ModelChecker when formula verification is implemented
     

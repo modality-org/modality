@@ -103,7 +103,7 @@ impl MinerBlockHeight {
 
     /// Save this height entry to the active store
     pub async fn save_to_active(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.miner_active()).await
+        self.save_to_store(datastore.miner_active()).await
     }
 }
 

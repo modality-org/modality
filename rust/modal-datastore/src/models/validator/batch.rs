@@ -70,7 +70,7 @@ impl DAGBatch {
         datastore: &DatastoreManager,
         keys: HashMap<String, String>,
     ) -> Result<Option<Self>> {
-        Self::find_one_from_store(&*datastore.validator_final(), keys).await.map_err(|e| crate::Error::Database(e.to_string()))
+        Self::find_one_from_store(datastore.validator_final(), keys).await.map_err(|e| crate::Error::Database(e.to_string()))
     }
 
     /// Find all batches by author
@@ -91,7 +91,7 @@ impl DAGBatch {
             if let Some(digest) = key_str.split(&format!("{}/", prefix)).nth(1) {
                 let keys = [("digest".to_string(), digest.to_string())].into_iter().collect();
                 
-                if let Some(batch) = Self::find_one_from_store(&*store, keys).await? {
+                if let Some(batch) = Self::find_one_from_store(store, keys).await? {
                     if batch.author == author {
                         batches.push(batch);
                     }
@@ -119,7 +119,7 @@ impl DAGBatch {
             if let Some(digest) = key_str.split(&format!("{}/", prefix)).nth(1) {
                 let keys = [("digest".to_string(), digest.to_string())].into_iter().collect();
                 
-                if let Some(batch) = Self::find_one_from_store(&*store, keys).await? {
+                if let Some(batch) = Self::find_one_from_store(store, keys).await? {
                     if batch.referenced_by_cert.is_none() {
                         batches.push(batch);
                     }
@@ -132,6 +132,6 @@ impl DAGBatch {
 
     /// Save this batch to the ValidatorFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.validator_final()).await.map_err(|e| crate::Error::Database(e.to_string()))
+        self.save_to_store(datastore.validator_final()).await.map_err(|e| crate::Error::Database(e.to_string()))
     }
 }

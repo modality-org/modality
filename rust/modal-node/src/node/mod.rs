@@ -203,7 +203,7 @@ impl Node {
         for bootstrapper in self.bootstrappers.clone() {
             if let Some(peer_id) = extract_peer_id(bootstrapper.clone()) {
                 log::info!("Adding Bootstrap Peer: {peer_id:?} {bootstrapper:?}");
-                swarm.add_peer_address(peer_id.clone(), bootstrapper.clone());
+                swarm.add_peer_address(peer_id, bootstrapper.clone());
                 swarm
                     .behaviour_mut()
                     .kademlia
@@ -228,7 +228,7 @@ impl Node {
                 if let Some(peer_id) = extract_peer_id(bootstrapper.clone()) {
                     {
                         let mut swarm = self.swarm.lock().await;
-                        swarm.add_peer_address(peer_id.clone(), bootstrapper.clone());
+                        swarm.add_peer_address(peer_id, bootstrapper.clone());
                         swarm
                             .behaviour_mut()
                             .kademlia
@@ -288,19 +288,16 @@ impl Node {
         loop {
             let mut swarm = self.swarm.lock().await;
             futures::select!(
-                event = swarm.select_next_some() => match event {
-                    SwarmEvent::Behaviour(swarm::NodeBehaviourEvent::Reqres(
+                event = swarm.select_next_some() => if let SwarmEvent::Behaviour(swarm::NodeBehaviourEvent::Reqres(
                         request_response::Event::Message {
                             message: request_response::Message::Response { response, request_id, .. },
                             ..
                         }
-                    )) => {
-                        if target_request_id == request_id {
-                            res = response.clone();
-                            break;
-                        }
+                    )) = event {
+                    if target_request_id == request_id {
+                        res = response.clone();
+                        break;
                     }
-                    _ => {}
                 }
             )
         }
@@ -346,14 +343,11 @@ impl Node {
         let _ = swarm.disconnect_peer_id(target_peer_id);
 
         loop {
-            match swarm.select_next_some().await {
-                SwarmEvent::ConnectionClosed { peer_id, .. } => {
-                    if peer_id == target_peer_id {
-                        log::debug!("Connection closed with peer {:?}", peer_id);
-                        break;
-                    }
+            if let SwarmEvent::ConnectionClosed { peer_id, .. } = swarm.select_next_some().await {
+                if peer_id == target_peer_id {
+                    log::debug!("Connection closed with peer {:?}", peer_id);
+                    break;
                 }
-                _ => {}
             }
         }
 

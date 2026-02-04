@@ -93,12 +93,11 @@ pub fn verify_certificate(cert: &Certificate, committee: &Committee) -> Result<(
 
     // Verify signers are in committee
     for (idx, &signed) in cert.signers.iter().enumerate() {
-        if signed {
-            if idx >= committee.size() {
+        if signed
+            && idx >= committee.size() {
                 bail!("signer index out of bounds");
             }
             // In real implementation, verify the validator at this index signed
-        }
     }
 
     // TODO: Verify aggregated signature

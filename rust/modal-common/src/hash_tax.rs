@@ -55,10 +55,10 @@ pub fn get_mining_shutdown_flag() -> Arc<AtomicBool> {
 thread_local! {
     /// Thread-local RandomX VM instance that is initialized once per thread and reused
     /// This avoids the expensive initialization cost (2-3 seconds) for every hash
-    static RANDOMX_VM: RefCell<Option<RandomXVM>> = RefCell::new(None);
+    static RANDOMX_VM: RefCell<Option<RandomXVM>> = const { RefCell::new(None) };
     
     /// Thread-local RandomX parameters for custom configuration
-    static RANDOMX_PARAMS: RefCell<Option<RandomXParams>> = RefCell::new(None);
+    static RANDOMX_PARAMS: RefCell<Option<RandomXParams>> = const { RefCell::new(None) };
 }
 
 /// Parse RandomX flags from string

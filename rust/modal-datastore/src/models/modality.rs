@@ -87,11 +87,11 @@ impl ModalityContract {
         let keys = [
             ("contract_id".to_string(), contract_id.to_string()),
         ].into_iter().collect();
-        Self::find_one_from_store(&*datastore.validator_final(), keys).await
+        Self::find_one_from_store(datastore.validator_final(), keys).await
     }
 
     pub async fn save(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.validator_final()).await
+        self.save_to_store(datastore.validator_final()).await
     }
 }
 
@@ -160,7 +160,7 @@ impl ModalityRule {
                         ("rule_id".to_string(), rid.to_string()),
                     ].into_iter().collect();
                     
-                    if let Some(rule) = Self::find_one_from_store(&*store, keys).await? {
+                    if let Some(rule) = Self::find_one_from_store(store, keys).await? {
                         rules.push(rule);
                     }
                 }
@@ -171,7 +171,7 @@ impl ModalityRule {
     }
 
     pub async fn save(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.validator_final()).await
+        self.save_to_store(datastore.validator_final()).await
     }
 }
 
@@ -243,7 +243,7 @@ impl ModalityAction {
                         ("action_id".to_string(), aid.to_string()),
                     ].into_iter().collect();
                     
-                    if let Some(action) = Self::find_one_from_store(&*store, keys).await? {
+                    if let Some(action) = Self::find_one_from_store(store, keys).await? {
                         actions.push(action);
                     }
                 }
@@ -254,7 +254,7 @@ impl ModalityAction {
     }
 
     pub async fn save(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.validator_final()).await
+        self.save_to_store(datastore.validator_final()).await
     }
 }
 

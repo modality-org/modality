@@ -81,18 +81,18 @@ impl Model for ValidatorBlock {
     fn create_from_json(mut obj: serde_json::Value) -> Result<Self> {
         // Apply default values for missing fields
         for (field, default_value) in Self::FIELD_DEFAULTS {
-            if !obj.get(*field).is_some() {
+            if obj.get(*field).is_none() {
                 obj[*field] = default_value.clone();
             }
         }
 
-        if !obj.get("acks").is_some() {
+        if obj.get("acks").is_none() {
             obj["acks"] = serde_json::Value::Object(serde_json::Map::new());
         }
-        if !obj.get("prev_round_certs").is_some() {
+        if obj.get("prev_round_certs").is_none() {
             obj["prev_round_certs"] = serde_json::Value::Object(serde_json::Map::new());
         }
-        if !obj.get("events").is_some() {
+        if obj.get("events").is_none() {
             obj["events"] = serde_json::Value::Object(serde_json::Map::new());
         }
 
@@ -300,14 +300,14 @@ impl ValidatorBlock {
 
     pub fn validate_acks(&self) -> Result<bool> {
         for (acker, acker_sig) in self.acks.iter() {
-            let keypair = Keypair::from_public_key(&acker, "ed25519")?;
+            let keypair = Keypair::from_public_key(acker, "ed25519")?;
             let facts = serde_json::json!({
                 "peer_id": self.peer_id,
                 "round_id": self.round_id,
                 "closing_sig": self.closing_sig,
                 "acker": acker.clone(),
             });
-            let verified = keypair.verify_json(&acker_sig, &facts)?;
+            let verified = keypair.verify_json(acker_sig, &facts)?;
             if !verified {
                 return Ok(false);
             }
@@ -318,14 +318,14 @@ impl ValidatorBlock {
     pub fn count_valid_acks(&self) -> Result<usize> {
         let mut valid_acks = 0;
         for (acker, acker_sig) in self.acks.iter() {
-            let keypair = Keypair::from_public_key(&acker, "ed25519")?;
+            let keypair = Keypair::from_public_key(acker, "ed25519")?;
             let facts = serde_json::json!({
                 "peer_id": self.peer_id,
                 "round_id": self.round_id,
                 "closing_sig": self.closing_sig,
                 "acker": acker.clone(),
             });
-            if keypair.verify_json(&acker_sig, &facts)? {
+            if keypair.verify_json(acker_sig, &facts)? {
                 valid_acks += 1;
             }
         }
@@ -380,7 +380,7 @@ impl ValidatorBlock {
         Ok(PeerBlockHeader {
             peer_id: self.peer_id.clone(),
             round_id: self.round_id,
-            prev_round_certs: prev_round_certs,
+            prev_round_certs,
             opening_sig: self.opening_sig.clone(),
             cert: self.cert.clone(),
         })

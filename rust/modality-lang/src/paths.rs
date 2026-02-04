@@ -24,6 +24,7 @@
 
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
+use std::fmt;
 
 /// Supported value types
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -167,7 +168,7 @@ impl Path {
     }
 
     /// Get the full path string
-    pub fn to_string(&self) -> String {
+    pub fn as_string(&self) -> String {
         let mut result = String::from("/");
         
         if !self.dirs.is_empty() {
@@ -188,7 +189,15 @@ impl Path {
         
         result
     }
+}
 
+impl fmt::Display for Path {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_string())
+    }
+}
+
+impl Path {
     /// Get parent directories (including self if dir)
     pub fn parent_dirs(&self) -> Vec<String> {
         let mut result = vec!["/".to_string()];
@@ -255,7 +264,7 @@ impl ContractStore {
 
         // Update directory listings
         for parent in parsed.parent_dirs() {
-            self.directories.entry(parent).or_insert_with(Vec::new);
+            self.directories.entry(parent).or_default();
         }
 
         self.values.insert(path.to_string(), value);

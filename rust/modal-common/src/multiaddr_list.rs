@@ -82,13 +82,17 @@ async fn resolve_via_dns(name: &str, type_: &str) -> Result<Vec<String>, Error> 
 
 pub async fn resolve_dns_entries(entries: Vec<String>) -> Result<Vec<String>, Error> {
     let mut results = Vec::new();
+    
+    // Pre-compile regexes outside the loop
+    let p2p_re = Regex::new(r"/p2p/(.+)$").unwrap();
+    let dns_re = Regex::new(r"^/dns/([A-Za-z0-9-.]+)(.*)").unwrap();
+    let dnsaddr_re = Regex::new(r"^/dnsaddr/([A-Za-z0-9-.]+)(.*)").unwrap();
+    let dnsaddr_value_re = Regex::new(r"^dnsaddr=(.*)").unwrap();
 
     for entry in entries {
-        let p2p_re = Regex::new(r"/p2p/(.+)$").unwrap();
         let p2p_match = p2p_re.captures(&entry);
 
         if entry.starts_with("/dns/") {
-            let dns_re = Regex::new(r"^/dns/([A-Za-z0-9-.]+)(.*)").unwrap();
             if let Some(caps) = dns_re.captures(&entry) {
                 let name = &caps[1];
                 let rest = &caps[2];
@@ -97,13 +101,12 @@ pub async fn resolve_dns_entries(entries: Vec<String>) -> Result<Vec<String>, Er
 
                 for address in answers {
                     let ans = format!("/ip4/{}{}", address, rest);
-                    if peer_id.is_none() || matches_peer_id_suffix(&ans, &peer_id.as_ref().unwrap()) {
+                    if peer_id.is_none() || matches_peer_id_suffix(&ans, peer_id.as_ref().unwrap()) {
                         results.push(ans);
                     }
                 }
             }
         } else if entry.starts_with("/dnsaddr/") {
-            let dnsaddr_re = Regex::new(r"^/dnsaddr/([A-Za-z0-9-.]+)(.*)").unwrap();
             if let Some(caps) = dnsaddr_re.captures(&entry) {
                 let name = format!("_dnsaddr.{}", &caps[1]);
                 let mut answers = resolve_via_dns(&name, "TXT").await?;
@@ -111,9 +114,9 @@ pub async fn resolve_dns_entries(entries: Vec<String>) -> Result<Vec<String>, Er
                 
                 for answer in &mut answers {
                     *answer = remove_quotes(answer).await;
-                    if let Some(ans_caps) = Regex::new(r"^dnsaddr=(.*)").unwrap().captures(answer) {
+                    if let Some(ans_caps) = dnsaddr_value_re.captures(answer) {
                         let ans = &ans_caps[1];
-                        if peer_id.is_none() || matches_peer_id_suffix(ans, &peer_id.as_ref().unwrap()) {
+                        if peer_id.is_none() || matches_peer_id_suffix(ans, peer_id.as_ref().unwrap()) {
                             results.push(ans.to_string());
                         }
                     }

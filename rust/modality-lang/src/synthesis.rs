@@ -550,7 +550,7 @@ pub mod templates {
         // Then: milestone_complete --> milestone_paid: +PAY_X +SIGNED_BY_CLIENT
         let mut prev_state = "started".to_string();
         
-        for (_i, milestone_name) in milestones.iter().enumerate() {
+        for milestone_name in milestones.iter() {
             let complete_state = format!("{}_complete", milestone_name.to_lowercase().replace(' ', "_"));
             let paid_state = format!("{}_paid", milestone_name.to_lowercase().replace(' ', "_"));
             

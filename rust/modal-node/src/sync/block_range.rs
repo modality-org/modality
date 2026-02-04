@@ -224,7 +224,7 @@ pub async fn save_blocks_with_fork_choice(
                 // Mark old block as orphaned
                 let mut orphaned = existing.clone();
                 orphaned.mark_as_orphaned(
-                    format!("Replaced by synced block with better fork choice"),
+                    "Replaced by synced block with better fork choice".to_string(),
                     Some(block.hash.clone())
                 );
                 orphaned.save_to_active(mgr).await?;

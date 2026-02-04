@@ -90,9 +90,9 @@ impl PredicateExecutor {
     /// - `/_code/my_predicate.wasm` → (contract_id, `/_code/my_predicate.wasm`)
     /// - `@abc123/_code/custom.wasm` → ("abc123", `/_code/custom.wasm`)
     fn parse_predicate_reference(&self, current_contract_id: &str, predicate_path: &str) -> Result<(String, String)> {
-        if predicate_path.starts_with('@') {
+        if let Some(stripped) = predicate_path.strip_prefix('@') {
             // Cross-contract reference: @{contract_id}/path
-            let parts: Vec<&str> = predicate_path[1..].splitn(2, '/').collect();
+            let parts: Vec<&str> = stripped.splitn(2, '/').collect();
             if parts.len() != 2 {
                 return Err(anyhow!("Invalid cross-contract predicate reference: {}", predicate_path));
             }

@@ -65,7 +65,7 @@ impl Primary {
         }
 
         let header = Header {
-            author: self.validator.clone(),
+            author: self.validator,
             round: self.current_round,
             batch_digest,
             parents,

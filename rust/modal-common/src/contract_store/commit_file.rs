@@ -393,7 +393,7 @@ fn is_valid_date(s: &str) -> bool {
     
     match (year, month, day) {
         (Some(y), Some(m), Some(d)) => {
-            y >= 1970 && y <= 9999 && m >= 1 && m <= 12 && d >= 1 && d <= 31
+            (1970..=9999).contains(&y) && (1..=12).contains(&m) && (1..=31).contains(&d)
         }
         _ => false,
     }

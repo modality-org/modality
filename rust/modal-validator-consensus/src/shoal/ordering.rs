@@ -24,7 +24,7 @@ impl OrderingEngine {
         let dag = self.dag.read().await;
 
         // Topological sort of committed certificates
-        let ordered_certs = self.topological_sort(&*dag, committed)?;
+        let ordered_certs = self.topological_sort(&dag, committed)?;
 
         // Extract transactions from ordered certificates
         let transactions = Vec::new();
@@ -35,7 +35,7 @@ impl OrderingEngine {
                 log::debug!(
                     "would extract transactions from batch {:?} in cert {}",
                     cert.header.batch_digest,
-                    hex::encode(&cert_digest)
+                    hex::encode(cert_digest)
                 );
                 
                 // Placeholder: actual batch fetching would go here
@@ -120,7 +120,7 @@ impl OrderingEngine {
     }
 
     /// Sort certificates deterministically by (round, author)
-    fn sort_by_round_and_author(&self, dag: &DAG, certs: &mut Vec<CertificateDigest>) {
+    fn sort_by_round_and_author(&self, dag: &DAG, certs: &mut [CertificateDigest]) {
         certs.sort_by(|a, b| {
             let cert_a = dag.get(a);
             let cert_b = dag.get(b);

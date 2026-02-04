@@ -289,22 +289,22 @@ pub fn map_nl_to_pattern(description: &str) -> NLMappingResult {
 fn generate_model(pattern: &ContractPattern, parties: &[String]) -> Option<Model> {
     match pattern {
         ContractPattern::Escrow => {
-            let depositor = parties.get(0).map(|s| s.as_str()).unwrap_or("Depositor");
+            let depositor = parties.first().map(|s| s.as_str()).unwrap_or("Depositor");
             let deliverer = parties.get(1).map(|s| s.as_str()).unwrap_or("Deliverer");
             Some(templates::escrow(depositor, deliverer))
         }
         ContractPattern::Handshake => {
-            let party_a = parties.get(0).map(|s| s.as_str()).unwrap_or("PartyA");
+            let party_a = parties.first().map(|s| s.as_str()).unwrap_or("PartyA");
             let party_b = parties.get(1).map(|s| s.as_str()).unwrap_or("PartyB");
             Some(templates::handshake(party_a, party_b))
         }
         ContractPattern::MutualCooperation => {
-            let party_a = parties.get(0).map(|s| s.as_str()).unwrap_or("PartyA");
+            let party_a = parties.first().map(|s| s.as_str()).unwrap_or("PartyA");
             let party_b = parties.get(1).map(|s| s.as_str()).unwrap_or("PartyB");
             Some(templates::mutual_cooperation(party_a, party_b))
         }
         ContractPattern::AtomicSwap => {
-            let party_a = parties.get(0).map(|s| s.as_str()).unwrap_or("PartyA");
+            let party_a = parties.first().map(|s| s.as_str()).unwrap_or("PartyA");
             let party_b = parties.get(1).map(|s| s.as_str()).unwrap_or("PartyB");
             Some(templates::atomic_swap(party_a, party_b))
         }
@@ -318,26 +318,26 @@ fn generate_model(pattern: &ContractPattern, parties: &[String]) -> Option<Model
             Some(templates::multisig(&signers, required))
         }
         ContractPattern::ServiceAgreement => {
-            let provider = parties.get(0).map(|s| s.as_str()).unwrap_or("Provider");
+            let provider = parties.first().map(|s| s.as_str()).unwrap_or("Provider");
             let consumer = parties.get(1).map(|s| s.as_str()).unwrap_or("Consumer");
             Some(templates::service_agreement(provider, consumer))
         }
         ContractPattern::Delegation => {
-            let principal = parties.get(0).map(|s| s.as_str()).unwrap_or("Principal");
+            let principal = parties.first().map(|s| s.as_str()).unwrap_or("Principal");
             let agent = parties.get(1).map(|s| s.as_str()).unwrap_or("Agent");
             Some(templates::delegation(principal, agent))
         }
         ContractPattern::Auction => {
-            let seller = parties.get(0).map(|s| s.as_str()).unwrap_or("Seller");
+            let seller = parties.first().map(|s| s.as_str()).unwrap_or("Seller");
             Some(templates::auction(seller))
         }
         ContractPattern::Subscription => {
-            let provider = parties.get(0).map(|s| s.as_str()).unwrap_or("Provider");
+            let provider = parties.first().map(|s| s.as_str()).unwrap_or("Provider");
             let subscriber = parties.get(1).map(|s| s.as_str()).unwrap_or("Subscriber");
             Some(templates::subscription(provider, subscriber))
         }
         ContractPattern::Milestone => {
-            let client = parties.get(0).map(|s| s.as_str()).unwrap_or("Client");
+            let client = parties.first().map(|s| s.as_str()).unwrap_or("Client");
             let contractor = parties.get(1).map(|s| s.as_str()).unwrap_or("Contractor");
             // Default milestones if not specified
             Some(templates::milestone(client, contractor, &["Phase1", "Phase2", "Phase3"]))

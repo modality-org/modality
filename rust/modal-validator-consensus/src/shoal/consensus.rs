@@ -53,7 +53,7 @@ impl ShoalConsensus {
         let round = cert.header.round;
         let digest = cert.digest();
         
-        log::debug!("processing certificate {} for round {}", hex::encode(&digest), round);
+        log::debug!("processing certificate {} for round {}", hex::encode(digest), round);
 
         // Add to DAG (if not already there)
         {
@@ -68,12 +68,12 @@ impl ShoalConsensus {
 
         // Try to select anchor for this round
         if let Some(anchor) = self.try_select_anchor(round).await? {
-            log::info!("selected anchor {} for round {}", hex::encode(&anchor), round);
+            log::info!("selected anchor {} for round {}", hex::encode(anchor), round);
             self.state.set_anchor(round, anchor);
 
             // Check commit rule
             if self.check_commit_rule(&anchor).await? {
-                log::info!("committing anchor {} for round {}", hex::encode(&anchor), round);
+                log::info!("committing anchor {} for round {}", hex::encode(anchor), round);
                 return self.commit_certificate(anchor).await;
             }
         }
@@ -232,7 +232,7 @@ impl ShoalConsensus {
         let latency_ms = 500; // Placeholder
 
         self.reputation.record_performance(PerformanceRecord {
-            validator: cert.header.author.clone(),
+            validator: cert.header.author,
             round: cert.header.round,
             latency_ms,
             success: true,
@@ -244,7 +244,7 @@ impl ShoalConsensus {
     pub fn advance_round(&mut self) {
         self.state.advance_round();
         // Update reputation scores periodically
-        if self.state.current_round % 10 == 0 {
+        if self.state.current_round.is_multiple_of(10) {
             self.reputation.update_scores();
         }
     }

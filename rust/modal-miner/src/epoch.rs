@@ -70,7 +70,7 @@ impl EpochManager {
             return false; // Genesis is not the start of an epoch
         }
         // Block 1 starts epoch 0, block 41 starts epoch 1, etc.
-        (block_index - 1) % self.blocks_per_epoch == 0
+        (block_index - 1).is_multiple_of(self.blocks_per_epoch)
     }
     
     /// Check if a block is the last in its epoch

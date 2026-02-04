@@ -34,7 +34,7 @@ pub async fn replace_and_restart(new_binary_path: PathBuf) -> Result<()> {
             .args(&args)
             .exec();
         // exec() only returns if there's an error
-        return Err(anyhow::anyhow!("Failed to exec new process: {}", err));
+        Err(anyhow::anyhow!("Failed to exec new process: {}", err))
     }
 
     #[cfg(not(unix))]

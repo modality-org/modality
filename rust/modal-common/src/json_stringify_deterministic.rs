@@ -2,6 +2,7 @@ use serde_json::{Value, Map};
 use regex::Regex;
 
 #[derive(Clone)]
+#[allow(clippy::type_complexity)]
 pub struct Options {
     space: Option<String>,
     cycles: bool,

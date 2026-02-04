@@ -118,7 +118,7 @@ impl AckCollector {
         }
 
         // Add to pending acks
-        let acks = self.pending_acks.entry(key.clone()).or_insert_with(Vec::new);
+        let acks = self.pending_acks.entry(key.clone()).or_default();
 
         // Check if we already have an ack from this validator
         if acks.iter().any(|a| a.acker == ack.acker) {

@@ -63,7 +63,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             .or(config.storage_path.as_ref())
             .context("No data_dir or storage_path in config")?;
         
-        let datastore_manager = DatastoreManager::open(&data_dir)
+        let datastore_manager = DatastoreManager::open(data_dir)
             .context("Failed to open datastore")?;
         
         // Query the key from datastore
@@ -106,7 +106,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         .or(config.storage_path.as_ref())
         .context("No data_dir or storage_path in config")?;
     
-    let datastore_manager = DatastoreManager::open(&data_dir)
+    let datastore_manager = DatastoreManager::open(data_dir)
         .context("Failed to open datastore")?;
     
     match command {

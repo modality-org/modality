@@ -220,6 +220,7 @@ impl ContractStore {
     }
 
     /// Read a value from the state directory
+    #[allow(clippy::unnecessary_lazy_evaluations)]
     pub fn read_state(&self, path: &str) -> Result<Option<serde_json::Value>> {
         let file_path = self.state_dir().join(path.trim_start_matches('/'));
         
@@ -416,6 +417,7 @@ impl ContractStore {
     }
 
     /// Read reposted data from an external contract
+    #[allow(clippy::unnecessary_lazy_evaluations)]
     pub fn read_repost(&self, path: &str) -> Result<Option<serde_json::Value>> {
         let (contract_id, remote_path) = parse_repost_path(path)?;
         

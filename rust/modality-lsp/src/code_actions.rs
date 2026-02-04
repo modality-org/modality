@@ -141,8 +141,8 @@ fn suggest_add_self_loop(text: &str, range: Range, uri: &Url) -> Option<CodeActi
         if l.contains("transitions") {
             // Find the closing brace
             let mut depth = 0;
-            for j in i..lines.len() {
-                for c in lines[j].chars() {
+            for (j, line) in lines.iter().enumerate().skip(i) {
+                for c in line.chars() {
                     if c == '{' { depth += 1; }
                     if c == '}' { depth -= 1; }
                 }

@@ -211,7 +211,7 @@ impl ShoalValidator {
         for i in 0..config.narwhal_config.workers_per_validator {
             let worker = Worker::new(
                 i as u32,
-                config.validator_key.clone(),
+                config.validator_key,
                 config.narwhal_config.batch_size,
                 config.narwhal_config.max_batch_bytes,
             );
@@ -220,7 +220,7 @@ impl ShoalValidator {
         
         // Create primary
         let primary = Primary::new(
-            config.validator_key.clone(),
+            config.validator_key,
             config.committee.clone(),
             dag.clone(),
         );
@@ -283,7 +283,7 @@ impl ShoalValidator {
         } else {
             Err(ValidatorError::InitializationFailed(
                 "no workers available".to_string(),
-            ).into())
+            ))
         }
     }
     
@@ -312,7 +312,7 @@ impl ShoalValidator {
             
             // Simulate votes from all validators (for testing)
             for validator in &self.config.committee.validator_order {
-                builder.add_vote(validator.clone(), vec![])?;
+                builder.add_vote(*validator, vec![])?;
             }
             
             let cert = builder.build()?;
@@ -530,13 +530,12 @@ impl ShoalValidator {
         
         if !has_parents {
             log::info!("Certificate has missing parents, syncing...");
-            let synced = self.sync_client.sync_missing_parents(&cert, request_fn).await
-                .map_err(|e| anyhow::Error::from(e))?;
+            let synced = self.sync_client.sync_missing_parents(&cert, request_fn).await?;
             
             if !synced {
                 return Err(ValidatorError::Custom(
                     "Failed to sync all parents for certificate".to_string()
-                ).into());
+                ));
             }
         }
         

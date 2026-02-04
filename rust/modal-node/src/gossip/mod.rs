@@ -52,13 +52,13 @@ pub async fn handle_event(
   let topic = message.topic.to_string();
   let source_peer = message.source;
   
-  if &topic == consensus::block::draft::TOPIC {
+  if topic == consensus::block::draft::TOPIC {
     let mut mgr = datastore_manager.lock().await;
     consensus::block::draft::handler(data, &mut mgr, consensus_tx).await?;
-  } else if &topic == consensus::block::cert::TOPIC {
+  } else if topic == consensus::block::cert::TOPIC {
     let mut mgr = datastore_manager.lock().await;
     consensus::block::cert::handler(data, &mut mgr, consensus_tx).await?;
-  } else if &topic == miner::block::TOPIC {
+  } else if topic == miner::block::TOPIC {
     miner::block::handler(data, source_peer, datastore_manager, sync_request_tx, mining_update_tx, bootstrappers, minimum_block_timestamp).await?;
   } else {
     log::warn!("Unknown gossip topic: {}", topic);

@@ -77,7 +77,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     log::info!("--- Ping Statistics ---");
     log::info!("Total pings: {}", times_to_ping);
     log::info!("Total time: {:?}", duration);
-    log::info!("Average time: {:?}", duration / times_to_ping as u32);
+    log::info!("Average time: {:?}", duration / times_to_ping);
 
     Ok(())
 }

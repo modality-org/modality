@@ -179,11 +179,11 @@ async fn validate_chain_before_mining(node: &Node) {
     let mgr = node.datastore_manager.lock().await;
     match crate::actions::chain_integrity::validate_and_repair_chain(&mgr, true).await {
         Ok(report) => {
-            if report.break_point.is_some() {
+            if let Some(break_point) = report.break_point {
                 log::warn!(
                     "🔧 Chain integrity repair: orphaned {} blocks from index {} onwards",
                     report.orphaned_count,
-                    report.break_point.unwrap()
+                    break_point
                 );
                 log::info!("   Auto-healing will sync correct blocks from peers");
             } else {

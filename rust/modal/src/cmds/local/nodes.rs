@@ -221,8 +221,7 @@ fn get_node_info_from_pid(pid: u32) -> Option<NodeInfo> {
             
             // Look for node.pid or config.json files in the lsof output
             for line in output_str.lines() {
-                if line.starts_with('n') {
-                    let path_str = &line[1..];
+                if let Some(path_str) = line.strip_prefix('n') {
                     let path = PathBuf::from(path_str);
                     
                     // Check if this is a node.pid file

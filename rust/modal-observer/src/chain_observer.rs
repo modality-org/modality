@@ -156,20 +156,20 @@ impl ChainObserver {
     pub async fn get_canonical_block(&self, index: u64) -> Result<Option<MinerBlock>> {
         let ds = self.datastore.lock().await;
         let current_epoch = ds.block_index_to_epoch(*self.chain_tip_index.lock().await);
-        Ok(MinerBlock::find_canonical_by_index_multi(&ds, index, current_epoch).await?)
+        MinerBlock::find_canonical_by_index_multi(&ds, index, current_epoch).await
     }
     
     /// Get all canonical blocks
     pub async fn get_all_canonical_blocks(&self) -> Result<Vec<MinerBlock>> {
         let ds = self.datastore.lock().await;
-        Ok(MinerBlock::find_all_canonical_multi(&ds).await?)
+        MinerBlock::find_all_canonical_multi(&ds).await
     }
     
     /// Get the canonical blocks for a specific epoch
     pub async fn get_canonical_blocks_by_epoch(&self, epoch: u64) -> Result<Vec<MinerBlock>> {
         let ds = self.datastore.lock().await;
         let current_epoch = ds.block_index_to_epoch(*self.chain_tip_index.lock().await);
-        Ok(MinerBlock::find_canonical_by_epoch_multi(&ds, epoch, current_epoch).await?)
+        MinerBlock::find_canonical_by_epoch_multi(&ds, epoch, current_epoch).await
     }
     
     /// Calculate the cumulative actualized difficulty of the current canonical chain
@@ -178,7 +178,7 @@ impl ChainObserver {
         let ds = self.datastore.lock().await;
         let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
         MinerBlock::calculate_cumulative_difficulty(&canonical_blocks)
-            .map_err(|e| e.into())
+            
     }
     
     /// Get canonical blocks starting from a specific index
@@ -198,7 +198,7 @@ impl ChainObserver {
             .filter(|b| b.index >= start_index && b.index <= end_index)
             .collect();
         MinerBlock::calculate_cumulative_difficulty(&range_blocks)
-            .map_err(|e| e.into())
+            
     }
     
     /// Determine if a single block should replace existing block at same index
@@ -364,7 +364,7 @@ impl ChainObserver {
                 // Mark old block as orphaned
                 let mut orphaned = existing.clone();
                 orphaned.mark_as_orphaned(
-                    format!("Replaced by forced fork specification"),
+                    "Replaced by forced fork specification".to_string(),
                     Some(new_block.hash.clone())
                 );
                 orphaned.save_to_active(&ds).await?;
@@ -594,15 +594,14 @@ impl ChainObserver {
         
         // Check if any blocks violate forced fork specification
         for block in &competing_blocks {
-            if self.fork_config.is_forced_at(block.index) {
-                if !self.fork_config.matches_forced_fork(block) {
+            if self.fork_config.is_forced_at(block.index)
+                && !self.fork_config.matches_forced_fork(block) {
                     let required_hash = self.fork_config.get_required_hash(block.index).unwrap();
                     anyhow::bail!(
                         "Competing chain rejected: block {} at height {} violates forced fork (required: {})",
                         block.hash, block.index, required_hash
                     );
                 }
-            }
         }
         
         // Validate the competing chain is sequential and connected

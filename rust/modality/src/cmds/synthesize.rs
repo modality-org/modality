@@ -422,7 +422,7 @@ fn format_model(model: &modality_lang::Model, format: &str) -> Result<String> {
             if let Some(initial) = &model.initial {
                 output.push_str(&format!("  initial {}\n", initial));
             }
-            output.push_str("\n");
+            output.push('\n');
             
             for transition in &model.transitions {
                 let props: Vec<String> = transition.properties.iter()

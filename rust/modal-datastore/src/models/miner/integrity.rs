@@ -21,7 +21,7 @@ pub async fn detect_duplicate_canonical_blocks_multi(
     let mut blocks_by_index: HashMap<u64, Vec<MinerBlock>> = HashMap::new();
     for block in canonical_blocks {
         blocks_by_index.entry(block.index)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(block);
     }
     

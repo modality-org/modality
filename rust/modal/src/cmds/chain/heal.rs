@@ -47,7 +47,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
     
     println!("Healing duplicates...");
-    let orphaned = modal_datastore::models::miner::integrity::heal_duplicate_canonical_blocks_multi(&mut ds, duplicates).await?;
+    let orphaned = modal_datastore::models::miner::integrity::heal_duplicate_canonical_blocks_multi(&ds, duplicates).await?;
     
     println!("\n✅ Successfully healed {} duplicate blocks:", orphaned.len());
     for hash in &orphaned {

@@ -86,7 +86,7 @@ impl DAGCertificate {
         datastore: &DatastoreManager,
         keys: HashMap<String, String>,
     ) -> Result<Option<Self>> {
-        Self::find_one_from_store(&*datastore.validator_final(), keys).await.map_err(|e| crate::Error::Database(e.to_string()))
+        Self::find_one_from_store(datastore.validator_final(), keys).await.map_err(|e| crate::Error::Database(e.to_string()))
     }
 
     /// Find all certificates in a specific round
@@ -110,7 +110,7 @@ impl DAGCertificate {
                     ("digest".to_string(), digest.to_string()),
                 ].into_iter().collect();
                 
-                if let Some(cert) = Self::find_one_from_store(&*store, keys).await? {
+                if let Some(cert) = Self::find_one_from_store(store, keys).await? {
                     certs.push(cert);
                 }
             }
@@ -142,7 +142,7 @@ impl DAGCertificate {
                         ("digest".to_string(), digest.to_string()),
                     ].into_iter().collect();
                     
-                    if let Some(cert) = Self::find_one_from_store(&*store, keys).await? {
+                    if let Some(cert) = Self::find_one_from_store(store, keys).await? {
                         if cert.author == author {
                             certs.push(cert);
                         }
@@ -176,7 +176,7 @@ impl DAGCertificate {
                         ("digest".to_string(), digest.to_string()),
                     ].into_iter().collect();
                     
-                    if let Some(cert) = Self::find_one_from_store(&*store, keys).await? {
+                    if let Some(cert) = Self::find_one_from_store(store, keys).await? {
                         if cert.committed {
                             certs.push(cert);
                         }
@@ -202,6 +202,6 @@ impl DAGCertificate {
 
     /// Save this certificate to the ValidatorFinal store
     pub async fn save_to_final(&self, datastore: &DatastoreManager) -> Result<()> {
-        self.save_to_store(&*datastore.validator_final()).await.map_err(|e| crate::Error::Database(e.to_string()))
+        self.save_to_store(datastore.validator_final()).await.map_err(|e| crate::Error::Database(e.to_string()))
     }
 }

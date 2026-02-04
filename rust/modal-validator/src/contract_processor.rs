@@ -605,7 +605,7 @@ impl ContractProcessor {
         // Extract module name from path (e.g., "/validators/primary.wasm" -> "primary")
         let module_name = path.trim_end_matches(".wasm")
             .split('/')
-            .last()
+            .next_back()
             .ok_or_else(|| anyhow::anyhow!("Invalid WASM path: {}", path))?;
         
         // Get WASM bytes (expect base64-encoded string or object with wasm_bytes field)
@@ -737,7 +737,7 @@ impl ContractProcessor {
         // Extract program name from path
         let program_name = path.trim_end_matches(".wasm")
             .split('/')
-            .last()
+            .next_back()
             .ok_or_else(|| anyhow::anyhow!("Invalid program path: {}", path))?;
 
         log::info!(

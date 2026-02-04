@@ -1,3 +1,5 @@
+#![allow(clippy::collapsible_match)]
+
 use crate::ast::{Model, PropertySign};
 
 /// Generate a Mermaid state diagram from a Modality model
@@ -50,7 +52,7 @@ pub fn generate_mermaid_diagram(model: &Model) -> String {
     }
     
     // Handle parts (legacy syntax)
-    for (_part_idx, part) in model.parts.iter().enumerate() {
+    for part in model.parts.iter() {
         if model.parts.len() > 1 {
             diagram.push_str(&format!("    state {} {{\n", part.name));
         }
@@ -106,7 +108,7 @@ pub fn generate_mermaid_diagrams(models: &[Model]) -> String {
         diagrams.push_str(&format!("%% Model {}: {}\n", i + 1, model.name));
         diagrams.push_str(&generate_mermaid_diagram(model));
         if i < models.len() - 1 {
-            diagrams.push_str("\n");
+            diagrams.push('\n');
         }
     }
     
@@ -125,7 +127,7 @@ pub fn generate_mermaid_diagram_with_styling(model: &Model) -> String {
     diagram.push_str("    classDef property fill:#fff3cd,stroke:#856404,stroke-width:2px\n");
     diagram.push_str("    classDef current fill:#e3f2fd,stroke:#1976d2,stroke-width:3px\n");
     
-    for (_part_idx, part) in model.parts.iter().enumerate() {
+    for part in model.parts.iter() {
         if model.parts.len() > 1 {
             diagram.push_str(&format!("    state {} {{\n", part.name));
         }
@@ -184,7 +186,7 @@ pub fn generate_mermaid_diagram_with_state(model: &Model) -> String {
     // Add styling for current states
     diagram.push_str("    classDef current fill:#e3f2fd,stroke:#1976d2,stroke-width:3px\n");
     
-    for (_part_idx, part) in model.parts.iter().enumerate() {
+    for part in model.parts.iter() {
         if model.parts.len() > 1 {
             diagram.push_str(&format!("    state {} {{\n", part.name));
         }

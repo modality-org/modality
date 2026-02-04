@@ -362,7 +362,7 @@ pub mod templates {
 
         let governors: Vec<String> = founders.iter().map(|s| s.to_string()).collect();
         // Require 2/3 supermajority
-        let threshold = (founders.len() * 2 + 2) / 3;
+        let threshold = (founders.len() * 2).div_ceil(3);
         EvolvableContract::new(model, governors, threshold)
     }
 
