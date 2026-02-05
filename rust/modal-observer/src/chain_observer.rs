@@ -865,7 +865,7 @@ mod tests {
         
         // Create a chain of 5 blocks
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 4, 1000).await;
         }
         
@@ -882,7 +882,7 @@ mod tests {
         ));
         
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 4, 1000).await;
         }
         
@@ -900,7 +900,7 @@ mod tests {
         ));
         
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 4, 1000).await;
         }
         
@@ -919,7 +919,7 @@ mod tests {
         ));
         
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 4, 1000).await;
         }
         
@@ -939,7 +939,7 @@ mod tests {
         
         // Create initial chain with actualized_difficulty = 1000
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 2, 1000).await;
         }
         
@@ -971,7 +971,7 @@ mod tests {
         
         // Create initial chain with actualized_difficulty = 1000
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 2, 1000).await;
         }
         
@@ -997,7 +997,7 @@ mod tests {
         
         // Create initial chain with actualized_difficulty = 1000
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 2, 1000).await;
         }
         
@@ -1023,7 +1023,7 @@ mod tests {
         
         // Create initial chain with actualized_difficulty = 1000
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 2, 1000).await;
         }
         
@@ -1056,7 +1056,7 @@ mod tests {
         
         // Create initial chain
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 2, 1000).await;
         }
         
@@ -1079,7 +1079,7 @@ mod tests {
         
         // Create initial chain
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 2, 1000).await;
         }
         
@@ -1102,7 +1102,7 @@ mod tests {
         
         // Create initial chain
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 2, 1000).await;
         }
         
@@ -1142,7 +1142,7 @@ mod tests {
         
         // Create initial chain
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 2, 1000).await;
         }
         
@@ -1165,7 +1165,7 @@ mod tests {
         
         // Create chain with blocks 0-5, each with difficulty 1000
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 5, 1000).await;
         }
         
@@ -1192,7 +1192,7 @@ mod tests {
         
         // Create chain with blocks 0-5, each with difficulty 1000
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 5, 1000).await;
         }
         
@@ -1219,7 +1219,7 @@ mod tests {
         
         // Create chain with blocks 0-4
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 4, 1000).await;
         }
         
@@ -1246,7 +1246,7 @@ mod tests {
         ));
         
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 9, 1000).await;
         }
         
@@ -1265,7 +1265,7 @@ mod tests {
         ));
         
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 9, 1000).await;
         }
         
@@ -1286,7 +1286,7 @@ mod tests {
         let large_difficulty = u128::MAX / 10; // Very large but safe value
         
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 2, large_difficulty).await;
         }
         
@@ -1306,7 +1306,7 @@ mod tests {
         
         // Create initial chain with actualized_difficulty = 1000
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 5, 1000).await;
         }
         
@@ -1335,7 +1335,7 @@ mod tests {
         
         // Create initial chain
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 5, 1000).await;
         }
         
@@ -1363,7 +1363,7 @@ mod tests {
         
         // Create initial chain
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 5, 1000).await;
         }
         
@@ -1391,7 +1391,7 @@ mod tests {
         
         // Create initial chain with actualized_difficulty = 1000
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 3, 1000).await;
         }
         
@@ -1426,7 +1426,7 @@ mod tests {
         
         // Create initial chain with actualized_difficulty = 1000
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 3, 1000).await;
         }
         
@@ -1466,7 +1466,7 @@ mod tests {
         
         // Create initial canonical chain: blocks 0-5, difficulty 1000 each
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 5, 1000).await;
         }
         
@@ -1507,7 +1507,7 @@ mod tests {
         
         // Create initial canonical chain: blocks 0-5, difficulty 1500 each
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 5, 1500).await;
         }
         
@@ -1548,7 +1548,7 @@ mod tests {
         
         // Create initial canonical chain: blocks 0-4
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 4, 1000).await;
         }
         
@@ -1582,7 +1582,7 @@ mod tests {
         ));
         
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 5, 1000).await;
         }
         
@@ -1606,7 +1606,7 @@ mod tests {
         ));
         
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 5, 1000).await;
         }
         
@@ -1631,7 +1631,7 @@ mod tests {
         
         // Create initial canonical chain: blocks 0-3, difficulty 1000 each
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 3, 1000).await;
         }
         
@@ -1675,7 +1675,7 @@ mod tests {
         
         // Create initial chain
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 2, 1000).await;
         }
         
@@ -1709,7 +1709,7 @@ mod tests {
         
         // Create initial chain
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 2, 1000).await;
         }
         
@@ -1741,7 +1741,7 @@ mod tests {
         
         // Create initial chain with WRONG block at height 3
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 2, 1000).await;
             let wrong_block = create_test_block(3, "wrong_block_3", "block_2", 1000);
             wrong_block.save_to_active(&ds).await.unwrap();
@@ -1781,7 +1781,7 @@ mod tests {
         
         // Create initial chain
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 1, 1000).await;
         }
         
@@ -1825,7 +1825,7 @@ mod tests {
         
         // Create initial chain
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 5, 1000).await;
         }
         
@@ -1858,7 +1858,7 @@ mod tests {
         
         // Create initial chain
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             create_test_chain(&ds, 0, 5, 1000).await;
         }
         
@@ -1944,7 +1944,7 @@ mod tests {
         
         // First add wrong genesis
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             let wrong_genesis = create_test_block(0, "wrong_genesis", "none", 1000);
             wrong_genesis.save_to_active(&ds).await.unwrap();
         }
@@ -1982,7 +1982,7 @@ mod tests {
         
         // Create initial chain with correct genesis
         {
-            let mut ds = datastore.lock().await;
+            let ds = datastore.lock().await;
             let genesis = create_test_block(0, "checkpoint_genesis", "none", 1000);
             genesis.save_to_active(&ds).await.unwrap();
             let block_1 = create_test_block(1, "block_1", "checkpoint_genesis", 1000);
