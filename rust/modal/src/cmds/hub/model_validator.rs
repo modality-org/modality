@@ -321,11 +321,13 @@ impl ModelValidator {
     /// Parse a rule's formula from content
     fn parse_rule_formula(&self, content: &str) -> Result<Formula, String> {
         // Try to extract formula from rule syntax
-        // Format: rule name { formula { ... } }
+        // Format: rule name { formula name { ... } }
         
-        // Simple extraction - find formula block
+        // Find "formula" keyword and extract the full formula declaration
         if let Some(start) = content.find("formula") {
-            if let Some(brace_start) = content[start..].find('{') {
+            // Find the opening brace after "formula <name>"
+            let after_formula = &content[start..];
+            if let Some(brace_start) = after_formula.find('{') {
                 let formula_start = start + brace_start + 1;
                 // Find matching closing brace
                 let mut depth = 1;
@@ -344,19 +346,19 @@ impl ModelValidator {
                     }
                 }
                 
-                let formula_content = content[formula_start..end].trim();
+                // Extract the full formula declaration: "formula name { expr }"
+                let formula_content = &content[start..=end];
                 
                 // Parse as formula
-                return self.parse_formula_expr(formula_content);
+                return self.parse_formula_decl(formula_content);
             }
         }
 
         Err(format!("Could not extract formula from rule: {}", content))
     }
 
-    /// Parse a formula expression
-    fn parse_formula_expr(&self, content: &str) -> Result<Formula, String> {
-        // Use modality_lang parser
+    /// Parse a formula declaration (formula name { expr })
+    fn parse_formula_decl(&self, content: &str) -> Result<Formula, String> {
         use modality_lang::grammar::FormulaParser;
         
         let parser = FormulaParser::new();
