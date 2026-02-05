@@ -175,6 +175,34 @@ pub struct Template {
 }
 
 // ============================================================================
+// NL Synthesis Types
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SynthesizeRequest {
+    /// Natural language description of the contract
+    pub description: String,
+    /// Optional: hint about the pattern to use
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern_hint: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SynthesizeResponse {
+    /// Generated model (state machine)
+    pub model: String,
+    /// Generated rules (temporal logic formulas)
+    pub rules: Vec<String>,
+    /// Extracted parties from the description
+    pub parties: Vec<String>,
+    /// Protection summary for each party
+    pub protections: HashMap<String, String>,
+    /// The prompt that was used (for debugging)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<String>,
+}
+
+// ============================================================================
 // Internal Storage Types
 // ============================================================================
 
@@ -639,6 +667,172 @@ impl HubCore {
     /// Get a specific template
     pub fn get_template(&self, id: &str) -> Option<Template> {
         self.templates.iter().find(|t| t.id == id).cloned()
+    }
+
+    /// Synthesize a contract from natural language description
+    pub async fn synthesize(&self, req: SynthesizeRequest) -> Result<SynthesizeResponse, HubError> {
+        use modality_lang::llm_synthesis::{extract_parties, generate_prompt, parse_llm_response};
+
+        // Extract parties from description
+        let parties = extract_parties(&req.description);
+
+        // Generate the LLM prompt
+        let prompt = generate_prompt(&req.description);
+
+        // Call Anthropic API to synthesize
+        let api_key = std::env::var("ANTHROPIC_API_KEY")
+            .map_err(|_| HubError::InvalidRequest("ANTHROPIC_API_KEY not set".to_string()))?;
+
+        let client = reqwest::Client::new();
+        let response = client
+            .post("https://api.anthropic.com/v1/messages")
+            .header("x-api-key", &api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&serde_json::json!({
+                "model": "claude-sonnet-4-20250514",
+                "max_tokens": 4096,
+                "system": modality_lang::llm_synthesis::SYSTEM_PROMPT,
+                "messages": [{
+                    "role": "user",
+                    "content": format!("Please synthesize a Modality contract for:\n\n{}\n\nGenerate a complete model with states and transitions, plus rules.", req.description)
+                }]
+            }))
+            .send()
+            .await
+            .map_err(|e| HubError::InvalidRequest(format!("API call failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(HubError::InvalidRequest(format!(
+                "Anthropic API error: {}",
+                error_text
+            )));
+        }
+
+        let api_response: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| HubError::InvalidRequest(format!("Failed to parse response: {}", e)))?;
+
+        // Extract the text content
+        let content = api_response
+            .get("content")
+            .and_then(|c| c.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|item| item.get("text"))
+            .and_then(|t| t.as_str())
+            .unwrap_or("");
+
+        // Parse the model from response
+        let model = Self::extract_model_from_response(content);
+        let rules = Self::extract_rules_from_response(content);
+        let protections = Self::extract_protections_from_response(content, &parties);
+
+        Ok(SynthesizeResponse {
+            model,
+            rules,
+            parties,
+            protections,
+            prompt: Some(prompt),
+        })
+    }
+
+    fn extract_model_from_response(response: &str) -> String {
+        // Look for model block in markdown code block
+        if let Some(start) = response.find("```modality") {
+            let after_start = &response[start + 11..];
+            if let Some(end) = after_start.find("```") {
+                let content = after_start[..end].trim();
+                if content.starts_with("model ") {
+                    return content.to_string();
+                }
+            }
+        }
+
+        // Try without modality tag
+        if let Some(start) = response.find("model ") {
+            if let Some(brace) = response[start..].find('{') {
+                let model_start = start;
+                let mut depth = 0;
+                let mut end = start + brace;
+                for (i, c) in response[start + brace..].chars().enumerate() {
+                    match c {
+                        '{' => depth += 1,
+                        '}' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                end = start + brace + i + 1;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                return response[model_start..end].to_string();
+            }
+        }
+
+        String::new()
+    }
+
+    fn extract_rules_from_response(response: &str) -> Vec<String> {
+        let mut rules = Vec::new();
+
+        // Find rule blocks
+        let mut search_from = 0;
+        while let Some(start) = response[search_from..].find("export default rule") {
+            let absolute_start = search_from + start;
+            if let Some(brace) = response[absolute_start..].find('{') {
+                let rule_start = absolute_start;
+                let mut depth = 0;
+                let mut end = absolute_start + brace;
+                for (i, c) in response[absolute_start + brace..].chars().enumerate() {
+                    match c {
+                        '{' => depth += 1,
+                        '}' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                end = absolute_start + brace + i + 1;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                rules.push(response[rule_start..end].to_string());
+                search_from = end;
+            } else {
+                break;
+            }
+        }
+
+        rules
+    }
+
+    fn extract_protections_from_response(
+        response: &str,
+        parties: &[String],
+    ) -> HashMap<String, String> {
+        let mut protections = HashMap::new();
+
+        // Look for protection section
+        if let Some(start) = response.find("## Protections") {
+            let section = &response[start..];
+            for party in parties {
+                // Look for "**Party**: description" pattern
+                let pattern = format!("**{}**:", party);
+                if let Some(pos) = section.find(&pattern) {
+                    let after_pattern = &section[pos + pattern.len()..];
+                    // Get until next line or end
+                    let end = after_pattern.find('\n').unwrap_or(after_pattern.len());
+                    let protection = after_pattern[..end].trim();
+                    protections.insert(party.clone(), protection.to_string());
+                }
+            }
+        }
+
+        protections
     }
 
     // ========================================================================

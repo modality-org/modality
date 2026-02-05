@@ -1,12 +1,12 @@
 # Modality ⲙ
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/modality-org/modality/main/docs/static/img/modality-social-card.png" alt="Modality Banner" width="600" />
+  <img src="https://raw.githubusercontent.com/modality-org/modality/main/sites/www.modality.org/static/img/modality-social-card.png" alt="Modality Banner" width="600" />
 </div>
 
 <div align="center">
 
-⚙️ [Docs](https://docs.modality.org) | 🌟 [Examples](https://github.com/modality-org/modality/tree/main/examples) | 💬 [Discord](https://discord.gg/KpYFdrfnkS) | 💭 [Discuss](https://discuss.modality.org) | 💰 [Modal Money](https://www.modal.money)
+⚙️ [Docs](https://www.modality.org/docs) | 🌟 [Examples](https://github.com/modality-org/modality/tree/main/examples) | 💬 [Discord](https://discord.gg/KpYFdrfnkS) | 💰 [Modal Money](https://www.modal.money)
 
 </div>
 
@@ -33,10 +33,10 @@ curl --proto '=https' --tlsv1.2 -sSf https://www.modality.org/install.sh | sh
 
 ## Documentation
 
-- **[Getting Started](https://docs.modality.org/docs/getting-started)** — Install and run your first contract
-- **[Core Concepts](https://docs.modality.org/docs/concepts)** — Understand models, formulas, and verification
-- **[Language Reference](https://docs.modality.org/docs/language)** — Complete syntax guide
-- **[For Agents](https://docs.modality.org/docs/for-agents)** — Quick reference for AI agents
+- **[Getting Started](https://www.modality.org/docs/getting-started)** — Install and run your first contract
+- **[Core Concepts](https://www.modality.org/docs/concepts)** — Understand models, formulas, and verification
+- **[Language Reference](https://www.modality.org/docs/language)** — Complete syntax guide
+- **[For Agents](https://www.modality.org/docs/for-agents)** — Quick reference for AI agents
 
 ## Development
 
@@ -57,7 +57,6 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for local setup, build, and test instructio
 ## Community
 
 - 💬 [Discord](https://discord.gg/KpYFdrfnkS) — Chat and community meetings
-- 💭 [Discuss](https://discuss.modality.org) — Forum for deeper conversations
 - 📂 [GitHub Issues](https://github.com/modality-org/modality/issues) — Report bugs or request features
 
 ---
