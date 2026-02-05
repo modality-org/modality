@@ -73,7 +73,7 @@ async fn test_reject_lighter_longer_chain() {
     
     // Create initial chain with 10 blocks, difficulty 1000 each (total: 10,000)
     {
-        let mut ds = datastore.lock().await;
+        let ds = datastore.lock().await;
         create_test_chain(&ds, 0, 9, 1000).await;
     }
     
@@ -121,7 +121,7 @@ async fn test_accept_heavier_longer_chain() {
     
     // Create initial chain with 5 blocks, difficulty 1000 each (total: 5,000)
     {
-        let mut ds = datastore.lock().await;
+        let ds = datastore.lock().await;
         create_test_chain(&ds, 0, 4, 1000).await;
     }
     
@@ -171,7 +171,7 @@ async fn test_single_block_fork_scenarios() {
     
     // Create chain up to block 5
     {
-        let mut ds = datastore.lock().await;
+        let ds = datastore.lock().await;
         create_test_chain(&ds, 0, 5, 1000).await;
     }
     
@@ -206,7 +206,7 @@ async fn test_deep_reorganization() {
     
     // Create initial chain 0-10, each with difficulty 1000
     {
-        let mut ds = datastore.lock().await;
+        let ds = datastore.lock().await;
         create_test_chain(&ds, 0, 10, 1000).await;
     }
     
@@ -259,7 +259,7 @@ async fn test_out_of_order_block_handling() {
     
     // Start with just genesis
     {
-        let mut ds = datastore.lock().await;
+        let ds = datastore.lock().await;
         let genesis = create_test_block(0, "block_0", "genesis", 1000);
         genesis.save(&mut ds).await.unwrap();
     }
@@ -304,7 +304,7 @@ async fn test_concurrent_forks_at_different_heights() {
     
     // Create initial chain 0-8
     {
-        let mut ds = datastore.lock().await;
+        let ds = datastore.lock().await;
         create_test_chain(&ds, 0, 8, 1000).await;
     }
     
@@ -341,7 +341,7 @@ async fn test_reject_longer_lighter_chain_multiple_scenarios() {
     
     // Scenario 1: Observer has 5 blocks with high difficulty
     {
-        let mut ds = datastore.lock().await;
+        let ds = datastore.lock().await;
         create_test_chain(&ds, 0, 4, 5000).await; // Total: 25,000
     }
     
@@ -373,7 +373,7 @@ async fn test_equal_cumulative_difficulty_scenarios() {
     
     // Create chain with blocks 0-4, difficulty 1000 each (total: 5000)
     {
-        let mut ds = datastore.lock().await;
+        let ds = datastore.lock().await;
         create_test_chain(&ds, 0, 4, 1000).await;
     }
     
@@ -432,7 +432,7 @@ async fn test_complex_multi_fork_scenario() {
     
     // Create initial chain 0-10 with difficulty 1000 each
     {
-        let mut ds = datastore.lock().await;
+        let ds = datastore.lock().await;
         create_test_chain(&ds, 0, 10, 1000).await;
     }
     

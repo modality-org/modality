@@ -779,7 +779,6 @@ impl ChainObserver {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use modal_datastore::Model;
     
     // Test helper functions
     // Creates a test block with explicit actualized_difficulty set equal to the target difficulty
