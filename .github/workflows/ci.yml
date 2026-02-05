@@ -1,10 +1,16 @@
-name: CI
+name: Rust CI
 
 on:
   push:
     branches: [main]
+    paths:
+      - 'rust/**'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'rust/**'
+      - '.github/workflows/ci.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
