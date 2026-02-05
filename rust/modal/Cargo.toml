@@ -43,6 +43,10 @@ zip = "2.1"
 walkdir = "2.5"
 libp2p = { version = "0.54.1", features = ["macros", "tokio", "tcp", "noise", "yamux", "gossipsub", "request-response", "kad", "ping", "identify", "rendezvous", "relay", "dns", "websocket"] }
 ctrlc = "3.4"
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }
+thiserror = "1.0"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.29", features = ["signal"] }
