@@ -671,7 +671,7 @@ impl HubCore {
 
     /// Synthesize a contract from natural language description
     pub async fn synthesize(&self, req: SynthesizeRequest) -> Result<SynthesizeResponse, HubError> {
-        use modality_lang::llm_synthesis::{extract_parties, generate_prompt, parse_llm_response};
+        use modality_lang::llm_synthesis::{extract_parties, generate_prompt};
 
         // Extract parties from description
         let parties = extract_parties(&req.description);
