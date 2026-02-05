@@ -15,7 +15,7 @@ use std::sync::Arc;
 use super::core::{
     CommitEntry, CommitLog, ContractState, CreateContractRequest, CreateContractResponse,
     GetContractResponse, HubCore, HubError, SubmitCommitRequest, SubmitCommitResponse,
-    Template, TemplateInfo,
+    SynthesizeRequest, SynthesizeResponse, Template, TemplateInfo,
 };
 
 // ============================================================================
@@ -120,6 +120,7 @@ pub fn router(core: Arc<HubCore>) -> Router {
     Router::new()
         // Contracts
         .route("/contracts", post(create_contract))
+        .route("/contracts/synthesize", post(synthesize_contract))
         .route("/contracts/:id", get(get_contract))
         .route("/contracts/:id/state", get(get_state))
         .route("/contracts/:id/log", get(get_log))
@@ -152,6 +153,15 @@ async fn create_contract(
 ) -> Result<(StatusCode, Json<CreateContractResponse>), ApiError> {
     let resp = core.create_contract(req).await?;
     Ok((StatusCode::CREATED, Json(resp)))
+}
+
+/// Synthesize a contract from natural language
+async fn synthesize_contract(
+    State(core): State<Arc<HubCore>>,
+    Json(req): Json<SynthesizeRequest>,
+) -> Result<Json<SynthesizeResponse>, ApiError> {
+    let resp = core.synthesize(req).await?;
+    Ok(Json(resp))
 }
 
 /// Get contract details
