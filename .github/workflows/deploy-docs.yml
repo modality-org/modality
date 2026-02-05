@@ -35,6 +35,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: sites/www.modality.org/package-lock.json
 
+      - name: Copy docs content
+        run: |
+          rm -rf docs
+          cp -r ../../docs .
+        
       - name: Install dependencies
         run: npm ci
 
