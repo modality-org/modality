@@ -10,6 +10,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = ChainConfig {
         initial_difficulty: 50,
         target_block_time_secs: 60,
+        mining_delay_ms: None,
     };
 
     let mut chain = Blockchain::new(config, genesis_peer_id.to_string());
