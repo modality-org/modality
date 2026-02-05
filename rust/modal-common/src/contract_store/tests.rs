@@ -189,7 +189,7 @@ fn test_existing_methods_still_work() {
     let mut commit = CommitFile::new();
     
     // Test POST method still works
-    commit.add_action("post".to_string(), Some("/data".to_string()), json!("hello"));
+    commit.add_action("post".to_string(), Some("/data/hello.text".to_string()), json!("hello"));
     
     // Should validate successfully (post doesn't require special validation)
     assert!(commit.validate().is_ok());
