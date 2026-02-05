@@ -942,16 +942,13 @@ impl HubCore {
                     .unwrap_or("")
                     .to_lowercase();
 
-                match method.as_str() {
-                    "model" => {
-                        if let Some(contract) = contracts.get(contract_id) {
-                            let model_content =
-                                action.get("value").and_then(|v| v.as_str()).unwrap_or("");
+                if method.as_str() == "model" {
+                    if let Some(contract) = contracts.get(contract_id) {
+                        let model_content =
+                            action.get("value").and_then(|v| v.as_str()).unwrap_or("");
 
-                            self.validate_model(contract_id, model_content, &contract.commits)?;
-                        }
+                        self.validate_model(contract_id, model_content, &contract.commits)?;
                     }
-                    _ => {}
                 }
             }
         }
@@ -1027,7 +1024,7 @@ impl HubCore {
             .collect();
 
         let validator =
-            ModelValidator::from_commits(&replay_commits).map_err(|e| HubError::ValidationFailed(e))?;
+            ModelValidator::from_commits(&replay_commits).map_err(HubError::ValidationFailed)?;
 
         let result = validator.validate_new_model(model_content);
 
