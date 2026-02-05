@@ -400,12 +400,10 @@ mod tests {
         let mut validator = ModelValidator::new();
         
         let model = r#"
-            model test {
-                part main {
-                    init -> active [+START]
-                    active -> done [+FINISH]
-                }
-            }
+model TestModel {
+    init --> active: +START
+    active --> done: +FINISH
+}
         "#;
 
         let commit = ReplayCommit {
@@ -428,12 +426,10 @@ mod tests {
         
         // First add a model
         let model = r#"
-            model test {
-                part main {
-                    init -> active [+START]
-                    active -> done [+FINISH]
-                }
-            }
+model TestModel {
+    init --> active: +START
+    active --> done: +FINISH
+}
         "#;
         
         validator.apply_model(model, 0).unwrap();
