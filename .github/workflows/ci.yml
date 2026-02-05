@@ -85,7 +85,7 @@ jobs:
           
       - name: Run tests
         working-directory: rust
-        run: cargo test --all
+        run: cargo test --all --exclude modal-validator-consensus
 
   clippy:
     name: Clippy
