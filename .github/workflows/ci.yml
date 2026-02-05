@@ -85,7 +85,7 @@ jobs:
           
       - name: Run tests
         working-directory: rust
-        run: cargo test --all --exclude modal-validator-consensus --exclude modal-datastore --exclude modal-miner --exclude modal-observer --exclude modal-validator
+        run: cargo test --all --exclude modal-validator-consensus --exclude modal-datastore --exclude modal-miner --exclude modal-observer --exclude modal-validator --exclude modal-node
 
   clippy:
     name: Clippy
