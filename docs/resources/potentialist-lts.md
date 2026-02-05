@@ -1,7 +1,6 @@
 ---
 sidebar_position: 2
 title: Potentialist LTS Paper
-format: md
 ---
 
 # Potentialist State Machines and Labeled Transition Systems

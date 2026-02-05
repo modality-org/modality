@@ -73,6 +73,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Resources',
       items: [
+        'resources/potentialist-lts',
         'resources/rfc-0001',
       ],
     },
