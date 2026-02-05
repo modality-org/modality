@@ -1,6 +1,7 @@
 //! Output formatting utilities for CLI commands.
 
 use serde::Serialize;
+use std::str::FromStr;
 
 /// Output format for CLI commands.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -10,14 +11,6 @@ pub enum OutputFormat {
 }
 
 impl OutputFormat {
-    /// Parse output format from a string.
-    pub fn from_str(s: &str) -> Self {
-        match s.to_lowercase().as_str() {
-            "json" => OutputFormat::Json,
-            _ => OutputFormat::Text,
-        }
-    }
-    
     /// Check if this is JSON format.
     #[allow(dead_code)]
     pub fn is_json(&self) -> bool {
@@ -25,15 +18,26 @@ impl OutputFormat {
     }
 }
 
+impl FromStr for OutputFormat {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s.to_lowercase().as_str() {
+            "json" => OutputFormat::Json,
+            _ => OutputFormat::Text,
+        })
+    }
+}
+
 impl From<&str> for OutputFormat {
     fn from(s: &str) -> Self {
-        OutputFormat::from_str(s)
+        s.parse().unwrap()
     }
 }
 
 impl From<String> for OutputFormat {
     fn from(s: String) -> Self {
-        OutputFormat::from_str(&s)
+        s.parse().unwrap()
     }
 }
 
@@ -92,10 +96,10 @@ mod tests {
 
     #[test]
     fn test_output_format_from_str() {
-        assert_eq!(OutputFormat::from_str("json"), OutputFormat::Json);
-        assert_eq!(OutputFormat::from_str("JSON"), OutputFormat::Json);
-        assert_eq!(OutputFormat::from_str("text"), OutputFormat::Text);
-        assert_eq!(OutputFormat::from_str("anything"), OutputFormat::Text);
+        assert_eq!("json".parse::<OutputFormat>().unwrap(), OutputFormat::Json);
+        assert_eq!("JSON".parse::<OutputFormat>().unwrap(), OutputFormat::Json);
+        assert_eq!("text".parse::<OutputFormat>().unwrap(), OutputFormat::Text);
+        assert_eq!("anything".parse::<OutputFormat>().unwrap(), OutputFormat::Text);
     }
 
     #[test]
