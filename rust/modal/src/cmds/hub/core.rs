@@ -1393,4 +1393,93 @@ mod tests {
         assert!(!templates.is_empty());
         assert!(templates.iter().any(|t| t.id == "escrow"));
     }
+
+    #[test]
+    fn test_extract_model_from_response() {
+        let response = r#"
+Here's the contract:
+
+```modality
+model Escrow {
+    init --> deposited: +DEPOSIT +signed_by("/users/buyer.id")
+    deposited --> complete: +RELEASE +signed_by("/users/buyer.id")
+}
+```
+
+This model handles the escrow flow.
+"#;
+        let model = HubCore::extract_model_from_response(response);
+        assert!(model.contains("model Escrow"));
+        assert!(model.contains("init --> deposited"));
+        assert!(model.contains("+DEPOSIT"));
+    }
+
+    #[test]
+    fn test_extract_model_without_code_block() {
+        let response = r#"
+model SimpleSwap {
+    init --> proposed: +PROPOSE
+    proposed --> complete: +ACCEPT
+}
+"#;
+        let model = HubCore::extract_model_from_response(response);
+        assert!(model.contains("model SimpleSwap"));
+    }
+
+    #[test]
+    fn test_extract_rules_from_response() {
+        let response = r#"
+Here are the rules:
+
+export default rule {
+    starting_at $PARENT
+    formula {
+        always (signed_by(/users/alice.id))
+    }
+}
+
+And another rule:
+
+export default rule {
+    starting_at $PARENT
+    formula {
+        eventually (<+COMPLETE> true)
+    }
+}
+"#;
+        let rules = HubCore::extract_rules_from_response(response);
+        assert_eq!(rules.len(), 2);
+        assert!(rules[0].contains("always"));
+        assert!(rules[1].contains("eventually"));
+    }
+
+    #[test]
+    fn test_extract_protections_from_response() {
+        let response = r#"
+## Protections
+
+**alice**: Funds protected until delivery confirmed
+**bob**: Payment guaranteed upon successful delivery
+**carol**: Authority limited to dispute resolution only
+"#;
+        let parties = vec![
+            "alice".to_string(),
+            "bob".to_string(),
+            "carol".to_string(),
+        ];
+        let protections = HubCore::extract_protections_from_response(response, &parties);
+
+        assert_eq!(protections.len(), 3);
+        assert!(protections["alice"].contains("Funds protected"));
+        assert!(protections["bob"].contains("Payment guaranteed"));
+        assert!(protections["carol"].contains("dispute"));
+    }
+
+    #[test]
+    fn test_extract_protections_missing_section() {
+        let response = "No protections section here";
+        let parties = vec!["alice".to_string()];
+        let protections = HubCore::extract_protections_from_response(response, &parties);
+        assert!(protections.is_empty());
+    }
 }
