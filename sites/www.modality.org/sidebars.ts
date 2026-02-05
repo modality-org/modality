@@ -74,7 +74,6 @@ const sidebars: SidebarsConfig = {
       label: 'Resources',
       items: [
         'resources/rfc-0001',
-        'resources/potentialist-lts',
       ],
     },
     'faq',
