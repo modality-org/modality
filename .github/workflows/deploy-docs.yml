@@ -46,6 +46,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Copy raw markdown files for direct access
+        run: |
+          # Copy all .md files to build/docs/ preserving directory structure
+          cd docs
+          find . -name "*.md" -exec sh -c 'mkdir -p "../build/docs/$(dirname "{}")" && cp "{}" "../build/docs/{}"' \;
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
