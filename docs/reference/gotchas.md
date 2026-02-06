@@ -49,8 +49,17 @@ The `-modifies(/members)` ensures that path is protected on the first transition
 
 ## 3. Rule Commits Require a Satisfying Model Witness
 
-When submitting a rule, include a model that proves it's satisfiable:
+When submitting a rule, include a model that **actually satisfies** the rule:
 
+**Wrong:** Empty witness doesn't prove anything
+```bash
+modal c commit --method rule \
+  --rule 'rule X { formula { always (+any_signed(/members)) } }' \
+  --model 'model Y { initial s; s -> s [] }' \  # ← doesn't satisfy the rule!
+  --sign key
+```
+
+**Right:** Witness model includes required predicates
 ```bash
 modal c commit --method rule \
   --rule 'rule X { formula { always (+any_signed(/members)) } }' \
@@ -58,7 +67,7 @@ modal c commit --method rule \
   --sign key
 ```
 
-The model acts as a witness. Without it, the hub rejects the rule to prevent deadlock from unsatisfiable constraints.
+The model acts as a witness proving the rule is satisfiable. The hub rejects rules without valid witnesses to prevent deadlock.
 
 ## 4. Models Can Be Replaced, Rules Cannot
 

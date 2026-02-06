@@ -134,18 +134,19 @@ Each rule commit must include a **model that witnesses satisfiability**. The mod
 
 ```bash
 # Rule: any commit requires a member signature
-# Include model as witness
+# Witness model must satisfy the rule
 modal c commit \
   --method rule \
   --rule 'rule member_required { formula { always (+any_signed(/members)) } }' \
-  --model 'model members_only { initial active; active -> active [] }' \
+  --model 'model witness { initial s; s -> s [+any_signed(/members)] }' \
   --sign alice.key
 
 # Rule: modifying members requires unanimous consent
+# Witness must show the implication is satisfiable
 modal c commit \
   --method rule \
   --rule 'rule membership_unanimous { formula { always (+modifies(/members) implies +all_signed(/members)) } }' \
-  --model 'model members_only { initial active; active -> active [] }' \
+  --model 'model witness { initial s; s -> s [+any_signed(/members) -modifies(/members)]; s -> s [+modifies(/members) +all_signed(/members)] }' \
   --sign alice.key
 ```
 
