@@ -16,7 +16,7 @@ When you add a RULE commit, you must also have a MODEL that satisfies it. The mo
 
 ### Dynamic Membership
 
-The predicates `any_signed(/members)` and `all_signed(/members)` enumerate keys at runtime:
+The predicates `+any_signed(/members)` and `+all_signed(/members)` enumerate keys at runtime:
 - As members are added/removed, the interpretation changes
 - The RULES never change, but their MEANING evolves with state
 
@@ -55,21 +55,21 @@ Rules are immutable once added. They enforce constraints:
 // Any commit requires at least one member signature
 rule member_required {
   formula {
-    always (any_signed(/members))
+    always (+any_signed(/members))
   }
 }
 
 // Adding members requires ALL current members
 rule add_member_unanimous {
   formula {
-    always ([+ADD_MEMBER] implies all_signed(/members))
+    always ([+ADD_MEMBER] implies +all_signed(/members))
   }
 }
 
 // Removing members also requires unanimous consent
 rule remove_member_unanimous {
   formula {
-    always ([+REMOVE_MEMBER] implies all_signed(/members))
+    always ([+REMOVE_MEMBER] implies +all_signed(/members))
   }
 }
 ```
@@ -78,8 +78,8 @@ rule remove_member_unanimous {
 
 | Predicate | Meaning |
 |-----------|---------|
-| `any_signed(/members)` | At least one member under /members/ has signed |
-| `all_signed(/members)` | ALL members under /members/ have signed |
+| `+any_signed(/members)` | At least one member under /members/ has signed |
+| `+all_signed(/members)` | ALL members under /members/ have signed |
 | `[+ACTION] implies X` | IF taking +ACTION THEN X must be true |
 
 ### Why rules, not just model?
@@ -118,13 +118,13 @@ Each rule commit is validated against the model:
 # Rule: any commit requires a member signature
 modal c commit \
   --method rule \
-  --value 'rule member_required { formula { always (any_signed(/members)) } }' \
+  --value 'rule member_required { formula { always (+any_signed(/members)) } }' \
   --sign alice.key
 
 # Rule: adding members requires unanimous consent
 modal c commit \
   --method rule \
-  --value 'rule add_member_unanimous { formula { always ([+ADD_MEMBER] implies all_signed(/members)) } }' \
+  --value 'rule add_member_unanimous { formula { always ([+ADD_MEMBER] implies +all_signed(/members)) } }' \
   --sign alice.key
 ```
 
@@ -143,7 +143,7 @@ modal c commit \
   --sign alice.key
 ```
 
-✓ Passes: `all_signed(/members)` = [alice], alice signed ✓
+✓ Passes: `+all_signed(/members)` = [alice], alice signed ✓
 
 ### 5. Alice and Bob add Carol
 
@@ -159,7 +159,7 @@ modal c commit \
   --sign bob.key
 ```
 
-✓ Passes: `all_signed(/members)` = [alice, bob], both signed ✓
+✓ Passes: `+all_signed(/members)` = [alice, bob], both signed ✓
 
 ### 6. Any member can post data
 
@@ -172,7 +172,7 @@ modal c commit \
   --sign bob.key
 ```
 
-✓ Passes: `any_signed(/members)` = true, bob ∈ members ✓
+✓ Passes: `+any_signed(/members)` = true, bob ∈ members ✓
 
 ### 7. Non-members rejected
 
@@ -185,7 +185,7 @@ modal c commit \
   --sign stranger.key
 ```
 
-✗ Rejected: `any_signed(/members)` = false — stranger ∉ members
+✗ Rejected: `+any_signed(/members)` = false — stranger ∉ members
 
 ### 8. Partial signatures rejected
 
@@ -200,19 +200,19 @@ modal c commit \
   # Missing carol!
 ```
 
-✗ Rejected: `all_signed(/members)` requires alice, bob, AND carol
+✗ Rejected: `+all_signed(/members)` requires alice, bob, AND carol
 
 ## How Membership Evolves
 
 The key insight: rules don't change, but their interpretation does.
 
-| Step | Members | `all_signed(/members)` requires |
+| Step | Members | `+all_signed(/members)` requires |
 |------|---------|--------------------------------|
 | Initial | [alice] | [alice] |
 | +bob | [alice, bob] | [alice, bob] |
 | +carol | [alice, bob, carol] | [alice, bob, carol] |
 
-The rule `always ([+ADD_MEMBER] implies all_signed(/members))` stays constant. But as the member set grows, more signatures are required.
+The rule `always ([+ADD_MEMBER] implies +all_signed(/members))` stays constant. But as the member set grows, more signatures are required.
 
 ## Variations
 
@@ -227,7 +227,7 @@ rule admin_can_bypass {
 
 rule members_unless_admin {
   formula {
-    always (not signed_by(/admin.id) implies any_signed(/members))
+    always (not signed_by(/admin.id) implies +any_signed(/members))
   }
 }
 ```

@@ -25,7 +25,7 @@ signed_by(/users/alice.id)
 Verifies at least one member from a path has signed.
 
 ```modality
-any_signed(/members)
++any_signed(/members)
 ```
 
 **Arguments:**
@@ -41,7 +41,7 @@ any_signed(/members)
 Verifies ALL members from a path have signed.
 
 ```modality
-all_signed(/members)
++all_signed(/members)
 ```
 
 **Arguments:**

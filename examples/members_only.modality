@@ -23,17 +23,17 @@ model members_only {
 // Rule 1: Any commit must be signed by at least one member
 //
 // When this rule is added, the model above must satisfy it.
-// The formula uses any_signed(/members) which enumerates all .id files
-// under /members/ and checks if at least one signed.
+// The +any_signed predicate enumerates all .id files under /members/
+// and checks if at least one signed.
 rule member_required {
   formula {
-    always (any_signed(/members))
+    always (+any_signed(/members))
   }
 }
 
 // Rule 2: Adding a member requires ALL current members to sign
 //
-// The interpretation of all_signed(/members) evolves as members are added:
+// The interpretation of +all_signed(/members) evolves as members are added:
 //   - When alice is the only member: all_signed = [alice]
 //   - After bob is added: all_signed = [alice, bob]
 //   - After carol is added: all_signed = [alice, bob, carol]
@@ -41,14 +41,14 @@ rule member_required {
 // The RULE never changes, but its INTERPRETATION does based on state.
 rule add_member_unanimous {
   formula {
-    always ([+ADD_MEMBER] implies all_signed(/members))
+    always ([+ADD_MEMBER] implies +all_signed(/members))
   }
 }
 
 // Rule 3: Removing a member also requires unanimous consent
 rule remove_member_unanimous {
   formula {
-    always ([+REMOVE_MEMBER] implies all_signed(/members))
+    always ([+REMOVE_MEMBER] implies +all_signed(/members))
   }
 }
 
@@ -69,11 +69,11 @@ rule remove_member_unanimous {
 //
 // 3. Add rules (each rule commit validates against the model):
 //    modal c commit --method rule \
-//      --value "rule member_required { formula { always (any_signed(/members)) } }" \
+//      --value "rule member_required { formula { always (+any_signed(/members)) } }" \
 //      --sign alice.key
 //
 //    modal c commit --method rule \
-//      --value "rule add_member_unanimous { formula { always ([+ADD_MEMBER] implies all_signed(/members)) } }" \
+//      --value "rule add_member_unanimous { formula { always ([+ADD_MEMBER] implies +all_signed(/members)) } }" \
 //      --sign alice.key
 //
 // 4. Alice adds Bob (only alice needs to sign - she's the only member):
