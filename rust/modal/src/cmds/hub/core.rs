@@ -3,10 +3,11 @@
 //! This module contains the core business logic for the hub,
 //! independent of any transport layer (REST, RPC, etc.)
 
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use thiserror::Error;
@@ -1123,31 +1124,241 @@ impl HubCore {
         &self,
         contract_id: &str,
         body: &Value,
-        _head: &Value,
+        head: &Value,
     ) -> Result<(), HubError> {
-        // Basic validation - more can be added
         let contracts = self.contracts.read().await;
 
-        if let Some(actions) = body.as_array() {
-            for action in actions {
-                let method = action
-                    .get("method")
-                    .and_then(|m| m.as_str())
-                    .unwrap_or("")
-                    .to_lowercase();
+        if let Some(contract) = contracts.get(contract_id) {
+            // Validate MODEL commits against existing rules
+            if let Some(actions) = body.as_array() {
+                for action in actions {
+                    let method = action
+                        .get("method")
+                        .and_then(|m| m.as_str())
+                        .unwrap_or("")
+                        .to_lowercase();
 
-                if method.as_str() == "model" {
-                    if let Some(contract) = contracts.get(contract_id) {
+                    if method.as_str() == "model" {
                         let model_content =
                             action.get("value").and_then(|v| v.as_str()).unwrap_or("");
-
                         self.validate_model(contract_id, model_content, &contract.commits)?;
                     }
+                }
+            }
+
+            // Validate signature predicates if rules exist
+            if !contract.rules.is_empty() {
+                self.validate_signature_predicates(
+                    contract_id,
+                    body,
+                    head,
+                    &contract.rules,
+                    &contract.commits,
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate signature predicates (any_signed, all_signed) against commit
+    fn validate_signature_predicates(
+        &self,
+        _contract_id: &str,
+        body: &Value,
+        head: &Value,
+        rules: &[String],
+        commits: &[StoredCommit],
+    ) -> Result<(), HubError> {
+        // Check if any rules require signature validation
+        let has_any_signed = rules.iter().any(|r| r.contains("any_signed"));
+        let has_all_signed = rules.iter().any(|r| r.contains("all_signed"));
+
+        if !has_any_signed && !has_all_signed {
+            return Ok(()); // No signature predicates to check
+        }
+
+        // Build current state to get member list
+        let state = self.build_state(commits);
+
+        // Extract member public keys from state (paths like members/alice.id)
+        let members = self.extract_members_from_state(&state);
+
+        if members.is_empty() && (has_any_signed || has_all_signed) {
+            // No members yet - signature predicates can't be evaluated
+            // This is OK for initial commits before membership is established
+            return Ok(());
+        }
+
+        // Get signatures from head
+        let signatures = head
+            .get("signatures")
+            .and_then(|s| s.as_object())
+            .map(|m| {
+                m.iter()
+                    .map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string()))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        // Get action type from body (for all_signed check)
+        let action_type = body
+            .as_array()
+            .and_then(|arr| arr.first())
+            .and_then(|a| a.get("labels"))
+            .and_then(|l| l.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|l| l.as_str())
+            .unwrap_or("");
+
+        // Create message to verify (canonical body JSON)
+        let message = serde_json::to_string(body).unwrap_or_default();
+        let message_hex = hex::encode(message.as_bytes());
+
+        // Validate any_signed if required
+        if has_any_signed {
+            let any_valid = self.check_any_member_signed(&members, &message_hex, &signatures);
+            if !any_valid {
+                return Err(HubError::ValidationFailed(
+                    "any_signed(/members) failed: no valid signature from any member".to_string(),
+                ));
+            }
+        }
+
+        // Validate all_signed for membership-changing actions
+        if has_all_signed {
+            // Check if this is an action that requires all_signed
+            let requires_all = action_type == "ADD_MEMBER"
+                || action_type == "REMOVE_MEMBER"
+                || rules.iter().any(|r| {
+                    // Check for unconditional all_signed (not tied to specific action)
+                    r.contains("all_signed") && !r.contains("implies")
+                });
+
+            if requires_all {
+                let all_valid = self.check_all_members_signed(&members, &message_hex, &signatures);
+                if !all_valid {
+                    return Err(HubError::ValidationFailed(format!(
+                        "all_signed(/members) failed: not all {} members signed",
+                        members.len()
+                    )));
                 }
             }
         }
 
         Ok(())
+    }
+
+    /// Extract member public keys from state
+    fn extract_members_from_state(&self, state: &Value) -> Vec<String> {
+        let mut members = Vec::new();
+
+        if let Some(obj) = state.as_object() {
+            for (key, value) in obj {
+                // Match paths like "members/alice.id" or "members/bob.id"
+                if key.starts_with("members/") && key.ends_with(".id") {
+                    if let Some(pubkey) = value.as_str() {
+                        members.push(pubkey.to_string());
+                    }
+                }
+            }
+        }
+
+        members
+    }
+
+    /// Check if ANY member has validly signed
+    fn check_any_member_signed(
+        &self,
+        members: &[String],
+        message_hex: &str,
+        signatures: &[(String, String)],
+    ) -> bool {
+
+        let message_bytes = match hex::decode(message_hex) {
+            Ok(b) => b,
+            Err(_) => return false,
+        };
+
+        for (signer, sig_hex) in signatures {
+            // Check if signer is a member
+            if !members.contains(signer) {
+                continue;
+            }
+
+            // Verify signature
+            if self.verify_ed25519_signature(signer, sig_hex, &message_bytes) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Check if ALL members have validly signed
+    fn check_all_members_signed(
+        &self,
+        members: &[String],
+        message_hex: &str,
+        signatures: &[(String, String)],
+    ) -> bool {
+
+        if members.is_empty() {
+            return true; // Trivially satisfied
+        }
+
+        let message_bytes = match hex::decode(message_hex) {
+            Ok(b) => b,
+            Err(_) => return false,
+        };
+
+        let mut signed_members: HashSet<String> = HashSet::new();
+
+        for (signer, sig_hex) in signatures {
+            if !members.contains(signer) {
+                continue;
+            }
+
+            if self.verify_ed25519_signature(signer, sig_hex, &message_bytes) {
+                signed_members.insert(signer.clone());
+            }
+        }
+
+        // Check all members signed
+        members.iter().all(|m| signed_members.contains(m))
+    }
+
+    /// Verify an ed25519 signature
+    fn verify_ed25519_signature(&self, pubkey_hex: &str, sig_hex: &str, message: &[u8]) -> bool {
+
+        let pubkey_bytes = match hex::decode(pubkey_hex) {
+            Ok(b) => b,
+            Err(_) => return false,
+        };
+
+        let pubkey_array: [u8; 32] = match pubkey_bytes.try_into() {
+            Ok(a) => a,
+            Err(_) => return false,
+        };
+
+        let verifying_key = match VerifyingKey::from_bytes(&pubkey_array) {
+            Ok(k) => k,
+            Err(_) => return false,
+        };
+
+        let sig_bytes = match hex::decode(sig_hex) {
+            Ok(b) => b,
+            Err(_) => return false,
+        };
+
+        let sig_array: [u8; 64] = match sig_bytes.try_into() {
+            Ok(a) => a,
+            Err(_) => return false,
+        };
+
+        let signature = Signature::from_bytes(&sig_array);
+
+        verifying_key.verify(message, &signature).is_ok()
     }
 
     fn validate_model(
