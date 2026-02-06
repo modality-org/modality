@@ -7,6 +7,20 @@ title: Rule Syntax
 
 Rules express **temporal constraints** using modal mu-calculus.
 
+## Submitting Rules
+
+When adding a rule to a contract, you must include a **model that witnesses satisfiability**:
+
+```bash
+modal c commit \
+  --method rule \
+  --rule 'rule my_rule { formula { always (+predicate(...)) } }' \
+  --model 'model witness { initial s; s -> s [] }' \
+  --sign key.pem
+```
+
+The model proves the rule can be satisfied. Without a satisfying model, the rule commit is rejected. This prevents adding unsatisfiable rules that would deadlock the contract.
+
 ## Basic Structure
 
 ```modality

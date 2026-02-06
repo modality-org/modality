@@ -104,30 +104,31 @@ modal c commit \
   --sign alice.key
 ```
 
-### 2. Add the model
+### 2. Add rules with satisfying model
 
-```bash
-modal c commit \
-  --method model \
-  --value "model members_only { initial active; active -> active [] }" \
-  --sign alice.key
-```
-
-### 3. Add the rules
+Each rule commit must include a **model that witnesses satisfiability**. The model proves the rule can be satisfied.
 
 ```bash
 # Rule: any commit requires a member signature
+# Include model as witness
 modal c commit \
   --method rule \
-  --value 'rule member_required { formula { always (+any_signed(/members)) } }' \
+  --rule 'rule member_required { formula { always (+any_signed(/members)) } }' \
+  --model 'model members_only { initial active; active -> active [] }' \
   --sign alice.key
 
 # Rule: modifying members requires unanimous consent
 modal c commit \
   --method rule \
-  --value 'rule membership_unanimous { formula { always (+modifies(/members) implies +all_signed(/members)) } }' \
+  --rule 'rule membership_unanimous { formula { always (+modifies(/members) implies +all_signed(/members)) } }' \
+  --model 'model members_only { initial active; active -> active [] }' \
   --sign alice.key
 ```
+
+**Why require a model with each rule?**
+- The model acts as a **witness** proving the rule is satisfiable
+- Without a satisfying model, the rule commit is rejected
+- This prevents adding unsatisfiable rules that would deadlock the contract
 
 **These rules are now permanent.**
 

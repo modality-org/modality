@@ -53,19 +53,19 @@ rule membership_change_unanimous {
 //      --value "$(modal identity show alice --public-key-hex)" \
 //      --sign alice.key
 //
-// 2. Add model:
-//    modal c commit --method model \
-//      --value "model members_only { initial active; active -> active [] }" \
-//      --sign alice.key
-//
-// 3. Add rules (predicate-based, no action label references):
+// 2. Add rules WITH satisfying model (model witnesses rule satisfiability):
 //    modal c commit --method rule \
-//      --value "rule member_required { formula { always (+any_signed(/members)) } }" \
+//      --rule "rule member_required { formula { always (+any_signed(/members)) } }" \
+//      --model "model members_only { initial active; active -> active [] }" \
 //      --sign alice.key
 //
 //    modal c commit --method rule \
-//      --value "rule membership_unanimous { formula { always (+modifies(/members) implies +all_signed(/members)) } }" \
+//      --rule "rule membership_unanimous { formula { always (+modifies(/members) implies +all_signed(/members)) } }" \
+//      --model "model members_only { initial active; active -> active [] }" \
 //      --sign alice.key
+//
+// NOTE: Each rule commit includes a model that proves the rule is satisfiable.
+// The model acts as a witness. Without a satisfying model, the rule is rejected.
 //
 // 4. Alice adds Bob (only alice needs to sign - she's the only member):
 //    modal c commit --method post --path /members/bob.id \
