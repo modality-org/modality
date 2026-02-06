@@ -67,6 +67,7 @@ const sidebars: SidebarsConfig = {
       label: 'Reference',
       items: [
         'reference/standard-predicates',
+        'reference/gotchas',
       ],
     },
     {

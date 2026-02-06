@@ -83,16 +83,7 @@ rule protect {
 
 If no rules exist, a user can post a new model with no guards. Rules are the enforcement mechanism.
 
-## 5. CI Uses `-D warnings`
-
-Always run before committing:
-```bash
-RUSTFLAGS="-D warnings" cargo check --all
-```
-
-CI treats warnings as errors. Local `cargo check` may pass while CI fails.
-
-## 6. Predicate Syntax in Formulas
+## 5. Predicate Syntax in Formulas
 
 Predicates in formulas need the `+` prefix:
 ```modality
@@ -104,7 +95,7 @@ always (+modifies(/path) implies +all_signed(/members))  // ✓
 active -> active [+any_signed(/members) -modifies(/members)]  // ✓ + for required, - for prohibited
 ```
 
-## 7. Members Path Convention
+## 6. Members Path Convention
 
 Dynamic membership predicates (`any_signed`, `all_signed`) enumerate `.id` files under the path:
 ```
