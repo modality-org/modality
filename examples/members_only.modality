@@ -3,39 +3,103 @@
 // Only members can post to this contract.
 // Adding a new member requires ALL current members to sign.
 //
-// State:
+// State structure:
 //   /members/
-//     alice.id → "alice_pubkey"
-//     bob.id → "bob_pubkey"
-//     carol.id → "carol_pubkey"
+//     alice.id → "alice_pubkey_hex"
+//     bob.id → "bob_pubkey_hex"
 //
-// Persistent rules enforce signature requirements.
+// When adding a RULE commit, you must also submit a MODEL that satisfies it.
 
 model members_only {
   initial active
   
+  // Simple self-loop - all actions stay in active state
+  // The model structure doesn't enforce permissions - rules do
   active -> active [+POST]
   active -> active [+ADD_MEMBER]
   active -> active [+REMOVE_MEMBER]
 }
 
-// Any commit must be signed by at least one member
+// Rule 1: Any commit must be signed by at least one member
+//
+// When this rule is added, the model above must satisfy it.
+// The formula uses any_signed(/members) which enumerates all .id files
+// under /members/ and checks if at least one signed.
 rule member_required {
   formula {
     always (any_signed(/members))
   }
 }
 
-// Adding a member requires ALL current members to sign
+// Rule 2: Adding a member requires ALL current members to sign
+//
+// The interpretation of all_signed(/members) evolves as members are added:
+//   - When alice is the only member: all_signed = [alice]
+//   - After bob is added: all_signed = [alice, bob]
+//   - After carol is added: all_signed = [alice, bob, carol]
+//
+// The RULE never changes, but its INTERPRETATION does based on state.
 rule add_member_unanimous {
   formula {
     always ([+ADD_MEMBER] implies all_signed(/members))
   }
 }
 
-// Removing a member requires all REMAINING members to sign
+// Rule 3: Removing a member also requires unanimous consent
 rule remove_member_unanimous {
   formula {
     always ([+REMOVE_MEMBER] implies all_signed(/members))
   }
 }
+
+// ============================================================
+// EXAMPLE WORKFLOW (using modal CLI)
+// ============================================================
+//
+// 1. Create contract and add first member (alice):
+//    modal c create members_only
+//    modal c commit --method post --path /members/alice.id \
+//      --value "$(modal identity show alice --public-key-hex)" \
+//      --sign alice.key
+//
+// 2. Add model (must be done before rules can reference it):
+//    modal c commit --method model \
+//      --value "$(cat members_only.modality | grep -A20 'model members_only')" \
+//      --sign alice.key
+//
+// 3. Add rules (each rule commit validates against the model):
+//    modal c commit --method rule \
+//      --value "rule member_required { formula { always (any_signed(/members)) } }" \
+//      --sign alice.key
+//
+//    modal c commit --method rule \
+//      --value "rule add_member_unanimous { formula { always ([+ADD_MEMBER] implies all_signed(/members)) } }" \
+//      --sign alice.key
+//
+// 4. Alice adds Bob (only alice needs to sign - she's the only member):
+//    modal c commit --method post --path /members/bob.id \
+//      --action ADD_MEMBER \
+//      --value "$(modal identity show bob --public-key-hex)" \
+//      --sign alice.key
+//    ✓ Passes: all_signed(/members) = [alice], alice signed
+//
+// 5. Now to add Carol, BOTH alice and bob must sign:
+//    modal c commit --method post --path /members/carol.id \
+//      --action ADD_MEMBER \
+//      --value "$(modal identity show carol --public-key-hex)" \
+//      --sign alice.key --sign bob.key
+//    ✓ Passes: all_signed(/members) = [alice, bob], both signed
+//
+// 6. Any member can post data:
+//    modal c commit --method post --path /data/notes.md \
+//      --action POST \
+//      --value "# Meeting notes..." \
+//      --sign bob.key
+//    ✓ Passes: any_signed(/members) = true (bob is member)
+//
+// 7. Non-members rejected:
+//    modal c commit --method post --path /data/hack.md \
+//      --action POST \
+//      --value "Unauthorized!" \
+//      --sign stranger.key
+//    ✗ Rejected: any_signed(/members) = false (stranger ∉ members)

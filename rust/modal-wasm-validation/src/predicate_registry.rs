@@ -13,6 +13,7 @@ use crate::predicates::{
     num_equals, num_gt, num_lt, num_gte, num_lte, num_between,
     num_positive, num_negative, num_zero,
     timestamp, hash,
+    any_signed, all_signed,
 };
 
 /// Evaluate a predicate by name
@@ -59,6 +60,10 @@ pub fn evaluate_by_name(predicate: &str, input: &PredicateInput) -> Option<Predi
         "hash_equals" => Some(hash::evaluate_hash_equals(input)),
         "commitment_verify" => Some(hash::evaluate_commitment(input)),
         "hash_format" => Some(hash::evaluate_hash_format(input)),
+        
+        // Membership predicates
+        "any_signed" => Some(any_signed::evaluate(input)),
+        "all_signed" => Some(all_signed::evaluate(input)),
         
         _ => None,
     }

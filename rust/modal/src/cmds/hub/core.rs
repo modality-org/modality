@@ -1482,4 +1482,191 @@ export default rule {
         let protections = HubCore::extract_protections_from_response(response, &parties);
         assert!(protections.is_empty());
     }
+
+    // ========================================================================
+    // Synthesis Integration Tests
+    // ========================================================================
+
+    #[test]
+    fn test_synthesize_request_serialization() {
+        let req = SynthesizeRequest {
+            description: "Alice wants to buy a widget from Bob".to_string(),
+            pattern_hint: Some("escrow".to_string()),
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        assert!(json.contains("Alice wants to buy"));
+        assert!(json.contains("escrow"));
+
+        let parsed: SynthesizeRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.description, req.description);
+        assert_eq!(parsed.pattern_hint, req.pattern_hint);
+    }
+
+    #[test]
+    fn test_synthesize_response_serialization() {
+        let mut protections = HashMap::new();
+        protections.insert("alice".to_string(), "Funds protected".to_string());
+
+        let resp = SynthesizeResponse {
+            model: "model Escrow { init --> done }".to_string(),
+            rules: vec!["export default rule { formula { always(safe) } }".to_string()],
+            parties: vec!["alice".to_string(), "bob".to_string()],
+            protections,
+            prompt: Some("test prompt".to_string()),
+        };
+
+        let json = serde_json::to_string(&resp).unwrap();
+        let parsed: SynthesizeResponse = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.model, resp.model);
+        assert_eq!(parsed.rules.len(), 1);
+        assert_eq!(parsed.parties.len(), 2);
+        assert_eq!(parsed.protections["alice"], "Funds protected");
+    }
+
+    #[tokio::test]
+    async fn test_synthesize_missing_api_key() {
+        // Temporarily unset API key if present
+        let original = std::env::var("ANTHROPIC_API_KEY").ok();
+        std::env::remove_var("ANTHROPIC_API_KEY");
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let core = HubCore::new(temp_dir.path().to_path_buf());
+
+        let req = SynthesizeRequest {
+            description: "Test contract".to_string(),
+            pattern_hint: None,
+        };
+
+        let result = core.synthesize(req).await;
+        assert!(result.is_err());
+
+        match result.unwrap_err() {
+            HubError::InvalidRequest(msg) => {
+                assert!(msg.contains("ANTHROPIC_API_KEY"));
+            }
+            other => panic!("Expected InvalidRequest, got {:?}", other),
+        }
+
+        // Restore original if present
+        if let Some(key) = original {
+            std::env::set_var("ANTHROPIC_API_KEY", key);
+        }
+    }
+
+    #[test]
+    fn test_extract_model_nested_braces() {
+        let response = r#"
+```modality
+model ComplexEscrow {
+    part flow {
+        init --> deposited: +DEPOSIT {
+            guard: amount > 0
+        }
+        deposited --> complete: +RELEASE
+    }
+}
+```
+"#;
+        let model = HubCore::extract_model_from_response(response);
+        assert!(model.contains("model ComplexEscrow"));
+        assert!(model.contains("part flow"));
+        assert!(model.contains("guard: amount > 0"));
+    }
+
+    #[test]
+    fn test_extract_multiple_rules_with_context() {
+        let response = r#"
+Here are protection rules for each party:
+
+For Alice (buyer):
+export default rule {
+    starting_at $PARENT
+    formula {
+        always (modifies(/escrow/funds) implies signed_by(/users/alice.id))
+    }
+}
+
+For Bob (seller):
+export default rule {
+    starting_at $PARENT
+    formula {
+        eventually (<+RELEASE> true) | (<+REFUND> true)
+    }
+}
+
+For the arbiter:
+export default rule {
+    starting_at $PARENT
+    formula {
+        [<+RESOLVE>] (disputed implies signed_by(/users/arbiter.id))
+    }
+}
+"#;
+        let rules = HubCore::extract_rules_from_response(response);
+        assert_eq!(rules.len(), 3);
+        assert!(rules[0].contains("modifies(/escrow/funds)"));
+        assert!(rules[1].contains("RELEASE"));
+        assert!(rules[2].contains("RESOLVE"));
+    }
+
+    #[test]
+    fn test_extract_protections_various_formats() {
+        // Test with different markdown formats
+        let response = r#"
+## Protections
+
+**buyer**: Protected from losing funds if seller doesn't deliver
+**seller**: Guaranteed payment once delivery is confirmed by buyer
+"#;
+        let parties = vec!["buyer".to_string(), "seller".to_string()];
+        let protections = HubCore::extract_protections_from_response(response, &parties);
+
+        assert_eq!(protections.len(), 2);
+        assert!(protections["buyer"].contains("losing funds"));
+        assert!(protections["seller"].contains("Guaranteed payment"));
+    }
+
+    /// Integration test that requires ANTHROPIC_API_KEY
+    /// Run with: ANTHROPIC_API_KEY=sk-... cargo test test_synthesize_full_flow -- --ignored
+    #[tokio::test]
+    #[ignore]
+    async fn test_synthesize_full_flow() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let core = HubCore::new(temp_dir.path().to_path_buf());
+
+        let req = SynthesizeRequest {
+            description: "Alice wants to buy a rare book from Bob for 100 tokens. \
+                         Alice deposits the payment, Bob ships the book, \
+                         and Alice releases payment upon receipt. \
+                         If there's a dispute, Carol acts as arbiter."
+                .to_string(),
+            pattern_hint: Some("escrow".to_string()),
+        };
+
+        let result = core.synthesize(req).await;
+        assert!(result.is_ok(), "Synthesis failed: {:?}", result.err());
+
+        let resp = result.unwrap();
+
+        // Check model was generated
+        assert!(!resp.model.is_empty(), "Model should not be empty");
+        assert!(
+            resp.model.contains("model"),
+            "Model should contain 'model' keyword"
+        );
+
+        // Check parties were extracted
+        assert!(
+            resp.parties.iter().any(|p| p.to_lowercase().contains("alice")),
+            "Should extract Alice as a party"
+        );
+        assert!(
+            resp.parties.iter().any(|p| p.to_lowercase().contains("bob")),
+            "Should extract Bob as a party"
+        );
+
+        // Check prompt was included
+        assert!(resp.prompt.is_some());
+    }
 }

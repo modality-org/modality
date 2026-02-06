@@ -20,6 +20,38 @@ signed_by(/users/alice.id)
 **Arguments:**
 - `path` — Path to the public key in contract state
 
+### any_signed
+
+Verifies at least one member from a path has signed.
+
+```modality
+any_signed(/members)
+```
+
+**Arguments:**
+- `path` — Path prefix containing member public keys
+
+**Behavior:**
+- Enumerates all `.id` files under the path
+- Passes if ANY member has a valid signature
+- Used for "any member can act" patterns
+
+### all_signed
+
+Verifies ALL members from a path have signed.
+
+```modality
+all_signed(/members)
+```
+
+**Arguments:**
+- `path` — Path prefix containing member public keys
+
+**Behavior:**
+- Enumerates all `.id` files under the path  
+- Passes only if EVERY member has a valid signature
+- Used for "unanimous consent" patterns like adding members
+
 ### threshold
 
 n-of-m multisig verification.
