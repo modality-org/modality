@@ -7,6 +7,29 @@ title: Standard Predicates
 
 Predicates are the building blocks for contract rules. They evaluate based on commit data and contract state.
 
+## Path Predicates
+
+### modifies
+
+Checks if the commit writes to paths under a given prefix.
+
+```modality
++modifies(/members)
+```
+
+**Arguments:**
+- `path` — Path prefix to check
+
+**Behavior:**
+- Returns true if any path in the commit body starts with the given prefix
+- Used for path-based access control rules
+
+**Example:**
+```modality
+// Only allow membership changes if all members sign
+always (+modifies(/members) implies +all_signed(/members))
+```
+
 ## Signature Predicates
 
 ### signed_by

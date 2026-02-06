@@ -1161,7 +1161,7 @@ impl HubCore {
         Ok(())
     }
 
-    /// Validate signature predicates (any_signed, all_signed) against commit
+    /// Validate predicates (any_signed, all_signed, modifies) against commit
     fn validate_signature_predicates(
         &self,
         _contract_id: &str,
@@ -1170,9 +1170,10 @@ impl HubCore {
         rules: &[String],
         commits: &[StoredCommit],
     ) -> Result<(), HubError> {
-        // Check if any rules require signature validation
+        // Check which predicates are used in rules
         let has_any_signed = rules.iter().any(|r| r.contains("any_signed"));
         let has_all_signed = rules.iter().any(|r| r.contains("all_signed"));
+        let has_modifies = rules.iter().any(|r| r.contains("modifies"));
 
         if !has_any_signed && !has_all_signed {
             return Ok(()); // No signature predicates to check
@@ -1201,15 +1202,14 @@ impl HubCore {
             })
             .unwrap_or_default();
 
-        // Get action type from body (for all_signed check)
-        let action_type = body
-            .as_array()
-            .and_then(|arr| arr.first())
-            .and_then(|a| a.get("labels"))
-            .and_then(|l| l.as_array())
-            .and_then(|arr| arr.first())
-            .and_then(|l| l.as_str())
-            .unwrap_or("");
+        // Extract paths being modified in this commit
+        let commit_paths = self.extract_commit_paths(body);
+
+        // Check if commit modifies /members/ (for conditional all_signed)
+        let modifies_members = commit_paths.iter().any(|p| {
+            let normalized = p.trim_start_matches('/');
+            normalized.starts_with("members/") || normalized == "members"
+        });
 
         // Create message to verify (canonical body JSON)
         let message = serde_json::to_string(body).unwrap_or_default();
@@ -1220,33 +1220,51 @@ impl HubCore {
             let any_valid = self.check_any_member_signed(&members, &message_hex, &signatures);
             if !any_valid {
                 return Err(HubError::ValidationFailed(
-                    "any_signed(/members) failed: no valid signature from any member".to_string(),
+                    "+any_signed(/members) failed: no valid signature from any member".to_string(),
                 ));
             }
         }
 
-        // Validate all_signed for membership-changing actions
-        if has_all_signed {
-            // Check if this is an action that requires all_signed
-            let requires_all = action_type == "ADD_MEMBER"
-                || action_type == "REMOVE_MEMBER"
-                || rules.iter().any(|r| {
-                    // Check for unconditional all_signed (not tied to specific action)
-                    r.contains("all_signed") && !r.contains("implies")
-                });
+        // Validate all_signed when modifies(/members) is true
+        // Rule pattern: always (+modifies(/members) implies +all_signed(/members))
+        if has_all_signed && has_modifies && modifies_members {
+            let all_valid = self.check_all_members_signed(&members, &message_hex, &signatures);
+            if !all_valid {
+                return Err(HubError::ValidationFailed(format!(
+                    "+all_signed(/members) failed: commit modifies /members/ but not all {} members signed",
+                    members.len()
+                )));
+            }
+        }
 
-            if requires_all {
-                let all_valid = self.check_all_members_signed(&members, &message_hex, &signatures);
-                if !all_valid {
-                    return Err(HubError::ValidationFailed(format!(
-                        "all_signed(/members) failed: not all {} members signed",
-                        members.len()
-                    )));
-                }
+        // Also check unconditional all_signed (without modifies implication)
+        if has_all_signed && !has_modifies {
+            // Rule uses all_signed without modifies - always requires all signatures
+            let all_valid = self.check_all_members_signed(&members, &message_hex, &signatures);
+            if !all_valid {
+                return Err(HubError::ValidationFailed(format!(
+                    "+all_signed(/members) failed: not all {} members signed",
+                    members.len()
+                )));
             }
         }
 
         Ok(())
+    }
+
+    /// Extract paths being written in this commit
+    fn extract_commit_paths(&self, body: &Value) -> Vec<String> {
+        let mut paths = Vec::new();
+        
+        if let Some(actions) = body.as_array() {
+            for action in actions {
+                if let Some(path) = action.get("path").and_then(|p| p.as_str()) {
+                    paths.push(path.to_string());
+                }
+            }
+        }
+        
+        paths
     }
 
     /// Extract member public keys from state

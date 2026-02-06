@@ -1,18 +1,26 @@
 # Members-Only Contract
 
-A contract where only members can make changes, and adding new members requires unanimous consent.
+A contract where only members can make changes, and modifying membership requires unanimous consent.
 
 ## The Problem
 
 You want a shared contract where:
 - Only approved members can post
-- Adding a new member requires ALL existing members to agree
+- Changing membership requires ALL existing members to agree
 
 ## Key Concepts
 
-### Rules + Model Together
+### Rules Use Predicates, Not Action Labels
 
-When you add a RULE commit, you must also have a MODEL that satisfies it. The model defines the state machine structure; rules add constraints that must always hold.
+Rules are evaluated against commit data using **predicates** — boolean functions that inspect the commit. Rules should NOT reference model action labels directly.
+
+```modality
+// WRONG - references model structure
+always ([+ADD_MEMBER] implies +all_signed(/members))
+
+// RIGHT - uses predicates only
+always (+modifies(/members) implies +all_signed(/members))
+```
 
 ### Dynamic Membership
 
@@ -39,17 +47,17 @@ Each `.id` file contains that member's public key (hex-encoded).
 model members_only {
   initial active
   
-  active -> active [+POST]
-  active -> active [+ADD_MEMBER]
-  active -> active [+REMOVE_MEMBER]
+  // Simple self-loop - any commit allowed structurally
+  // Permissions enforced by rules via predicates
+  active -> active []
 }
 ```
 
-Simple: one state, self-loops for each action type. The model doesn't enforce permissions — that's what rules are for.
+The model is minimal. All permission logic lives in rules.
 
 ## The Rules
 
-Rules are immutable once added. They enforce constraints:
+Rules are immutable once added. They enforce constraints using predicates:
 
 ```modality
 // Any commit requires at least one member signature
@@ -59,17 +67,10 @@ rule member_required {
   }
 }
 
-// Adding members requires ALL current members
-rule add_member_unanimous {
+// Modifying /members/ requires ALL current members
+rule membership_unanimous {
   formula {
-    always ([+ADD_MEMBER] implies +all_signed(/members))
-  }
-}
-
-// Removing members also requires unanimous consent
-rule remove_member_unanimous {
-  formula {
-    always ([+REMOVE_MEMBER] implies +all_signed(/members))
+    always (+modifies(/members) implies +all_signed(/members))
   }
 }
 ```
@@ -80,11 +81,13 @@ rule remove_member_unanimous {
 |-----------|---------|
 | `+any_signed(/members)` | At least one member under /members/ has signed |
 | `+all_signed(/members)` | ALL members under /members/ have signed |
-| `[+ACTION] implies X` | IF taking +ACTION THEN X must be true |
+| `+modifies(/members)` | Commit writes to a path under /members/ |
 
-### Why rules, not just model?
+### Why predicates, not action labels?
 
-The model can be replaced. A malicious user could post a new model with no guards. But **rules are immutable** — once added, they apply to all future commits, including model changes.
+- **Rules validate commits** — they check predicate conditions against commit data
+- **Models define structure** — they specify allowed state transitions
+- **Decoupling** — rules shouldn't depend on model action names
 
 ## Walkthrough
 
@@ -106,13 +109,11 @@ modal c commit \
 ```bash
 modal c commit \
   --method model \
-  --file members_only.modality \
+  --value "model members_only { initial active; active -> active [] }" \
   --sign alice.key
 ```
 
 ### 3. Add the rules
-
-Each rule commit is validated against the model:
 
 ```bash
 # Rule: any commit requires a member signature
@@ -121,10 +122,10 @@ modal c commit \
   --value 'rule member_required { formula { always (+any_signed(/members)) } }' \
   --sign alice.key
 
-# Rule: adding members requires unanimous consent
+# Rule: modifying members requires unanimous consent
 modal c commit \
   --method rule \
-  --value 'rule add_member_unanimous { formula { always ([+ADD_MEMBER] implies +all_signed(/members)) } }' \
+  --value 'rule membership_unanimous { formula { always (+modifies(/members) implies +all_signed(/members)) } }' \
   --sign alice.key
 ```
 
@@ -138,28 +139,26 @@ Alice is the only member, so only she needs to sign:
 modal c commit \
   --method post \
   --path /members/bob.id \
-  --action ADD_MEMBER \
   --value "$(modal identity show bob --public-key-hex)" \
   --sign alice.key
 ```
 
-✓ Passes: `+all_signed(/members)` = [alice], alice signed ✓
+✓ Passes: `+modifies(/members)`=true, `+all_signed([alice])`=true ✓
 
 ### 5. Alice and Bob add Carol
 
-Now BOTH must sign:
+Now BOTH must sign (commit modifies /members/):
 
 ```bash
 modal c commit \
   --method post \
   --path /members/carol.id \
-  --action ADD_MEMBER \
   --value "$(modal identity show carol --public-key-hex)" \
   --sign alice.key \
   --sign bob.key
 ```
 
-✓ Passes: `+all_signed(/members)` = [alice, bob], both signed ✓
+✓ Passes: `+modifies(/members)`=true, `+all_signed([alice,bob])`=true ✓
 
 ### 6. Any member can post data
 
@@ -167,12 +166,11 @@ modal c commit \
 modal c commit \
   --method post \
   --path /data/meeting-notes.md \
-  --action POST \
   --value "# Meeting Notes..." \
   --sign bob.key
 ```
 
-✓ Passes: `+any_signed(/members)` = true, bob ∈ members ✓
+✓ Passes: `+any_signed(/members)`=true, `+modifies(/members)`=false ✓
 
 ### 7. Non-members rejected
 
@@ -180,12 +178,11 @@ modal c commit \
 modal c commit \
   --method post \
   --path /data/hack.md \
-  --action POST \
   --value "Unauthorized!" \
   --sign stranger.key
 ```
 
-✗ Rejected: `+any_signed(/members)` = false — stranger ∉ members
+✗ Rejected: `+any_signed(/members)`=false — stranger ∉ members
 
 ### 8. Partial signatures rejected
 
@@ -193,7 +190,6 @@ modal c commit \
 modal c commit \
   --method post \
   --path /members/dave.id \
-  --action ADD_MEMBER \
   --value "$(modal identity show dave --public-key-hex)" \
   --sign alice.key \
   --sign bob.key
@@ -212,50 +208,44 @@ The key insight: rules don't change, but their interpretation does.
 | +bob | [alice, bob] | [alice, bob] |
 | +carol | [alice, bob, carol] | [alice, bob, carol] |
 
-The rule `always ([+ADD_MEMBER] implies +all_signed(/members))` stays constant. But as the member set grows, more signatures are required.
+The rule `always (+modifies(/members) implies +all_signed(/members))` stays constant. But as the member set grows, more signatures are required for membership changes.
 
 ## Variations
 
-### Admin override
+### Admin bypass
 
 ```modality
-rule admin_can_bypass {
+rule admin_bypass {
   formula {
-    always (signed_by(/admin.id) implies true)
-  }
-}
-
-rule members_unless_admin {
-  formula {
-    always (not signed_by(/admin.id) implies +any_signed(/members))
+    always (+signed_by(/admin.id) | +any_signed(/members))
   }
 }
 ```
 
-### Majority for membership changes
+### Protect config paths
 
 ```modality
-rule members_majority {
+rule config_protected {
   formula {
-    always ([+ADD_MEMBER] implies threshold(2, /members))
+    always (+modifies(/config) implies +signed_by(/admin.id))
   }
 }
 ```
 
-### Lock certain paths
+### Majority for membership
 
 ```modality
-rule config_immutable {
+rule membership_majority {
   formula {
-    always (not modifies(/config))
+    always (+modifies(/members) implies +threshold(2, /members))
   }
 }
 ```
 
 ## Summary
 
-1. **Model** defines structure (can be replaced)
-2. **Rules** add constraints (immutable once added)
-3. **Rule commits require model** — validator checks formula against model
-4. **Dynamic predicates** (`any_signed`, `all_signed`) evolve with state
-5. **Rules never change** — their interpretation does
+1. **Model** defines structure (minimal, permissive)
+2. **Rules** enforce constraints via **predicates**
+3. Rules should NOT reference action labels from the model
+4. **Dynamic predicates** (`+any_signed`, `+all_signed`) evolve with state
+5. **Path predicates** (`+modifies`) check what the commit touches

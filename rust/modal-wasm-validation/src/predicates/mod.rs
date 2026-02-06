@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 pub mod signed_by;
 pub mod any_signed;
 pub mod all_signed;
+pub mod modifies;
 pub mod amount_in_range;
 pub mod has_property;
 pub mod timestamp_valid;
