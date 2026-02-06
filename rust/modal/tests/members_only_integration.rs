@@ -12,7 +12,7 @@
 //! This test exposes gaps in predicate evaluation wiring.
 
 use tempfile::TempDir;
-use ed25519_dalek::{SigningKey, Signer, VerifyingKey};
+use ed25519_dalek::{SigningKey, Signer};
 use rand::rngs::OsRng;
 use sha2::{Sha256, Digest};
 use std::collections::HashMap;
@@ -227,8 +227,6 @@ fn check_any_signed(
     message_hex: &str,
     signatures: &[serde_json::Value],
 ) -> bool {
-    use ed25519_dalek::{Signature, VerifyingKey, Verifier};
-    
     let message_bytes = match hex::decode(message_hex) {
         Ok(b) => b,
         Err(_) => return false,
