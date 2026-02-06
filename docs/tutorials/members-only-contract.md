@@ -43,6 +43,8 @@ Each `.id` file contains that member's public key (hex-encoded).
 
 ## The Model
 
+### Minimal Approach
+
 ```modality
 model members_only {
   initial active
@@ -53,7 +55,29 @@ model members_only {
 }
 ```
 
-The model is minimal. All permission logic lives in rules.
+The minimal model delegates all permission logic to rules.
+
+### Explicit Approach
+
+Alternatively, encode permissions directly in transition labels:
+
+```modality
+model members_only {
+  initial active
+  
+  // Non-membership commits: any member can sign, but CAN'T touch /members
+  active -> active [+any_signed(/members) -modifies(/members)]
+  
+  // Membership commits: CAN modify /members, needs unanimous consent
+  active -> active [+modifies(/members) +all_signed(/members)]
+}
+```
+
+**Key insight:** The `-modifies(/members)` on the first transition is required. Without it, that transition could be used to modify membership with just one signature — the model wouldn't enforce protection.
+
+The two transitions partition the action space:
+- First: any commit that doesn't modify `/members` → any single member signature
+- Second: any commit that modifies `/members` → all member signatures
 
 ## The Rules
 
