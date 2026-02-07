@@ -476,6 +476,276 @@ impl ContractStore {
         Ok(())
     }
 
+    /// Validate a commit against all accumulated contract rules
+    /// 
+    /// Loads all rules from commit history, builds current state,
+    /// and evaluates each rule's predicates against the pending commit.
+    pub fn validate_commit_against_rules(&self, commit: &CommitFile) -> Result<()> {
+        use crate::contract_store::one_step_rule::EvalContext;
+        
+        // Build current state and collect rules
+        let (state, rules) = self.build_state_and_rules()?;
+        
+        if rules.is_empty() {
+            return Ok(()); // No rules to validate against
+        }
+        
+        // Extract signers from commit head
+        let signers = self.extract_signers_from_commit(commit);
+        
+        // Build commit body as Value for EvalContext
+        let body_value = serde_json::to_value(&commit.body)?;
+        
+        // Create evaluation context
+        let ctx = EvalContext::new(&signers, &state, &body_value);
+        
+        // Validate each rule
+        for rule_content in &rules {
+            self.validate_single_rule(rule_content, &ctx)?;
+        }
+        
+        Ok(())
+    }
+    
+    /// Build current state and collect all rules from commits
+    fn build_state_and_rules(&self) -> Result<(serde_json::Value, Vec<String>)> {
+        use std::collections::HashMap;
+        
+        let mut state: HashMap<String, serde_json::Value> = HashMap::new();
+        let mut rules: Vec<String> = Vec::new();
+        
+        // Get all commits in order (oldest first)
+        let head = self.get_head()?;
+        if head.is_none() {
+            return Ok((serde_json::json!({}), rules));
+        }
+        
+        // Collect commits from HEAD to genesis
+        let mut commits = Vec::new();
+        let mut current = head;
+        while let Some(commit_id) = current {
+            let commit = self.load_commit(&commit_id)?;
+            commits.push(commit.clone());
+            current = commit.head.parent;
+        }
+        
+        // Replay in order (oldest first)
+        commits.reverse();
+        for commit in commits {
+            for action in &commit.body {
+                if let Some(path) = &action.path {
+                    match action.method.as_str() {
+                        "post" | "genesis" | "repost" => {
+                            let normalized = path.trim_start_matches('/').to_string();
+                            state.insert(normalized, action.value.clone());
+                        }
+                        "rule" => {
+                            // Collect rule content
+                            if let Some(rule_str) = action.value.as_str() {
+                                rules.push(rule_str.to_string());
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        
+        Ok((serde_json::json!(state), rules))
+    }
+    
+    /// Extract signer identities from commit signatures
+    fn extract_signers_from_commit(&self, commit: &CommitFile) -> Vec<String> {
+        let mut signers = Vec::new();
+        
+        if let Some(sigs) = &commit.head.signatures {
+            if let Some(obj) = sigs.as_object() {
+                // Format: { "pubkey": "signature" }
+                for key in obj.keys() {
+                    signers.push(key.clone());
+                }
+            }
+        }
+        
+        signers
+    }
+    
+    /// Validate a single rule against the evaluation context
+    fn validate_single_rule(
+        &self, 
+        rule_content: &str, 
+        ctx: &one_step_rule::EvalContext,
+    ) -> Result<()> {
+        use crate::contract_store::one_step_rule::{parse_formula, evaluate_formula_full};
+        
+        // Extract the formula from rule syntax
+        // Format: rule name { formula { <expression> } }
+        let formula_str = match self.extract_formula_from_rule(rule_content) {
+            Some(f) => f,
+            None => return Ok(()), // Can't parse, skip (might be a different rule format)
+        };
+        
+        // Handle temporal operators and implications
+        // "always (+any_signed(/members))" -> evaluate any_signed(/members)
+        // "always (+modifies(/members) implies +all_signed(/members))" -> conditional check
+        
+        let formula_str = formula_str.trim();
+        
+        // Strip "always" wrapper if present
+        let inner = if formula_str.starts_with("always") {
+            self.extract_inner_formula(formula_str, "always")
+                .unwrap_or(formula_str.to_string())
+        } else {
+            formula_str.to_string()
+        };
+        
+        // Handle implication: "A implies B" means "if A then B"
+        if inner.contains(" implies ") {
+            return self.validate_implication(&inner, ctx);
+        }
+        
+        // Strip + prefix from predicates for parsing
+        let formula_normalized = self.normalize_predicate_syntax(&inner);
+        
+        // Parse and evaluate
+        match parse_formula(&formula_normalized) {
+            Ok(formula) => {
+                if !evaluate_formula_full(&formula, ctx) {
+                    anyhow::bail!(
+                        "Rule violation: {} (signers: {:?})",
+                        rule_content.chars().take(100).collect::<String>(),
+                        ctx.signers
+                    );
+                }
+                Ok(())
+            }
+            Err(_) => {
+                // Can't parse this formula format, skip validation
+                // This might be a more complex formula that needs model checking
+                Ok(())
+            }
+        }
+    }
+    
+    /// Extract formula expression from rule declaration
+    fn extract_formula_from_rule(&self, rule_content: &str) -> Option<String> {
+        // Find "formula" keyword and extract content
+        let formula_start = rule_content.find("formula")?;
+        let after_formula = &rule_content[formula_start..];
+        
+        // Find first { after formula
+        let brace_start = after_formula.find('{')?;
+        let content_start = formula_start + brace_start + 1;
+        
+        // Find matching closing brace
+        let mut depth = 1;
+        let mut end = content_start;
+        for (i, c) in rule_content[content_start..].chars().enumerate() {
+            match c {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = content_start + i;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        
+        Some(rule_content[content_start..end].trim().to_string())
+    }
+    
+    /// Extract inner formula from temporal operator
+    fn extract_inner_formula(&self, formula: &str, operator: &str) -> Option<String> {
+        let trimmed = formula.trim();
+        if !trimmed.starts_with(operator) {
+            return None;
+        }
+        
+        let after_op = &trimmed[operator.len()..].trim_start();
+        
+        // Handle both "always (expr)" and "always expr"
+        if after_op.starts_with('(') {
+            // Find matching paren
+            let mut depth = 0;
+            let mut end = 0;
+            for (i, c) in after_op.chars().enumerate() {
+                match c {
+                    '(' => depth += 1,
+                    ')' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end = i;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Some(after_op[1..end].trim().to_string())
+        } else {
+            Some(after_op.to_string())
+        }
+    }
+    
+    /// Normalize predicate syntax: "+any_signed(x)" -> "any_signed(x)"
+    fn normalize_predicate_syntax(&self, formula: &str) -> String {
+        formula
+            .replace("+any_signed", "any_signed")
+            .replace("+all_signed", "all_signed")
+            .replace("+modifies", "modifies")
+            .replace("+signed_by", "signed_by")
+            .replace("-modifies", "!modifies") // Negative predicate
+    }
+    
+    /// Validate an implication: "A implies B" means if A is true, B must be true
+    fn validate_implication(
+        &self,
+        formula: &str,
+        ctx: &one_step_rule::EvalContext,
+    ) -> Result<()> {
+        use crate::contract_store::one_step_rule::{parse_formula, evaluate_formula_full};
+        
+        // Split on "implies"
+        let parts: Vec<&str> = formula.split(" implies ").collect();
+        if parts.len() != 2 {
+            return Ok(()); // Can't parse, skip
+        }
+        
+        let antecedent = self.normalize_predicate_syntax(parts[0].trim());
+        let consequent = self.normalize_predicate_syntax(parts[1].trim());
+        
+        // Parse antecedent
+        let antecedent_formula = match parse_formula(&antecedent) {
+            Ok(f) => f,
+            Err(_) => return Ok(()), // Can't parse, skip
+        };
+        
+        // If antecedent is false, implication is satisfied
+        if !evaluate_formula_full(&antecedent_formula, ctx) {
+            return Ok(());
+        }
+        
+        // Antecedent is true, so consequent must also be true
+        let consequent_formula = match parse_formula(&consequent) {
+            Ok(f) => f,
+            Err(_) => return Ok(()), // Can't parse, skip
+        };
+        
+        if !evaluate_formula_full(&consequent_formula, ctx) {
+            anyhow::bail!(
+                "Rule violation: {} implies {} (antecedent true but consequent false, signers: {:?})",
+                antecedent,
+                consequent,
+                ctx.signers
+            );
+        }
+        
+        Ok(())
+    }
+
     /// Get commits that need to be pushed (between remote HEAD and local HEAD)
     pub fn get_unpushed_commits(&self, remote_name: &str) -> Result<Vec<String>> {
         let local_head = self.get_head()?;

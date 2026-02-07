@@ -209,8 +209,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
         commit.head.signatures = Some(sig_obj);
     }
 
-    // Validate the commit
+    // Validate the commit structure
     commit.validate()?;
+
+    // Validate against contract rules (signature predicates, etc.)
+    store.validate_commit_against_rules(&commit)?;
 
     // Compute commit ID
     let mut commit_id = commit.compute_id()?;
