@@ -1,0 +1,40 @@
+// Trustless Escrow Contract
+//
+// Two parties (buyer/seller) execute a deal with guaranteed protection.
+// Neither can cheat — all actions are signed and verified.
+
+model Escrow {
+  initial init
+  
+  // Buyer deposits funds
+  init -> deposited [+signed_by(/parties/buyer.id)]
+  
+  // Seller delivers goods/data
+  deposited -> delivered [+signed_by(/parties/seller.id)]
+  
+  // Buyer releases payment (happy path)
+  delivered -> released [+signed_by(/parties/buyer.id)]
+  
+  // Terminal state
+  released -> released []
+}
+
+// Protection rules — these can NEVER be bypassed
+
+rule buyer_must_sign_deposit {
+  formula {
+    always (+modifies(/escrow/deposited) implies +signed_by(/parties/buyer.id))
+  }
+}
+
+rule seller_must_sign_delivery {
+  formula {
+    always (+modifies(/escrow/delivered) implies +signed_by(/parties/seller.id))
+  }
+}
+
+rule buyer_must_sign_release {
+  formula {
+    always (+modifies(/escrow/released) implies +signed_by(/parties/buyer.id))
+  }
+}

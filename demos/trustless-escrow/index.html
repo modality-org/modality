@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trustless Agent Escrow — Modality Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        h1 {
+            font-size: 2rem;
+            color: #fff;
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            color: #888;
+            font-size: 1rem;
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            gap: 1.5rem;
+        }
+        
+        .panel {
+            background: #12121a;
+            border: 1px solid #2a2a3a;
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+        
+        .panel h2 {
+            font-size: 0.9rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #2a2a3a;
+        }
+        
+        /* State Machine Visualization */
+        .state-machine {
+            position: relative;
+            height: 400px;
+        }
+        
+        .state {
+            position: absolute;
+            width: 100px;
+            height: 40px;
+            border: 2px solid #3a3a4a;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            background: #1a1a2a;
+            transition: all 0.3s ease;
+        }
+        
+        .state.active {
+            border-color: #4ade80;
+            background: #1a2a1a;
+            box-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
+        }
+        
+        .state.completed {
+            border-color: #3b82f6;
+            background: #1a1a2a;
+        }
+        
+        .state.terminal {
+            border-color: #f59e0b;
+        }
+        
+        /* State positions */
+        .state-init { top: 20px; left: 50%; transform: translateX(-50%); }
+        .state-deposited { top: 100px; left: 50%; transform: translateX(-50%); }
+        .state-delivered { top: 180px; left: 50%; transform: translateX(-50%); }
+        .state-disputed { top: 260px; left: 20%; }
+        .state-released { top: 340px; left: 65%; }
+        .state-refunded { top: 340px; left: 15%; }
+        
+        /* Arrows (simplified) */
+        .arrows {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+        
+        .arrow {
+            position: absolute;
+            width: 2px;
+            background: #3a3a4a;
+            transform-origin: top center;
+        }
+        
+        /* Agent Cards */
+        .agent-card {
+            background: #1a1a2a;
+            border: 1px solid #2a2a3a;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .agent-card h3 {
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .agent-card.alice h3 { color: #f472b6; }
+        .agent-card.bob h3 { color: #60a5fa; }
+        
+        .agent-status {
+            font-size: 0.8rem;
+            color: #888;
+        }
+        
+        .agent-status.active {
+            color: #4ade80;
+        }
+        
+        /* Event Log */
+        .event-log {
+            height: 400px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        
+        .event {
+            padding: 0.75rem;
+            border-bottom: 1px solid #2a2a3a;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .event-time {
+            color: #666;
+            font-size: 0.7rem;
+        }
+        
+        .event-action {
+            color: #4ade80;
+            font-weight: bold;
+        }
+        
+        .event-signer {
+            color: #888;
+        }
+        
+        .event.alice .event-action { color: #f472b6; }
+        .event.bob .event-action { color: #60a5fa; }
+        .event.system .event-action { color: #f59e0b; }
+        
+        /* Signature display */
+        .signature {
+            font-size: 0.65rem;
+            color: #555;
+            word-break: break-all;
+            margin-top: 0.25rem;
+            font-family: monospace;
+        }
+        
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+            justify-content: center;
+        }
+        
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            background: #2563eb;
+        }
+        
+        button:disabled {
+            background: #3a3a4a;
+            cursor: not-allowed;
+        }
+        
+        button.secondary {
+            background: transparent;
+            border: 1px solid #3a3a4a;
+        }
+        
+        button.secondary:hover {
+            border-color: #5a5a6a;
+        }
+        
+        /* Proof panel */
+        .proof-display {
+            background: #0a0a0f;
+            border: 1px solid #2a2a3a;
+            border-radius: 4px;
+            padding: 1rem;
+            font-size: 0.75rem;
+            overflow-x: auto;
+            margin-top: 1rem;
+        }
+        
+        .proof-display pre {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+        
+        /* Status bar */
+        .status-bar {
+            margin-top: 2rem;
+            text-align: center;
+            padding: 1rem;
+            background: #12121a;
+            border-radius: 8px;
+            border: 1px solid #2a2a3a;
+        }
+        
+        .status-bar.success {
+            border-color: #4ade80;
+            background: #0a1a0a;
+        }
+        
+        .status-text {
+            font-size: 1.1rem;
+        }
+        
+        .status-text.success {
+            color: #4ade80;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔐 Trustless Agent Escrow</h1>
+            <p class="subtitle">Two agents execute a verified deal — no trust required</p>
+        </header>
+        
+        <div class="main-grid">
+            <!-- Left Panel: Agents -->
+            <div class="panel">
+                <h2>Agents</h2>
+                
+                <div class="agent-card alice">
+                    <h3>🤖 Alice <span style="font-size: 0.7rem; color: #888;">(Buyer)</span></h3>
+                    <div class="agent-status" id="alice-status">Waiting...</div>
+                    <div style="margin-top: 0.5rem; font-size: 0.7rem; color: #555;">
+                        Wants to buy data from Bob
+                    </div>
+                </div>
+                
+                <div class="agent-card bob">
+                    <h3>🤖 Bob <span style="font-size: 0.7rem; color: #888;">(Seller)</span></h3>
+                    <div class="agent-status" id="bob-status">Waiting...</div>
+                    <div style="margin-top: 0.5rem; font-size: 0.7rem; color: #555;">
+                        Has data to sell
+                    </div>
+                </div>
+                
+                <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #2a2a3a;">
+                    <h3 style="font-size: 0.8rem; color: #888; margin-bottom: 0.5rem;">The Problem</h3>
+                    <p style="font-size: 0.75rem; color: #666; line-height: 1.5;">
+                        Alice and Bob have never met. If Alice pays first, Bob might not deliver. 
+                        If Bob delivers first, Alice might not pay.
+                    </p>
+                    <h3 style="font-size: 0.8rem; color: #4ade80; margin: 1rem 0 0.5rem;">The Solution</h3>
+                    <p style="font-size: 0.75rem; color: #666; line-height: 1.5;">
+                        A Modality contract enforces the rules. Every action is signed and verified.
+                        Neither can cheat.
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Center Panel: State Machine -->
+            <div class="panel">
+                <h2>Contract State Machine</h2>
+                <div class="state-machine">
+                    <div class="state state-init active" id="state-init">init</div>
+                    <div class="state state-deposited" id="state-deposited">deposited</div>
+                    <div class="state state-delivered" id="state-delivered">delivered</div>
+                    <div class="state state-disputed" id="state-disputed">disputed</div>
+                    <div class="state state-released terminal" id="state-released">released ✓</div>
+                    <div class="state state-refunded terminal" id="state-refunded">refunded</div>
+                    
+                    <!-- SVG arrows -->
+                    <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+                        <!-- init -> deposited -->
+                        <line x1="50%" y1="60" x2="50%" y2="100" stroke="#3a3a4a" stroke-width="2" marker-end="url(#arrow)"/>
+                        <text x="52%" y="80" fill="#666" font-size="10">DEPOSIT</text>
+                        
+                        <!-- deposited -> delivered -->
+                        <line x1="50%" y1="140" x2="50%" y2="180" stroke="#3a3a4a" stroke-width="2"/>
+                        <text x="52%" y="160" fill="#666" font-size="10">DELIVER</text>
+                        
+                        <!-- delivered -> released -->
+                        <line x1="55%" y1="220" x2="70%" y2="340" stroke="#3a3a4a" stroke-width="2"/>
+                        <text x="65%" y="280" fill="#666" font-size="10">RELEASE</text>
+                        
+                        <!-- delivered -> disputed -->
+                        <line x1="45%" y1="220" x2="25%" y2="260" stroke="#3a3a4a" stroke-width="2"/>
+                        <text x="30%" y="240" fill="#666" font-size="10">DISPUTE</text>
+                        
+                        <!-- disputed -> refunded -->
+                        <line x1="20%" y1="300" x2="18%" y2="340" stroke="#3a3a4a" stroke-width="2"/>
+                        <text x="12%" y="320" fill="#666" font-size="10">REFUND</text>
+                        
+                        <!-- disputed -> released -->
+                        <line x1="30%" y1="300" x2="60%" y2="340" stroke="#3a3a4a" stroke-width="2"/>
+                        
+                        <defs>
+                            <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                                <path d="M0,0 L0,6 L9,3 z" fill="#3a3a4a"/>
+                            </marker>
+                        </defs>
+                    </svg>
+                </div>
+                
+                <div class="controls">
+                    <button id="btn-start" onclick="startDemo()">▶ Start Demo</button>
+                    <button id="btn-step" onclick="stepDemo()" disabled class="secondary">Next Step</button>
+                    <button id="btn-reset" onclick="resetDemo()" class="secondary">↺ Reset</button>
+                </div>
+            </div>
+            
+            <!-- Right Panel: Event Log -->
+            <div class="panel">
+                <h2>Event Log</h2>
+                <div class="event-log" id="event-log">
+                    <div class="event system">
+                        <div class="event-time">--:--:--</div>
+                        <div class="event-action">Waiting to start...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="status-bar" id="status-bar">
+            <div class="status-text" id="status-text">Ready to demonstrate trustless cooperation</div>
+        </div>
+        
+        <!-- Proof Display (shows after completion) -->
+        <div class="panel" id="proof-panel" style="margin-top: 1.5rem; display: none;">
+            <h2>📜 Cryptographic Proof</h2>
+            <p style="font-size: 0.8rem; color: #888; margin-bottom: 1rem;">
+                The complete contract history — every action signed and verifiable
+            </p>
+            <div class="proof-display">
+                <pre id="proof-content"></pre>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Demo state
+        let currentState = 'init';
+        let step = 0;
+        let autoMode = false;
+        
+        const steps = [
+            {
+                action: 'CONTRACT_CREATED',
+                description: 'Contract created with escrow rules',
+                agent: 'system',
+                newState: 'init',
+                signature: null
+            },
+            {
+                action: 'DEPOSIT',
+                description: 'Alice deposits 100 tokens',
+                agent: 'alice',
+                newState: 'deposited',
+                signature: 'ed25519:alice_abc123...'
+            },
+            {
+                action: 'DELIVER',
+                description: 'Bob delivers data package',
+                agent: 'bob',
+                newState: 'delivered',
+                signature: 'ed25519:bob_xyz789...'
+            },
+            {
+                action: 'RELEASE',
+                description: 'Alice releases funds to Bob',
+                agent: 'alice',
+                newState: 'released',
+                signature: 'ed25519:alice_def456...'
+            }
+        ];
+        
+        function formatTime() {
+            const now = new Date();
+            return now.toTimeString().split(' ')[0];
+        }
+        
+        function addEvent(action, description, agent, signature) {
+            const log = document.getElementById('event-log');
+            const event = document.createElement('div');
+            event.className = `event ${agent}`;
+            event.innerHTML = `
+                <div class="event-time">${formatTime()}</div>
+                <div class="event-action">${action}</div>
+                <div class="event-signer">${description}</div>
+                ${signature ? `<div class="signature">sig: ${signature}</div>` : ''}
+            `;
+            log.insertBefore(event, log.firstChild);
+        }
+        
+        function updateState(newState) {
+            // Remove active from all
+            document.querySelectorAll('.state').forEach(s => s.classList.remove('active'));
+            
+            // Mark completed states
+            const stateOrder = ['init', 'deposited', 'delivered', 'released'];
+            const currentIndex = stateOrder.indexOf(newState);
+            stateOrder.forEach((s, i) => {
+                if (i < currentIndex) {
+                    document.getElementById(`state-${s}`).classList.add('completed');
+                }
+            });
+            
+            // Set new active
+            document.getElementById(`state-${newState}`).classList.add('active');
+            currentState = newState;
+        }
+        
+        function updateAgentStatus(agent, status, active = false) {
+            const el = document.getElementById(`${agent}-status`);
+            el.textContent = status;
+            el.className = active ? 'agent-status active' : 'agent-status';
+        }
+        
+        function updateStatusBar(text, success = false) {
+            const bar = document.getElementById('status-bar');
+            const textEl = document.getElementById('status-text');
+            textEl.textContent = text;
+            bar.className = success ? 'status-bar success' : 'status-bar';
+            textEl.className = success ? 'status-text success' : 'status-text';
+        }
+        
+        async function executeStep() {
+            if (step >= steps.length) return;
+            
+            const s = steps[step];
+            
+            // Update agent status
+            if (s.agent === 'alice') {
+                updateAgentStatus('alice', 'Signing transaction...', true);
+                updateAgentStatus('bob', 'Waiting...');
+            } else if (s.agent === 'bob') {
+                updateAgentStatus('bob', 'Signing transaction...', true);
+                updateAgentStatus('alice', 'Waiting...');
+            }
+            
+            await sleep(500);
+            
+            // Add event
+            addEvent(s.action, s.description, s.agent, s.signature);
+            
+            // Update state
+            updateState(s.newState);
+            
+            // Update status
+            if (s.agent === 'alice') {
+                updateAgentStatus('alice', 'Transaction signed ✓');
+            } else if (s.agent === 'bob') {
+                updateAgentStatus('bob', 'Transaction signed ✓');
+            }
+            
+            updateStatusBar(`Step ${step + 1}/${steps.length}: ${s.action}`);
+            
+            step++;
+            
+            if (step >= steps.length) {
+                await sleep(500);
+                showCompletion();
+            }
+        }
+        
+        function showCompletion() {
+            updateAgentStatus('alice', 'Deal complete! ✓', true);
+            updateAgentStatus('bob', 'Deal complete! ✓', true);
+            updateStatusBar('✓ Escrow completed successfully — all actions verified', true);
+            
+            // Show proof
+            document.getElementById('proof-panel').style.display = 'block';
+            document.getElementById('proof-content').textContent = JSON.stringify({
+                contract_id: "con_escrow_demo_001",
+                final_state: "released",
+                commits: [
+                    {
+                        index: 0,
+                        method: "MODEL",
+                        hash: "sha256:abc123...",
+                        content: "model Escrow { ... }"
+                    },
+                    {
+                        index: 1,
+                        action: "DEPOSIT",
+                        signer: "/parties/buyer.id",
+                        signature: "ed25519:alice_abc123...",
+                        hash: "sha256:def456..."
+                    },
+                    {
+                        index: 2,
+                        action: "DELIVER",
+                        signer: "/parties/seller.id",
+                        signature: "ed25519:bob_xyz789...",
+                        hash: "sha256:ghi789..."
+                    },
+                    {
+                        index: 3,
+                        action: "RELEASE",
+                        signer: "/parties/buyer.id",
+                        signature: "ed25519:alice_def456...",
+                        hash: "sha256:jkl012..."
+                    }
+                ],
+                verification: "ALL_SIGNATURES_VALID",
+                tamper_proof: true
+            }, null, 2);
+            
+            document.getElementById('btn-start').disabled = true;
+            document.getElementById('btn-step').disabled = true;
+        }
+        
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        
+        async function startDemo() {
+            document.getElementById('btn-start').disabled = true;
+            document.getElementById('btn-step').disabled = true;
+            autoMode = true;
+            
+            // Clear log
+            document.getElementById('event-log').innerHTML = '';
+            
+            updateStatusBar('Demo starting...');
+            
+            while (step < steps.length) {
+                await executeStep();
+                await sleep(1500);
+            }
+        }
+        
+        function stepDemo() {
+            executeStep();
+        }
+        
+        function resetDemo() {
+            step = 0;
+            currentState = 'init';
+            autoMode = false;
+            
+            // Reset UI
+            document.querySelectorAll('.state').forEach(s => {
+                s.classList.remove('active', 'completed');
+            });
+            document.getElementById('state-init').classList.add('active');
+            
+            document.getElementById('event-log').innerHTML = `
+                <div class="event system">
+                    <div class="event-time">--:--:--</div>
+                    <div class="event-action">Waiting to start...</div>
+                </div>
+            `;
+            
+            updateAgentStatus('alice', 'Waiting...');
+            updateAgentStatus('bob', 'Waiting...');
+            updateStatusBar('Ready to demonstrate trustless cooperation');
+            
+            document.getElementById('proof-panel').style.display = 'none';
+            document.getElementById('btn-start').disabled = false;
+            document.getElementById('btn-step').disabled = true;
+        }
+    </script>
+</body>
+</html>
