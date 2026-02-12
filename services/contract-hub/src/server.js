@@ -3,14 +3,69 @@
  * 
  * Centralized HTTP service for push/pull of Modality contracts.
  * Authentication via ed25519 keypair signatures.
+ * WebSocket support for real-time contract updates.
  */
 
 import express from 'express';
 import { createServer } from 'http';
+import { WebSocketServer } from 'ws';
 import { ContractStore } from './store.js';
 import { AuthMiddleware } from './auth.js';
 import { validateCommits } from './validate.js';
 import { createRpcHandler } from './rpc.js';
+
+// WebSocket subscriptions: contractId -> Set<ws>
+const subscriptions = new Map();
+
+/**
+ * Broadcast event to all subscribers of a contract
+ */
+function broadcastToContract(contractId, event) {
+  const subs = subscriptions.get(contractId);
+  if (!subs) return;
+  
+  const message = JSON.stringify(event);
+  for (const ws of subs) {
+    if (ws.readyState === 1) { // OPEN
+      ws.send(message);
+    }
+  }
+}
+
+/**
+ * Subscribe a WebSocket to contract updates
+ */
+function subscribe(ws, contractId) {
+  if (!subscriptions.has(contractId)) {
+    subscriptions.set(contractId, new Set());
+  }
+  subscriptions.get(contractId).add(ws);
+}
+
+/**
+ * Unsubscribe a WebSocket from a contract
+ */
+function unsubscribe(ws, contractId) {
+  const subs = subscriptions.get(contractId);
+  if (subs) {
+    subs.delete(ws);
+    if (subs.size === 0) {
+      subscriptions.delete(contractId);
+    }
+  }
+}
+
+/**
+ * Unsubscribe WebSocket from all contracts
+ */
+function unsubscribeAll(ws) {
+  for (const [contractId, subs] of subscriptions) {
+    subs.delete(ws);
+    if (subs.size === 0) {
+      subscriptions.delete(contractId);
+    }
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3100;
@@ -298,6 +353,24 @@ app.post('/contracts/:contractId/push', auth.verify(), async (req, res) => {
     }
     
     const result = store.pushCommits(contractId, commits);
+    
+    // Broadcast to WebSocket subscribers
+    for (const commit of commits) {
+      broadcastToContract(contractId, {
+        type: 'commit',
+        contract_id: contractId,
+        commit: {
+          hash: commit.hash,
+          parent: commit.parent,
+          method: commit.data?.method,
+          action: commit.data?.action,
+          path: commit.data?.path,
+          timestamp: commit.timestamp || Date.now(),
+          signer_count: commit.signatures?.length || 0
+        }
+      });
+    }
+    
     res.json({ pushed: result.pushed, head: result.head });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -543,6 +616,21 @@ app.post('/contracts/:contractId/proposals/:proposalId/approve', auth.verify(), 
         const pushResult = store.pushCommits(contractId, commits);
         store.updateProposalStatus(proposalId, 'finalized', pushResult.head);
         
+        // Broadcast finalized proposal
+        broadcastToContract(contractId, {
+          type: 'commit',
+          contract_id: contractId,
+          proposal_id: proposalId,
+          commit: {
+            hash: pushResult.head,
+            parent: info.head,
+            method: proposal.payload?.method,
+            action: proposal.payload?.action,
+            timestamp: Date.now(),
+            signer_count: finalResult.signers?.length || 0
+          }
+        });
+        
         return res.json({
           approved: true,
           finalized: true,
@@ -592,9 +680,62 @@ app.post('/contracts/:contractId/proposals/:proposalId/cancel', auth.verify(), (
 
 const server = createServer(app);
 
+// ============================================================================
+// WEBSOCKET SERVER
+// ============================================================================
+
+const wss = new WebSocketServer({ server, path: '/ws' });
+
+wss.on('connection', (ws) => {
+  ws.subscribedContracts = new Set();
+  
+  ws.on('message', (data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      
+      switch (msg.type) {
+        case 'subscribe':
+          if (msg.contract_id) {
+            subscribe(ws, msg.contract_id);
+            ws.subscribedContracts.add(msg.contract_id);
+            ws.send(JSON.stringify({ 
+              type: 'subscribed', 
+              contract_id: msg.contract_id 
+            }));
+          }
+          break;
+          
+        case 'unsubscribe':
+          if (msg.contract_id) {
+            unsubscribe(ws, msg.contract_id);
+            ws.subscribedContracts.delete(msg.contract_id);
+            ws.send(JSON.stringify({ 
+              type: 'unsubscribed', 
+              contract_id: msg.contract_id 
+            }));
+          }
+          break;
+          
+        case 'ping':
+          ws.send(JSON.stringify({ type: 'pong' }));
+          break;
+      }
+    } catch (err) {
+      ws.send(JSON.stringify({ type: 'error', message: err.message }));
+    }
+  });
+  
+  ws.on('close', () => {
+    unsubscribeAll(ws);
+  });
+  
+  ws.send(JSON.stringify({ type: 'connected', version: '0.1.0' }));
+});
+
 server.listen(PORT, () => {
   console.log(`🔐 Contract Hub running on http://localhost:${PORT}`);
+  console.log(`   WebSocket endpoint: ws://localhost:${PORT}/ws`);
   console.log(`   Data directory: ${store.dataDir}`);
 });
 
-export { app, store };
+export { app, store, broadcastToContract };
