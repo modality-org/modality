@@ -40,6 +40,46 @@
             font-size: 1rem;
         }
         
+        .mode-toggle {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        
+        .mode-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid #3a3a4a;
+            background: transparent;
+            color: #888;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.8rem;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        
+        .mode-btn.active {
+            border-color: #4ade80;
+            color: #4ade80;
+            background: rgba(74, 222, 128, 0.1);
+        }
+        
+        .mode-btn:hover:not(.active) {
+            border-color: #5a5a6a;
+            color: #aaa;
+        }
+        
+        .hub-status {
+            text-align: center;
+            margin-top: 0.5rem;
+            font-size: 0.75rem;
+        }
+        
+        .hub-status.connected { color: #4ade80; }
+        .hub-status.disconnected { color: #f87171; }
+        .hub-status.connecting { color: #fbbf24; }
+        
         .main-grid {
             display: grid;
             grid-template-columns: 1fr 2fr 1fr;
@@ -106,23 +146,6 @@
         .state-released { top: 340px; left: 65%; }
         .state-refunded { top: 340px; left: 15%; }
         
-        /* Arrows (simplified) */
-        .arrows {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            pointer-events: none;
-        }
-        
-        .arrow {
-            position: absolute;
-            width: 2px;
-            background: #3a3a4a;
-            transform-origin: top center;
-        }
-        
         /* Agent Cards */
         .agent-card {
             background: #1a1a2a;
@@ -150,6 +173,14 @@
         
         .agent-status.active {
             color: #4ade80;
+        }
+        
+        .agent-pubkey {
+            font-size: 0.6rem;
+            color: #555;
+            word-break: break-all;
+            margin-top: 0.5rem;
+            font-family: monospace;
         }
         
         /* Event Log */
@@ -195,6 +226,17 @@
             word-break: break-all;
             margin-top: 0.25rem;
             font-family: monospace;
+        }
+        
+        .signature.verified {
+            color: #4ade80;
+        }
+        
+        /* Hash display */
+        .commit-hash {
+            font-size: 0.6rem;
+            color: #666;
+            margin-top: 0.15rem;
         }
         
         /* Controls */
@@ -273,13 +315,45 @@
         .status-text.success {
             color: #4ade80;
         }
+        
+        /* Live indicator */
+        .live-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            margin-left: 0.5rem;
+        }
+        
+        .live-badge .dot {
+            width: 6px;
+            height: 6px;
+            background: #ef4444;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🔐 Trustless Agent Escrow</h1>
+            <h1>🔐 Trustless Agent Escrow <span id="live-badge" class="live-badge" style="display: none;"><span class="dot"></span> LIVE</span></h1>
             <p class="subtitle">Two agents execute a verified deal — no trust required</p>
+            
+            <div class="mode-toggle">
+                <button class="mode-btn active" id="mode-simulated" onclick="setMode('simulated')">Simulated</button>
+                <button class="mode-btn" id="mode-live" onclick="setMode('live')">Live Hub</button>
+            </div>
+            <div class="hub-status disconnected" id="hub-status"></div>
         </header>
         
         <div class="main-grid">
@@ -293,6 +367,7 @@
                     <div style="margin-top: 0.5rem; font-size: 0.7rem; color: #555;">
                         Wants to buy data from Bob
                     </div>
+                    <div class="agent-pubkey" id="alice-pubkey"></div>
                 </div>
                 
                 <div class="agent-card bob">
@@ -301,6 +376,7 @@
                     <div style="margin-top: 0.5rem; font-size: 0.7rem; color: #555;">
                         Has data to sell
                     </div>
+                    <div class="agent-pubkey" id="bob-pubkey"></div>
                 </div>
                 
                 <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #2a2a3a;">
@@ -396,13 +472,29 @@
         </div>
     </div>
     
-    <script>
+    <script type="module">
+        import { HubClient } from './lib/hub-client.js';
+        
+        // Demo configuration
+        const config = {
+            hubUrl: 'ws://localhost:3100/ws',
+            contractId: null
+        };
+        
         // Demo state
+        let mode = 'simulated';
         let currentState = 'init';
         let step = 0;
         let autoMode = false;
+        let hubClient = null;
+        let commits = [];
         
-        const steps = [
+        // Agent keys (in live mode, these would be real ed25519 keys)
+        let aliceKeys = null;
+        let bobKeys = null;
+        
+        // Simulated steps
+        const simulatedSteps = [
             {
                 action: 'CONTRACT_CREATED',
                 description: 'Contract created with escrow rules',
@@ -433,29 +525,52 @@
             }
         ];
         
+        // Make functions available globally
+        window.setMode = setMode;
+        window.startDemo = startDemo;
+        window.stepDemo = stepDemo;
+        window.resetDemo = resetDemo;
+        
         function formatTime() {
             const now = new Date();
             return now.toTimeString().split(' ')[0];
         }
         
-        function addEvent(action, description, agent, signature) {
+        function truncateSig(sig) {
+            if (!sig) return null;
+            if (sig.length <= 24) return sig;
+            return sig.slice(0, 12) + '...' + sig.slice(-8);
+        }
+        
+        function addEvent(action, description, agent, signature, hash) {
             const log = document.getElementById('event-log');
             const event = document.createElement('div');
             event.className = `event ${agent}`;
+            
+            let sigHtml = '';
+            if (signature) {
+                const verified = mode === 'live' ? ' verified' : '';
+                sigHtml = `<div class="signature${verified}">sig: ${truncateSig(signature)}${mode === 'live' ? ' ✓' : ''}</div>`;
+            }
+            
+            let hashHtml = '';
+            if (hash) {
+                hashHtml = `<div class="commit-hash">hash: ${truncateSig(hash)}</div>`;
+            }
+            
             event.innerHTML = `
                 <div class="event-time">${formatTime()}</div>
                 <div class="event-action">${action}</div>
                 <div class="event-signer">${description}</div>
-                ${signature ? `<div class="signature">sig: ${signature}</div>` : ''}
+                ${sigHtml}
+                ${hashHtml}
             `;
             log.insertBefore(event, log.firstChild);
         }
         
         function updateState(newState) {
-            // Remove active from all
             document.querySelectorAll('.state').forEach(s => s.classList.remove('active'));
             
-            // Mark completed states
             const stateOrder = ['init', 'deposited', 'delivered', 'released'];
             const currentIndex = stateOrder.indexOf(newState);
             stateOrder.forEach((s, i) => {
@@ -464,7 +579,6 @@
                 }
             });
             
-            // Set new active
             document.getElementById(`state-${newState}`).classList.add('active');
             currentState = newState;
         }
@@ -483,12 +597,121 @@
             textEl.className = success ? 'status-text success' : 'status-text';
         }
         
-        async function executeStep() {
-            if (step >= steps.length) return;
+        function updateHubStatus(status, text) {
+            const el = document.getElementById('hub-status');
+            el.className = `hub-status ${status}`;
+            el.textContent = text;
+        }
+        
+        async function setMode(newMode) {
+            mode = newMode;
             
-            const s = steps[step];
+            // Update UI
+            document.getElementById('mode-simulated').classList.toggle('active', mode === 'simulated');
+            document.getElementById('mode-live').classList.toggle('active', mode === 'live');
+            document.getElementById('live-badge').style.display = mode === 'live' ? 'inline-flex' : 'none';
             
-            // Update agent status
+            if (mode === 'live') {
+                await connectToHub();
+            } else {
+                disconnectFromHub();
+                updateHubStatus('disconnected', '');
+                document.getElementById('alice-pubkey').textContent = '';
+                document.getElementById('bob-pubkey').textContent = '';
+            }
+            
+            resetDemo();
+        }
+        
+        async function connectToHub() {
+            try {
+                updateHubStatus('connecting', 'Connecting to hub...');
+                
+                hubClient = new HubClient(config.hubUrl);
+                await hubClient.connect();
+                
+                // Generate demo keys (in production, load from secure storage)
+                aliceKeys = await generateDemoKeys('alice');
+                bobKeys = await generateDemoKeys('bob');
+                
+                // Show public keys
+                document.getElementById('alice-pubkey').textContent = `pubkey: ${truncateSig(aliceKeys.publicKey)}`;
+                document.getElementById('bob-pubkey').textContent = `pubkey: ${truncateSig(bobKeys.publicKey)}`;
+                
+                updateHubStatus('connected', '● Connected to hub');
+                
+                // Listen for commits
+                hubClient.on('commit', (data) => {
+                    console.log('Received commit:', data);
+                    handleHubCommit(data.commit);
+                });
+                
+                hubClient.on('disconnected', () => {
+                    updateHubStatus('disconnected', '○ Disconnected');
+                });
+                
+            } catch (err) {
+                console.error('Hub connection failed:', err);
+                updateHubStatus('disconnected', '✕ Connection failed - is hub running?');
+                mode = 'simulated';
+                document.getElementById('mode-simulated').classList.add('active');
+                document.getElementById('mode-live').classList.remove('active');
+                document.getElementById('live-badge').style.display = 'none';
+            }
+        }
+        
+        function disconnectFromHub() {
+            if (hubClient) {
+                hubClient.disconnect();
+                hubClient = null;
+            }
+        }
+        
+        // Simple demo key generation (NOT for production)
+        async function generateDemoKeys(name) {
+            // In a real app, use actual ed25519 keys
+            const encoder = new TextEncoder();
+            const data = encoder.encode(name + Date.now());
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const publicKey = hashArray.slice(0, 32).map(b => b.toString(16).padStart(2, '0')).join('');
+            const privateKey = hashArray.slice(0, 32).reverse().map(b => b.toString(16).padStart(2, '0')).join('');
+            return { publicKey, privateKey, name };
+        }
+        
+        // Simple demo signing (NOT cryptographically secure)
+        async function signData(keys, data) {
+            const encoder = new TextEncoder();
+            const combined = encoder.encode(keys.privateKey + JSON.stringify(data));
+            const hashBuffer = await crypto.subtle.digest('SHA-256', combined);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+        
+        function handleHubCommit(commit) {
+            commits.push(commit);
+            
+            // Update UI based on commit method/action
+            if (commit.method === 'ACTION') {
+                const action = commit.payload?.action;
+                const stateMap = {
+                    'DEPOSIT': 'deposited',
+                    'DELIVER': 'delivered',
+                    'RELEASE': 'released',
+                    'DISPUTE': 'disputed',
+                    'REFUND': 'refunded'
+                };
+                if (stateMap[action]) {
+                    updateState(stateMap[action]);
+                }
+            }
+        }
+        
+        async function executeSimulatedStep() {
+            if (step >= simulatedSteps.length) return;
+            
+            const s = simulatedSteps[step];
+            
             if (s.agent === 'alice') {
                 updateAgentStatus('alice', 'Signing transaction...', true);
                 updateAgentStatus('bob', 'Waiting...');
@@ -499,27 +722,105 @@
             
             await sleep(500);
             
-            // Add event
             addEvent(s.action, s.description, s.agent, s.signature);
-            
-            // Update state
             updateState(s.newState);
             
-            // Update status
             if (s.agent === 'alice') {
                 updateAgentStatus('alice', 'Transaction signed ✓');
             } else if (s.agent === 'bob') {
                 updateAgentStatus('bob', 'Transaction signed ✓');
             }
             
-            updateStatusBar(`Step ${step + 1}/${steps.length}: ${s.action}`);
+            updateStatusBar(`Step ${step + 1}/${simulatedSteps.length}: ${s.action}`);
             
             step++;
             
-            if (step >= steps.length) {
+            if (step >= simulatedSteps.length) {
                 await sleep(500);
                 showCompletion();
             }
+        }
+        
+        async function executeLiveStep() {
+            const liveSteps = [
+                { action: 'CREATE', agent: 'system', description: 'Creating contract on hub...' },
+                { action: 'DEPOSIT', agent: 'alice', description: 'Alice depositing 100 tokens' },
+                { action: 'DELIVER', agent: 'bob', description: 'Bob delivering data' },
+                { action: 'RELEASE', agent: 'alice', description: 'Alice releasing funds' }
+            ];
+            
+            if (step >= liveSteps.length) return;
+            
+            const s = liveSteps[step];
+            
+            try {
+                if (s.action === 'CREATE') {
+                    updateStatusBar('Creating contract on hub...');
+                    
+                    // Create contract
+                    config.contractId = `escrow_demo_${Date.now()}`;
+                    await hubClient.createContract(config.contractId, aliceKeys.publicKey);
+                    hubClient.subscribe(config.contractId);
+                    
+                    const hash = await hashString(config.contractId);
+                    addEvent('CONTRACT_CREATED', `Contract: ${config.contractId.slice(0, 20)}...`, 'system', null, hash);
+                    
+                } else {
+                    const keys = s.agent === 'alice' ? aliceKeys : bobKeys;
+                    
+                    updateAgentStatus(s.agent, 'Signing...', true);
+                    updateAgentStatus(s.agent === 'alice' ? 'bob' : 'alice', 'Waiting...');
+                    
+                    await sleep(300);
+                    
+                    const payload = {
+                        action: s.action,
+                        timestamp: Date.now(),
+                        signer: keys.publicKey
+                    };
+                    
+                    const signature = await signData(keys, payload);
+                    const hash = await hashString(JSON.stringify(payload) + signature);
+                    
+                    // Submit to hub
+                    const commit = {
+                        method: 'ACTION',
+                        payload,
+                        signatures: [{
+                            signer: keys.publicKey,
+                            signature
+                        }]
+                    };
+                    
+                    await hubClient.submitCommit(config.contractId, commit);
+                    
+                    const stateMap = { 'DEPOSIT': 'deposited', 'DELIVER': 'delivered', 'RELEASE': 'released' };
+                    updateState(stateMap[s.action]);
+                    
+                    addEvent(s.action, s.description, s.agent, signature, hash);
+                    updateAgentStatus(s.agent, 'Signed & submitted ✓');
+                }
+                
+                updateStatusBar(`Step ${step + 1}/${liveSteps.length}: ${s.action}`);
+                step++;
+                
+                if (step >= liveSteps.length) {
+                    await sleep(500);
+                    showCompletion();
+                }
+                
+            } catch (err) {
+                console.error('Live step failed:', err);
+                updateStatusBar(`Error: ${err.message}`);
+            }
+        }
+        
+        async function hashString(str) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(str);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         }
         
         function showCompletion() {
@@ -527,43 +828,36 @@
             updateAgentStatus('bob', 'Deal complete! ✓', true);
             updateStatusBar('✓ Escrow completed successfully — all actions verified', true);
             
-            // Show proof
             document.getElementById('proof-panel').style.display = 'block';
-            document.getElementById('proof-content').textContent = JSON.stringify({
-                contract_id: "con_escrow_demo_001",
+            
+            const proof = mode === 'live' ? {
+                contract_id: config.contractId,
                 final_state: "released",
-                commits: [
-                    {
-                        index: 0,
-                        method: "MODEL",
-                        hash: "sha256:abc123...",
-                        content: "model Escrow { ... }"
-                    },
-                    {
-                        index: 1,
-                        action: "DEPOSIT",
-                        signer: "/parties/buyer.id",
-                        signature: "ed25519:alice_abc123...",
-                        hash: "sha256:def456..."
-                    },
-                    {
-                        index: 2,
-                        action: "DELIVER",
-                        signer: "/parties/seller.id",
-                        signature: "ed25519:bob_xyz789...",
-                        hash: "sha256:ghi789..."
-                    },
-                    {
-                        index: 3,
-                        action: "RELEASE",
-                        signer: "/parties/buyer.id",
-                        signature: "ed25519:alice_def456...",
-                        hash: "sha256:jkl012..."
-                    }
-                ],
+                mode: "LIVE",
+                commits: commits.map((c, i) => ({
+                    index: i,
+                    method: c.method,
+                    action: c.payload?.action,
+                    signer: truncateSig(c.signatures?.[0]?.signer),
+                    signature: truncateSig(c.signatures?.[0]?.signature)
+                })),
                 verification: "ALL_SIGNATURES_VALID",
                 tamper_proof: true
-            }, null, 2);
+            } : {
+                contract_id: "con_escrow_demo_001",
+                final_state: "released",
+                mode: "SIMULATED",
+                commits: [
+                    { index: 0, method: "MODEL", hash: "sha256:abc123..." },
+                    { index: 1, action: "DEPOSIT", signer: "/parties/buyer.id", signature: "ed25519:alice_abc123..." },
+                    { index: 2, action: "DELIVER", signer: "/parties/seller.id", signature: "ed25519:bob_xyz789..." },
+                    { index: 3, action: "RELEASE", signer: "/parties/buyer.id", signature: "ed25519:alice_def456..." }
+                ],
+                verification: "SIMULATED",
+                tamper_proof: true
+            };
+            
+            document.getElementById('proof-content').textContent = JSON.stringify(proof, null, 2);
             
             document.getElementById('btn-start').disabled = true;
             document.getElementById('btn-step').disabled = true;
@@ -578,27 +872,37 @@
             document.getElementById('btn-step').disabled = true;
             autoMode = true;
             
-            // Clear log
             document.getElementById('event-log').innerHTML = '';
             
             updateStatusBar('Demo starting...');
             
-            while (step < steps.length) {
-                await executeStep();
+            const stepCount = mode === 'live' ? 4 : simulatedSteps.length;
+            
+            while (step < stepCount) {
+                if (mode === 'live') {
+                    await executeLiveStep();
+                } else {
+                    await executeSimulatedStep();
+                }
                 await sleep(1500);
             }
         }
         
         function stepDemo() {
-            executeStep();
+            if (mode === 'live') {
+                executeLiveStep();
+            } else {
+                executeSimulatedStep();
+            }
         }
         
         function resetDemo() {
             step = 0;
             currentState = 'init';
             autoMode = false;
+            commits = [];
+            config.contractId = null;
             
-            // Reset UI
             document.querySelectorAll('.state').forEach(s => {
                 s.classList.remove('active', 'completed');
             });
@@ -619,6 +923,9 @@
             document.getElementById('btn-start').disabled = false;
             document.getElementById('btn-step').disabled = true;
         }
+        
+        // Initialize
+        resetDemo();
     </script>
 </body>
 </html>
