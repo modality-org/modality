@@ -474,6 +474,7 @@
     
     <script type="module">
         import { HubClient } from './lib/hub-client.js';
+        import * as crypto from './lib/crypto.js';
         
         // Demo configuration
         const config = {
@@ -489,7 +490,7 @@
         let hubClient = null;
         let commits = [];
         
-        // Agent keys (in live mode, these would be real ed25519 keys)
+        // Agent keys (real ed25519 in live mode)
         let aliceKeys = null;
         let bobKeys = null;
         
@@ -667,25 +668,26 @@
             }
         }
         
-        // Simple demo key generation (NOT for production)
+        // Real ed25519 key generation
         async function generateDemoKeys(name) {
-            // In a real app, use actual ed25519 keys
-            const encoder = new TextEncoder();
-            const data = encoder.encode(name + Date.now());
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const publicKey = hashArray.slice(0, 32).map(b => b.toString(16).padStart(2, '0')).join('');
-            const privateKey = hashArray.slice(0, 32).reverse().map(b => b.toString(16).padStart(2, '0')).join('');
-            return { publicKey, privateKey, name };
+            const keypair = await crypto.generateKeypair();
+            return { 
+                publicKey: keypair.publicKey, 
+                privateKey: keypair.privateKey, 
+                name 
+            };
         }
         
-        // Simple demo signing (NOT cryptographically secure)
+        // Real ed25519 signing
         async function signData(keys, data) {
-            const encoder = new TextEncoder();
-            const combined = encoder.encode(keys.privateKey + JSON.stringify(data));
-            const hashBuffer = await crypto.subtle.digest('SHA-256', combined);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            const message = JSON.stringify(data);
+            return await crypto.sign(keys.privateKey, message);
+        }
+        
+        // Verify signature
+        async function verifySignature(publicKey, data, signature) {
+            const message = JSON.stringify(data);
+            return await crypto.verify(publicKey, message, signature);
         }
         
         function handleHubCommit(commit) {
@@ -792,13 +794,19 @@
                         }]
                     };
                     
+                    // Store for proof display
+                    commits.push(commit);
+                    
                     await hubClient.submitCommit(config.contractId, commit);
+                    
+                    // Verify the signature we just made
+                    const verified = await verifySignature(keys.publicKey, payload, signature);
                     
                     const stateMap = { 'DEPOSIT': 'deposited', 'DELIVER': 'delivered', 'RELEASE': 'released' };
                     updateState(stateMap[s.action]);
                     
                     addEvent(s.action, s.description, s.agent, signature, hash);
-                    updateAgentStatus(s.agent, 'Signed & submitted ✓');
+                    updateAgentStatus(s.agent, verified ? 'Signed & verified ✓' : 'Signed ✓');
                 }
                 
                 updateStatusBar(`Step ${step + 1}/${liveSteps.length}: ${s.action}`);
@@ -816,11 +824,7 @@
         }
         
         async function hashString(str) {
-            const encoder = new TextEncoder();
-            const data = encoder.encode(str);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            return await crypto.sha256(str);
         }
         
         function showCompletion() {
