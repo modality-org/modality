@@ -115,6 +115,10 @@ const config: Config = {
           title: 'Community',
           items: [
             {
+              label: 'X (Twitter)',
+              href: 'https://x.com/modalitylang',
+            },
+            {
               label: 'Discord',
               href: 'https://discord.gg/KpYFdrfnkS',
             },
