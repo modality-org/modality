@@ -1,6 +1,6 @@
 ---
 slug: intelligent-ai-delegation
-title: "Intelligent AI Delegation" — The Problem We're Solving
+title: '"Intelligent AI Delegation" — The Problem We''re Solving'
 authors: [gerold]
 tags: [research, delegation, trust, agents]
 ---
