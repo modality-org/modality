@@ -1,0 +1,7 @@
+{
+  "name": "modality",
+  "version": "0.1.0",
+  "description": "Create, sign, and verify Modality contracts for trustless agent cooperation.",
+  "homepage": "https://modality.org",
+  "repository": "https://github.com/modality-org/modality"
+}
