@@ -13,6 +13,14 @@ Modality is an open source standard for verifiable contracts.
 
 Verifiable contracts are a mechanism for ensuring the compliance of evolving constraints over data.
 
+Unlike smart contracts — which are implemented as computer programs and can't truly be formally verified — verifiable contracts use formal specifications that are confirmed over all possible outcomes.
+
+## Why do AI agents need contracts?
+
+As AI agents increasingly cooperate, delegate tasks, and exchange value, they need a way to make enforceable commitments — not just promises. An agent delegating work to another agent needs guarantees: that funds won't disappear, that deadlines will be honored, that authority won't be misused.
+
+Modality gives agents a shared language for expressing and verifying these commitments mathematically.
+
 ## How are verifiable contracts different from smart contracts?
 
 Both smart contracts and verifiable contracts keep an append-only log of interactions. Both serve to restrict the nature of those interactions.
@@ -28,18 +36,6 @@ In contrast, smart contracts are implemented as computer programs and are not ab
 | Does it restrict interactions?        | ✅                   | ✅                         |
 | Does it ensure correctness?           | ❌                   | ✅                         |
 | Is it formally specified?             | ❌                   | ✅                         |
-
-## Who started this project?
-
-Modality was initially conceptualized by [Bud Mishra](https://scholar.google.com/citations?user=kXVBr20AAAAJ&hl=en&oi=ao) and [Foy Savas](https://foysavas.com).
-
-Notably, [Bud was the first person to use formal verification to identify a hardware bug](https://discuss.modality.org/t/the-birth-of-model-checking/14/2). When formal verification for hardware was being initially developed, almost everyone considered it impossible or impractical. Today, formal verification is a standard part of the hardware development process.
-
-Watch Foy's presentation on Modality: [**Verifiable Contracts for AI Agent Cooperation**](https://www.youtube.com/watch?v=poOqWdh10BQ)
-
-## What is formal verification?
-
-Formal verification is a technique for verifying the behavior of a system using formal specifications. When a specification is formally verified, it is confirmed over all possible outcomes.
 
 ## How do verifiable contracts work?
 
@@ -66,10 +62,24 @@ threshold(2, /treasury/signers)
 after(/deadlines/expiry.datetime) -> signed_by(/users/buyer.id)
 ```
 
-## What's the Modality Network?
+## Do I need a blockchain to use Modality?
 
-We're working on a specialized blockchain for verifiable contracts called the Modality Network.
+No. Modality works without a blockchain. You can use a Hub — a lightweight server for contract collaboration — or even work entirely locally.
 
-You don't have to use the Modality Network to use Modality itself.
+The Modality Network is an optional blockchain for applications that benefit from public, decentralized posting of verifiable contracts.
 
-The Modality Network is an optional blockchain that may be useful if your application would benefit from the public posting of verifiable contracts in a decentralized environment.
+## How do I get started?
+
+Check out the [Quickstart](/docs/quickstart) to create your first verifiable contract, or browse the [tutorials](/docs/category/tutorials) for step-by-step walkthroughs.
+
+## Is Modality open source?
+
+Yes. Modality is fully open source. You can find the code on [GitHub](https://github.com/modality-org/modality).
+
+## Who started this project?
+
+Modality was initially conceptualized by [Bud Mishra](https://scholar.google.com/citations?user=kXVBr20AAAAJ&hl=en&oi=ao) and [Foy Savas](https://foysavas.com).
+
+Notably, [Bud was the first person to use formal verification to identify a hardware bug](https://discuss.modality.org/t/the-birth-of-model-checking/14/2). When formal verification for hardware was being initially developed, almost everyone considered it impossible or impractical. Today, formal verification is a standard part of the hardware development process.
+
+Watch Foy's presentation on Modality: [**Verifiable Contracts for AI Agent Cooperation**](https://www.youtube.com/watch?v=poOqWdh10BQ)
