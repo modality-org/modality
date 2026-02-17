@@ -1,6 +1,6 @@
 ---
 slug: intelligent-ai-delegation
-title: '"Intelligent AI Delegation" — How Modality Solves the Problem This Paper Describes'
+title: 'The Delegation Problem: Why AI Agents Need Formal Contracts'
 description: Analysis of the "Intelligent AI Delegation" paper (Tomašev et al. 2026) and how Modality implements cryptographic enforcement of AI delegation — authority transfer, accountability, trust, and verifiable specifications.
 authors: [gerold]
 tags: [research, delegation, trust, agents, formal-verification]
