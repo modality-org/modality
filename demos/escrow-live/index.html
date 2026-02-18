@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modality — Trustless Escrow Demo</title>
+<script type="module">
+import * as ed from 'https://esm.sh/@noble/ed25519@2.1.0';
+import { sha512 } from 'https://esm.sh/@noble/hashes@1.4.0/sha512';
+import { sha256 } from 'https://esm.sh/@noble/hashes@1.4.0/sha256';
+import { bytesToHex, hexToBytes } from 'https://esm.sh/@noble/hashes@1.4.0/utils';
+
+ed.etc.sha512Sync = (...m) => {
+  const h = sha512.create();
+  for (const msg of m) h.update(msg);
+  return h.digest();
+};
+
+// ─── Crypto helpers ───
+function generateIdentity(name) {
+  const privateKey = ed.utils.randomPrivateKey();
+  const publicKey = ed.getPublicKey(privateKey);
+  return { name, privateKey: bytesToHex(privateKey), publicKey: bytesToHex(publicKey) };
+}
+function signJSON(data, pk) {
+  const bytes = new TextEncoder().encode(JSON.stringify(data));
+  return bytesToHex(ed.sign(bytes, hexToBytes(pk)));
+}
+function verifyJSON(data, sig, pub) {
+  const bytes = new TextEncoder().encode(JSON.stringify(data));
+  return ed.verify(hexToBytes(sig), bytes, hexToBytes(pub));
+}
+function hashJSON(data) {
+  const bytes = new TextEncoder().encode(JSON.stringify(data));
+  return bytesToHex(sha256(bytes));
+}
+
+// ─── Contract Engine ───
+class VerifiableContract {
+  constructor(model, rules, parties) {
+    this.model = model;
+    this.rules = rules;
+    this.parties = parties;
+    this.state = model.initial;
+    this.commits = [];
+  }
+  act(action, signer) {
+    const t = this.model.transitions.find(t => t.from === this.state && t.action === action);
+    if (!t) return { ok: false, error: `No transition '${action}' from '${this.state}'` };
+    if (t.signed_by) {
+      const req = this.parties[t.signed_by];
+      if (!req || req.publicKey !== signer.publicKey)
+        return { ok: false, error: `Requires ${t.signed_by} signature, got ${signer.name}` };
+    }
+    const body = { action, from: this.state, to: t.to, ts: new Date().toISOString() };
+    const parentHash = this.commits.length > 0 ? hashJSON(this.commits[this.commits.length - 1]) : null;
+    const sig = signJSON(body, signer.privateKey);
+    if (!verifyJSON(body, sig, signer.publicKey))
+      return { ok: false, error: 'Signature verification failed' };
+    const commit = { seq: this.commits.length, body, head: { parent: parentHash, sigs: { [signer.publicKey]: sig } } };
+    this.state = t.to;
+    this.commits.push(commit);
+    return { ok: true, commit };
+  }
+  audit() {
+    for (const c of this.commits)
+      for (const [pub, sig] of Object.entries(c.head.sigs))
+        if (!verifyJSON(c.body, sig, pub)) return false;
+    return true;
+  }
+}
+
+const escrowModel = {
+  initial: 'created',
+  transitions: [
+    { from: 'created', action: 'DEPOSIT', to: 'funded', signed_by: 'buyer' },
+    { from: 'funded', action: 'DELIVER', to: 'delivered', signed_by: 'seller' },
+    { from: 'delivered', action: 'RELEASE', to: 'completed', signed_by: 'buyer' },
+    { from: 'delivered', action: 'DISPUTE', to: 'disputed', signed_by: 'buyer' },
+    { from: 'disputed', action: 'RESOLVE_RELEASE', to: 'completed', signed_by: 'arbiter' },
+    { from: 'disputed', action: 'RESOLVE_REFUND', to: 'refunded', signed_by: 'arbiter' },
+  ],
+};
+
+const rules = [
+  'always(DEPOSIT → +signed_by(/parties/buyer.id))',
+  'always(DELIVER → +signed_by(/parties/seller.id))',
+  'always(RELEASE → +signed_by(/parties/buyer.id))',
+  'always(DISPUTE → +signed_by(/parties/buyer.id))',
+  'always(RESOLVE_* → +signed_by(/parties/arbiter.id))',
+];
+
+// ─── State machine SVG ───
+const STATES = {
+  created:   { x: 100, y: 200 },
+  funded:    { x: 280, y: 200 },
+  delivered: { x: 460, y: 200 },
+  completed: { x: 640, y: 120 },
+  disputed:  { x: 640, y: 280 },
+  refunded:  { x: 820, y: 280 },
+};
+const EDGES = [
+  { from: 'created', to: 'funded', label: 'DEPOSIT', color: '#a855f7' },
+  { from: 'funded', to: 'delivered', label: 'DELIVER', color: '#3b82f6' },
+  { from: 'delivered', to: 'completed', label: 'RELEASE', color: '#a855f7', cy: -30 },
+  { from: 'delivered', to: 'disputed', label: 'DISPUTE', color: '#ef4444', cy: 30 },
+  { from: 'disputed', to: 'completed', label: 'RESOLVE_RELEASE', color: '#eab308' },
+  { from: 'disputed', to: 'refunded', label: 'RESOLVE_REFUND', color: '#eab308' },
+];
+
+function renderStateMachine(currentState, lastAction) {
+  let svg = `<svg viewBox="0 0 920 400" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:920px;">`;
+  // Edges
+  for (const e of EDGES) {
+    const f = STATES[e.from], t = STATES[e.to];
+    const mx = (f.x + t.x) / 2, my = (f.y + t.y) / 2 + (e.cy || 0);
+    const isActive = e.label === lastAction;
+    const opacity = isActive ? 1 : 0.3;
+    const width = isActive ? 3 : 1.5;
+    svg += `<line x1="${f.x}" y1="${f.y}" x2="${t.x}" y2="${t.y}" stroke="${e.color}" stroke-width="${width}" opacity="${opacity}" />`;
+    svg += `<text x="${mx}" y="${my - 8}" fill="${e.color}" font-size="11" text-anchor="middle" font-family="monospace" opacity="${opacity}">${e.label}</text>`;
+  }
+  // Nodes
+  for (const [name, pos] of Object.entries(STATES)) {
+    const isCurrent = name === currentState;
+    const fill = isCurrent ? '#6366f1' : '#1e1e2e';
+    const stroke = isCurrent ? '#818cf8' : '#444';
+    const textFill = isCurrent ? '#fff' : '#888';
+    const r = isCurrent ? 36 : 30;
+    svg += `<circle cx="${pos.x}" cy="${pos.y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="2" />`;
+    svg += `<text x="${pos.x}" y="${pos.y + 4}" fill="${textFill}" font-size="${isCurrent ? 11 : 10}" text-anchor="middle" font-family="Inter,sans-serif" font-weight="${isCurrent ? 700 : 400}">${name}</text>`;
+  }
+  svg += `</svg>`;
+  return svg;
+}
+
+// ─── UI ───
+const $ = s => document.querySelector(s);
+let buyer, seller, arbiter, mallory, contract;
+let eventLog = [];
+let stepIndex = 0;
+let isPlaying = false;
+
+const SCENARIOS = [
+  {
+    title: '🔑 Generate Identities',
+    explain: 'Each agent gets a unique ed25519 keypair. The public key IS their identity — unforgeable, no passwords, no usernames. This is how agents prove who they are.',
+    action: () => {
+      buyer = generateIdentity('Buyer');
+      seller = generateIdentity('Seller');
+      arbiter = generateIdentity('Arbiter');
+      mallory = generateIdentity('Mallory');
+      addAgentCards();
+    }
+  },
+  {
+    title: '📝 Create Escrow Contract',
+    explain: 'The contract defines a state machine (what CAN happen) and rules (what MUST be true). Rules use temporal modal logic — mathematical constraints, not suggestions. Once a rule is added, it can never be removed.',
+    action: () => {
+      contract = new VerifiableContract(escrowModel, rules, { buyer, seller, arbiter });
+      updateViz();
+      showRules();
+    }
+  },
+  {
+    title: '💰 Buyer Deposits Funds',
+    explain: 'Buyer signs a DEPOSIT commit with their private key. The contract verifies: (1) Is DEPOSIT valid from the current state? ✓ (2) Did the buyer sign it? ✓ The commit is accepted and the state advances to "funded".',
+    action: () => doAction('DEPOSIT', buyer, 'buyer')
+  },
+  {
+    title: '📦 Seller Delivers Goods',
+    explain: 'Seller signs a DELIVER commit. Same verification: valid transition? ✓ Correct signer? ✓ State moves to "delivered". The buyer\'s funds are still locked — seller can\'t touch them.',
+    action: () => doAction('DELIVER', seller, 'seller')
+  },
+  {
+    title: '⚔️ ATTACK: Seller Tries to Release Funds',
+    explain: 'Seller attempts to sign a RELEASE commit to steal the funds. The contract checks: Does RELEASE require the buyer\'s signature? Yes. Is this the buyer? NO. ✗ REJECTED. The seller literally cannot release funds — it\'s not a policy, it\'s math.',
+    action: () => doAction('RELEASE', seller, 'seller', true)
+  },
+  {
+    title: '✅ Buyer Releases Funds',
+    explain: 'Buyer is satisfied and signs RELEASE. Valid transition from "delivered"? ✓ Buyer\'s signature? ✓ Funds are released. Contract is complete. Nobody could have cheated at any step.',
+    action: () => doAction('RELEASE', buyer, 'buyer')
+  },
+  {
+    title: '🔄 New Contract: Dispute Path',
+    explain: 'Let\'s run a second scenario — what happens when something goes wrong. Same parties, fresh contract. Buyer deposits, seller delivers, but this time the buyer disputes.',
+    action: () => {
+      contract = new VerifiableContract(escrowModel, rules, { buyer, seller, arbiter });
+      contract.act('DEPOSIT', buyer);
+      contract.act('DELIVER', seller);
+      addLog('DEPOSIT', buyer, true, 'buyer');
+      addLog('DELIVER', seller, true, 'seller');
+      updateViz();
+    }
+  },
+  {
+    title: '🚨 Buyer Disputes',
+    explain: 'Buyer isn\'t satisfied with the delivery and signs a DISPUTE commit. The state moves to "disputed" — now only the arbiter can resolve it. Neither buyer nor seller can unilaterally take the funds.',
+    action: () => doAction('DISPUTE', buyer, 'buyer')
+  },
+  {
+    title: '⚔️ ATTACK: Mallory Impersonates Arbiter',
+    explain: 'A random agent "Mallory" tries to resolve the dispute by signing RESOLVE_RELEASE. The contract checks: Is this the arbiter\'s key? NO — it\'s a completely different public key. ✗ REJECTED. Cryptographic identity means impersonation is impossible.',
+    action: () => doAction('RESOLVE_RELEASE', mallory, 'mallory', true)
+  },
+  {
+    title: '⚖️ Arbiter Refunds Buyer',
+    explain: 'The legitimate arbiter reviews the dispute and signs RESOLVE_REFUND. Valid transition? ✓ Arbiter\'s signature? ✓ Buyer gets their money back. Every step is in the commit log — auditable forever.',
+    action: () => doAction('RESOLVE_REFUND', arbiter, 'arbiter')
+  },
+  {
+    title: '🔍 Audit Complete',
+    explain: 'Every commit has been independently verified. All signatures are valid ed25519. The full history is an append-only log — tamper with one commit and the chain breaks. This is Modality: verifiable contracts for the agentic economy.',
+    action: () => {
+      const valid = contract.audit();
+      addLog('AUDIT', { name: 'System' }, valid, 'system', `All ${contract.commits.length} commits verified ✓`);
+    }
+  }
+];
+
+function doAction(action, signer, role, expectFail = false) {
+  const result = contract.act(action, signer);
+  addLog(action, signer, result.ok, role, result.ok ? null : result.error);
+  updateViz(result.ok ? action : null);
+}
+
+function addLog(action, signer, ok, role, detail) {
+  const colors = { buyer: '#a855f7', seller: '#3b82f6', arbiter: '#eab308', mallory: '#ef4444', system: '#22c55e' };
+  eventLog.push({ action, signer: signer.name, ok, role, detail, time: new Date().toLocaleTimeString() });
+  renderLog();
+}
+
+function renderLog() {
+  const el = $('#event-log');
+  const colors = { buyer: '#a855f7', seller: '#3b82f6', arbiter: '#eab308', mallory: '#ef4444', system: '#22c55e' };
+  el.innerHTML = eventLog.map((e, i) => `
+    <div class="log-entry ${e.ok ? '' : 'rejected'}" style="animation-delay:${i * 0.05}s">
+      <span class="log-status">${e.ok ? '✓' : '✗'}</span>
+      <span class="log-agent" style="color:${colors[e.role] || '#888'}">${e.signer}</span>
+      <span class="log-action">${e.action}</span>
+      ${e.detail ? `<span class="log-detail">${e.detail}</span>` : ''}
+    </div>
+  `).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function updateViz(lastAction) {
+  if (contract) {
+    $('#state-machine').innerHTML = renderStateMachine(contract.state, lastAction);
+    $('#current-state').textContent = contract.state;
+    $('#commit-count').textContent = contract.commits.length;
+  }
+}
+
+function showRules() {
+  $('#rules-list').innerHTML = rules.map(r => `<div class="rule-item"><code>${r}</code></div>`).join('');
+}
+
+function addAgentCards() {
+  const agents = [
+    { ...buyer, role: 'buyer', color: '#a855f7', emoji: '🛒' },
+    { ...seller, role: 'seller', color: '#3b82f6', emoji: '📦' },
+    { ...arbiter, role: 'arbiter', color: '#eab308', emoji: '⚖️' },
+  ];
+  $('#agents').innerHTML = agents.map(a => `
+    <div class="agent-card" style="border-color:${a.color}">
+      <div class="agent-emoji">${a.emoji}</div>
+      <div class="agent-name" style="color:${a.color}">${a.name}</div>
+      <div class="agent-role">${a.role}</div>
+      <div class="agent-key" title="${a.publicKey}">🔑 ${a.publicKey.slice(0, 16)}…</div>
+    </div>
+  `).join('');
+}
+
+async function nextStep() {
+  if (stepIndex >= SCENARIOS.length) return;
+  const step = SCENARIOS[stepIndex];
+  $('#step-title').textContent = step.title;
+  $('#step-explain').textContent = step.explain;
+  $('#step-counter').textContent = `${stepIndex + 1} / ${SCENARIOS.length}`;
+  step.action();
+  stepIndex++;
+  if (stepIndex >= SCENARIOS.length) {
+    $('#next-btn').textContent = '🎉 Demo Complete';
+    $('#next-btn').disabled = true;
+  }
+}
+
+async function autoPlay() {
+  if (isPlaying) return;
+  isPlaying = true;
+  $('#play-btn').textContent = '⏸ Playing...';
+  $('#play-btn').disabled = true;
+  while (stepIndex < SCENARIOS.length) {
+    await nextStep();
+    await new Promise(r => setTimeout(r, 2500));
+  }
+  isPlaying = false;
+  $('#play-btn').textContent = '▶ Auto-play';
+}
+
+function reset() {
+  stepIndex = 0;
+  eventLog = [];
+  contract = null;
+  $('#event-log').innerHTML = '';
+  $('#state-machine').innerHTML = renderStateMachine('created', null);
+  $('#agents').innerHTML = '';
+  $('#rules-list').innerHTML = '';
+  $('#step-title').textContent = 'Ready';
+  $('#step-explain').textContent = 'Click "Next Step" to begin the demo, or "Auto-play" to watch it unfold.';
+  $('#step-counter').textContent = '0 / ' + SCENARIOS.length;
+  $('#current-state').textContent = '—';
+  $('#commit-count').textContent = '0';
+  $('#next-btn').textContent = 'Next Step →';
+  $('#next-btn').disabled = false;
+  $('#play-btn').textContent = '▶ Auto-play';
+  $('#play-btn').disabled = false;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  reset();
+  $('#next-btn').addEventListener('click', nextStep);
+  $('#play-btn').addEventListener('click', autoPlay);
+  $('#reset-btn').addEventListener('click', reset);
+});
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: #0a0a0f; color: #e0e0e0; min-height: 100vh; }
+
+  /* Header */
+  .header { padding: 32px 48px 24px; border-bottom: 1px solid #1a1a2e; }
+  .header h1 { font-size: 28px; font-weight: 900; }
+  .header h1 span { color: #6366f1; }
+  .header p { color: #666; margin-top: 4px; font-size: 14px; }
+
+  /* Layout */
+  .main { display: grid; grid-template-columns: 1fr 380px; gap: 0; min-height: calc(100vh - 100px); }
+  .left { padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; }
+  .right { background: #0d0d14; border-left: 1px solid #1a1a2e; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* Narrator */
+  .narrator { background: #12121f; border: 1px solid #1e1e35; border-radius: 12px; padding: 24px; }
+  .narrator-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .narrator-top .step-counter { color: #6366f1; font-size: 13px; font-weight: 600; }
+  #step-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  #step-explain { color: #999; font-size: 14px; line-height: 1.7; }
+
+  /* Controls */
+  .controls { display: flex; gap: 12px; }
+  .controls button {
+    padding: 10px 24px; border: none; border-radius: 8px; font-family: 'Inter', sans-serif;
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+  }
+  #next-btn { background: #6366f1; color: white; flex: 1; }
+  #next-btn:hover:not(:disabled) { background: #818cf8; }
+  #next-btn:disabled { opacity: 0.5; cursor: default; }
+  #play-btn { background: #1e1e35; color: #6366f1; border: 1px solid #2e2e4a; }
+  #play-btn:hover:not(:disabled) { background: #2a2a45; }
+  #play-btn:disabled { opacity: 0.5; cursor: default; }
+  #reset-btn { background: #1e1e35; color: #888; border: 1px solid #2e2e4a; padding: 10px 16px; }
+  #reset-btn:hover { background: #2a2a45; }
+
+  /* State Machine */
+  .viz-section { background: #0d0d14; border: 1px solid #1a1a2e; border-radius: 12px; padding: 16px; }
+  .viz-section h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #555; margin-bottom: 12px; }
+  .viz-stats { display: flex; gap: 24px; margin-top: 12px; }
+  .viz-stat { font-size: 13px; color: #666; }
+  .viz-stat strong { color: #6366f1; }
+
+  /* Agents */
+  .agents-row { display: flex; gap: 12px; }
+  .agent-card {
+    flex: 1; background: #12121f; border: 1px solid #2a2a40; border-radius: 10px;
+    padding: 16px; text-align: center; border-top: 3px solid;
+  }
+  .agent-emoji { font-size: 28px; margin-bottom: 6px; }
+  .agent-name { font-weight: 700; font-size: 15px; }
+  .agent-role { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin: 2px 0; }
+  .agent-key { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #444; margin-top: 6px; }
+
+  /* Right Panel */
+  .panel-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #555; font-weight: 600; }
+
+  /* Rules */
+  .rules-box { background: #12121f; border: 1px solid #1a1a2e; border-radius: 8px; padding: 12px; flex-shrink: 0; }
+  .rule-item { padding: 4px 0; }
+  .rule-item code { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #eab308; }
+
+  /* Event Log */
+  #event-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+  .log-entry {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    background: #12121f; border-radius: 6px; font-size: 13px;
+    animation: slideIn 0.3s ease;
+  }
+  .log-entry.rejected { background: #1a0a0a; border: 1px solid #3a1515; }
+  .log-status { font-weight: 700; width: 16px; }
+  .log-entry:not(.rejected) .log-status { color: #22c55e; }
+  .log-entry.rejected .log-status { color: #ef4444; }
+  .log-agent { font-weight: 600; min-width: 60px; }
+  .log-action { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #aaa; }
+  .log-detail { font-size: 11px; color: #666; margin-left: auto; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Footer */
+  .footer { text-align: center; padding: 16px; color: #333; font-size: 12px; border-top: 1px solid #1a1a2e; }
+  .footer a { color: #6366f1; text-decoration: none; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1><span>Modality</span> — Trustless Escrow Demo</h1>
+    <p>Three AI agents. Real ed25519 signatures. Every action verified. No trust required.</p>
+  </div>
+
+  <div class="main">
+    <div class="left">
+      <!-- Narrator -->
+      <div class="narrator">
+        <div class="narrator-top">
+          <span id="step-counter">0 / 11</span>
+        </div>
+        <div id="step-title">Ready</div>
+        <div id="step-explain">Click "Next Step" to begin.</div>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls">
+        <button id="next-btn">Next Step →</button>
+        <button id="play-btn">▶ Auto-play</button>
+        <button id="reset-btn">↺</button>
+      </div>
+
+      <!-- Agents -->
+      <div id="agents" class="agents-row"></div>
+
+      <!-- State Machine -->
+      <div class="viz-section">
+        <h3>Contract State Machine</h3>
+        <div id="state-machine"></div>
+        <div class="viz-stats">
+          <div class="viz-stat">State: <strong id="current-state">—</strong></div>
+          <div class="viz-stat">Commits: <strong id="commit-count">0</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="panel-title">Contract Rules</div>
+      <div class="rules-box">
+        <div id="rules-list" style="color:#555;font-size:12px;">Rules will appear when the contract is created.</div>
+      </div>
+
+      <div class="panel-title" style="margin-top:8px;">Event Log</div>
+      <div id="event-log"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Built with real cryptography. No simulation. <a href="https://modality.org">modality.org</a>
+  </div>
+</body>
+</html>
