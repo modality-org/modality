@@ -1,0 +1,14 @@
+{
+  "name": "escrow-live-demo",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Live escrow demo with real ed25519 signatures",
+  "scripts": {
+    "demo": "node demo.js",
+    "demo:verbose": "VERBOSE=1 node demo.js"
+  },
+  "dependencies": {
+    "@noble/ed25519": "^2.1.0",
+    "@noble/hashes": "^1.4.0"
+  }
+}
