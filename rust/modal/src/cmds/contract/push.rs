@@ -83,6 +83,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             "hash": commit_id,
             "parent": commit.head.parent,
             "data": commit.body,
+            "head": commit.head,
         }));
     }
 
