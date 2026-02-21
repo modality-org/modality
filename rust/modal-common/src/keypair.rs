@@ -494,6 +494,10 @@ impl Keypair {
         Ok(())
     }
 
+    pub fn can_sign(&self) -> bool {
+        matches!(&self.inner, KeypairOrPublicKey::Keypair(_))
+    }
+
     pub fn sign_bytes(&self, bytes: &[u8]) -> Result<Vec<u8>> {
         match &self.inner {
             KeypairOrPublicKey::Keypair(k) => Ok(k.sign(bytes)?),

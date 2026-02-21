@@ -195,7 +195,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Sign the commit if a passfile is provided
     if let Some(passfile_path) = &opts.sign {
         let passfile_str = passfile_path.to_string_lossy();
-        let keypair = Keypair::from_json_file(&passfile_str)?;
+        let keypair = load_signing_key(&passfile_str)?;
         let public_key = keypair.public_key_as_base58_identity();
         
         // Sign the body (canonical JSON)
@@ -331,4 +331,18 @@ fn build_invoke_value(opts: &Opts) -> Result<Value> {
     } else {
         anyhow::bail!("--value is required for INVOKE method (must contain {{\"args\": {{...}}}})");
     }
+}
+
+/// Load a signing key from a passfile, prompting for password if encrypted
+fn load_signing_key(path: &str) -> anyhow::Result<Keypair> {
+    // Try loading as unencrypted first
+    let keypair = Keypair::from_json_file(path)?;
+    if keypair.can_sign() {
+        return Ok(keypair);
+    }
+    // Has encrypted private key — prompt for password
+    eprint!("Password: ");
+    let password = rpassword::read_password()
+        .map_err(|e| anyhow::anyhow!("Failed to read password: {}", e))?;
+    Keypair::from_encrypted_json_file(path, &password)
 }
