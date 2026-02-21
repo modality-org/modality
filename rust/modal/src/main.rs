@@ -30,8 +30,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    #[command(alias = "identity")]
-    #[command(about = "ID related commands")]
+    #[command(alias = "identity", alias = "key")]
+    #[command(about = "ID and key related commands")]
     Id {
         #[command(subcommand)]
         command: IdCommands,
