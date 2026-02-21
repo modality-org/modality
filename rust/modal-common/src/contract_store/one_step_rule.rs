@@ -181,7 +181,7 @@ fn parse_signed_by_n(formula: &str) -> Result<CommitRuleFormula> {
 }
 
 /// Context for evaluating commit rule formulas
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct EvalContext<'a> {
     /// Signers present on the commit
     pub signers: &'a [String],
@@ -189,6 +189,17 @@ pub struct EvalContext<'a> {
     pub state: &'a Value,
     /// Paths modified by the commit body
     pub modified_paths: Vec<String>,
+}
+
+impl<'a> Default for EvalContext<'a> {
+    fn default() -> Self {
+        static EMPTY: std::sync::LazyLock<Value> = std::sync::LazyLock::new(|| Value::Null);
+        Self {
+            signers: &[],
+            state: &EMPTY,
+            modified_paths: Vec::new(),
+        }
+    }
 }
 
 impl<'a> EvalContext<'a> {
