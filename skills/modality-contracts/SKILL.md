@@ -63,6 +63,10 @@ rule name {
 
 Rules use `always()`, `eventually()`, `until()` — temporal operators that are sugar for modal mu-calculus fixed points. Rules constrain which models are valid, not commits directly.
 
+## MODEL Replacement Must Satisfy All Rules
+
+A MODEL commit is validated against every accumulated rule. Each transition in the candidate model must enforce every rule predicate. You cannot replace a restrictive model with a permissive one.
+
 ## Rule Commits Require a Witness Model
 
 When submitting a RULE commit, include a model that proves satisfiability:
