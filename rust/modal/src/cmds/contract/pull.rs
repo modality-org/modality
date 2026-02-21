@@ -290,8 +290,15 @@ async fn clone_from_url(url: &str, opts: &Opts) -> Result<()> {
             }
         }
 
+        // Convert hub format (data.method/path/body) to CommitFile format (body: [actions])
+        let action = json!({
+            "method": data.get("method").and_then(|v| v.as_str()).unwrap_or("post"),
+            "path": data.get("path"),
+            "value": data.get("body").or_else(|| data.get("value")).unwrap_or(&json!(null)),
+        });
+
         let commit: CommitFile = serde_json::from_value(json!({
-            "body": data,
+            "body": [action],
             "head": head_obj,
         }))?;
 
