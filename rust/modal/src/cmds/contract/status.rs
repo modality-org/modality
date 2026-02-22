@@ -84,11 +84,21 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let mut modified: Vec<String> = Vec::new();
     let mut deleted: Vec<String> = Vec::new();
     
+    // Normalize a value to its on-disk representation for comparison
+    fn normalize(v: &serde_json::Value) -> String {
+        match v {
+            serde_json::Value::String(s) => s.clone(),
+            serde_json::Value::Bool(b) => b.to_string(),
+            serde_json::Value::Number(n) => n.to_string(),
+            _ => serde_json::to_string_pretty(v).unwrap_or_default(),
+        }
+    }
+
     // Check for added and modified state files
     for path in &state_files {
         if let Some(current_value) = store.read_state(path)? {
             if let Some(committed_value) = committed.get(path) {
-                if &current_value != committed_value {
+                if normalize(&current_value) != normalize(committed_value) {
                     modified.push(path.clone());
                 }
             } else {
@@ -101,7 +111,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     for path in &rules_files {
         if let Some(current_value) = store.read_rule(path)? {
             if let Some(committed_value) = committed.get(path) {
-                if &current_value != committed_value {
+                if normalize(&current_value) != normalize(committed_value) {
                     modified.push(path.clone());
                 }
             } else {
