@@ -49,14 +49,19 @@ pub struct ContractStore {
 impl ContractStore {
     /// Open an existing contract store
     pub fn open(dir: &Path) -> Result<Self> {
-        let contract_dir = dir.join(".contract");
-        if !contract_dir.exists() {
-            anyhow::bail!("Not a contract directory: {}", dir.display());
+        // Walk up parent directories looking for .contract
+        let mut current = dir.to_path_buf();
+        loop {
+            if current.join(".contract").exists() {
+                return Ok(Self {
+                    root_dir: current,
+                });
+            }
+            if !current.pop() {
+                break;
+            }
         }
-        
-        Ok(Self {
-            root_dir: dir.to_path_buf(),
-        })
+        anyhow::bail!("Not a contract directory (no .contract found in {} or any parent)", dir.display());
     }
 
     /// Initialize a new contract store
