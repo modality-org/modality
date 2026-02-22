@@ -81,6 +81,9 @@ enum Commands {
     #[command(about = "Pull commits (shortcut for modal contract pull)")]
     Pull(cmds::contract::pull::Opts),
 
+    #[command(about = "Commit changes (shortcut for modal contract commit)")]
+    Commit(cmds::contract::commit::Opts),
+
     #[command(about = "Run node shortcuts")]
     Run {
         #[command(subcommand)]
@@ -456,6 +459,7 @@ async fn main() -> Result<()> {
             }
         }
         Commands::Pull(opts) => cmds::contract::pull::run(opts).await?,
+        Commands::Commit(opts) => cmds::contract::commit::run(opts).await?,
         Commands::Killall(opts) => cmds::local::killall_nodes::run(opts).await?,
         Commands::Upgrade(opts) => modality::cmds::upgrade::run(opts).await?,
         Commands::Status(opts) => {
