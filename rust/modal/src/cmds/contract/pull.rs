@@ -198,6 +198,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
     }
 
+    // Reconstruct state/rules files from commits
+    if !pulled_ids.is_empty() {
+        store.checkout_state()?;
+    }
+
     if opts.output == "json" {
         println!("{}", serde_json::to_string_pretty(&json!({
             "status": "pulled",
@@ -311,6 +316,9 @@ async fn clone_from_url(url: &str, opts: &Opts) -> Result<()> {
     // Set HEAD
     store.set_head(head)?;
     store.set_remote_head(&opts.remote_name, head)?;
+
+    // Reconstruct state/rules files from commits
+    store.checkout_state()?;
 
     if opts.output == "json" {
         println!("{}", serde_json::to_string_pretty(&json!({
