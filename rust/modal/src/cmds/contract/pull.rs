@@ -295,15 +295,30 @@ async fn clone_from_url(url: &str, opts: &Opts) -> Result<()> {
             }
         }
 
-        // Convert hub format (data.method/path/body) to CommitFile format (body: [actions])
-        let action = json!({
-            "method": data.get("method").and_then(|v| v.as_str()).unwrap_or("post"),
-            "path": data.get("path"),
-            "value": data.get("body").or_else(|| data.get("value")).unwrap_or(&json!(null)),
-        });
+        // Convert hub format to CommitFile format (body: [actions])
+        let actions = if data.is_array() {
+            // Already an array of actions
+            let mut arr = Vec::new();
+            for a in data.as_array().unwrap() {
+                arr.push(json!({
+                    "method": a.get("method").and_then(|v| v.as_str()).unwrap_or("post").to_lowercase(),
+                    "path": a.get("path").or_else(|| a.get("value").and_then(|v| if v.is_string() { None } else { None })),
+                    "value": a.get("value").or_else(|| a.get("body")).unwrap_or(&json!(null)),
+                }));
+            }
+            arr
+        } else {
+            // Single action object with method/path/body
+            let method = data.get("method").and_then(|v| v.as_str()).unwrap_or("post").to_lowercase();
+            vec![json!({
+                "method": method,
+                "path": data.get("path"),
+                "value": data.get("body").or_else(|| data.get("value")).unwrap_or(&json!(null)),
+            })]
+        };
 
         let commit: CommitFile = serde_json::from_value(json!({
-            "body": [action],
+            "body": actions,
             "head": head_obj,
         }))?;
 
