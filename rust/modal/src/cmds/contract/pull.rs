@@ -302,7 +302,7 @@ async fn clone_from_url(url: &str, opts: &Opts) -> Result<()> {
             for a in data.as_array().unwrap() {
                 arr.push(json!({
                     "method": a.get("method").and_then(|v| v.as_str()).unwrap_or("post").to_lowercase(),
-                    "path": a.get("path").or_else(|| a.get("value").and_then(|v| if v.is_string() { None } else { None })),
+                    "path": a.get("path"),
                     "value": a.get("value").or_else(|| a.get("body")).unwrap_or(&json!(null)),
                 }));
             }
