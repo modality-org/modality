@@ -78,6 +78,9 @@ enum Commands {
     #[command(about = "Show status (contract status if in contract directory)")]
     Status(cmds::contract::status::Opts),
 
+    #[command(about = "Pull commits (shortcut for modal contract pull)")]
+    Pull(cmds::contract::pull::Opts),
+
     #[command(about = "Run node shortcuts")]
     Run {
         #[command(subcommand)]
@@ -452,6 +455,7 @@ async fn main() -> Result<()> {
                 ChainCommands::Heal(opts) => cmds::chain::heal::run(opts).await?,
             }
         }
+        Commands::Pull(opts) => cmds::contract::pull::run(opts).await?,
         Commands::Killall(opts) => cmds::local::killall_nodes::run(opts).await?,
         Commands::Upgrade(opts) => modality::cmds::upgrade::run(opts).await?,
         Commands::Status(opts) => {
