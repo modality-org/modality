@@ -455,9 +455,9 @@ async fn main() -> Result<()> {
         Commands::Killall(opts) => cmds::local::killall_nodes::run(opts).await?,
         Commands::Upgrade(opts) => modality::cmds::upgrade::run(opts).await?,
         Commands::Status(opts) => {
-            // Check if we're in a contract directory
+            // Check if we're in (or nested inside) a contract directory
             let dir = std::env::current_dir()?;
-            if dir.join(".contract").exists() {
+            if modal_common::contract_store::ContractStore::open(&dir).is_ok() {
                 cmds::contract::status::run(opts).await?
             } else {
                 println!("Not in a contract directory.");
