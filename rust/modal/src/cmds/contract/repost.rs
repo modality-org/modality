@@ -1,139 +1,96 @@
 use anyhow::Result;
 use clap::Parser;
-use serde_json::Value;
 use std::path::PathBuf;
 
-use modal_common::contract_store::{ContractStore, CommitFile};
-use modal_common::keypair::Keypair;
+use modal_common::contract_store::ContractStore;
 
 #[derive(Debug, Parser)]
-#[command(about = "Copy data from another contract into a local namespace")]
+#[command(about = "Repost latest state value from another contract")]
 pub struct Opts {
-    /// Source contract ID
-    #[clap(long)]
-    from_contract: String,
-    
-    /// Source path within the contract (e.g., /announcements/latest.text)
-    #[clap(long)]
-    from_path: String,
-    
-    /// Value to repost (required - the actual data from the source contract)
-    #[clap(long)]
-    value: String,
-    
-    /// Override local destination path (defaults to $from_contract:from_path)
-    #[clap(long)]
-    to_path: Option<String>,
-    
+    /// Source reference: <contract_id>.contract/<path>
+    /// e.g. 46beb186cdf5...contract/README.md
+    #[clap(index = 1)]
+    source: String,
+
     /// Contract directory (defaults to current directory)
     #[clap(long)]
     dir: Option<PathBuf>,
-    
-    /// Path to passfile for signing the commit
-    #[clap(long)]
-    sign: Option<PathBuf>,
-    
-    /// Output format (json or text)
-    #[clap(long, default_value = "text")]
-    output: String,
+}
+
+/// Parse "abc123.contract/some/path" into (contract_id, path)
+fn parse_source(source: &str) -> Result<(String, String)> {
+    let idx = source.find(".contract/")
+        .ok_or_else(|| anyhow::anyhow!(
+            "Invalid source format. Expected: <contract_id>.contract/<path>\nExample: 46beb186cdf5.contract/README.md"
+        ))?;
+    let contract_id = &source[..idx];
+    let path = &source[idx + ".contract".len()..]; // includes leading /
+    if contract_id.is_empty() || path.len() <= 1 {
+        anyhow::bail!("Invalid source: contract ID and path must be non-empty");
+    }
+    Ok((contract_id.to_string(), path.to_string()))
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
-    // Determine contract directory
-    let dir = if let Some(d) = &opts.dir {
-        d.clone()
-    } else {
-        std::env::current_dir()?
-    };
-
-    // Open contract store
+    let dir = opts.dir.clone().unwrap_or_else(|| std::env::current_dir().unwrap());
     let store = ContractStore::open(&dir)?;
     let config = store.load_config()?;
 
-    // Validate source path has known extension
-    let from_path = opts.from_path.trim_start_matches('/');
-    let from_path_with_slash = format!("/{}", from_path);
+    let (source_contract_id, source_path) = parse_source(&opts.source)?;
 
-    // Build destination path: $contract_id:/path
-    let dest_path = opts.to_path.clone().unwrap_or_else(|| {
-        format!("${}:{}", opts.from_contract, from_path_with_slash)
-    });
-
-    // Validate destination path format for REPOST
-    if !dest_path.starts_with('$') {
-        anyhow::bail!("Destination path must start with '$' (format: $contract_id:/path)");
-    }
-
-    // Parse the value
-    let value: Value = serde_json::from_str(&opts.value)
-        .unwrap_or_else(|_| Value::String(opts.value.clone()));
-
-    // Get current HEAD
-    let parent_id = store.get_head()?;
-
-    // Create new commit
-    let mut commit = if let Some(parent) = &parent_id {
-        CommitFile::with_parent(parent.clone())
+    // Get the remote URL to determine the hub base
+    let remote = config.get_remote("origin")
+        .ok_or_else(|| anyhow::anyhow!("No 'origin' remote configured. Need hub URL to fetch from."))?;
+    
+    // Extract hub base from remote URL (e.g. https://api.modalhub.com/contracts/abc -> https://api.modalhub.com)
+    let hub_base = if let Some(idx) = remote.url.find("/contracts/") {
+        &remote.url[..idx]
     } else {
-        CommitFile::new()
+        &remote.url
     };
 
-    // Add REPOST action
-    commit.add_action("repost".to_string(), Some(dest_path.clone()), value.clone());
-
-    // Sign the commit if a passfile is provided
-    if let Some(passfile_path) = &opts.sign {
-        let passfile_str = passfile_path.to_string_lossy();
-        let keypair = Keypair::from_json_file(&passfile_str)?;
-        let public_key = keypair.public_key_as_base58_identity();
-        
-        // Sign the body (canonical JSON)
-        let body_json = serde_json::to_string(&commit.body)?;
-        let signature = keypair.sign_string_as_base64_pad(&body_json)?;
-        
-        // Add signature to head
-        let sig_obj = serde_json::json!({
-            public_key: signature
-        });
-        commit.head.signatures = Some(sig_obj);
+    // Fetch source contract state
+    println!("Fetching /{} from contract {}...", source_path.trim_start_matches('/'), &source_contract_id[..12.min(source_contract_id.len())]);
+    
+    let client = reqwest::Client::new();
+    let state_url = format!("{}/contracts/{}/state", hub_base, source_contract_id);
+    let resp = client.get(&state_url).send().await?;
+    
+    if !resp.status().is_success() {
+        anyhow::bail!("Failed to fetch contract state: HTTP {}", resp.status());
     }
 
-    // Validate the commit
-    commit.validate()?;
+    let state_data: serde_json::Value = resp.json().await?;
+    let state = state_data.get("state").unwrap_or(&state_data);
+    
+    let value = state.get(&source_path)
+        .or_else(|| state.get(source_path.trim_start_matches('/')))
+        .ok_or_else(|| anyhow::anyhow!(
+            "Path '{}' not found in contract {}", source_path, source_contract_id
+        ))?;
 
-    // Compute commit ID
-    let commit_id = commit.compute_id()?;
+    // Write to state/<contract_id>.contract/<path>
+    let dest_path = format!("/{}.contract{}", source_contract_id, source_path);
+    store.init_state_dir()?;
+    store.write_state(&dest_path, value)?;
 
-    // Save commit
-    store.save_commit(&commit_id, &commit)?;
-
-    // Update HEAD
-    store.set_head(&commit_id)?;
-
-    // Write to reposts directory for local access
-    store.write_repost(&dest_path, &value)?;
-
-    // Output
-    if opts.output == "json" {
-        println!("{}", serde_json::to_string_pretty(&serde_json::json!({
-            "contract_id": config.contract_id,
-            "commit_id": commit_id,
-            "parent": parent_id,
-            "from_contract": opts.from_contract,
-            "from_path": from_path_with_slash,
-            "to_path": dest_path,
-            "status": "committed",
-        }))?);
-    } else {
-        println!("✅ Repost committed successfully!");
-        println!("   From: {}:{}", opts.from_contract, from_path_with_slash);
-        println!("   To:   {}", dest_path);
-        println!("   Commit ID: {}", commit_id);
-        println!();
-        println!("Data stored locally at reposts/{}{}", 
-            opts.from_contract, 
-            from_path_with_slash);
-    }
+    println!("✅ Reposted to state{}", dest_path);
+    println!("   Source: {}", opts.source);
+    println!("   Value:  {}", truncate_display(value, 80));
+    println!();
+    println!("Run 'modal commit --all' to commit this repost.");
 
     Ok(())
+}
+
+fn truncate_display(v: &serde_json::Value, max: usize) -> String {
+    let s = match v {
+        serde_json::Value::String(s) => s.clone(),
+        _ => serde_json::to_string(v).unwrap_or_default(),
+    };
+    if s.len() > max {
+        format!("{}…", &s[..max])
+    } else {
+        s
+    }
 }
