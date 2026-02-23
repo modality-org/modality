@@ -257,13 +257,44 @@ const guardedSandbox = guard.wrapSandbox(sandbox, {
 - [ ] Twitter thread with demo GIFs
 - [ ] Example repos on GitHub
 
-## Open Questions
+## Design Decisions
 
-1. **Glob syntax:** Should `calls()` use shell globs (`*.delete`), regex, or a custom pattern language?
-2. **Parameter validation:** Should predicates inspect tool call parameters (e.g., "can only send to approved recipients"), or just action names?
-3. **Async approval flow:** For steward-required actions, how does the agent wait for human approval? WebSocket notification? Polling?
-4. **Performance:** Is per-tool-call validation fast enough? Could we batch or cache model state?
-5. **Multi-contract composition:** Can an agent be governed by multiple contracts simultaneously (org policy + project policy + user policy)?
+1. **Glob syntax:** Shell-style globs — optimized for agents writing and humans reading/grepping. `*.delete`, `gmail.*`, `fs.write`. No regex (too noisy for contract readability).
+
+2. **Parameter validation:** Yes. Predicates can inspect tool call parameters, not just action names. Example: restrict email recipients to an approved list.
+
+```modality
+// Only send to approved recipients
+active -> active [
+  +any_signed(/)
+  +calls(gmail.send)
+  +param_in(to, /approved_recipients)
+]
+```
+
+New predicate: `+param_in(param_name, /state/path)` — checks that a tool call parameter value exists in a set stored at the given state path. Enables dynamic allowlists (add/remove approved recipients without changing the model).
+
+Other parameter predicates:
+- `+param_matches(param_name, pattern)` — glob match on param value
+- `+param_max(param_name, value)` — numeric upper bound (e.g., max transfer amount)
+- `-param_contains(param_name, pattern)` — block params containing certain content
+
+3. **Async approval flow:** Agent submits a proposal commit (unsigned by steward). Hub holds it pending. Steward receives notification (WebSocket/push/email). Steward signs and submits approval. Hub finalizes the commit once threshold is met. Agent polls or receives WebSocket event. This reuses the existing proposal/threshold system from the hub.
+
+4. **Performance:** Support batch tool calls — multiple actions in a single commit, validated together. Cache model state across calls within a session. Per-call overhead should be <10ms for local validation, <100ms for hub round-trip.
+
+5. **Multi-contract composition:** Yes. An agent can be governed by multiple contracts simultaneously:
+   - **Org contract** — company-wide policies (no PII in logs, approved vendors only)
+   - **Project contract** — project-specific rules (only touch these repos, these APIs)
+   - **User contract** — individual preferences (work hours, notification rules)
+   
+   Validation requires passing ALL governing contracts. Most restrictive wins. Contracts reference each other via repost for shared state (e.g., org approved-recipients list).
+
+## Remaining Open Questions
+
+1. **Proposal UX:** What's the best notification channel for steward approvals? Push notification → mobile signing app? Discord bot? Email with one-click approve link?
+2. **Contract discovery:** How does an agent find which contracts govern it? Convention-based (`.contract/` in sandbox root)? Registry?
+3. **Escape hatch:** Should there be a "break glass" mechanism for emergencies that bypasses the contract but logs the override with high visibility?
 
 ## Prior Art
 
