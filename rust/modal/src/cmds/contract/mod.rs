@@ -22,3 +22,5 @@ pub mod wasm_upload;
 pub mod pack;
 pub mod unpack;
 pub mod remote;
+pub mod add_rule;
+pub mod download;

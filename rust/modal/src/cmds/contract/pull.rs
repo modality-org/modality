@@ -237,8 +237,8 @@ async fn clone_from_url(url: &str, opts: &Opts) -> Result<()> {
         anyhow::bail!("URL must be in format https://host/contracts/<id>");
     }
 
-    // Use short name for directory (first 12 chars of contract ID)
-    let dir_name = if contract_id.len() > 12 { &contract_id[..12] } else { &contract_id };
+    // Use contract ID as directory name
+    let dir_name = &contract_id;
     let contract_dir = opts.dir.clone().unwrap_or_else(|| PathBuf::from(dir_name));
 
     if contract_dir.exists() {

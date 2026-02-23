@@ -84,6 +84,21 @@ enum Commands {
     #[command(about = "Commit changes (shortcut for modal contract commit)")]
     Commit(cmds::contract::commit::Opts),
 
+    #[command(about = "Show uncommitted changes (shortcut for modal contract diff)")]
+    Diff(cmds::contract::diff::Opts),
+
+    #[command(about = "Set a state file value (shortcut for modal contract set)")]
+    Set(cmds::contract::set::Opts),
+
+    #[command(about = "Repost state from another contract (shortcut for modal contract repost)")]
+    Repost(cmds::contract::repost::Opts),
+
+    #[command(name = "add-rule", about = "Add a rule to the contract")]
+    AddRule(cmds::contract::add_rule::Opts),
+
+    #[command(about = "Download a packed contract file")]
+    Download(cmds::contract::download::Opts),
+
     #[command(about = "Run node shortcuts")]
     Run {
         #[command(subcommand)]
@@ -283,6 +298,12 @@ enum ContractCommands {
     
     #[command(about = "Copy data from another contract into a local namespace")]
     Repost(cmds::contract::repost::Opts),
+    
+    #[command(name = "add-rule", about = "Add a rule to the contract")]
+    AddRule(cmds::contract::add_rule::Opts),
+    
+    #[command(about = "Download a packed contract file")]
+    Download(cmds::contract::download::Opts),
 }
 
 #[derive(Subcommand)]
@@ -422,6 +443,8 @@ async fn main() -> Result<()> {
                 ContractCommands::Pack(opts) => cmds::contract::pack::run(opts).await?,
                 ContractCommands::Unpack(opts) => cmds::contract::unpack::run(opts).await?,
                 ContractCommands::Repost(opts) => cmds::contract::repost::run(opts).await?,
+                ContractCommands::AddRule(opts) => cmds::contract::add_rule::run(opts).await?,
+                ContractCommands::Download(opts) => cmds::contract::download::run(opts).await?,
             }
         }
         Commands::Hub { command } => {
@@ -460,6 +483,11 @@ async fn main() -> Result<()> {
         }
         Commands::Pull(opts) => cmds::contract::pull::run(opts).await?,
         Commands::Commit(opts) => cmds::contract::commit::run(opts).await?,
+        Commands::Diff(opts) => cmds::contract::diff::run(opts).await?,
+        Commands::Set(opts) => cmds::contract::set::run(opts).await?,
+        Commands::Repost(opts) => cmds::contract::repost::run(opts).await?,
+        Commands::AddRule(opts) => cmds::contract::add_rule::run(opts).await?,
+        Commands::Download(opts) => cmds::contract::download::run(opts).await?,
         Commands::Killall(opts) => cmds::local::killall_nodes::run(opts).await?,
         Commands::Upgrade(opts) => modality::cmds::upgrade::run(opts).await?,
         Commands::Status(opts) => {

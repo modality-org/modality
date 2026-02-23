@@ -12,11 +12,11 @@ use walkdir::WalkDir;
 pub struct Opts {
     /// Output .contract file path
     #[clap(short, long)]
-    output: Option<PathBuf>,
+    pub output: Option<PathBuf>,
     
     /// Contract directory (defaults to current directory)
     #[clap(long)]
-    dir: Option<PathBuf>,
+    pub dir: Option<PathBuf>,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
