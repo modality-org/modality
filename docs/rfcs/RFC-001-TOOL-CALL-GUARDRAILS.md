@@ -290,11 +290,11 @@ Other parameter predicates:
    
    Validation requires passing ALL governing contracts. Most restrictive wins. Contracts reference each other via repost for shared state (e.g., org approved-recipients list).
 
-## Remaining Open Questions
+## Resolved
 
-1. **Proposal UX:** What's the best notification channel for steward approvals? Push notification → mobile signing app? Discord bot? Email with one-click approve link?
-2. **Contract discovery:** How does an agent find which contracts govern it? Convention-based (`.contract/` in sandbox root)? Registry?
-3. **Escape hatch:** Should there be a "break glass" mechanism for emergencies that bypasses the contract but logs the override with high visibility?
+1. **Proposal UX:** Left to the developer. The SDK emits approval-needed events — devs wire them to whatever channel fits (Discord, email, push, SMS, custom UI).
+2. **Contract discovery:** Convention-based. `.contract/` in sandbox root. Agent looks there on startup.
+3. **No escape hatch.** The entire point is to constrain the agent. If the contract says no, the answer is no. Change the contract if the rules need to change — that's a signed commit with an audit trail, not a backdoor.
 
 ## Prior Art
 
