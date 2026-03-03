@@ -1,6 +1,6 @@
--- RING 0: Database schema (kernel-level)
--- Only the kernel agent can modify this file.
--- Changes require human approval.
+-- KERNEL REPO: Database schema
+-- Only the Kernel Agent + Human Admin can access this repo.
+-- The App Agent cannot read or write any of these files.
 
 CREATE TABLE users (
   id SERIAL PRIMARY KEY,

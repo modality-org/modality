@@ -1,106 +1,104 @@
 # Protection Rings for Agent Development
 
-**OS-style security boundaries for AI agents, enforced by Modality contracts.**
+**Two repos. Two agents. The app agent can't even READ kernel code.**
 
 ## The Problem
 
-You want AI agents building your app. But your codebase is a monorepo where auth logic, database schemas, deployment scripts, and feature code all live side by side. Every file has the same level of access.
+You want AI agents building your app. But your codebase has auth logic, database schemas, secrets, and deployment scripts living alongside feature code.
 
-That's fine when humans are writing code — we know not to touch `auth.js` when we're building a feature. But AI agents moving at machine speed don't have that intuition. And guardrails in markdown files are just suggestions.
+The usual fix: "just add a rule in the agent's instructions saying don't touch auth.js." That's a prompt. Prompts get jailbroken.
 
-**What happens when an agent "helpfully" optimizes your authentication by skipping password verification?**
+**What if the agent can't even see the code it shouldn't touch?**
 
-## The Solution: Protection Rings
+## The Architecture
 
-Operating systems solved this 50 years ago with **protection rings**:
-
-```
-┌─────────────────────────────────────────────┐
-│  Ring 3: Userspace                          │
-│  ┌─────────────────────────────────────┐    │
-│  │  Ring 0: Kernel                     │    │
-│  │  • Database schemas                 │    │
-│  │  • Authentication                   │    │
-│  │  • Configuration                    │    │
-│  │  • Deploy scripts                   │    │
-│  │  • Secrets management               │    │
-│  └─────────────────────────────────────┘    │
-│  • API routes                               │
-│  • UI components                            │
-│  • Tests                                    │
-│  • Documentation                            │
-│  • Feature logic                            │
-└─────────────────────────────────────────────┘
-```
-
-In this tutorial, we apply the same concept to agent development:
-
-- **Ring 0 (Kernel)**: Critical infrastructure. Only the Kernel Agent can modify, and only with human approval.
-- **Ring 3 (Userspace)**: Feature code. The Userspace Agent works freely — no bottleneck.
-
-The boundaries are enforced by **Modality verifiable contracts** — not linter rules, not code review, not markdown guidelines. Mathematical constraints that reject invalid commits before they happen.
-
-## Project Structure
+Separate your codebase into two repos with different security levels — like an OS kernel vs. userspace:
 
 ```
-sample-app/
-├── kernel/              ← Ring 0 (protected)
-│   ├── schema.sql       ← Database schema
-│   ├── auth.js          ← Authentication
-│   └── config.js        ← App configuration
-├── userspace/           ← Ring 3 (free)
-│   ├── routes.js        ← API routes
-│   └── components.jsx   ← UI components
-└── shared/              ← Shared types/utils
-
-contracts/
-├── protection-rings.modality    ← Ring boundary contract
-└── cooperation.modality         ← Cross-ring change requests
+┌──────────────────────────┐   ┌──────────────────────────┐
+│  🔒 kernel-repo          │   │  📦 app-repo              │
+│  schema.sql              │   │  routes.js               │
+│  auth.js                 │   │  components.jsx          │
+│  config.js               │   │  tests/                  │
+│  secrets/                │   │  docs/                   │
+│                          │   │                          │
+│  Kernel Agent + Human    │   │  App Agent (free)        │
+│  (dual signature)        │   │  (single signature)      │
+└──────────────────────────┘   └──────────────────────────┘
+              ▲ Modality Contract ▲
+    cooperation happens here, not through shared code
 ```
+
+- **kernel-repo**: Critical infrastructure. Only the Kernel Agent can commit, and only with human co-signature. The App Agent has **zero access** — can't read, can't write.
+- **app-repo**: Feature code. The App Agent works freely. No bottleneck.
+
+The boundary isn't a linter rule. It's a **Modality verifiable contract** — mathematical constraints enforced with cryptographic signatures.
 
 ## The Contract
 
-The core contract (`protection-rings.modality`) encodes three rules:
-
-### Rule 1: Userspace Boundary
+### Rule 1: App Agent Cannot Access Kernel Repo
 ```modality
-rule userspace_boundary {
+rule app_cannot_touch_kernel {
   formula {
     always(
-      +signed_by(/agents/userspace.id) implies -modifies(/kernel)
+      +signed_by(/agents/app.id) implies -modifies(/kernel-repo)
     )
   }
 }
 ```
-Translation: If the userspace agent signed it, it CANNOT modify any kernel path. Ever.
+The app agent's identity key is not authorized for kernel-repo. Period.
 
-### Rule 2: Kernel Dual Signature
+### Rule 2: Kernel Changes Require Dual Signature
 ```modality
 rule kernel_requires_dual_signature {
   formula {
     always(
-      +modifies(/kernel) implies (
+      +modifies(/kernel-repo) implies (
         +signed_by(/agents/kernel.id) & +signed_by(/humans/admin.id)
       )
     )
   }
 }
 ```
-Translation: Any commit that touches kernel paths must be signed by BOTH the kernel agent AND a human. No unilateral kernel changes.
+Even the kernel agent can't act alone. Every kernel change needs a human.
 
-### Rule 3: Known Signers
+### Rule 3: Known Signers Only
 ```modality
 rule known_signers_only {
   formula {
     always(
-      +signed_by(/agents/userspace.id)
+      +signed_by(/agents/app.id)
       | +signed_by(/agents/kernel.id)
       | +signed_by(/humans/admin.id)
     )
   }
 }
 ```
-Translation: Every commit must come from a known identity. No anonymous modifications.
+No anonymous commits.
+
+## Cross-Repo Cooperation
+
+When the app agent needs something from the kernel (a new table, a new API endpoint):
+
+```
+App Agent                      Kernel Agent              Human Admin
+    │                               │                        │
+    ├── REQUEST (in app-repo) ─────►│                        │
+    │   "Need items table"          │                        │
+    │                               ├── IMPLEMENT ──────────►│
+    │                               │   (in kernel-repo,     │── APPROVE
+    │                               │    app can't see this) │   (co-sign)
+    │                               │◄──────────────────────┤
+    │                               │                        │
+    │   PUBLISH API CONTRACT ◄──────┤                        │
+    │   (in app-repo — the only     │                        │
+    │    thing app agent sees)      │                        │
+    │                               │                        │
+    ├── BUILD FEATURE              │                        │
+    │   (against published API)    │                        │
+```
+
+The app agent never sees HOW the kernel implements the change. It only sees the **API contract** that gets published. Implementation details stay locked in the kernel.
 
 ## Run the Demo
 
@@ -109,62 +107,37 @@ npm install
 npm run demo
 ```
 
-The demo walks through six scenarios:
+Five scenarios:
 
-1. **Userspace ships a feature** → ✓ Accepted (Ring 3 paths only)
-2. **Userspace tries to modify auth** → ✗ Rejected (touches Ring 0)
-3. **Sneaky mixed commit** → ✗ Rejected (kernel path hidden among userspace paths)
-4. **Kernel agent acts alone** → ✗ Rejected (no human co-signature)
-5. **Proper dual-signed kernel change** → ✓ Accepted (kernel + human)
-6. **Cross-ring cooperation** → ✓ Userspace requests → Kernel implements → Human approves → Userspace builds
+1. **App agent ships a feature** → ✓ (app-repo, single signature)
+2. **App agent tries to access kernel-repo** → ✗ ACCESS DENIED (can't read or write)
+3. **Kernel agent acts alone** → ✗ (needs human co-signature)
+4. **Proper dual-signed kernel change** → ✓ (kernel + human)
+5. **Cross-repo cooperation** → Request → Implement → Publish API → Build feature
 
-Every action uses real ed25519 signatures. Every rule is checked mathematically. Every commit is independently verifiable.
+Every action uses real ed25519 signatures.
 
-## Cross-Ring Cooperation
+## Why Two Repos?
 
-When the userspace agent needs something from Ring 0 (a new table, a config change, a new auth endpoint), it can't just make the change. Instead:
+**One repo with folder-level access control** still lets the app agent read kernel code. It can learn how auth works, discover secrets in config files, understand the schema structure. Even if it can't write, reading is a vulnerability.
 
-```
-Userspace Agent                    Kernel Agent              Human Admin
-      │                                 │                        │
-      ├── PROPOSE change request ──────►│                        │
-      │   (signed commit to             │                        │
-      │    /userspace/requests/)        │                        │
-      │                                 ├── REVIEW & ACCEPT ────►│
-      │                                 │   (signed commit)      │
-      │                                 │                        ├── APPROVE
-      │                                 │◄── (co-signed) ────────┤
-      │                                 │                        │
-      │                                 ├── EXECUTE              │
-      │                                 │   (dual-signed commit  │
-      │                                 │    to /kernel/)        │
-      │◄── builds feature ─────────────│                        │
-      │   (signed commit to            │                        │
-      │    /userspace/)                │                        │
-```
+**Two repos** mean:
+- The app agent's environment literally doesn't contain kernel code
+- Secrets never appear in the app agent's context
+- Auth implementation details can't leak through code reading
+- The only interface is the published API contract
 
-This flow is encoded in `cooperation.modality`. The contract ensures:
-- Only userspace can propose
-- Only kernel can execute
-- Execution requires prior human approval
-- Every step is signed and auditable
+This is how operating systems work. Ring 3 processes can't read kernel memory — not because there's a rule against it, but because the memory mapping doesn't exist in their address space.
 
 ## Key Takeaways
 
-1. **Agents need boundaries, not just prompts.** A markdown file saying "don't touch auth.js" is a suggestion. A Modality contract is a mathematical proof.
-
-2. **Protection rings let fast agents stay fast.** The userspace agent ships features at machine speed with zero friction. The bottleneck only exists where it should — at the kernel boundary.
-
-3. **Cooperation, not just restriction.** The system doesn't just say "no" — it provides a formal path for cross-ring changes. Request → Review → Approve → Execute.
-
-4. **Everything is auditable.** Six months from now, when a regulator asks "who changed the auth logic and why?" — the commit log has every signature, every approval, every step.
-
-## Next Steps
-
-- **Try it on your codebase**: Map your files to Ring 0 and Ring 3. What's kernel? What's userspace?
-- **Add more rings**: Ring 1 for infrastructure (CI/CD, monitoring), Ring 2 for business logic.
-- **Deploy with a Hub**: Push your contract to a Modality Hub and have agents commit against it in real-time.
+1. **Isolation > access control.** Don't restrict what the agent can write. Restrict what it can see.
+2. **Cooperation through contracts, not shared code.** Agents coordinate via formal requests and published API contracts.
+3. **Dual signature for critical changes.** No agent acts alone on infrastructure. A human always co-signs.
+4. **Everything is auditable.** Every commit is signed, every rule check is logged, every cooperation step is in the contract.
 
 ---
 
 *Built with [Modality](https://modality.org) — verifiable contracts for the agentic economy.*
+
+*Freedom at the edges. Constraints at the kernel.*

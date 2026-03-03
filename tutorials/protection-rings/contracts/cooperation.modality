@@ -1,56 +1,44 @@
-// Cooperation Contract: Kernel Change Request
-// When the userspace agent needs a kernel-level change,
-// it can't just make it. It proposes, kernel agent reviews,
-// human approves, then kernel agent executes.
+// Cooperation Contract: Cross-Repo Change Request
 //
-// This is how agents cooperate across ring boundaries.
+// The App Agent can't see or touch the kernel repo.
+// But sometimes it needs kernel-level changes (new table, new API, new config).
+//
+// This contract defines how agents cooperate across the repo boundary:
+//   1. App agent files a request (in app-repo)
+//   2. Kernel agent reviews (in kernel-repo, app agent can't see this)
+//   3. Human approves
+//   4. Kernel agent implements and exposes via API
+//   5. App agent builds against the new API
+//
+// The app agent never sees HOW the kernel implements the change.
+// It only sees THAT the change was made (via the API contract).
 
-model kernel_change_request {
+model cross_repo_request {
   initial idle
 
-  // Userspace agent proposes a kernel change
-  idle -> proposed [+signed_by(/agents/userspace.id)]
+  // App agent files a change request
+  idle -> requested [+signed_by(/agents/app.id)]
 
-  // Kernel agent reviews and accepts the proposal
-  proposed -> accepted [+signed_by(/agents/kernel.id)]
+  // Kernel agent acknowledges receipt
+  requested -> reviewing [+signed_by(/agents/kernel.id)]
 
-  // Kernel agent rejects the proposal
-  proposed -> rejected [+signed_by(/agents/kernel.id)]
+  // Kernel agent accepts or rejects
+  reviewing -> accepted [+signed_by(/agents/kernel.id)]
+  reviewing -> rejected [+signed_by(/agents/kernel.id)]
 
   // Human approves the accepted change
   accepted -> approved [+signed_by(/humans/admin.id)]
 
-  // Kernel agent executes the approved change
-  approved -> executed [+signed_by(/agents/kernel.id)]
+  // Kernel agent implements (in kernel-repo, invisible to app agent)
+  approved -> implemented [+signed_by(/agents/kernel.id) +signed_by(/humans/admin.id)]
 
-  // Return to idle for next request
-  executed -> idle [+signed_by(/agents/kernel.id)]
-  rejected -> idle [+signed_by(/agents/userspace.id)]
-}
+  // Kernel agent publishes API contract (visible to app agent)
+  implemented -> published [+signed_by(/agents/kernel.id)]
 
-// Proposals must come from userspace
-rule proposals_from_userspace {
-  formula {
-    always(
-      PROPOSE implies +signed_by(/agents/userspace.id)
-    )
-  }
-}
+  // App agent builds against new API
+  published -> complete [+signed_by(/agents/app.id)]
 
-// Execution requires prior human approval
-rule execution_requires_approval {
-  formula {
-    always(
-      EXECUTE implies +signed_by(/agents/kernel.id)
-    )
-  }
-}
-
-// Human can only approve after kernel agent accepts
-rule approval_after_review {
-  formula {
-    always(
-      APPROVE implies +signed_by(/humans/admin.id)
-    )
-  }
+  // Reset
+  complete -> idle [+signed_by(/agents/app.id)]
+  rejected -> idle [+signed_by(/agents/app.id)]
 }

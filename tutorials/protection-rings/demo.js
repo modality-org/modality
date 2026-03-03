@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * Protection Rings Demo
+ * Protection Rings Demo — Two Repo Architecture
  * 
- * Shows two agents operating on a codebase with enforced boundaries.
- * - Userspace Agent: builds features freely
- * - Kernel Agent: manages critical infrastructure with human approval
+ * Two separate repos. Two agents. One can't even SEE the other's code.
+ * Cooperation happens through contracts, not shared access.
  * 
  * Run: node demo.js
  */
@@ -21,17 +20,15 @@ ed.etc.sha512Sync = (...m) => {
   return h.digest();
 };
 
-// ─── Colors ───
 const C = {
   reset: '\x1b[0m', bold: '\x1b[1m', dim: '\x1b[2m',
   red: '\x1b[31m', green: '\x1b[32m', yellow: '\x1b[33m',
   blue: '\x1b[34m', magenta: '\x1b[35m', cyan: '\x1b[36m',
-  bgRed: '\x1b[41m', bgGreen: '\x1b[42m', bgYellow: '\x1b[43m', bgBlue: '\x1b[44m',
+  bgRed: '\x1b[41m', bgGreen: '\x1b[42m',
 };
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ─── Crypto ───
 function generateIdentity(name) {
   const priv = ed.utils.randomPrivateKey();
   const pub = ed.getPublicKey(priv);
@@ -47,57 +44,42 @@ function hashJSON(data) {
   return bytesToHex(sha256(new TextEncoder().encode(JSON.stringify(data))));
 }
 
-// ─── Contract Engine ───
-class ProtectionRingContract {
+// ─── Contract Engine (Two Repo Model) ───
+class TwoRepoContract {
   constructor(parties) {
     this.parties = parties;
-    this.state = 'active';
     this.commits = [];
-    this.rules = {
-      userspace_boundary: (signer, paths) => {
-        if (signer.publicKey === parties.userspace.publicKey) {
-          return !paths.some(p => p.startsWith('/kernel'));
-        }
-        return true;
-      },
-      kernel_requires_dual: (signers, paths) => {
-        if (paths.some(p => p.startsWith('/kernel'))) {
-          const hasKernel = signers.some(s => s.publicKey === parties.kernel.publicKey);
-          const hasHuman = signers.some(s => s.publicKey === parties.admin.publicKey);
-          return hasKernel && hasHuman;
-        }
-        return true;
-      },
-      known_signers: (signers) => {
-        const known = [parties.userspace.publicKey, parties.kernel.publicKey, parties.admin.publicKey];
-        return signers.every(s => known.includes(s.publicKey));
-      }
-    };
   }
 
-  commit(action, paths, signers, description) {
-    // Rule checks
+  commit(action, repo, paths, signers, description) {
     const ruleResults = [];
 
-    // Check userspace boundary
+    // Rule: App agent cannot touch kernel-repo
     for (const signer of signers) {
-      const pass = this.rules.userspace_boundary(signer, paths);
-      ruleResults.push({ rule: 'userspace_boundary', pass, detail: pass ? 'Signer allowed for these paths' : `${signer.name} cannot modify kernel paths` });
-      if (!pass) return { ok: false, ruleResults, error: `RULE VIOLATION: ${signer.name} cannot modify kernel paths` };
+      if (signer.publicKey === this.parties.app.publicKey && repo === 'kernel-repo') {
+        ruleResults.push({ rule: 'app_cannot_touch_kernel', pass: false, detail: `${signer.name} has NO access to kernel-repo (can't read or write)` });
+        return { ok: false, ruleResults, error: `ACCESS DENIED: ${signer.name} cannot access kernel-repo` };
+      }
+      ruleResults.push({ rule: 'app_cannot_touch_kernel', pass: true, detail: `${signer.name} authorized for ${repo}` });
     }
 
-    // Check kernel dual signature
-    const dualPass = this.rules.kernel_requires_dual(signers, paths);
-    ruleResults.push({ rule: 'kernel_requires_dual', pass: dualPass, detail: dualPass ? 'Kernel change properly co-signed' : 'Kernel changes require kernel agent + human' });
-    if (!dualPass) return { ok: false, ruleResults, error: 'RULE VIOLATION: Kernel changes require dual signature (kernel agent + human)' };
+    // Rule: Kernel-repo changes need dual signature
+    if (repo === 'kernel-repo') {
+      const hasKernel = signers.some(s => s.publicKey === this.parties.kernel.publicKey);
+      const hasHuman = signers.some(s => s.publicKey === this.parties.admin.publicKey);
+      const pass = hasKernel && hasHuman;
+      ruleResults.push({ rule: 'kernel_requires_dual', pass, detail: pass ? 'Kernel + Human co-signed' : 'Kernel-repo requires dual signature' });
+      if (!pass) return { ok: false, ruleResults, error: 'RULE VIOLATION: kernel-repo changes require Kernel Agent + Human Admin' };
+    }
 
-    // Check known signers
-    const knownPass = this.rules.known_signers(signers);
-    ruleResults.push({ rule: 'known_signers', pass: knownPass, detail: knownPass ? 'All signers recognized' : 'Unknown signer detected' });
-    if (!knownPass) return { ok: false, ruleResults, error: 'RULE VIOLATION: Unknown signer' };
+    // Rule: Known signers
+    const known = [this.parties.app.publicKey, this.parties.kernel.publicKey, this.parties.admin.publicKey];
+    const allKnown = signers.every(s => known.includes(s.publicKey));
+    ruleResults.push({ rule: 'known_signers', pass: allKnown, detail: allKnown ? 'All signers recognized' : 'Unknown signer' });
+    if (!allKnown) return { ok: false, ruleResults, error: 'RULE VIOLATION: Unknown signer' };
 
-    // Build commit
-    const body = { action, paths, description, timestamp: new Date().toISOString() };
+    // Build + sign commit
+    const body = { action, repo, paths, description, timestamp: new Date().toISOString() };
     const parentHash = this.commits.length > 0 ? hashJSON(this.commits[this.commits.length - 1]) : null;
     const signatures = {};
     for (const signer of signers) {
@@ -105,7 +87,6 @@ class ProtectionRingContract {
     }
     const commit = { seq: this.commits.length, body, head: { parent: parentHash, signatures } };
 
-    // Verify signatures
     for (const [pub, sig] of Object.entries(commit.head.signatures)) {
       if (!verifyJSON(commit.body, sig, pub)) {
         return { ok: false, ruleResults, error: 'Signature verification failed' };
@@ -117,167 +98,141 @@ class ProtectionRingContract {
   }
 }
 
-// ─── Pretty Printing ───
+// ─── Print Helpers ───
 function header(text) {
   console.log(`\n${C.cyan}${C.bold}${'═'.repeat(70)}${C.reset}`);
   console.log(`${C.cyan}${C.bold}  ${text}${C.reset}`);
   console.log(`${C.cyan}${C.bold}${'═'.repeat(70)}${C.reset}\n`);
 }
 
-function subheader(text) {
-  console.log(`\n${C.bold}${C.yellow}  ── ${text} ──${C.reset}\n`);
-}
+function printCommit(signers, action, repo, paths, result) {
+  const repoColor = repo === 'kernel-repo' ? C.red : C.green;
+  const repoLabel = repo === 'kernel-repo' ? '🔒 KERNEL' : '📦 APP';
 
-function agent(a, action) {
-  const colors = { 'Userspace Agent': C.blue, 'Kernel Agent': C.magenta, 'Human Admin': C.yellow };
-  const c = colors[a.name] || C.dim;
-  console.log(`  ${c}${C.bold}${a.name}${C.reset} ${C.dim}(${a.short})${C.reset}`);
-  console.log(`  ${C.dim}Action:${C.reset} ${action}`);
-}
-
-function paths(ps) {
-  for (const p of ps) {
-    const isKernel = p.startsWith('/kernel');
-    const c = isKernel ? C.red : C.green;
-    const ring = isKernel ? 'RING 0' : 'RING 3';
-    console.log(`  ${c}  ${ring}${C.reset} ${p}`);
+  for (const s of signers) {
+    const c = s.name === 'App Agent' ? C.blue : s.name === 'Kernel Agent' ? C.magenta : C.yellow;
+    console.log(`  ${c}${C.bold}${s.name}${C.reset} ${C.dim}(${s.short})${C.reset}`);
   }
-}
+  console.log(`  ${C.dim}Action:${C.reset} ${action}`);
+  console.log(`  ${repoColor}  ${repoLabel}${C.reset} ${repo}/`);
+  for (const p of paths) {
+    console.log(`  ${C.dim}    └─ ${p}${C.reset}`);
+  }
 
-function ruleCheck(results) {
-  for (const r of results) {
+  for (const r of result.ruleResults) {
     const icon = r.pass ? `${C.green}✓` : `${C.red}✗`;
     console.log(`  ${icon} ${C.dim}${r.rule}:${C.reset} ${r.detail}${C.reset}`);
   }
-}
 
-function result(r) {
-  if (r.ok) {
-    const sig = Object.values(r.commit.head.signatures)[0];
-    console.log(`  ${C.bgGreen}${C.bold} COMMITTED ${C.reset} #${r.commit.seq} | sig: ${sig.slice(0, 16)}…`);
+  if (result.ok) {
+    const sig = Object.values(result.commit.head.signatures)[0];
+    console.log(`  ${C.bgGreen}${C.bold} COMMITTED ${C.reset} #${result.commit.seq} | sig: ${sig.slice(0, 16)}…\n`);
   } else {
-    console.log(`  ${C.bgRed}${C.bold} REJECTED  ${C.reset} ${r.error}`);
+    console.log(`  ${C.bgRed}${C.bold} REJECTED  ${C.reset} ${result.error}\n`);
   }
 }
 
-// ─── Main Demo ───
+// ─── Main ───
 async function main() {
-  header('PROTECTION RINGS FOR AGENT DEVELOPMENT');
-  console.log(`  ${C.dim}OS-style protection rings enforced by Modality contracts.`);
-  console.log(`  Two agents. One codebase. Mathematical boundaries.${C.reset}`);
+  header('PROTECTION RINGS — TWO REPO ARCHITECTURE');
+  console.log(`  ${C.dim}Two repos. Two agents. The App Agent can't even READ kernel code.`);
+  console.log(`  Cooperation happens through contracts, not shared access.${C.reset}`);
+
+  console.log(`\n  ${C.bold}Architecture:${C.reset}`);
+  console.log(`  ┌──────────────────────────┐   ┌──────────────────────────┐`);
+  console.log(`  │  ${C.red}${C.bold}kernel-repo${C.reset}             │   │  ${C.green}${C.bold}app-repo${C.reset}                │`);
+  console.log(`  │  ${C.dim}schema.sql${C.reset}              │   │  ${C.dim}routes.js${C.reset}               │`);
+  console.log(`  │  ${C.dim}auth.js${C.reset}                 │   │  ${C.dim}components.jsx${C.reset}          │`);
+  console.log(`  │  ${C.dim}config.js${C.reset}               │   │  ${C.dim}tests/${C.reset}                  │`);
+  console.log(`  │                          │   │                          │`);
+  console.log(`  │  ${C.magenta}Kernel Agent${C.reset} ${C.yellow}+ Human${C.reset}   │   │  ${C.blue}App Agent${C.reset} ${C.dim}(free)${C.reset}        │`);
+  console.log(`  │  ${C.dim}(dual signature)${C.reset}        │   │  ${C.dim}(single signature)${C.reset}      │`);
+  console.log(`  └──────────────────────────┘   └──────────────────────────┘`);
+  console.log(`                    ${C.cyan}▲ Modality Contract ▲${C.reset}`);
+  console.log(`          ${C.dim}cooperation happens here, not through shared code${C.reset}`);
 
   // Generate identities
-  subheader('Identities');
-  const userspace = generateIdentity('Userspace Agent');
+  console.log(`\n  ${C.bold}Identities:${C.reset}`);
+  const app = generateIdentity('App Agent');
   const kernel = generateIdentity('Kernel Agent');
   const admin = generateIdentity('Human Admin');
 
-  console.log(`  ${C.blue}${C.bold}Userspace Agent${C.reset}  ${C.dim}Ring 3 — builds features freely${C.reset}`);
-  console.log(`  ${C.dim}  pubkey: ${userspace.short}${C.reset}`);
-  console.log(`  ${C.magenta}${C.bold}Kernel Agent${C.reset}     ${C.dim}Ring 0 — manages infrastructure${C.reset}`);
-  console.log(`  ${C.dim}  pubkey: ${kernel.short}${C.reset}`);
-  console.log(`  ${C.yellow}${C.bold}Human Admin${C.reset}      ${C.dim}Ring 0 — approves kernel changes${C.reset}`);
-  console.log(`  ${C.dim}  pubkey: ${admin.short}${C.reset}`);
+  console.log(`  ${C.blue}${C.bold}App Agent${C.reset}      ${C.dim}app-repo only — zero kernel access${C.reset}`);
+  console.log(`  ${C.magenta}${C.bold}Kernel Agent${C.reset}   ${C.dim}kernel-repo — requires human co-sign${C.reset}`);
+  console.log(`  ${C.yellow}${C.bold}Human Admin${C.reset}    ${C.dim}approves all kernel changes${C.reset}`);
 
-  const contract = new ProtectionRingContract({ userspace, kernel, admin });
+  const contract = new TwoRepoContract({ app, kernel, admin });
 
-  // ─── Scenario 1: Userspace agent works freely ───
-  header('SCENARIO 1: Userspace Agent Ships a Feature');
-  console.log(`  ${C.dim}The userspace agent adds a new API route and UI component.`);
-  console.log(`  It only touches Ring 3 paths — no approval needed.${C.reset}\n`);
+  // ─── 1: App agent works freely ───
+  header('1. App Agent Ships a Feature');
+  console.log(`  ${C.dim}The app agent adds routes and components.`);
+  console.log(`  It only has access to app-repo. No approval needed.${C.reset}\n`);
 
-  agent(userspace, 'Add /items endpoint and ItemList component');
-  paths(['/userspace/routes.js', '/userspace/components.jsx']);
-  let r = contract.commit('ADD_FEATURE', ['/userspace/routes.js', '/userspace/components.jsx'], [userspace], 'Add items endpoint and ItemList component');
-  ruleCheck(r.ruleResults);
-  result(r);
+  let r = contract.commit('ADD_FEATURE', 'app-repo', ['routes.js', 'components.jsx'], [app], 'Add items endpoint and list component');
+  printCommit([app], 'Add items endpoint and list component', 'app-repo', ['routes.js', 'components.jsx'], r);
   await sleep(500);
 
-  // ─── Scenario 2: Userspace tries to touch kernel ───
-  header('SCENARIO 2: Userspace Agent Tries to Modify Auth');
-  console.log(`  ${C.dim}The userspace agent wants to "fix" the auth logic.`);
-  console.log(`  It tries to modify a Ring 0 file. Watch what happens.${C.reset}\n`);
+  // ─── 2: App agent tries to access kernel ───
+  header('2. App Agent Tries to Access Kernel Repo');
+  console.log(`  ${C.dim}The app agent tries to "optimize" the auth logic.`);
+  console.log(`  It doesn't just lack write access — it can't even READ kernel code.${C.reset}\n`);
 
-  agent(userspace, 'Modify authentication to skip password check (!!!)');
-  paths(['/kernel/auth.js']);
-  r = contract.commit('MODIFY_AUTH', ['/kernel/auth.js'], [userspace], 'Skip password verification for faster login');
-  ruleCheck(r.ruleResults);
-  result(r);
-  console.log(`\n  ${C.bold}The boundary held.${C.reset} ${C.dim}Not a linter warning. Not a code review comment.`);
-  console.log(`  A mathematical proof that this commit violates the contract.${C.reset}`);
+  r = contract.commit('MODIFY_AUTH', 'kernel-repo', ['auth.js'], [app], 'Skip password check for faster login');
+  printCommit([app], 'Skip password check for faster login', 'kernel-repo', ['auth.js'], r);
+
+  console.log(`  ${C.bold}Complete isolation.${C.reset} ${C.dim}The app agent can't see auth.js, can't read config.js,`);
+  console.log(`  can't learn how passwords are hashed. It interacts through published APIs only.${C.reset}`);
   await sleep(500);
 
-  // ─── Scenario 3: Userspace tries to sneak kernel change with feature ───
-  header('SCENARIO 3: Sneaky Mixed Commit');
-  console.log(`  ${C.dim}The userspace agent tries to slip a config change into a feature commit.`);
-  console.log(`  One kernel path hidden among userspace paths.${C.reset}\n`);
+  // ─── 3: Kernel agent without human ───
+  header('3. Kernel Agent Acts Alone');
+  console.log(`  ${C.dim}The kernel agent tries to modify the schema without human approval.${C.reset}\n`);
 
-  agent(userspace, 'Add feature + "small config tweak"');
-  paths(['/userspace/routes.js', '/kernel/config.js', '/userspace/components.jsx']);
-  r = contract.commit('MIXED_COMMIT', ['/userspace/routes.js', '/kernel/config.js', '/userspace/components.jsx'], [userspace], 'Add feature with config optimization');
-  ruleCheck(r.ruleResults);
-  result(r);
-  console.log(`\n  ${C.bold}Caught.${C.reset} ${C.dim}Even one kernel path in a mixed commit triggers the boundary.${C.reset}`);
+  r = contract.commit('CHANGE_SCHEMA', 'kernel-repo', ['schema.sql'], [kernel], 'Add items table');
+  printCommit([kernel], 'Add items table to schema', 'kernel-repo', ['schema.sql'], r);
+
+  console.log(`  ${C.bold}No solo kernel changes.${C.reset} ${C.dim}Not even from the kernel agent itself.${C.reset}`);
   await sleep(500);
 
-  // ─── Scenario 4: Kernel agent without human ───
-  header('SCENARIO 4: Kernel Agent Acts Alone');
-  console.log(`  ${C.dim}The kernel agent tries to modify the database schema`);
-  console.log(`  without human approval. Should fail.${C.reset}\n`);
+  // ─── 4: Proper kernel change ───
+  header('4. Proper Kernel Change (Dual Signature)');
+  console.log(`  ${C.dim}Kernel agent proposes schema change. Human reviews and co-signs.${C.reset}\n`);
 
-  agent(kernel, 'Add new table to schema');
-  paths(['/kernel/schema.sql']);
-  r = contract.commit('ADD_TABLE', ['/kernel/schema.sql'], [kernel], 'Add items table');
-  ruleCheck(r.ruleResults);
-  result(r);
-  console.log(`\n  ${C.bold}No agent acts alone on Ring 0.${C.reset} ${C.dim}Not even the kernel agent.${C.reset}`);
+  r = contract.commit('ADD_TABLE', 'kernel-repo', ['schema.sql'], [kernel, admin], 'Add items table — reviewed and approved');
+  printCommit([kernel, admin], 'Add items table', 'kernel-repo', ['schema.sql'], r);
+
+  console.log(`  ${C.bold}Dual signature verified.${C.reset} ${C.dim}Both the kernel agent and human must agree.${C.reset}`);
   await sleep(500);
 
-  // ─── Scenario 5: Proper kernel change ───
-  header('SCENARIO 5: Proper Kernel Change (Dual Signature)');
-  console.log(`  ${C.dim}The kernel agent proposes a schema change.`);
-  console.log(`  The human reviews and co-signs. Both signatures required.${C.reset}\n`);
+  // ─── 5: Cross-repo cooperation ───
+  header('5. Cross-Repo Cooperation');
+  console.log(`  ${C.dim}The app agent needs a new database table for its feature.`);
+  console.log(`  It can't see or touch the kernel repo. But it can file a request.${C.reset}\n`);
 
-  agent(kernel, 'Add items table to schema');
-  console.log(`  ${C.yellow}${C.bold}Human Admin${C.reset} ${C.dim}reviews and co-signs${C.reset}`);
-  paths(['/kernel/schema.sql']);
-  r = contract.commit('ADD_TABLE', ['/kernel/schema.sql'], [kernel, admin], 'Add items table — reviewed and approved');
-  ruleCheck(r.ruleResults);
-  result(r);
-  console.log(`\n  ${C.bold}Dual signature verified.${C.reset} ${C.dim}Kernel agent proposed, human approved, commit accepted.${C.reset}`);
-  await sleep(500);
-
-  // ─── Scenario 6: Cooperation ───
-  header('SCENARIO 6: Cross-Ring Cooperation');
-  console.log(`  ${C.dim}The userspace agent needs a new database table for its feature.`);
-  console.log(`  It can't modify the schema directly — but it can request it.${C.reset}\n`);
-
-  console.log(`  ${C.blue}${C.bold}Step 1:${C.reset} Userspace agent commits a change request`);
-  agent(userspace, 'REQUEST: Need "items" table for new feature');
-  paths(['/userspace/requests/add-items-table.md']);
-  r = contract.commit('CHANGE_REQUEST', ['/userspace/requests/add-items-table.md'], [userspace], 'Request: add items table with name, description, user_id columns');
-  ruleCheck(r.ruleResults);
-  result(r);
-  console.log();
+  console.log(`  ${C.blue}${C.bold}Step 1:${C.reset} ${C.dim}App agent files a change request (in app-repo)${C.reset}`);
+  r = contract.commit('CHANGE_REQUEST', 'app-repo', ['requests/need-items-table.md'], [app], 'Need items table: columns name, description, user_id');
+  printCommit([app], 'REQUEST: Need "items" table for feature', 'app-repo', ['requests/need-items-table.md'], r);
   await sleep(300);
 
-  console.log(`  ${C.magenta}${C.bold}Step 2:${C.reset} Kernel agent reviews and implements`);
-  console.log(`  ${C.yellow}${C.bold}Step 2b:${C.reset} Human admin co-signs`);
-  agent(kernel, 'Implement requested schema change');
-  paths(['/kernel/schema.sql']);
-  r = contract.commit('IMPLEMENT_REQUEST', ['/kernel/schema.sql'], [kernel, admin], 'Add items table per userspace request');
-  ruleCheck(r.ruleResults);
-  result(r);
-  console.log();
+  console.log(`  ${C.magenta}${C.bold}Step 2:${C.reset} ${C.dim}Kernel agent implements (in kernel-repo — app can't see this)${C.reset}`);
+  console.log(`  ${C.yellow}${C.bold}       ${C.reset} ${C.dim}Human admin co-signs${C.reset}`);
+  r = contract.commit('IMPLEMENT', 'kernel-repo', ['schema.sql', 'migrations/003_add_items.sql'], [kernel, admin], 'Add items table per app request');
+  printCommit([kernel, admin], 'Implement items table (invisible to app agent)', 'kernel-repo', ['schema.sql', 'migrations/003_add_items.sql'], r);
   await sleep(300);
 
-  console.log(`  ${C.blue}${C.bold}Step 3:${C.reset} Userspace agent builds the feature`);
-  agent(userspace, 'Build items CRUD against new table');
-  paths(['/userspace/routes.js', '/userspace/components.jsx']);
-  r = contract.commit('BUILD_FEATURE', ['/userspace/routes.js', '/userspace/components.jsx'], [userspace], 'Items CRUD — uses new schema');
-  ruleCheck(r.ruleResults);
-  result(r);
-  console.log(`\n  ${C.bold}Cooperation complete.${C.reset} ${C.dim}Request → Review → Approve → Build. All verified.${C.reset}`);
+  console.log(`  ${C.magenta}${C.bold}Step 3:${C.reset} ${C.dim}Kernel agent publishes API contract (the only thing app agent sees)${C.reset}`);
+  r = contract.commit('PUBLISH_API', 'app-repo', ['api-contracts/items-api.json'], [kernel, admin], 'Publish items API contract: GET/POST /items');
+  printCommit([kernel, admin], 'Publish items API contract', 'app-repo', ['api-contracts/items-api.json'], r);
+  await sleep(300);
+
+  console.log(`  ${C.blue}${C.bold}Step 4:${C.reset} ${C.dim}App agent builds the feature against the published API${C.reset}`);
+  r = contract.commit('BUILD_FEATURE', 'app-repo', ['routes.js', 'components.jsx'], [app], 'Items CRUD — using published API contract');
+  printCommit([app], 'Build items feature against published API', 'app-repo', ['routes.js', 'components.jsx'], r);
+
+  console.log(`  ${C.bold}Cooperation without visibility.${C.reset}`);
+  console.log(`  ${C.dim}The app agent never saw how the table was created.`);
+  console.log(`  It only knows the API contract that was published.`);
+  console.log(`  Implementation details stay locked in the kernel.${C.reset}`);
   await sleep(500);
 
   // ─── Audit ───
@@ -285,27 +240,25 @@ async function main() {
   console.log(`  ${C.bold}${contract.commits.length} commits${C.reset} — all signatures verified\n`);
 
   for (const commit of contract.commits) {
-    const signers = Object.keys(commit.head.signatures).map(pub => {
-      return [userspace, kernel, admin].find(a => a.publicKey === pub)?.name || 'Unknown';
+    const signerNames = Object.keys(commit.head.signatures).map(pub => {
+      return [app, kernel, admin].find(a => a.publicKey === pub)?.name || '?';
     });
-    const pathList = commit.body.paths.map(p => {
-      const isKernel = p.startsWith('/kernel');
-      return `${isKernel ? C.red : C.green}${p}${C.reset}`;
-    }).join(', ');
-    console.log(`  ${C.dim}#${commit.seq}${C.reset} ${C.bold}${commit.body.action}${C.reset}`);
-    console.log(`     ${C.dim}by: ${signers.join(' + ')} | paths: ${pathList}${C.reset}`);
+    const repoColor = commit.body.repo === 'kernel-repo' ? C.red : C.green;
+    const repoIcon = commit.body.repo === 'kernel-repo' ? '🔒' : '📦';
+    console.log(`  ${C.dim}#${commit.seq}${C.reset} ${repoIcon} ${repoColor}${commit.body.repo}${C.reset} ${C.bold}${commit.body.action}${C.reset}`);
+    console.log(`     ${C.dim}by: ${signerNames.join(' + ')} | ${commit.body.paths.join(', ')}${C.reset}`);
   }
 
   // ─── Summary ───
   header('WHAT YOU JUST SAW');
-  console.log(`  ${C.green}✓${C.reset} Ring 3 agent ships features freely — no bottleneck`);
-  console.log(`  ${C.green}✓${C.reset} Ring 0 boundary is mathematical — not a code review`);
-  console.log(`  ${C.green}✓${C.reset} Mixed commits caught — can't sneak kernel changes in`);
+  console.log(`  ${C.green}✓${C.reset} App agent ships features freely — zero friction`);
+  console.log(`  ${C.green}✓${C.reset} App agent can't READ kernel code — total isolation`);
   console.log(`  ${C.green}✓${C.reset} Kernel changes require dual signature (agent + human)`);
-  console.log(`  ${C.green}✓${C.reset} Cross-ring cooperation through formal request flow`);
+  console.log(`  ${C.green}✓${C.reset} Cross-repo cooperation through formal requests`);
+  console.log(`  ${C.green}✓${C.reset} API contracts published — app builds against interface, not implementation`);
   console.log(`  ${C.green}✓${C.reset} Full audit trail — every commit signed and verifiable`);
   console.log();
-  console.log(`  ${C.bold}This is how you safely deploy AI agents on real codebases.${C.reset}`);
+  console.log(`  ${C.bold}Two repos. Two agents. Mathematical boundaries.${C.reset}`);
   console.log(`  ${C.dim}Freedom at the edges. Constraints at the kernel.${C.reset}`);
   console.log(`  ${C.dim}https://modality.org${C.reset}\n`);
 }
