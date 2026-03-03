@@ -1,0 +1,59 @@
+// Protection Rings Contract
+// Enforces OS-style protection rings for agent development.
+//
+// Ring 0 (kernel): DB schema, auth, config, deploy scripts
+//   - Only kernel agent can modify
+//   - Requires human co-signature
+//
+// Ring 3 (userspace): routes, components, tests, docs
+//   - Userspace agent can modify freely
+//   - No approval needed
+
+model protection_rings {
+  initial active
+
+  // Userspace agent commits freely to userspace paths
+  active -> active [+signed_by(/agents/userspace.id) -modifies(/kernel)]
+
+  // Kernel agent commits to kernel paths, requires human approval
+  active -> active [+signed_by(/agents/kernel.id) +signed_by(/humans/admin.id) +modifies(/kernel)]
+
+  // Kernel agent can also modify userspace (but still needs human approval)
+  active -> active [+signed_by(/agents/kernel.id) +signed_by(/humans/admin.id) -modifies(/kernel)]
+}
+
+// === RULES (permanent, accumulate-only) ===
+
+// Rule 1: Userspace agent CANNOT touch kernel paths
+// This is the core boundary. Not a suggestion — math.
+rule userspace_boundary {
+  formula {
+    always(
+      +signed_by(/agents/userspace.id) implies -modifies(/kernel)
+    )
+  }
+}
+
+// Rule 2: Kernel changes require BOTH kernel agent AND human
+// No unilateral kernel modifications, ever.
+rule kernel_requires_dual_signature {
+  formula {
+    always(
+      +modifies(/kernel) implies (
+        +signed_by(/agents/kernel.id) & +signed_by(/humans/admin.id)
+      )
+    )
+  }
+}
+
+// Rule 3: All commits must be signed by a known agent or human
+// No anonymous modifications.
+rule known_signers_only {
+  formula {
+    always(
+      +signed_by(/agents/userspace.id)
+      | +signed_by(/agents/kernel.id)
+      | +signed_by(/humans/admin.id)
+    )
+  }
+}

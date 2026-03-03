@@ -1,0 +1,56 @@
+// Cooperation Contract: Kernel Change Request
+// When the userspace agent needs a kernel-level change,
+// it can't just make it. It proposes, kernel agent reviews,
+// human approves, then kernel agent executes.
+//
+// This is how agents cooperate across ring boundaries.
+
+model kernel_change_request {
+  initial idle
+
+  // Userspace agent proposes a kernel change
+  idle -> proposed [+signed_by(/agents/userspace.id)]
+
+  // Kernel agent reviews and accepts the proposal
+  proposed -> accepted [+signed_by(/agents/kernel.id)]
+
+  // Kernel agent rejects the proposal
+  proposed -> rejected [+signed_by(/agents/kernel.id)]
+
+  // Human approves the accepted change
+  accepted -> approved [+signed_by(/humans/admin.id)]
+
+  // Kernel agent executes the approved change
+  approved -> executed [+signed_by(/agents/kernel.id)]
+
+  // Return to idle for next request
+  executed -> idle [+signed_by(/agents/kernel.id)]
+  rejected -> idle [+signed_by(/agents/userspace.id)]
+}
+
+// Proposals must come from userspace
+rule proposals_from_userspace {
+  formula {
+    always(
+      PROPOSE implies +signed_by(/agents/userspace.id)
+    )
+  }
+}
+
+// Execution requires prior human approval
+rule execution_requires_approval {
+  formula {
+    always(
+      EXECUTE implies +signed_by(/agents/kernel.id)
+    )
+  }
+}
+
+// Human can only approve after kernel agent accepts
+rule approval_after_review {
+  formula {
+    always(
+      APPROVE implies +signed_by(/humans/admin.id)
+    )
+  }
+}

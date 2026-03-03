@@ -1,0 +1,13 @@
+{
+  "name": "protection-rings-tutorial",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "OS-style protection rings for agent development, enforced by Modality contracts",
+  "scripts": {
+    "demo": "node demo.js"
+  },
+  "dependencies": {
+    "@noble/ed25519": "^2.1.0",
+    "@noble/hashes": "^1.4.0"
+  }
+}
