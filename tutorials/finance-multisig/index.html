@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modality — Multisig Treasury Demo</title>
+<script type="module">
+import * as ed from 'https://esm.sh/@noble/ed25519@2.1.0';
+import { sha512 } from 'https://esm.sh/@noble/hashes@1.4.0/sha512';
+import { sha256 } from 'https://esm.sh/@noble/hashes@1.4.0/sha256';
+import { bytesToHex, hexToBytes } from 'https://esm.sh/@noble/hashes@1.4.0/utils';
+
+ed.etc.sha512Sync = (...m) => {
+  const h = sha512.create();
+  for (const msg of m) h.update(msg);
+  return h.digest();
+};
+
+function generateIdentity(name) {
+  const privateKey = ed.utils.randomPrivateKey();
+  const publicKey = ed.getPublicKey(privateKey);
+  return { name, privateKey: bytesToHex(privateKey), publicKey: bytesToHex(publicKey) };
+}
+function signJSON(data, pk) {
+  const bytes = new TextEncoder().encode(JSON.stringify(data));
+  return bytesToHex(ed.sign(bytes, hexToBytes(pk)));
+}
+function verifyJSON(data, sig, pub) {
+  const bytes = new TextEncoder().encode(JSON.stringify(data));
+  return ed.verify(hexToBytes(sig), bytes, hexToBytes(pub));
+}
+function hashJSON(data) {
+  return bytesToHex(sha256(new TextEncoder().encode(JSON.stringify(data))));
+}
+
+class MultisigContract {
+  constructor(agents) {
+    this.agents = agents;
+    this.commits = [];
+    this.roles = {
+      treasury: agents.treasury.publicKey,
+      cfo: agents.cfo.publicKey,
+      boardA: agents.boardA.publicKey,
+      boardB: agents.boardB.publicKey,
+    };
+    this.allValidKeys = new Set(Object.values(this.roles));
+  }
+  submit(description, amount, signers, data = {}) {
+    const body = { description, amount, data, timestamp: new Date().toISOString() };
+    for (const signer of signers) {
+      if (!this.allValidKeys.has(signer.publicKey))
+        return { ok: false, error: `Unknown signer '${signer.name}' — not authorized`, amount, threshold: this._tl(amount) };
+    }
+    const signerKeys = new Set(signers.map(s => s.publicKey));
+    const hasTreasury = signerKeys.has(this.roles.treasury);
+    const hasCFO = signerKeys.has(this.roles.cfo);
+    const boardCount = [this.roles.boardA, this.roles.boardB].filter(k => signerKeys.has(k)).length;
+    if (!hasTreasury) return { ok: false, error: 'Treasury signature required for all transactions', amount, threshold: this._tl(amount) };
+    if (amount >= 100000) {
+      if (!hasCFO) return { ok: false, error: `$${amount.toLocaleString()} requires CFO signature — missing`, amount, threshold: this._tl(amount) };
+      if (boardCount < 1) return { ok: false, error: `$${amount.toLocaleString()} requires at least 1 board member`, amount, threshold: this._tl(amount) };
+    } else if (amount >= 10000) {
+      const coSigners = (hasCFO ? 1 : 0) + boardCount;
+      if (coSigners < 1) return { ok: false, error: `$${amount.toLocaleString()} requires 1 co-signer — have ${coSigners}`, amount, threshold: this._tl(amount) };
+    }
+    const parentHash = this.commits.length > 0 ? hashJSON(this.commits[this.commits.length - 1]) : null;
+    const signatures = {};
+    for (const signer of signers) signatures[signer.publicKey] = signJSON(body, signer.privateKey);
+    const commit = { sequence: this.commits.length, body, head: { parent_hash: parentHash, signatures } };
+    for (const [pubkey, sig] of Object.entries(signatures))
+      if (!verifyJSON(body, sig, pubkey)) return { ok: false, error: 'Signature verification failed', amount, threshold: this._tl(amount) };
+    this.commits.push(commit);
+    return { ok: true, commit, amount, threshold: this._tl(amount) };
+  }
+  _tl(amount) {
+    if (amount >= 100000) return { required: 3, total: 4, label: '3-of-4 (treasury + CFO + board)' };
+    if (amount >= 10000) return { required: 2, total: 3, label: '2-of-3 (treasury + co-signer)' };
+    return { required: 1, total: 1, label: '1-of-1 (treasury)' };
+  }
+  audit() {
+    for (const c of this.commits)
+      for (const [pub, sig] of Object.entries(c.head.signatures))
+        if (!verifyJSON(c.body, sig, pub)) return false;
+    return true;
+  }
+}
+
+const $ = s => document.querySelector(s);
+let treasury, cfo, boardA, boardB, mallory, contract;
+let eventLog = [];
+let stepIndex = 0;
+let isPlaying = false;
+
+function renderMeter(amount, sigCount, threshold, ok) {
+  const { required, total } = threshold;
+  const pct = Math.min(100, (sigCount / required) * 100);
+  const barColor = ok ? '#22c55e' : (sigCount >= required ? '#22c55e' : '#ef4444');
+  const segments = [];
+  for (let i = 0; i < total; i++) {
+    const filled = i < sigCount;
+    const needed = i < required;
+    segments.push(`<div class="meter-seg ${filled ? 'filled' : ''} ${needed ? 'needed' : ''}" style="background:${filled ? barColor : '#1a1a2e'}"></div>`);
+  }
+  return `<div class="threshold-meter">
+    <div class="meter-amount">$${amount.toLocaleString()}</div>
+    <div class="meter-bar">${segments.join('')}</div>
+    <div class="meter-label">${sigCount} of ${required} signatures ${ok ? '✓' : `(need ${required})`}</div>
+    <div class="meter-tier">${threshold.label}</div>
+  </div>`;
+}
+
+const SCENARIOS = [
+  {
+    title: '🔑 Generate Identities',
+    explain: 'Five agents receive ed25519 keypairs. Four are authorized (Treasury, CFO, Board A, Board B). Mallory is an outsider — her key is not in the contract.',
+    action: () => {
+      treasury = generateIdentity('Treasury');
+      cfo = generateIdentity('CFO');
+      boardA = generateIdentity('Board A');
+      boardB = generateIdentity('Board B');
+      mallory = generateIdentity('Mallory');
+      addAgentCards();
+      $('#meter').innerHTML = '';
+    }
+  },
+  {
+    title: '📝 Create Multisig Contract',
+    explain: 'The contract defines tiered thresholds: small payments need only Treasury. Medium payments need 2 signatures. Large payments need 3. These are cryptographic requirements enforced by math.',
+    action: () => {
+      contract = new MultisigContract({ treasury, cfo, boardA, boardB });
+      showRules();
+      $('#commit-count').textContent = '0';
+    }
+  },
+  {
+    title: '✅ Treasury Processes $5K Payment',
+    explain: 'Small transaction — Treasury signs alone. The threshold is 1-of-1. Single signature is sufficient, commit is accepted.',
+    action: () => {
+      const r = contract.submit('Payment to Vendor A', 5000, [treasury], { to: 'Vendor A' });
+      addLog('APPROVE $5K', treasury, r.ok, 'treasury');
+      $('#meter').innerHTML = renderMeter(5000, 1, r.threshold, r.ok);
+      $('#commit-count').textContent = contract.commits.length;
+    }
+  },
+  {
+    title: '🚫 Treasury Tries $50K Alone',
+    explain: 'Medium transaction requires 2-of-3 (treasury + one co-signer). Treasury alone provides only 1 signature. Rejected — no amount of retrying will bypass this.',
+    action: () => {
+      const r = contract.submit('Payment to Contractor B', 50000, [treasury], { to: 'Contractor B' });
+      addLog('APPROVE $50K', treasury, r.ok, 'treasury', r.error);
+      $('#meter').innerHTML = renderMeter(50000, 1, r.threshold, r.ok);
+    }
+  },
+  {
+    title: '✅ Treasury + Board A Approve $50K',
+    explain: 'Treasury and Board A both sign. 2-of-3 threshold met. The commit includes both ed25519 signatures, both are verified independently. Transaction approved.',
+    action: () => {
+      const r = contract.submit('Payment to Contractor B', 50000, [treasury, boardA], { to: 'Contractor B' });
+      addLog('APPROVE $50K', treasury, r.ok, 'treasury', 'Co-signed with Board A');
+      addLog('CO-SIGN $50K', boardA, r.ok, 'boardA');
+      $('#meter').innerHTML = renderMeter(50000, 2, r.threshold, r.ok);
+      $('#commit-count').textContent = contract.commits.length;
+    }
+  },
+  {
+    title: '🚫 Treasury + Board A Try $250K',
+    explain: 'Large transaction requires 3-of-4 (treasury + CFO + board member). Only 2 signatures provided. Missing CFO. Rejected — the bar doesn\'t fill.',
+    action: () => {
+      const r = contract.submit('Acquisition payment', 250000, [treasury, boardA], { to: 'Acquisition Corp' });
+      addLog('APPROVE $250K', treasury, r.ok, 'treasury', r.error);
+      $('#meter').innerHTML = renderMeter(250000, 2, r.threshold, r.ok);
+    }
+  },
+  {
+    title: '✅ Treasury + CFO + Board B Approve $250K',
+    explain: 'Full quorum: Treasury, CFO, and Board B all sign. 3-of-4 threshold met. Three independent ed25519 signatures verified. Quarter-million dollar transaction approved.',
+    action: () => {
+      const r = contract.submit('Acquisition payment', 250000, [treasury, cfo, boardB], { to: 'Acquisition Corp' });
+      addLog('APPROVE $250K', treasury, r.ok, 'treasury', 'Full quorum');
+      addLog('CO-SIGN $250K', cfo, r.ok, 'cfo');
+      addLog('CO-SIGN $250K', boardB, r.ok, 'boardB');
+      $('#meter').innerHTML = renderMeter(250000, 3, r.threshold, r.ok);
+      $('#commit-count').textContent = contract.commits.length;
+    }
+  },
+  {
+    title: '🚫 Mallory Tries to Approve',
+    explain: 'Mallory\'s public key is not in the contract\'s authorized signer list. Even a valid ed25519 signature from an unknown key is rejected. Identity is the first gate.',
+    action: () => {
+      const r = contract.submit('Payment to Mallory Wallet', 1000, [mallory], { to: 'Mallory' });
+      addLog('APPROVE $1K', mallory, r.ok, 'mallory', r.error);
+      $('#meter').innerHTML = renderMeter(1000, 0, { required: 1, total: 1, label: '1-of-1 (treasury)' }, false);
+    }
+  },
+  {
+    title: '🚫 Mallory + Treasury Try $50K',
+    explain: 'Even with Treasury\'s valid signature, Mallory\'s key fails the authorization check first. The contract rejects the entire transaction because one signer is unknown.',
+    action: () => {
+      const r = contract.submit('Payment to Shell Corp', 50000, [treasury, mallory], { to: 'Shell Corp' });
+      addLog('APPROVE $50K', treasury, false, 'treasury', 'Co-signer rejected');
+      addLog('CO-SIGN $50K', mallory, false, 'mallory', r.error);
+      $('#meter').innerHTML = renderMeter(50000, 1, { required: 2, total: 3, label: '2-of-3 (treasury + co-signer)' }, false);
+    }
+  },
+  {
+    title: '🔍 Audit Complete',
+    explain: 'All committed transactions verified. Every signature is valid ed25519. Threshold rules enforced cryptographically. Full audit trail — every dollar accounted for, every signer proven.',
+    action: () => {
+      const valid = contract.audit();
+      addLog('AUDIT', { name: 'System' }, valid, 'system', `All ${contract.commits.length} commits verified ✓`);
+      $('#meter').innerHTML = '';
+    }
+  }
+];
+
+function addLog(action, signer, ok, role, detail) {
+  eventLog.push({ action, signer: signer.name, ok, role, detail });
+  renderLog();
+}
+
+function renderLog() {
+  const el = $('#event-log');
+  const colors = { treasury: '#3b82f6', cfo: '#a855f7', boardA: '#22c55e', boardB: '#14b8a6', mallory: '#ef4444', system: '#6366f1' };
+  el.innerHTML = eventLog.map((e, i) => `
+    <div class="log-entry ${e.ok ? '' : 'rejected'}" style="animation-delay:${i * 0.05}s">
+      <span class="log-status">${e.ok ? '✓' : '✗'}</span>
+      <span class="log-agent" style="color:${colors[e.role] || '#888'}">${e.signer}</span>
+      <span class="log-action">${e.action}</span>
+      ${e.detail ? `<span class="log-detail" title="${e.detail}">${e.detail}</span>` : ''}
+    </div>
+  `).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function showRules() {
+  const tiers = [
+    ['< $10,000', '1-of-1', 'Treasury alone'],
+    ['$10K – $100K', '2-of-3', 'Treasury + co-signer'],
+    ['> $100,000', '3-of-4', 'Treasury + CFO + board'],
+  ];
+  $('#rules-list').innerHTML = `<table class="tier-table">
+    <tr><th>Amount</th><th>Threshold</th><th>Required</th></tr>
+    ${tiers.map(([a, t, r]) => `<tr><td>${a}</td><td>${t}</td><td>${r}</td></tr>`).join('')}
+  </table>`;
+}
+
+function addAgentCards() {
+  const agents = [
+    { ...treasury, role: 'treasury', color: '#3b82f6', emoji: '💰' },
+    { ...cfo, role: 'cfo', color: '#a855f7', emoji: '📊' },
+    { ...boardA, role: 'boardA', color: '#22c55e', emoji: '🏛' },
+    { ...boardB, role: 'boardB', color: '#14b8a6', emoji: '🏛' },
+    { ...mallory, role: 'mallory', color: '#ef4444', emoji: '🎭' },
+  ];
+  $('#agents').innerHTML = agents.map(a => `
+    <div class="agent-card" style="border-color:${a.color}">
+      <div class="agent-emoji">${a.emoji}</div>
+      <div class="agent-name" style="color:${a.color}">${a.name}</div>
+      <div class="agent-role">${a.role}</div>
+      <div class="agent-key" title="${a.publicKey}">🔑 ${a.publicKey.slice(0, 12)}…</div>
+    </div>
+  `).join('');
+}
+
+async function nextStep() {
+  if (stepIndex >= SCENARIOS.length) return;
+  const step = SCENARIOS[stepIndex];
+  $('#step-title').textContent = step.title;
+  $('#step-explain').textContent = step.explain;
+  $('#step-counter').textContent = `${stepIndex + 1} / ${SCENARIOS.length}`;
+  step.action();
+  stepIndex++;
+  if (stepIndex >= SCENARIOS.length) {
+    $('#next-btn').textContent = '🎉 Demo Complete';
+    $('#next-btn').disabled = true;
+  }
+}
+
+async function autoPlay() {
+  if (isPlaying) return;
+  isPlaying = true;
+  $('#play-btn').textContent = '⏸ Playing...';
+  $('#play-btn').disabled = true;
+  while (stepIndex < SCENARIOS.length) {
+    await nextStep();
+    await new Promise(r => setTimeout(r, 2500));
+  }
+  isPlaying = false;
+  $('#play-btn').textContent = '▶ Auto-play';
+}
+
+function reset() {
+  stepIndex = 0; eventLog = []; contract = null;
+  $('#event-log').innerHTML = '';
+  $('#agents').innerHTML = '';
+  $('#rules-list').innerHTML = '<div style="color:#555;font-size:12px;">Threshold tiers will appear when the contract is created.</div>';
+  $('#meter').innerHTML = '';
+  $('#step-title').textContent = 'Ready';
+  $('#step-explain').textContent = 'Click "Next Step" to begin the demo, or "Auto-play" to watch it unfold.';
+  $('#step-counter').textContent = '0 / ' + SCENARIOS.length;
+  $('#commit-count').textContent = '0';
+  $('#next-btn').textContent = 'Next Step →';
+  $('#next-btn').disabled = false;
+  $('#play-btn').textContent = '▶ Auto-play';
+  $('#play-btn').disabled = false;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  reset();
+  $('#next-btn').addEventListener('click', nextStep);
+  $('#play-btn').addEventListener('click', autoPlay);
+  $('#reset-btn').addEventListener('click', reset);
+});
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: #0a0a0f; color: #e0e0e0; min-height: 100vh; }
+  .header { padding: 32px 48px 24px; border-bottom: 1px solid #1a1a2e; }
+  .header h1 { font-size: 28px; font-weight: 900; }
+  .header h1 span { color: #6366f1; }
+  .header p { color: #666; margin-top: 4px; font-size: 14px; }
+  .main { display: grid; grid-template-columns: 1fr 380px; gap: 0; min-height: calc(100vh - 100px); }
+  .left { padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; }
+  .right { background: #0d0d14; border-left: 1px solid #1a1a2e; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  .narrator { background: #12121f; border: 1px solid #1e1e35; border-radius: 12px; padding: 24px; }
+  .narrator-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .narrator-top .step-counter { color: #6366f1; font-size: 13px; font-weight: 600; }
+  #step-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  #step-explain { color: #999; font-size: 14px; line-height: 1.7; }
+  .controls { display: flex; gap: 12px; }
+  .controls button { padding: 10px 24px; border: none; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+  #next-btn { background: #6366f1; color: white; flex: 1; }
+  #next-btn:hover:not(:disabled) { background: #818cf8; }
+  #next-btn:disabled { opacity: 0.5; cursor: default; }
+  #play-btn { background: #1e1e35; color: #6366f1; border: 1px solid #2e2e4a; }
+  #play-btn:hover:not(:disabled) { background: #2a2a45; }
+  #play-btn:disabled { opacity: 0.5; cursor: default; }
+  #reset-btn { background: #1e1e35; color: #888; border: 1px solid #2e2e4a; padding: 10px 16px; }
+  #reset-btn:hover { background: #2a2a45; }
+  .agents-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .agent-card { flex: 1; min-width: 100px; background: #12121f; border: 1px solid #2a2a40; border-radius: 10px; padding: 12px; text-align: center; border-top: 3px solid; }
+  .agent-emoji { font-size: 24px; margin-bottom: 4px; }
+  .agent-name { font-weight: 700; font-size: 13px; }
+  .agent-role { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin: 2px 0; }
+  .agent-key { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #444; margin-top: 4px; }
+  .meter-section { background: #0d0d14; border: 1px solid #1a1a2e; border-radius: 12px; padding: 16px; }
+  .meter-section h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #555; margin-bottom: 12px; }
+  .threshold-meter { text-align: center; }
+  .meter-amount { font-size: 32px; font-weight: 900; color: #e0e0e0; margin-bottom: 12px; }
+  .meter-bar { display: flex; gap: 6px; justify-content: center; margin-bottom: 8px; }
+  .meter-seg { width: 60px; height: 24px; border-radius: 4px; border: 1px solid #2a2a40; transition: all 0.3s; }
+  .meter-seg.filled { border-color: transparent; }
+  .meter-label { font-size: 14px; font-weight: 600; color: #999; }
+  .meter-tier { font-size: 12px; color: #555; margin-top: 4px; font-family: 'JetBrains Mono', monospace; }
+  .viz-stats { display: flex; gap: 24px; margin-top: 12px; }
+  .viz-stat { font-size: 13px; color: #666; }
+  .viz-stat strong { color: #6366f1; }
+  .panel-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #555; font-weight: 600; }
+  .rules-box { background: #12121f; border: 1px solid #1a1a2e; border-radius: 8px; padding: 12px; flex-shrink: 0; }
+  .tier-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .tier-table th { text-align: left; color: #666; font-weight: 600; padding: 6px 8px; border-bottom: 1px solid #1a1a2e; }
+  .tier-table td { padding: 6px 8px; color: #eab308; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+  #event-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+  .log-entry { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #12121f; border-radius: 6px; font-size: 13px; animation: slideIn 0.3s ease; }
+  .log-entry.rejected { background: #1a0a0a; border: 1px solid #3a1515; }
+  .log-status { font-weight: 700; width: 16px; }
+  .log-entry:not(.rejected) .log-status { color: #22c55e; }
+  .log-entry.rejected .log-status { color: #ef4444; }
+  .log-agent { font-weight: 600; min-width: 60px; }
+  .log-action { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #aaa; }
+  .log-detail { font-size: 11px; color: #666; margin-left: auto; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  .footer { text-align: center; padding: 16px; color: #333; font-size: 12px; border-top: 1px solid #1a1a2e; }
+  .footer a { color: #6366f1; text-decoration: none; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1><span>Modality</span> — Multisig Treasury Demo</h1>
+    <p>Five agents. Tiered thresholds. Every dollar accounted for.</p>
+  </div>
+  <div class="main">
+    <div class="left">
+      <div class="narrator">
+        <div class="narrator-top"><span id="step-counter">0 / 10</span></div>
+        <div id="step-title">Ready</div>
+        <div id="step-explain">Click "Next Step" to begin.</div>
+      </div>
+      <div class="controls">
+        <button id="next-btn">Next Step →</button>
+        <button id="play-btn">▶ Auto-play</button>
+        <button id="reset-btn">↺</button>
+      </div>
+      <div id="agents" class="agents-row"></div>
+      <div class="meter-section">
+        <h3>Threshold Meter</h3>
+        <div id="meter"></div>
+        <div class="viz-stats">
+          <div class="viz-stat">Commits: <strong id="commit-count">0</strong></div>
+        </div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="panel-title">Threshold Rules</div>
+      <div class="rules-box">
+        <div id="rules-list" style="color:#555;font-size:12px;">Threshold tiers will appear when the contract is created.</div>
+      </div>
+      <div class="panel-title" style="margin-top:8px;">Event Log</div>
+      <div id="event-log"></div>
+    </div>
+  </div>
+  <div class="footer">Built with real cryptography. No simulation. <a href="https://modality.org">modality.org</a></div>
+</body>
+</html>

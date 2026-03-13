@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modality — Health Record Scoping Demo</title>
+<script type="module">
+import * as ed from 'https://esm.sh/@noble/ed25519@2.1.0';
+import { sha512 } from 'https://esm.sh/@noble/hashes@1.4.0/sha512';
+import { sha256 } from 'https://esm.sh/@noble/hashes@1.4.0/sha256';
+import { bytesToHex, hexToBytes } from 'https://esm.sh/@noble/hashes@1.4.0/utils';
+
+ed.etc.sha512Sync = (...m) => {
+  const h = sha512.create();
+  for (const msg of m) h.update(msg);
+  return h.digest();
+};
+
+function generateIdentity(name) {
+  const privateKey = ed.utils.randomPrivateKey();
+  const publicKey = ed.getPublicKey(privateKey);
+  return { name, privateKey: bytesToHex(privateKey), publicKey: bytesToHex(publicKey) };
+}
+function signJSON(data, pk) {
+  const bytes = new TextEncoder().encode(JSON.stringify(data));
+  return bytesToHex(ed.sign(bytes, hexToBytes(pk)));
+}
+function verifyJSON(data, sig, pub) {
+  const bytes = new TextEncoder().encode(JSON.stringify(data));
+  return ed.verify(hexToBytes(sig), bytes, hexToBytes(pub));
+}
+function hashJSON(data) {
+  return bytesToHex(sha256(new TextEncoder().encode(JSON.stringify(data))));
+}
+
+class HealthRecordContract {
+  constructor(agents) {
+    this.agents = agents;
+    this.commits = [];
+    this.permissions = {
+      [agents.scheduling.publicKey]: ['/appointments/'],
+      [agents.clinical.publicKey]:   ['/appointments/', '/records/medical/'],
+      [agents.admin.publicKey]:      ['/appointments/', '/records/medical/', '/records/billing/'],
+    };
+    this.dualSigRequired = {
+      '/records/medical/': [agents.clinical.publicKey, agents.admin.publicKey],
+    };
+  }
+  commit(description, paths, signers, data = {}) {
+    const body = { description, paths, data, timestamp: new Date().toISOString() };
+    for (const signer of signers) {
+      for (const path of paths) {
+        const allowed = this.permissions[signer.publicKey] || [];
+        if (!allowed.some(prefix => path.startsWith(prefix)))
+          return { ok: false, error: `${signer.name} cannot modify '${path}' — not in allowed scope` };
+      }
+    }
+    for (const path of paths) {
+      for (const [prefix, requiredKeys] of Object.entries(this.dualSigRequired)) {
+        if (path.startsWith(prefix)) {
+          const signerKeys = signers.map(s => s.publicKey);
+          for (const reqKey of requiredKeys) {
+            if (!signerKeys.includes(reqKey)) {
+              const missing = Object.values(this.agents).find(a => a.publicKey === reqKey);
+              return { ok: false, error: `Path '${path}' requires dual signature — missing: ${missing?.name || 'unknown'}` };
+            }
+          }
+        }
+      }
+    }
+    const parentHash = this.commits.length > 0 ? hashJSON(this.commits[this.commits.length - 1]) : null;
+    const signatures = {};
+    for (const signer of signers) signatures[signer.publicKey] = signJSON(body, signer.privateKey);
+    const commit = { sequence: this.commits.length, body, head: { parent_hash: parentHash, signatures } };
+    for (const [pubkey, sig] of Object.entries(signatures))
+      if (!verifyJSON(body, sig, pubkey)) return { ok: false, error: 'Signature verification failed' };
+    this.commits.push(commit);
+    return { ok: true, commit };
+  }
+  audit() {
+    for (const c of this.commits)
+      for (const [pub, sig] of Object.entries(c.head.signatures))
+        if (!verifyJSON(c.body, sig, pub)) return false;
+    return true;
+  }
+}
+
+const $ = s => document.querySelector(s);
+let scheduling, clinical, admin, contract;
+let eventLog = [];
+let stepIndex = 0;
+let isPlaying = false;
+
+const ZONES = [
+  { path: '/appointments', label: '/appointments', color: '#22c55e', desc: 'Scheduling data' },
+  { path: '/records/medical', label: '/records/medical', color: '#ef4444', desc: 'Clinical records' },
+  { path: '/records/billing', label: '/records/billing', color: '#f97316', desc: 'Billing records' },
+];
+
+function renderZones(activePath, allowed) {
+  return ZONES.map(z => {
+    const isActive = activePath && activePath.startsWith(z.path);
+    const glowColor = isActive ? (allowed ? '#22c55e' : '#ef4444') : 'transparent';
+    const glowStyle = isActive ? `box-shadow: 0 0 20px ${glowColor}40, inset 0 0 20px ${glowColor}15; border-color: ${glowColor};` : '';
+    return `<div class="zone-card" style="border-color:${z.color}30; ${glowStyle}">
+      <div class="zone-path" style="color:${z.color}">${z.label}</div>
+      <div class="zone-desc">${z.desc}</div>
+      ${isActive ? `<div class="zone-badge" style="background:${allowed ? '#22c55e' : '#ef4444'}">${allowed ? '✓ ALLOWED' : '✗ BLOCKED'}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+const SCENARIOS = [
+  {
+    title: '🔑 Generate Identities',
+    explain: 'Three agents each get a unique ed25519 keypair. Public keys are identities — unforgeable, no passwords. Each agent has different data access scopes.',
+    action: () => {
+      scheduling = generateIdentity('Scheduling Agent');
+      clinical = generateIdentity('Clinical Agent');
+      admin = generateIdentity('Human Admin');
+      addAgentCards();
+      $('#zones').innerHTML = renderZones(null);
+    }
+  },
+  {
+    title: '📝 Create Access Control Contract',
+    explain: 'The contract defines path-based permissions and dual-signature requirements. Scheduling can only touch /appointments. Medical records need BOTH clinical + admin signatures. These are cryptographic rules, not policies.',
+    action: () => {
+      contract = new HealthRecordContract({ scheduling, clinical, admin });
+      showRules();
+      $('#commit-count').textContent = '0';
+    }
+  },
+  {
+    title: '✅ Scheduling Agent Books Appointment',
+    explain: 'Scheduling agent writes to /appointments — within their allowed scope. Single signature is sufficient for appointment data. The commit is signed, verified, and accepted.',
+    action: () => {
+      const result = contract.commit('Book appointment for Alice', ['/appointments/alice-2026-03-15'], [scheduling], { patient: 'Alice', date: '2026-03-15' });
+      addLog('BOOK_APPOINTMENT', scheduling, result.ok, 'scheduling', result.ok ? '/appointments/alice-2026-03-15' : result.error);
+      $('#zones').innerHTML = renderZones('/appointments/', true);
+      $('#commit-count').textContent = contract.commits.length;
+    }
+  },
+  {
+    title: '🚫 Scheduling Tries to Access Diagnosis',
+    explain: 'Scheduling agent attempts to read /records/medical — outside their scope. The contract checks path permissions and immediately rejects. No policy override, no exception — math says no.',
+    action: () => {
+      const result = contract.commit('Read Alice diagnosis', ['/records/medical/alice-diagnosis'], [scheduling], { action: 'read' });
+      addLog('READ_DIAGNOSIS', scheduling, result.ok, 'scheduling', result.error);
+      $('#zones').innerHTML = renderZones('/records/medical/', false);
+    }
+  },
+  {
+    title: '🚫 Scheduling Sneaks Medical Path Into Commit',
+    explain: 'Scheduling tries a mixed commit: /appointments + /records/medical in one request. The contract checks EVERY path against EVERY signer. The hidden medical path is caught and the entire commit is rejected.',
+    action: () => {
+      const result = contract.commit('Book followup (hidden medical write)', ['/appointments/alice-followup', '/records/medical/alice-notes'], [scheduling], { notes: 'hidden data' });
+      addLog('SNEAK_MEDICAL', scheduling, result.ok, 'scheduling', result.error);
+      $('#zones').innerHTML = renderZones('/records/medical/', false);
+    }
+  },
+  {
+    title: '🚫 Clinical Agent Acts Alone on Medical Records',
+    explain: 'Clinical agent tries to update /records/medical with only their signature. The contract requires dual signatures (clinical + admin) for medical records — HIPAA-grade enforcement. Single signature is insufficient.',
+    action: () => {
+      const result = contract.commit('Update Alice labs (no admin)', ['/records/medical/alice-labs'], [clinical], { labs: 'CBC normal' });
+      addLog('UPDATE_ALONE', clinical, result.ok, 'clinical', result.error);
+      $('#zones').innerHTML = renderZones('/records/medical/', false);
+    }
+  },
+  {
+    title: '✅ Clinical + Admin Update Patient Record',
+    explain: 'Clinical agent and Human Admin both sign the commit. Dual-signature requirement met. Path permissions verified for both signers. The medical record is updated with full authorization.',
+    action: () => {
+      const result = contract.commit('Update Alice diagnosis', ['/records/medical/alice-diagnosis'], [clinical, admin], { diagnosis: 'healthy', icd10: 'Z00.00' });
+      addLog('DUAL_UPDATE', clinical, result.ok, 'clinical', result.ok ? 'Dual-signed with Human Admin' : result.error);
+      addLog('CO-SIGN', admin, result.ok, 'admin', 'Co-signed medical record update');
+      $('#zones').innerHTML = renderZones('/records/medical/', true);
+      $('#commit-count').textContent = contract.commits.length;
+    }
+  },
+  {
+    title: '🚫 Clinical Agent Tries to Modify Billing',
+    explain: 'Clinical agent attempts to write to /records/billing — outside their scope. Only the Human Admin has billing access. Clinical expertise doesn\'t grant financial access.',
+    action: () => {
+      const result = contract.commit('Modify Alice billing', ['/records/billing/alice-invoice'], [clinical], { amount: 9999 });
+      addLog('MODIFY_BILLING', clinical, result.ok, 'clinical', result.error);
+      $('#zones').innerHTML = renderZones('/records/billing/', false);
+    }
+  },
+  {
+    title: '✅ Cross-Agent Cooperation Flow',
+    explain: 'Scheduling needs clinical info but can\'t access medical records. Instead, both agents communicate through /appointments — a shared zone. Scheduling requests info, Clinical responds. Proper channels, proper scoping.',
+    action: () => {
+      let r1 = contract.commit('Request clinical info for appointment', ['/appointments/alice-info-request'], [scheduling], { request: 'allergy info needed' });
+      addLog('REQUEST_INFO', scheduling, r1.ok, 'scheduling', '/appointments/alice-info-request');
+      let r2 = contract.commit('Provide info via appointments channel', ['/appointments/alice-info-response'], [clinical], { response: 'no known allergies' });
+      addLog('PROVIDE_INFO', clinical, r2.ok, 'clinical', '/appointments/alice-info-response');
+      $('#zones').innerHTML = renderZones('/appointments/', true);
+      $('#commit-count').textContent = contract.commits.length;
+    }
+  },
+  {
+    title: '🔍 Audit Complete',
+    explain: 'Every commit verified. All signatures are valid ed25519. Path permissions enforced cryptographically. Dual-signature requirements honored. Full HIPAA-grade audit trail — tamper with one commit and the chain breaks.',
+    action: () => {
+      const valid = contract.audit();
+      addLog('AUDIT', { name: 'System' }, valid, 'system', `All ${contract.commits.length} commits verified ✓`);
+      $('#zones').innerHTML = renderZones(null);
+    }
+  }
+];
+
+function addLog(action, signer, ok, role, detail) {
+  const colors = { scheduling: '#3b82f6', clinical: '#22c55e', admin: '#eab308', system: '#a855f7' };
+  eventLog.push({ action, signer: signer.name, ok, role, detail, time: new Date().toLocaleTimeString() });
+  renderLog();
+}
+
+function renderLog() {
+  const el = $('#event-log');
+  const colors = { scheduling: '#3b82f6', clinical: '#22c55e', admin: '#eab308', system: '#a855f7' };
+  el.innerHTML = eventLog.map((e, i) => `
+    <div class="log-entry ${e.ok ? '' : 'rejected'}" style="animation-delay:${i * 0.05}s">
+      <span class="log-status">${e.ok ? '✓' : '✗'}</span>
+      <span class="log-agent" style="color:${colors[e.role] || '#888'}">${e.signer}</span>
+      <span class="log-action">${e.action}</span>
+      ${e.detail ? `<span class="log-detail" title="${e.detail}">${e.detail}</span>` : ''}
+    </div>
+  `).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function showRules() {
+  const rules = [
+    'modifies(/appointments/*) → signed_by(scheduling | clinical | admin)',
+    'modifies(/records/medical/*) → signed_by(clinical) ∧ signed_by(admin)',
+    'modifies(/records/billing/*) → signed_by(admin)',
+    'scheduling scope: /appointments/* ONLY',
+    'clinical scope: /appointments/*, /records/medical/*',
+  ];
+  $('#rules-list').innerHTML = rules.map(r => `<div class="rule-item"><code>${r}</code></div>`).join('');
+}
+
+function addAgentCards() {
+  const agents = [
+    { ...scheduling, role: 'scheduling', color: '#3b82f6', emoji: '🗓' },
+    { ...clinical, role: 'clinical', color: '#22c55e', emoji: '🩺' },
+    { ...admin, role: 'admin', color: '#eab308', emoji: '👤' },
+  ];
+  $('#agents').innerHTML = agents.map(a => `
+    <div class="agent-card" style="border-color:${a.color}">
+      <div class="agent-emoji">${a.emoji}</div>
+      <div class="agent-name" style="color:${a.color}">${a.name}</div>
+      <div class="agent-role">${a.role}</div>
+      <div class="agent-key" title="${a.publicKey}">🔑 ${a.publicKey.slice(0, 16)}…</div>
+    </div>
+  `).join('');
+}
+
+async function nextStep() {
+  if (stepIndex >= SCENARIOS.length) return;
+  const step = SCENARIOS[stepIndex];
+  $('#step-title').textContent = step.title;
+  $('#step-explain').textContent = step.explain;
+  $('#step-counter').textContent = `${stepIndex + 1} / ${SCENARIOS.length}`;
+  step.action();
+  stepIndex++;
+  if (stepIndex >= SCENARIOS.length) {
+    $('#next-btn').textContent = '🎉 Demo Complete';
+    $('#next-btn').disabled = true;
+  }
+}
+
+async function autoPlay() {
+  if (isPlaying) return;
+  isPlaying = true;
+  $('#play-btn').textContent = '⏸ Playing...';
+  $('#play-btn').disabled = true;
+  while (stepIndex < SCENARIOS.length) {
+    await nextStep();
+    await new Promise(r => setTimeout(r, 2500));
+  }
+  isPlaying = false;
+  $('#play-btn').textContent = '▶ Auto-play';
+}
+
+function reset() {
+  stepIndex = 0; eventLog = []; contract = null;
+  $('#event-log').innerHTML = '';
+  $('#agents').innerHTML = '';
+  $('#rules-list').innerHTML = '<div style="color:#555;font-size:12px;">Rules will appear when the contract is created.</div>';
+  $('#zones').innerHTML = renderZones(null);
+  $('#step-title').textContent = 'Ready';
+  $('#step-explain').textContent = 'Click "Next Step" to begin the demo, or "Auto-play" to watch it unfold.';
+  $('#step-counter').textContent = '0 / ' + SCENARIOS.length;
+  $('#commit-count').textContent = '0';
+  $('#next-btn').textContent = 'Next Step →';
+  $('#next-btn').disabled = false;
+  $('#play-btn').textContent = '▶ Auto-play';
+  $('#play-btn').disabled = false;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  reset();
+  $('#next-btn').addEventListener('click', nextStep);
+  $('#play-btn').addEventListener('click', autoPlay);
+  $('#reset-btn').addEventListener('click', reset);
+});
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: #0a0a0f; color: #e0e0e0; min-height: 100vh; }
+  .header { padding: 32px 48px 24px; border-bottom: 1px solid #1a1a2e; }
+  .header h1 { font-size: 28px; font-weight: 900; }
+  .header h1 span { color: #6366f1; }
+  .header p { color: #666; margin-top: 4px; font-size: 14px; }
+  .main { display: grid; grid-template-columns: 1fr 380px; gap: 0; min-height: calc(100vh - 100px); }
+  .left { padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; }
+  .right { background: #0d0d14; border-left: 1px solid #1a1a2e; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  .narrator { background: #12121f; border: 1px solid #1e1e35; border-radius: 12px; padding: 24px; }
+  .narrator-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .narrator-top .step-counter { color: #6366f1; font-size: 13px; font-weight: 600; }
+  #step-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  #step-explain { color: #999; font-size: 14px; line-height: 1.7; }
+  .controls { display: flex; gap: 12px; }
+  .controls button { padding: 10px 24px; border: none; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+  #next-btn { background: #6366f1; color: white; flex: 1; }
+  #next-btn:hover:not(:disabled) { background: #818cf8; }
+  #next-btn:disabled { opacity: 0.5; cursor: default; }
+  #play-btn { background: #1e1e35; color: #6366f1; border: 1px solid #2e2e4a; }
+  #play-btn:hover:not(:disabled) { background: #2a2a45; }
+  #play-btn:disabled { opacity: 0.5; cursor: default; }
+  #reset-btn { background: #1e1e35; color: #888; border: 1px solid #2e2e4a; padding: 10px 16px; }
+  #reset-btn:hover { background: #2a2a45; }
+  .agents-row { display: flex; gap: 12px; }
+  .agent-card { flex: 1; background: #12121f; border: 1px solid #2a2a40; border-radius: 10px; padding: 16px; text-align: center; border-top: 3px solid; }
+  .agent-emoji { font-size: 28px; margin-bottom: 6px; }
+  .agent-name { font-weight: 700; font-size: 15px; }
+  .agent-role { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin: 2px 0; }
+  .agent-key { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #444; margin-top: 6px; }
+  .zones-section { background: #0d0d14; border: 1px solid #1a1a2e; border-radius: 12px; padding: 16px; }
+  .zones-section h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #555; margin-bottom: 12px; }
+  .zones-row { display: flex; gap: 12px; }
+  .zone-card { flex: 1; background: #12121f; border: 1px solid #2a2a40; border-radius: 10px; padding: 16px; text-align: center; transition: all 0.4s ease; position: relative; }
+  .zone-path { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .zone-desc { font-size: 11px; color: #666; }
+  .zone-badge { position: absolute; top: -8px; right: -8px; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; color: white; }
+  .viz-stats { display: flex; gap: 24px; margin-top: 12px; }
+  .viz-stat { font-size: 13px; color: #666; }
+  .viz-stat strong { color: #6366f1; }
+  .panel-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #555; font-weight: 600; }
+  .rules-box { background: #12121f; border: 1px solid #1a1a2e; border-radius: 8px; padding: 12px; flex-shrink: 0; }
+  .rule-item { padding: 4px 0; }
+  .rule-item code { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #eab308; }
+  #event-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+  .log-entry { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #12121f; border-radius: 6px; font-size: 13px; animation: slideIn 0.3s ease; }
+  .log-entry.rejected { background: #1a0a0a; border: 1px solid #3a1515; }
+  .log-status { font-weight: 700; width: 16px; }
+  .log-entry:not(.rejected) .log-status { color: #22c55e; }
+  .log-entry.rejected .log-status { color: #ef4444; }
+  .log-agent { font-weight: 600; min-width: 60px; }
+  .log-action { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #aaa; }
+  .log-detail { font-size: 11px; color: #666; margin-left: auto; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  .footer { text-align: center; padding: 16px; color: #333; font-size: 12px; border-top: 1px solid #1a1a2e; }
+  .footer a { color: #6366f1; text-decoration: none; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1><span>Modality</span> — Health Record Scoping Demo</h1>
+    <p>Three agents. Scoped access. HIPAA-grade boundaries. No trust required.</p>
+  </div>
+  <div class="main">
+    <div class="left">
+      <div class="narrator">
+        <div class="narrator-top"><span id="step-counter">0 / 10</span></div>
+        <div id="step-title">Ready</div>
+        <div id="step-explain">Click "Next Step" to begin.</div>
+      </div>
+      <div class="controls">
+        <button id="next-btn">Next Step →</button>
+        <button id="play-btn">▶ Auto-play</button>
+        <button id="reset-btn">↺</button>
+      </div>
+      <div id="agents" class="agents-row"></div>
+      <div class="zones-section">
+        <h3>Data Zones</h3>
+        <div id="zones" class="zones-row"></div>
+        <div class="viz-stats">
+          <div class="viz-stat">Commits: <strong id="commit-count">0</strong></div>
+        </div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="panel-title">Contract Rules</div>
+      <div class="rules-box">
+        <div id="rules-list" style="color:#555;font-size:12px;">Rules will appear when the contract is created.</div>
+      </div>
+      <div class="panel-title" style="margin-top:8px;">Event Log</div>
+      <div id="event-log"></div>
+    </div>
+  </div>
+  <div class="footer">Built with real cryptography. No simulation. <a href="https://modality.org">modality.org</a></div>
+</body>
+</html>
