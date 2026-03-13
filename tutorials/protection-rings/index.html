@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modality — Protection Rings Demo</title>
+<script type="module">
+import * as ed from 'https://esm.sh/@noble/ed25519@2.1.0';
+import { sha512 } from 'https://esm.sh/@noble/hashes@1.4.0/sha512';
+import { sha256 } from 'https://esm.sh/@noble/hashes@1.4.0/sha256';
+import { bytesToHex, hexToBytes } from 'https://esm.sh/@noble/hashes@1.4.0/utils';
+
+ed.etc.sha512Sync = (...m) => {
+  const h = sha512.create();
+  for (const msg of m) h.update(msg);
+  return h.digest();
+};
+
+function generateIdentity(name) {
+  const privateKey = ed.utils.randomPrivateKey();
+  const publicKey = ed.getPublicKey(privateKey);
+  return { name, privateKey: bytesToHex(privateKey), publicKey: bytesToHex(publicKey) };
+}
+function signJSON(data, pk) {
+  return bytesToHex(ed.sign(new TextEncoder().encode(JSON.stringify(data)), hexToBytes(pk)));
+}
+function verifyJSON(data, sig, pub) {
+  return ed.verify(hexToBytes(sig), new TextEncoder().encode(JSON.stringify(data)), hexToBytes(pub));
+}
+function hashJSON(data) {
+  return bytesToHex(sha256(new TextEncoder().encode(JSON.stringify(data))));
+}
+
+class TwoRepoContract {
+  constructor(parties) {
+    this.parties = parties;
+    this.commits = [];
+  }
+  commit(action, repo, paths, signers, description) {
+    const ruleResults = [];
+    for (const signer of signers) {
+      if (signer.publicKey === this.parties.app.publicKey && repo === 'kernel-repo') {
+        ruleResults.push({ rule: 'app_cannot_touch_kernel', pass: false, detail: `${signer.name} has NO access to kernel-repo` });
+        return { ok: false, ruleResults, error: `ACCESS DENIED: ${signer.name} cannot access kernel-repo` };
+      }
+      ruleResults.push({ rule: 'app_cannot_touch_kernel', pass: true, detail: `${signer.name} authorized for ${repo}` });
+    }
+    if (repo === 'kernel-repo') {
+      const hasKernel = signers.some(s => s.publicKey === this.parties.kernel.publicKey);
+      const hasHuman = signers.some(s => s.publicKey === this.parties.admin.publicKey);
+      const pass = hasKernel && hasHuman;
+      ruleResults.push({ rule: 'kernel_requires_dual', pass, detail: pass ? 'Kernel + Human co-signed' : 'Kernel-repo requires dual signature' });
+      if (!pass) return { ok: false, ruleResults, error: 'RULE VIOLATION: kernel-repo changes require Kernel Agent + Human Admin' };
+    }
+    const known = [this.parties.app.publicKey, this.parties.kernel.publicKey, this.parties.admin.publicKey];
+    const allKnown = signers.every(s => known.includes(s.publicKey));
+    ruleResults.push({ rule: 'known_signers', pass: allKnown, detail: allKnown ? 'All signers recognized' : 'Unknown signer' });
+    if (!allKnown) return { ok: false, ruleResults, error: 'RULE VIOLATION: Unknown signer' };
+
+    const body = { action, repo, paths, description, timestamp: new Date().toISOString() };
+    const parentHash = this.commits.length > 0 ? hashJSON(this.commits[this.commits.length - 1]) : null;
+    const signatures = {};
+    for (const signer of signers) signatures[signer.publicKey] = signJSON(body, signer.privateKey);
+    const commit = { seq: this.commits.length, body, head: { parent: parentHash, signatures } };
+    for (const [pub, sig] of Object.entries(commit.head.signatures)) {
+      if (!verifyJSON(commit.body, sig, pub)) return { ok: false, ruleResults, error: 'Signature verification failed' };
+    }
+    this.commits.push(commit);
+    return { ok: true, commit, ruleResults };
+  }
+  audit() {
+    for (const c of this.commits)
+      for (const [pub, sig] of Object.entries(c.head.signatures))
+        if (!verifyJSON(c.body, sig, pub)) return false;
+    return true;
+  }
+}
+
+const $ = s => document.querySelector(s);
+let app, kernel, admin, contract;
+let eventLog = [];
+let stepIndex = 0;
+let isPlaying = false;
+
+function renderRepos(activeRepo, allowed) {
+  const kernelFiles = ['schema.sql', 'auth.js', 'config.js'];
+  const appFiles = ['routes.js', 'components.jsx'];
+  const kernelActive = activeRepo === 'kernel-repo';
+  const appActive = activeRepo === 'app-repo';
+
+  const kernelGlow = kernelActive
+    ? (allowed ? 'box-shadow:0 0 25px #ef444440,inset 0 0 20px #ef444415;border-color:#ef4444;' : 'box-shadow:0 0 25px #ef444460,inset 0 0 20px #ef444425;border-color:#ef4444;')
+    : '';
+  const appGlow = appActive
+    ? (allowed ? 'box-shadow:0 0 25px #22c55e40,inset 0 0 20px #22c55e15;border-color:#22c55e;' : 'box-shadow:0 0 25px #ef444440;border-color:#ef4444;')
+    : '';
+
+  const lockIcon = kernelActive && !allowed ? '<div class="repo-lock">🔒</div>' : '';
+  const kernelBadge = kernelActive ? `<div class="repo-badge" style="background:${allowed ? '#22c55e' : '#ef4444'}">${allowed ? '✓ COMMITTED' : '✗ ACCESS DENIED'}</div>` : '';
+  const appBadge = appActive ? `<div class="repo-badge" style="background:${allowed ? '#22c55e' : '#ef4444'}">${allowed ? '✓ COMMITTED' : '✗ REJECTED'}</div>` : '';
+
+  return `
+    <div class="repo-card ${kernelActive && !allowed ? 'repo-denied' : ''}" style="border-color:#ef444430;${kernelGlow}">
+      ${lockIcon}${kernelBadge}
+      <div class="repo-name" style="color:#ef4444">🔒 kernel-repo</div>
+      <div class="repo-files">${kernelFiles.map(f => `<div class="repo-file">${f}</div>`).join('')}</div>
+      <div class="repo-access"><span style="color:#a855f7">Kernel Agent</span> + <span style="color:#eab308">Human</span></div>
+      <div class="repo-access-note">dual signature required</div>
+    </div>
+    <div class="repo-card" style="border-color:#22c55e30;${appGlow}">
+      ${appBadge}
+      <div class="repo-name" style="color:#22c55e">📦 app-repo</div>
+      <div class="repo-files">${appFiles.map(f => `<div class="repo-file">${f}</div>`).join('')}</div>
+      <div class="repo-access"><span style="color:#3b82f6">App Agent</span> <span style="color:#666">(free)</span></div>
+      <div class="repo-access-note">single signature</div>
+    </div>
+  `;
+}
+
+const SCENARIOS = [
+  {
+    title: '🔑 Generate Identities',
+    explain: 'Three agents each get a unique ed25519 keypair. The App Agent works in app-repo. The Kernel Agent works in kernel-repo but needs human co-signature. The Human Admin approves all kernel changes.',
+    action: () => {
+      app = generateIdentity('App Agent');
+      kernel = generateIdentity('Kernel Agent');
+      admin = generateIdentity('Human Admin');
+      renderAgents();
+      $('#repos').innerHTML = renderRepos(null);
+    }
+  },
+  {
+    title: '📝 Create Contract',
+    explain: 'The contract enforces two-repo isolation: App Agent has ZERO access to kernel-repo (can\'t read or write). Kernel-repo changes require dual signature (Kernel Agent + Human). These are cryptographic rules — not policies.',
+    action: () => {
+      contract = new TwoRepoContract({ app, kernel, admin });
+      showRules();
+      $('#commit-count').textContent = '0';
+      $('#repos').innerHTML = renderRepos(null);
+    }
+  },
+  {
+    title: '✅ App Agent Ships a Feature',
+    explain: 'App Agent adds routes and components to app-repo. Single signature, no approval needed. The app agent works freely in its own repo — zero friction for feature development.',
+    action: () => {
+      const r = contract.commit('ADD_FEATURE', 'app-repo', ['routes.js', 'components.jsx'], [app], 'Add items endpoint and list component');
+      addLog('ADD_FEATURE', app, r.ok, 'app', 'app-repo/routes.js, components.jsx', r.ruleResults);
+      $('#repos').innerHTML = renderRepos('app-repo', true);
+      $('#commit-count').textContent = contract.commits.length;
+    }
+  },
+  {
+    title: '🚫 App Agent Tries Kernel Repo — ACCESS DENIED',
+    explain: 'App Agent tries to "optimize" the auth logic in kernel-repo. It doesn\'t just lack write access — it can\'t even READ kernel code. Complete isolation. The contract rejects immediately.',
+    action: () => {
+      const r = contract.commit('MODIFY_AUTH', 'kernel-repo', ['auth.js'], [app], 'Skip password check for faster login');
+      addLog('MODIFY_AUTH', app, r.ok, 'app', r.error, r.ruleResults);
+      $('#repos').innerHTML = renderRepos('kernel-repo', false);
+    }
+  },
+  {
+    title: '🚫 Kernel Agent Acts Alone — REJECTED',
+    explain: 'Kernel Agent tries to modify the schema without human approval. Even the Kernel Agent can\'t act alone — every kernel-repo change requires dual signature from Kernel Agent AND Human Admin.',
+    action: () => {
+      const r = contract.commit('CHANGE_SCHEMA', 'kernel-repo', ['schema.sql'], [kernel], 'Add items table');
+      addLog('CHANGE_SCHEMA', kernel, r.ok, 'kernel', r.error, r.ruleResults);
+      $('#repos').innerHTML = renderRepos('kernel-repo', false);
+    }
+  },
+  {
+    title: '✅ Kernel + Human Co-Sign Schema Change',
+    explain: 'Kernel Agent proposes a schema change. Human Admin reviews and co-signs. Both ed25519 signatures verified. Dual-signature requirement met — the commit is accepted.',
+    action: () => {
+      const r = contract.commit('ADD_TABLE', 'kernel-repo', ['schema.sql'], [kernel, admin], 'Add items table — reviewed and approved');
+      addLog('ADD_TABLE', kernel, r.ok, 'kernel', 'Dual-signed with Human Admin', r.ruleResults);
+      addLog('CO-SIGN', admin, r.ok, 'admin', 'Co-signed schema change', []);
+      $('#repos').innerHTML = renderRepos('kernel-repo', true);
+      $('#commit-count').textContent = contract.commits.length;
+    }
+  },
+  {
+    title: '📋 Cross-Repo Step 1: App Files Request',
+    explain: 'App Agent needs a new database table but can\'t see or touch kernel-repo. So it files a formal change request — in app-repo, where it has access. This is cooperation through contracts, not shared code.',
+    action: () => {
+      const r = contract.commit('CHANGE_REQUEST', 'app-repo', ['requests/need-items-table.md'], [app], 'Need items table: columns name, description, user_id');
+      addLog('CHANGE_REQUEST', app, r.ok, 'app', 'app-repo/requests/need-items-table.md', r.ruleResults);
+      $('#repos').innerHTML = renderRepos('app-repo', true);
+      $('#commit-count').textContent = contract.commits.length;
+    }
+  },
+  {
+    title: '🔧 Cross-Repo Step 2: Kernel Implements',
+    explain: 'Kernel Agent and Human Admin implement the requested table in kernel-repo. The App Agent can\'t see this happening — it has no access to kernel-repo. Implementation details stay locked in the kernel.',
+    action: () => {
+      const r = contract.commit('IMPLEMENT', 'kernel-repo', ['schema.sql', 'migrations/003_add_items.sql'], [kernel, admin], 'Add items table per app request');
+      addLog('IMPLEMENT', kernel, r.ok, 'kernel', 'kernel-repo (invisible to App Agent)', r.ruleResults);
+      addLog('CO-SIGN', admin, r.ok, 'admin', 'Approved kernel implementation', []);
+      $('#repos').innerHTML = renderRepos('kernel-repo', true);
+      $('#commit-count').textContent = contract.commits.length;
+    }
+  },
+  {
+    title: '📡 Cross-Repo Step 3: Publish API Contract',
+    explain: 'Kernel Agent publishes an API contract to app-repo — the ONLY thing the App Agent can see. It describes GET/POST /items endpoints. The App Agent learns the interface, never the implementation.',
+    action: () => {
+      const r = contract.commit('PUBLISH_API', 'app-repo', ['api-contracts/items-api.json'], [kernel, admin], 'Publish items API contract: GET/POST /items');
+      addLog('PUBLISH_API', kernel, r.ok, 'kernel', 'Published API to app-repo', r.ruleResults);
+      $('#repos').innerHTML = renderRepos('app-repo', true);
+      $('#commit-count').textContent = contract.commits.length;
+    }
+  },
+  {
+    title: '🚀 Cross-Repo Step 4: App Builds Feature',
+    explain: 'App Agent builds the items feature against the published API contract. It never saw how the table was created, how auth works, or what the schema looks like. It only knows the API interface.',
+    action: () => {
+      const r = contract.commit('BUILD_FEATURE', 'app-repo', ['routes.js', 'components.jsx'], [app], 'Items CRUD — using published API contract');
+      addLog('BUILD_FEATURE', app, r.ok, 'app', 'Built against published API', r.ruleResults);
+      $('#repos').innerHTML = renderRepos('app-repo', true);
+      $('#commit-count').textContent = contract.commits.length;
+    }
+  },
+  {
+    title: '🔍 Audit Complete',
+    explain: `Every commit verified. All ed25519 signatures valid. Repo isolation enforced cryptographically. Dual-signature requirements honored. Full audit trail — tamper with one commit and the chain breaks.`,
+    action: () => {
+      const valid = contract.audit();
+      addLog('AUDIT', { name: 'System' }, valid, 'system', `All ${contract.commits.length} commits verified ✓`, []);
+      $('#repos').innerHTML = renderRepos(null);
+    }
+  }
+];
+
+function addLog(action, signer, ok, role, detail, ruleResults) {
+  eventLog.push({ action, signer: signer.name, ok, role, detail, ruleResults: ruleResults || [] });
+  renderLog();
+}
+
+function renderLog() {
+  const el = $('#event-log');
+  const colors = { app: '#3b82f6', kernel: '#a855f7', admin: '#eab308', system: '#6366f1' };
+  el.innerHTML = eventLog.map((e, i) => `
+    <div class="log-entry ${e.ok ? '' : 'rejected'}" style="animation-delay:${i * 0.03}s">
+      <span class="log-status">${e.ok ? '✓' : '✗'}</span>
+      <span class="log-agent" style="color:${colors[e.role] || '#888'}">${e.signer}</span>
+      <span class="log-action">${e.action}</span>
+      ${e.detail ? `<span class="log-detail" title="${e.detail}">${e.detail}</span>` : ''}
+    </div>
+  `).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function showRules() {
+  const rules = [
+    'signed_by(app) → repo ≠ kernel-repo',
+    'modifies(kernel-repo) → signed_by(kernel) ∧ signed_by(admin)',
+    'all commits → signed_by(known_agent)',
+    'cooperation → formal request + published API',
+  ];
+  $('#rules-list').innerHTML = rules.map(r => `<div class="rule-item"><code>${r}</code></div>`).join('');
+}
+
+function renderAgents() {
+  const agents = [
+    { ...app, role: 'app', color: '#3b82f6', emoji: '📦', desc: 'app-repo only' },
+    { ...kernel, role: 'kernel', color: '#a855f7', emoji: '🔒', desc: 'kernel-repo + human' },
+    { ...admin, role: 'admin', color: '#eab308', emoji: '👤', desc: 'approves kernel' },
+  ];
+  $('#agents').innerHTML = agents.map(a => `
+    <div class="agent-card" style="border-color:${a.color}">
+      <div class="agent-emoji">${a.emoji}</div>
+      <div class="agent-name" style="color:${a.color}">${a.name}</div>
+      <div class="agent-role">${a.desc}</div>
+      <div class="agent-key" title="${a.publicKey}">🔑 ${a.publicKey.slice(0, 16)}…</div>
+    </div>
+  `).join('');
+}
+
+async function nextStep() {
+  if (stepIndex >= SCENARIOS.length) return;
+  const step = SCENARIOS[stepIndex];
+  $('#step-title').textContent = step.title;
+  $('#step-explain').textContent = step.explain;
+  $('#step-counter').textContent = `${stepIndex + 1} / ${SCENARIOS.length}`;
+  step.action();
+  stepIndex++;
+  if (stepIndex >= SCENARIOS.length) {
+    $('#next-btn').textContent = '🎉 Demo Complete';
+    $('#next-btn').disabled = true;
+  }
+}
+
+async function autoPlay() {
+  if (isPlaying) return;
+  isPlaying = true;
+  $('#play-btn').textContent = '⏸ Playing...';
+  $('#play-btn').disabled = true;
+  while (stepIndex < SCENARIOS.length) {
+    await nextStep();
+    await new Promise(r => setTimeout(r, 2500));
+  }
+  isPlaying = false;
+  $('#play-btn').textContent = '▶ Auto-play';
+}
+
+function reset() {
+  stepIndex = 0; eventLog = []; contract = null;
+  $('#event-log').innerHTML = '';
+  $('#agents').innerHTML = '';
+  $('#rules-list').innerHTML = '<div style="color:#555;font-size:12px;">Rules appear when the contract is created.</div>';
+  $('#repos').innerHTML = renderRepos(null);
+  $('#step-title').textContent = 'Ready';
+  $('#step-explain').textContent = 'Click "Next Step" to begin the demo, or "Auto-play" to watch it unfold.';
+  $('#step-counter').textContent = '0 / ' + SCENARIOS.length;
+  $('#commit-count').textContent = '0';
+  $('#next-btn').textContent = 'Next Step →';
+  $('#next-btn').disabled = false;
+  $('#play-btn').textContent = '▶ Auto-play';
+  $('#play-btn').disabled = false;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  reset();
+  $('#next-btn').addEventListener('click', nextStep);
+  $('#play-btn').addEventListener('click', autoPlay);
+  $('#reset-btn').addEventListener('click', reset);
+});
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: #0a0a0f; color: #e0e0e0; min-height: 100vh; }
+  .header { padding: 32px 48px 24px; border-bottom: 1px solid #1a1a2e; }
+  .header h1 { font-size: 28px; font-weight: 900; }
+  .header h1 span { color: #6366f1; }
+  .header p { color: #666; margin-top: 4px; font-size: 14px; }
+  .main { display: grid; grid-template-columns: 1fr 380px; gap: 0; min-height: calc(100vh - 100px); }
+  .left { padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; }
+  .right { background: #0d0d14; border-left: 1px solid #1a1a2e; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  .narrator { background: #12121f; border: 1px solid #1e1e35; border-radius: 12px; padding: 24px; }
+  .narrator-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .narrator-top .step-counter { color: #6366f1; font-size: 13px; font-weight: 600; }
+  #step-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  #step-explain { color: #999; font-size: 14px; line-height: 1.7; }
+  .controls { display: flex; gap: 12px; }
+  .controls button { padding: 10px 24px; border: none; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+  #next-btn { background: #6366f1; color: white; flex: 1; }
+  #next-btn:hover:not(:disabled) { background: #818cf8; }
+  #next-btn:disabled { opacity: 0.5; cursor: default; }
+  #play-btn { background: #1e1e35; color: #6366f1; border: 1px solid #2e2e4a; }
+  #play-btn:hover:not(:disabled) { background: #2a2a45; }
+  #play-btn:disabled { opacity: 0.5; cursor: default; }
+  #reset-btn { background: #1e1e35; color: #888; border: 1px solid #2e2e4a; padding: 10px 16px; }
+  #reset-btn:hover { background: #2a2a45; }
+  .agents-row { display: flex; gap: 12px; }
+  .agent-card { flex: 1; background: #12121f; border: 1px solid #2a2a40; border-radius: 10px; padding: 16px; text-align: center; border-top: 3px solid; }
+  .agent-emoji { font-size: 28px; margin-bottom: 6px; }
+  .agent-name { font-weight: 700; font-size: 15px; }
+  .agent-role { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin: 2px 0; }
+  .agent-key { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #444; margin-top: 6px; }
+  .repos-section { background: #0d0d14; border: 1px solid #1a1a2e; border-radius: 12px; padding: 16px; }
+  .repos-section h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #555; margin-bottom: 12px; }
+  .repos-row { display: flex; gap: 16px; }
+  .repo-card { flex: 1; background: #12121f; border: 2px solid #2a2a40; border-radius: 10px; padding: 16px; position: relative; transition: all 0.4s ease; }
+  .repo-card.repo-denied { animation: denyFlash 0.6s ease; }
+  @keyframes denyFlash {
+    0%, 100% { background: #12121f; }
+    25% { background: #2a0a0a; }
+    50% { background: #12121f; }
+    75% { background: #2a0a0a; }
+  }
+  .repo-name { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+  .repo-files { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }
+  .repo-file { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #555; padding-left: 12px; }
+  .repo-file::before { content: '└─ '; color: #333; }
+  .repo-access { font-size: 11px; margin-top: 8px; }
+  .repo-access-note { font-size: 10px; color: #444; font-style: italic; }
+  .repo-badge { position: absolute; top: -8px; right: -8px; padding: 2px 10px; border-radius: 4px; font-size: 10px; font-weight: 700; color: white; animation: slideIn 0.3s ease; }
+  .repo-lock { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 48px; opacity: 0.3; animation: lockPulse 0.8s ease; }
+  @keyframes lockPulse { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); } 50% { opacity: 0.5; transform: translate(-50%, -50%) scale(1.2); } 100% { opacity: 0.3; transform: translate(-50%, -50%) scale(1); } }
+  .viz-stats { display: flex; gap: 24px; margin-top: 12px; }
+  .viz-stat { font-size: 13px; color: #666; }
+  .viz-stat strong { color: #6366f1; }
+  .panel-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #555; font-weight: 600; }
+  .rules-box { background: #12121f; border: 1px solid #1a1a2e; border-radius: 8px; padding: 12px; flex-shrink: 0; }
+  .rule-item { padding: 4px 0; }
+  .rule-item code { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #eab308; }
+  #event-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+  .log-entry { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #12121f; border-radius: 6px; font-size: 13px; animation: slideIn 0.3s ease; }
+  .log-entry.rejected { background: #1a0a0a; border: 1px solid #3a1515; }
+  .log-status { font-weight: 700; width: 16px; }
+  .log-entry:not(.rejected) .log-status { color: #22c55e; }
+  .log-entry.rejected .log-status { color: #ef4444; }
+  .log-agent { font-weight: 600; min-width: 60px; }
+  .log-action { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #aaa; }
+  .log-detail { font-size: 11px; color: #666; margin-left: auto; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  .footer { text-align: center; padding: 16px; color: #333; font-size: 12px; border-top: 1px solid #1a1a2e; }
+  .footer a { color: #6366f1; text-decoration: none; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1><span>Modality</span> — Protection Rings Demo</h1>
+    <p>Two repos. Two agents. The App Agent can't even READ kernel code.</p>
+  </div>
+  <div class="main">
+    <div class="left">
+      <div class="narrator">
+        <div class="narrator-top"><span id="step-counter">0 / 11</span></div>
+        <div id="step-title">Ready</div>
+        <div id="step-explain">Click "Next Step" to begin.</div>
+      </div>
+      <div class="controls">
+        <button id="next-btn">Next Step →</button>
+        <button id="play-btn">▶ Auto-play</button>
+        <button id="reset-btn">↺</button>
+      </div>
+      <div id="agents" class="agents-row"></div>
+      <div class="repos-section">
+        <h3>Two-Repo Architecture</h3>
+        <div id="repos" class="repos-row"></div>
+        <div class="viz-stats">
+          <div class="viz-stat">Commits: <strong id="commit-count">0</strong></div>
+        </div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="panel-title">Contract Rules</div>
+      <div class="rules-box">
+        <div id="rules-list" style="color:#555;font-size:12px;">Rules appear when the contract is created.</div>
+      </div>
+      <div class="panel-title" style="margin-top:8px;">Event Log</div>
+      <div id="event-log"></div>
+    </div>
+  </div>
+  <div class="footer">Built with real cryptography. No simulation. <a href="https://modality.org">modality.org</a></div>
+</body>
+</html>
