@@ -1,7 +1,9 @@
 # Modality ⲙ
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/modality-org/modality/main/sites/www.modality.org/static/img/modality-social-card.png" alt="Modality Banner" width="600" />
+  <a href="https://modality.org">
+    <img src="https://raw.githubusercontent.com/modality-org/modality/main/sites/www.modality.org/static/img/modality-social-card.png" alt="Modality Banner" width="600" />
+  </a>
 </div>
 
 <div align="center">
