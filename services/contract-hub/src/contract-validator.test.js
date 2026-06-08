@@ -300,6 +300,15 @@ test('rule predicate extraction supports bare adds_rule predicates', () => {
   );
 });
 
+test('rule predicate extraction supports textual not', () => {
+  const validator = new ContractValidator();
+
+  assert.deepEqual(
+    validator.extractRulePredicateClauses('rule history { formula { always (not modifies(/history)) } }'),
+    [[{ sign: '-', name: 'modifies', args: ['/history'] }]]
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 

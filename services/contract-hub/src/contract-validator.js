@@ -521,9 +521,10 @@ export class ContractValidator {
         continue;
       }
 
-      const operatorMatch = content.slice(index).match(/^(and|or|implies)\b/i);
+      const operatorMatch = content.slice(index).match(/^(and|or|not|implies)\b/i);
       if (operatorMatch) {
-        tokens.push({ type: operatorMatch[1].toLowerCase() });
+        const type = operatorMatch[1].toLowerCase();
+        tokens.push({ type: type === 'not' ? '!' : type });
         index += operatorMatch[0].length;
         continue;
       }
@@ -576,6 +577,9 @@ export class ContractValidator {
       'until',
       'lfp',
       'gfp',
+      'when',
+      'also',
+      'next',
       'rule',
       'formula',
       'model',
