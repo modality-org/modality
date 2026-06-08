@@ -490,3 +490,44 @@ test('RULE commits require a satisfying witness model', () => {
     /RULE witness model failed/
   );
 });
+
+test('existing RULE history replays without witness while new RULE commits require one', async () => {
+  const legacyRule = {
+    data: {
+      method: 'RULE',
+      path: '/rules/signed.modality',
+      content: 'rule signed { formula { always (+any_signed(/members)) } }'
+    }
+  };
+  const validator = new ContractValidator();
+
+  assert.doesNotThrow(() => validator.loadFromCommits([legacyRule]));
+
+  const store = {
+    pullCommits() {
+      return [legacyRule];
+    }
+  };
+
+  const replacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/open.modality',
+        content: `
+          model open {
+            initial active
+            active -> active []
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(replacement.valid, false);
+  assert.match(replacement.errors[0], /does not satisfy existing rule predicate/);
+
+  const newRule = await validateContractLogic({ pullCommits: () => [] }, 'contract', [legacyRule]);
+  assert.equal(newRule.valid, false);
+  assert.match(newRule.errors[0], /RULE requires a witness model/);
+});

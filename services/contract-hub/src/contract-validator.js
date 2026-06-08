@@ -24,14 +24,14 @@ export class ContractValidator {
    */
   loadFromCommits(commits) {
     for (const commit of commits) {
-      this.applyCommit(commit, { validate: false });
+      this.applyCommit(commit, { validate: false, enforceRuleWitness: false });
     }
   }
   
   /**
    * Apply a commit (updating state, loading rules, etc.)
    */
-  applyCommit(commit, { validate = true } = {}) {
+  applyCommit(commit, { validate = true, enforceRuleWitness = true } = {}) {
     const data = commit.data;
     if (!data) return;
     
@@ -64,7 +64,7 @@ export class ContractValidator {
         break;
 
       case 'RULE':
-        this.loadRule(path, content, data.model ?? data.witnessModel);
+        this.loadRule(path, content, data.model ?? data.witnessModel, { enforceWitness: enforceRuleWitness });
         break;
         
       case 'ACTION':
@@ -86,9 +86,9 @@ export class ContractValidator {
   /**
    * Load a rule/model definition
    */
-  loadRule(path, content, witnessModel) {
+  loadRule(path, content, witnessModel, { enforceWitness = true } = {}) {
     const rule = { path, content, predicates: this.extractRulePredicates(content) };
-    if (rule.predicates.length > 0) {
+    if (enforceWitness && rule.predicates.length > 0) {
       if (!witnessModel) {
         throw new Error('RULE requires a witness model');
       }
