@@ -164,6 +164,49 @@ test('rule predicate extraction flips explicit negation polarity', () => {
   );
 });
 
+test('nested rule disjunctions keep surrounding conjunctions', () => {
+  const validator = new ContractValidator();
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/docs.modality',
+      content: 'rule docs { formula { always ((+signed_by(/members/alice.id) | +signed_by(/members/bob.id)) & +modifies(/docs)) } }',
+      model: `
+        model docs_witness {
+          initial active
+          active -> active [+signed_by(/members/alice.id) +modifies(/docs)]
+          active -> active [+signed_by(/members/bob.id) +modifies(/docs)]
+        }
+      `
+    }
+  });
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/docs-ok.modality',
+      content: `
+        model docs_ok {
+          initial active
+          active -> active [+signed_by(/members/alice.id) +modifies(/docs)]
+          active -> active [+signed_by(/members/bob.id) +modifies(/docs)]
+        }
+      `
+    }
+  }));
+
+  assert.throws(
+    () => validator.loadModel('/rules/docs-unsafe.modality', `
+      model docs_unsafe {
+        initial active
+        active -> active [+signed_by(/members/alice.id)]
+      }
+    `),
+    /does not satisfy existing rule predicate/
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 

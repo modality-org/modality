@@ -498,31 +498,161 @@ export class ContractValidator {
 
   extractRulePredicateClauses(content) {
     if (typeof content !== 'string') return [];
-    return content
-      .split('|')
-      .map(clause => this.parseRulePredicateClause(clause))
-      .filter(clause => clause.length > 0);
+    const tokens = this.tokenizeRulePredicateFormula(content);
+    const ast = this.parseRulePredicateExpression(tokens);
+    return ast ? this.rulePredicateAstToClauses(ast) : [];
   }
 
-  parseRulePredicateClause(clause = '') {
-    const predicates = [];
-    const predicateRegex = /(!\s*)?([+-])\s*([A-Za-z_]\w*)\s*(?:\(([^)]*)\))?/g;
-    let match;
+  tokenizeRulePredicateFormula(content) {
+    const tokens = [];
+    let index = 0;
 
-    while ((match = predicateRegex.exec(clause)) !== null) {
-      let sign = match[2];
-      if (match[1]) {
-        sign = sign === '+' ? '-' : '+';
+    while (index < content.length) {
+      const char = content[index];
+
+      if (/\s/.test(char)) {
+        index += 1;
+        continue;
       }
 
-      predicates.push({
-        sign,
-        name: match[3],
-        args: (match[4] || '').split(',').map(arg => arg.trim()).filter(Boolean)
-      });
+      if (['!', '&', '|', '(', ')'].includes(char)) {
+        tokens.push({ type: char });
+        index += 1;
+        continue;
+      }
+
+      if (char === '+' || char === '-') {
+        const predicateMatch = content.slice(index).match(/^([+-])\s*([A-Za-z_]\w*)\s*(?:\(([^)]*)\))?/);
+        if (predicateMatch) {
+          tokens.push({
+            type: 'predicate',
+            value: {
+              sign: predicateMatch[1],
+              name: predicateMatch[2],
+              args: (predicateMatch[3] || '').split(',').map(arg => arg.trim()).filter(Boolean)
+            }
+          });
+          index += predicateMatch[0].length;
+          continue;
+        }
+      }
+
+      index += 1;
     }
 
-    return predicates;
+    return tokens;
+  }
+
+  parseRulePredicateExpression(tokens) {
+    let position = 0;
+
+    const parseOr = () => {
+      let node = parseAnd();
+      while (tokens[position]?.type === '|') {
+        position += 1;
+        node = { type: 'or', left: node, right: parseAnd() };
+      }
+      return node;
+    };
+
+    const parseAnd = () => {
+      let node = parseUnary();
+      while (tokens[position]?.type === '&') {
+        position += 1;
+        node = { type: 'and', left: node, right: parseUnary() };
+      }
+      return node;
+    };
+
+    const parseUnary = () => {
+      if (tokens[position]?.type === '!') {
+        position += 1;
+        return { type: 'not', value: parseUnary() };
+      }
+
+      return parsePrimary();
+    };
+
+    const parsePrimary = () => {
+      const token = tokens[position];
+      if (!token) return null;
+
+      if (token.type === 'predicate') {
+        position += 1;
+        return { type: 'predicate', value: token.value };
+      }
+
+      if (token.type === '(') {
+        position += 1;
+        const node = parseOr();
+        if (tokens[position]?.type === ')') {
+          position += 1;
+        }
+        return node;
+      }
+
+      position += 1;
+      return parsePrimary();
+    };
+
+    return parseOr();
+  }
+
+  rulePredicateAstToClauses(ast) {
+    if (!ast) return [];
+
+    switch (ast.type) {
+      case 'predicate':
+        return [[ast.value]];
+      case 'not':
+        return this.negateRulePredicateAst(ast.value);
+      case 'and': {
+        const left = this.rulePredicateAstToClauses(ast.left);
+        const right = this.rulePredicateAstToClauses(ast.right);
+        if (left.length === 0) return right;
+        if (right.length === 0) return left;
+        return left.flatMap(leftClause =>
+          right.map(rightClause => [...leftClause, ...rightClause])
+        );
+      }
+      case 'or':
+        return [
+          ...this.rulePredicateAstToClauses(ast.left),
+          ...this.rulePredicateAstToClauses(ast.right)
+        ];
+      default:
+        return [];
+    }
+  }
+
+  negateRulePredicateAst(ast) {
+    if (!ast) return [];
+
+    switch (ast.type) {
+      case 'predicate':
+        return [[{
+          ...ast.value,
+          sign: ast.value.sign === '+' ? '-' : '+'
+        }]];
+      case 'not':
+        return this.rulePredicateAstToClauses(ast.value);
+      case 'and':
+        return [
+          ...this.negateRulePredicateAst(ast.left),
+          ...this.negateRulePredicateAst(ast.right)
+        ];
+      case 'or': {
+        const left = this.negateRulePredicateAst(ast.left);
+        const right = this.negateRulePredicateAst(ast.right);
+        if (left.length === 0) return right;
+        if (right.length === 0) return left;
+        return left.flatMap(leftClause =>
+          right.map(rightClause => [...leftClause, ...rightClause])
+        );
+      }
+      default:
+        return [];
+    }
   }
 
   validateModelAgainstRules(model, extraRules = []) {
