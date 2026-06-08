@@ -552,10 +552,10 @@ export class ContractValidator {
       return formula.until_formula ? null : this.formulaAstToRulePredicateAst(formula.inner_formula);
     }
 
-    if (formula.when_formula && formula.also_formula) {
+    if (formula.when_formula && (formula.also_formula || formula.next_formula)) {
       const when = this.formulaAstToRulePredicateAst(formula.when_formula);
-      const also = this.formulaAstToRulePredicateAst(formula.also_formula);
-      return when && also ? { type: 'or', left: { type: 'not', value: when }, right: also } : null;
+      const then = this.formulaAstToRulePredicateAst(formula.also_formula || formula.next_formula);
+      return when && then ? { type: 'or', left: { type: 'not', value: when }, right: then } : null;
     }
 
     if (formula.left && formula.right) {
