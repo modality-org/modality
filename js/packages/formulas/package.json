@@ -4,6 +4,7 @@
   "description": "",
   "main": "src/index.js",
   "scripts": {
+    "build:grammar": "src/grammars/build.sh",
     "test": "NODE_OPTIONS=--experimental-vm-modules npx jest"
   },
   "author": "Foy Savas",
@@ -24,5 +25,8 @@
     "jest": "^28.1.1",
     "lodash": "^4.17.21",
     "uint8arrays": "^3.0.0"
+  },
+  "devDependencies": {
+    "antlr-ng": "^1.0.10"
   }
 }
