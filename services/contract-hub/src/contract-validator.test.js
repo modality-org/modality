@@ -207,6 +207,18 @@ test('nested rule disjunctions keep surrounding conjunctions', () => {
   );
 });
 
+test('compound rule predicate negation applies De Morgan clauses', () => {
+  const validator = new ContractValidator();
+
+  assert.deepEqual(
+    validator.extractRulePredicateClauses('rule no_pair { formula { always (!(+signed_by(/members/alice.id) | +signed_by(/members/bob.id))) } }'),
+    [[
+      { sign: '-', name: 'signed_by', args: ['/members/alice.id'] },
+      { sign: '-', name: 'signed_by', args: ['/members/bob.id'] }
+    ]]
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 
