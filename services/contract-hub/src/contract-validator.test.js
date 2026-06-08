@@ -215,6 +215,15 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
       }]
     ]
   );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule quorum { formula { always (threshold(2, /members)) } }'
+    ),
+    [
+      [{ sign: '+', name: 'threshold', args: ['2', '/members'] }]
+    ]
+  );
 });
 
 test('rule predicate extraction falls back when formula parser cannot parse documented syntax', () => {
