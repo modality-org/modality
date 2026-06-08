@@ -87,7 +87,13 @@ export class ContractValidator {
    * Load a rule/model definition
    */
   loadRule(path, content, witnessModel, { enforceWitness = true } = {}) {
-    const rule = { path, content, predicates: this.extractRulePredicates(content) };
+    const predicateClauses = this.extractRulePredicateClauses(content);
+    const rule = {
+      path,
+      content,
+      predicates: predicateClauses.flat(),
+      predicateClauses
+    };
     if (enforceWitness && rule.predicates.length > 0) {
       if (!witnessModel) {
         throw new Error('RULE requires a witness model');
@@ -487,13 +493,24 @@ export class ContractValidator {
   }
 
   extractRulePredicates(content) {
+    return this.extractRulePredicateClauses(content).flat();
+  }
+
+  extractRulePredicateClauses(content) {
     if (typeof content !== 'string') return [];
-    return this.parseGuardPredicates(content);
+    return content
+      .split('|')
+      .map(clause => this.parseGuardPredicates(clause))
+      .filter(clause => clause.length > 0);
   }
 
   validateModelAgainstRules(model, extraRules = []) {
-    const requiredPredicates = [...this.rules, ...extraRules].flatMap(rule => rule.predicates || []);
-    if (requiredPredicates.length === 0) {
+    const rules = [...this.rules, ...extraRules]
+      .map(rule => rule.predicateClauses?.length
+        ? rule.predicateClauses
+        : (rule.predicates || []).map(predicate => [predicate]))
+      .filter(clauses => clauses.length > 0);
+    if (rules.length === 0) {
       return { ok: true };
     }
 
@@ -506,22 +523,36 @@ export class ContractValidator {
 
     for (const transition of model.transitions) {
       const guardPredicates = this.parseGuardPredicates(transition.guard || '');
-      for (const required of requiredPredicates) {
-        const satisfied = guardPredicates.some(candidate =>
-          candidate.sign === required.sign &&
-          candidate.name === required.name &&
-          JSON.stringify(candidate.args) === JSON.stringify(required.args)
+      for (const clauses of rules) {
+        const satisfied = clauses.some(clause =>
+          clause.every(required => this.guardHasPredicate(guardPredicates, required))
         );
         if (!satisfied) {
+          const description = clauses
+            .map(clause => clause.map(predicate => this.formatPredicate(predicate)).join(' & '))
+            .join(' | ');
           return {
             ok: false,
-            error: `MODEL transition ${transition.from}->${transition.to} does not satisfy existing rule predicate ${required.sign}${required.name}(${required.args.join(', ')})`
+            error: `MODEL transition ${transition.from}->${transition.to} does not satisfy existing rule predicate ${description}`
           };
         }
       }
     }
 
     return { ok: true };
+  }
+
+  guardHasPredicate(guardPredicates, required) {
+    return guardPredicates.some(candidate =>
+      candidate.sign === required.sign &&
+      candidate.name === required.name &&
+      JSON.stringify(candidate.args) === JSON.stringify(required.args)
+    );
+  }
+
+  formatPredicate(predicate) {
+    const args = predicate.args.length > 0 ? `(${predicate.args.join(', ')})` : '';
+    return `${predicate.sign}${predicate.name}${args}`;
   }
 }
 

@@ -80,6 +80,47 @@ test('MODEL replacements must preserve predicates required by existing rules', (
   );
 });
 
+test('MODEL replacements may satisfy predicate disjunctions one branch at a time', () => {
+  const validator = new ContractValidator();
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/alice-or-bob.modality',
+      content: 'rule signed { formula { always (+signed_by(/members/alice.id) | +signed_by(/members/bob.id)) } }',
+      model: `
+        model signed_witness {
+          initial active
+          active -> active [+signed_by(/members/alice.id)]
+        }
+      `
+    }
+  });
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/bob.modality',
+      content: `
+        model bob {
+          initial active
+          active -> active [+signed_by(/members/bob.id)]
+        }
+      `
+    }
+  }));
+
+  assert.throws(
+    () => validator.loadModel('/rules/open.modality', `
+      model open {
+        initial active
+        active -> active []
+      }
+    `),
+    /does not satisfy existing rule predicate/
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 
