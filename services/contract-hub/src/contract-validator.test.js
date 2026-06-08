@@ -276,6 +276,18 @@ test('rule predicate extraction treats bare predicate calls as positive predicat
   );
 });
 
+test('rule predicate extraction supports modal action implications', () => {
+  const validator = new ContractValidator();
+
+  assert.deepEqual(
+    validator.extractRulePredicateClauses('rule owner_transfer { formula { always ([+TRANSFER] implies signed_by(/owner.id)) } }'),
+    [
+      [{ sign: '-', name: 'TRANSFER', args: [] }],
+      [{ sign: '+', name: 'signed_by', args: ['/owner.id'] }]
+    ]
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 
