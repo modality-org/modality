@@ -256,6 +256,26 @@ test('rule predicate extraction supports textual implication', () => {
   );
 });
 
+test('rule predicate extraction treats bare predicate calls as positive predicates', () => {
+  const validator = new ContractValidator();
+
+  assert.deepEqual(
+    validator.extractRulePredicateClauses('rule membership { formula { always (modifies(/members) implies all_signed(/members)) } }'),
+    [
+      [{ sign: '-', name: 'modifies', args: ['/members'] }],
+      [{ sign: '+', name: 'all_signed', args: ['/members'] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClauses('rule docs { formula { always (signed_by(/members/alice.id) or signed_by(/members/bob.id)) } }'),
+    [
+      [{ sign: '+', name: 'signed_by', args: ['/members/alice.id'] }],
+      [{ sign: '+', name: 'signed_by', args: ['/members/bob.id'] }]
+    ]
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 

@@ -521,7 +521,7 @@ export class ContractValidator {
         continue;
       }
 
-      const operatorMatch = content.slice(index).match(/^(implies)\b/i);
+      const operatorMatch = content.slice(index).match(/^(and|or|implies)\b/i);
       if (operatorMatch) {
         tokens.push({ type: operatorMatch[1].toLowerCase() });
         index += operatorMatch[0].length;
@@ -544,10 +544,44 @@ export class ContractValidator {
         }
       }
 
+      const barePredicateMatch = content.slice(index).match(/^([A-Za-z_]\w*)\s*(?:\(([^)]*)\))?/);
+      if (barePredicateMatch) {
+        if (this.isRulePredicateName(barePredicateMatch[1], barePredicateMatch[2])) {
+          tokens.push({
+            type: 'predicate',
+            value: {
+              sign: '+',
+              name: barePredicateMatch[1],
+              args: (barePredicateMatch[2] || '').split(',').map(arg => arg.trim()).filter(Boolean)
+            }
+          });
+          index += barePredicateMatch[0].length;
+          continue;
+        }
+
+        index += barePredicateMatch[1].length;
+        continue;
+      }
+
       index += 1;
     }
 
     return tokens;
+  }
+
+  isRulePredicateName(name, argText) {
+    const ignoredNames = new Set([
+      'always',
+      'eventually',
+      'until',
+      'lfp',
+      'gfp',
+      'rule',
+      'formula',
+      'model',
+      'initial'
+    ]);
+    return !ignoredNames.has(name.toLowerCase()) && (argText !== undefined || name === 'adds_rule');
   }
 
   parseRulePredicateExpression(tokens) {
@@ -564,7 +598,7 @@ export class ContractValidator {
 
     const parseOr = () => {
       let node = parseAnd();
-      while (tokens[position]?.type === '|') {
+      while (tokens[position]?.type === '|' || tokens[position]?.type === 'or') {
         position += 1;
         node = { type: 'or', left: node, right: parseAnd() };
       }
@@ -573,7 +607,7 @@ export class ContractValidator {
 
     const parseAnd = () => {
       let node = parseUnary();
-      while (tokens[position]?.type === '&') {
+      while (tokens[position]?.type === '&' || tokens[position]?.type === 'and') {
         position += 1;
         node = { type: 'and', left: node, right: parseUnary() };
       }
@@ -600,7 +634,7 @@ export class ContractValidator {
 
       if (token.type === '(') {
         position += 1;
-        const node = parseOr();
+        const node = parseImplies();
         if (tokens[position]?.type === ')') {
           position += 1;
         }
