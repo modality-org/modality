@@ -30,6 +30,10 @@ export function builder(yargs) {
       type: "string",
       describe: "Rule file to push (creates a RULE commit)",
     })
+    .option("model", {
+      type: "string",
+      describe: "Witness model file for a RULE commit",
+    })
     .option("message", {
       alias: "m",
       type: "string",
@@ -44,7 +48,7 @@ export function builder(yargs) {
 }
 
 export async function handler(argv) {
-  const { contract, file, path: commitPath, rule, message, creds: credsPath } = argv;
+  const { contract, file, path: commitPath, rule, model, message, creds: credsPath } = argv;
   
   const creds = loadCredentials(credsPath);
   if (!creds) return;
@@ -95,12 +99,21 @@ export async function handler(argv) {
     }
     
     const content = readFileSync(rule, "utf8");
+    let witnessModel;
+    if (model) {
+      if (!existsSync(model)) {
+        console.error(`❌ Model file not found: ${model}`);
+        process.exit(1);
+      }
+      witnessModel = readFileSync(model, "utf8");
+    }
     const rulePath = commitPath || `/rules/${rule}`;
     
     const commitData = {
       method: "RULE",
       path: rulePath,
       content,
+      ...(witnessModel ? { model: witnessModel } : {}),
       message,
     };
     
