@@ -281,6 +281,18 @@ test('rule predicate extraction falls back when formula parser cannot parse docu
       ]
     ]
   );
+
+  const eventualRule = 'rule eventual { formula { eventually (signed_by(/owner.id)) } }';
+  assert.equal(
+    validator.extractRulePredicateClausesWithFormulaParser(eventualRule),
+    null
+  );
+  assert.deepEqual(
+    validator.extractRulePredicateClauses(eventualRule),
+    [
+      [{ sign: '+', name: 'signed_by', args: ['/owner.id'] }]
+    ]
+  );
 });
 
 test('rule predicate extraction flips explicit negation polarity', () => {

@@ -555,6 +555,7 @@ export class ContractValidator {
     if (!formula) return null;
 
     if (formula.inner_formula && Object.hasOwn(formula, 'until_formula')) {
+      if (formula.constructor?.name !== 'AlwaysMacro') return null;
       return formula.until_formula ? null : this.formulaAstToRulePredicateAst(formula.inner_formula);
     }
 
