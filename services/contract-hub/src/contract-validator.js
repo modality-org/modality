@@ -568,6 +568,12 @@ export class ContractValidator {
       return null;
     }
 
+    if (formula.inner && formula.outer && formula.constructor?.name === 'BoxFormula') {
+      const inner = this.formulaAstToRulePredicateAst(formula.inner);
+      const outer = this.formulaAstToRulePredicateAst(formula.outer);
+      return inner && outer ? { type: 'or', left: { type: 'not', value: inner }, right: outer } : null;
+    }
+
     if (formula.formula) {
       const value = this.formulaAstToRulePredicateAst(formula.formula);
       return value ? { type: 'not', value } : null;
