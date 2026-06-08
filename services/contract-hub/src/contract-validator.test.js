@@ -128,3 +128,68 @@ test('threshold predicates require enough distinct member signatures', () => {
     }
   }).ok, false);
 });
+
+test('model state tracks nondeterministic branches as a set', () => {
+  const validator = new ContractValidator();
+
+  validator.applyCommit({
+    data: {
+      method: 'POST',
+      path: '/members/alice.id',
+      content: 'alice-key'
+    }
+  });
+  validator.applyCommit({
+    data: {
+      method: 'POST',
+      path: '/members/bob.id',
+      content: 'bob-key'
+    }
+  });
+
+  validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/branches.modality',
+      content: `
+        model branches {
+          initial active
+          active -> reviewing [+signed_by(/members/alice.id)]
+          active -> approved [+signed_by(/members/alice.id)]
+          approved -> done [+signed_by(/members/bob.id)]
+        }
+      `
+    }
+  });
+
+  validator.applyCommit({
+    data: {
+      method: 'POST',
+      path: '/requests/1.json',
+      content: { requested: true },
+      signatures: [{ signer_key: 'alice-key' }]
+    }
+  });
+
+  assert.deepEqual(new Set(validator.getState().currentStates), new Set(['reviewing', 'approved']));
+
+  assert.equal(validator.validateCommit({
+    data: {
+      method: 'POST',
+      path: '/requests/1.json',
+      content: { approved: true },
+      signatures: [{ signer_key: 'bob-key' }]
+    }
+  }).ok, true);
+
+  validator.applyCommit({
+    data: {
+      method: 'POST',
+      path: '/requests/1.json',
+      content: { approved: true },
+      signatures: [{ signer_key: 'bob-key' }]
+    }
+  });
+
+  assert.deepEqual(validator.getState().currentStates, ['done']);
+});
