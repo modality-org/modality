@@ -288,6 +288,18 @@ test('rule predicate extraction supports modal action implications', () => {
   );
 });
 
+test('rule predicate extraction supports bare adds_rule predicates', () => {
+  const validator = new ContractValidator();
+
+  assert.deepEqual(
+    validator.extractRulePredicateClauses('rule no_rules { formula { always (!adds_rule | signed_by(/admin.id)) } }'),
+    [
+      [{ sign: '-', name: 'adds_rule', args: [] }],
+      [{ sign: '+', name: 'signed_by', args: ['/admin.id'] }]
+    ]
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 
