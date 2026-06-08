@@ -174,6 +174,24 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
       [{ sign: '+', name: 'signed_by', args: ['/members/alice.id'] }]
     ]
   );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule owner { formula { always (signed_by(/owner.id)) } }'
+    ),
+    [
+      [{ sign: '+', name: 'signed_by', args: ['/owner.id'] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule transfer { formula { always (+TRANSFER) } }'
+    ),
+    [
+      [{ sign: '+', name: 'TRANSFER', args: [] }]
+    ]
+  );
 });
 
 test('rule predicate extraction falls back when formula parser cannot parse documented syntax', () => {
