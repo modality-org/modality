@@ -219,6 +219,43 @@ test('compound rule predicate negation applies De Morgan clauses', () => {
   );
 });
 
+test('rule predicate extraction supports textual implication', () => {
+  const validator = new ContractValidator();
+
+  assert.deepEqual(
+    validator.extractRulePredicateClauses('rule membership { formula { always (+modifies(/members) implies +all_signed(/members)) } }'),
+    [
+      [{ sign: '-', name: 'modifies', args: ['/members'] }],
+      [{ sign: '+', name: 'all_signed', args: ['/members'] }]
+    ]
+  );
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/membership.modality',
+      content: 'rule membership { formula { always (+modifies(/members) implies +all_signed(/members)) } }',
+      model: `
+        model membership_witness {
+          initial active
+          active -> active [-modifies(/members)]
+          active -> active [+all_signed(/members)]
+        }
+      `
+    }
+  });
+
+  assert.throws(
+    () => validator.loadModel('/rules/membership-unsafe.modality', `
+      model membership_unsafe {
+        initial active
+        active -> active [+modifies(/members)]
+      }
+    `),
+    /does not satisfy existing rule predicate -modifies\(\/members\) \| \+all_signed\(\/members\)/
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 

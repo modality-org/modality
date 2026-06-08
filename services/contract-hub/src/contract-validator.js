@@ -521,6 +521,13 @@ export class ContractValidator {
         continue;
       }
 
+      const operatorMatch = content.slice(index).match(/^(implies)\b/i);
+      if (operatorMatch) {
+        tokens.push({ type: operatorMatch[1].toLowerCase() });
+        index += operatorMatch[0].length;
+        continue;
+      }
+
       if (char === '+' || char === '-') {
         const predicateMatch = content.slice(index).match(/^([+-])\s*([A-Za-z_]\w*)\s*(?:\(([^)]*)\))?/);
         if (predicateMatch) {
@@ -545,6 +552,15 @@ export class ContractValidator {
 
   parseRulePredicateExpression(tokens) {
     let position = 0;
+
+    const parseImplies = () => {
+      let node = parseOr();
+      if (tokens[position]?.type === 'implies') {
+        position += 1;
+        node = { type: 'or', left: { type: 'not', value: node }, right: parseImplies() };
+      }
+      return node;
+    };
 
     const parseOr = () => {
       let node = parseAnd();
@@ -595,7 +611,7 @@ export class ContractValidator {
       return parsePrimary();
     };
 
-    return parseOr();
+    return parseImplies();
   }
 
   rulePredicateAstToClauses(ast) {
