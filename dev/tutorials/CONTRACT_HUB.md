@@ -325,8 +325,16 @@ You can also use the `modal hub` commands directly without the contract store:
 modal hub create "Widget Escrow" --creds .modal-hub/credentials.json
 # Output: ID: con_abc123
 
-# Push a rule file
-modal hub push con_abc123 --rule escrow.modality
+# Add a witness model proving the rule is satisfiable
+cat > escrow-witness.modality <<'EOF'
+model escrow_witness {
+  initial active
+  active -> active [+any_signed(/members)]
+}
+EOF
+
+# Push a rule file with its witness model
+modal hub push con_abc123 --rule escrow.modality --model escrow-witness.modality
 
 # Share with Bob
 modal hub grant con_abc123 id_bob_xyz write
@@ -433,6 +441,7 @@ modal hub register [--url ...] [--output credentials.json]
 # Direct hub commands (no contract store)
 modal hub create <name>
 modal hub push <contract> --file <file> [--path /path]
+modal hub push <contract> --rule <file> --model <witness.modality>
 modal hub pull <contract>
 modal hub grant <contract> <identity_id> [read|write]
 ```
