@@ -500,8 +500,29 @@ export class ContractValidator {
     if (typeof content !== 'string') return [];
     return content
       .split('|')
-      .map(clause => this.parseGuardPredicates(clause))
+      .map(clause => this.parseRulePredicateClause(clause))
       .filter(clause => clause.length > 0);
+  }
+
+  parseRulePredicateClause(clause = '') {
+    const predicates = [];
+    const predicateRegex = /(!\s*)?([+-])\s*([A-Za-z_]\w*)\s*(?:\(([^)]*)\))?/g;
+    let match;
+
+    while ((match = predicateRegex.exec(clause)) !== null) {
+      let sign = match[2];
+      if (match[1]) {
+        sign = sign === '+' ? '-' : '+';
+      }
+
+      predicates.push({
+        sign,
+        name: match[3],
+        args: (match[4] || '').split(',').map(arg => arg.trim()).filter(Boolean)
+      });
+    }
+
+    return predicates;
   }
 
   validateModelAgainstRules(model, extraRules = []) {

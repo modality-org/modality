@@ -121,6 +121,49 @@ test('MODEL replacements may satisfy predicate disjunctions one branch at a time
   );
 });
 
+test('rule predicate extraction flips explicit negation polarity', () => {
+  const validator = new ContractValidator();
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/membership.modality',
+      content: 'rule membership { formula { always (!+modifies(/members) | +all_signed(/members)) } }',
+      model: `
+        model membership_witness {
+          initial active
+          active -> active [-modifies(/members)]
+          active -> active [+all_signed(/members)]
+        }
+      `
+    }
+  });
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/membership-ok.modality',
+      content: `
+        model membership_ok {
+          initial active
+          active -> active [-modifies(/members)]
+          active -> active [+all_signed(/members)]
+        }
+      `
+    }
+  }));
+
+  assert.throws(
+    () => validator.loadModel('/rules/membership-unsafe.modality', `
+      model membership_unsafe {
+        initial active
+        active -> active [+modifies(/members)]
+      }
+    `),
+    /does not satisfy existing rule predicate -modifies\(\/members\) \| \+all_signed\(\/members\)/
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 
