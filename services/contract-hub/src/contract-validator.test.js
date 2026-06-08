@@ -241,6 +241,19 @@ test('rule predicate extraction falls back when formula parser cannot parse docu
       [{ sign: '+', name: 'all_signed', args: ['/members'] }]
     ]
   );
+
+  const textualNotRule = 'rule no_rules { formula { always (not adds_rule or signed_by(/admin.id)) } }';
+  assert.equal(
+    validator.extractRulePredicateClausesWithFormulaParser(textualNotRule),
+    null
+  );
+  assert.deepEqual(
+    validator.extractRulePredicateClauses(textualNotRule),
+    [
+      [{ sign: '-', name: 'adds_rule', args: [] }],
+      [{ sign: '+', name: 'signed_by', args: ['/admin.id'] }]
+    ]
+  );
 });
 
 test('rule predicate extraction flips explicit negation polarity', () => {
