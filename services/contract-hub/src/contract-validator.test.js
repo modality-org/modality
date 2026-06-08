@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ContractValidator } from './contract-validator.js';
+import { ContractValidator, validateContractLogic } from './contract-validator.js';
 
 test('MODEL commits load predicate-guarded models that validate POST commits', () => {
   const validator = new ContractValidator();
@@ -273,4 +273,92 @@ test('MODEL replacement is validated by the current model before taking effect',
       signatures: [{ signer_key: 'alice-key' }]
     }
   }).ok, false);
+});
+
+test('validateContractLogic replays MODEL replacement within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const baseCommits = [
+    {
+      data: {
+        method: 'POST',
+        path: '/members/alice.id',
+        content: 'alice-key'
+      }
+    },
+    {
+      data: {
+        method: 'POST',
+        path: '/members/bob.id',
+        content: 'bob-key'
+      }
+    },
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/alice.modality',
+        content: `
+          model alice_only {
+            initial active
+            active -> active [+signed_by(/members/alice.id)]
+          }
+        `
+      }
+    },
+    {
+      data: {
+        method: 'POST',
+        path: '/docs/alice.md',
+        content: 'alice write',
+        signatures: [{ signer_key: 'alice-key' }]
+      }
+    }
+  ];
+  const bobModel = {
+    data: {
+      method: 'MODEL',
+      path: '/rules/bob.modality',
+      content: `
+        model bob_only {
+          initial active
+          active -> active [+signed_by(/members/bob.id)]
+        }
+      `,
+      signatures: [{ signer_key: 'alice-key' }]
+    }
+  };
+  const bobWrite = {
+    data: {
+      method: 'POST',
+      path: '/docs/bob.md',
+      content: 'bob write',
+      signatures: [{ signer_key: 'bob-key' }]
+    }
+  };
+
+  const valid = await validateContractLogic(store, 'contract', [
+    ...baseCommits,
+    bobModel,
+    bobWrite
+  ]);
+
+  assert.equal(valid.valid, true);
+  assert.equal(valid.state.model.name, 'bob_only');
+
+  const invalid = await validateContractLogic(store, 'contract', [
+    ...baseCommits,
+    {
+      data: {
+        ...bobModel.data,
+        signatures: [{ signer_key: 'bob-key' }]
+      }
+    },
+    bobWrite
+  ]);
+
+  assert.equal(invalid.valid, false);
+  assert.match(invalid.errors[0], /MODEL is not allowed/);
 });
