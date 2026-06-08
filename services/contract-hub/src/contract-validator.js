@@ -64,7 +64,7 @@ export class ContractValidator {
         break;
 
       case 'RULE':
-        this.loadRule(path, content);
+        this.loadRule(path, content, data.model ?? data.witnessModel);
         break;
         
       case 'ACTION':
@@ -86,8 +86,25 @@ export class ContractValidator {
   /**
    * Load a rule/model definition
    */
-  loadRule(path, content) {
-    this.rules.push({ path, content, predicates: this.extractRulePredicates(content) });
+  loadRule(path, content, witnessModel) {
+    const rule = { path, content, predicates: this.extractRulePredicates(content) };
+    if (rule.predicates.length > 0) {
+      if (!witnessModel) {
+        throw new Error('RULE requires a witness model');
+      }
+
+      const parsedWitness = this.parseWitnessModel(witnessModel);
+      if (!parsedWitness) {
+        throw new Error('RULE witness model is invalid');
+      }
+
+      const witnessFailure = this.validateModelAgainstRules(parsedWitness, [rule]);
+      if (!witnessFailure.ok) {
+        throw new Error(`RULE witness model failed: ${witnessFailure.error}`);
+      }
+    }
+
+    this.rules.push(rule);
   }
 
   /**
@@ -123,6 +140,14 @@ export class ContractValidator {
       this.machine = this.buildMachineFromModel(parsed);
       this.currentStates = new Set([parsed.initialState]);
     }
+  }
+
+  parseWitnessModel(content) {
+    if (typeof content !== 'string') {
+      content = JSON.stringify(content);
+    }
+
+    return this.parseModalitySyntax(content);
   }
   
   /**
@@ -466,10 +491,17 @@ export class ContractValidator {
     return this.parseGuardPredicates(content);
   }
 
-  validateModelAgainstRules(model) {
-    const requiredPredicates = this.rules.flatMap(rule => rule.predicates || []);
+  validateModelAgainstRules(model, extraRules = []) {
+    const requiredPredicates = [...this.rules, ...extraRules].flatMap(rule => rule.predicates || []);
     if (requiredPredicates.length === 0) {
       return { ok: true };
+    }
+
+    if (!model.transitions || model.transitions.length === 0) {
+      return {
+        ok: false,
+        error: 'MODEL has no transitions to satisfy existing rule predicates'
+      };
     }
 
     for (const transition of model.transitions) {

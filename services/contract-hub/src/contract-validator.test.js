@@ -53,7 +53,13 @@ test('MODEL replacements must preserve predicates required by existing rules', (
     data: {
       method: 'RULE',
       path: '/rules/signed.modality',
-      content: 'rule signed { formula { always (+any_signed(/members)) } }'
+      content: 'rule signed { formula { always (+any_signed(/members)) } }',
+      model: `
+        model signed_witness {
+          initial active
+          active -> active [+any_signed(/members)]
+        }
+      `
     }
   });
 
@@ -393,7 +399,13 @@ test('validateContractLogic anchors rules to later MODEL replacements', async ()
       data: {
         method: 'RULE',
         path: '/rules/signed.modality',
-        content: 'rule signed { formula { always (+any_signed(/members)) } }'
+        content: 'rule signed { formula { always (+any_signed(/members)) } }',
+        model: `
+          model signed_witness {
+            initial active
+            active -> active [+any_signed(/members)]
+          }
+        `
       }
     },
     {
@@ -445,4 +457,36 @@ test('validateContractLogic anchors rules to later MODEL replacements', async ()
 
   assert.equal(validReplacement.valid, true);
   assert.equal(validReplacement.state.model.name, 'signed_model');
+});
+
+test('RULE commits require a satisfying witness model', () => {
+  const validator = new ContractValidator();
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/signed.modality',
+        content: 'rule signed { formula { always (+any_signed(/members)) } }'
+      }
+    }),
+    /RULE requires a witness model/
+  );
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/signed.modality',
+        content: 'rule signed { formula { always (+any_signed(/members)) } }',
+        model: `
+          model open {
+            initial active
+            active -> active []
+          }
+        `
+      }
+    }),
+    /RULE witness model failed/
+  );
 });
