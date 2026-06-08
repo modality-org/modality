@@ -309,6 +309,18 @@ test('rule predicate extraction supports textual not', () => {
   );
 });
 
+test('rule predicate extraction supports arrow implications', () => {
+  const validator = new ContractValidator();
+
+  assert.deepEqual(
+    validator.extractRulePredicateClauses('rule expiry { formula { always (after(/deadlines/expiry.datetime) -> signed_by(/users/buyer.id)) } }'),
+    [
+      [{ sign: '-', name: 'after', args: ['/deadlines/expiry.datetime'] }],
+      [{ sign: '+', name: 'signed_by', args: ['/users/buyer.id'] }]
+    ]
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 

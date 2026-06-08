@@ -521,6 +521,13 @@ export class ContractValidator {
         continue;
       }
 
+      const arrowMatch = content.slice(index).match(/^(->|=>)/);
+      if (arrowMatch) {
+        tokens.push({ type: 'implies' });
+        index += arrowMatch[0].length;
+        continue;
+      }
+
       const operatorMatch = content.slice(index).match(/^(and|or|not|implies)\b/i);
       if (operatorMatch) {
         const type = operatorMatch[1].toLowerCase();
