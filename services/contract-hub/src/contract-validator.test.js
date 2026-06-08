@@ -362,3 +362,87 @@ test('validateContractLogic replays MODEL replacement within a batch', async () 
   assert.equal(invalid.valid, false);
   assert.match(invalid.errors[0], /MODEL is not allowed/);
 });
+
+test('validateContractLogic anchors rules to later MODEL replacements', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const baseCommits = [
+    {
+      data: {
+        method: 'POST',
+        path: '/members/alice.id',
+        content: 'alice-key'
+      }
+    },
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/open.modality',
+        content: `
+          model open {
+            initial active
+            active -> active []
+          }
+        `
+      }
+    },
+    {
+      data: {
+        method: 'RULE',
+        path: '/rules/signed.modality',
+        content: 'rule signed { formula { always (+any_signed(/members)) } }'
+      }
+    },
+    {
+      data: {
+        method: 'POST',
+        path: '/docs/unsigned.md',
+        content: 'rules do not validate commits directly'
+      }
+    }
+  ];
+
+  const unsignedPost = await validateContractLogic(store, 'contract', baseCommits);
+  assert.equal(unsignedPost.valid, true);
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ...baseCommits,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/open-again.modality',
+        content: `
+          model open_again {
+            initial active
+            active -> active []
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ...baseCommits,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/signed-model.modality',
+        content: `
+          model signed_model {
+            initial active
+            active -> active [+any_signed(/members)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'signed_model');
+});
