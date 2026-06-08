@@ -133,6 +133,27 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
       [{ sign: '+', name: 'signed_by', args: ['/members/bob.id'] }]
     ]
   );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule no_alice { formula { always (not +signed_by(/members/alice.id)) } }'
+    ),
+    [
+      [{ sign: '-', name: 'signed_by', args: ['/members/alice.id'] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule docs { formula { always (+modifies(/docs) and +signed_by(/members/alice.id)) } }'
+    ),
+    [
+      [
+        { sign: '+', name: 'modifies', args: ['/docs'] },
+        { sign: '+', name: 'signed_by', args: ['/members/alice.id'] }
+      ]
+    ]
+  );
 });
 
 test('rule predicate extraction falls back when formula parser cannot parse documented syntax', () => {
