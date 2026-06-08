@@ -205,6 +205,17 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
+      'rule transfer { formula { always ([+TRANSFER -RECV] signed_by(/owner.id)) } }'
+    ),
+    [
+      [{ sign: '-', name: 'TRANSFER', args: [] }],
+      [{ sign: '+', name: 'RECV', args: [] }],
+      [{ sign: '+', name: 'signed_by', args: ['/owner.id'] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
       'rule delivery { formula { always (oracle_attests(/oracles/delivery.id, "delivered", "true")) } }'
     ),
     [
