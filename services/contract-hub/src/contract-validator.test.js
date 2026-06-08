@@ -321,6 +321,18 @@ test('rule predicate extraction supports arrow implications', () => {
   );
 });
 
+test('rule predicate extraction supports modal multi-argument predicates', () => {
+  const validator = new ContractValidator();
+
+  assert.deepEqual(
+    validator.extractRulePredicateClauses('rule delivery { formula { always ([+RELEASE] implies <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true) } }'),
+    [
+      [{ sign: '-', name: 'RELEASE', args: [] }],
+      [{ sign: '+', name: 'oracle_attests', args: ['/oracles/delivery.id', '"delivered"', '"true"'] }]
+    ]
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 
