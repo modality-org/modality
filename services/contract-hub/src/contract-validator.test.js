@@ -121,6 +121,37 @@ test('MODEL replacements may satisfy predicate disjunctions one branch at a time
   );
 });
 
+test('real formula parser extracts parseable rule predicate clauses', () => {
+  const validator = new ContractValidator();
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule signed { formula { always (+signed_by(/members/alice.id) or +signed_by(/members/bob.id)) } }'
+    ),
+    [
+      [{ sign: '+', name: 'signed_by', args: ['/members/alice.id'] }],
+      [{ sign: '+', name: 'signed_by', args: ['/members/bob.id'] }]
+    ]
+  );
+});
+
+test('rule predicate extraction falls back when formula parser cannot parse documented syntax', () => {
+  const validator = new ContractValidator();
+  const rule = 'rule membership { formula { always (+modifies(/members) implies +all_signed(/members)) } }';
+
+  assert.equal(
+    validator.extractRulePredicateClausesWithFormulaParser(rule),
+    null
+  );
+  assert.deepEqual(
+    validator.extractRulePredicateClauses(rule),
+    [
+      [{ sign: '-', name: 'modifies', args: ['/members'] }],
+      [{ sign: '+', name: 'all_signed', args: ['/members'] }]
+    ]
+  );
+});
+
 test('rule predicate extraction flips explicit negation polarity', () => {
   const validator = new ContractValidator();
 

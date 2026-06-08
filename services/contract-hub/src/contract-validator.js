@@ -4,6 +4,7 @@
  * Validates commits against the contract's governing model.
  * Replays predicate-guarded model transitions over the append-only commit log.
  */
+import { Expression } from '../../../js/packages/formulas/src/index.js';
 
 /**
  * Contract state tracker
@@ -498,9 +499,141 @@ export class ContractValidator {
 
   extractRulePredicateClauses(content) {
     if (typeof content !== 'string') return [];
+    const parsedClauses = this.extractRulePredicateClausesWithFormulaParser(content);
+    if (parsedClauses) {
+      return parsedClauses;
+    }
+
     const tokens = this.tokenizeRulePredicateFormula(content);
     const ast = this.parseRulePredicateExpression(tokens);
     return ast ? this.rulePredicateAstToClauses(ast) : [];
+  }
+
+  extractRulePredicateClausesWithFormulaParser(content) {
+    const formulaContent = this.extractRuleFormulaContent(content);
+    if (!formulaContent) return null;
+
+    try {
+      const formula = new Expression(formulaContent);
+      const ast = this.formulaAstToRulePredicateAst(formula);
+      if (!ast) return null;
+      return this.rulePredicateAstToClauses(ast);
+    } catch {
+      return null;
+    }
+  }
+
+  extractRuleFormulaContent(content) {
+    const formulaMatch = content.match(/\bformula\b/i);
+    if (!formulaMatch) return content;
+
+    const openIndex = content.indexOf('{', formulaMatch.index + formulaMatch[0].length);
+    if (openIndex === -1) return null;
+
+    let depth = 0;
+    for (let index = openIndex; index < content.length; index += 1) {
+      if (content[index] === '{') {
+        depth += 1;
+      } else if (content[index] === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          return content.slice(openIndex + 1, index).trim();
+        }
+      }
+    }
+
+    return null;
+  }
+
+  formulaAstToRulePredicateAst(formula) {
+    if (!formula) return null;
+
+    if (formula.inner_formula && Object.hasOwn(formula, 'until_formula')) {
+      return formula.until_formula ? null : this.formulaAstToRulePredicateAst(formula.inner_formula);
+    }
+
+    if (formula.when_formula && formula.also_formula) {
+      const when = this.formulaAstToRulePredicateAst(formula.when_formula);
+      const also = this.formulaAstToRulePredicateAst(formula.also_formula);
+      return when && also ? { type: 'or', left: { type: 'not', value: when }, right: also } : null;
+    }
+
+    if (formula.left && formula.right) {
+      const left = this.formulaAstToRulePredicateAst(formula.left);
+      const right = this.formulaAstToRulePredicateAst(formula.right);
+      if (!left || !right) return null;
+      const formulaName = formula.constructor?.name;
+      if (formulaName === 'AndFormula') return { type: 'and', left, right };
+      if (formulaName === 'OrFormula') return { type: 'or', left, right };
+      return null;
+    }
+
+    if (formula.formula) {
+      const value = this.formulaAstToRulePredicateAst(formula.formula);
+      return value ? { type: 'not', value } : null;
+    }
+
+    if (Array.isArray(formula.props)) {
+      const predicates = formula.props
+        .map(prop => this.signedPropToRulePredicate(prop))
+        .filter(Boolean)
+        .map(value => ({ type: 'predicate', value }));
+      if (predicates.length === 0) return null;
+      return predicates.reduce((left, right) => ({ type: 'and', left, right }));
+    }
+
+    if (formula.name) {
+      return {
+        type: 'predicate',
+        value: {
+          sign: '+',
+          name: formula.name,
+          args: this.formulaFunctionArgs(formula.args || [])
+        }
+      };
+    }
+
+    if (formula.text && formula.text !== 'true' && formula.text !== 'false') {
+      return {
+        type: 'predicate',
+        value: { sign: '+', name: formula.text, args: [] }
+      };
+    }
+
+    return null;
+  }
+
+  signedPropToRulePredicate(signedProp) {
+    if (!signedProp || signedProp.isMaybe?.()) return null;
+    const prop = signedProp.prop;
+    const sign = signedProp.sign === false ? '-' : '+';
+
+    if (prop?.name) {
+      return {
+        sign,
+        name: prop.name,
+        args: this.formulaFunctionArgs(prop.args || [])
+      };
+    }
+
+    if (typeof prop === 'string') {
+      return { sign, name: prop, args: [] };
+    }
+
+    if (prop?.text) {
+      return { sign, name: prop.text, args: [] };
+    }
+
+    return null;
+  }
+
+  formulaFunctionArgs(args) {
+    return args.map(arg => {
+      if (arg?.toFunctionArg) return arg.toFunctionArg();
+      if (arg?.str !== undefined) return arg.str;
+      if (typeof arg === 'string') return `"${arg}"`;
+      return String(arg);
+    });
   }
 
   tokenizeRulePredicateFormula(content) {
