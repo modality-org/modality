@@ -193,3 +193,84 @@ test('model state tracks nondeterministic branches as a set', () => {
 
   assert.deepEqual(validator.getState().currentStates, ['done']);
 });
+
+test('MODEL replacement is validated by the current model before taking effect', () => {
+  const validator = new ContractValidator();
+
+  validator.applyCommit({
+    data: {
+      method: 'POST',
+      path: '/members/alice.id',
+      content: 'alice-key'
+    }
+  });
+  validator.applyCommit({
+    data: {
+      method: 'POST',
+      path: '/members/bob.id',
+      content: 'bob-key'
+    }
+  });
+
+  validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/alice.modality',
+      content: `
+        model alice_only {
+          initial active
+          active -> active [+signed_by(/members/alice.id)]
+        }
+      `
+    }
+  });
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/bob.modality',
+        content: `
+          model bob_only {
+            initial active
+            active -> active [+signed_by(/members/bob.id)]
+          }
+        `,
+        signatures: [{ signer_key: 'bob-key' }]
+      }
+    }),
+    /MODEL is not allowed/
+  );
+
+  validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/bob.modality',
+      content: `
+        model bob_only {
+          initial active
+          active -> active [+signed_by(/members/bob.id)]
+        }
+      `,
+      signatures: [{ signer_key: 'alice-key' }]
+    }
+  });
+
+  assert.equal(validator.validateCommit({
+    data: {
+      method: 'POST',
+      path: '/docs/bob.md',
+      content: 'bob can now write',
+      signatures: [{ signer_key: 'bob-key' }]
+    }
+  }).ok, true);
+
+  assert.equal(validator.validateCommit({
+    data: {
+      method: 'POST',
+      path: '/docs/alice.md',
+      content: 'alice no longer can write',
+      signatures: [{ signer_key: 'alice-key' }]
+    }
+  }).ok, false);
+});
