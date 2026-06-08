@@ -73,3 +73,58 @@ test('MODEL replacements must preserve predicates required by existing rules', (
     /does not satisfy existing rule predicate/
   );
 });
+
+test('threshold predicates require enough distinct member signatures', () => {
+  const validator = new ContractValidator();
+
+  for (const [name, key] of [
+    ['alice', 'alice-key'],
+    ['bob', 'bob-key'],
+    ['carol', 'carol-key']
+  ]) {
+    validator.applyCommit({
+      data: {
+        method: 'POST',
+        path: `/members/${name}.id`,
+        content: key
+      }
+    });
+  }
+
+  validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/threshold.modality',
+      content: `
+        model treasury {
+          initial active
+          active -> active [+threshold(2, /members)]
+        }
+      `
+    }
+  });
+
+  assert.equal(validator.validateCommit({
+    data: {
+      method: 'POST',
+      path: '/payments/invoice.json',
+      content: { amount: 100 },
+      signatures: [
+        { signer_key: 'alice-key' },
+        { signer_key: 'bob-key' }
+      ]
+    }
+  }).ok, true);
+
+  assert.equal(validator.validateCommit({
+    data: {
+      method: 'POST',
+      path: '/payments/invoice.json',
+      content: { amount: 100 },
+      signatures: [
+        { signer_key: 'alice-key' },
+        { signer_key: 'outsider-key' }
+      ]
+    }
+  }).ok, false);
+});

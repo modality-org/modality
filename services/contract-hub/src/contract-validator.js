@@ -363,6 +363,8 @@ export class ContractValidator {
         return this.isAnySigned(data, predicate.args[0]);
       case 'all_signed':
         return this.isAllSigned(data, predicate.args[0]);
+      case 'threshold':
+        return this.isThresholdSigned(data, predicate.args[0], predicate.args[1]);
       case 'modifies':
         return { ok: this.pathMatches(path, predicate.args[0]) };
       case 'adds_rule':
@@ -403,6 +405,32 @@ export class ContractValidator {
     return {
       ok: requiredKeys.length > 0 && requiredKeys.every(key => signerKeys.has(key)),
       error: `Must be signed by all members under ${rootPath}`
+    };
+  }
+
+  isThresholdSigned(data, count, rootPath) {
+    const requiredCount = Number.parseInt(count, 10);
+    if (!Number.isInteger(requiredCount) || requiredCount < 1) {
+      return { ok: false, error: `Invalid threshold count: ${count}` };
+    }
+
+    const memberKeys = new Set(
+      [...this.parties]
+        .filter(([path]) => this.pathMatches(path, rootPath))
+        .map(([, key]) => key)
+    );
+    const signerKeys = new Set(this.getSignerKeys(data));
+    let signedCount = 0;
+
+    for (const key of signerKeys) {
+      if (memberKeys.has(key)) {
+        signedCount += 1;
+      }
+    }
+
+    return {
+      ok: signedCount >= requiredCount,
+      error: `Requires ${requiredCount} signatures under ${rootPath}`
     };
   }
 
