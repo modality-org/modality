@@ -2,10 +2,8 @@
  * Contract Validator
  * 
  * Validates commits against the contract's governing model.
- * Uses KripkeMachine to verify state transitions are valid.
+ * Replays predicate-guarded model transitions over the append-only commit log.
  */
-
-import KripkeMachine from '@modality-dev/kripke-machine';
 
 /**
  * Contract state tracker
@@ -15,8 +13,9 @@ export class ContractValidator {
   constructor() {
     this.model = null;
     this.machine = null;
-    this.currentState = null;
+    this.currentStates = new Set();
     this.parties = new Map(); // path -> public_key
+    this.state = new Map(); // path -> latest value
     this.rules = [];
   }
   
@@ -36,33 +35,44 @@ export class ContractValidator {
     const data = commit.data;
     if (!data) return;
     
-    const method = data.method || data.type;
+    const method = this.getMethod(data);
     const path = data.path;
-    const content = data.content;
+    const content = data.content ?? data.value ?? data.model;
+
+    if (validate && this.model) {
+      const valid = this.validateCommit(commit);
+      if (!valid.ok) {
+        throw new Error(valid.error);
+      }
+    }
     
     switch (method) {
       case 'POST':
         // Data commit - might be party registration
+        this.state.set(path, content);
         if (path?.includes('.id') || path?.includes('/parties/')) {
           this.registerParty(path, content);
         }
         break;
         
+      case 'DELETE':
+        this.state.delete(path);
+        break;
+
+      case 'MODEL':
+        this.loadModel(path, content);
+        break;
+
       case 'RULE':
-        // Rule/model commit
         this.loadRule(path, content);
         break;
         
       case 'ACTION':
-        // Domain action - validate against model
-        if (validate && this.machine) {
-          const valid = this.validateAction(data.action, data);
-          if (!valid.ok) {
-            throw new Error(`Invalid action '${data.action}': ${valid.error}`);
-          }
-        }
-        this.takeAction(data.action, data);
         break;
+    }
+
+    if (this.model && method !== 'MODEL') {
+      this.advanceCommit(commit);
     }
   }
   
@@ -77,6 +87,13 @@ export class ContractValidator {
    * Load a rule/model definition
    */
   loadRule(path, content) {
+    this.rules.push({ path, content, predicates: this.extractRulePredicates(content) });
+  }
+
+  /**
+   * Load a model definition.
+   */
+  loadModel(path, content) {
     if (typeof content !== 'string') {
       content = JSON.stringify(content);
     }
@@ -86,8 +103,9 @@ export class ContractValidator {
       const json = JSON.parse(content);
       if (json.systems || json.rules) {
         // KripkeMachine JSON format
-        this.machine = KripkeMachine.fromJSON(json);
+        this.machine = null;
         this.model = json;
+        this.currentStates = new Set(this.getInitialStates(json));
         return;
       }
     } catch {
@@ -97,16 +115,21 @@ export class ContractValidator {
     // Parse Modality syntax
     const parsed = this.parseModalitySyntax(content);
     if (parsed) {
+      const ruleFailure = this.validateModelAgainstRules(parsed);
+      if (!ruleFailure.ok) {
+        throw new Error(ruleFailure.error);
+      }
       this.model = parsed;
       this.machine = this.buildMachineFromModel(parsed);
+      this.currentStates = new Set([parsed.initialState]);
     }
-    
-    this.rules.push({ path, content });
   }
   
   /**
-   * Parse simple Modality model syntax
-   * model name { state s1, s2; s1 -> s2 : ACTION }
+   * Parse simple Modality model syntax.
+   * Supports both:
+   *   model name { state s1, s2; s1 -> s2 : ACTION }
+   *   model name { initial s1; s1 -> s2 [+signed_by(/alice.id)] }
    */
   parseModalitySyntax(content) {
     const modelMatch = content.match(/model\s+(\w+)\s*\{([\s\S]*)\}/);
@@ -115,69 +138,47 @@ export class ContractValidator {
     const name = modelMatch[1];
     const body = modelMatch[2];
     
-    // Parse states
+    const initialMatch = body.match(/\binitial\s+(\w+)/);
     const stateMatch = body.match(/state\s+([^;]+)/);
-    const states = stateMatch 
-      ? stateMatch[1].split(',').map(s => s.trim())
-      : [];
+    const states = new Set(
+      stateMatch
+        ? stateMatch[1].split(',').map(s => s.trim()).filter(Boolean)
+        : []
+    );
     
     // Parse transitions
     const transitions = [];
-    const transitionRegex = /(\w+)\s*->\s*(\w+)\s*:\s*(\w+)(?:\s*\[([^\]]+)\])?/g;
+    const transitionRegex = /(\w+)\s*->\s*(\w+)(?:\s*:\s*(\w+))?(?:\s*\[([^\]]*)\])?/g;
     let match;
     while ((match = transitionRegex.exec(body)) !== null) {
+      states.add(match[1]);
+      states.add(match[2]);
       transitions.push({
         from: match[1],
         to: match[2],
-        action: match[3],
-        guard: match[4] || null
+        action: match[3] || null,
+        guard: match[4]?.trim() || null
       });
     }
+
+    const stateList = [...states];
     
     return {
       name,
-      states,
+      states: stateList,
       transitions,
-      initialState: states[0] || 'init'
+      initialState: initialMatch?.[1] || stateList[0] || 'init'
     };
   }
   
   /**
-   * Build a KripkeMachine from parsed model
+   * Build a machine from parsed model.
+   *
+   * The hub validator keeps its own replay state, so this returns null instead
+   * of requiring the optional kripke-machine workspace package at runtime.
    */
   buildMachineFromModel(model) {
-    // Convert to KripkeMachine JSON format
-    const kmJson = {
-      systems: [{
-        states: {},
-        arrows: [],
-        possible_current_state_ids: [model.initialState]
-      }],
-      rules: []
-    };
-    
-    // Add states
-    for (const state of model.states) {
-      kmJson.systems[0].states[state] = { id: state };
-    }
-    
-    // Add transitions as arrows
-    for (const t of model.transitions) {
-      kmJson.systems[0].arrows.push({
-        source: t.from,
-        target: t.to,
-        properties: { action: t.action }
-      });
-    }
-    
-    this.currentState = model.initialState;
-    
-    try {
-      return KripkeMachine.fromJSON(kmJson);
-    } catch (err) {
-      console.warn('Could not build KripkeMachine:', err.message);
-      return null;
-    }
+    return null;
   }
   
   /**
@@ -190,14 +191,15 @@ export class ContractValidator {
     }
     
     // Check if action is valid from current state
+    const activeStates = this.currentStates.size > 0 ? this.currentStates : new Set([this.model.initialState]);
     const validTransitions = this.model.transitions.filter(t => 
-      t.from === this.currentState && t.action === action
+      activeStates.has(t.from) && t.action === action
     );
     
     if (validTransitions.length === 0) {
       return {
         ok: false,
-        error: `Action '${action}' not allowed from state '${this.currentState}'`
+        error: `Action '${action}' not allowed from states '${[...activeStates].join(', ')}'`
       };
     }
     
@@ -211,19 +213,6 @@ export class ContractValidator {
       }
     }
     
-    // If using KripkeMachine, do full verification
-    if (this.machine) {
-      try {
-        const step = { properties_text: action };
-        const [canTake, error] = this.machine.canTakeStep(step);
-        if (!canTake) {
-          return { ok: false, error: error || 'Invalid transition' };
-        }
-      } catch (err) {
-        return { ok: false, error: err.message };
-      }
-    }
-    
     return { ok: true, transitions: validTransitions };
   }
   
@@ -233,23 +222,7 @@ export class ContractValidator {
   takeAction(action, data = {}) {
     if (!this.model) return;
     
-    const transition = this.model.transitions.find(t =>
-      t.from === this.currentState && t.action === action
-    );
-    
-    if (transition) {
-      this.currentState = transition.to;
-      
-      // Update KripkeMachine if present
-      if (this.machine) {
-        try {
-          const step = { properties_text: action };
-          this.machine.takeStep(step);
-        } catch {
-          // Ignore machine errors after state update
-        }
-      }
-    }
+    this.advanceCommit({ data: { method: 'ACTION', action, ...data } });
   }
   
   /**
@@ -257,24 +230,11 @@ export class ContractValidator {
    * Guards like: +signed_by(/parties/alice.id)
    */
   checkGuard(guard, data) {
-    // Parse signed_by requirement
-    const signedByMatch = guard.match(/\+?signed_by\(([^)]+)\)/);
-    if (signedByMatch) {
-      const requiredPath = signedByMatch[1];
-      const requiredKey = this.parties.get(requiredPath);
-      
-      if (!requiredKey) {
-        return { ok: false, error: `Unknown party: ${requiredPath}` };
-      }
-      
-      // Check if commit is signed by required party
-      if (data.signature) {
-        const signerKey = data.signature.signer_key || data.signature.signerKey;
-        if (signerKey !== requiredKey) {
-          return { ok: false, error: `Must be signed by ${requiredPath}` };
-        }
-      } else {
-        return { ok: false, error: `Action requires signature from ${requiredPath}` };
+    const predicates = this.parseGuardPredicates(guard);
+    for (const predicate of predicates) {
+      const result = this.evaluatePredicate(predicate, { data });
+      if ((predicate.sign === '+' && !result.ok) || (predicate.sign === '-' && result.ok)) {
+        return { ok: false, error: result.error || `Predicate failed: ${predicate.sign}${predicate.name}` };
       }
     }
     
@@ -287,7 +247,9 @@ export class ContractValidator {
   getState() {
     return {
       currentState: this.currentState,
+      currentStates: [...this.currentStates],
       parties: Object.fromEntries(this.parties),
+      state: Object.fromEntries(this.state),
       model: this.model,
       rulesCount: this.rules.length
     };
@@ -300,12 +262,206 @@ export class ContractValidator {
     if (!this.model) return [];
     
     return this.model.transitions
-      .filter(t => t.from === this.currentState)
+      .filter(t => this.currentStates.has(t.from))
       .map(t => ({
         action: t.action,
         target: t.to,
         guard: t.guard
       }));
+  }
+
+  get currentState() {
+    return [...this.currentStates][0] || this.model?.initialState || null;
+  }
+
+  getMethod(data) {
+    return (data?.method || data?.type || '').toUpperCase();
+  }
+
+  validateCommit(commit) {
+    if (!this.model) return { ok: true };
+
+    const data = commit.data || commit.body?.[0] || {};
+    const method = this.getMethod(data);
+    const activeStates = this.currentStates.size > 0 ? this.currentStates : new Set([this.model.initialState]);
+    const transitions = this.model.transitions.filter(t => activeStates.has(t.from));
+
+    for (const transition of transitions) {
+      if (transition.action && !(method === 'ACTION' && transition.action === data.action)) {
+        continue;
+      }
+
+      const predicateData = this.predicateData(commit);
+      const guardResult = transition.guard
+        ? this.checkGuard(transition.guard, predicateData)
+        : { ok: true };
+
+      if (guardResult.ok) {
+        return { ok: true, transition };
+      }
+    }
+
+    return {
+      ok: false,
+      error: `${method || 'commit'} is not allowed from states '${[...activeStates].join(', ')}'`
+    };
+  }
+
+  advanceCommit(commit) {
+    if (!this.model) return;
+
+    const data = this.predicateData(commit);
+    const method = this.getMethod(data);
+    const activeStates = this.currentStates.size > 0 ? this.currentStates : new Set([this.model.initialState]);
+    const nextStates = new Set();
+
+    for (const transition of this.model.transitions) {
+      if (!activeStates.has(transition.from)) continue;
+      if (transition.action && !(method === 'ACTION' && transition.action === data.action)) continue;
+
+      const guardResult = transition.guard
+        ? this.checkGuard(transition.guard, data)
+        : { ok: true };
+
+      if (guardResult.ok) {
+        nextStates.add(transition.to);
+      }
+    }
+
+    if (nextStates.size > 0) {
+      this.currentStates = nextStates;
+    }
+  }
+
+  getInitialStates(model) {
+    const systems = model.systems || [];
+    return systems.flatMap(system => system.possible_current_state_ids || []);
+  }
+
+  parseGuardPredicates(guard = '') {
+    const predicates = [];
+    const predicateRegex = /([+-])\s*([A-Za-z_]\w*)\s*(?:\(([^)]*)\))?/g;
+    let match;
+    while ((match = predicateRegex.exec(guard)) !== null) {
+      predicates.push({
+        sign: match[1],
+        name: match[2],
+        args: (match[3] || '').split(',').map(arg => arg.trim()).filter(Boolean)
+      });
+    }
+    return predicates;
+  }
+
+  evaluatePredicate(predicate, { data }) {
+    const method = this.getMethod(data);
+    const path = data.path || '';
+
+    switch (predicate.name) {
+      case 'signed_by':
+        return this.isSignedBy(data, predicate.args[0]);
+      case 'any_signed':
+        return this.isAnySigned(data, predicate.args[0]);
+      case 'all_signed':
+        return this.isAllSigned(data, predicate.args[0]);
+      case 'modifies':
+        return { ok: this.pathMatches(path, predicate.args[0]) };
+      case 'adds_rule':
+        return { ok: method === 'RULE' };
+      default:
+        return { ok: false, error: `Unknown predicate: ${predicate.name}` };
+    }
+  }
+
+  isSignedBy(data, requiredPath) {
+    const requiredKey = this.parties.get(requiredPath) || this.state.get(requiredPath);
+    if (!requiredKey) {
+      return { ok: false, error: `Unknown party: ${requiredPath}` };
+    }
+
+    const signerKeys = this.getSignerKeys(data);
+    return {
+      ok: signerKeys.includes(requiredKey),
+      error: `Must be signed by ${requiredPath}`
+    };
+  }
+
+  isAnySigned(data, rootPath) {
+    const signerKeys = new Set(this.getSignerKeys(data));
+    for (const [path, key] of this.parties) {
+      if (this.pathMatches(path, rootPath) && signerKeys.has(key)) {
+        return { ok: true };
+      }
+    }
+    return { ok: false, error: `Must be signed by a member under ${rootPath}` };
+  }
+
+  isAllSigned(data, rootPath) {
+    const requiredKeys = [...this.parties]
+      .filter(([path]) => this.pathMatches(path, rootPath))
+      .map(([, key]) => key);
+    const signerKeys = new Set(this.getSignerKeys(data));
+    return {
+      ok: requiredKeys.length > 0 && requiredKeys.every(key => signerKeys.has(key)),
+      error: `Must be signed by all members under ${rootPath}`
+    };
+  }
+
+  predicateData(commit) {
+    const data = commit.data || commit.body?.[0] || {};
+    return {
+      ...data,
+      signature: data.signature ?? commit.signature,
+      signatures: data.signatures ?? commit.signatures
+    };
+  }
+
+  getSignerKeys(data) {
+    const signatures = [];
+    if (data.signature) signatures.push(data.signature);
+    if (Array.isArray(data.signatures)) signatures.push(...data.signatures);
+
+    return signatures
+      .map(signature => {
+        if (typeof signature === 'string') return signature.split(':').at(-1);
+        return signature.signer_key || signature.signerKey;
+      })
+      .filter(Boolean);
+  }
+
+  pathMatches(path, rootPath) {
+    if (!path || !rootPath) return false;
+    return path === rootPath || path.startsWith(`${rootPath.replace(/\/$/, '')}/`);
+  }
+
+  extractRulePredicates(content) {
+    if (typeof content !== 'string') return [];
+    return this.parseGuardPredicates(content);
+  }
+
+  validateModelAgainstRules(model) {
+    const requiredPredicates = this.rules.flatMap(rule => rule.predicates || []);
+    if (requiredPredicates.length === 0) {
+      return { ok: true };
+    }
+
+    for (const transition of model.transitions) {
+      const guardPredicates = this.parseGuardPredicates(transition.guard || '');
+      for (const required of requiredPredicates) {
+        const satisfied = guardPredicates.some(candidate =>
+          candidate.sign === required.sign &&
+          candidate.name === required.name &&
+          JSON.stringify(candidate.args) === JSON.stringify(required.args)
+        );
+        if (!satisfied) {
+          return {
+            ok: false,
+            error: `MODEL transition ${transition.from}->${transition.to} does not satisfy existing rule predicate ${required.sign}${required.name}(${required.args.join(', ')})`
+          };
+        }
+      }
+    }
+
+    return { ok: true };
   }
 }
 
@@ -451,9 +607,9 @@ export async function validateContractLogic(store, contractId, newCommits) {
         }
       }
       
-      // Check if this is an ACTION commit
-      if (method === 'action') {
-        const validation = validator.validateAction(data.action, data);
+      // Check every governed commit against the current model.
+      if (validator.model) {
+        const validation = validator.validateCommit(commit);
         if (!validation.ok) {
           errors.push(`${prefix}: ${validation.error}`);
           continue;
