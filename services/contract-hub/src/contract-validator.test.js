@@ -254,6 +254,22 @@ test('rule predicate extraction falls back when formula parser cannot parse docu
       [{ sign: '+', name: 'signed_by', args: ['/admin.id'] }]
     ]
   );
+
+  const textualMixedRule = 'rule docs { formula { always (signed_by(/a.id) or signed_by(/b.id) and modifies(/docs)) } }';
+  assert.equal(
+    validator.extractRulePredicateClausesWithFormulaParser(textualMixedRule),
+    null
+  );
+  assert.deepEqual(
+    validator.extractRulePredicateClauses(textualMixedRule),
+    [
+      [{ sign: '+', name: 'signed_by', args: ['/a.id'] }],
+      [
+        { sign: '+', name: 'signed_by', args: ['/b.id'] },
+        { sign: '+', name: 'modifies', args: ['/docs'] }
+      ]
+    ]
+  );
 });
 
 test('rule predicate extraction flips explicit negation polarity', () => {

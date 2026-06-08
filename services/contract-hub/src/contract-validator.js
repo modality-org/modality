@@ -512,6 +512,9 @@ export class ContractValidator {
   extractRulePredicateClausesWithFormulaParser(content) {
     const formulaContent = this.extractRuleFormulaContent(content);
     if (!formulaContent) return null;
+    if (/\band\b/i.test(formulaContent) && /\bor\b/i.test(formulaContent)) {
+      return null;
+    }
     if (/\bnot\b/i.test(formulaContent) && /\b(and|or)\b/i.test(formulaContent)) {
       return null;
     }
