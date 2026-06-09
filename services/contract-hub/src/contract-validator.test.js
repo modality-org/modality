@@ -209,6 +209,38 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
+      'rule owner { formula { when true also signed_by(/owner.id) } }'
+    ),
+    [
+      [{ sign: '+', name: 'signed_by', args: ['/owner.id'] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule ok { formula { when false also signed_by(/owner.id) } }'
+    ),
+    []
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule owner { formula { when true next signed_by(/owner.id) } }'
+    ),
+    [
+      [{ sign: '+', name: 'signed_by', args: ['/owner.id'] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule ok { formula { when false next signed_by(/owner.id) } }'
+    ),
+    []
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
       'rule owner { formula { always (signed_by(/owner.id)) } }'
     ),
     [
