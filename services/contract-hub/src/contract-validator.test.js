@@ -1244,6 +1244,40 @@ test('fallback textual not precedence constrains model witnesses', () => {
   );
 });
 
+test('fallback mixed textual boolean precedence constrains model witnesses', () => {
+  const validator = new ContractValidator();
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/docs.modality',
+      content: 'rule docs { formula { always (signed_by(/a.id) or signed_by(/b.id) and modifies(/docs)) } }',
+      model: `
+        model docs_witness {
+          initial active
+          active -> active [+signed_by(/a.id)]
+        }
+      `
+    }
+  });
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/unsafe-docs.modality',
+        content: `
+          model unsafe_docs {
+            initial active
+            active -> active [+signed_by(/b.id)]
+          }
+        `
+      }
+    }),
+    /MODEL transition active->active does not satisfy existing rule predicate/
+  );
+});
+
 test('rule predicate extraction supports arrow implications', () => {
   const validator = new ContractValidator();
 
