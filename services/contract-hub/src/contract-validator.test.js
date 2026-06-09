@@ -1749,6 +1749,18 @@ test('parser-backed tautological empty modal rules do not require witnesses', ()
   }
 });
 
+test('parser-backed boxed tautology rules do not require witnesses', () => {
+  const validator = new ContractValidator();
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/release-tautology.modality',
+      content: 'rule release_tautology { formula { always ([+RELEASE] true) } }'
+    }
+  }));
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 
