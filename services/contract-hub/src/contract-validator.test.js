@@ -248,6 +248,20 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
+      'rule tautology { formula { always (true) } }'
+    ),
+    []
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule tautology { formula { always (not false) } }'
+    ),
+    []
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
       'rule impossible { formula { always (false) } }'
     ),
     [
@@ -261,6 +275,28 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
     ),
     [
       [{ sign: '+', name: '__unsatisfiable_rule__!', args: [] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule impossible { formula { always (false and signed_by(/owner.id)) } }'
+    ),
+    [
+      [
+        { sign: '+', name: '__unsatisfiable_rule__!', args: [] },
+        { sign: '+', name: 'signed_by', args: ['/owner.id'] }
+      ]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule owner { formula { always (false or signed_by(/owner.id)) } }'
+    ),
+    [
+      [{ sign: '+', name: '__unsatisfiable_rule__!', args: [] }],
+      [{ sign: '+', name: 'signed_by', args: ['/owner.id'] }]
     ]
   );
 
