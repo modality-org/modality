@@ -332,6 +332,59 @@ test('RULE commits accept value aliases with witnessModel aliases', () => {
   );
 });
 
+test('RULE value and witnessModel aliases are governed by the active model', () => {
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/signed.modality',
+      value: 'rule signed { formula { always (+any_signed(/members)) } }',
+      witnessModel: `
+        model signed_witness {
+          initial active
+          active -> active [+any_signed(/members)]
+        }
+      `
+    }
+  };
+
+  const acceptingValidator = new ContractValidator();
+  acceptingValidator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/rule-admin.modality',
+      content: `
+        model rule_admin {
+          initial active
+          active -> active [+adds_rule]
+        }
+      `
+    }
+  });
+
+  assert.doesNotThrow(() => acceptingValidator.applyCommit(ruleCommit));
+  assert.equal(acceptingValidator.getState().rulesCount, 1);
+
+  const rejectingValidator = new ContractValidator();
+  rejectingValidator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/no-rules.modality',
+      content: `
+        model no_rules {
+          initial active
+          active -> active [-adds_rule]
+        }
+      `
+    }
+  });
+
+  assert.throws(
+    () => rejectingValidator.applyCommit(ruleCommit),
+    /RULE is not allowed from states 'active'/
+  );
+  assert.equal(rejectingValidator.getState().rulesCount, 0);
+});
+
 test('RULE commits accept value aliases with separate JSON witness models', () => {
   const validator = new ContractValidator();
 
