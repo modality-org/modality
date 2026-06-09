@@ -1588,6 +1588,65 @@ test('parser-backed negated must macro rules constrain model replacements', () =
   );
 });
 
+test('parser-backed empty box rules constrain model replacements', () => {
+  const validator = new ContractValidator();
+  const ruleContent = 'rule always_owner { formula { always ([] signed_by(/owner.id)) } }';
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/always-owner-unsafe.modality',
+        content: ruleContent,
+        model: `
+          model always_owner_unsafe_witness {
+            initial active
+            active -> active [+any_signed(/members)]
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/always-owner.modality',
+      content: ruleContent,
+      model: `
+        model always_owner_witness {
+          initial active
+          active -> active [+signed_by(/owner.id)]
+        }
+      `
+    }
+  });
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/always-owner-ok.modality',
+      content: `
+        model always_owner_ok {
+          initial active
+          active -> active [+signed_by(/owner.id)]
+        }
+      `
+    }
+  }));
+
+  assert.throws(
+    () => validator.loadModel('/rules/always-owner-unsafe.modality', `
+      model always_owner_unsafe {
+        initial active
+        active -> active [+any_signed(/members)]
+      }
+    `),
+    /does not satisfy existing rule predicate \+signed_by\(\/owner.id\)/
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 
