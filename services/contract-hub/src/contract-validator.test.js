@@ -2944,3 +2944,62 @@ test('existing RULE history replays without witness while new RULE commits requi
   assert.equal(newRule.valid, false);
   assert.match(newRule.errors[0], /RULE requires a witness model/);
 });
+
+test('existing parser-backed RULE history replays without witness while new RULE commits require one', async () => {
+  const legacyRule = {
+    data: {
+      method: 'RULE',
+      path: '/rules/docs.modality',
+      content: 'rule docs { formula { always ((signed_by(/owner.id) or threshold(2, /members)) and modifies(/docs)) } }'
+    }
+  };
+  const validator = new ContractValidator();
+
+  assert.doesNotThrow(() => validator.loadFromCommits([legacyRule]));
+
+  const store = {
+    pullCommits() {
+      return [legacyRule];
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/docs-open.modality',
+        content: `
+          model docs_open {
+            initial active
+            active -> active [+threshold(2, /members)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/docs.modality',
+        content: `
+          model docs {
+            initial active
+            active -> active [+threshold(2, /members) +modifies(/docs)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'docs');
+
+  const newRule = await validateContractLogic({ pullCommits: () => [] }, 'contract', [legacyRule]);
+  assert.equal(newRule.valid, false);
+  assert.match(newRule.errors[0], /RULE requires a witness model/);
+});
