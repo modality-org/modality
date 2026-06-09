@@ -3580,6 +3580,51 @@ test('validateContractLogic accepts satisfying JSON rule witnesses', async () =>
   assert.equal(valid.valid, true);
 });
 
+test('validateContractLogic accepts value aliases with witnessModel aliases', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleData = {
+    method: 'RULE',
+    path: '/rules/signed.modality',
+    value: 'rule signed { formula { always (+any_signed(/members)) } }'
+  };
+
+  const stringWitness = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        ...ruleData,
+        witnessModel: `
+          model signed_witness {
+            initial active
+            active -> active [+any_signed(/members)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(stringWitness.valid, true);
+
+  const jsonWitness = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        ...ruleData,
+        witnessModel: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+any_signed(/members)' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(jsonWitness.valid, true);
+});
+
 test('validateContractLogic applies JSON-witnessed rules to later JSON model replacements', async () => {
   const store = {
     pullCommits() {
