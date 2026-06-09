@@ -3003,3 +3003,34 @@ test('existing parser-backed RULE history replays without witness while new RULE
   assert.equal(newRule.valid, false);
   assert.match(newRule.errors[0], /RULE requires a witness model/);
 });
+
+test('existing unsatisfiable parser-backed RULE history replays without witness and blocks replacements', async () => {
+  const legacyRule = {
+    data: {
+      method: 'RULE',
+      path: '/rules/impossible.modality',
+      content: 'rule impossible { formula { always (false) } }'
+    }
+  };
+  const validator = new ContractValidator();
+
+  assert.doesNotThrow(() => validator.loadFromCommits([legacyRule]));
+
+  const replacement = await validateContractLogic({ pullCommits: () => [legacyRule] }, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/open.modality',
+        content: `
+          model open {
+            initial active
+            active -> active []
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(replacement.valid, false);
+  assert.match(replacement.errors[0], /does not satisfy existing rule predicate \+__unsatisfiable_rule__!/);
+});
