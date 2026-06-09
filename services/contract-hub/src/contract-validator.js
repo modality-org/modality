@@ -629,6 +629,10 @@ export class ContractValidator {
     }
 
     if (Array.isArray(formula.props)) {
+      if (formula.props.length === 0) {
+        return { type: 'true' };
+      }
+
       const predicates = formula.props
         .map(prop => this.signedPropToRulePredicate(prop))
         .filter(Boolean)
