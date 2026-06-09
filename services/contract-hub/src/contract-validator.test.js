@@ -346,6 +346,19 @@ test('RULE value and witnessModel aliases are governed by the active model', () 
       `
     }
   };
+  const jsonRuleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/json-signed.modality',
+      value: 'rule signed { formula { always (+any_signed(/members)) } }',
+      witnessModel: {
+        systems: [{ possible_current_state_ids: ['active'] }],
+        transitions: [
+          { from: 'active', to: 'active', guard: '+any_signed(/members)' }
+        ]
+      }
+    }
+  };
 
   const acceptingValidator = new ContractValidator();
   acceptingValidator.applyCommit({
@@ -363,6 +376,8 @@ test('RULE value and witnessModel aliases are governed by the active model', () 
 
   assert.doesNotThrow(() => acceptingValidator.applyCommit(ruleCommit));
   assert.equal(acceptingValidator.getState().rulesCount, 1);
+  assert.doesNotThrow(() => acceptingValidator.applyCommit(jsonRuleCommit));
+  assert.equal(acceptingValidator.getState().rulesCount, 2);
 
   const rejectingValidator = new ContractValidator();
   rejectingValidator.applyCommit({
@@ -380,6 +395,11 @@ test('RULE value and witnessModel aliases are governed by the active model', () 
 
   assert.throws(
     () => rejectingValidator.applyCommit(ruleCommit),
+    /RULE is not allowed from states 'active'/
+  );
+  assert.equal(rejectingValidator.getState().rulesCount, 0);
+  assert.throws(
+    () => rejectingValidator.applyCommit(jsonRuleCommit),
     /RULE is not allowed from states 'active'/
   );
   assert.equal(rejectingValidator.getState().rulesCount, 0);
