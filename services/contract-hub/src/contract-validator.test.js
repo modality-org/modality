@@ -234,6 +234,46 @@ test('RULE commits accept satisfying witnessModel aliases', () => {
   assert.equal(validator.getState().rulesCount, 1);
 });
 
+test('RULE commits accept satisfying JSON witnessModel aliases', () => {
+  const validator = new ContractValidator();
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/signed.modality',
+      content: 'rule signed { formula { always (+any_signed(/members)) } }'
+    }
+  };
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        ...ruleCommit.data,
+        witnessModel: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '' }
+          ]
+        }
+      }
+    }),
+    /RULE witness model failed/
+  );
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      ...ruleCommit.data,
+      witnessModel: {
+        systems: [{ possible_current_state_ids: ['active'] }],
+        transitions: [
+          { from: 'active', to: 'active', guard: '+any_signed(/members)' }
+        ]
+      }
+    }
+  }));
+
+  assert.equal(validator.getState().rulesCount, 1);
+});
+
 test('JSON MODEL commits without transitions reject later commits cleanly', () => {
   const validator = new ContractValidator();
 
