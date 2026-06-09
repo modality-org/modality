@@ -156,6 +156,44 @@ test('JSON MODEL replacements must preserve predicates required by existing rule
   }));
 });
 
+test('RULE commits accept satisfying JSON witness models', () => {
+  const validator = new ContractValidator();
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/signed.modality',
+      content: 'rule signed { formula { always (+any_signed(/members)) } }'
+    }
+  };
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        ...ruleCommit.data,
+        model: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '' }
+          ]
+        }
+      }
+    }),
+    /RULE witness model failed/
+  );
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      ...ruleCommit.data,
+      model: {
+        systems: [{ possible_current_state_ids: ['active'] }],
+        transitions: [
+          { from: 'active', to: 'active', guard: '+any_signed(/members)' }
+        ]
+      }
+    }
+  }));
+});
+
 test('JSON MODEL commits without transitions reject later commits cleanly', () => {
   const validator = new ContractValidator();
 

@@ -160,6 +160,17 @@ export class ContractValidator {
       content = JSON.stringify(content);
     }
 
+    let json = null;
+    try {
+      json = JSON.parse(content);
+    } catch {
+      // Not JSON, try as Modality syntax.
+    }
+
+    if (json && (json.systems || json.rules)) {
+      return json;
+    }
+
     return this.parseModalitySyntax(content);
   }
   
