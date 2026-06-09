@@ -248,6 +248,24 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
+      'rule impossible { formula { always (false) } }'
+    ),
+    [
+      [{ sign: '+', name: '__unsatisfiable_rule__!', args: [] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule impossible { formula { always (not true) } }'
+    ),
+    [
+      [{ sign: '+', name: '__unsatisfiable_rule__!', args: [] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
       'rule delivery { formula { always (oracle_attests(/oracles/delivery.id, "delivered", "true")) } }'
     ),
     [
@@ -981,6 +999,23 @@ test('RULE commits require a satisfying witness model', () => {
         content: 'rule signed { formula { always (+any_signed(/members)) } }',
         model: `
           model open {
+            initial active
+            active -> active []
+          }
+        `
+      }
+    }),
+    /RULE witness model failed/
+  );
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/impossible.modality',
+        content: 'rule impossible { formula { always (false) } }',
+        model: `
+          model impossible {
             initial active
             active -> active []
           }

@@ -551,6 +551,10 @@ export class ContractValidator {
     return null;
   }
 
+  unsatisfiableRulePredicate() {
+    return { sign: '+', name: '__unsatisfiable_rule__!', args: [] };
+  }
+
   formulaAstToRulePredicateAst(formula) {
     if (!formula) return null;
 
@@ -598,6 +602,14 @@ export class ContractValidator {
     if (formula.formula) {
       const value = this.formulaAstToRulePredicateAst(formula.formula);
       return value ? { type: 'not', value } : null;
+    }
+
+    if (formula.constructor?.name === 'TrueAtom') {
+      return { type: 'true' };
+    }
+
+    if (formula.constructor?.name === 'FalseAtom') {
+      return { type: 'false' };
     }
 
     if (Array.isArray(formula.props)) {
@@ -837,12 +849,16 @@ export class ContractValidator {
         );
       }
       case 'or':
-        return [
-          ...this.rulePredicateAstToClauses(ast.left),
-          ...this.rulePredicateAstToClauses(ast.right)
-        ];
+      {
+        const left = this.rulePredicateAstToClauses(ast.left);
+        const right = this.rulePredicateAstToClauses(ast.right);
+        if (left.length === 0 || right.length === 0) return [];
+        return [...left, ...right];
+      }
       case 'true':
         return [];
+      case 'false':
+        return [[this.unsatisfiableRulePredicate()]];
       default:
         return [];
     }
@@ -859,11 +875,12 @@ export class ContractValidator {
         }]];
       case 'not':
         return this.rulePredicateAstToClauses(ast.value);
-      case 'and':
-        return [
-          ...this.negateRulePredicateAst(ast.left),
-          ...this.negateRulePredicateAst(ast.right)
-        ];
+      case 'and': {
+        const left = this.negateRulePredicateAst(ast.left);
+        const right = this.negateRulePredicateAst(ast.right);
+        if (left.length === 0 || right.length === 0) return [];
+        return [...left, ...right];
+      }
       case 'or': {
         const left = this.negateRulePredicateAst(ast.left);
         const right = this.negateRulePredicateAst(ast.right);
@@ -873,6 +890,10 @@ export class ContractValidator {
           right.map(rightClause => [...leftClause, ...rightClause])
         );
       }
+      case 'true':
+        return [[this.unsatisfiableRulePredicate()]];
+      case 'false':
+        return [];
       default:
         return [];
     }
