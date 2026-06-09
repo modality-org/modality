@@ -1529,6 +1529,65 @@ test('parser-backed negated can macro rules constrain model replacements', () =>
   );
 });
 
+test('parser-backed negated must macro rules constrain model replacements', () => {
+  const validator = new ContractValidator();
+  const ruleContent = 'rule no_required_release { formula { always (not must(+RELEASE)) } }';
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/no-required-release-unsafe.modality',
+        content: ruleContent,
+        model: `
+          model no_required_release_unsafe_witness {
+            initial active
+            active -> active [+RELEASE]
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/no-required-release.modality',
+      content: ruleContent,
+      model: `
+        model no_required_release_witness {
+          initial active
+          active -> active [-RELEASE]
+        }
+      `
+    }
+  });
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/no-required-release-ok.modality',
+      content: `
+        model no_required_release_ok {
+          initial active
+          active -> active [-RELEASE]
+        }
+      `
+    }
+  }));
+
+  assert.throws(
+    () => validator.loadModel('/rules/no-required-release-unsafe.modality', `
+      model no_required_release_unsafe {
+        initial active
+        active -> active [+RELEASE]
+      }
+    `),
+    /does not satisfy existing rule predicate -RELEASE/
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 
