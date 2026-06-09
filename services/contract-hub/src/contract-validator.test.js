@@ -258,6 +258,24 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
       }]
     ]
   );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule can_release { formula { always (can(+RELEASE)) } }'
+    ),
+    [
+      [{ sign: '+', name: 'RELEASE', args: [] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule must_release { formula { always (must(+RELEASE)) } }'
+    ),
+    [
+      [{ sign: '+', name: 'RELEASE', args: [] }]
+    ]
+  );
 });
 
 test('rule predicate extraction falls back when formula parser cannot parse documented syntax', () => {

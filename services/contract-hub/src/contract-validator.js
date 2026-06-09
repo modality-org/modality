@@ -589,6 +589,10 @@ export class ContractValidator {
       return null;
     }
 
+    if (formula.formula && (formula.constructor?.name === 'CanMacro' || formula.constructor?.name === 'MustMacro')) {
+      return this.formulaAstToRulePredicateAst(formula.formula);
+    }
+
     if (formula.formula) {
       const value = this.formulaAstToRulePredicateAst(formula.formula);
       return value ? { type: 'not', value } : null;
