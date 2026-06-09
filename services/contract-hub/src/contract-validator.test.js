@@ -1761,6 +1761,65 @@ test('parser-backed boxed tautology rules do not require witnesses', () => {
   }));
 });
 
+test('parser-backed diamond constant rules validate witness requirements', () => {
+  const validator = new ContractValidator();
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/impossible-release.modality',
+        content: 'rule impossible_release { formula { always (<+RELEASE> false) } }',
+        model: `
+          model release_witness {
+            initial active
+            active -> active [+RELEASE]
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/release-tautology.modality',
+      content: 'rule release_tautology { formula { always (not <+RELEASE> false) } }'
+    }
+  }));
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/releasable.modality',
+      content: 'rule releasable { formula { always (<+RELEASE> true) } }',
+      model: `
+        model releasable_witness {
+          initial active
+          active -> active [+RELEASE]
+        }
+      `
+    }
+  });
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/open.modality',
+        content: `
+          model open {
+            initial active
+            active -> active []
+          }
+        `
+      }
+    }),
+    /MODEL transition active->active does not satisfy existing rule predicate/
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 
