@@ -2810,6 +2810,51 @@ test('validateContractLogic applies parser-backed rule clauses within a batch', 
   assert.equal(validReplacement.state.model.name, 'docs_quorum');
 });
 
+test('validateContractLogic rejects unsafe parser-backed rule witnesses', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+
+  const invalid = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'RULE',
+        path: '/rules/docs.modality',
+        content: 'rule docs { formula { always ((signed_by(/owner.id) or threshold(2, /members)) and modifies(/docs)) } }',
+        model: `
+          model unsafe_docs_witness {
+            initial active
+            active -> active [+signed_by(/owner.id)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalid.valid, false);
+  assert.match(invalid.errors[0], /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const valid = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'RULE',
+        path: '/rules/docs.modality',
+        content: 'rule docs { formula { always ((signed_by(/owner.id) or threshold(2, /members)) and modifies(/docs)) } }',
+        model: `
+          model docs_witness {
+            initial active
+            active -> active [+signed_by(/owner.id) +modifies(/docs)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(valid.valid, true);
+});
+
 test('RULE commits require a satisfying witness model', () => {
   const validator = new ContractValidator();
 
