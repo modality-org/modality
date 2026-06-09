@@ -570,6 +570,35 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
+      'rule no_release_after_transfer { formula { always (not [+TRANSFER] <+RELEASE> signed_by(/owner.id)) } }'
+    ),
+    [
+      [
+        { sign: '+', name: 'TRANSFER', args: [] },
+        { sign: '-', name: 'RELEASE', args: [] }
+      ],
+      [
+        { sign: '+', name: 'TRANSFER', args: [] },
+        { sign: '-', name: 'signed_by', args: ['/owner.id'] }
+      ]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule no_transfer_with_release_policy { formula { always (not <+TRANSFER> [+RELEASE] signed_by(/owner.id)) } }'
+    ),
+    [
+      [{ sign: '-', name: 'TRANSFER', args: [] }],
+      [
+        { sign: '+', name: 'RELEASE', args: [] },
+        { sign: '-', name: 'signed_by', args: ['/owner.id'] }
+      ]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
       'rule no_admin_or_rule { formula { always (not (adds_rule or signed_by(/admin.id))) } }'
     ),
     [[
