@@ -1352,6 +1352,65 @@ test('parser-backed oracle diamond rules constrain model replacements', () => {
   );
 });
 
+test('parser-backed can macro rules constrain model replacements', () => {
+  const validator = new ContractValidator();
+  const ruleContent = 'rule releasable { formula { always (can(+RELEASE)) } }';
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/releasable-unsafe.modality',
+        content: ruleContent,
+        model: `
+          model releasable_unsafe_witness {
+            initial active
+            active -> active [+signed_by(/owner.id)]
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/releasable.modality',
+      content: ruleContent,
+      model: `
+        model releasable_witness {
+          initial active
+          active -> active [+RELEASE]
+        }
+      `
+    }
+  });
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/releasable-ok.modality',
+      content: `
+        model releasable_ok {
+          initial active
+          active -> active [+RELEASE]
+        }
+      `
+    }
+  }));
+
+  assert.throws(
+    () => validator.loadModel('/rules/releasable-unsafe.modality', `
+      model releasable_unsafe {
+        initial active
+        active -> active [+signed_by(/owner.id)]
+      }
+    `),
+    /does not satisfy existing rule predicate \+RELEASE/
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 
