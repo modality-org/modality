@@ -3721,6 +3721,19 @@ test('validateContractLogic governs value witnessModel alias RULE commits', asyn
       `
     }
   };
+  const jsonRuleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/json-signed.modality',
+      value: 'rule signed { formula { always (+any_signed(/members)) } }',
+      witnessModel: {
+        systems: [{ possible_current_state_ids: ['active'] }],
+        transitions: [
+          { from: 'active', to: 'active', guard: '+any_signed(/members)' }
+        ]
+      }
+    }
+  };
 
   const acceptingStore = {
     pullCommits() {
@@ -3745,6 +3758,10 @@ test('validateContractLogic governs value witnessModel alias RULE commits', asyn
   assert.equal(accepted.valid, true);
   assert.equal(accepted.state.rulesCount, 1);
 
+  const acceptedJson = await validateContractLogic(acceptingStore, 'contract', [jsonRuleCommit]);
+  assert.equal(acceptedJson.valid, true);
+  assert.equal(acceptedJson.state.rulesCount, 1);
+
   const rejectingStore = {
     pullCommits() {
       return [
@@ -3768,6 +3785,11 @@ test('validateContractLogic governs value witnessModel alias RULE commits', asyn
   assert.equal(rejected.valid, false);
   assert.match(rejected.errors[0], /RULE is not allowed from states 'active'/);
   assert.equal(rejected.state.rulesCount, 0);
+
+  const rejectedJson = await validateContractLogic(rejectingStore, 'contract', [jsonRuleCommit]);
+  assert.equal(rejectedJson.valid, false);
+  assert.match(rejectedJson.errors[0], /RULE is not allowed from states 'active'/);
+  assert.equal(rejectedJson.state.rulesCount, 0);
 });
 
 test('validateContractLogic applies JSON-witnessed rules to later JSON model replacements', async () => {
