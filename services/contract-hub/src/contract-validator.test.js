@@ -1732,6 +1732,23 @@ test('parser-backed impossible empty modal rules reject witnesses', () => {
   }
 });
 
+test('parser-backed tautological empty modal rules do not require witnesses', () => {
+  const validator = new ContractValidator();
+
+  for (const [name, formula] of [
+    ['tautology_box', '[] true'],
+    ['tautology_diamond', '<> true']
+  ]) {
+    assert.doesNotThrow(() => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: `/rules/${name}.modality`,
+        content: `rule ${name} { formula { always (${formula}) } }`
+      }
+    }));
+  }
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 
