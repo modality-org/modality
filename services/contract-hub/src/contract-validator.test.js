@@ -1234,6 +1234,65 @@ test('rule predicate extraction supports modal multi-argument predicates', () =>
   );
 });
 
+test('parser-backed threshold rules constrain model replacements', () => {
+  const validator = new ContractValidator();
+  const ruleContent = 'rule quorum { formula { always (threshold(2, /members)) } }';
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/quorum-unsafe.modality',
+        content: ruleContent,
+        model: `
+          model quorum_unsafe_witness {
+            initial active
+            active -> active [+any_signed(/members)]
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/quorum.modality',
+      content: ruleContent,
+      model: `
+        model quorum_witness {
+          initial active
+          active -> active [+threshold(2, /members)]
+        }
+      `
+    }
+  });
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/quorum-ok.modality',
+      content: `
+        model quorum_ok {
+          initial active
+          active -> active [+threshold(2, /members)]
+        }
+      `
+    }
+  }));
+
+  assert.throws(
+    () => validator.loadModel('/rules/quorum-unsafe.modality', `
+      model quorum_unsafe {
+        initial active
+        active -> active [+any_signed(/members)]
+      }
+    `),
+    /does not satisfy existing rule predicate \+threshold\(2, \/members\)/
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 
