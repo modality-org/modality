@@ -262,6 +262,41 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
+      'rule maybe_release { formula { always (not [+RELEASE] false) } }'
+    ),
+    [
+      [{ sign: '+', name: 'RELEASE', args: [] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule no_release { formula { always (not <+RELEASE> true) } }'
+    ),
+    [
+      [{ sign: '-', name: 'RELEASE', args: [] }],
+      [{ sign: '+', name: '__unsatisfiable_rule__!', args: [] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule tautology { formula { always (not <+RELEASE> false) } }'
+    ),
+    []
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule impossible { formula { always (not [+RELEASE] true) } }'
+    ),
+    [
+      [{ sign: '+', name: '__unsatisfiable_rule__!', args: [] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
       'rule impossible { formula { always (false) } }'
     ),
     [
