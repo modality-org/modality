@@ -946,6 +946,88 @@ test('parser-backed negated boolean rules constrain model replacements', () => {
   );
 });
 
+test('parser-backed negated disjunction rules require all negative branches', () => {
+  const ruleContent = 'rule no_admin_rule { formula { always (not (adds_rule or signed_by(/admin.id))) } }';
+  const unsafeWitnessValidator = new ContractValidator();
+
+  assert.throws(
+    () => unsafeWitnessValidator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/no-admin-rule.modality',
+        content: ruleContent,
+        model: `
+          model unsafe_no_admin_rule_witness {
+            initial active
+            active -> active [-adds_rule]
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  const validator = new ContractValidator();
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/no-admin-rule.modality',
+      content: ruleContent,
+      model: `
+        model no_admin_rule_witness {
+          initial active
+          active -> active [-adds_rule -signed_by(/admin.id)]
+        }
+      `
+    }
+  });
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/no-admin-rule-replacement.modality',
+      content: `
+        model no_admin_rule_replacement {
+          initial active
+          active -> active [-adds_rule -signed_by(/admin.id)]
+        }
+      `
+    }
+  }));
+
+  const unsafeReplacementValidator = new ContractValidator();
+  unsafeReplacementValidator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/no-admin-rule.modality',
+      content: ruleContent,
+      model: `
+        model no_admin_rule_witness {
+          initial active
+          active -> active [-adds_rule -signed_by(/admin.id)]
+        }
+      `
+    }
+  });
+
+  assert.throws(
+    () => unsafeReplacementValidator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/allows-admin.modality',
+        content: `
+          model allows_admin {
+            initial active
+            active -> active [-adds_rule +signed_by(/admin.id)]
+          }
+        `
+      }
+    }),
+    /MODEL transition active->active does not satisfy existing rule predicate/
+  );
+});
+
 test('parser-backed nested modal rules constrain model replacements', () => {
   const validator = new ContractValidator();
   const ruleContent = 'rule release_after_transfer { formula { always ([+TRANSFER] <+RELEASE> signed_by(/owner.id)) } }';
