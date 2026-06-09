@@ -1706,6 +1706,32 @@ test('parser-backed empty diamond rules constrain model replacements', () => {
   );
 });
 
+test('parser-backed impossible empty modal rules reject witnesses', () => {
+  const validator = new ContractValidator();
+
+  for (const [name, formula] of [
+    ['impossible_box', '[] false'],
+    ['impossible_diamond', '<> false']
+  ]) {
+    assert.throws(
+      () => validator.applyCommit({
+        data: {
+          method: 'RULE',
+          path: `/rules/${name}.modality`,
+          content: `rule ${name} { formula { always (${formula}) } }`,
+          model: `
+            model ${name}_witness {
+              initial active
+              active -> active [+signed_by(/owner.id)]
+            }
+          `
+        }
+      }),
+      /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+    );
+  }
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 
