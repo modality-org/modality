@@ -515,7 +515,8 @@ export class ContractValidator {
     if (/\band\b/i.test(formulaContent) && /\bor\b/i.test(formulaContent)) {
       return null;
     }
-    if (/\bnot\b/i.test(formulaContent) && /\b(and|or)\b/i.test(formulaContent)) {
+    const textualNotBeforeBoolean = /\bnot\s+(?:[+-]\s*)?[A-Za-z_]\w*(?:\s*\([^)]*\))?\s+\b(?:and|or)\b/i;
+    if (textualNotBeforeBoolean.test(formulaContent)) {
       return null;
     }
 

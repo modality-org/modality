@@ -466,6 +466,35 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
+      'rule no_delegated_release { formula { always (not <+RELEASE> (signed_by(/owner.id) or signed_by(/delegate.id))) } }'
+    ),
+    [
+      [{ sign: '-', name: 'RELEASE', args: [] }],
+      [
+        { sign: '-', name: 'signed_by', args: ['/owner.id'] },
+        { sign: '-', name: 'signed_by', args: ['/delegate.id'] }
+      ]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule no_quorum_transfer { formula { always (not [+TRANSFER] (signed_by(/owner.id) and threshold(2, /members))) } }'
+    ),
+    [
+      [
+        { sign: '+', name: 'TRANSFER', args: [] },
+        { sign: '-', name: 'signed_by', args: ['/owner.id'] }
+      ],
+      [
+        { sign: '+', name: 'TRANSFER', args: [] },
+        { sign: '-', name: 'threshold', args: ['2', '/members'] }
+      ]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
       'rule delivery { formula { always (<+oracle_attests(/oracles/delivery.id, "delivered", "true")> true) } }'
     ),
     [
