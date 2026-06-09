@@ -864,6 +864,88 @@ test('parser-backed boolean rules constrain model replacements', () => {
   );
 });
 
+test('parser-backed negated boolean rules constrain model replacements', () => {
+  const ruleContent = 'rule no_owner_quorum { formula { always (not (signed_by(/owner.id) and threshold(2, /members))) } }';
+  const unsafeWitnessValidator = new ContractValidator();
+
+  assert.throws(
+    () => unsafeWitnessValidator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/no-owner-quorum.modality',
+        content: ruleContent,
+        model: `
+          model unsafe_owner_quorum_witness {
+            initial active
+            active -> active [+signed_by(/owner.id) +threshold(2, /members)]
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  const validator = new ContractValidator();
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/no-owner-quorum.modality',
+      content: ruleContent,
+      model: `
+        model no_owner_quorum_witness {
+          initial active
+          active -> active [-signed_by(/owner.id)]
+        }
+      `
+    }
+  });
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/no-threshold.modality',
+      content: `
+        model no_threshold {
+          initial active
+          active -> active [+signed_by(/owner.id) -threshold(2, /members)]
+        }
+      `
+    }
+  }));
+
+  const unsafeReplacementValidator = new ContractValidator();
+  unsafeReplacementValidator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/no-owner-quorum.modality',
+      content: ruleContent,
+      model: `
+        model no_owner_quorum_witness {
+          initial active
+          active -> active [-signed_by(/owner.id)]
+        }
+      `
+    }
+  });
+
+  assert.throws(
+    () => unsafeReplacementValidator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/owner-quorum.modality',
+        content: `
+          model owner_quorum {
+            initial active
+            active -> active [+signed_by(/owner.id) +threshold(2, /members)]
+          }
+        `
+      }
+    }),
+    /MODEL transition active->active does not satisfy existing rule predicate/
+  );
+});
+
 test('parser-backed nested modal rules constrain model replacements', () => {
   const validator = new ContractValidator();
   const ruleContent = 'rule release_after_transfer { formula { always ([+TRANSFER] <+RELEASE> signed_by(/owner.id)) } }';
