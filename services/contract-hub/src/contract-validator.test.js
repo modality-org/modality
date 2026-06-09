@@ -176,6 +176,63 @@ test('JSON MODEL commits without transitions reject later commits cleanly', () =
   assert.deepEqual(validator.getValidActions(), []);
 });
 
+test('JSON MODEL commits replay nondeterministic branches as a set', () => {
+  const validator = new ContractValidator();
+
+  validator.applyCommit({
+    data: {
+      method: 'POST',
+      path: '/members/alice.id',
+      content: 'alice-key'
+    }
+  });
+  validator.applyCommit({
+    data: {
+      method: 'POST',
+      path: '/members/bob.id',
+      content: 'bob-key'
+    }
+  });
+
+  validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/branches.json',
+      content: {
+        systems: [{ possible_current_state_ids: ['active'] }],
+        transitions: [
+          { from: 'active', to: 'reviewing', guard: '+signed_by(/members/alice.id)' },
+          { from: 'active', to: 'approved', guard: '+signed_by(/members/alice.id)' },
+          { from: 'reviewing', to: 'done', guard: '+signed_by(/members/bob.id)' },
+          { from: 'approved', to: 'done', guard: '+signed_by(/members/bob.id)' }
+        ]
+      }
+    }
+  });
+
+  validator.applyCommit({
+    data: {
+      method: 'POST',
+      path: '/requests/1.json',
+      content: { requested: true },
+      signatures: [{ signer_key: 'alice-key' }]
+    }
+  });
+
+  assert.deepEqual(new Set(validator.getState().currentStates), new Set(['reviewing', 'approved']));
+
+  validator.applyCommit({
+    data: {
+      method: 'POST',
+      path: '/requests/1.json',
+      content: { approved: true },
+      signatures: [{ signer_key: 'bob-key' }]
+    }
+  });
+
+  assert.deepEqual(validator.getState().currentStates, ['done']);
+});
+
 test('real formula parser extracts parseable rule predicate clauses', () => {
   const validator = new ContractValidator();
 
