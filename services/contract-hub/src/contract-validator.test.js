@@ -3623,6 +3623,35 @@ test('validateContractLogic accepts value aliases with witnessModel aliases', as
   ]);
 
   assert.equal(jsonWitness.valid, true);
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        ...ruleData,
+        witnessModel: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+any_signed(/members)' }
+          ]
+        }
+      }
+    },
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/open.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
 });
 
 test('validateContractLogic applies JSON-witnessed rules to later JSON model replacements', async () => {
