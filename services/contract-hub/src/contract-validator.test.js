@@ -3707,6 +3707,69 @@ test('validateContractLogic accepts value aliases with witnessModel aliases', as
   assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
 });
 
+test('validateContractLogic governs value witnessModel alias RULE commits', async () => {
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/signed.modality',
+      value: 'rule signed { formula { always (+any_signed(/members)) } }',
+      witnessModel: `
+        model signed_witness {
+          initial active
+          active -> active [+any_signed(/members)]
+        }
+      `
+    }
+  };
+
+  const acceptingStore = {
+    pullCommits() {
+      return [
+        {
+          data: {
+            method: 'MODEL',
+            path: '/rules/rule-admin.modality',
+            content: `
+              model rule_admin {
+                initial active
+                active -> active [+adds_rule]
+              }
+            `
+          }
+        }
+      ];
+    }
+  };
+
+  const accepted = await validateContractLogic(acceptingStore, 'contract', [ruleCommit]);
+  assert.equal(accepted.valid, true);
+  assert.equal(accepted.state.rulesCount, 1);
+
+  const rejectingStore = {
+    pullCommits() {
+      return [
+        {
+          data: {
+            method: 'MODEL',
+            path: '/rules/no-rules.modality',
+            content: `
+              model no_rules {
+                initial active
+                active -> active [-adds_rule]
+              }
+            `
+          }
+        }
+      ];
+    }
+  };
+
+  const rejected = await validateContractLogic(rejectingStore, 'contract', [ruleCommit]);
+  assert.equal(rejected.valid, false);
+  assert.match(rejected.errors[0], /RULE is not allowed from states 'active'/);
+  assert.equal(rejected.state.rulesCount, 0);
+});
+
 test('validateContractLogic applies JSON-witnessed rules to later JSON model replacements', async () => {
   const store = {
     pullCommits() {
