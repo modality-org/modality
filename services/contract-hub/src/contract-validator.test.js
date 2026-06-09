@@ -3338,6 +3338,52 @@ test('validateContractLogic rejects unsafe parser-backed rule witnesses', async 
   assert.equal(valid.valid, true);
 });
 
+test('validateContractLogic accepts satisfying JSON rule witnesses', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleData = {
+    method: 'RULE',
+    path: '/rules/signed.modality',
+    content: 'rule signed { formula { always (+any_signed(/members)) } }'
+  };
+
+  const invalid = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        ...ruleData,
+        model: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(invalid.valid, false);
+  assert.match(invalid.errors[0], /RULE witness model failed/);
+
+  const valid = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        ...ruleData,
+        model: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+any_signed(/members)' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(valid.valid, true);
+});
+
 test('RULE commits require a satisfying witness model', () => {
   const validator = new ContractValidator();
 
