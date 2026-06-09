@@ -784,12 +784,30 @@ test('rule predicate extraction falls back when formula parser cannot parse docu
 
 test('parser-backed nested modal rules constrain model replacements', () => {
   const validator = new ContractValidator();
+  const ruleContent = 'rule release_after_transfer { formula { always ([+TRANSFER] <+RELEASE> signed_by(/owner.id)) } }';
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/release-after-transfer-unsafe.modality',
+        content: ruleContent,
+        model: `
+          model release_after_transfer_unsafe_witness {
+            initial active
+            active -> active [+TRANSFER +RELEASE]
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
 
   validator.applyCommit({
     data: {
       method: 'RULE',
       path: '/rules/release-after-transfer.modality',
-      content: 'rule release_after_transfer { formula { always ([+TRANSFER] <+RELEASE> signed_by(/owner.id)) } }',
+      content: ruleContent,
       model: `
         model release_after_transfer_witness {
           initial active
