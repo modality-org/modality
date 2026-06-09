@@ -842,6 +842,66 @@ test('parser-backed nested modal rules constrain model replacements', () => {
   );
 });
 
+test('parser-backed negated nested modal rules constrain model replacements', () => {
+  const validator = new ContractValidator();
+  const ruleContent = 'rule no_transfer_with_release_policy { formula { always (not <+TRANSFER> [+RELEASE] signed_by(/owner.id)) } }';
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/no-transfer-with-release-policy-unsafe.modality',
+        content: ruleContent,
+        model: `
+          model no_transfer_with_release_policy_unsafe_witness {
+            initial active
+            active -> active [+TRANSFER +RELEASE +signed_by(/owner.id)]
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/no-transfer-with-release-policy.modality',
+      content: ruleContent,
+      model: `
+        model no_transfer_with_release_policy_witness {
+          initial active
+          active -> active [-TRANSFER]
+          active -> active [+RELEASE -signed_by(/owner.id)]
+        }
+      `
+    }
+  });
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/no-transfer-with-release-policy-ok.modality',
+      content: `
+        model no_transfer_with_release_policy_ok {
+          initial active
+          active -> active [+RELEASE -signed_by(/owner.id)]
+        }
+      `
+    }
+  }));
+
+  assert.throws(
+    () => validator.loadModel('/rules/no-transfer-with-release-policy-unsafe.modality', `
+      model no_transfer_with_release_policy_unsafe {
+        initial active
+        active -> active [+TRANSFER +RELEASE +signed_by(/owner.id)]
+      }
+    `),
+    /does not satisfy existing rule predicate -TRANSFER \| \+RELEASE & -signed_by\(\/owner.id\)/
+  );
+});
+
 test('rule predicate extraction flips explicit negation polarity', () => {
   const validator = new ContractValidator();
 
