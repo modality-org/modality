@@ -1999,6 +1999,31 @@ test('parser-backed diamond constant rules validate witness requirements', () =>
     }),
     /MODEL transition active->active does not satisfy existing rule predicate/
   );
+
+  assert.throws(
+    () => negativeGuardValidator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/impossible-negative-release.modality',
+        content: 'rule impossible_negative_release { formula { always (<-RELEASE> false) } }',
+        model: `
+          model no_release_witness {
+            initial active
+            active -> active [-RELEASE]
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  assert.doesNotThrow(() => negativeGuardValidator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/negative-release-tautology.modality',
+      content: 'rule negative_release_tautology { formula { always (not <-RELEASE> false) } }'
+    }
+  }));
 });
 
 test('threshold predicates require enough distinct member signatures', () => {
