@@ -1844,6 +1844,38 @@ test('parser-backed boxed constant rules validate witness requirements', () => {
     }),
     /MODEL transition active->active does not satisfy existing rule predicate/
   );
+
+  const negativeGuardValidator = new ContractValidator();
+
+  negativeGuardValidator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/release-required.modality',
+      content: 'rule release_required { formula { always ([-RELEASE] false) } }',
+      model: `
+        model release_required_witness {
+          initial active
+          active -> active [+RELEASE]
+        }
+      `
+    }
+  });
+
+  assert.throws(
+    () => negativeGuardValidator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/no-release.modality',
+        content: `
+          model no_release {
+            initial active
+            active -> active [-RELEASE]
+          }
+        `
+      }
+    }),
+    /MODEL transition active->active does not satisfy existing rule predicate/
+  );
 });
 
 test('parser-backed diamond constant rules validate witness requirements', () => {
