@@ -200,6 +200,29 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
+      'rule next_transfer_owner { formula { always (when +TRANSFER next signed_by(/owner.id)) } }'
+    ),
+    [
+      [{ sign: '-', name: 'TRANSFER', args: [] }],
+      [{ sign: '+', name: 'signed_by', args: ['/owner.id'] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule next_delegated_quorum { formula { always (when (signed_by(/owner.id) or signed_by(/delegate.id)) next threshold(2, /members)) } }'
+    ),
+    [
+      [
+        { sign: '-', name: 'signed_by', args: ['/owner.id'] },
+        { sign: '-', name: 'signed_by', args: ['/delegate.id'] }
+      ],
+      [{ sign: '+', name: 'threshold', args: ['2', '/members'] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
       'rule no_docs { formula { when +modifies(/docs) also false } }'
     ),
     [
