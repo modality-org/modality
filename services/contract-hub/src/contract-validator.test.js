@@ -902,6 +902,66 @@ test('parser-backed negated nested modal rules constrain model replacements', ()
   );
 });
 
+test('parser-backed when rules constrain model replacements', () => {
+  const validator = new ContractValidator();
+  const ruleContent = 'rule transfer_owner { formula { always (when +TRANSFER also signed_by(/owner.id)) } }';
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/transfer-owner-unsafe.modality',
+        content: ruleContent,
+        model: `
+          model transfer_owner_unsafe_witness {
+            initial active
+            active -> active [+TRANSFER]
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/transfer-owner.modality',
+      content: ruleContent,
+      model: `
+        model transfer_owner_witness {
+          initial active
+          active -> active [-TRANSFER]
+          active -> active [+signed_by(/owner.id)]
+        }
+      `
+    }
+  });
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/transfer-owner-ok.modality',
+      content: `
+        model transfer_owner_ok {
+          initial active
+          active -> active [+TRANSFER +signed_by(/owner.id)]
+        }
+      `
+    }
+  }));
+
+  assert.throws(
+    () => validator.loadModel('/rules/transfer-owner-unsafe.modality', `
+      model transfer_owner_unsafe {
+        initial active
+        active -> active [+TRANSFER]
+      }
+    `),
+    /does not satisfy existing rule predicate -TRANSFER \| \+signed_by\(\/owner.id\)/
+  );
+});
+
 test('rule predicate extraction flips explicit negation polarity', () => {
   const validator = new ContractValidator();
 
