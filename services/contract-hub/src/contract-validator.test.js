@@ -2720,6 +2720,67 @@ test('validateContractLogic replays nondeterministic model state across a batch'
   assert.deepEqual(result.state.currentStates, ['done']);
 });
 
+test('validateContractLogic resumes nondeterministic model state from existing history', async () => {
+  const existingCommits = [
+    {
+      data: {
+        method: 'POST',
+        path: '/members/alice.id',
+        content: 'alice-key'
+      }
+    },
+    {
+      data: {
+        method: 'POST',
+        path: '/members/bob.id',
+        content: 'bob-key'
+      }
+    },
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/branches.modality',
+        content: `
+          model branches {
+            initial active
+            active -> reviewing [+signed_by(/members/alice.id)]
+            active -> approved [+signed_by(/members/alice.id)]
+            reviewing -> done [+signed_by(/members/bob.id)]
+            approved -> done [+signed_by(/members/bob.id)]
+          }
+        `
+      }
+    },
+    {
+      data: {
+        method: 'POST',
+        path: '/requests/1.json',
+        content: { requested: true },
+        signatures: [{ signer_key: 'alice-key' }]
+      }
+    }
+  ];
+  const store = {
+    pullCommits() {
+      return existingCommits;
+    }
+  };
+
+  const result = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'POST',
+        path: '/requests/1.json',
+        content: { approved: true },
+        signatures: [{ signer_key: 'bob-key' }]
+      }
+    }
+  ]);
+
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.state.currentStates, ['done']);
+});
+
 test('validateContractLogic anchors rules to later MODEL replacements', async () => {
   const store = {
     pullCommits() {
