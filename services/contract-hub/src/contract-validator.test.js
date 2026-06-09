@@ -782,6 +782,48 @@ test('rule predicate extraction falls back when formula parser cannot parse docu
   );
 });
 
+test('parser-backed nested modal rules constrain model replacements', () => {
+  const validator = new ContractValidator();
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/release-after-transfer.modality',
+      content: 'rule release_after_transfer { formula { always ([+TRANSFER] <+RELEASE> signed_by(/owner.id)) } }',
+      model: `
+        model release_after_transfer_witness {
+          initial active
+          active -> active [-TRANSFER]
+          active -> active [+RELEASE +signed_by(/owner.id)]
+        }
+      `
+    }
+  });
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/release-after-transfer-ok.modality',
+      content: `
+        model release_after_transfer_ok {
+          initial active
+          active -> active [+TRANSFER +RELEASE +signed_by(/owner.id)]
+        }
+      `
+    }
+  }));
+
+  assert.throws(
+    () => validator.loadModel('/rules/release-after-transfer-unsafe.modality', `
+      model release_after_transfer_unsafe {
+        initial active
+        active -> active [+TRANSFER +RELEASE]
+      }
+    `),
+    /does not satisfy existing rule predicate -TRANSFER \| \+RELEASE & \+signed_by\(\/owner.id\)/
+  );
+});
+
 test('rule predicate extraction flips explicit negation polarity', () => {
   const validator = new ContractValidator();
 
