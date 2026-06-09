@@ -274,6 +274,64 @@ test('RULE commits accept satisfying JSON witnessModel aliases', () => {
   assert.equal(validator.getState().rulesCount, 1);
 });
 
+test('RULE commits accept value aliases with separate witness models', () => {
+  const validator = new ContractValidator();
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/signed.modality',
+      value: 'rule signed { formula { always (+any_signed(/members)) } }',
+      model: `
+        model signed_witness {
+          initial active
+          active -> active [+any_signed(/members)]
+        }
+      `
+    }
+  }));
+
+  assert.equal(validator.getState().rulesCount, 1);
+  assert.throws(
+    () => validator.loadModel('/rules/open.modality', `
+      model open {
+        initial active
+        active -> active []
+      }
+    `),
+    /does not satisfy existing rule predicate/
+  );
+});
+
+test('RULE commits accept value aliases with separate JSON witness models', () => {
+  const validator = new ContractValidator();
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/signed.modality',
+      value: 'rule signed { formula { always (+any_signed(/members)) } }',
+      model: {
+        systems: [{ possible_current_state_ids: ['active'] }],
+        transitions: [
+          { from: 'active', to: 'active', guard: '+any_signed(/members)' }
+        ]
+      }
+    }
+  }));
+
+  assert.equal(validator.getState().rulesCount, 1);
+  assert.throws(
+    () => validator.loadModel('/rules/open.json', {
+      systems: [{ possible_current_state_ids: ['active'] }],
+      transitions: [
+        { from: 'active', to: 'active', guard: '' }
+      ]
+    }),
+    /does not satisfy existing rule predicate/
+  );
+});
+
 test('JSON MODEL commits without transitions reject later commits cleanly', () => {
   const validator = new ContractValidator();
 
