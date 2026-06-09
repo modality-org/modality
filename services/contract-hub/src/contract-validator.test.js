@@ -177,6 +177,38 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
+      'rule no_docs { formula { when +modifies(/docs) also false } }'
+    ),
+    [
+      [{ sign: '-', name: 'modifies', args: ['/docs'] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule ok_docs { formula { when +modifies(/docs) also true } }'
+    ),
+    []
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule no_docs { formula { when +modifies(/docs) next false } }'
+    ),
+    [
+      [{ sign: '-', name: 'modifies', args: ['/docs'] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule ok_docs { formula { when +modifies(/docs) next true } }'
+    ),
+    []
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
       'rule owner { formula { always (signed_by(/owner.id)) } }'
     ),
     [
