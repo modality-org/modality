@@ -2832,6 +2832,65 @@ test('validateContractLogic replays nondeterministic model state across a batch'
   assert.deepEqual(result.state.currentStates, ['done']);
 });
 
+test('validateContractLogic replays JSON MODEL nondeterminism across a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+
+  const result = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'POST',
+        path: '/members/alice.id',
+        content: 'alice-key'
+      }
+    },
+    {
+      data: {
+        method: 'POST',
+        path: '/members/bob.id',
+        content: 'bob-key'
+      }
+    },
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/branches.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'reviewing', guard: '+signed_by(/members/alice.id)' },
+            { from: 'active', to: 'approved', guard: '+signed_by(/members/alice.id)' },
+            { from: 'reviewing', to: 'done', guard: '+signed_by(/members/bob.id)' },
+            { from: 'approved', to: 'done', guard: '+signed_by(/members/bob.id)' }
+          ]
+        }
+      }
+    },
+    {
+      data: {
+        method: 'POST',
+        path: '/requests/1.json',
+        content: { requested: true },
+        signatures: [{ signer_key: 'alice-key' }]
+      }
+    },
+    {
+      data: {
+        method: 'POST',
+        path: '/requests/1.json',
+        content: { approved: true },
+        signatures: [{ signer_key: 'bob-key' }]
+      }
+    }
+  ]);
+
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.state.currentStates, ['done']);
+});
+
 test('validateContractLogic resumes nondeterministic model state from existing history', async () => {
   const existingCommits = [
     {
