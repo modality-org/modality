@@ -1411,6 +1411,65 @@ test('parser-backed can macro rules constrain model replacements', () => {
   );
 });
 
+test('parser-backed must macro rules constrain model replacements', () => {
+  const validator = new ContractValidator();
+  const ruleContent = 'rule required_release { formula { always (must(+RELEASE)) } }';
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/required-release-unsafe.modality',
+        content: ruleContent,
+        model: `
+          model required_release_unsafe_witness {
+            initial active
+            active -> active [+signed_by(/owner.id)]
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/required-release.modality',
+      content: ruleContent,
+      model: `
+        model required_release_witness {
+          initial active
+          active -> active [+RELEASE]
+        }
+      `
+    }
+  });
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/required-release-ok.modality',
+      content: `
+        model required_release_ok {
+          initial active
+          active -> active [+RELEASE]
+        }
+      `
+    }
+  }));
+
+  assert.throws(
+    () => validator.loadModel('/rules/required-release-unsafe.modality', `
+      model required_release_unsafe {
+        initial active
+        active -> active [+signed_by(/owner.id)]
+      }
+    `),
+    /does not satisfy existing rule predicate \+RELEASE/
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 
