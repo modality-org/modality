@@ -555,6 +555,22 @@ export class ContractValidator {
     return { sign: '+', name: '__unsatisfiable_rule__!', args: [] };
   }
 
+  isUnsatisfiableRulePredicate(predicate) {
+    return predicate?.name === this.unsatisfiableRulePredicate().name;
+  }
+
+  normalizeRulePredicateClauses(clauses) {
+    if (clauses.length === 0) return clauses;
+
+    const satisfiableClauses = clauses.filter(clause =>
+      !clause.some(predicate => this.isUnsatisfiableRulePredicate(predicate))
+    );
+
+    return satisfiableClauses.length > 0
+      ? satisfiableClauses
+      : [[this.unsatisfiableRulePredicate()]];
+  }
+
   formulaAstToRulePredicateAst(formula) {
     if (!formula) return null;
 
@@ -844,16 +860,16 @@ export class ContractValidator {
         const right = this.rulePredicateAstToClauses(ast.right);
         if (left.length === 0) return right;
         if (right.length === 0) return left;
-        return left.flatMap(leftClause =>
+        return this.normalizeRulePredicateClauses(left.flatMap(leftClause =>
           right.map(rightClause => [...leftClause, ...rightClause])
-        );
+        ));
       }
       case 'or':
       {
         const left = this.rulePredicateAstToClauses(ast.left);
         const right = this.rulePredicateAstToClauses(ast.right);
         if (left.length === 0 || right.length === 0) return [];
-        return [...left, ...right];
+        return this.normalizeRulePredicateClauses([...left, ...right]);
       }
       case 'true':
         return [];
@@ -879,16 +895,16 @@ export class ContractValidator {
         const left = this.negateRulePredicateAst(ast.left);
         const right = this.negateRulePredicateAst(ast.right);
         if (left.length === 0 || right.length === 0) return [];
-        return [...left, ...right];
+        return this.normalizeRulePredicateClauses([...left, ...right]);
       }
       case 'or': {
         const left = this.negateRulePredicateAst(ast.left);
         const right = this.negateRulePredicateAst(ast.right);
         if (left.length === 0) return right;
         if (right.length === 0) return left;
-        return left.flatMap(leftClause =>
+        return this.normalizeRulePredicateClauses(left.flatMap(leftClause =>
           right.map(rightClause => [...leftClause, ...rightClause])
-        );
+        ));
       }
       case 'true':
         return [[this.unsatisfiableRulePredicate()]];

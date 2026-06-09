@@ -274,8 +274,7 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
       'rule no_release { formula { always (not <+RELEASE> true) } }'
     ),
     [
-      [{ sign: '-', name: 'RELEASE', args: [] }],
-      [{ sign: '+', name: '__unsatisfiable_rule__!', args: [] }]
+      [{ sign: '-', name: 'RELEASE', args: [] }]
     ]
   );
 
@@ -318,10 +317,7 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
       'rule impossible { formula { always (false and signed_by(/owner.id)) } }'
     ),
     [
-      [
-        { sign: '+', name: '__unsatisfiable_rule__!', args: [] },
-        { sign: '+', name: 'signed_by', args: ['/owner.id'] }
-      ]
+      [{ sign: '+', name: '__unsatisfiable_rule__!', args: [] }]
     ]
   );
 
@@ -330,8 +326,16 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
       'rule owner { formula { always (false or signed_by(/owner.id)) } }'
     ),
     [
-      [{ sign: '+', name: '__unsatisfiable_rule__!', args: [] }],
       [{ sign: '+', name: 'signed_by', args: ['/owner.id'] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule impossible { formula { always (false or false) } }'
+    ),
+    [
+      [{ sign: '+', name: '__unsatisfiable_rule__!', args: [] }]
     ]
   );
 
