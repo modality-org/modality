@@ -578,6 +578,7 @@ export class ContractValidator {
     if (formula.inner && formula.outer && formula.constructor?.name === 'BoxFormula') {
       const inner = this.formulaAstToRulePredicateAst(formula.inner);
       const outer = this.formulaAstToRulePredicateAst(formula.outer);
+      if (inner && formula.outer.constructor?.name === 'FalseAtom') return { type: 'not', value: inner };
       return inner && outer ? { type: 'or', left: { type: 'not', value: inner }, right: outer } : null;
     }
 

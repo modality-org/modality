@@ -216,6 +216,24 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
+      'rule no_release { formula { always ([+RELEASE] false) } }'
+    ),
+    [
+      [{ sign: '-', name: 'RELEASE', args: [] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule no_reject { formula { always ([-RELEASE] false) } }'
+    ),
+    [
+      [{ sign: '+', name: 'RELEASE', args: [] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
       'rule delivery { formula { always (oracle_attests(/oracles/delivery.id, "delivered", "true")) } }'
     ),
     [
