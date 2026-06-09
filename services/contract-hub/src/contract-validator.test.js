@@ -3443,6 +3443,60 @@ test('validateContractLogic applies JSON-witnessed rules to later JSON model rep
   assert.deepEqual(validReplacement.state.model.transitions[0].guard, '+any_signed(/members)');
 });
 
+test('validateContractLogic keeps JSON rule witnesses separate from the governing model', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+
+  const result = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'POST',
+        path: '/members/alice.id',
+        content: 'alice-key'
+      }
+    },
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/open.modality',
+        content: `
+          model open {
+            initial active
+            active -> active []
+          }
+        `
+      }
+    },
+    {
+      data: {
+        method: 'RULE',
+        path: '/rules/signed.modality',
+        content: 'rule signed { formula { always (+signed_by(/members/alice.id)) } }',
+        model: {
+          systems: [{ possible_current_state_ids: ['locked'] }],
+          transitions: [
+            { from: 'locked', to: 'locked', guard: '+signed_by(/members/alice.id)' }
+          ]
+        }
+      }
+    },
+    {
+      data: {
+        method: 'POST',
+        path: '/docs/unsigned.md',
+        content: 'batch replay stays governed by the original model'
+      }
+    }
+  ]);
+
+  assert.equal(result.valid, true);
+  assert.equal(result.state.model.name, 'open');
+  assert.deepEqual(result.state.currentStates, ['active']);
+});
+
 test('RULE commits require a satisfying witness model', () => {
   const validator = new ContractValidator();
 
