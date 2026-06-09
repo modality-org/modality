@@ -156,6 +156,26 @@ test('JSON MODEL replacements must preserve predicates required by existing rule
   }));
 });
 
+test('JSON MODEL commits without transitions reject later commits cleanly', () => {
+  const validator = new ContractValidator();
+
+  validator.loadModel('/rules/empty.json', {
+    systems: [{ possible_current_state_ids: ['active'] }]
+  });
+
+  const result = validator.validateCommit({
+    data: {
+      method: 'POST',
+      path: '/docs/readme.md',
+      content: 'blocked'
+    }
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /POST is not allowed from states 'active'/);
+  assert.deepEqual(validator.getValidActions(), []);
+});
+
 test('real formula parser extracts parseable rule predicate clauses', () => {
   const validator = new ContractValidator();
 

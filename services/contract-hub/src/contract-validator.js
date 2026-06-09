@@ -299,7 +299,7 @@ export class ContractValidator {
   getValidActions() {
     if (!this.model) return [];
     
-    return this.model.transitions
+    return (this.model.transitions || [])
       .filter(t => this.currentStates.has(t.from))
       .map(t => ({
         action: t.action,
@@ -322,7 +322,7 @@ export class ContractValidator {
     const data = commit.data || commit.body?.[0] || {};
     const method = this.getMethod(data);
     const activeStates = this.currentStates.size > 0 ? this.currentStates : new Set([this.model.initialState]);
-    const transitions = this.model.transitions.filter(t => activeStates.has(t.from));
+    const transitions = (this.model.transitions || []).filter(t => activeStates.has(t.from));
 
     for (const transition of transitions) {
       if (transition.action && !(method === 'ACTION' && transition.action === data.action)) {
@@ -353,7 +353,7 @@ export class ContractValidator {
     const activeStates = this.currentStates.size > 0 ? this.currentStates : new Set([this.model.initialState]);
     const nextStates = new Set();
 
-    for (const transition of this.model.transitions) {
+    for (const transition of this.model.transitions || []) {
       if (!activeStates.has(transition.from)) continue;
       if (transition.action && !(method === 'ACTION' && transition.action === data.action)) continue;
 
