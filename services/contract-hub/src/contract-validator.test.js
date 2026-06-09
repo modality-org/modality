@@ -1293,6 +1293,65 @@ test('parser-backed threshold rules constrain model replacements', () => {
   );
 });
 
+test('parser-backed oracle diamond rules constrain model replacements', () => {
+  const validator = new ContractValidator();
+  const ruleContent = 'rule delivery { formula { always (<+oracle_attests(/oracles/delivery.id, "delivered", "true")> true) } }';
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/delivery-unsafe.modality',
+        content: ruleContent,
+        model: `
+          model delivery_unsafe_witness {
+            initial active
+            active -> active [+signed_by(/owner.id)]
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/delivery.modality',
+      content: ruleContent,
+      model: `
+        model delivery_witness {
+          initial active
+          active -> active [+oracle_attests(/oracles/delivery.id, "delivered", "true")]
+        }
+      `
+    }
+  });
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/delivery-ok.modality',
+      content: `
+        model delivery_ok {
+          initial active
+          active -> active [+oracle_attests(/oracles/delivery.id, "delivered", "true")]
+        }
+      `
+    }
+  }));
+
+  assert.throws(
+    () => validator.loadModel('/rules/delivery-unsafe.modality', `
+      model delivery_unsafe {
+        initial active
+        active -> active [+signed_by(/owner.id)]
+      }
+    `),
+    /does not satisfy existing rule predicate \+oracle_attests\(\/oracles\/delivery.id, "delivered", "true"\)/
+  );
+});
+
 test('threshold predicates require enough distinct member signatures', () => {
   const validator = new ContractValidator();
 
