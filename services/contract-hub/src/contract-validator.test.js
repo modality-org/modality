@@ -2773,6 +2773,94 @@ test('validateContractLogic replays MODEL replacement within a batch', async () 
   assert.match(invalid.errors[0], /MODEL is not allowed/);
 });
 
+test('validateContractLogic replays JSON MODEL replacement within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const baseCommits = [
+    {
+      data: {
+        method: 'POST',
+        path: '/members/alice.id',
+        content: 'alice-key'
+      }
+    },
+    {
+      data: {
+        method: 'POST',
+        path: '/members/bob.id',
+        content: 'bob-key'
+      }
+    },
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/alice.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+signed_by(/members/alice.id)' }
+          ]
+        }
+      }
+    },
+    {
+      data: {
+        method: 'POST',
+        path: '/docs/alice.md',
+        content: 'alice write',
+        signatures: [{ signer_key: 'alice-key' }]
+      }
+    }
+  ];
+  const bobModel = {
+    data: {
+      method: 'MODEL',
+      path: '/rules/bob.json',
+      content: {
+        systems: [{ possible_current_state_ids: ['active'] }],
+        transitions: [
+          { from: 'active', to: 'active', guard: '+signed_by(/members/bob.id)' }
+        ]
+      },
+      signatures: [{ signer_key: 'alice-key' }]
+    }
+  };
+  const bobWrite = {
+    data: {
+      method: 'POST',
+      path: '/docs/bob.md',
+      content: 'bob write',
+      signatures: [{ signer_key: 'bob-key' }]
+    }
+  };
+
+  const valid = await validateContractLogic(store, 'contract', [
+    ...baseCommits,
+    bobModel,
+    bobWrite
+  ]);
+
+  assert.equal(valid.valid, true);
+  assert.deepEqual(valid.state.model.transitions, bobModel.data.content.transitions);
+
+  const invalid = await validateContractLogic(store, 'contract', [
+    ...baseCommits,
+    {
+      data: {
+        ...bobModel.data,
+        signatures: [{ signer_key: 'bob-key' }]
+      }
+    },
+    bobWrite
+  ]);
+
+  assert.equal(invalid.valid, false);
+  assert.match(invalid.errors[0], /MODEL is not allowed/);
+});
+
 test('validateContractLogic replays nondeterministic model state across a batch', async () => {
   const store = {
     pullCommits() {
