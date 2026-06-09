@@ -581,6 +581,14 @@ export class ContractValidator {
       return inner && outer ? { type: 'or', left: { type: 'not', value: inner }, right: outer } : null;
     }
 
+    if (formula.inner && formula.outer && formula.constructor?.name === 'DiamondFormula') {
+      const inner = this.formulaAstToRulePredicateAst(formula.inner);
+      const outer = this.formulaAstToRulePredicateAst(formula.outer);
+      if (inner && outer) return { type: 'and', left: inner, right: outer };
+      if (inner && formula.outer.constructor?.name === 'TrueAtom') return inner;
+      return null;
+    }
+
     if (formula.formula) {
       const value = this.formulaAstToRulePredicateAst(formula.formula);
       return value ? { type: 'not', value } : null;
