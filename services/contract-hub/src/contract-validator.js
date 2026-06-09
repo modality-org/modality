@@ -123,17 +123,23 @@ export class ContractValidator {
     }
     
     // Try to parse as JSON (KripkeMachine format)
+    let json = null;
     try {
-      const json = JSON.parse(content);
-      if (json.systems || json.rules) {
-        // KripkeMachine JSON format
-        this.machine = null;
-        this.model = json;
-        this.currentStates = new Set(this.getInitialStates(json));
-        return;
-      }
+      json = JSON.parse(content);
     } catch {
       // Not JSON, try as Modality syntax
+    }
+
+    if (json && (json.systems || json.rules)) {
+      // KripkeMachine JSON format
+      const ruleFailure = this.validateModelAgainstRules(json);
+      if (!ruleFailure.ok) {
+        throw new Error(ruleFailure.error);
+      }
+      this.machine = null;
+      this.model = json;
+      this.currentStates = new Set(this.getInitialStates(json));
+      return;
     }
     
     // Parse Modality syntax

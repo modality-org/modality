@@ -121,6 +121,41 @@ test('MODEL replacements may satisfy predicate disjunctions one branch at a time
   );
 });
 
+test('JSON MODEL replacements must preserve predicates required by existing rules', () => {
+  const validator = new ContractValidator();
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/signed.modality',
+      content: 'rule signed { formula { always (+any_signed(/members)) } }',
+      model: `
+        model signed_witness {
+          initial active
+          active -> active [+any_signed(/members)]
+        }
+      `
+    }
+  });
+
+  assert.throws(
+    () => validator.loadModel('/rules/open.json', {
+      systems: [{ possible_current_state_ids: ['active'] }],
+      transitions: [
+        { from: 'active', to: 'active', guard: '' }
+      ]
+    }),
+    /does not satisfy existing rule predicate/
+  );
+
+  assert.doesNotThrow(() => validator.loadModel('/rules/signed.json', {
+    systems: [{ possible_current_state_ids: ['active'] }],
+    transitions: [
+      { from: 'active', to: 'active', guard: '+any_signed(/members)' }
+    ]
+  }));
+});
+
 test('real formula parser extracts parseable rule predicate clauses', () => {
   const validator = new ContractValidator();
 
