@@ -782,6 +782,88 @@ test('rule predicate extraction falls back when formula parser cannot parse docu
   );
 });
 
+test('parser-backed boolean rules constrain model replacements', () => {
+  const ruleContent = 'rule docs { formula { always ((signed_by(/owner.id) or threshold(2, /members)) and modifies(/docs)) } }';
+  const unsafeWitnessValidator = new ContractValidator();
+
+  assert.throws(
+    () => unsafeWitnessValidator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/docs.modality',
+        content: ruleContent,
+        model: `
+          model unsafe_docs_witness {
+            initial active
+            active -> active [+signed_by(/owner.id)]
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  const validator = new ContractValidator();
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/docs.modality',
+      content: ruleContent,
+      model: `
+        model docs_witness {
+          initial active
+          active -> active [+signed_by(/owner.id) +modifies(/docs)]
+        }
+      `
+    }
+  });
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/docs-quorum.modality',
+      content: `
+        model docs_quorum {
+          initial active
+          active -> active [+threshold(2, /members) +modifies(/docs)]
+        }
+      `
+    }
+  }));
+
+  const unsafeReplacementValidator = new ContractValidator();
+  unsafeReplacementValidator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/docs.modality',
+      content: ruleContent,
+      model: `
+        model docs_witness {
+          initial active
+          active -> active [+signed_by(/owner.id) +modifies(/docs)]
+        }
+      `
+    }
+  });
+
+  assert.throws(
+    () => unsafeReplacementValidator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/docs-quorum-unsafe.modality',
+        content: `
+          model docs_quorum_unsafe {
+            initial active
+            active -> active [+threshold(2, /members)]
+          }
+        `
+      }
+    }),
+    /MODEL transition active->active does not satisfy existing rule predicate/
+  );
+});
+
 test('parser-backed nested modal rules constrain model replacements', () => {
   const validator = new ContractValidator();
   const ruleContent = 'rule release_after_transfer { formula { always ([+TRANSFER] <+RELEASE> signed_by(/owner.id)) } }';
