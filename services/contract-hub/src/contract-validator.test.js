@@ -1177,6 +1177,21 @@ test('rule predicate extraction falls back when formula parser cannot parse docu
     ]
   );
 
+  const textualNotAndRule = 'rule no_rule_admin { formula { always (not adds_rule and signed_by(/admin.id)) } }';
+  assert.equal(
+    validator.extractRulePredicateClausesWithFormulaParser(textualNotAndRule),
+    null
+  );
+  assert.deepEqual(
+    validator.extractRulePredicateClauses(textualNotAndRule),
+    [
+      [
+        { sign: '-', name: 'adds_rule', args: [] },
+        { sign: '+', name: 'signed_by', args: ['/admin.id'] }
+      ]
+    ]
+  );
+
   const textualMixedRule = 'rule docs { formula { always (signed_by(/a.id) or signed_by(/b.id) and modifies(/docs)) } }';
   assert.equal(
     validator.extractRulePredicateClausesWithFormulaParser(textualMixedRule),
@@ -1906,6 +1921,37 @@ test('fallback textual not precedence constrains model witnesses', () => {
           model unsafe {
             initial active
             active -> active [+adds_rule]
+          }
+        `
+      }
+    }),
+    /MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  const andValidator = new ContractValidator();
+  andValidator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/no-rule-admin.modality',
+      content: 'rule no_rule_admin { formula { always (not adds_rule and signed_by(/admin.id)) } }',
+      model: `
+        model no_rule_admin_witness {
+          initial active
+          active -> active [-adds_rule +signed_by(/admin.id)]
+        }
+      `
+    }
+  });
+
+  assert.throws(
+    () => andValidator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/missing-admin.modality',
+        content: `
+          model missing_admin {
+            initial active
+            active -> active [-adds_rule]
           }
         `
       }
