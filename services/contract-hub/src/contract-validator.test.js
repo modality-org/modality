@@ -3384,6 +3384,65 @@ test('validateContractLogic accepts satisfying JSON rule witnesses', async () =>
   assert.equal(valid.valid, true);
 });
 
+test('validateContractLogic applies JSON-witnessed rules to later JSON model replacements', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/signed.modality',
+      content: 'rule signed { formula { always (+any_signed(/members)) } }',
+      model: {
+        systems: [{ possible_current_state_ids: ['active'] }],
+        transitions: [
+          { from: 'active', to: 'active', guard: '+any_signed(/members)' }
+        ]
+      }
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/open.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/signed.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+any_signed(/members)' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.deepEqual(validReplacement.state.model.transitions[0].guard, '+any_signed(/members)');
+});
+
 test('RULE commits require a satisfying witness model', () => {
   const validator = new ContractValidator();
 
