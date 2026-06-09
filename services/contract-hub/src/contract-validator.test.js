@@ -2751,6 +2751,65 @@ test('validateContractLogic anchors rules to later MODEL replacements', async ()
   assert.equal(validReplacement.state.model.name, 'signed_model');
 });
 
+test('validateContractLogic applies parser-backed rule clauses within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/docs.modality',
+      content: 'rule docs { formula { always ((signed_by(/owner.id) or threshold(2, /members)) and modifies(/docs)) } }',
+      model: `
+        model docs_witness {
+          initial active
+          active -> active [+signed_by(/owner.id) +modifies(/docs)]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/docs-quorum-unsafe.modality',
+        content: `
+          model docs_quorum_unsafe {
+            initial active
+            active -> active [+threshold(2, /members)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/docs-quorum.modality',
+        content: `
+          model docs_quorum {
+            initial active
+            active -> active [+threshold(2, /members) +modifies(/docs)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'docs_quorum');
+});
+
 test('RULE commits require a satisfying witness model', () => {
   const validator = new ContractValidator();
 
