@@ -3492,6 +3492,72 @@ test('RULE commits require a satisfying witness model', () => {
   );
 });
 
+test('RULE witness models do not replace the governing model', () => {
+  const validator = new ContractValidator();
+
+  validator.applyCommit({
+    data: {
+      method: 'POST',
+      path: '/members/alice.id',
+      content: 'alice-key'
+    }
+  });
+
+  validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/open.modality',
+      content: `
+        model open {
+          initial active
+          active -> active []
+        }
+      `
+    }
+  });
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/signed.modality',
+      content: 'rule signed { formula { always (+signed_by(/members/alice.id)) } }',
+      model: `
+        model signed_witness {
+          initial locked
+          locked -> locked [+signed_by(/members/alice.id)]
+        }
+      `
+    }
+  });
+
+  assert.equal(validator.getState().model.name, 'open');
+  assert.deepEqual(validator.getState().currentStates, ['active']);
+
+  assert.equal(validator.validateCommit({
+    data: {
+      method: 'POST',
+      path: '/docs/unsigned.md',
+      content: 'rules constrain future models, not direct data commits'
+    }
+  }).ok, true);
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/open-again.modality',
+        content: `
+          model open_again {
+            initial active
+            active -> active []
+          }
+        `
+      }
+    }),
+    /does not satisfy existing rule predicate/
+  );
+});
+
 test('existing RULE history replays without witness while new RULE commits require one', async () => {
   const legacyRule = {
     data: {
