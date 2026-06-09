@@ -2661,6 +2661,65 @@ test('validateContractLogic replays MODEL replacement within a batch', async () 
   assert.match(invalid.errors[0], /MODEL is not allowed/);
 });
 
+test('validateContractLogic replays nondeterministic model state across a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+
+  const result = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'POST',
+        path: '/members/alice.id',
+        content: 'alice-key'
+      }
+    },
+    {
+      data: {
+        method: 'POST',
+        path: '/members/bob.id',
+        content: 'bob-key'
+      }
+    },
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/branches.modality',
+        content: `
+          model branches {
+            initial active
+            active -> reviewing [+signed_by(/members/alice.id)]
+            active -> approved [+signed_by(/members/alice.id)]
+            reviewing -> done [+signed_by(/members/bob.id)]
+            approved -> done [+signed_by(/members/bob.id)]
+          }
+        `
+      }
+    },
+    {
+      data: {
+        method: 'POST',
+        path: '/requests/1.json',
+        content: { requested: true },
+        signatures: [{ signer_key: 'alice-key' }]
+      }
+    },
+    {
+      data: {
+        method: 'POST',
+        path: '/requests/1.json',
+        content: { approved: true },
+        signatures: [{ signer_key: 'bob-key' }]
+      }
+    }
+  ]);
+
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.state.currentStates, ['done']);
+});
+
 test('validateContractLogic anchors rules to later MODEL replacements', async () => {
   const store = {
     pullCommits() {
