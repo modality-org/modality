@@ -1761,6 +1761,91 @@ test('parser-backed boxed tautology rules do not require witnesses', () => {
   }));
 });
 
+test('parser-backed boxed constant rules validate witness requirements', () => {
+  const validator = new ContractValidator();
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/no-release.modality',
+      content: 'rule no_release { formula { always ([+RELEASE] false) } }',
+      model: `
+        model no_release_witness {
+          initial active
+          active -> active [-RELEASE]
+        }
+      `
+    }
+  });
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/release.modality',
+        content: `
+          model release {
+            initial active
+            active -> active [+RELEASE]
+          }
+        `
+      }
+    }),
+    /MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  const impossibleValidator = new ContractValidator();
+
+  assert.throws(
+    () => impossibleValidator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/impossible-release.modality',
+        content: 'rule impossible_release { formula { always (not [+RELEASE] true) } }',
+        model: `
+          model release_witness {
+            initial active
+            active -> active [+RELEASE]
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  const positiveValidator = new ContractValidator();
+
+  positiveValidator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/releasable.modality',
+      content: 'rule releasable { formula { always (not [+RELEASE] false) } }',
+      model: `
+        model releasable_witness {
+          initial active
+          active -> active [+RELEASE]
+        }
+      `
+    }
+  });
+
+  assert.throws(
+    () => positiveValidator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/open.modality',
+        content: `
+          model open {
+            initial active
+            active -> active []
+          }
+        `
+      }
+    }),
+    /MODEL transition active->active does not satisfy existing rule predicate/
+  );
+});
+
 test('parser-backed diamond constant rules validate witness requirements', () => {
   const validator = new ContractValidator();
 
