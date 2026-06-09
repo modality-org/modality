@@ -234,6 +234,20 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
+      'rule tautology { formula { always ([+RELEASE] true) } }'
+    ),
+    []
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClauses(
+      'rule tautology { formula { always ([+RELEASE] true) } }'
+    ),
+    []
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
       'rule delivery { formula { always (oracle_attests(/oracles/delivery.id, "delivered", "true")) } }'
     ),
     [
