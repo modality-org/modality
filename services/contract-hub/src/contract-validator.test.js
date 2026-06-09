@@ -1210,6 +1210,40 @@ test('rule predicate extraction supports textual not', () => {
   );
 });
 
+test('fallback textual not precedence constrains model witnesses', () => {
+  const validator = new ContractValidator();
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/no-rules.modality',
+      content: 'rule no_rules { formula { always (not adds_rule or signed_by(/admin.id)) } }',
+      model: `
+        model no_rules_witness {
+          initial active
+          active -> active [-adds_rule]
+        }
+      `
+    }
+  });
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/unsafe.modality',
+        content: `
+          model unsafe {
+            initial active
+            active -> active [+adds_rule]
+          }
+        `
+      }
+    }),
+    /MODEL transition active->active does not satisfy existing rule predicate/
+  );
+});
+
 test('rule predicate extraction supports arrow implications', () => {
   const validator = new ContractValidator();
 
