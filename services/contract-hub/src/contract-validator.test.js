@@ -1818,6 +1818,38 @@ test('parser-backed diamond constant rules validate witness requirements', () =>
     }),
     /MODEL transition active->active does not satisfy existing rule predicate/
   );
+
+  const negativeValidator = new ContractValidator();
+
+  negativeValidator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/no-release.modality',
+      content: 'rule no_release { formula { always (not <+RELEASE> true) } }',
+      model: `
+        model no_release_witness {
+          initial active
+          active -> active [-RELEASE]
+        }
+      `
+    }
+  });
+
+  assert.throws(
+    () => negativeValidator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/release.modality',
+        content: `
+          model release {
+            initial active
+            active -> active [+RELEASE]
+          }
+        `
+      }
+    }),
+    /MODEL transition active->active does not satisfy existing rule predicate/
+  );
 });
 
 test('threshold predicates require enough distinct member signatures', () => {
