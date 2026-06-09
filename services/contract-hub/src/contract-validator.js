@@ -230,7 +230,7 @@ export class ContractValidator {
     
     // Check if action is valid from current state
     const activeStates = this.currentStates.size > 0 ? this.currentStates : new Set([this.model.initialState]);
-    const validTransitions = this.model.transitions.filter(t => 
+    const validTransitions = (this.model.transitions || []).filter(t => 
       activeStates.has(t.from) && t.action === action
     );
     

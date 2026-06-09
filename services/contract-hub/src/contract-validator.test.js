@@ -173,6 +173,11 @@ test('JSON MODEL commits without transitions reject later commits cleanly', () =
 
   assert.equal(result.ok, false);
   assert.match(result.error, /POST is not allowed from states 'active'/);
+
+  const actionResult = validator.validateAction('APPROVE');
+  assert.equal(actionResult.ok, false);
+  assert.match(actionResult.error, /Action 'APPROVE' not allowed from states 'active'/);
+
   assert.deepEqual(validator.getValidActions(), []);
 });
 
