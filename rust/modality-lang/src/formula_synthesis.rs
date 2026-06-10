@@ -7,7 +7,7 @@
 //! 2. Model Synthesis: Formulas → Model (this module)
 
 use crate::ast::{FormulaExpr, Model, Part, Property, PropertySign, PropertySource, Transition};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 /// Constraints extracted from formulas
 #[derive(Debug, Clone, Default)]
@@ -323,16 +323,15 @@ fn topological_sort(ordering: &[(String, String)], all_actions: &HashSet<String>
     }
 
     // Kahn's algorithm
-    let mut queue: Vec<String> = in_degree
+    let mut queue: BTreeSet<String> = in_degree
         .iter()
         .filter(|(_, &deg)| deg == 0)
         .map(|(action, _)| action.clone())
         .collect();
-    queue.sort(); // Deterministic order
 
     let mut result = Vec::new();
 
-    while let Some(action) = queue.pop() {
+    while let Some(action) = queue.pop_first() {
         result.push(action.clone());
 
         if let Some(dependents) = graph.get(&action) {
@@ -340,8 +339,7 @@ fn topological_sort(ordering: &[(String, String)], all_actions: &HashSet<String>
                 if let Some(deg) = in_degree.get_mut(dependent) {
                     *deg -= 1;
                     if *deg == 0 {
-                        queue.push(dependent.clone());
-                        queue.sort();
+                        queue.insert(dependent.clone());
                     }
                 }
             }
@@ -417,6 +415,19 @@ mod tests {
         assert_eq!(model.parts.len(), 1);
         assert_eq!(model.parts[0].name, "flow");
         assert!(model.parts[0].transitions.len() >= 4); // DEPOSIT, DELIVER, RELEASE + terminal
+    }
+
+    #[test]
+    fn test_topological_sort_uses_lexical_ready_action_order() {
+        let actions = HashSet::from([
+            "GAMMA".to_string(),
+            "ALPHA".to_string(),
+            "BETA".to_string(),
+        ]);
+
+        let ordered = topological_sort(&[], &actions);
+
+        assert_eq!(ordered, vec!["ALPHA", "BETA", "GAMMA"]);
     }
 
     #[test]
