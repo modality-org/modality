@@ -4609,6 +4609,71 @@ test('validateContractLogic applies parser-backed diamond constant rules within 
   assert.equal(validReplacement.state.model.name, 'releasable_ok');
 });
 
+test('validateContractLogic applies parser-backed constant rules to JSON replacements', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+
+  for (const [name, formula, witnessGuard, invalidGuard, validGuard] of [
+    ['no_release_json', '[+RELEASE] false', '-RELEASE', '+RELEASE', '-RELEASE'],
+    ['releasable_json', '<+RELEASE> true', '+RELEASE', '-RELEASE', '+RELEASE']
+  ]) {
+    const ruleCommit = {
+      data: {
+        method: 'RULE',
+        path: `/rules/${name}.modality`,
+        content: `rule ${name} { formula { always (${formula}) } }`,
+        model: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: witnessGuard }
+          ]
+        }
+      }
+    };
+
+    const invalidReplacement = await validateContractLogic(store, 'contract', [
+      ruleCommit,
+      {
+        data: {
+          method: 'MODEL',
+          path: `/rules/${name}-unsafe.json`,
+          content: {
+            systems: [{ possible_current_state_ids: ['active'] }],
+            transitions: [
+              { from: 'active', to: 'active', guard: invalidGuard }
+            ]
+          }
+        }
+      }
+    ]);
+
+    assert.equal(invalidReplacement.valid, false);
+    assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+    const validReplacement = await validateContractLogic(store, 'contract', [
+      ruleCommit,
+      {
+        data: {
+          method: 'MODEL',
+          path: `/rules/${name}-ok.json`,
+          content: {
+            systems: [{ possible_current_state_ids: ['active'] }],
+            transitions: [
+              { from: 'active', to: 'active', guard: validGuard }
+            ]
+          }
+        }
+      }
+    ]);
+
+    assert.equal(validReplacement.valid, true);
+    assert.equal(validReplacement.state.model.transitions[0].guard, validGuard);
+  }
+});
+
 test('validateContractLogic applies parser-backed empty box rules within a batch', async () => {
   const store = {
     pullCommits() {
