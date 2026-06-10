@@ -2705,6 +2705,23 @@ test('parser-backed tautological empty modal rules do not require witnesses', ()
   }
 });
 
+test('parser-backed negated impossible empty modal rules do not require witnesses', () => {
+  const validator = new ContractValidator();
+
+  for (const [name, formula] of [
+    ['not_impossible_box', 'not [] false'],
+    ['not_impossible_diamond', 'not <> false']
+  ]) {
+    assert.doesNotThrow(() => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: `/rules/${name}.modality`,
+        content: `rule ${name} { formula { always (${formula}) } }`
+      }
+    }));
+  }
+});
+
 test('parser-backed boxed tautology rules do not require witnesses', () => {
   const validator = new ContractValidator();
 
