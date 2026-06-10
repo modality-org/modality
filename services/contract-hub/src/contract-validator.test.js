@@ -5852,6 +5852,24 @@ test('existing impossible empty modal RULE history replays without witness and b
 
     assert.equal(replacement.valid, false);
     assert.match(replacement.errors[0], /does not satisfy existing rule predicate \+__unsatisfiable_rule__!/);
+
+    const jsonReplacement = await validateContractLogic({ pullCommits: () => [legacyRule] }, 'contract', [
+      {
+        data: {
+          method: 'MODEL',
+          path: `/rules/${name}-open.json`,
+          content: {
+            systems: [{ possible_current_state_ids: ['active'] }],
+            transitions: [
+              { from: 'active', to: 'active', guard: '' }
+            ]
+          }
+        }
+      }
+    ]);
+
+    assert.equal(jsonReplacement.valid, false);
+    assert.match(jsonReplacement.errors[0], /does not satisfy existing rule predicate \+__unsatisfiable_rule__!/);
   }
 });
 
