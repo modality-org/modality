@@ -112,7 +112,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         };
 
         println!("✅ Synthesized model:\n");
-        let output = modality_lang::print_model(&model);
+        let output = format_synthesized_model(&model, &opts.format)?;
         println!("{}", output);
 
         if let Some(output_path) = &opts.output {
@@ -173,7 +173,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
 
         println!("✅ Synthesized model:\n");
-        let output = modality_lang::print_model(&model);
+        let output = format_synthesized_model(&model, &opts.format)?;
         println!("{}", output);
 
         if let Some(output_path) = &opts.output {
@@ -200,7 +200,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 &formula_exprs,
             );
 
-            let output = modality_lang::print_model(&model);
+            let output = format_synthesized_model(&model, &opts.format)?;
 
             if let Some(output_path) = &opts.output {
                 if let Some(parent) = output_path.parent() {
@@ -476,6 +476,17 @@ fn synthesize_from_rule(
     Ok(model)
 }
 
+fn format_synthesized_model(model: &modality_lang::Model, format: &str) -> Result<String> {
+    match format {
+        "modality" => Ok(modality_lang::print_model(model)),
+        "json" => Ok(serde_json::to_string_pretty(model)?),
+        other => Err(anyhow::anyhow!(
+            "Unknown format: '{}'. Use 'modality' or 'json'.",
+            other
+        )),
+    }
+}
+
 /// Format a model for output
 fn format_model(model: &modality_lang::Model, format: &str) -> Result<String> {
     match format {
@@ -580,6 +591,15 @@ mod tests {
         let parsed = parse_formula_strings(&formulas);
 
         assert_eq!(parsed.len(), 1);
+    }
+
+    #[test]
+    fn format_synthesized_model_supports_json() {
+        let model = modality_lang::Model::new("Contract".to_string());
+
+        let json = format_synthesized_model(&model, "json").unwrap();
+
+        assert!(json.contains("\"name\": \"Contract\""));
     }
 
     #[test]
