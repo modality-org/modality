@@ -3839,6 +3839,65 @@ test('validateContractLogic applies fallback textual not rules within a batch', 
   assert.equal(validReplacement.state.model.name, 'rule_admin');
 });
 
+test('validateContractLogic applies fallback mixed textual boolean rules within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/docs.modality',
+      content: 'rule docs { formula { always (signed_by(/a.id) or signed_by(/b.id) and modifies(/docs)) } }',
+      model: `
+        model docs_witness {
+          initial active
+          active -> active [+signed_by(/a.id)]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/docs-unsafe.modality',
+        content: `
+          model docs_unsafe {
+            initial active
+            active -> active [+signed_by(/b.id)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/docs-safe.modality',
+        content: `
+          model docs_safe {
+            initial active
+            active -> active [+signed_by(/b.id) +modifies(/docs)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'docs_safe');
+});
+
 test('validateContractLogic rejects unsafe parser-backed rule witnesses', async () => {
   const store = {
     pullCommits() {
