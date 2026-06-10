@@ -3780,6 +3780,65 @@ test('validateContractLogic applies parser-backed rule clauses within a batch', 
   assert.equal(validReplacement.state.model.name, 'docs_quorum');
 });
 
+test('validateContractLogic applies parser-backed oracle diamond rules within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/delivery.modality',
+      content: 'rule delivery { formula { always (<+oracle_attests(/oracles/delivery.id, "delivered", "true")> true) } }',
+      model: `
+        model delivery_witness {
+          initial active
+          active -> active [+oracle_attests(/oracles/delivery.id, "delivered", "true")]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/delivery-unsafe.modality',
+        content: `
+          model delivery_unsafe {
+            initial active
+            active -> active [+signed_by(/owner.id)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/delivery-oracle.modality',
+        content: `
+          model delivery_oracle {
+            initial active
+            active -> active [+oracle_attests(/oracles/delivery.id, "delivered", "true")]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'delivery_oracle');
+});
+
 test('validateContractLogic applies fallback implication rules within a batch', async () => {
   const store = {
     pullCommits() {
