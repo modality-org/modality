@@ -370,7 +370,6 @@ mod tests {
     }
     
     #[test]
-    #[ignore] // FIXME: ordering constraints synthesis needs update
     fn test_synthesis_from_ordering() {
         let mut constraints = SynthesisConstraints::default();
         constraints.ordering.push(("RELEASE".to_string(), "DELIVER".to_string()));
@@ -382,6 +381,8 @@ mod tests {
         let model = synthesize_from_constraints("Escrow", &constraints);
         
         assert_eq!(model.name, "Escrow");
-        assert!(model.transitions.len() >= 3); // DEPOSIT, DELIVER, RELEASE + terminal
+        assert_eq!(model.parts.len(), 1);
+        assert_eq!(model.parts[0].name, "flow");
+        assert!(model.parts[0].transitions.len() >= 4); // DEPOSIT, DELIVER, RELEASE + terminal
     }
 }
