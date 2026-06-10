@@ -213,6 +213,11 @@ fn extract_eventually_actions(expr: &FormulaExpr) -> Vec<String> {
         FormulaExpr::Eventually(inner) => extract_diamond_actions(inner),
         // Also handle direct diamond
         FormulaExpr::Diamond(_, _) => extract_diamond_actions(expr),
+        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
+            let mut actions = extract_eventually_actions(lhs);
+            extend_unique(&mut actions, &extract_eventually_actions(rhs));
+            actions
+        }
         FormulaExpr::Paren(inner) => extract_eventually_actions(inner),
         _ => Vec::new(),
     }
@@ -247,6 +252,11 @@ fn extract_diamond_signers(expr: &FormulaExpr) -> Vec<String> {
                 None
             })
             .collect(),
+        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
+            let mut signers = extract_diamond_signers(lhs);
+            extend_unique(&mut signers, &extract_diamond_signers(rhs));
+            signers
+        }
         FormulaExpr::Paren(inner) => extract_diamond_signers(inner),
         _ => Vec::new(),
     }
@@ -256,6 +266,11 @@ fn extract_diamond_signers(expr: &FormulaExpr) -> Vec<String> {
 fn extract_always_forbidden(expr: &FormulaExpr) -> Vec<String> {
     match expr {
         FormulaExpr::Always(inner) => extract_forbidden_box_action(inner),
+        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
+            let mut forbidden = extract_always_forbidden(lhs);
+            extend_unique(&mut forbidden, &extract_always_forbidden(rhs));
+            forbidden
+        }
         FormulaExpr::Paren(inner) => extract_always_forbidden(inner),
         _ => Vec::new(),
     }
@@ -804,6 +819,35 @@ mod tests {
     }
 
     #[test]
+    fn test_compound_eventual_rhs_adds_ordering_for_each_branch() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::Eventually(Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "DELIVER".to_string())],
+                    Box::new(FormulaExpr::True),
+                )))),
+                Box::new(FormulaExpr::Eventually(Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "INSPECT".to_string())],
+                    Box::new(FormulaExpr::True),
+                )))),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .ordering
+            .contains(&("RELEASE".to_string(), "DELIVER".to_string())));
+        assert!(constraints
+            .ordering
+            .contains(&("RELEASE".to_string(), "INSPECT".to_string())));
+    }
+
+    #[test]
     fn test_duplicate_ordering_constraints_are_deduplicated() {
         let formula = FormulaExpr::Implies(
             Box::new(FormulaExpr::Box(
@@ -881,6 +925,42 @@ mod tests {
                     ),
                 ],
                 Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(
+            constraints.authorization.get("APPROVE"),
+            Some(&vec![
+                "/users/alice.id".to_string(),
+                "/users/bob.id".to_string()
+            ])
+        );
+    }
+
+    #[test]
+    fn test_compound_signer_rhs_adds_authorization_for_each_branch() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::Diamond(
+                    vec![Property::new_predicate_from_call(
+                        "signed_by".to_string(),
+                        "/users/alice.id".to_string(),
+                    )],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::Diamond(
+                    vec![Property::new_predicate_from_call(
+                        "signed_by".to_string(),
+                        "/users/bob.id".to_string(),
+                    )],
+                    Box::new(FormulaExpr::True),
+                )),
             )),
         );
 
@@ -1048,6 +1128,35 @@ mod tests {
             .contains(&("DISPUTE".to_string(), "CLOSE".to_string())));
         assert!(constraints.actions.contains("RELEASE"));
         assert!(constraints.actions.contains("CLOSE"));
+    }
+
+    #[test]
+    fn test_compound_forbidden_rhs_adds_forbidden_after_for_each_branch() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "DISPUTE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::Always(Box::new(FormulaExpr::Box(
+                    vec![Property::new(PropertySign::Minus, "RELEASE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )))),
+                Box::new(FormulaExpr::Always(Box::new(FormulaExpr::Box(
+                    vec![Property::new(PropertySign::Minus, "CLOSE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )))),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .forbidden_after
+            .contains(&("DISPUTE".to_string(), "RELEASE".to_string())));
+        assert!(constraints
+            .forbidden_after
+            .contains(&("DISPUTE".to_string(), "CLOSE".to_string())));
     }
 
     #[test]
