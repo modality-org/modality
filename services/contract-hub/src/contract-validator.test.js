@@ -3957,6 +3957,65 @@ test('validateContractLogic applies parser-backed can macro rules within a batch
   assert.equal(validReplacement.state.model.name, 'releasable_ok');
 });
 
+test('validateContractLogic applies parser-backed must macro rules within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/required-release.modality',
+      content: 'rule required_release { formula { always (must(+RELEASE)) } }',
+      model: `
+        model required_release_witness {
+          initial active
+          active -> active [+RELEASE]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/required-release-unsafe.modality',
+        content: `
+          model required_release_unsafe {
+            initial active
+            active -> active [+signed_by(/owner.id)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/required-release-ok.modality',
+        content: `
+          model required_release_ok {
+            initial active
+            active -> active [+RELEASE]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'required_release_ok');
+});
+
 test('validateContractLogic applies parser-backed negated can macro rules within a batch', async () => {
   const store = {
     pullCommits() {
