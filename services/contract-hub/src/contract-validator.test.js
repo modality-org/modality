@@ -2122,6 +2122,73 @@ test('fallback non-always temporal rules constrain model witnesses', () => {
   );
 });
 
+test('fallback until macro rules constrain model witnesses', () => {
+  const validator = new ContractValidator();
+  const ruleContent = 'rule until_signed { formula { until(signed_by(/owner.id), threshold(2, /members)) } }';
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/until-unsafe.modality',
+        content: ruleContent,
+        model: `
+          model until_unsafe_witness {
+            initial active
+            active -> active []
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/until.modality',
+      content: ruleContent,
+      model: `
+        model until_witness {
+          initial active
+          active -> active [+signed_by(/owner.id)]
+        }
+      `
+    }
+  });
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/until-open.modality',
+        content: `
+          model until_open {
+            initial active
+            active -> active []
+          }
+        `
+      }
+    }),
+    /MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  assert.doesNotThrow(
+    () => validator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/until-signed.modality',
+        content: `
+          model until_signed {
+            initial active
+            active -> active [+signed_by(/owner.id)]
+          }
+        `
+      }
+    })
+  );
+});
+
 test('rule predicate extraction supports arrow implications', () => {
   const validator = new ContractValidator();
 
