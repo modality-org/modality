@@ -162,7 +162,7 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
 /// Extract committed action properties from [<+ACTION>] true.
 fn extract_diamond_box_props(expr: &FormulaExpr) -> Option<Vec<Property>> {
     match expr {
-        FormulaExpr::DiamondBox(props, inner) if matches!(inner.as_ref(), FormulaExpr::True) => {
+        FormulaExpr::DiamondBox(props, inner) if is_true_expr(inner) => {
             if props.is_empty() {
                 None
             } else {
@@ -185,6 +185,7 @@ fn extract_box_action(expr: &FormulaExpr) -> Option<String> {
             }
             None
         }
+        FormulaExpr::Paren(inner) => extract_box_action(inner),
         _ => None,
     }
 }
@@ -194,14 +195,8 @@ fn extract_eventually_action(expr: &FormulaExpr) -> Option<String> {
     match expr {
         FormulaExpr::Eventually(inner) => extract_diamond_action(inner),
         // Also handle direct diamond
-        FormulaExpr::Diamond(props, _) => {
-            for prop in props {
-                if prop.sign == PropertySign::Plus && prop.name != "signed_by" {
-                    return Some(prop.name.clone());
-                }
-            }
-            None
-        }
+        FormulaExpr::Diamond(_, _) => extract_diamond_action(expr),
+        FormulaExpr::Paren(inner) => extract_eventually_action(inner),
         _ => None,
     }
 }
@@ -217,6 +212,7 @@ fn extract_diamond_action(expr: &FormulaExpr) -> Option<String> {
             }
             None
         }
+        FormulaExpr::Paren(inner) => extract_diamond_action(inner),
         _ => None,
     }
 }
@@ -236,6 +232,7 @@ fn extract_diamond_signer(expr: &FormulaExpr) -> Option<String> {
             }
             None
         }
+        FormulaExpr::Paren(inner) => extract_diamond_signer(inner),
         _ => None,
     }
 }
@@ -243,18 +240,32 @@ fn extract_diamond_signer(expr: &FormulaExpr) -> Option<String> {
 /// Extract forbidden action from always([-ACTION] true) pattern
 fn extract_always_forbidden(expr: &FormulaExpr) -> Option<String> {
     match expr {
-        FormulaExpr::Always(inner) => match inner.as_ref() {
-            FormulaExpr::Box(props, _) => {
-                for prop in props {
-                    if prop.sign == PropertySign::Minus {
-                        return Some(prop.name.clone());
-                    }
-                }
-                None
-            }
-            _ => None,
-        },
+        FormulaExpr::Always(inner) => extract_forbidden_box_action(inner),
+        FormulaExpr::Paren(inner) => extract_always_forbidden(inner),
         _ => None,
+    }
+}
+
+fn extract_forbidden_box_action(expr: &FormulaExpr) -> Option<String> {
+    match expr {
+        FormulaExpr::Box(props, _) => {
+            for prop in props {
+                if prop.sign == PropertySign::Minus {
+                    return Some(prop.name.clone());
+                }
+            }
+            None
+        }
+        FormulaExpr::Paren(inner) => extract_forbidden_box_action(inner),
+        _ => None,
+    }
+}
+
+fn is_true_expr(expr: &FormulaExpr) -> bool {
+    match expr {
+        FormulaExpr::True => true,
+        FormulaExpr::Paren(inner) => is_true_expr(inner),
+        _ => false,
     }
 }
 
@@ -469,11 +480,7 @@ mod tests {
 
     #[test]
     fn test_topological_sort_uses_lexical_ready_action_order() {
-        let actions = HashSet::from([
-            "GAMMA".to_string(),
-            "ALPHA".to_string(),
-            "BETA".to_string(),
-        ]);
+        let actions = HashSet::from(["GAMMA".to_string(), "ALPHA".to_string(), "BETA".to_string()]);
 
         let ordered = topological_sort(&[], &actions);
 
@@ -573,6 +580,89 @@ mod tests {
         assert!(constraints.actions.is_empty());
         assert!(constraints.self_loops[0]
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
+    }
+
+    #[test]
+    fn test_parenthesized_true_does_not_hide_always_diamond_box_pattern() {
+        let formula = FormulaExpr::Always(Box::new(FormulaExpr::DiamondBox(
+            vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+            Box::new(FormulaExpr::Paren(Box::new(FormulaExpr::True))),
+        )));
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(constraints.self_loops.len(), 1);
+        assert!(constraints.actions.is_empty());
+        assert!(constraints.self_loops[0]
+            .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
+    }
+
+    #[test]
+    fn test_parentheses_do_not_hide_implication_ordering_pattern() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Paren(Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                Box::new(FormulaExpr::True),
+            )))),
+            Box::new(FormulaExpr::Paren(Box::new(FormulaExpr::Eventually(
+                Box::new(FormulaExpr::Paren(Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "DELIVER".to_string())],
+                    Box::new(FormulaExpr::True),
+                )))),
+            )))),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .ordering
+            .contains(&("RELEASE".to_string(), "DELIVER".to_string())));
+    }
+
+    #[test]
+    fn test_parentheses_do_not_hide_implication_authorization_pattern() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Paren(Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                Box::new(FormulaExpr::True),
+            )))),
+            Box::new(FormulaExpr::Paren(Box::new(FormulaExpr::Diamond(
+                vec![Property::new_predicate_from_call(
+                    "signed_by".to_string(),
+                    "/users/buyer.id".to_string(),
+                )],
+                Box::new(FormulaExpr::True),
+            )))),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(
+            constraints.authorization.get("RELEASE"),
+            Some(&vec!["/users/buyer.id".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_parentheses_do_not_hide_implication_forbidden_pattern() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Paren(Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "DISPUTE".to_string())],
+                Box::new(FormulaExpr::True),
+            )))),
+            Box::new(FormulaExpr::Paren(Box::new(FormulaExpr::Always(Box::new(
+                FormulaExpr::Paren(Box::new(FormulaExpr::Box(
+                    vec![Property::new(PropertySign::Minus, "RELEASE".to_string())],
+                    Box::new(FormulaExpr::True),
+                ))),
+            ))))),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .forbidden_after
+            .contains(&("DISPUTE".to_string(), "RELEASE".to_string())));
     }
 
     #[test]
