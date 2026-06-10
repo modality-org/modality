@@ -125,16 +125,10 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
 fn extract_diamond_box_props(expr: &FormulaExpr) -> Option<Vec<Property>> {
     match expr {
         FormulaExpr::DiamondBox(props, inner) if matches!(inner.as_ref(), FormulaExpr::True) => {
-            let committed_props: Vec<Property> = props
-                .iter()
-                .filter(|prop| prop.sign == PropertySign::Plus)
-                .cloned()
-                .collect();
-
-            if committed_props.is_empty() {
+            if props.is_empty() {
                 None
             } else {
-                Some(committed_props)
+                Some(props.clone())
             }
         }
         _ => None,
@@ -445,5 +439,32 @@ mod tests {
         assert!(transitions[0]
             .properties
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string(),)));
+    }
+
+    #[test]
+    fn test_always_diamond_box_preserves_negative_guard_props() {
+        let formula = FormulaExpr::Always(Box::new(FormulaExpr::DiamondBox(
+            vec![
+                Property::new(PropertySign::Plus, "APPROVE".to_string()),
+                Property::new(PropertySign::Minus, "REJECT".to_string()),
+            ],
+            Box::new(FormulaExpr::True),
+        )));
+
+        let constraints = extract_constraints(&formula);
+        assert_eq!(constraints.self_loops.len(), 1);
+        assert_eq!(constraints.self_loops[0].len(), 2);
+
+        let model = synthesize_from_constraints("Approval", &constraints);
+        let transition = &model.parts[0].transitions[0];
+
+        assert_eq!(transition.from, "init");
+        assert_eq!(transition.to, "init");
+        assert!(transition
+            .properties
+            .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
+        assert!(transition
+            .properties
+            .contains(&Property::new(PropertySign::Minus, "REJECT".to_string())));
     }
 }
