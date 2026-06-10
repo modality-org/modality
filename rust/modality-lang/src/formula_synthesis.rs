@@ -68,11 +68,13 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
                 let signers = extract_diamond_signers(rhs);
                 if !signers.is_empty() {
                     for action_x in &guarded_actions {
-                        constraints
-                            .authorization
-                            .entry(action_x.clone())
-                            .or_default()
-                            .extend(signers.clone());
+                        extend_unique(
+                            constraints
+                                .authorization
+                                .entry(action_x.clone())
+                                .or_default(),
+                            &signers,
+                        );
                         constraints.actions.insert(action_x.clone());
                     }
                 }
@@ -275,6 +277,14 @@ fn is_action_property(prop: &Property) -> bool {
     !matches!(&prop.source, Some(PropertySource::Predicate { .. }))
 }
 
+fn extend_unique(target: &mut Vec<String>, values: &[String]) {
+    for value in values {
+        if !target.contains(value) {
+            target.push(value.clone());
+        }
+    }
+}
+
 fn is_true_expr(expr: &FormulaExpr) -> bool {
     match expr {
         FormulaExpr::True => true,
@@ -433,11 +443,10 @@ pub fn synthesize_from_formulas(name: &str, formulas: &[FormulaExpr]) -> Model {
         // Merge constraints
         constraints.ordering.extend(fc.ordering);
         for (action, signers) in fc.authorization {
-            constraints
-                .authorization
-                .entry(action)
-                .or_default()
-                .extend(signers);
+            extend_unique(
+                constraints.authorization.entry(action).or_default(),
+                &signers,
+            );
         }
         constraints.forbidden_after.extend(fc.forbidden_after);
         constraints.actions.extend(fc.actions);
@@ -792,6 +801,50 @@ mod tests {
                 "/users/alice.id".to_string(),
                 "/users/bob.id".to_string()
             ])
+        );
+    }
+
+    #[test]
+    fn test_duplicate_signer_authorization_is_deduplicated() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Diamond(
+                vec![
+                    Property::new_predicate_from_call(
+                        "signed_by".to_string(),
+                        "/users/alice.id".to_string(),
+                    ),
+                    Property::new_predicate_from_call(
+                        "signed_by".to_string(),
+                        "/users/alice.id".to_string(),
+                    ),
+                ],
+                Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(
+            constraints.authorization.get("APPROVE"),
+            Some(&vec!["/users/alice.id".to_string()])
+        );
+
+        let model = synthesize_from_constraints("Approval", &constraints);
+        let signer_prop = Property::new_predicate_from_call(
+            "signed_by".to_string(),
+            "/users/alice.id".to_string(),
+        );
+        assert_eq!(
+            model.parts[0].transitions[0]
+                .properties
+                .iter()
+                .filter(|prop| **prop == signer_prop)
+                .count(),
+            1
         );
     }
 
