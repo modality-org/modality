@@ -5960,5 +5960,23 @@ test('existing negated impossible empty modal RULE history replays without witne
 
     assert.equal(replacement.valid, true);
     assert.equal(replacement.state.model.name, `${name}_open`);
+
+    const jsonReplacement = await validateContractLogic({ pullCommits: () => [legacyRule] }, 'contract', [
+      {
+        data: {
+          method: 'MODEL',
+          path: `/rules/${name}-open.json`,
+          content: {
+            systems: [{ possible_current_state_ids: ['active'] }],
+            transitions: [
+              { from: 'active', to: 'active', guard: '' }
+            ]
+          }
+        }
+      }
+    ]);
+
+    assert.equal(jsonReplacement.valid, true);
+    assert.equal(jsonReplacement.state.model.transitions[0].guard, '');
   }
 });
