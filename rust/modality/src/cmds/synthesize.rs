@@ -117,6 +117,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
             modality_lang::formula_synthesis::synthesize_from_constraints("Contract", &constraints)
         } else {
+            if !opts.verify {
+                warn_unparsed_formula_strings(&formulas);
+            }
             println!(
                 "📊 Parsed {} formula(s) with the Modality parser\n",
                 parsed_formulas.len()
@@ -189,6 +192,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
         if formulas.is_empty() {
             return Err(anyhow::anyhow!("No valid formulas found"));
+        }
+
+        if !opts.verify {
+            warn_unparsed_formula_strings(&formula_strs);
         }
 
         // Extract constraints and synthesize
@@ -393,20 +400,7 @@ fn parse_formula_string(index: usize, formula: &str) -> Option<Vec<modality_lang
 }
 
 fn ensure_all_formula_strings_parsed(formulas: &[String]) -> Result<()> {
-    let unparsed: Vec<String> = formulas
-        .iter()
-        .enumerate()
-        .filter(|(index, formula)| parse_formula_string(*index, formula).is_none())
-        .map(|(index, formula)| {
-            let label = format!("F{}", index + 1);
-            let preview = formula.lines().next().unwrap_or("").trim();
-            if preview.is_empty() {
-                label
-            } else {
-                format!("{} ({})", label, preview)
-            }
-        })
-        .collect();
+    let unparsed = unparsed_formula_string_labels(formulas);
 
     if unparsed.is_empty() {
         Ok(())
@@ -416,6 +410,36 @@ fn ensure_all_formula_strings_parsed(formulas: &[String]) -> Result<()> {
             unparsed.join(", ")
         ))
     }
+}
+
+fn warn_unparsed_formula_strings(formulas: &[String]) {
+    let unparsed = unparsed_formula_string_labels(formulas);
+
+    if !unparsed.is_empty() {
+        println!(
+            "⚠️  Skipping {} unparsed formula input(s): {}",
+            unparsed.len(),
+            unparsed.join(", ")
+        );
+        println!("   Use --verify to fail instead of continuing with a partial parse.\n");
+    }
+}
+
+fn unparsed_formula_string_labels(formulas: &[String]) -> Vec<String> {
+    formulas
+        .iter()
+        .enumerate()
+        .filter(|(index, formula)| parse_formula_string(*index, formula).is_none())
+        .map(|(index, formula)| {
+            let label = format!("F{}", index + 1);
+            let preview = formula.lines().next().unwrap_or("").trim();
+            if preview.is_empty() {
+                label
+            } else {
+                format!("{} `{}`", label, preview)
+            }
+        })
+        .collect()
 }
 
 fn synthesize_constraints_from_strings(
@@ -747,6 +771,18 @@ mod tests {
         let err = ensure_all_formula_strings_parsed(&formulas).unwrap_err();
 
         assert!(err.to_string().contains("F2"));
+    }
+
+    #[test]
+    fn unparsed_formula_labels_include_formula_preview() {
+        let formulas = vec![
+            "always([<+APPROVE>] true)".to_string(),
+            "always(".to_string(),
+        ];
+
+        let unparsed = unparsed_formula_string_labels(&formulas);
+
+        assert_eq!(unparsed, vec!["F2 `always(`".to_string()]);
     }
 
     #[test]
