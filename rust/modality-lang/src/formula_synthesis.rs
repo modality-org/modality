@@ -93,6 +93,12 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
             extract_from_expr(rhs, constraints);
         }
 
+        // Negation changes polarity, but the wrapped formula still mentions
+        // actions the candidate model may need to account for.
+        FormulaExpr::Not(inner) => {
+            extract_from_expr(inner, constraints);
+        }
+
         // Parenthesized expressions preserve grouping but should not hide patterns.
         FormulaExpr::Paren(inner) => {
             extract_from_expr(inner, constraints);
@@ -568,6 +574,18 @@ mod tests {
 
         assert!(constraints.actions.contains("APPROVE"));
         assert!(constraints.actions.contains("REJECT"));
+    }
+
+    #[test]
+    fn test_not_extracts_candidate_actions_from_inner_formula() {
+        let formula = FormulaExpr::Not(Box::new(FormulaExpr::Diamond(
+            vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+            Box::new(FormulaExpr::True),
+        )));
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("APPROVE"));
     }
 
     #[test]
