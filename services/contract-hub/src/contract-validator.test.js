@@ -4773,6 +4773,38 @@ test('validateContractLogic rejects unsafe parser-backed rule witnesses', async 
   assert.equal(valid.valid, true);
 });
 
+test('validateContractLogic rejects impossible empty modal rule witnesses', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+
+  for (const [name, formula] of [
+    ['impossible_box', '[] false'],
+    ['impossible_diamond', '<> false']
+  ]) {
+    const invalid = await validateContractLogic(store, 'contract', [
+      {
+        data: {
+          method: 'RULE',
+          path: `/rules/${name}.modality`,
+          content: `rule ${name} { formula { always (${formula}) } }`,
+          model: `
+            model ${name}_witness {
+              initial active
+              active -> active []
+            }
+          `
+        }
+      }
+    ]);
+
+    assert.equal(invalid.valid, false);
+    assert.match(invalid.errors[0], /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/);
+  }
+});
+
 test('validateContractLogic accepts satisfying JSON rule witnesses', async () => {
   const store = {
     pullCommits() {
