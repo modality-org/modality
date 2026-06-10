@@ -6341,6 +6341,42 @@ test('existing parser-backed symbolic RULE history replays without witness while
   assert.equal(validReplacement.valid, true);
   assert.equal(validReplacement.state.model.name, 'docs_symbolic');
 
+  const invalidJsonReplacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/docs-symbolic-open.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+threshold(2, /members)' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(invalidJsonReplacement.valid, false);
+  assert.match(invalidJsonReplacement.errors[0], /does not satisfy existing rule predicate/);
+
+  const validJsonReplacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/docs-symbolic.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+threshold(2, /members) +modifies(/docs)' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(validJsonReplacement.valid, true);
+  assert.equal(validJsonReplacement.state.model.transitions[0].guard, '+threshold(2, /members) +modifies(/docs)');
+
   const newRule = await validateContractLogic({ pullCommits: () => [] }, 'contract', [legacyRule]);
   assert.equal(newRule.valid, false);
   assert.match(newRule.errors[0], /RULE requires a witness model/);
