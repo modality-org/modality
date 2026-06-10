@@ -4914,6 +4914,44 @@ test('validateContractLogic applies fallback non-always temporal rules within a 
 
   assert.equal(validReplacement.valid, true);
   assert.equal(validReplacement.state.model.name, 'eventual_signed');
+
+  const invalidJsonReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/eventual-open.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(invalidJsonReplacement.valid, false);
+  assert.match(invalidJsonReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validJsonReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/eventual-signed.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+signed_by(/owner.id)' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(validJsonReplacement.valid, true);
+  assert.equal(validJsonReplacement.state.model.transitions[0].guard, '+signed_by(/owner.id)');
 });
 
 test('validateContractLogic applies fallback modal predicate rules within a batch', async () => {
