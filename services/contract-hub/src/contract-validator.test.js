@@ -1225,6 +1225,12 @@ test('rule predicate extraction falls back when formula parser cannot parse docu
     validator.extractRulePredicateClausesWithFormulaParser(untilRule),
     null
   );
+
+  const alwaysUntilRule = 'rule until_signed { formula { always (until(signed_by(/owner.id), threshold(2, /members))) } }';
+  assert.equal(
+    validator.extractRulePredicateClausesWithFormulaParser(alwaysUntilRule),
+    null
+  );
 });
 
 test('parser-backed boolean rules constrain model replacements', () => {
