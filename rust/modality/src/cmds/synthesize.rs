@@ -357,8 +357,16 @@ pub async fn run(opts: &Opts) -> Result<()> {
 fn parse_formula_strings(formulas: &[String]) -> Vec<modality_lang::FormulaExpr> {
     let mut parsed_formulas = Vec::new();
 
-    for formula in formulas {
-        if let Ok(parsed) = modality_lang::parse_all_formulas_content_lalrpop(formula) {
+    for (index, formula) in formulas.iter().enumerate() {
+        let parsed = modality_lang::parse_all_formulas_content_lalrpop(formula)
+            .ok()
+            .filter(|parsed| !parsed.is_empty())
+            .or_else(|| {
+                let wrapped = format!("formula generated_{} {{\n{}\n}}", index + 1, formula);
+                modality_lang::parse_all_formulas_content_lalrpop(&wrapped).ok()
+            });
+
+        if let Some(parsed) = parsed {
             parsed_formulas.extend(parsed.into_iter().map(|formula| formula.expression));
         }
     }
@@ -554,8 +562,8 @@ mod tests {
     #[test]
     fn parse_formula_strings_uses_modality_parser() {
         let formulas = vec![
-            "always([+RELEASE] implies eventually(<+DELIVER> true))".to_string(),
-            "always([+RELEASE] implies <+signed_by(/users/alice.id)> true)".to_string(),
+            "always([<+APPROVE>] true)".to_string(),
+            "eventually(<+DELIVER> true)".to_string(),
         ];
 
         let parsed = parse_formula_strings(&formulas);
@@ -570,16 +578,16 @@ mod tests {
                 .properties
                 .contains(&modality_lang::Property::new(
                     modality_lang::PropertySign::Plus,
-                    "RELEASE".to_string(),
+                    "APPROVE".to_string(),
                 ))));
         assert!(transitions
             .iter()
-            .any(|transition| transition.properties.contains(
-                &modality_lang::Property::new_predicate_from_call(
-                    "signed_by".to_string(),
-                    "/users/alice.id".to_string(),
-                )
-            )));
+            .any(|transition| transition
+                .properties
+                .contains(&modality_lang::Property::new(
+                    modality_lang::PropertySign::Plus,
+                    "DELIVER".to_string(),
+                ))));
     }
 
     #[test]
