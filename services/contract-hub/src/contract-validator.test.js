@@ -569,6 +569,13 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
+      'rule no_rules { formula { always (!adds_rule) } }'
+    ),
+    [[{ sign: '-', name: 'adds_rule', args: [] }]]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
       'rule docs { formula { always (+modifies(/docs) and +signed_by(/members/alice.id)) } }'
     ),
     [

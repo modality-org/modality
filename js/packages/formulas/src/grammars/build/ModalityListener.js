@@ -292,6 +292,15 @@ export default class ModalityListener extends antlr4.tree.ParseTreeListener {
 	}
 
 
+	// Enter a parse tree produced by ModalityParser#notOp.
+	enterNotOp(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#notOp.
+	exitNotOp(ctx) {
+	}
+
+
 	// Enter a parse tree produced by ModalityParser#trueArg.
 	enterTrueArg(ctx) {
 	}

@@ -26,6 +26,8 @@ const VALID_FORMULAS = {
   [`+a implies +b`]: `not +a or +b`,
   [`+a -> +b`]: `not +a or +b`,
   [`+a => +b`]: `not +a or +b`,
+  [`!+a`]: `not +a`,
+  [`!a`]: `not +a`,
   [`[+a] implies +b`]: `not +a or +b`,
   [`[+a] -> +b`]: `not +a or +b`,
   [`<+a> => +b`]: `not +a or +b`,

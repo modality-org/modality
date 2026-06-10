@@ -9,7 +9,7 @@ formula:
 	| left = formula AND right = formula              				                                     # andFormula
 	| left = formula implication right = formula												                       # impliesFormula
 	| MINUS inner = formula																																				 # negatedFormula
-	| NOT inner = formula								                                                           # notFormula
+	| notOp inner = formula								                                                         # notFormula
 	| (unsignedProp (signedProp)* | (signedProp)+)						                                     # propsSet
 	| STATE_SET_VARIABLE                                                                           # stateSetVariable
   | LBOX RBOX outer = formula					                                                           # emptyBoxFormula
@@ -37,6 +37,7 @@ signedProp: (theSign = sign) WS* theProp = prop;
 sign: PLUS | MINUS | QMARK # sign;
 prop: TRUE | FALSE | NAME | functionProp;
 implication: IMPLIES | ARROW | FAT_ARROW;
+notOp: NOT | BANG;
 
 arg:
 	TRUE # trueArg
@@ -97,6 +98,7 @@ fragment EXP: [Ee] [+\-]? INT;
 
 STATE_SET_VARIABLE: [@][A-Za-z0-9_]*;
 VARIABLE: [A-Za-z0-9_/][A-Za-z0-9_/.]*;
+BANG: '!';
 
 // whitespace
 WS: [ \n\t\r]+ -> skip;
