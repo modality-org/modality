@@ -432,7 +432,7 @@ fn unparsed_formula_string_labels(formulas: &[String]) -> Vec<String> {
         .filter(|(index, formula)| parse_formula_string(*index, formula).is_none())
         .map(|(index, formula)| {
             let label = format!("F{}", index + 1);
-            let preview = formula.lines().next().unwrap_or("").trim();
+            let preview = formula_preview(formula);
             if preview.is_empty() {
                 label
             } else {
@@ -440,6 +440,19 @@ fn unparsed_formula_string_labels(formulas: &[String]) -> Vec<String> {
             }
         })
         .collect()
+}
+
+fn formula_preview(formula: &str) -> String {
+    const MAX_PREVIEW_LEN: usize = 80;
+
+    let preview = formula.lines().next().unwrap_or("").trim();
+    let mut chars = preview.chars();
+    let truncated: String = chars.by_ref().take(MAX_PREVIEW_LEN).collect();
+    if chars.next().is_some() {
+        format!("{}...", truncated)
+    } else {
+        truncated
+    }
 }
 
 fn synthesize_constraints_from_strings(
@@ -783,6 +796,16 @@ mod tests {
         let unparsed = unparsed_formula_string_labels(&formulas);
 
         assert_eq!(unparsed, vec!["F2 `always(`".to_string()]);
+    }
+
+    #[test]
+    fn unparsed_formula_labels_truncate_long_formula_preview() {
+        let formulas = vec![format!("always({}", "x".repeat(120))];
+
+        let unparsed = unparsed_formula_string_labels(&formulas);
+
+        assert_eq!(unparsed[0].len(), "F1 ``".len() + 83);
+        assert!(unparsed[0].ends_with("...`"));
     }
 
     #[test]
