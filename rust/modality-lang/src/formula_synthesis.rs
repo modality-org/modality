@@ -92,6 +92,11 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
             extract_from_expr(inner, constraints);
         }
 
+        // Reachability formulas can still mention actions the candidate needs.
+        FormulaExpr::Eventually(inner) => {
+            extract_from_expr(inner, constraints);
+        }
+
         // Box with action
         FormulaExpr::Box(props, inner) => {
             for prop in props {
@@ -498,5 +503,17 @@ mod tests {
         assert_eq!(constraints.self_loops.len(), 1);
         assert!(constraints.self_loops[0]
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
+    }
+
+    #[test]
+    fn test_eventually_diamond_extracts_candidate_action() {
+        let formula = FormulaExpr::Eventually(Box::new(FormulaExpr::Diamond(
+            vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+            Box::new(FormulaExpr::True),
+        )));
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("APPROVE"));
     }
 }
