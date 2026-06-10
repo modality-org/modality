@@ -29,6 +29,10 @@ pub struct Opts {
     #[arg(long)]
     pub llm_response: Option<String>,
 
+    /// File containing an LLM response with generated formulas
+    #[arg(long)]
+    pub llm_response_file: Option<PathBuf>,
+
     /// Output file path
     #[arg(short, long)]
     pub output: Option<PathBuf>,
@@ -59,6 +63,9 @@ pub struct Opts {
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
+    let llm_response =
+        load_llm_response(opts.llm_response.as_ref(), opts.llm_response_file.as_ref())?;
+
     // Step 1a: Generate LLM prompt for NL → Formulas
     if opts.generate_prompt {
         if let Some(description) = &opts.describe {
@@ -70,7 +77,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             );
             println!("{}", "=".repeat(60));
             println!(
-                "\n💡 Send this prompt to Claude/GPT, then use --llm-response with the output"
+                "\n💡 Send this prompt to Claude/GPT, then use --llm-response or --llm-response-file with the output"
             );
             return Ok(());
         } else {
@@ -79,7 +86,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     // Step 1b + 2: Parse LLM response and synthesize
-    if let Some(llm_response) = &opts.llm_response {
+    if let Some(llm_response) = &llm_response {
         println!("🔧 Two-Step Pipeline: LLM Response → Model\n");
 
         // Parse formulas from LLM response
@@ -168,6 +175,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("  modality model synthesize --describe \"escrow where buyer deposits funds\"");
         println!("\nOr synthesize and verify from formulas:");
         println!("  modality model synthesize --formulas \"always([<+APPROVE>] true)\" --verify");
+        println!("\nOr generate a prompt and synthesize an LLM response file:");
+        println!(
+            "  modality model synthesize --describe \"escrow where buyer deposits funds\" --generate-prompt"
+        );
+        println!("  modality model synthesize --llm-response-file response.md --verify");
         return Ok(());
     }
 
@@ -288,7 +300,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     if let Some(description) = &opts.describe {
         if opts.verify {
             return Err(anyhow::anyhow!(
-                "--verify requires --formulas, --rule, or --llm-response"
+                "--verify requires --formulas, --rule, --llm-response, or --llm-response-file"
             ));
         }
 
@@ -328,7 +340,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     if opts.verify {
         return Err(anyhow::anyhow!(
-            "--verify requires --formulas, --rule, or --llm-response"
+            "--verify requires --formulas, --rule, --llm-response, or --llm-response-file"
         ));
     }
 
@@ -378,6 +390,20 @@ pub async fn run(opts: &Opts) -> Result<()> {
     write_or_print_model(&output, opts.output.as_ref())?;
 
     Ok(())
+}
+
+fn load_llm_response(
+    response: Option<&String>,
+    response_file: Option<&PathBuf>,
+) -> Result<Option<String>> {
+    match (response, response_file) {
+        (Some(_), Some(_)) => Err(anyhow::anyhow!(
+            "Use either --llm-response or --llm-response-file, not both"
+        )),
+        (Some(response), None) => Ok(Some(response.clone())),
+        (None, Some(path)) => Ok(Some(std::fs::read_to_string(path)?)),
+        (None, None) => Ok(None),
+    }
 }
 
 struct ParsedFormulaInputs {
@@ -769,6 +795,16 @@ mod tests {
         let json = format_synthesized_model(&model, "json").unwrap();
 
         assert!(json.contains("\"name\": \"Contract\""));
+    }
+
+    #[test]
+    fn llm_response_loader_rejects_inline_and_file_together() {
+        let response = "formula generated { true }".to_string();
+        let path = PathBuf::from("response.md");
+
+        let err = load_llm_response(Some(&response), Some(&path)).unwrap_err();
+
+        assert!(err.to_string().contains("--llm-response-file"));
     }
 
     #[test]
