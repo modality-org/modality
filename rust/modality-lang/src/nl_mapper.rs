@@ -5,7 +5,7 @@
 //! with LLM integration for more sophisticated understanding.
 
 use crate::ast::Model;
-use crate::synthesis::templates;
+use crate::synthesis::{self, templates};
 
 /// Result of NL mapping attempt
 #[derive(Debug, Clone)]
@@ -35,6 +35,7 @@ pub enum ContractPattern {
     Auction,
     Subscription,
     Milestone,
+    TurnTaking,
     Unknown,
 }
 
@@ -51,6 +52,7 @@ impl ContractPattern {
             ContractPattern::Auction => "auction",
             ContractPattern::Subscription => "subscription",
             ContractPattern::Milestone => "milestone",
+            ContractPattern::TurnTaking => "turn_taking",
             ContractPattern::Unknown => "unknown",
         }
     }
@@ -152,6 +154,14 @@ fn get_pattern_keywords() -> Vec<PatternKeywords> {
             keywords: vec![
                 "milestone", "phase", "stage", "deliverable",
                 "partial payment", "progress payment", "project phase"
+            ],
+            weight: 1.0,
+        },
+        PatternKeywords {
+            pattern: ContractPattern::TurnTaking,
+            keywords: vec![
+                "turn taking", "turn-taking", "alternate turns", "alternating turns",
+                "take turns", "round robin", "one after another",
             ],
             weight: 1.0,
         },
@@ -342,6 +352,18 @@ fn generate_model(pattern: &ContractPattern, parties: &[String]) -> Option<Model
             // Default milestones if not specified
             Some(templates::milestone(client, contractor, &["Phase1", "Phase2", "Phase3"]))
         }
+        ContractPattern::TurnTaking => {
+            let party_a = parties.first().cloned().unwrap_or_else(|| "PartyA".to_string());
+            let party_b = parties.get(1).cloned().unwrap_or_else(|| "PartyB".to_string());
+            let pattern = synthesis::RulePattern::Alternating {
+                parties: vec![party_a, party_b],
+            };
+            match synthesis::synthesize_from_pattern("TurnTaking", &pattern) {
+                synthesis::SynthesisResult::Success(model) => Some(model),
+                synthesis::SynthesisResult::Failure(_)
+                | synthesis::SynthesisResult::NeedsAssistance { .. } => None,
+            }
+        }
         ContractPattern::Unknown => None,
     }
 }
@@ -390,6 +412,18 @@ mod tests {
     fn test_milestone_detection() {
         let result = map_nl_to_pattern("Project with milestone payments at each phase");
         assert_eq!(result.pattern, ContractPattern::Milestone);
+    }
+
+    #[test]
+    fn test_turn_taking_detection() {
+        let result = map_nl_to_pattern("Alice and Bob take turns signing each round");
+        assert_eq!(result.pattern, ContractPattern::TurnTaking);
+        assert!(result.parties.contains(&"Alice".to_string()));
+        assert!(result.parties.contains(&"Bob".to_string()));
+
+        let model = result.model.expect("turn taking model");
+        assert_eq!(model.name, "TurnTaking");
+        assert_eq!(model.parts[0].transitions.len(), 2);
     }
     
     #[test]
