@@ -5644,3 +5644,39 @@ test('existing unsatisfiable parser-backed RULE history replays without witness 
   assert.equal(replacement.valid, false);
   assert.match(replacement.errors[0], /does not satisfy existing rule predicate \+__unsatisfiable_rule__!/);
 });
+
+test('existing tautological parser-backed RULE history replays without witness and leaves replacements unconstrained', async () => {
+  for (const [name, formula] of [
+    ['tautology_box', '[] true'],
+    ['tautology_diamond', '<> true']
+  ]) {
+    const legacyRule = {
+      data: {
+        method: 'RULE',
+        path: `/rules/${name}.modality`,
+        content: `rule ${name} { formula { always (${formula}) } }`
+      }
+    };
+    const validator = new ContractValidator();
+
+    assert.doesNotThrow(() => validator.loadFromCommits([legacyRule]));
+
+    const replacement = await validateContractLogic({ pullCommits: () => [legacyRule] }, 'contract', [
+      {
+        data: {
+          method: 'MODEL',
+          path: `/rules/${name}-open.modality`,
+          content: `
+            model ${name}_open {
+              initial active
+              active -> active []
+            }
+          `
+        }
+      }
+    ]);
+
+    assert.equal(replacement.valid, true);
+    assert.equal(replacement.state.model.name, `${name}_open`);
+  }
+});
