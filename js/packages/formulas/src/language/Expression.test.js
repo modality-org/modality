@@ -116,4 +116,22 @@ describe("Expression", () => {
     expect(formula.next_formula.constructor.name).toBe("OrFormula");
     expect(formula.toModalFormula()).toBe("not +a or +b or +c");
   });
+
+  it("should parse compound modal and when consequents", async () => {
+    const boxFormula = new Expression(`[+a] +b or +c`);
+    expect(boxFormula.constructor.name).toBe("BoxFormula");
+    expect(boxFormula.outer.constructor.name).toBe("OrFormula");
+
+    const diamondFormula = new Expression(`<+a> +b and +c`);
+    expect(diamondFormula.constructor.name).toBe("DiamondFormula");
+    expect(diamondFormula.outer.constructor.name).toBe("AndFormula");
+
+    const whenAlsoFormula = new Expression(`when +a also +b or +c`);
+    expect(whenAlsoFormula.constructor.name).toBe("WhenAlsoFormula");
+    expect(whenAlsoFormula.also_formula.constructor.name).toBe("OrFormula");
+
+    const whenNextFormula = new Expression(`when +a next +b and +c`);
+    expect(whenNextFormula.constructor.name).toBe("WhenNextFormula");
+    expect(whenNextFormula.next_formula.constructor.name).toBe("AndFormula");
+  });
 });
