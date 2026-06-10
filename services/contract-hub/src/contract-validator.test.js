@@ -4134,6 +4134,65 @@ test('validateContractLogic applies parser-backed negated must macro rules withi
   assert.equal(validReplacement.state.model.name, 'no_required_release_ok');
 });
 
+test('validateContractLogic applies parser-backed empty box rules within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/always-owner.modality',
+      content: 'rule always_owner { formula { always ([] signed_by(/owner.id)) } }',
+      model: `
+        model always_owner_witness {
+          initial active
+          active -> active [+signed_by(/owner.id)]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/always-owner-unsafe.modality',
+        content: `
+          model always_owner_unsafe {
+            initial active
+            active -> active [+any_signed(/members)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/always-owner-ok.modality',
+        content: `
+          model always_owner_ok {
+            initial active
+            active -> active [+signed_by(/owner.id)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'always_owner_ok');
+});
+
 test('validateContractLogic applies parser-backed when next rules within a batch', async () => {
   const store = {
     pullCommits() {
