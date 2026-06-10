@@ -95,11 +95,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
         println!();
 
-        let parsed_formulas = parse_formula_strings(&formulas);
+        let parsed_input = parse_formula_inputs(&formulas);
         if opts.verify {
-            ensure_all_formula_strings_parsed(&formulas)?;
+            parsed_input.ensure_all_parsed()?;
         }
-        let model = if parsed_formulas.is_empty() {
+        let model = if parsed_input.formulas.is_empty() {
             if opts.verify {
                 return Err(anyhow::anyhow!(
                     "--verify requires formulas that can be parsed by the Modality parser"
@@ -118,17 +118,20 @@ pub async fn run(opts: &Opts) -> Result<()> {
             modality_lang::formula_synthesis::synthesize_from_constraints("Contract", &constraints)
         } else {
             if !opts.verify {
-                warn_unparsed_formula_strings(&formulas);
+                parsed_input.warn_unparsed();
             }
             println!(
                 "📊 Parsed {} formula(s) with the Modality parser\n",
-                parsed_formulas.len()
+                parsed_input.formulas.len()
             );
-            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &parsed_formulas)
+            modality_lang::formula_synthesis::synthesize_from_formulas(
+                "Contract",
+                &parsed_input.formulas,
+            )
         };
 
         if opts.verify {
-            verify_synthesized_model(&model, &parsed_formulas)?;
+            verify_synthesized_model(&model, &parsed_input.formulas)?;
             println!();
         }
 
@@ -185,25 +188,27 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
         println!();
 
-        let formulas = parse_formula_strings(&formula_strs);
+        let parsed_input = parse_formula_inputs(&formula_strs);
         if opts.verify {
-            ensure_all_formula_strings_parsed(&formula_strs)?;
+            parsed_input.ensure_all_parsed()?;
         }
 
-        if formulas.is_empty() {
+        if parsed_input.formulas.is_empty() {
             return Err(anyhow::anyhow!("No valid formulas found"));
         }
 
         if !opts.verify {
-            warn_unparsed_formula_strings(&formula_strs);
+            parsed_input.warn_unparsed();
         }
 
         // Extract constraints and synthesize
-        let model =
-            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "Contract",
+            &parsed_input.formulas,
+        );
 
         if opts.verify {
-            verify_synthesized_model(&model, &formulas)?;
+            verify_synthesized_model(&model, &parsed_input.formulas)?;
             println!();
         }
 
@@ -228,18 +233,18 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
         println!("🔧 Synthesizing from rule file: {}\n", rule_path.display());
 
-        let formula_exprs = parse_formula_strings(std::slice::from_ref(&content));
+        let parsed_input = parse_formula_inputs(std::slice::from_ref(&content));
         if opts.verify {
-            ensure_all_formula_strings_parsed(std::slice::from_ref(&content))?;
+            parsed_input.ensure_all_parsed()?;
         }
-        if !formula_exprs.is_empty() {
+        if !parsed_input.formulas.is_empty() {
             let model = modality_lang::formula_synthesis::synthesize_from_formulas(
                 "Contract",
-                &formula_exprs,
+                &parsed_input.formulas,
             );
 
             if opts.verify {
-                verify_synthesized_model(&model, &formula_exprs)?;
+                verify_synthesized_model(&model, &parsed_input.formulas)?;
                 println!();
             }
 
@@ -375,16 +380,65 @@ pub async fn run(opts: &Opts) -> Result<()> {
     Ok(())
 }
 
-fn parse_formula_strings(formulas: &[String]) -> Vec<modality_lang::FormulaExpr> {
-    let mut parsed_formulas = Vec::new();
+struct ParsedFormulaInputs {
+    formulas: Vec<modality_lang::FormulaExpr>,
+    unparsed: Vec<String>,
+}
 
-    for (index, formula) in formulas.iter().enumerate() {
-        if let Some(parsed) = parse_formula_string(index, formula) {
-            parsed_formulas.extend(parsed.into_iter().map(|formula| formula.expression));
+impl ParsedFormulaInputs {
+    fn ensure_all_parsed(&self) -> Result<()> {
+        if self.unparsed.is_empty() {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "--verify requires every input formula to parse with the Modality parser; unparsed: {}",
+                self.unparsed.join(", ")
+            ))
         }
     }
 
-    parsed_formulas
+    fn warn_unparsed(&self) {
+        if !self.unparsed.is_empty() {
+            println!(
+                "⚠️  Skipping {} unparsed formula input(s): {}",
+                self.unparsed.len(),
+                self.unparsed.join(", ")
+            );
+            println!("   Use --verify to fail instead of continuing with a partial parse.\n");
+        }
+    }
+}
+
+fn parse_formula_inputs(formulas: &[String]) -> ParsedFormulaInputs {
+    let mut parsed_expressions = Vec::new();
+    let mut unparsed = Vec::new();
+
+    for (index, formula) in formulas.iter().enumerate() {
+        match parse_formula_string(index, formula) {
+            Some(parsed) => {
+                parsed_expressions.extend(parsed.into_iter().map(|formula| formula.expression));
+            }
+            None => {
+                let label = format!("F{}", index + 1);
+                let preview = formula_preview(formula);
+                if preview.is_empty() {
+                    unparsed.push(label);
+                } else {
+                    unparsed.push(format!("{} `{}`", label, preview));
+                }
+            }
+        }
+    }
+
+    ParsedFormulaInputs {
+        formulas: parsed_expressions,
+        unparsed,
+    }
+}
+
+#[cfg(test)]
+fn parse_formula_strings(formulas: &[String]) -> Vec<modality_lang::FormulaExpr> {
+    parse_formula_inputs(formulas).formulas
 }
 
 fn parse_formula_string(index: usize, formula: &str) -> Option<Vec<modality_lang::Formula>> {
@@ -399,47 +453,14 @@ fn parse_formula_string(index: usize, formula: &str) -> Option<Vec<modality_lang
         })
 }
 
+#[cfg(test)]
 fn ensure_all_formula_strings_parsed(formulas: &[String]) -> Result<()> {
-    let unparsed = unparsed_formula_string_labels(formulas);
-
-    if unparsed.is_empty() {
-        Ok(())
-    } else {
-        Err(anyhow::anyhow!(
-            "--verify requires every input formula to parse with the Modality parser; unparsed: {}",
-            unparsed.join(", ")
-        ))
-    }
+    parse_formula_inputs(formulas).ensure_all_parsed()
 }
 
-fn warn_unparsed_formula_strings(formulas: &[String]) {
-    let unparsed = unparsed_formula_string_labels(formulas);
-
-    if !unparsed.is_empty() {
-        println!(
-            "⚠️  Skipping {} unparsed formula input(s): {}",
-            unparsed.len(),
-            unparsed.join(", ")
-        );
-        println!("   Use --verify to fail instead of continuing with a partial parse.\n");
-    }
-}
-
+#[cfg(test)]
 fn unparsed_formula_string_labels(formulas: &[String]) -> Vec<String> {
-    formulas
-        .iter()
-        .enumerate()
-        .filter(|(index, formula)| parse_formula_string(*index, formula).is_none())
-        .map(|(index, formula)| {
-            let label = format!("F{}", index + 1);
-            let preview = formula_preview(formula);
-            if preview.is_empty() {
-                label
-            } else {
-                format!("{} `{}`", label, preview)
-            }
-        })
-        .collect()
+    parse_formula_inputs(formulas).unparsed
 }
 
 fn formula_preview(formula: &str) -> String {
