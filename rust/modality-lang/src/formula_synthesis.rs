@@ -87,6 +87,11 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
             extract_from_expr(rhs, constraints);
         }
 
+        // Parenthesized expressions preserve grouping but should not hide patterns.
+        FormulaExpr::Paren(inner) => {
+            extract_from_expr(inner, constraints);
+        }
+
         // Box with action
         FormulaExpr::Box(props, inner) => {
             for prop in props {
@@ -477,5 +482,21 @@ mod tests {
         assert!(transition
             .properties
             .contains(&Property::new(PropertySign::Minus, "REJECT".to_string())));
+    }
+
+    #[test]
+    fn test_parentheses_do_not_hide_synthesis_patterns() {
+        let formula = FormulaExpr::Paren(Box::new(FormulaExpr::Always(Box::new(
+            FormulaExpr::DiamondBox(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            ),
+        ))));
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(constraints.self_loops.len(), 1);
+        assert!(constraints.self_loops[0]
+            .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
     }
 }
