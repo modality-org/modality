@@ -41,7 +41,7 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
         // always(φ) - recurse into inner
         FormulaExpr::Always(inner) => {
             if let Some(props) = extract_diamond_box_props(inner) {
-                constraints.self_loops.push(props);
+                push_unique_props(&mut constraints.self_loops, props);
                 return;
             }
             extract_from_expr(inner, constraints);
@@ -298,6 +298,12 @@ fn push_unique_pair(target: &mut Vec<(String, String)>, first: String, second: S
     }
 }
 
+fn push_unique_props(target: &mut Vec<Vec<Property>>, props: Vec<Property>) {
+    if !target.iter().any(|existing| existing == &props) {
+        target.push(props);
+    }
+}
+
 fn is_true_expr(expr: &FormulaExpr) -> bool {
     match expr {
         FormulaExpr::True => true,
@@ -467,7 +473,9 @@ pub fn synthesize_from_formulas(name: &str, formulas: &[FormulaExpr]) -> Model {
             push_unique_pair(&mut constraints.forbidden_after, action, forbidden);
         }
         constraints.actions.extend(fc.actions);
-        constraints.self_loops.extend(fc.self_loops);
+        for props in fc.self_loops {
+            push_unique_props(&mut constraints.self_loops, props);
+        }
     }
 
     synthesize_from_constraints(name, &constraints)
@@ -634,6 +642,44 @@ mod tests {
         assert_eq!(constraints.self_loops.len(), 1);
         assert!(constraints.actions.is_empty());
         assert!(constraints.self_loops[0]
+            .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
+    }
+
+    #[test]
+    fn test_duplicate_self_loop_constraints_are_deduplicated() {
+        let formula = FormulaExpr::And(
+            Box::new(FormulaExpr::Always(Box::new(FormulaExpr::DiamondBox(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )))),
+            Box::new(FormulaExpr::Always(Box::new(FormulaExpr::DiamondBox(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )))),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(constraints.self_loops.len(), 1);
+
+        let model = synthesize_from_constraints("Approval", &constraints);
+        assert_eq!(model.parts[0].transitions.len(), 1);
+    }
+
+    #[test]
+    fn test_duplicate_self_loop_constraints_merge_once_across_formulas() {
+        let formula = FormulaExpr::Always(Box::new(FormulaExpr::DiamondBox(
+            vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+            Box::new(FormulaExpr::True),
+        )));
+
+        let model = synthesize_from_formulas("Approval", &[formula.clone(), formula]);
+
+        assert_eq!(model.parts[0].transitions.len(), 1);
+        assert_eq!(model.parts[0].transitions[0].from, "init");
+        assert_eq!(model.parts[0].transitions[0].to, "init");
+        assert!(model.parts[0].transitions[0]
+            .properties
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
     }
 
