@@ -150,9 +150,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("🔧 Step 2: Model Synthesis (Formulas → Model)\n");
 
         // Parse formulas from semicolon-separated string
-        let formula_strs: Vec<&str> = formulas_str
+        let formula_strs: Vec<String> = formulas_str
             .split(';')
-            .map(|s| s.trim())
+            .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect();
 
@@ -162,20 +162,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
         println!();
 
-        // Parse each formula
-        let mut formulas = Vec::new();
-        for f_str in &formula_strs {
-            match modality_lang::parse_all_formulas_content_lalrpop(f_str) {
-                Ok(parsed) => {
-                    for formula in parsed {
-                        formulas.push(formula.expression);
-                    }
-                }
-                Err(e) => {
-                    println!("⚠️  Could not parse formula '{}': {:?}", f_str, e);
-                }
-            }
-        }
+        let formulas = parse_formula_strings(&formula_strs);
 
         if formulas.is_empty() {
             return Err(anyhow::anyhow!("No valid formulas found"));
@@ -588,6 +575,15 @@ mod tests {
                     modality_lang::PropertySign::Plus,
                     "DELIVER".to_string(),
                 ))));
+    }
+
+    #[test]
+    fn parse_formula_strings_accepts_declared_formulas() {
+        let formulas = vec!["formula existing_rule {\nalways([<+APPROVE>] true)\n}".to_string()];
+
+        let parsed = parse_formula_strings(&formulas);
+
+        assert_eq!(parsed.len(), 1);
     }
 
     #[test]
