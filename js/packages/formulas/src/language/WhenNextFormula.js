@@ -20,6 +20,6 @@ export default class WhenNextFormula extends BaseFormula {
 
   toModalFormula() {
     // TODO next
-    return `not ${this.when_formula.toModalFormula()} or ${this.also_formula.toModalFormula()}`;
+    return `not ${this.when_formula.toModalFormula()} or ${this.next_formula.toModalFormula()}`;
   }
 }

@@ -108,4 +108,12 @@ describe("Expression", () => {
       new Expression(`true and method_is("post") but also garbage`);
     }).toThrow();
   });
+
+  it("should serialize when-next formulas", async () => {
+    const formula = new Expression(`when +a next +b or +c`);
+
+    expect(formula.constructor.name).toBe("WhenNextFormula");
+    expect(formula.next_formula.constructor.name).toBe("OrFormula");
+    expect(formula.toModalFormula()).toBe("not +a or +b or +c");
+  });
 });
