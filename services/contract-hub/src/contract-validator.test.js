@@ -3957,6 +3957,66 @@ test('validateContractLogic applies parser-backed negated can macro rules within
   assert.equal(validReplacement.state.model.name, 'no_release_ok');
 });
 
+test('validateContractLogic applies parser-backed when next rules within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/next-transfer-owner.modality',
+      content: 'rule next_transfer_owner { formula { always (when +TRANSFER next signed_by(/owner.id)) } }',
+      model: `
+        model next_transfer_owner_witness {
+          initial active
+          active -> active [-TRANSFER]
+          active -> active [+signed_by(/owner.id)]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/next-transfer-owner-unsafe.modality',
+        content: `
+          model next_transfer_owner_unsafe {
+            initial active
+            active -> active [+TRANSFER]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/next-transfer-owner-ok.modality',
+        content: `
+          model next_transfer_owner_ok {
+            initial active
+            active -> active [+TRANSFER +signed_by(/owner.id)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'next_transfer_owner_ok');
+});
+
 test('validateContractLogic applies fallback implication rules within a batch', async () => {
   const store = {
     pullCommits() {
