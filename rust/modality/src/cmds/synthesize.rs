@@ -164,6 +164,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("  mutual_cooperation  Cooperation game - both must cooperate, defection blocked");
         println!("  atomic_swap         Both parties commit before either can claim");
         println!("  multisig            N-of-M signature approval pattern");
+        println!("  turn_taking         Alternating two-party turn cycle");
         println!("  service_agreement   Offer → Accept → Deliver → Confirm → Pay");
         println!("  delegation          Principal grants agent authority to act");
         println!("  auction             Seller lists, bidders bid, highest wins");
@@ -355,6 +356,20 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
         "multisig" => {
             modality_lang::synthesis::templates::multisig(&[&opts.party_a, &opts.party_b], 2)
+        }
+        "turn_taking" | "alternating" => {
+            let pattern = modality_lang::synthesis::RulePattern::Alternating {
+                parties: vec![opts.party_a.clone(), opts.party_b.clone()],
+            };
+            match modality_lang::synthesis::synthesize_from_pattern("TurnTaking", &pattern) {
+                modality_lang::synthesis::SynthesisResult::Success(model) => model,
+                modality_lang::synthesis::SynthesisResult::Failure(reason) => {
+                    return Err(anyhow::anyhow!(reason))
+                }
+                modality_lang::synthesis::SynthesisResult::NeedsAssistance { question, .. } => {
+                    return Err(anyhow::anyhow!(question))
+                }
+            }
         }
         "service_agreement" => {
             modality_lang::synthesis::templates::service_agreement(&opts.party_a, &opts.party_b)
