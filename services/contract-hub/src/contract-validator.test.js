@@ -2006,6 +2006,65 @@ test('rule predicate extraction supports arrow implications', () => {
   );
 });
 
+test('fallback arrow implications constrain model witnesses', () => {
+  const validator = new ContractValidator();
+  const ruleContent = 'rule expiry { formula { always (after(/deadlines/expiry.datetime) -> signed_by(/users/buyer.id)) } }';
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/expiry-unsafe.modality',
+        content: ruleContent,
+        model: `
+          model expiry_unsafe_witness {
+            initial active
+            active -> active [+after(/deadlines/expiry.datetime)]
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/expiry.modality',
+      content: ruleContent,
+      model: `
+        model expiry_witness {
+          initial active
+          active -> active [-after(/deadlines/expiry.datetime)]
+        }
+      `
+    }
+  });
+
+  assert.doesNotThrow(() => validator.applyCommit({
+    data: {
+      method: 'MODEL',
+      path: '/rules/expiry-signed.modality',
+      content: `
+        model expiry_signed {
+          initial active
+          active -> active [+signed_by(/users/buyer.id)]
+        }
+      `
+    }
+  }));
+
+  assert.throws(
+    () => validator.loadModel('/rules/expiry-unsafe.modality', `
+      model expiry_unsafe {
+        initial active
+        active -> active [+after(/deadlines/expiry.datetime)]
+      }
+    `),
+    /does not satisfy existing rule predicate -after\(\/deadlines\/expiry.datetime\) \| \+signed_by\(\/users\/buyer.id\)/
+  );
+});
+
 test('rule predicate extraction supports modal multi-argument predicates', () => {
   const validator = new ContractValidator();
 
