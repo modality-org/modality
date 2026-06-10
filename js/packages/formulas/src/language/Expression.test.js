@@ -127,6 +127,16 @@ describe("Expression", () => {
     });
   });
 
+  it("should parse eventually-until clauses with balanced parentheses", async () => {
+    const formula = new Expression(`eventually(+a) until(+b)`);
+
+    expect(formula.constructor.name).toBe("EventuallyMacro");
+    expect(formula.until_formula.constructor.name).toBe("PropsSet");
+    expect(formula.toModalFormula()).toBe("lfp(@x, (<>@x or +a) or +b)");
+
+    expect(() => new Expression(`eventually(+a) until +b)`)).toThrow();
+  });
+
   it("should parse compound modal and when consequents", async () => {
     const boxFormula = new Expression(`[+a] +b or +c`);
     expect(boxFormula.constructor.name).toBe("BoxFormula");
