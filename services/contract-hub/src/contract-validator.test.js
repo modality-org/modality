@@ -6287,6 +6287,65 @@ test('existing parser-backed RULE history replays without witness while new RULE
   assert.match(newRule.errors[0], /RULE requires a witness model/);
 });
 
+test('existing parser-backed symbolic RULE history replays without witness while new RULE commits require one', async () => {
+  const legacyRule = {
+    data: {
+      method: 'RULE',
+      path: '/rules/docs-symbolic.modality',
+      content: 'rule docs_symbolic { formula { always ((signed_by(/owner.id) | threshold(2, /members)) & modifies(/docs)) } }'
+    }
+  };
+  const validator = new ContractValidator();
+
+  assert.doesNotThrow(() => validator.loadFromCommits([legacyRule]));
+
+  const store = {
+    pullCommits() {
+      return [legacyRule];
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/docs-symbolic-open.modality',
+        content: `
+          model docs_symbolic_open {
+            initial active
+            active -> active [+threshold(2, /members)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/docs-symbolic.modality',
+        content: `
+          model docs_symbolic {
+            initial active
+            active -> active [+threshold(2, /members) +modifies(/docs)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'docs_symbolic');
+
+  const newRule = await validateContractLogic({ pullCommits: () => [] }, 'contract', [legacyRule]);
+  assert.equal(newRule.valid, false);
+  assert.match(newRule.errors[0], /RULE requires a witness model/);
+});
+
 test('existing fallback RULE history replays without witness while new RULE commits require one', async () => {
   const legacyRule = {
     data: {
