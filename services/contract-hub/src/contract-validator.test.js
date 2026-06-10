@@ -2044,6 +2044,52 @@ test('fallback non-always temporal rules constrain model witnesses', () => {
     }),
     /MODEL transition active->active does not satisfy existing rule predicate/
   );
+
+  const jsonValidator = new ContractValidator();
+  jsonValidator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/eventual-json.modality',
+      content: ruleContent,
+      model: {
+        systems: [{ possible_current_state_ids: ['active'] }],
+        transitions: [
+          { from: 'active', to: 'active', guard: '+signed_by(/owner.id)' }
+        ]
+      }
+    }
+  });
+
+  assert.throws(
+    () => jsonValidator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/eventual-open.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '' }
+          ]
+        }
+      }
+    }),
+    /MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  assert.doesNotThrow(
+    () => jsonValidator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/eventual-signed.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+signed_by(/owner.id)' }
+          ]
+        }
+      }
+    })
+  );
 });
 
 test('rule predicate extraction supports arrow implications', () => {
