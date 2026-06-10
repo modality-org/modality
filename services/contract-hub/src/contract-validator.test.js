@@ -4017,6 +4017,66 @@ test('validateContractLogic applies parser-backed when next rules within a batch
   assert.equal(validReplacement.state.model.name, 'next_transfer_owner_ok');
 });
 
+test('validateContractLogic applies parser-backed nested modal rules within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/release-after-transfer.modality',
+      content: 'rule release_after_transfer { formula { always ([+TRANSFER] <+RELEASE> signed_by(/owner.id)) } }',
+      model: `
+        model release_after_transfer_witness {
+          initial active
+          active -> active [-TRANSFER]
+          active -> active [+RELEASE +signed_by(/owner.id)]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/release-after-transfer-unsafe.modality',
+        content: `
+          model release_after_transfer_unsafe {
+            initial active
+            active -> active [+TRANSFER +RELEASE]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/release-after-transfer-ok.modality',
+        content: `
+          model release_after_transfer_ok {
+            initial active
+            active -> active [+TRANSFER +RELEASE +signed_by(/owner.id)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'release_after_transfer_ok');
+});
+
 test('validateContractLogic applies fallback implication rules within a batch', async () => {
   const store = {
     pullCommits() {
