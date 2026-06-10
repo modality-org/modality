@@ -59,6 +59,18 @@ export default class ModalityVisitor extends antlr4.tree.ParseTreeVisitor {
 	}
 
 
+	// Visit a parse tree produced by ModalityParser#boxGuardImpliesFormula.
+	visitBoxGuardImpliesFormula(ctx) {
+	  return this.visitChildren(ctx);
+	}
+
+
+	// Visit a parse tree produced by ModalityParser#diamondGuardImpliesFormula.
+	visitDiamondGuardImpliesFormula(ctx) {
+	  return this.visitChildren(ctx);
+	}
+
+
 	// Visit a parse tree produced by ModalityParser#boxFormula.
 	visitBoxFormula(ctx) {
 	  return this.visitChildren(ctx);

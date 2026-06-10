@@ -14,6 +14,8 @@ formula:
 	| STATE_SET_VARIABLE                                                                           # stateSetVariable
   | LBOX RBOX outer = formula					                                                           # emptyBoxFormula
 	| LDIA RDIA outer = formula					                                                           # emptyDiamondFormula
+	| LBOX inner = formula RBOX implication right = formula					                               # boxGuardImpliesFormula
+	| LDIA inner = formula RDIA implication right = formula					                               # diamondGuardImpliesFormula
 	| LBOX inner = formula RBOX outer = formula					                                           # boxFormula
 	| LDIA inner = formula RDIA outer = formula					                                           # diamondFormula
 	| LFP LPAREN stateSetVariable = formula COMMA inner = formula RPAREN	                         # lfpFormula

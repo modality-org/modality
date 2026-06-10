@@ -76,6 +76,18 @@ export default class ModalityVisitor extends AbstractVisitor {
     return new OrFormula(new NotFormula(left), right);
   }
 
+  visitBoxGuardImpliesFormula(ctx) {
+    const left = this.visit(ctx.inner);
+    const right = this.visit(ctx.right);
+    return new OrFormula(new NotFormula(left), right);
+  }
+
+  visitDiamondGuardImpliesFormula(ctx) {
+    const left = this.visit(ctx.inner);
+    const right = this.visit(ctx.right);
+    return new OrFormula(new NotFormula(left), right);
+  }
+
   visitPropAtom(ctx) {
     return new PropAtom(ctx.prop.text);
   }

@@ -85,6 +85,24 @@ export default class ModalityListener extends antlr4.tree.ParseTreeListener {
 	}
 
 
+	// Enter a parse tree produced by ModalityParser#boxGuardImpliesFormula.
+	enterBoxGuardImpliesFormula(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#boxGuardImpliesFormula.
+	exitBoxGuardImpliesFormula(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#diamondGuardImpliesFormula.
+	enterDiamondGuardImpliesFormula(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#diamondGuardImpliesFormula.
+	exitDiamondGuardImpliesFormula(ctx) {
+	}
+
+
 	// Enter a parse tree produced by ModalityParser#boxFormula.
 	enterBoxFormula(ctx) {
 	}
