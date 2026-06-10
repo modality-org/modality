@@ -189,7 +189,7 @@ pub fn find_common_ancestor_by_hash(
 ) -> Option<u64> {
     // Sort blocks by index descending to find highest common ancestor first
     let mut sorted_blocks: Vec<_> = local_blocks.iter().collect();
-    sorted_blocks.sort_by(|a, b| b.index.cmp(&a.index));
+    sorted_blocks.sort_by_key(|block| std::cmp::Reverse(block.index));
     
     for block in sorted_blocks {
         if remote_hashes.contains(&block.hash) {
@@ -285,4 +285,3 @@ mod tests {
         assert!(validate_block_chain(&blocks).is_err());
     }
 }
-

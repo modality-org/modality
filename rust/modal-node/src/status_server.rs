@@ -164,12 +164,12 @@ pub async fn generate_status_html(
     
     // Get last N blocks (sorted by index descending)
     let mut recent_blocks = miner_blocks.clone();
-    recent_blocks.sort_by(|a, b| b.index.cmp(&a.index));
+    recent_blocks.sort_by_key(|block| std::cmp::Reverse(block.index));
     recent_blocks.truncate(STATUS_RECENT_BLOCKS_COUNT);
     
     // Get first N blocks (sorted by index ascending)
     let mut first_blocks = miner_blocks.clone();
-    first_blocks.sort_by(|a, b| a.index.cmp(&b.index));
+    first_blocks.sort_by_key(|block| block.index);
     first_blocks.truncate(STATUS_FIRST_BLOCKS_COUNT);
     
     // Create a map of block index to block for quick parent lookup
