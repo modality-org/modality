@@ -49,30 +49,37 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
 
         // [+X] implies eventually(<+Y> true) - ordering: Y before X
         FormulaExpr::Implies(lhs, rhs) => {
-            if let Some(action_x) = extract_box_action(lhs) {
+            let guarded_actions = extract_box_actions(lhs);
+            if !guarded_actions.is_empty() {
                 // Check for eventually(<+Y> true) pattern
                 if let Some(action_y) = extract_eventually_action(rhs) {
-                    constraints
-                        .ordering
-                        .push((action_x.clone(), action_y.clone()));
-                    constraints.actions.insert(action_x.clone());
+                    for action_x in &guarded_actions {
+                        constraints
+                            .ordering
+                            .push((action_x.clone(), action_y.clone()));
+                        constraints.actions.insert(action_x.clone());
+                    }
                     constraints.actions.insert(action_y);
                 }
                 // Check for <+signed_by(path)> true pattern
                 if let Some(signer) = extract_diamond_signer(rhs) {
-                    constraints
-                        .authorization
-                        .entry(action_x.clone())
-                        .or_default()
-                        .push(signer);
-                    constraints.actions.insert(action_x.clone());
+                    for action_x in &guarded_actions {
+                        constraints
+                            .authorization
+                            .entry(action_x.clone())
+                            .or_default()
+                            .push(signer.clone());
+                        constraints.actions.insert(action_x.clone());
+                    }
                 }
                 // Check for always([-Y] true) pattern - forbidden after
                 if let Some(forbidden) = extract_always_forbidden(rhs) {
-                    constraints
-                        .forbidden_after
-                        .push((action_x.clone(), forbidden.clone()));
-                    constraints.actions.insert(action_x.clone());
+                    for action_x in &guarded_actions {
+                        constraints
+                            .forbidden_after
+                            .push((action_x.clone(), forbidden.clone()));
+                        constraints.actions.insert(action_x.clone());
+                    }
                     constraints.actions.insert(forbidden);
                 }
             }
@@ -174,19 +181,16 @@ fn extract_diamond_box_props(expr: &FormulaExpr) -> Option<Vec<Property>> {
     }
 }
 
-/// Extract action name from [+ACTION] pattern
-fn extract_box_action(expr: &FormulaExpr) -> Option<String> {
+/// Extract action names from [+ACTION ...] patterns
+fn extract_box_actions(expr: &FormulaExpr) -> Vec<String> {
     match expr {
-        FormulaExpr::Box(props, _) => {
-            for prop in props {
-                if prop.sign == PropertySign::Plus {
-                    return Some(prop.name.clone());
-                }
-            }
-            None
-        }
-        FormulaExpr::Paren(inner) => extract_box_action(inner),
-        _ => None,
+        FormulaExpr::Box(props, _) => props
+            .iter()
+            .filter(|prop| prop.sign == PropertySign::Plus)
+            .map(|prop| prop.name.clone())
+            .collect(),
+        FormulaExpr::Paren(inner) => extract_box_actions(inner),
+        _ => Vec::new(),
     }
 }
 
@@ -663,6 +667,89 @@ mod tests {
         assert!(constraints
             .forbidden_after
             .contains(&("DISPUTE".to_string(), "RELEASE".to_string())));
+    }
+
+    #[test]
+    fn test_multi_action_guard_adds_ordering_for_each_action() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![
+                    Property::new(PropertySign::Plus, "APPROVE".to_string()),
+                    Property::new(PropertySign::Plus, "REJECT".to_string()),
+                ],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Eventually(Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "REVIEW".to_string())],
+                Box::new(FormulaExpr::True),
+            )))),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .ordering
+            .contains(&("APPROVE".to_string(), "REVIEW".to_string())));
+        assert!(constraints
+            .ordering
+            .contains(&("REJECT".to_string(), "REVIEW".to_string())));
+    }
+
+    #[test]
+    fn test_multi_action_guard_adds_authorization_for_each_action() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![
+                    Property::new(PropertySign::Plus, "APPROVE".to_string()),
+                    Property::new(PropertySign::Plus, "REJECT".to_string()),
+                ],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new_predicate_from_call(
+                    "signed_by".to_string(),
+                    "/users/reviewer.id".to_string(),
+                )],
+                Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(
+            constraints.authorization.get("APPROVE"),
+            Some(&vec!["/users/reviewer.id".to_string()])
+        );
+        assert_eq!(
+            constraints.authorization.get("REJECT"),
+            Some(&vec!["/users/reviewer.id".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_multi_action_guard_adds_forbidden_after_for_each_action() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![
+                    Property::new(PropertySign::Plus, "DISPUTE".to_string()),
+                    Property::new(PropertySign::Plus, "ESCALATE".to_string()),
+                ],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Always(Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Minus, "RELEASE".to_string())],
+                Box::new(FormulaExpr::True),
+            )))),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .forbidden_after
+            .contains(&("DISPUTE".to_string(), "RELEASE".to_string())));
+        assert!(constraints
+            .forbidden_after
+            .contains(&("ESCALATE".to_string(), "RELEASE".to_string())));
     }
 
     #[test]
