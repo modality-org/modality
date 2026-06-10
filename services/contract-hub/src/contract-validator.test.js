@@ -5938,6 +5938,65 @@ test('existing fallback RULE history replays without witness while new RULE comm
   assert.match(newRule.errors[0], /RULE requires a witness model/);
 });
 
+test('existing fallback temporal RULE history replays without witness while new RULE commits require one', async () => {
+  const legacyRule = {
+    data: {
+      method: 'RULE',
+      path: '/rules/eventual.modality',
+      content: 'rule eventual { formula { eventually (signed_by(/owner.id)) } }'
+    }
+  };
+  const validator = new ContractValidator();
+
+  assert.doesNotThrow(() => validator.loadFromCommits([legacyRule]));
+
+  const store = {
+    pullCommits() {
+      return [legacyRule];
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/eventual-open.modality',
+        content: `
+          model eventual_open {
+            initial active
+            active -> active []
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/eventual-signed.modality',
+        content: `
+          model eventual_signed {
+            initial active
+            active -> active [+signed_by(/owner.id)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'eventual_signed');
+
+  const newRule = await validateContractLogic({ pullCommits: () => [] }, 'contract', [legacyRule]);
+  assert.equal(newRule.valid, false);
+  assert.match(newRule.errors[0], /RULE requires a witness model/);
+});
+
 test('existing fallback modal RULE history replays without witness while new RULE commits require one', async () => {
   const legacyRule = {
     data: {
