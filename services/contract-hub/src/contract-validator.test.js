@@ -5507,6 +5507,25 @@ test('validateContractLogic rejects unsafe parser-backed rule witnesses', async 
   assert.equal(invalid.valid, false);
   assert.match(invalid.errors[0], /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/);
 
+  const invalidJson = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'RULE',
+        path: '/rules/docs-symbolic.modality',
+        content: 'rule docs_symbolic { formula { always ((signed_by(/owner.id) | threshold(2, /members)) & modifies(/docs)) } }',
+        model: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+signed_by(/owner.id)' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(invalidJson.valid, false);
+  assert.match(invalidJson.errors[0], /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/);
+
   const valid = await validateContractLogic(store, 'contract', [
     {
       data: {
