@@ -142,7 +142,7 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
         // Box with action
         FormulaExpr::Box(props, inner) => {
             for prop in props {
-                if prop.sign == PropertySign::Plus {
+                if is_positive_action_property(prop) {
                     constraints.actions.insert(prop.name.clone());
                 }
             }
@@ -152,7 +152,7 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
         // Diamond with action
         FormulaExpr::Diamond(props, inner) => {
             for prop in props {
-                if prop.sign == PropertySign::Plus {
+                if is_positive_action_property(prop) {
                     constraints.actions.insert(prop.name.clone());
                 }
             }
@@ -162,7 +162,7 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
         // DiamondBox
         FormulaExpr::DiamondBox(props, inner) => {
             for prop in props {
-                if prop.sign == PropertySign::Plus {
+                if is_positive_action_property(prop) {
                     constraints.actions.insert(prop.name.clone());
                 }
             }
@@ -193,7 +193,7 @@ fn extract_box_actions(expr: &FormulaExpr) -> Vec<String> {
     match expr {
         FormulaExpr::Box(props, _) => props
             .iter()
-            .filter(|prop| prop.sign == PropertySign::Plus)
+            .filter(|prop| is_positive_action_property(prop))
             .map(|prop| prop.name.clone())
             .collect(),
         FormulaExpr::Paren(inner) => extract_box_actions(inner),
@@ -217,7 +217,7 @@ fn extract_diamond_actions(expr: &FormulaExpr) -> Vec<String> {
     match expr {
         FormulaExpr::Diamond(props, _) => props
             .iter()
-            .filter(|prop| prop.sign == PropertySign::Plus && prop.name != "signed_by")
+            .filter(|prop| is_positive_action_property(prop))
             .map(|prop| prop.name.clone())
             .collect(),
         FormulaExpr::Paren(inner) => extract_diamond_actions(inner),
@@ -259,12 +259,20 @@ fn extract_forbidden_box_action(expr: &FormulaExpr) -> Vec<String> {
     match expr {
         FormulaExpr::Box(props, _) => props
             .iter()
-            .filter(|prop| prop.sign == PropertySign::Minus)
+            .filter(|prop| prop.sign == PropertySign::Minus && is_action_property(prop))
             .map(|prop| prop.name.clone())
             .collect(),
         FormulaExpr::Paren(inner) => extract_forbidden_box_action(inner),
         _ => Vec::new(),
     }
+}
+
+fn is_positive_action_property(prop: &Property) -> bool {
+    prop.sign == PropertySign::Plus && is_action_property(prop)
+}
+
+fn is_action_property(prop: &Property) -> bool {
+    !matches!(&prop.source, Some(PropertySource::Predicate { .. }))
 }
 
 fn is_true_expr(expr: &FormulaExpr) -> bool {
@@ -785,6 +793,63 @@ mod tests {
                 "/users/bob.id".to_string()
             ])
         );
+    }
+
+    #[test]
+    fn test_authorization_predicate_is_not_candidate_action() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new_predicate_from_call(
+                    "signed_by".to_string(),
+                    "/users/alice.id".to_string(),
+                )],
+                Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("APPROVE"));
+        assert!(!constraints.actions.contains("signed_by"));
+    }
+
+    #[test]
+    fn test_authorization_predicate_does_not_create_extra_transition() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new_predicate_from_call(
+                    "signed_by".to_string(),
+                    "/users/alice.id".to_string(),
+                )],
+                Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+        let model = synthesize_from_constraints("Approval", &constraints);
+        let transitions = &model.parts[0].transitions;
+
+        assert_eq!(transitions.len(), 2);
+        assert!(transitions[0]
+            .properties
+            .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
+        assert!(transitions[0]
+            .properties
+            .contains(&Property::new_predicate_from_call(
+                "signed_by".to_string(),
+                "/users/alice.id".to_string(),
+            )));
+        assert!(!transitions.iter().any(|transition| transition
+            .properties
+            .contains(&Property::new(PropertySign::Plus, "signed_by".to_string()))));
     }
 
     #[test]
