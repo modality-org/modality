@@ -729,6 +729,39 @@ mod tests {
     }
 
     #[test]
+    fn test_compound_self_loop_patterns_generate_each_transition() {
+        let formula = FormulaExpr::Always(Box::new(FormulaExpr::And(
+            Box::new(FormulaExpr::DiamondBox(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::DiamondBox(
+                vec![Property::new(PropertySign::Plus, "RENEW".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+        )));
+
+        let model = synthesize_from_formulas("Approval", &[formula]);
+        let transitions = &model.parts[0].transitions;
+
+        assert_eq!(transitions.len(), 2);
+        assert!(transitions.iter().any(|transition| {
+            transition.from == "init"
+                && transition.to == "init"
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
+        }));
+        assert!(transitions.iter().any(|transition| {
+            transition.from == "init"
+                && transition.to == "init"
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "RENEW".to_string()))
+        }));
+    }
+
+    #[test]
     fn test_compound_self_loop_patterns_are_deduplicated() {
         let formula = FormulaExpr::Always(Box::new(FormulaExpr::And(
             Box::new(FormulaExpr::DiamondBox(
