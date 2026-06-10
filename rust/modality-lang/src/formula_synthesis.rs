@@ -202,6 +202,11 @@ fn extract_box_actions(expr: &FormulaExpr) -> Vec<String> {
             .filter(|prop| is_positive_action_property(prop))
             .map(|prop| prop.name.clone())
             .collect(),
+        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
+            let mut actions = extract_box_actions(lhs);
+            extend_unique(&mut actions, &extract_box_actions(rhs));
+            actions
+        }
         FormulaExpr::Paren(inner) => extract_box_actions(inner),
         _ => Vec::new(),
     }
@@ -231,6 +236,11 @@ fn extract_diamond_actions(expr: &FormulaExpr) -> Vec<String> {
             .filter(|prop| is_positive_action_property(prop))
             .map(|prop| prop.name.clone())
             .collect(),
+        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
+            let mut actions = extract_diamond_actions(lhs);
+            extend_unique(&mut actions, &extract_diamond_actions(rhs));
+            actions
+        }
         FormulaExpr::Paren(inner) => extract_diamond_actions(inner),
         _ => Vec::new(),
     }
@@ -283,6 +293,11 @@ fn extract_forbidden_box_action(expr: &FormulaExpr) -> Vec<String> {
             .filter(|prop| prop.sign == PropertySign::Minus && is_action_property(prop))
             .map(|prop| prop.name.clone())
             .collect(),
+        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
+            let mut forbidden = extract_forbidden_box_action(lhs);
+            extend_unique(&mut forbidden, &extract_forbidden_box_action(rhs));
+            forbidden
+        }
         FormulaExpr::Paren(inner) => extract_forbidden_box_action(inner),
         _ => Vec::new(),
     }
@@ -793,6 +808,35 @@ mod tests {
     }
 
     #[test]
+    fn test_compound_guard_adds_ordering_for_each_branch() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::Box(
+                    vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::Box(
+                    vec![Property::new(PropertySign::Plus, "REJECT".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+            )),
+            Box::new(FormulaExpr::Eventually(Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "REVIEW".to_string())],
+                Box::new(FormulaExpr::True),
+            )))),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .ordering
+            .contains(&("APPROVE".to_string(), "REVIEW".to_string())));
+        assert!(constraints
+            .ordering
+            .contains(&("REJECT".to_string(), "REVIEW".to_string())));
+    }
+
+    #[test]
     fn test_multi_action_eventual_goal_adds_ordering_for_each_action() {
         let formula = FormulaExpr::Implies(
             Box::new(FormulaExpr::Box(
@@ -835,6 +879,35 @@ mod tests {
                     Box::new(FormulaExpr::True),
                 )))),
             )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .ordering
+            .contains(&("RELEASE".to_string(), "DELIVER".to_string())));
+        assert!(constraints
+            .ordering
+            .contains(&("RELEASE".to_string(), "INSPECT".to_string())));
+    }
+
+    #[test]
+    fn test_compound_eventual_body_adds_ordering_for_each_branch() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Eventually(Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "DELIVER".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "INSPECT".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+            )))),
         );
 
         let constraints = extract_constraints(&formula);
@@ -1147,6 +1220,35 @@ mod tests {
                     Box::new(FormulaExpr::True),
                 )))),
             )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .forbidden_after
+            .contains(&("DISPUTE".to_string(), "RELEASE".to_string())));
+        assert!(constraints
+            .forbidden_after
+            .contains(&("DISPUTE".to_string(), "CLOSE".to_string())));
+    }
+
+    #[test]
+    fn test_compound_forbidden_body_adds_forbidden_after_for_each_branch() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "DISPUTE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Always(Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::Box(
+                    vec![Property::new(PropertySign::Minus, "RELEASE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::Box(
+                    vec![Property::new(PropertySign::Minus, "CLOSE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+            )))),
         );
 
         let constraints = extract_constraints(&formula);
