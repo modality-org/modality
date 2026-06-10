@@ -4269,6 +4269,71 @@ test('validateContractLogic applies parser-backed empty diamond rules within a b
   assert.equal(validReplacement.state.model.name, 'some_owner_ok');
 });
 
+test('validateContractLogic applies parser-backed empty modal rules to JSON replacements', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+
+  for (const [name, formula] of [
+    ['always_owner_json', '[] signed_by(/owner.id)'],
+    ['some_owner_json', '<> signed_by(/owner.id)']
+  ]) {
+    const ruleCommit = {
+      data: {
+        method: 'RULE',
+        path: `/rules/${name}.modality`,
+        content: `rule ${name} { formula { always (${formula}) } }`,
+        model: `
+          model ${name}_witness {
+            initial active
+            active -> active [+signed_by(/owner.id)]
+          }
+        `
+      }
+    };
+
+    const invalidReplacement = await validateContractLogic(store, 'contract', [
+      ruleCommit,
+      {
+        data: {
+          method: 'MODEL',
+          path: `/rules/${name}-unsafe.json`,
+          content: {
+            systems: [{ possible_current_state_ids: ['active'] }],
+            transitions: [
+              { from: 'active', to: 'active', guard: '+any_signed(/members)' }
+            ]
+          }
+        }
+      }
+    ]);
+
+    assert.equal(invalidReplacement.valid, false);
+    assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+    const validReplacement = await validateContractLogic(store, 'contract', [
+      ruleCommit,
+      {
+        data: {
+          method: 'MODEL',
+          path: `/rules/${name}-ok.json`,
+          content: {
+            systems: [{ possible_current_state_ids: ['active'] }],
+            transitions: [
+              { from: 'active', to: 'active', guard: '+signed_by(/owner.id)' }
+            ]
+          }
+        }
+      }
+    ]);
+
+    assert.equal(validReplacement.valid, true);
+    assert.equal(validReplacement.state.model.transitions[0].guard, '+signed_by(/owner.id)');
+  }
+});
+
 test('validateContractLogic applies parser-backed when next rules within a batch', async () => {
   const store = {
     pullCommits() {
