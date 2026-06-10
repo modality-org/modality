@@ -4805,6 +4805,44 @@ test('validateContractLogic rejects impossible empty modal rule witnesses', asyn
   }
 });
 
+test('validateContractLogic accepts tautological empty modal rules without witnesses', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+
+  for (const [name, formula] of [
+    ['tautology_box', '[] true'],
+    ['tautology_diamond', '<> true']
+  ]) {
+    const valid = await validateContractLogic(store, 'contract', [
+      {
+        data: {
+          method: 'RULE',
+          path: `/rules/${name}.modality`,
+          content: `rule ${name} { formula { always (${formula}) } }`
+        }
+      },
+      {
+        data: {
+          method: 'MODEL',
+          path: `/rules/${name}-open.modality`,
+          content: `
+            model ${name}_open {
+              initial active
+              active -> active []
+            }
+          `
+        }
+      }
+    ]);
+
+    assert.equal(valid.valid, true);
+    assert.equal(valid.state.model.name, `${name}_open`);
+  }
+});
+
 test('validateContractLogic accepts satisfying JSON rule witnesses', async () => {
   const store = {
     pullCommits() {
