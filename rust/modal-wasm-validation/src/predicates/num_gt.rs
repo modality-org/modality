@@ -86,23 +86,12 @@ pub fn correlate(input: &CorrelationInput) -> CorrelationResult {
                     }
                 }
             }
-            "num_negative" => {
-                if threshold >= 0.0 {
-                    formulas.push(format!(
-                        "!(num_gt($path, {}) & num_negative($path))",
-                        threshold
-                    ));
-                    satisfiable = false;
-                }
-            }
-            "num_zero" => {
-                if threshold >= 0.0 {
-                    formulas.push(format!(
-                        "!(num_gt($path, {}) & num_zero($path))",
-                        threshold
-                    ));
-                    satisfiable = false;
-                }
+            "num_negative" | "num_zero" if threshold >= 0.0 => {
+                formulas.push(format!(
+                    "!(num_gt($path, {}) & {}($path))",
+                    threshold, rule.predicate
+                ));
+                satisfiable = false;
             }
             _ => {}
         }

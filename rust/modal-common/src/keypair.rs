@@ -318,7 +318,7 @@ impl Keypair {
             .parse::<PeerId>()
             .map_err(|e| anyhow!("Failed to parse peer ID: {:?}", e))?;
 
-        let public_key = libp2p::identity::PublicKey::try_decode_protobuf(&peer_id.to_bytes())
+        let public_key = libp2p::identity::PublicKey::try_decode_protobuf(peer_id.as_ref().digest())
             .map_err(|e| anyhow!("Failed to decode public key from peer ID: {}", e))?;
 
         Ok(Self::new(KeypairOrPublicKey::PublicKey(public_key)))
