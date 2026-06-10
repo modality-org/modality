@@ -117,6 +117,16 @@ describe("Expression", () => {
     expect(formula.toModalFormula()).toBe("not +a or +b or +c");
   });
 
+  it("should expand eventually formulas without until clauses", async () => {
+    const formula = new Expression(`eventually(can(+a))`);
+
+    expect(() => formula.expandFunctions()).not.toThrow();
+    expect(formula.expandFunctions()).toEqual({
+      constraint: "true",
+      functions: { a: true },
+    });
+  });
+
   it("should parse compound modal and when consequents", async () => {
     const boxFormula = new Expression(`[+a] +b or +c`);
     expect(boxFormula.constructor.name).toBe("BoxFormula");

@@ -9,13 +9,13 @@ export default class EventuallyMacro extends BaseFormula {
   }
 
   expandFunctions() {
-    const inner_formula = this.inner_formula.expandFunctions();
-    const until_formula = this.until_formula.expandFunctions();
+    const inner_formula = this.inner_formula?.expandFunctions();
+    const until_formula = this.until_formula?.expandFunctions();
     return {
       constraint: `true`,
       functions: {
-        ...inner_formula.functions,
-        ...until_formula.functions,
+        ...(inner_formula?.functions || {}),
+        ...(until_formula?.functions || {}),
       },
     };
   }
