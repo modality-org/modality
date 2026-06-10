@@ -87,6 +87,12 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
             extract_from_expr(rhs, constraints);
         }
 
+        // Alternatives can mention candidate actions too; collect the union.
+        FormulaExpr::Or(lhs, rhs) => {
+            extract_from_expr(lhs, constraints);
+            extract_from_expr(rhs, constraints);
+        }
+
         // Parenthesized expressions preserve grouping but should not hide patterns.
         FormulaExpr::Paren(inner) => {
             extract_from_expr(inner, constraints);
@@ -532,5 +538,24 @@ mod tests {
         let constraints = extract_constraints(&formula);
 
         assert!(constraints.actions.contains("APPROVE"));
+    }
+
+    #[test]
+    fn test_or_extracts_candidate_actions_from_both_branches() {
+        let formula = FormulaExpr::Or(
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "REJECT".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("APPROVE"));
+        assert!(constraints.actions.contains("REJECT"));
     }
 }
