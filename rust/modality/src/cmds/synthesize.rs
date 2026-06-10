@@ -249,17 +249,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
 
         if let Some(model) = result.model {
-            match opts.format.as_str() {
-                "modality" => {
-                    let output = modality_lang::print_model(&model);
-                    println!("{}", output);
-                }
-                "json" => {
-                    let json = serde_json::to_string_pretty(&model)?;
-                    println!("{}", json);
-                }
-                _ => {}
-            }
+            let output = format_synthesized_model(&model, &opts.format)?;
+            write_or_print_model(&output, opts.output.as_ref())?;
         } else {
             println!(
                 "Could not generate model. Try using --template with one of the listed templates."
@@ -317,22 +308,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
     };
 
-    match opts.format.as_str() {
-        "modality" => {
-            let output = modality_lang::print_model(&model);
-            println!("{}", output);
-        }
-        "json" => {
-            let json = serde_json::to_string_pretty(&model)?;
-            println!("{}", json);
-        }
-        other => {
-            return Err(anyhow::anyhow!(
-                "Unknown format: '{}'. Use 'modality' or 'json'.",
-                other
-            ))
-        }
-    }
+    let output = format_synthesized_model(&model, &opts.format)?;
+    write_or_print_model(&output, opts.output.as_ref())?;
 
     Ok(())
 }
@@ -485,6 +462,20 @@ fn format_synthesized_model(model: &modality_lang::Model, format: &str) -> Resul
             other
         )),
     }
+}
+
+fn write_or_print_model(output: &str, output_path: Option<&PathBuf>) -> Result<()> {
+    if let Some(output_path) = output_path {
+        if let Some(parent) = output_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(output_path, output)?;
+        println!("✅ Synthesized model written to {}", output_path.display());
+    } else {
+        println!("{}", output);
+    }
+
+    Ok(())
 }
 
 /// Format a model for output
