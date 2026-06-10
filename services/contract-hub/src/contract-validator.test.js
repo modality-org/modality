@@ -2045,6 +2045,24 @@ test('fallback non-always temporal rules constrain model witnesses', () => {
     /MODEL transition active->active does not satisfy existing rule predicate/
   );
 
+  const unsafeJsonValidator = new ContractValidator();
+  assert.throws(
+    () => unsafeJsonValidator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/eventual-json-unsafe.modality',
+        content: ruleContent,
+        model: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '' }
+          ]
+        }
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
   const jsonValidator = new ContractValidator();
   jsonValidator.applyCommit({
     data: {
