@@ -22,8 +22,8 @@ export default class EventuallyMacro extends BaseFormula {
 
   toModalFormula() {
     if (this.until_formula) {
-      return `lfp(@x, ([]@x or ${this.inner_formula.toModalFormula()}) or ${this.until_formula.toModalFormula()})`;
+      return `lfp(@x, (<>@x or ${this.inner_formula.toModalFormula()}) or ${this.until_formula.toModalFormula()})`;
     }
-    return `lfp(@x, []@x or ${this.inner_formula.toModalFormula()})`;
+    return `lfp(@x, <>@x or ${this.inner_formula.toModalFormula()})`;
   }
 }

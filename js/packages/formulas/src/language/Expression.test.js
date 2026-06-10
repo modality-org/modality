@@ -21,7 +21,7 @@ const VALID_FORMULAS = {
   [`must(+a -b ?c)`]: `[-a +b] false`,
   [`can(+a -b ?c)`]: `<+a -b> true`,
   [`always(must(+a))`]: `gfp(@x, [] @x and [-a] false)`,
-  [`eventually(can(+a))`]: `lfp(@x, [] @x or <+a> true)`,
+  [`eventually(can(+a))`]: `lfp(@x, <> @x or <+a> true)`,
   [`post(/a.text)`]: `+post__${escapeArgs("/a.text")}`,
   [`must(post(/a.text))`]: `[-post__${escapeArgs("/a.text")}] false`,
   [`must(-post(/a.text))`]: `[+post__${escapeArgs("/a.text")}] false`,
