@@ -1219,6 +1219,12 @@ test('rule predicate extraction falls back when formula parser cannot parse docu
       [{ sign: '+', name: 'signed_by', args: ['/owner.id'] }]
     ]
   );
+
+  const untilRule = 'rule until_signed { formula { until(signed_by(/owner.id), threshold(2, /members)) } }';
+  assert.equal(
+    validator.extractRulePredicateClausesWithFormulaParser(untilRule),
+    null
+  );
 });
 
 test('parser-backed boolean rules constrain model replacements', () => {
