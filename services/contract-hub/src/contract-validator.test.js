@@ -5013,6 +5013,65 @@ test('validateContractLogic applies fallback modal predicate rules within a batc
   assert.equal(validReplacement.state.model.name, 'delivery_oracle');
 });
 
+test('validateContractLogic applies JSON-witnessed fallback temporal rules to JSON replacements', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/eventual.modality',
+      content: 'rule eventual { formula { eventually (signed_by(/owner.id)) } }',
+      model: {
+        systems: [{ possible_current_state_ids: ['active'] }],
+        transitions: [
+          { from: 'active', to: 'active', guard: '+signed_by(/owner.id)' }
+        ]
+      }
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/eventual-open.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/eventual-signed.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+signed_by(/owner.id)' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.transitions[0].guard, '+signed_by(/owner.id)');
+});
+
 test('validateContractLogic applies JSON-witnessed fallback modal rules to JSON replacements', async () => {
   const store = {
     pullCommits() {
