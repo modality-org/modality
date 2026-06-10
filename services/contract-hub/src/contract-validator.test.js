@@ -4078,6 +4078,65 @@ test('validateContractLogic applies parser-backed rule clauses within a batch', 
   assert.equal(validReplacement.state.model.name, 'docs_quorum');
 });
 
+test('validateContractLogic applies parser-backed symbolic boolean rules within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/docs-symbolic.modality',
+      content: 'rule docs_symbolic { formula { always ((signed_by(/owner.id) | threshold(2, /members)) & modifies(/docs)) } }',
+      model: `
+        model docs_symbolic_witness {
+          initial active
+          active -> active [+signed_by(/owner.id) +modifies(/docs)]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/docs-symbolic-unsafe.modality',
+        content: `
+          model docs_symbolic_unsafe {
+            initial active
+            active -> active [+threshold(2, /members)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/docs-symbolic-quorum.modality',
+        content: `
+          model docs_symbolic_quorum {
+            initial active
+            active -> active [+threshold(2, /members) +modifies(/docs)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'docs_symbolic_quorum');
+});
+
 test('validateContractLogic applies parser-backed oracle diamond rules within a batch', async () => {
   const store = {
     pullCommits() {
