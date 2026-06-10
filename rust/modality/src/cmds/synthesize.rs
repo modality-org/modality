@@ -174,6 +174,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("  modality model synthesize --template escrow --party-a Buyer --party-b Seller");
         println!("\nOr describe in natural language:");
         println!("  modality model synthesize --describe \"escrow where buyer deposits funds\"");
+        println!("  modality model synthesize --describe \"Alice and Bob take turns signing\"");
         println!("\nOr synthesize and verify from formulas:");
         println!("  modality model synthesize --formulas \"always([<+APPROVE>] true)\" --verify");
         println!("\nOr generate a prompt and synthesize an LLM response file:");
