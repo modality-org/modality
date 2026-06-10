@@ -6931,6 +6931,106 @@ test('existing fallback modal RULE history replays without witness while new RUL
   assert.match(newRule.errors[0], /RULE requires a witness model/);
 });
 
+test('existing parser-backed modal constant RULE history replays without witness while new RULE commits require one', async () => {
+  for (const [name, formula, invalidGuard, validGuard] of [
+    ['no_release', '[+RELEASE] false', '+RELEASE', '-RELEASE'],
+    ['releasable', '<+RELEASE> true', '-RELEASE', '+RELEASE']
+  ]) {
+    const legacyRule = {
+      data: {
+        method: 'RULE',
+        path: `/rules/${name}.modality`,
+        content: `rule ${name} { formula { always (${formula}) } }`
+      }
+    };
+    const validator = new ContractValidator();
+
+    assert.doesNotThrow(() => validator.loadFromCommits([legacyRule]));
+
+    const store = {
+      pullCommits() {
+        return [legacyRule];
+      }
+    };
+
+    const invalidReplacement = await validateContractLogic(store, 'contract', [
+      {
+        data: {
+          method: 'MODEL',
+          path: `/rules/${name}-unsafe.modality`,
+          content: `
+            model ${name}_unsafe {
+              initial active
+              active -> active [${invalidGuard}]
+            }
+          `
+        }
+      }
+    ]);
+
+    assert.equal(invalidReplacement.valid, false);
+    assert.match(invalidReplacement.errors[0], /does not satisfy existing rule predicate/);
+
+    const invalidJsonReplacement = await validateContractLogic(store, 'contract', [
+      {
+        data: {
+          method: 'MODEL',
+          path: `/rules/${name}-unsafe.json`,
+          content: {
+            systems: [{ possible_current_state_ids: ['active'] }],
+            transitions: [
+              { from: 'active', to: 'active', guard: invalidGuard }
+            ]
+          }
+        }
+      }
+    ]);
+
+    assert.equal(invalidJsonReplacement.valid, false);
+    assert.match(invalidJsonReplacement.errors[0], /does not satisfy existing rule predicate/);
+
+    const validReplacement = await validateContractLogic(store, 'contract', [
+      {
+        data: {
+          method: 'MODEL',
+          path: `/rules/${name}-ok.modality`,
+          content: `
+            model ${name}_ok {
+              initial active
+              active -> active [${validGuard}]
+            }
+          `
+        }
+      }
+    ]);
+
+    assert.equal(validReplacement.valid, true);
+    assert.equal(validReplacement.state.model.name, `${name}_ok`);
+
+    const validJsonReplacement = await validateContractLogic(store, 'contract', [
+      {
+        data: {
+          method: 'MODEL',
+          path: `/rules/${name}-ok.json`,
+          content: {
+            systems: [{ possible_current_state_ids: ['active'] }],
+            transitions: [
+              { from: 'active', to: 'active', guard: validGuard }
+            ]
+          }
+        }
+      }
+    ]);
+
+    assert.equal(validJsonReplacement.valid, true);
+    assert.equal(validJsonReplacement.state.model.transitions[0].guard, validGuard);
+
+    const newRule = await validateContractLogic({ pullCommits: () => [] }, 'contract', [legacyRule]);
+    assert.equal(newRule.valid, false);
+    assert.match(newRule.errors[0], /RULE requires a witness model/);
+  }
+});
+
 test('existing unsatisfiable parser-backed RULE history replays without witness and blocks replacements', async () => {
   const legacyRule = {
     data: {
