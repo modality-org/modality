@@ -5706,6 +5706,24 @@ test('existing fallback RULE history replays without witness while new RULE comm
   assert.equal(invalidReplacement.valid, false);
   assert.match(invalidReplacement.errors[0], /does not satisfy existing rule predicate/);
 
+  const invalidJsonReplacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/rule-open.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+adds_rule' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(invalidJsonReplacement.valid, false);
+  assert.match(invalidJsonReplacement.errors[0], /does not satisfy existing rule predicate/);
+
   const validReplacement = await validateContractLogic(store, 'contract', [
     {
       data: {
@@ -5723,6 +5741,24 @@ test('existing fallback RULE history replays without witness while new RULE comm
 
   assert.equal(validReplacement.valid, true);
   assert.equal(validReplacement.state.model.name, 'rule_admin');
+
+  const validJsonReplacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/rule-admin.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+signed_by(/admin.id)' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(validJsonReplacement.valid, true);
+  assert.equal(validJsonReplacement.state.model.transitions[0].guard, '+signed_by(/admin.id)');
 
   const newRule = await validateContractLogic({ pullCommits: () => [] }, 'contract', [legacyRule]);
   assert.equal(newRule.valid, false);
