@@ -108,6 +108,12 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
             extract_from_expr(inner, constraints);
         }
 
+        // until(p, q) can mention actions in either the condition or goal.
+        FormulaExpr::Until(lhs, rhs) => {
+            extract_from_expr(lhs, constraints);
+            extract_from_expr(rhs, constraints);
+        }
+
         // Box with action
         FormulaExpr::Box(props, inner) => {
             for prop in props {
@@ -557,5 +563,24 @@ mod tests {
 
         assert!(constraints.actions.contains("APPROVE"));
         assert!(constraints.actions.contains("REJECT"));
+    }
+
+    #[test]
+    fn test_until_extracts_candidate_actions_from_both_branches() {
+        let formula = FormulaExpr::Until(
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "WAIT".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("WAIT"));
+        assert!(constraints.actions.contains("APPROVE"));
     }
 }
