@@ -3780,6 +3780,65 @@ test('validateContractLogic applies fallback implication rules within a batch', 
   assert.equal(validReplacement.state.model.name, 'expiry_signed');
 });
 
+test('validateContractLogic applies fallback textual not rules within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/no-rules.modality',
+      content: 'rule no_rules { formula { always (not adds_rule or signed_by(/admin.id)) } }',
+      model: `
+        model no_rules_witness {
+          initial active
+          active -> active [-adds_rule]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/rule-open.modality',
+        content: `
+          model rule_open {
+            initial active
+            active -> active [+adds_rule]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/rule-admin.modality',
+        content: `
+          model rule_admin {
+            initial active
+            active -> active [+signed_by(/admin.id)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'rule_admin');
+});
+
 test('validateContractLogic rejects unsafe parser-backed rule witnesses', async () => {
   const store = {
     pullCommits() {
