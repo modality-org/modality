@@ -5801,6 +5801,24 @@ test('existing fallback modal RULE history replays without witness while new RUL
   assert.equal(invalidReplacement.valid, false);
   assert.match(invalidReplacement.errors[0], /does not satisfy existing rule predicate/);
 
+  const invalidJsonReplacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/delivery-unsafe.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+RELEASE' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(invalidJsonReplacement.valid, false);
+  assert.match(invalidJsonReplacement.errors[0], /does not satisfy existing rule predicate/);
+
   const validReplacement = await validateContractLogic(store, 'contract', [
     {
       data: {
@@ -5818,6 +5836,27 @@ test('existing fallback modal RULE history replays without witness while new RUL
 
   assert.equal(validReplacement.valid, true);
   assert.equal(validReplacement.state.model.name, 'delivery_oracle');
+
+  const validJsonReplacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/delivery-oracle.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+oracle_attests(/oracles/delivery.id, "delivered", "true")' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(validJsonReplacement.valid, true);
+  assert.equal(
+    validJsonReplacement.state.model.transitions[0].guard,
+    '+oracle_attests(/oracles/delivery.id, "delivered", "true")'
+  );
 
   const newRule = await validateContractLogic({ pullCommits: () => [] }, 'contract', [legacyRule]);
   assert.equal(newRule.valid, false);
