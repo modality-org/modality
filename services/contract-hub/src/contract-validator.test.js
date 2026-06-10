@@ -4864,6 +4864,68 @@ test('validateContractLogic applies fallback modal predicate rules within a batc
   assert.equal(validReplacement.state.model.name, 'delivery_oracle');
 });
 
+test('validateContractLogic applies JSON-witnessed fallback modal rules to JSON replacements', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/delivery.modality',
+      content: 'rule delivery { formula { always ([+RELEASE] implies <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true) } }',
+      model: {
+        systems: [{ possible_current_state_ids: ['active'] }],
+        transitions: [
+          { from: 'active', to: 'active', guard: '-RELEASE' }
+        ]
+      }
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/delivery-unsafe.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+RELEASE' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/delivery-oracle.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+oracle_attests(/oracles/delivery.id, "delivered", "true")' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(
+    validReplacement.state.model.transitions[0].guard,
+    '+oracle_attests(/oracles/delivery.id, "delivered", "true")'
+  );
+});
+
 test('validateContractLogic rejects unsafe parser-backed rule witnesses', async () => {
   const store = {
     pullCommits() {
