@@ -3839,6 +3839,65 @@ test('validateContractLogic applies parser-backed oracle diamond rules within a 
   assert.equal(validReplacement.state.model.name, 'delivery_oracle');
 });
 
+test('validateContractLogic applies parser-backed can macro rules within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/releasable.modality',
+      content: 'rule releasable { formula { always (can(+RELEASE)) } }',
+      model: `
+        model releasable_witness {
+          initial active
+          active -> active [+RELEASE]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/releasable-unsafe.modality',
+        content: `
+          model releasable_unsafe {
+            initial active
+            active -> active [+signed_by(/owner.id)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/releasable-ok.modality',
+        content: `
+          model releasable_ok {
+            initial active
+            active -> active [+RELEASE]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'releasable_ok');
+});
+
 test('validateContractLogic applies fallback implication rules within a batch', async () => {
   const store = {
     pullCommits() {
