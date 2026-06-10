@@ -1,4 +1,3 @@
-// Generated from ../../../../grammars/Modality.g4 by ANTLR 4.13.0
 // jshint ignore: start
 import antlr4 from 'antlr4';
 
@@ -14,147 +13,12 @@ export default class ModalityListener extends antlr4.tree.ParseTreeListener {
 	}
 
 
-	// Enter a parse tree produced by ModalityParser#propsSet.
-	enterPropsSet(ctx) {
+	// Enter a parse tree produced by ModalityParser#trueAtom.
+	enterTrueAtom(ctx) {
 	}
 
-	// Exit a parse tree produced by ModalityParser#propsSet.
-	exitPropsSet(ctx) {
-	}
-
-
-	// Enter a parse tree produced by ModalityParser#whenAlsoFormula.
-	enterWhenAlsoFormula(ctx) {
-	}
-
-	// Exit a parse tree produced by ModalityParser#whenAlsoFormula.
-	exitWhenAlsoFormula(ctx) {
-	}
-
-
-	// Enter a parse tree produced by ModalityParser#emptyBoxFormula.
-	enterEmptyBoxFormula(ctx) {
-	}
-
-	// Exit a parse tree produced by ModalityParser#emptyBoxFormula.
-	exitEmptyBoxFormula(ctx) {
-	}
-
-
-	// Enter a parse tree produced by ModalityParser#alwaysMacro.
-	enterAlwaysMacro(ctx) {
-	}
-
-	// Exit a parse tree produced by ModalityParser#alwaysMacro.
-	exitAlwaysMacro(ctx) {
-	}
-
-
-	// Enter a parse tree produced by ModalityParser#whenNextFormula.
-	enterWhenNextFormula(ctx) {
-	}
-
-	// Exit a parse tree produced by ModalityParser#whenNextFormula.
-	exitWhenNextFormula(ctx) {
-	}
-
-
-	// Enter a parse tree produced by ModalityParser#emptyDiamondFormula.
-	enterEmptyDiamondFormula(ctx) {
-	}
-
-	// Exit a parse tree produced by ModalityParser#emptyDiamondFormula.
-	exitEmptyDiamondFormula(ctx) {
-	}
-
-
-	// Enter a parse tree produced by ModalityParser#andFormula.
-	enterAndFormula(ctx) {
-	}
-
-	// Exit a parse tree produced by ModalityParser#andFormula.
-	exitAndFormula(ctx) {
-	}
-
-
-	// Enter a parse tree produced by ModalityParser#notFormula.
-	enterNotFormula(ctx) {
-	}
-
-	// Exit a parse tree produced by ModalityParser#notFormula.
-	exitNotFormula(ctx) {
-	}
-
-
-	// Enter a parse tree produced by ModalityParser#orFormula.
-	enterOrFormula(ctx) {
-	}
-
-	// Exit a parse tree produced by ModalityParser#orFormula.
-	exitOrFormula(ctx) {
-	}
-
-
-	// Enter a parse tree produced by ModalityParser#lfpFormula.
-	enterLfpFormula(ctx) {
-	}
-
-	// Exit a parse tree produced by ModalityParser#lfpFormula.
-	exitLfpFormula(ctx) {
-	}
-
-
-	// Enter a parse tree produced by ModalityParser#canMacro.
-	enterCanMacro(ctx) {
-	}
-
-	// Exit a parse tree produced by ModalityParser#canMacro.
-	exitCanMacro(ctx) {
-	}
-
-
-	// Enter a parse tree produced by ModalityParser#eventuallyMacro.
-	enterEventuallyMacro(ctx) {
-	}
-
-	// Exit a parse tree produced by ModalityParser#eventuallyMacro.
-	exitEventuallyMacro(ctx) {
-	}
-
-
-	// Enter a parse tree produced by ModalityParser#diamondFormula.
-	enterDiamondFormula(ctx) {
-	}
-
-	// Exit a parse tree produced by ModalityParser#diamondFormula.
-	exitDiamondFormula(ctx) {
-	}
-
-
-	// Enter a parse tree produced by ModalityParser#parenFormula.
-	enterParenFormula(ctx) {
-	}
-
-	// Exit a parse tree produced by ModalityParser#parenFormula.
-	exitParenFormula(ctx) {
-	}
-
-
-	// Enter a parse tree produced by ModalityParser#boxFormula.
-	enterBoxFormula(ctx) {
-	}
-
-	// Exit a parse tree produced by ModalityParser#boxFormula.
-	exitBoxFormula(ctx) {
-	}
-
-
-	// Enter a parse tree produced by ModalityParser#mustMacro.
-	enterMustMacro(ctx) {
-	}
-
-	// Exit a parse tree produced by ModalityParser#mustMacro.
-	exitMustMacro(ctx) {
+	// Exit a parse tree produced by ModalityParser#trueAtom.
+	exitTrueAtom(ctx) {
 	}
 
 
@@ -176,21 +40,21 @@ export default class ModalityListener extends antlr4.tree.ParseTreeListener {
 	}
 
 
-	// Enter a parse tree produced by ModalityParser#gfpFormula.
-	enterGfpFormula(ctx) {
+	// Enter a parse tree produced by ModalityParser#notFormula.
+	enterNotFormula(ctx) {
 	}
 
-	// Exit a parse tree produced by ModalityParser#gfpFormula.
-	exitGfpFormula(ctx) {
+	// Exit a parse tree produced by ModalityParser#notFormula.
+	exitNotFormula(ctx) {
 	}
 
 
-	// Enter a parse tree produced by ModalityParser#trueAtom.
-	enterTrueAtom(ctx) {
+	// Enter a parse tree produced by ModalityParser#propsSet.
+	enterPropsSet(ctx) {
 	}
 
-	// Exit a parse tree produced by ModalityParser#trueAtom.
-	exitTrueAtom(ctx) {
+	// Exit a parse tree produced by ModalityParser#propsSet.
+	exitPropsSet(ctx) {
 	}
 
 
@@ -200,6 +64,141 @@ export default class ModalityListener extends antlr4.tree.ParseTreeListener {
 
 	// Exit a parse tree produced by ModalityParser#stateSetVariable.
 	exitStateSetVariable(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#emptyBoxFormula.
+	enterEmptyBoxFormula(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#emptyBoxFormula.
+	exitEmptyBoxFormula(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#emptyDiamondFormula.
+	enterEmptyDiamondFormula(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#emptyDiamondFormula.
+	exitEmptyDiamondFormula(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#boxFormula.
+	enterBoxFormula(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#boxFormula.
+	exitBoxFormula(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#diamondFormula.
+	enterDiamondFormula(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#diamondFormula.
+	exitDiamondFormula(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#lfpFormula.
+	enterLfpFormula(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#lfpFormula.
+	exitLfpFormula(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#gfpFormula.
+	enterGfpFormula(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#gfpFormula.
+	exitGfpFormula(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#mustMacro.
+	enterMustMacro(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#mustMacro.
+	exitMustMacro(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#canMacro.
+	enterCanMacro(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#canMacro.
+	exitCanMacro(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#alwaysMacro.
+	enterAlwaysMacro(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#alwaysMacro.
+	exitAlwaysMacro(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#eventuallyMacro.
+	enterEventuallyMacro(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#eventuallyMacro.
+	exitEventuallyMacro(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#whenAlsoFormula.
+	enterWhenAlsoFormula(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#whenAlsoFormula.
+	exitWhenAlsoFormula(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#whenNextFormula.
+	enterWhenNextFormula(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#whenNextFormula.
+	exitWhenNextFormula(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#parenFormula.
+	enterParenFormula(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#parenFormula.
+	exitParenFormula(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#orFormula.
+	enterOrFormula(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#orFormula.
+	exitOrFormula(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#andFormula.
+	enterAndFormula(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#andFormula.
+	exitAndFormula(ctx) {
 	}
 
 

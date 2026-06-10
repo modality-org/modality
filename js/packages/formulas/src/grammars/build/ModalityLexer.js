@@ -1,4 +1,3 @@
-// Generated from ../../../../grammars/Modality.g4 by ANTLR 4.13.0
 // jshint ignore: start
 import antlr4 from 'antlr4';
 

@@ -1,4 +1,3 @@
-// Generated from ../../../../grammars/Modality.g4 by ANTLR 4.13.0
 // jshint ignore: start
 import antlr4 from 'antlr4';
 import ModalityListener from './ModalityListener.js';
@@ -24,10 +23,10 @@ const serializedATN = [4,1,33,170,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,
 0,35,36,1,0,0,0,36,34,1,0,0,0,36,37,1,0,0,0,37,39,1,0,0,0,38,26,1,0,0,0,
 38,34,1,0,0,0,39,117,1,0,0,0,40,117,5,30,0,0,41,42,5,14,0,0,42,43,5,15,0,
 0,43,117,3,2,1,13,44,45,5,16,0,0,45,46,5,17,0,0,46,117,3,2,1,12,47,48,5,
-14,0,0,48,49,3,2,1,0,49,50,5,15,0,0,50,51,3,2,1,11,51,117,1,0,0,0,52,53,
-5,16,0,0,53,54,3,2,1,0,54,55,5,17,0,0,55,56,3,2,1,10,56,117,1,0,0,0,57,58,
-5,25,0,0,58,59,5,18,0,0,59,60,3,2,1,0,60,61,5,21,0,0,61,62,3,2,1,0,62,63,
-5,19,0,0,63,117,1,0,0,0,64,65,5,26,0,0,65,66,5,18,0,0,66,67,3,2,1,0,67,68,
+14,0,0,48,49,3,2,1,0,49,50,5,15,0,0,50,51,3,2,1,0,51,117,1,0,0,0,52,53,5,
+16,0,0,53,54,3,2,1,0,54,55,5,17,0,0,55,56,3,2,1,0,56,117,1,0,0,0,57,58,5,
+25,0,0,58,59,5,18,0,0,59,60,3,2,1,0,60,61,5,21,0,0,61,62,3,2,1,0,62,63,5,
+19,0,0,63,117,1,0,0,0,64,65,5,26,0,0,65,66,5,18,0,0,66,67,3,2,1,0,67,68,
 5,21,0,0,68,69,3,2,1,0,69,70,5,19,0,0,70,117,1,0,0,0,71,72,5,1,0,0,72,73,
 5,18,0,0,73,74,3,2,1,0,74,75,5,19,0,0,75,117,1,0,0,0,76,77,5,2,0,0,77,78,
 5,18,0,0,78,79,3,2,1,0,79,80,5,19,0,0,80,117,1,0,0,0,81,82,5,3,0,0,82,83,
@@ -36,8 +35,8 @@ const serializedATN = [4,1,33,170,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,
 1,0,0,0,92,93,5,4,0,0,93,94,5,18,0,0,94,95,3,2,1,0,95,100,5,19,0,0,96,97,
 5,5,0,0,97,98,3,2,1,0,98,99,5,19,0,0,99,101,1,0,0,0,100,96,1,0,0,0,100,101,
 1,0,0,0,101,117,1,0,0,0,102,103,5,11,0,0,103,104,3,2,1,0,104,105,5,12,0,
-0,105,106,3,2,1,3,106,117,1,0,0,0,107,108,5,11,0,0,108,109,3,2,1,0,109,110,
-5,13,0,0,110,111,3,2,1,2,111,117,1,0,0,0,112,113,5,18,0,0,113,114,3,2,1,
+0,105,106,3,2,1,0,106,117,1,0,0,0,107,108,5,11,0,0,108,109,3,2,1,0,109,110,
+5,13,0,0,110,111,3,2,1,0,111,117,1,0,0,0,112,113,5,18,0,0,113,114,3,2,1,
 0,114,115,5,19,0,0,115,117,1,0,0,0,116,19,1,0,0,0,116,21,1,0,0,0,116,22,
 1,0,0,0,116,24,1,0,0,0,116,38,1,0,0,0,116,40,1,0,0,0,116,41,1,0,0,0,116,
 44,1,0,0,0,116,47,1,0,0,0,116,52,1,0,0,0,116,57,1,0,0,0,116,64,1,0,0,0,116,
@@ -286,7 +285,7 @@ export default class ModalityParser extends antlr4.Parser {
 	            this.state = 49;
 	            this.match(ModalityParser.RBOX);
 	            this.state = 50;
-	            localctx.outer = this.formula(11);
+	            localctx.outer = this.formula(0);
 	            break;
 
 	        case 10:
@@ -300,7 +299,7 @@ export default class ModalityParser extends antlr4.Parser {
 	            this.state = 54;
 	            this.match(ModalityParser.RDIA);
 	            this.state = 55;
-	            localctx.outer = this.formula(10);
+	            localctx.outer = this.formula(0);
 	            break;
 
 	        case 11:
@@ -432,7 +431,7 @@ export default class ModalityParser extends antlr4.Parser {
 	            this.state = 104;
 	            this.match(ModalityParser.ALSO);
 	            this.state = 105;
-	            localctx.also_formula = this.formula(3);
+	            localctx.also_formula = this.formula(0);
 	            break;
 
 	        case 18:
@@ -446,7 +445,7 @@ export default class ModalityParser extends antlr4.Parser {
 	            this.state = 109;
 	            this.match(ModalityParser.NEXT);
 	            this.state = 110;
-	            localctx.next_formula = this.formula(2);
+	            localctx.next_formula = this.formula(0);
 	            break;
 
 	        case 19:
@@ -886,43 +885,32 @@ class FormulaContext extends antlr4.ParserRuleContext {
 }
 
 
-class PropsSetContext extends FormulaContext {
+class TrueAtomContext extends FormulaContext {
 
     constructor(parser, ctx) {
         super(parser);
         super.copyFrom(ctx);
     }
 
-	unsignedProp() {
-	    return this.getTypedRuleContext(UnsignedPropContext,0);
-	};
-
-	signedProp = function(i) {
-	    if(i===undefined) {
-	        i = null;
-	    }
-	    if(i===null) {
-	        return this.getTypedRuleContexts(SignedPropContext);
-	    } else {
-	        return this.getTypedRuleContext(SignedPropContext,i);
-	    }
+	TRUE() {
+	    return this.getToken(ModalityParser.TRUE, 0);
 	};
 
 	enterRule(listener) {
 	    if(listener instanceof ModalityListener ) {
-	        listener.enterPropsSet(this);
+	        listener.enterTrueAtom(this);
 		}
 	}
 
 	exitRule(listener) {
 	    if(listener instanceof ModalityListener ) {
-	        listener.exitPropsSet(this);
+	        listener.exitTrueAtom(this);
 		}
 	}
 
 	accept(visitor) {
 	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitPropsSet(this);
+	        return visitor.visitTrueAtom(this);
 	    } else {
 	        return visitor.visitChildren(this);
 	    }
@@ -931,796 +919,7 @@ class PropsSetContext extends FormulaContext {
 
 }
 
-ModalityParser.PropsSetContext = PropsSetContext;
-
-class WhenAlsoFormulaContext extends FormulaContext {
-
-    constructor(parser, ctx) {
-        super(parser);
-        this.when_formula = null;;
-        this.also_formula = null;;
-        super.copyFrom(ctx);
-    }
-
-	WHEN() {
-	    return this.getToken(ModalityParser.WHEN, 0);
-	};
-
-	ALSO() {
-	    return this.getToken(ModalityParser.ALSO, 0);
-	};
-
-	formula = function(i) {
-	    if(i===undefined) {
-	        i = null;
-	    }
-	    if(i===null) {
-	        return this.getTypedRuleContexts(FormulaContext);
-	    } else {
-	        return this.getTypedRuleContext(FormulaContext,i);
-	    }
-	};
-
-	enterRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.enterWhenAlsoFormula(this);
-		}
-	}
-
-	exitRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.exitWhenAlsoFormula(this);
-		}
-	}
-
-	accept(visitor) {
-	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitWhenAlsoFormula(this);
-	    } else {
-	        return visitor.visitChildren(this);
-	    }
-	}
-
-
-}
-
-ModalityParser.WhenAlsoFormulaContext = WhenAlsoFormulaContext;
-
-class EmptyBoxFormulaContext extends FormulaContext {
-
-    constructor(parser, ctx) {
-        super(parser);
-        this.outer = null;;
-        super.copyFrom(ctx);
-    }
-
-	LBOX() {
-	    return this.getToken(ModalityParser.LBOX, 0);
-	};
-
-	RBOX() {
-	    return this.getToken(ModalityParser.RBOX, 0);
-	};
-
-	formula() {
-	    return this.getTypedRuleContext(FormulaContext,0);
-	};
-
-	enterRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.enterEmptyBoxFormula(this);
-		}
-	}
-
-	exitRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.exitEmptyBoxFormula(this);
-		}
-	}
-
-	accept(visitor) {
-	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitEmptyBoxFormula(this);
-	    } else {
-	        return visitor.visitChildren(this);
-	    }
-	}
-
-
-}
-
-ModalityParser.EmptyBoxFormulaContext = EmptyBoxFormulaContext;
-
-class AlwaysMacroContext extends FormulaContext {
-
-    constructor(parser, ctx) {
-        super(parser);
-        this.inner_formula = null;;
-        this.until_formula = null;;
-        super.copyFrom(ctx);
-    }
-
-	ALWAYS() {
-	    return this.getToken(ModalityParser.ALWAYS, 0);
-	};
-
-	LPAREN = function(i) {
-		if(i===undefined) {
-			i = null;
-		}
-	    if(i===null) {
-	        return this.getTokens(ModalityParser.LPAREN);
-	    } else {
-	        return this.getToken(ModalityParser.LPAREN, i);
-	    }
-	};
-
-
-	RPAREN = function(i) {
-		if(i===undefined) {
-			i = null;
-		}
-	    if(i===null) {
-	        return this.getTokens(ModalityParser.RPAREN);
-	    } else {
-	        return this.getToken(ModalityParser.RPAREN, i);
-	    }
-	};
-
-
-	formula = function(i) {
-	    if(i===undefined) {
-	        i = null;
-	    }
-	    if(i===null) {
-	        return this.getTypedRuleContexts(FormulaContext);
-	    } else {
-	        return this.getTypedRuleContext(FormulaContext,i);
-	    }
-	};
-
-	UNTIL() {
-	    return this.getToken(ModalityParser.UNTIL, 0);
-	};
-
-	enterRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.enterAlwaysMacro(this);
-		}
-	}
-
-	exitRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.exitAlwaysMacro(this);
-		}
-	}
-
-	accept(visitor) {
-	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitAlwaysMacro(this);
-	    } else {
-	        return visitor.visitChildren(this);
-	    }
-	}
-
-
-}
-
-ModalityParser.AlwaysMacroContext = AlwaysMacroContext;
-
-class WhenNextFormulaContext extends FormulaContext {
-
-    constructor(parser, ctx) {
-        super(parser);
-        this.when_formula = null;;
-        this.next_formula = null;;
-        super.copyFrom(ctx);
-    }
-
-	WHEN() {
-	    return this.getToken(ModalityParser.WHEN, 0);
-	};
-
-	NEXT() {
-	    return this.getToken(ModalityParser.NEXT, 0);
-	};
-
-	formula = function(i) {
-	    if(i===undefined) {
-	        i = null;
-	    }
-	    if(i===null) {
-	        return this.getTypedRuleContexts(FormulaContext);
-	    } else {
-	        return this.getTypedRuleContext(FormulaContext,i);
-	    }
-	};
-
-	enterRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.enterWhenNextFormula(this);
-		}
-	}
-
-	exitRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.exitWhenNextFormula(this);
-		}
-	}
-
-	accept(visitor) {
-	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitWhenNextFormula(this);
-	    } else {
-	        return visitor.visitChildren(this);
-	    }
-	}
-
-
-}
-
-ModalityParser.WhenNextFormulaContext = WhenNextFormulaContext;
-
-class EmptyDiamondFormulaContext extends FormulaContext {
-
-    constructor(parser, ctx) {
-        super(parser);
-        this.outer = null;;
-        super.copyFrom(ctx);
-    }
-
-	LDIA() {
-	    return this.getToken(ModalityParser.LDIA, 0);
-	};
-
-	RDIA() {
-	    return this.getToken(ModalityParser.RDIA, 0);
-	};
-
-	formula() {
-	    return this.getTypedRuleContext(FormulaContext,0);
-	};
-
-	enterRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.enterEmptyDiamondFormula(this);
-		}
-	}
-
-	exitRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.exitEmptyDiamondFormula(this);
-		}
-	}
-
-	accept(visitor) {
-	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitEmptyDiamondFormula(this);
-	    } else {
-	        return visitor.visitChildren(this);
-	    }
-	}
-
-
-}
-
-ModalityParser.EmptyDiamondFormulaContext = EmptyDiamondFormulaContext;
-
-class AndFormulaContext extends FormulaContext {
-
-    constructor(parser, ctx) {
-        super(parser);
-        this.left = null;;
-        this.right = null;;
-        super.copyFrom(ctx);
-    }
-
-	AND() {
-	    return this.getToken(ModalityParser.AND, 0);
-	};
-
-	formula = function(i) {
-	    if(i===undefined) {
-	        i = null;
-	    }
-	    if(i===null) {
-	        return this.getTypedRuleContexts(FormulaContext);
-	    } else {
-	        return this.getTypedRuleContext(FormulaContext,i);
-	    }
-	};
-
-	enterRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.enterAndFormula(this);
-		}
-	}
-
-	exitRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.exitAndFormula(this);
-		}
-	}
-
-	accept(visitor) {
-	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitAndFormula(this);
-	    } else {
-	        return visitor.visitChildren(this);
-	    }
-	}
-
-
-}
-
-ModalityParser.AndFormulaContext = AndFormulaContext;
-
-class NotFormulaContext extends FormulaContext {
-
-    constructor(parser, ctx) {
-        super(parser);
-        this.inner = null;;
-        super.copyFrom(ctx);
-    }
-
-	NOT() {
-	    return this.getToken(ModalityParser.NOT, 0);
-	};
-
-	formula() {
-	    return this.getTypedRuleContext(FormulaContext,0);
-	};
-
-	enterRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.enterNotFormula(this);
-		}
-	}
-
-	exitRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.exitNotFormula(this);
-		}
-	}
-
-	accept(visitor) {
-	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitNotFormula(this);
-	    } else {
-	        return visitor.visitChildren(this);
-	    }
-	}
-
-
-}
-
-ModalityParser.NotFormulaContext = NotFormulaContext;
-
-class OrFormulaContext extends FormulaContext {
-
-    constructor(parser, ctx) {
-        super(parser);
-        this.left = null;;
-        this.right = null;;
-        super.copyFrom(ctx);
-    }
-
-	OR() {
-	    return this.getToken(ModalityParser.OR, 0);
-	};
-
-	formula = function(i) {
-	    if(i===undefined) {
-	        i = null;
-	    }
-	    if(i===null) {
-	        return this.getTypedRuleContexts(FormulaContext);
-	    } else {
-	        return this.getTypedRuleContext(FormulaContext,i);
-	    }
-	};
-
-	enterRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.enterOrFormula(this);
-		}
-	}
-
-	exitRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.exitOrFormula(this);
-		}
-	}
-
-	accept(visitor) {
-	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitOrFormula(this);
-	    } else {
-	        return visitor.visitChildren(this);
-	    }
-	}
-
-
-}
-
-ModalityParser.OrFormulaContext = OrFormulaContext;
-
-class LfpFormulaContext extends FormulaContext {
-
-    constructor(parser, ctx) {
-        super(parser);
-        this.stateSetVariable = null;;
-        this.inner = null;;
-        super.copyFrom(ctx);
-    }
-
-	LFP() {
-	    return this.getToken(ModalityParser.LFP, 0);
-	};
-
-	LPAREN() {
-	    return this.getToken(ModalityParser.LPAREN, 0);
-	};
-
-	COMMA() {
-	    return this.getToken(ModalityParser.COMMA, 0);
-	};
-
-	RPAREN() {
-	    return this.getToken(ModalityParser.RPAREN, 0);
-	};
-
-	formula = function(i) {
-	    if(i===undefined) {
-	        i = null;
-	    }
-	    if(i===null) {
-	        return this.getTypedRuleContexts(FormulaContext);
-	    } else {
-	        return this.getTypedRuleContext(FormulaContext,i);
-	    }
-	};
-
-	enterRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.enterLfpFormula(this);
-		}
-	}
-
-	exitRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.exitLfpFormula(this);
-		}
-	}
-
-	accept(visitor) {
-	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitLfpFormula(this);
-	    } else {
-	        return visitor.visitChildren(this);
-	    }
-	}
-
-
-}
-
-ModalityParser.LfpFormulaContext = LfpFormulaContext;
-
-class CanMacroContext extends FormulaContext {
-
-    constructor(parser, ctx) {
-        super(parser);
-        super.copyFrom(ctx);
-    }
-
-	CAN() {
-	    return this.getToken(ModalityParser.CAN, 0);
-	};
-
-	LPAREN() {
-	    return this.getToken(ModalityParser.LPAREN, 0);
-	};
-
-	formula() {
-	    return this.getTypedRuleContext(FormulaContext,0);
-	};
-
-	RPAREN() {
-	    return this.getToken(ModalityParser.RPAREN, 0);
-	};
-
-	enterRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.enterCanMacro(this);
-		}
-	}
-
-	exitRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.exitCanMacro(this);
-		}
-	}
-
-	accept(visitor) {
-	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitCanMacro(this);
-	    } else {
-	        return visitor.visitChildren(this);
-	    }
-	}
-
-
-}
-
-ModalityParser.CanMacroContext = CanMacroContext;
-
-class EventuallyMacroContext extends FormulaContext {
-
-    constructor(parser, ctx) {
-        super(parser);
-        this.inner_formula = null;;
-        this.until_formula = null;;
-        super.copyFrom(ctx);
-    }
-
-	EVENTUALLY() {
-	    return this.getToken(ModalityParser.EVENTUALLY, 0);
-	};
-
-	LPAREN() {
-	    return this.getToken(ModalityParser.LPAREN, 0);
-	};
-
-	RPAREN = function(i) {
-		if(i===undefined) {
-			i = null;
-		}
-	    if(i===null) {
-	        return this.getTokens(ModalityParser.RPAREN);
-	    } else {
-	        return this.getToken(ModalityParser.RPAREN, i);
-	    }
-	};
-
-
-	formula = function(i) {
-	    if(i===undefined) {
-	        i = null;
-	    }
-	    if(i===null) {
-	        return this.getTypedRuleContexts(FormulaContext);
-	    } else {
-	        return this.getTypedRuleContext(FormulaContext,i);
-	    }
-	};
-
-	UNTIL() {
-	    return this.getToken(ModalityParser.UNTIL, 0);
-	};
-
-	enterRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.enterEventuallyMacro(this);
-		}
-	}
-
-	exitRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.exitEventuallyMacro(this);
-		}
-	}
-
-	accept(visitor) {
-	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitEventuallyMacro(this);
-	    } else {
-	        return visitor.visitChildren(this);
-	    }
-	}
-
-
-}
-
-ModalityParser.EventuallyMacroContext = EventuallyMacroContext;
-
-class DiamondFormulaContext extends FormulaContext {
-
-    constructor(parser, ctx) {
-        super(parser);
-        this.inner = null;;
-        this.outer = null;;
-        super.copyFrom(ctx);
-    }
-
-	LDIA() {
-	    return this.getToken(ModalityParser.LDIA, 0);
-	};
-
-	RDIA() {
-	    return this.getToken(ModalityParser.RDIA, 0);
-	};
-
-	formula = function(i) {
-	    if(i===undefined) {
-	        i = null;
-	    }
-	    if(i===null) {
-	        return this.getTypedRuleContexts(FormulaContext);
-	    } else {
-	        return this.getTypedRuleContext(FormulaContext,i);
-	    }
-	};
-
-	enterRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.enterDiamondFormula(this);
-		}
-	}
-
-	exitRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.exitDiamondFormula(this);
-		}
-	}
-
-	accept(visitor) {
-	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitDiamondFormula(this);
-	    } else {
-	        return visitor.visitChildren(this);
-	    }
-	}
-
-
-}
-
-ModalityParser.DiamondFormulaContext = DiamondFormulaContext;
-
-class ParenFormulaContext extends FormulaContext {
-
-    constructor(parser, ctx) {
-        super(parser);
-        this.inner = null;;
-        super.copyFrom(ctx);
-    }
-
-	LPAREN() {
-	    return this.getToken(ModalityParser.LPAREN, 0);
-	};
-
-	RPAREN() {
-	    return this.getToken(ModalityParser.RPAREN, 0);
-	};
-
-	formula() {
-	    return this.getTypedRuleContext(FormulaContext,0);
-	};
-
-	enterRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.enterParenFormula(this);
-		}
-	}
-
-	exitRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.exitParenFormula(this);
-		}
-	}
-
-	accept(visitor) {
-	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitParenFormula(this);
-	    } else {
-	        return visitor.visitChildren(this);
-	    }
-	}
-
-
-}
-
-ModalityParser.ParenFormulaContext = ParenFormulaContext;
-
-class BoxFormulaContext extends FormulaContext {
-
-    constructor(parser, ctx) {
-        super(parser);
-        this.inner = null;;
-        this.outer = null;;
-        super.copyFrom(ctx);
-    }
-
-	LBOX() {
-	    return this.getToken(ModalityParser.LBOX, 0);
-	};
-
-	RBOX() {
-	    return this.getToken(ModalityParser.RBOX, 0);
-	};
-
-	formula = function(i) {
-	    if(i===undefined) {
-	        i = null;
-	    }
-	    if(i===null) {
-	        return this.getTypedRuleContexts(FormulaContext);
-	    } else {
-	        return this.getTypedRuleContext(FormulaContext,i);
-	    }
-	};
-
-	enterRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.enterBoxFormula(this);
-		}
-	}
-
-	exitRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.exitBoxFormula(this);
-		}
-	}
-
-	accept(visitor) {
-	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitBoxFormula(this);
-	    } else {
-	        return visitor.visitChildren(this);
-	    }
-	}
-
-
-}
-
-ModalityParser.BoxFormulaContext = BoxFormulaContext;
-
-class MustMacroContext extends FormulaContext {
-
-    constructor(parser, ctx) {
-        super(parser);
-        super.copyFrom(ctx);
-    }
-
-	MUST() {
-	    return this.getToken(ModalityParser.MUST, 0);
-	};
-
-	LPAREN() {
-	    return this.getToken(ModalityParser.LPAREN, 0);
-	};
-
-	formula() {
-	    return this.getTypedRuleContext(FormulaContext,0);
-	};
-
-	RPAREN() {
-	    return this.getToken(ModalityParser.RPAREN, 0);
-	};
-
-	enterRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.enterMustMacro(this);
-		}
-	}
-
-	exitRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.exitMustMacro(this);
-		}
-	}
-
-	accept(visitor) {
-	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitMustMacro(this);
-	    } else {
-	        return visitor.visitChildren(this);
-	    }
-	}
-
-
-}
-
-ModalityParser.MustMacroContext = MustMacroContext;
+ModalityParser.TrueAtomContext = TrueAtomContext;
 
 class FalseAtomContext extends FormulaContext {
 
@@ -1799,6 +998,387 @@ class NegatedFormulaContext extends FormulaContext {
 
 ModalityParser.NegatedFormulaContext = NegatedFormulaContext;
 
+class NotFormulaContext extends FormulaContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        this.inner = null;;
+        super.copyFrom(ctx);
+    }
+
+	NOT() {
+	    return this.getToken(ModalityParser.NOT, 0);
+	};
+
+	formula() {
+	    return this.getTypedRuleContext(FormulaContext,0);
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterNotFormula(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitNotFormula(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitNotFormula(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.NotFormulaContext = NotFormulaContext;
+
+class PropsSetContext extends FormulaContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        super.copyFrom(ctx);
+    }
+
+	unsignedProp() {
+	    return this.getTypedRuleContext(UnsignedPropContext,0);
+	};
+
+	signedProp = function(i) {
+	    if(i===undefined) {
+	        i = null;
+	    }
+	    if(i===null) {
+	        return this.getTypedRuleContexts(SignedPropContext);
+	    } else {
+	        return this.getTypedRuleContext(SignedPropContext,i);
+	    }
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterPropsSet(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitPropsSet(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitPropsSet(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.PropsSetContext = PropsSetContext;
+
+class StateSetVariableContext extends FormulaContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        super.copyFrom(ctx);
+    }
+
+	STATE_SET_VARIABLE() {
+	    return this.getToken(ModalityParser.STATE_SET_VARIABLE, 0);
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterStateSetVariable(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitStateSetVariable(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitStateSetVariable(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.StateSetVariableContext = StateSetVariableContext;
+
+class EmptyBoxFormulaContext extends FormulaContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        this.outer = null;;
+        super.copyFrom(ctx);
+    }
+
+	LBOX() {
+	    return this.getToken(ModalityParser.LBOX, 0);
+	};
+
+	RBOX() {
+	    return this.getToken(ModalityParser.RBOX, 0);
+	};
+
+	formula() {
+	    return this.getTypedRuleContext(FormulaContext,0);
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterEmptyBoxFormula(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitEmptyBoxFormula(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitEmptyBoxFormula(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.EmptyBoxFormulaContext = EmptyBoxFormulaContext;
+
+class EmptyDiamondFormulaContext extends FormulaContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        this.outer = null;;
+        super.copyFrom(ctx);
+    }
+
+	LDIA() {
+	    return this.getToken(ModalityParser.LDIA, 0);
+	};
+
+	RDIA() {
+	    return this.getToken(ModalityParser.RDIA, 0);
+	};
+
+	formula() {
+	    return this.getTypedRuleContext(FormulaContext,0);
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterEmptyDiamondFormula(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitEmptyDiamondFormula(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitEmptyDiamondFormula(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.EmptyDiamondFormulaContext = EmptyDiamondFormulaContext;
+
+class BoxFormulaContext extends FormulaContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        this.inner = null;;
+        this.outer = null;;
+        super.copyFrom(ctx);
+    }
+
+	LBOX() {
+	    return this.getToken(ModalityParser.LBOX, 0);
+	};
+
+	RBOX() {
+	    return this.getToken(ModalityParser.RBOX, 0);
+	};
+
+	formula = function(i) {
+	    if(i===undefined) {
+	        i = null;
+	    }
+	    if(i===null) {
+	        return this.getTypedRuleContexts(FormulaContext);
+	    } else {
+	        return this.getTypedRuleContext(FormulaContext,i);
+	    }
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterBoxFormula(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitBoxFormula(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitBoxFormula(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.BoxFormulaContext = BoxFormulaContext;
+
+class DiamondFormulaContext extends FormulaContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        this.inner = null;;
+        this.outer = null;;
+        super.copyFrom(ctx);
+    }
+
+	LDIA() {
+	    return this.getToken(ModalityParser.LDIA, 0);
+	};
+
+	RDIA() {
+	    return this.getToken(ModalityParser.RDIA, 0);
+	};
+
+	formula = function(i) {
+	    if(i===undefined) {
+	        i = null;
+	    }
+	    if(i===null) {
+	        return this.getTypedRuleContexts(FormulaContext);
+	    } else {
+	        return this.getTypedRuleContext(FormulaContext,i);
+	    }
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterDiamondFormula(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitDiamondFormula(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitDiamondFormula(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.DiamondFormulaContext = DiamondFormulaContext;
+
+class LfpFormulaContext extends FormulaContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        this.stateSetVariable = null;;
+        this.inner = null;;
+        super.copyFrom(ctx);
+    }
+
+	LFP() {
+	    return this.getToken(ModalityParser.LFP, 0);
+	};
+
+	LPAREN() {
+	    return this.getToken(ModalityParser.LPAREN, 0);
+	};
+
+	COMMA() {
+	    return this.getToken(ModalityParser.COMMA, 0);
+	};
+
+	RPAREN() {
+	    return this.getToken(ModalityParser.RPAREN, 0);
+	};
+
+	formula = function(i) {
+	    if(i===undefined) {
+	        i = null;
+	    }
+	    if(i===null) {
+	        return this.getTypedRuleContexts(FormulaContext);
+	    } else {
+	        return this.getTypedRuleContext(FormulaContext,i);
+	    }
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterLfpFormula(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitLfpFormula(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitLfpFormula(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.LfpFormulaContext = LfpFormulaContext;
+
 class GfpFormulaContext extends FormulaContext {
 
     constructor(parser, ctx) {
@@ -1860,32 +1440,44 @@ class GfpFormulaContext extends FormulaContext {
 
 ModalityParser.GfpFormulaContext = GfpFormulaContext;
 
-class TrueAtomContext extends FormulaContext {
+class MustMacroContext extends FormulaContext {
 
     constructor(parser, ctx) {
         super(parser);
         super.copyFrom(ctx);
     }
 
-	TRUE() {
-	    return this.getToken(ModalityParser.TRUE, 0);
+	MUST() {
+	    return this.getToken(ModalityParser.MUST, 0);
+	};
+
+	LPAREN() {
+	    return this.getToken(ModalityParser.LPAREN, 0);
+	};
+
+	formula() {
+	    return this.getTypedRuleContext(FormulaContext,0);
+	};
+
+	RPAREN() {
+	    return this.getToken(ModalityParser.RPAREN, 0);
 	};
 
 	enterRule(listener) {
 	    if(listener instanceof ModalityListener ) {
-	        listener.enterTrueAtom(this);
+	        listener.enterMustMacro(this);
 		}
 	}
 
 	exitRule(listener) {
 	    if(listener instanceof ModalityListener ) {
-	        listener.exitTrueAtom(this);
+	        listener.exitMustMacro(this);
 		}
 	}
 
 	accept(visitor) {
 	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitTrueAtom(this);
+	        return visitor.visitMustMacro(this);
 	    } else {
 	        return visitor.visitChildren(this);
 	    }
@@ -1894,34 +1486,46 @@ class TrueAtomContext extends FormulaContext {
 
 }
 
-ModalityParser.TrueAtomContext = TrueAtomContext;
+ModalityParser.MustMacroContext = MustMacroContext;
 
-class StateSetVariableContext extends FormulaContext {
+class CanMacroContext extends FormulaContext {
 
     constructor(parser, ctx) {
         super(parser);
         super.copyFrom(ctx);
     }
 
-	STATE_SET_VARIABLE() {
-	    return this.getToken(ModalityParser.STATE_SET_VARIABLE, 0);
+	CAN() {
+	    return this.getToken(ModalityParser.CAN, 0);
+	};
+
+	LPAREN() {
+	    return this.getToken(ModalityParser.LPAREN, 0);
+	};
+
+	formula() {
+	    return this.getTypedRuleContext(FormulaContext,0);
+	};
+
+	RPAREN() {
+	    return this.getToken(ModalityParser.RPAREN, 0);
 	};
 
 	enterRule(listener) {
 	    if(listener instanceof ModalityListener ) {
-	        listener.enterStateSetVariable(this);
+	        listener.enterCanMacro(this);
 		}
 	}
 
 	exitRule(listener) {
 	    if(listener instanceof ModalityListener ) {
-	        listener.exitStateSetVariable(this);
+	        listener.exitCanMacro(this);
 		}
 	}
 
 	accept(visitor) {
 	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitStateSetVariable(this);
+	        return visitor.visitCanMacro(this);
 	    } else {
 	        return visitor.visitChildren(this);
 	    }
@@ -1930,7 +1534,402 @@ class StateSetVariableContext extends FormulaContext {
 
 }
 
-ModalityParser.StateSetVariableContext = StateSetVariableContext;
+ModalityParser.CanMacroContext = CanMacroContext;
+
+class AlwaysMacroContext extends FormulaContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        this.inner_formula = null;;
+        this.until_formula = null;;
+        super.copyFrom(ctx);
+    }
+
+	ALWAYS() {
+	    return this.getToken(ModalityParser.ALWAYS, 0);
+	};
+
+	LPAREN = function(i) {
+		if(i===undefined) {
+			i = null;
+		}
+	    if(i===null) {
+	        return this.getTokens(ModalityParser.LPAREN);
+	    } else {
+	        return this.getToken(ModalityParser.LPAREN, i);
+	    }
+	};
+
+
+	RPAREN = function(i) {
+		if(i===undefined) {
+			i = null;
+		}
+	    if(i===null) {
+	        return this.getTokens(ModalityParser.RPAREN);
+	    } else {
+	        return this.getToken(ModalityParser.RPAREN, i);
+	    }
+	};
+
+
+	formula = function(i) {
+	    if(i===undefined) {
+	        i = null;
+	    }
+	    if(i===null) {
+	        return this.getTypedRuleContexts(FormulaContext);
+	    } else {
+	        return this.getTypedRuleContext(FormulaContext,i);
+	    }
+	};
+
+	UNTIL() {
+	    return this.getToken(ModalityParser.UNTIL, 0);
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterAlwaysMacro(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitAlwaysMacro(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitAlwaysMacro(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.AlwaysMacroContext = AlwaysMacroContext;
+
+class EventuallyMacroContext extends FormulaContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        this.inner_formula = null;;
+        this.until_formula = null;;
+        super.copyFrom(ctx);
+    }
+
+	EVENTUALLY() {
+	    return this.getToken(ModalityParser.EVENTUALLY, 0);
+	};
+
+	LPAREN() {
+	    return this.getToken(ModalityParser.LPAREN, 0);
+	};
+
+	RPAREN = function(i) {
+		if(i===undefined) {
+			i = null;
+		}
+	    if(i===null) {
+	        return this.getTokens(ModalityParser.RPAREN);
+	    } else {
+	        return this.getToken(ModalityParser.RPAREN, i);
+	    }
+	};
+
+
+	formula = function(i) {
+	    if(i===undefined) {
+	        i = null;
+	    }
+	    if(i===null) {
+	        return this.getTypedRuleContexts(FormulaContext);
+	    } else {
+	        return this.getTypedRuleContext(FormulaContext,i);
+	    }
+	};
+
+	UNTIL() {
+	    return this.getToken(ModalityParser.UNTIL, 0);
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterEventuallyMacro(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitEventuallyMacro(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitEventuallyMacro(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.EventuallyMacroContext = EventuallyMacroContext;
+
+class WhenAlsoFormulaContext extends FormulaContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        this.when_formula = null;;
+        this.also_formula = null;;
+        super.copyFrom(ctx);
+    }
+
+	WHEN() {
+	    return this.getToken(ModalityParser.WHEN, 0);
+	};
+
+	ALSO() {
+	    return this.getToken(ModalityParser.ALSO, 0);
+	};
+
+	formula = function(i) {
+	    if(i===undefined) {
+	        i = null;
+	    }
+	    if(i===null) {
+	        return this.getTypedRuleContexts(FormulaContext);
+	    } else {
+	        return this.getTypedRuleContext(FormulaContext,i);
+	    }
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterWhenAlsoFormula(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitWhenAlsoFormula(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitWhenAlsoFormula(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.WhenAlsoFormulaContext = WhenAlsoFormulaContext;
+
+class WhenNextFormulaContext extends FormulaContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        this.when_formula = null;;
+        this.next_formula = null;;
+        super.copyFrom(ctx);
+    }
+
+	WHEN() {
+	    return this.getToken(ModalityParser.WHEN, 0);
+	};
+
+	NEXT() {
+	    return this.getToken(ModalityParser.NEXT, 0);
+	};
+
+	formula = function(i) {
+	    if(i===undefined) {
+	        i = null;
+	    }
+	    if(i===null) {
+	        return this.getTypedRuleContexts(FormulaContext);
+	    } else {
+	        return this.getTypedRuleContext(FormulaContext,i);
+	    }
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterWhenNextFormula(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitWhenNextFormula(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitWhenNextFormula(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.WhenNextFormulaContext = WhenNextFormulaContext;
+
+class ParenFormulaContext extends FormulaContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        this.inner = null;;
+        super.copyFrom(ctx);
+    }
+
+	LPAREN() {
+	    return this.getToken(ModalityParser.LPAREN, 0);
+	};
+
+	RPAREN() {
+	    return this.getToken(ModalityParser.RPAREN, 0);
+	};
+
+	formula() {
+	    return this.getTypedRuleContext(FormulaContext,0);
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterParenFormula(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitParenFormula(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitParenFormula(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.ParenFormulaContext = ParenFormulaContext;
+
+class OrFormulaContext extends FormulaContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        this.left = null;;
+        this.right = null;;
+        super.copyFrom(ctx);
+    }
+
+	OR() {
+	    return this.getToken(ModalityParser.OR, 0);
+	};
+
+	formula = function(i) {
+	    if(i===undefined) {
+	        i = null;
+	    }
+	    if(i===null) {
+	        return this.getTypedRuleContexts(FormulaContext);
+	    } else {
+	        return this.getTypedRuleContext(FormulaContext,i);
+	    }
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterOrFormula(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitOrFormula(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitOrFormula(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.OrFormulaContext = OrFormulaContext;
+
+class AndFormulaContext extends FormulaContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        this.left = null;;
+        this.right = null;;
+        super.copyFrom(ctx);
+    }
+
+	AND() {
+	    return this.getToken(ModalityParser.AND, 0);
+	};
+
+	formula = function(i) {
+	    if(i===undefined) {
+	        i = null;
+	    }
+	    if(i===null) {
+	        return this.getTypedRuleContexts(FormulaContext);
+	    } else {
+	        return this.getTypedRuleContext(FormulaContext,i);
+	    }
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterAndFormula(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitAndFormula(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitAndFormula(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.AndFormulaContext = AndFormulaContext;
 
 class FunctionPropContext extends antlr4.ParserRuleContext {
 
@@ -2241,78 +2240,6 @@ class ArgContext extends antlr4.ParserRuleContext {
 }
 
 
-class FalseArgContext extends ArgContext {
-
-    constructor(parser, ctx) {
-        super(parser);
-        super.copyFrom(ctx);
-    }
-
-	FALSE() {
-	    return this.getToken(ModalityParser.FALSE, 0);
-	};
-
-	enterRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.enterFalseArg(this);
-		}
-	}
-
-	exitRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.exitFalseArg(this);
-		}
-	}
-
-	accept(visitor) {
-	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitFalseArg(this);
-	    } else {
-	        return visitor.visitChildren(this);
-	    }
-	}
-
-
-}
-
-ModalityParser.FalseArgContext = FalseArgContext;
-
-class VariableArgContext extends ArgContext {
-
-    constructor(parser, ctx) {
-        super(parser);
-        super.copyFrom(ctx);
-    }
-
-	VARIABLE() {
-	    return this.getToken(ModalityParser.VARIABLE, 0);
-	};
-
-	enterRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.enterVariableArg(this);
-		}
-	}
-
-	exitRule(listener) {
-	    if(listener instanceof ModalityListener ) {
-	        listener.exitVariableArg(this);
-		}
-	}
-
-	accept(visitor) {
-	    if ( visitor instanceof ModalityVisitor ) {
-	        return visitor.visitVariableArg(this);
-	    } else {
-	        return visitor.visitChildren(this);
-	    }
-	}
-
-
-}
-
-ModalityParser.VariableArgContext = VariableArgContext;
-
 class TrueArgContext extends ArgContext {
 
     constructor(parser, ctx) {
@@ -2348,6 +2275,42 @@ class TrueArgContext extends ArgContext {
 }
 
 ModalityParser.TrueArgContext = TrueArgContext;
+
+class FalseArgContext extends ArgContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        super.copyFrom(ctx);
+    }
+
+	FALSE() {
+	    return this.getToken(ModalityParser.FALSE, 0);
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterFalseArg(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitFalseArg(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitFalseArg(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.FalseArgContext = FalseArgContext;
 
 class StringArgContext extends ArgContext {
 
@@ -2420,6 +2383,42 @@ class NumberArgContext extends ArgContext {
 }
 
 ModalityParser.NumberArgContext = NumberArgContext;
+
+class VariableArgContext extends ArgContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        super.copyFrom(ctx);
+    }
+
+	VARIABLE() {
+	    return this.getToken(ModalityParser.VARIABLE, 0);
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterVariableArg(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitVariableArg(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitVariableArg(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.VariableArgContext = VariableArgContext;
 
 
 ModalityParser.ExpressionContext = ExpressionContext; 
