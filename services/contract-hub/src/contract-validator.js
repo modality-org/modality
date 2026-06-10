@@ -529,11 +529,14 @@ export class ContractValidator {
   extractRulePredicateClausesWithFormulaParser(content) {
     const formulaContent = this.extractRuleFormulaContent(content);
     if (!formulaContent) return null;
-    if (/\band\b/i.test(formulaContent) && /\bor\b/i.test(formulaContent)) {
+    const hasAndOperator = /\band\b/i.test(formulaContent) || /&/.test(formulaContent);
+    const hasOrOperator = /\bor\b/i.test(formulaContent) || /\|/.test(formulaContent);
+    if (hasAndOperator && hasOrOperator) {
       return null;
     }
     const textualNotBeforeBoolean = /\bnot\s+(?:[+-]\s*)?[A-Za-z_]\w*(?:\s*\([^)]*\))?\s+\b(?:and|or)\b/i;
-    if (textualNotBeforeBoolean.test(formulaContent)) {
+    const bangNotBeforeBoolean = /!\s*(?:[+-]\s*)?[A-Za-z_]\w*(?:\s*\([^)]*\))?\s*(?:\b(?:and|or)\b|[&|])/i;
+    if (textualNotBeforeBoolean.test(formulaContent) || bangNotBeforeBoolean.test(formulaContent)) {
       return null;
     }
 

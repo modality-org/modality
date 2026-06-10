@@ -301,6 +301,24 @@ export default class ModalityListener extends antlr4.tree.ParseTreeListener {
 	}
 
 
+	// Enter a parse tree produced by ModalityParser#orOp.
+	enterOrOp(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#orOp.
+	exitOrOp(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#andOp.
+	enterAndOp(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#andOp.
+	exitAndOp(ctx) {
+	}
+
+
 	// Enter a parse tree produced by ModalityParser#trueArg.
 	enterTrueArg(ctx) {
 	}

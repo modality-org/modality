@@ -203,6 +203,18 @@ export default class ModalityVisitor extends antlr4.tree.ParseTreeVisitor {
 	}
 
 
+	// Visit a parse tree produced by ModalityParser#orOp.
+	visitOrOp(ctx) {
+	  return this.visitChildren(ctx);
+	}
+
+
+	// Visit a parse tree produced by ModalityParser#andOp.
+	visitAndOp(ctx) {
+	  return this.visitChildren(ctx);
+	}
+
+
 	// Visit a parse tree produced by ModalityParser#trueArg.
 	visitTrueArg(ctx) {
 	  return this.visitChildren(ctx);

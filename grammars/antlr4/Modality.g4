@@ -5,8 +5,8 @@ expression: f = formula EOF;
 formula:
 	TRUE												                                                                   # trueAtom
 	| FALSE												                                                                 # falseAtom
-	| left = formula OR right = formula              					                                     # orFormula
-	| left = formula AND right = formula              				                                     # andFormula
+	| left = formula orOp right = formula              					                                   # orFormula
+	| left = formula andOp right = formula              				                                     # andFormula
 	| left = formula implication right = formula												                       # impliesFormula
 	| MINUS inner = formula																																				 # negatedFormula
 	| notOp inner = formula								                                                         # notFormula
@@ -38,6 +38,8 @@ sign: PLUS | MINUS | QMARK # sign;
 prop: TRUE | FALSE | NAME | functionProp;
 implication: IMPLIES | ARROW | FAT_ARROW;
 notOp: NOT | BANG;
+orOp: OR | BAR;
+andOp: AND | AMP;
 
 arg:
 	TRUE # trueArg
@@ -99,6 +101,8 @@ fragment EXP: [Ee] [+\-]? INT;
 STATE_SET_VARIABLE: [@][A-Za-z0-9_]*;
 VARIABLE: [A-Za-z0-9_/][A-Za-z0-9_/.]*;
 BANG: '!';
+BAR: '|';
+AMP: '&';
 
 // whitespace
 WS: [ \n\t\r]+ -> skip;

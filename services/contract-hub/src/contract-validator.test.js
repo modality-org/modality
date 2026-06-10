@@ -588,6 +588,28 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
+      'rule either_signer { formula { always (+signed_by(/members/alice.id) | +signed_by(/members/bob.id)) } }'
+    ),
+    [
+      [{ sign: '+', name: 'signed_by', args: ['/members/alice.id'] }],
+      [{ sign: '+', name: 'signed_by', args: ['/members/bob.id'] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule signed_doc { formula { always (+modifies(/docs) & +signed_by(/members/alice.id)) } }'
+    ),
+    [
+      [
+        { sign: '+', name: 'modifies', args: ['/docs'] },
+        { sign: '+', name: 'signed_by', args: ['/members/alice.id'] }
+      ]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
       'rule membership { formula { always (+modifies(/members) implies +all_signed(/members)) } }'
     ),
     [
@@ -1247,6 +1269,22 @@ test('rule predicate extraction falls back for textual precedence cases', () => 
   );
   assert.deepEqual(
     validator.extractRulePredicateClauses(textualMixedRule),
+    [
+      [{ sign: '+', name: 'signed_by', args: ['/a.id'] }],
+      [
+        { sign: '+', name: 'signed_by', args: ['/b.id'] },
+        { sign: '+', name: 'modifies', args: ['/docs'] }
+      ]
+    ]
+  );
+
+  const symbolicMixedRule = 'rule docs { formula { always (signed_by(/a.id) | signed_by(/b.id) & modifies(/docs)) } }';
+  assert.equal(
+    validator.extractRulePredicateClausesWithFormulaParser(symbolicMixedRule),
+    null
+  );
+  assert.deepEqual(
+    validator.extractRulePredicateClauses(symbolicMixedRule),
     [
       [{ sign: '+', name: 'signed_by', args: ['/a.id'] }],
       [
