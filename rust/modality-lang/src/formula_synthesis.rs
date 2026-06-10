@@ -114,6 +114,11 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
             extract_from_expr(rhs, constraints);
         }
 
+        // Fixed-point wrappers are often produced by temporal desugaring.
+        FormulaExpr::Lfp(_, inner) | FormulaExpr::Gfp(_, inner) => {
+            extract_from_expr(inner, constraints);
+        }
+
         // Box with action
         FormulaExpr::Box(props, inner) => {
             for prop in props {
@@ -575,6 +580,31 @@ mod tests {
             Box::new(FormulaExpr::Diamond(
                 vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
                 Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("WAIT"));
+        assert!(constraints.actions.contains("APPROVE"));
+    }
+
+    #[test]
+    fn test_fixed_points_extract_candidate_actions() {
+        let formula = FormulaExpr::And(
+            Box::new(FormulaExpr::Lfp(
+                "X".to_string(),
+                Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "WAIT".to_string())],
+                    Box::new(FormulaExpr::Var("X".to_string())),
+                )),
+            )),
+            Box::new(FormulaExpr::Gfp(
+                "Y".to_string(),
+                Box::new(FormulaExpr::Box(
+                    vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                    Box::new(FormulaExpr::Var("Y".to_string())),
+                )),
             )),
         );
 
