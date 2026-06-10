@@ -3721,6 +3721,65 @@ test('validateContractLogic applies parser-backed rule clauses within a batch', 
   assert.equal(validReplacement.state.model.name, 'docs_quorum');
 });
 
+test('validateContractLogic applies fallback implication rules within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/expiry.modality',
+      content: 'rule expiry { formula { always (after(/deadlines/expiry.datetime) -> signed_by(/users/buyer.id)) } }',
+      model: `
+        model expiry_witness {
+          initial active
+          active -> active [-after(/deadlines/expiry.datetime)]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/expiry-unsafe.modality',
+        content: `
+          model expiry_unsafe {
+            initial active
+            active -> active [+after(/deadlines/expiry.datetime)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/expiry-signed.modality',
+        content: `
+          model expiry_signed {
+            initial active
+            active -> active [+signed_by(/users/buyer.id)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'expiry_signed');
+});
+
 test('validateContractLogic rejects unsafe parser-backed rule witnesses', async () => {
   const store = {
     pullCommits() {
