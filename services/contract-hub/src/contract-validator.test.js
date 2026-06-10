@@ -3898,6 +3898,65 @@ test('validateContractLogic applies parser-backed can macro rules within a batch
   assert.equal(validReplacement.state.model.name, 'releasable_ok');
 });
 
+test('validateContractLogic applies parser-backed negated can macro rules within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/no-release.modality',
+      content: 'rule no_release { formula { always (not can(+RELEASE)) } }',
+      model: `
+        model no_release_witness {
+          initial active
+          active -> active [-RELEASE]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/no-release-unsafe.modality',
+        content: `
+          model no_release_unsafe {
+            initial active
+            active -> active [+RELEASE]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/no-release-ok.modality',
+        content: `
+          model no_release_ok {
+            initial active
+            active -> active [-RELEASE]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'no_release_ok');
+});
+
 test('validateContractLogic applies fallback implication rules within a batch', async () => {
   const store = {
     pullCommits() {
