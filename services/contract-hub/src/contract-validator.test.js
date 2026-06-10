@@ -5097,6 +5097,65 @@ test('validateContractLogic applies fallback non-always temporal rules within a 
   assert.equal(validJsonReplacement.state.model.transitions[0].guard, '+signed_by(/owner.id)');
 });
 
+test('validateContractLogic applies fallback until rules within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/until.modality',
+      content: 'rule until_signed { formula { until(signed_by(/owner.id), threshold(2, /members)) } }',
+      model: `
+        model until_witness {
+          initial active
+          active -> active [+signed_by(/owner.id)]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/until-open.modality',
+        content: `
+          model until_open {
+            initial active
+            active -> active []
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/until-signed.modality',
+        content: `
+          model until_signed {
+            initial active
+            active -> active [+signed_by(/owner.id)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'until_signed');
+});
+
 test('validateContractLogic applies fallback modal predicate rules within a batch', async () => {
   const store = {
     pullCommits() {
