@@ -169,6 +169,7 @@ fn extract_diamond_box_props(expr: &FormulaExpr) -> Option<Vec<Property>> {
                 Some(props.clone())
             }
         }
+        FormulaExpr::Paren(inner) => extract_diamond_box_props(inner),
         _ => None,
     }
 }
@@ -529,6 +530,23 @@ mod tests {
         let constraints = extract_constraints(&formula);
 
         assert_eq!(constraints.self_loops.len(), 1);
+        assert!(constraints.self_loops[0]
+            .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
+    }
+
+    #[test]
+    fn test_inner_parentheses_do_not_hide_always_diamond_box_pattern() {
+        let formula = FormulaExpr::Always(Box::new(FormulaExpr::Paren(Box::new(
+            FormulaExpr::DiamondBox(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            ),
+        ))));
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(constraints.self_loops.len(), 1);
+        assert!(constraints.actions.is_empty());
         assert!(constraints.self_loops[0]
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
     }
