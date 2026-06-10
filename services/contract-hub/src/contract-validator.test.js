@@ -5992,6 +5992,42 @@ test('existing fallback temporal RULE history replays without witness while new 
   assert.equal(validReplacement.valid, true);
   assert.equal(validReplacement.state.model.name, 'eventual_signed');
 
+  const invalidJsonReplacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/eventual-open.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(invalidJsonReplacement.valid, false);
+  assert.match(invalidJsonReplacement.errors[0], /does not satisfy existing rule predicate/);
+
+  const validJsonReplacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/eventual-signed.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+signed_by(/owner.id)' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(validJsonReplacement.valid, true);
+  assert.equal(validJsonReplacement.state.model.transitions[0].guard, '+signed_by(/owner.id)');
+
   const newRule = await validateContractLogic({ pullCommits: () => [] }, 'contract', [legacyRule]);
   assert.equal(newRule.valid, false);
   assert.match(newRule.errors[0], /RULE requires a witness model/);
