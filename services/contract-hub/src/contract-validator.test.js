@@ -4017,6 +4017,66 @@ test('validateContractLogic applies parser-backed when next rules within a batch
   assert.equal(validReplacement.state.model.name, 'next_transfer_owner_ok');
 });
 
+test('validateContractLogic applies parser-backed when rules within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/transfer-owner.modality',
+      content: 'rule transfer_owner { formula { always (when +TRANSFER also signed_by(/owner.id)) } }',
+      model: `
+        model transfer_owner_witness {
+          initial active
+          active -> active [-TRANSFER]
+          active -> active [+signed_by(/owner.id)]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/transfer-owner-unsafe.modality',
+        content: `
+          model transfer_owner_unsafe {
+            initial active
+            active -> active [+TRANSFER]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/transfer-owner-ok.modality',
+        content: `
+          model transfer_owner_ok {
+            initial active
+            active -> active [+TRANSFER +signed_by(/owner.id)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'transfer_owner_ok');
+});
+
 test('validateContractLogic applies parser-backed nested modal rules within a batch', async () => {
   const store = {
     pullCommits() {
