@@ -1994,6 +1994,58 @@ test('fallback mixed textual boolean precedence constrains model witnesses', () 
   );
 });
 
+test('fallback non-always temporal rules constrain model witnesses', () => {
+  const validator = new ContractValidator();
+  const ruleContent = 'rule eventual { formula { eventually (signed_by(/owner.id)) } }';
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/eventual-unsafe.modality',
+        content: ruleContent,
+        model: `
+          model eventual_unsafe_witness {
+            initial active
+            active -> active []
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/eventual.modality',
+      content: ruleContent,
+      model: `
+        model eventual_witness {
+          initial active
+          active -> active [+signed_by(/owner.id)]
+        }
+      `
+    }
+  });
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'MODEL',
+        path: '/rules/eventual-open.modality',
+        content: `
+          model eventual_open {
+            initial active
+            active -> active []
+          }
+        `
+      }
+    }),
+    /MODEL transition active->active does not satisfy existing rule predicate/
+  );
+});
+
 test('rule predicate extraction supports arrow implications', () => {
   const validator = new ContractValidator();
 
