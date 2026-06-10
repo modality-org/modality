@@ -4773,6 +4773,65 @@ test('existing fallback RULE history replays without witness while new RULE comm
   assert.match(newRule.errors[0], /RULE requires a witness model/);
 });
 
+test('existing fallback modal RULE history replays without witness while new RULE commits require one', async () => {
+  const legacyRule = {
+    data: {
+      method: 'RULE',
+      path: '/rules/delivery.modality',
+      content: 'rule delivery { formula { always ([+RELEASE] implies <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true) } }'
+    }
+  };
+  const validator = new ContractValidator();
+
+  assert.doesNotThrow(() => validator.loadFromCommits([legacyRule]));
+
+  const store = {
+    pullCommits() {
+      return [legacyRule];
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/delivery-unsafe.modality',
+        content: `
+          model delivery_unsafe {
+            initial active
+            active -> active [+RELEASE]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/delivery-oracle.modality',
+        content: `
+          model delivery_oracle {
+            initial active
+            active -> active [+oracle_attests(/oracles/delivery.id, "delivered", "true")]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'delivery_oracle');
+
+  const newRule = await validateContractLogic({ pullCommits: () => [] }, 'contract', [legacyRule]);
+  assert.equal(newRule.valid, false);
+  assert.match(newRule.errors[0], /RULE requires a witness model/);
+});
+
 test('existing unsatisfiable parser-backed RULE history replays without witness and blocks replacements', async () => {
   const legacyRule = {
     data: {
