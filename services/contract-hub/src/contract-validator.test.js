@@ -2004,6 +2004,14 @@ test('rule predicate extraction supports arrow implications', () => {
       [{ sign: '+', name: 'signed_by', args: ['/users/buyer.id'] }]
     ]
   );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClauses('rule expiry { formula { always (after(/deadlines/expiry.datetime) => signed_by(/users/buyer.id)) } }'),
+    [
+      [{ sign: '-', name: 'after', args: ['/deadlines/expiry.datetime'] }],
+      [{ sign: '+', name: 'signed_by', args: ['/users/buyer.id'] }]
+    ]
+  );
 });
 
 test('fallback arrow implications constrain model witnesses', () => {
@@ -2053,6 +2061,52 @@ test('fallback arrow implications constrain model witnesses', () => {
       `
     }
   }));
+
+  assert.throws(
+    () => validator.loadModel('/rules/expiry-unsafe.modality', `
+      model expiry_unsafe {
+        initial active
+        active -> active [+after(/deadlines/expiry.datetime)]
+      }
+    `),
+    /does not satisfy existing rule predicate -after\(\/deadlines\/expiry.datetime\) \| \+signed_by\(\/users\/buyer.id\)/
+  );
+});
+
+test('fallback fat arrow implications constrain model witnesses', () => {
+  const validator = new ContractValidator();
+  const ruleContent = 'rule expiry { formula { always (after(/deadlines/expiry.datetime) => signed_by(/users/buyer.id)) } }';
+
+  assert.throws(
+    () => validator.applyCommit({
+      data: {
+        method: 'RULE',
+        path: '/rules/expiry-unsafe.modality',
+        content: ruleContent,
+        model: `
+          model expiry_unsafe_witness {
+            initial active
+            active -> active [+after(/deadlines/expiry.datetime)]
+          }
+        `
+      }
+    }),
+    /RULE witness model failed: MODEL transition active->active does not satisfy existing rule predicate/
+  );
+
+  validator.applyCommit({
+    data: {
+      method: 'RULE',
+      path: '/rules/expiry.modality',
+      content: ruleContent,
+      model: `
+        model expiry_witness {
+          initial active
+          active -> active [+signed_by(/users/buyer.id)]
+        }
+      `
+    }
+  });
 
   assert.throws(
     () => validator.loadModel('/rules/expiry-unsafe.modality', `
