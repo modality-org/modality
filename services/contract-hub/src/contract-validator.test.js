@@ -4077,6 +4077,66 @@ test('validateContractLogic applies parser-backed nested modal rules within a ba
   assert.equal(validReplacement.state.model.name, 'release_after_transfer_ok');
 });
 
+test('validateContractLogic applies parser-backed negated nested modal rules within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/no-transfer-with-release-policy.modality',
+      content: 'rule no_transfer_with_release_policy { formula { always (not <+TRANSFER> [+RELEASE] signed_by(/owner.id)) } }',
+      model: `
+        model no_transfer_with_release_policy_witness {
+          initial active
+          active -> active [-TRANSFER]
+          active -> active [+RELEASE -signed_by(/owner.id)]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/no-transfer-with-release-policy-unsafe.modality',
+        content: `
+          model no_transfer_with_release_policy_unsafe {
+            initial active
+            active -> active [+TRANSFER +RELEASE +signed_by(/owner.id)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/no-transfer-with-release-policy-ok.modality',
+        content: `
+          model no_transfer_with_release_policy_ok {
+            initial active
+            active -> active [+RELEASE -signed_by(/owner.id)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'no_transfer_with_release_policy_ok');
+});
+
 test('validateContractLogic applies fallback implication rules within a batch', async () => {
   const store = {
     pullCommits() {
