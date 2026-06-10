@@ -143,6 +143,12 @@ export default class ModalityVisitor extends antlr4.tree.ParseTreeVisitor {
 	}
 
 
+	// Visit a parse tree produced by ModalityParser#impliesFormula.
+	visitImpliesFormula(ctx) {
+	  return this.visitChildren(ctx);
+	}
+
+
 	// Visit a parse tree produced by ModalityParser#functionProp.
 	visitFunctionProp(ctx) {
 	  return this.visitChildren(ctx);
@@ -169,6 +175,12 @@ export default class ModalityVisitor extends antlr4.tree.ParseTreeVisitor {
 
 	// Visit a parse tree produced by ModalityParser#prop.
 	visitProp(ctx) {
+	  return this.visitChildren(ctx);
+	}
+
+
+	// Visit a parse tree produced by ModalityParser#implication.
+	visitImplication(ctx) {
 	  return this.visitChildren(ctx);
 	}
 

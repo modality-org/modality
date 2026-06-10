@@ -581,6 +581,36 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
+      'rule membership { formula { always (+modifies(/members) implies +all_signed(/members)) } }'
+    ),
+    [
+      [{ sign: '-', name: 'modifies', args: ['/members'] }],
+      [{ sign: '+', name: 'all_signed', args: ['/members'] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule expiry { formula { always (after(/deadlines/expiry.datetime) -> signed_by(/users/buyer.id)) } }'
+    ),
+    [
+      [{ sign: '-', name: 'after', args: ['/deadlines/expiry.datetime'] }],
+      [{ sign: '+', name: 'signed_by', args: ['/users/buyer.id'] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
+      'rule expiry { formula { always (after(/deadlines/expiry.datetime) => signed_by(/users/buyer.id)) } }'
+    ),
+    [
+      [{ sign: '-', name: 'after', args: ['/deadlines/expiry.datetime'] }],
+      [{ sign: '+', name: 'signed_by', args: ['/users/buyer.id'] }]
+    ]
+  );
+
+  assert.deepEqual(
+    validator.extractRulePredicateClausesWithFormulaParser(
       'rule docs { formula { when +modifies(/docs) also +signed_by(/members/alice.id) } }'
     ),
     [
@@ -1148,21 +1178,8 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
   );
 });
 
-test('rule predicate extraction falls back when formula parser cannot parse documented syntax', () => {
+test('rule predicate extraction falls back for textual precedence cases', () => {
   const validator = new ContractValidator();
-  const rule = 'rule membership { formula { always (+modifies(/members) implies +all_signed(/members)) } }';
-
-  assert.equal(
-    validator.extractRulePredicateClausesWithFormulaParser(rule),
-    null
-  );
-  assert.deepEqual(
-    validator.extractRulePredicateClauses(rule),
-    [
-      [{ sign: '-', name: 'modifies', args: ['/members'] }],
-      [{ sign: '+', name: 'all_signed', args: ['/members'] }]
-    ]
-  );
 
   const textualNotRule = 'rule no_rules { formula { always (not adds_rule or signed_by(/admin.id)) } }';
   assert.equal(

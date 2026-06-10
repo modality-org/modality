@@ -7,6 +7,7 @@ formula:
 	| FALSE												                                                                 # falseAtom
 	| left = formula OR right = formula              					                                     # orFormula
 	| left = formula AND right = formula              				                                     # andFormula
+	| left = formula implication right = formula												                       # impliesFormula
 	| MINUS inner = formula																																				 # negatedFormula
 	| NOT inner = formula								                                                           # notFormula
 	| (unsignedProp (signedProp)* | (signedProp)+)						                                     # propsSet
@@ -33,6 +34,7 @@ unsignedProp: theProp = prop;
 signedProp: (theSign = sign) WS* theProp = prop;
 sign: PLUS | MINUS | QMARK # sign;
 prop: TRUE | FALSE | NAME | functionProp;
+implication: IMPLIES | ARROW | FAT_ARROW;
 
 arg:
 	TRUE # trueArg
@@ -54,6 +56,7 @@ FALSE: 'false';
 AND: 'and';
 OR: 'or';
 NOT: 'not';
+IMPLIES: 'implies';
 WHEN: 'when';
 ALSO: 'also';
 NEXT: 'next';
@@ -72,6 +75,8 @@ COMMA: ',';
 PLUS: '+';
 MINUS: '-';
 QMARK: '?';
+ARROW: '->';
+FAT_ARROW: '=>';
 
 LFP: 'lfp';
 GFP: 'gfp';

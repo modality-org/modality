@@ -70,6 +70,12 @@ export default class ModalityVisitor extends AbstractVisitor {
     return new AndFormula(left, right);
   }
 
+  visitImpliesFormula(ctx) {
+    const left = this.visit(ctx.left);
+    const right = this.visit(ctx.right);
+    return new OrFormula(new NotFormula(left), right);
+  }
+
   visitPropAtom(ctx) {
     return new PropAtom(ctx.prop.text);
   }

@@ -211,6 +211,15 @@ export default class ModalityListener extends antlr4.tree.ParseTreeListener {
 	}
 
 
+	// Enter a parse tree produced by ModalityParser#impliesFormula.
+	enterImpliesFormula(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#impliesFormula.
+	exitImpliesFormula(ctx) {
+	}
+
+
 	// Enter a parse tree produced by ModalityParser#functionProp.
 	enterFunctionProp(ctx) {
 	}
@@ -253,6 +262,15 @@ export default class ModalityListener extends antlr4.tree.ParseTreeListener {
 
 	// Exit a parse tree produced by ModalityParser#prop.
 	exitProp(ctx) {
+	}
+
+
+	// Enter a parse tree produced by ModalityParser#implication.
+	enterImplication(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#implication.
+	exitImplication(ctx) {
 	}
 
 
