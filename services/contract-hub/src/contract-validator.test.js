@@ -5898,6 +5898,65 @@ test('validateContractLogic applies JSON-witnessed rules to later JSON model rep
   assert.deepEqual(validReplacement.state.model.transitions[0].guard, '+any_signed(/members)');
 });
 
+test('validateContractLogic applies JSON-witnessed symbolic rules to later JSON model replacements', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/docs-symbolic.modality',
+      content: 'rule docs_symbolic { formula { always ((signed_by(/owner.id) | threshold(2, /members)) & modifies(/docs)) } }',
+      model: {
+        systems: [{ possible_current_state_ids: ['active'] }],
+        transitions: [
+          { from: 'active', to: 'active', guard: '+signed_by(/owner.id) +modifies(/docs)' }
+        ]
+      }
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/docs-symbolic-open.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+threshold(2, /members)' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/docs-symbolic.json',
+        content: {
+          systems: [{ possible_current_state_ids: ['active'] }],
+          transitions: [
+            { from: 'active', to: 'active', guard: '+threshold(2, /members) +modifies(/docs)' }
+          ]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.transitions[0].guard, '+threshold(2, /members) +modifies(/docs)');
+});
+
 test('validateContractLogic keeps rule witnesses separate from the governing model', async () => {
   const store = {
     pullCommits() {
