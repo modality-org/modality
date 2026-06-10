@@ -65,13 +65,14 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
                     constraints.actions.extend(required_actions);
                 }
                 // Check for <+signed_by(path)> true pattern
-                if let Some(signer) = extract_diamond_signer(rhs) {
+                let signers = extract_diamond_signers(rhs);
+                if !signers.is_empty() {
                     for action_x in &guarded_actions {
                         constraints
                             .authorization
                             .entry(action_x.clone())
                             .or_default()
-                            .push(signer.clone());
+                            .extend(signers.clone());
                         constraints.actions.insert(action_x.clone());
                     }
                 }
@@ -221,11 +222,12 @@ fn extract_diamond_actions(expr: &FormulaExpr) -> Vec<String> {
     }
 }
 
-/// Extract signer path from <+signed_by(path)> true pattern
-fn extract_diamond_signer(expr: &FormulaExpr) -> Option<String> {
+/// Extract signer paths from <+signed_by(path) ...> true patterns
+fn extract_diamond_signers(expr: &FormulaExpr) -> Vec<String> {
     match expr {
-        FormulaExpr::Diamond(props, _) => {
-            for prop in props {
+        FormulaExpr::Diamond(props, _) => props
+            .iter()
+            .filter_map(|prop| {
                 if prop.sign == PropertySign::Plus && prop.name == "signed_by" {
                     if let Some(PropertySource::Predicate { args, .. }) = &prop.source {
                         if let Some(arg) = args.get("arg") {
@@ -233,11 +235,11 @@ fn extract_diamond_signer(expr: &FormulaExpr) -> Option<String> {
                         }
                     }
                 }
-            }
-            None
-        }
-        FormulaExpr::Paren(inner) => extract_diamond_signer(inner),
-        _ => None,
+                None
+            })
+            .collect(),
+        FormulaExpr::Paren(inner) => extract_diamond_signers(inner),
+        _ => Vec::new(),
     }
 }
 
@@ -749,6 +751,39 @@ mod tests {
         assert_eq!(
             constraints.authorization.get("REJECT"),
             Some(&vec!["/users/reviewer.id".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_multi_signer_diamond_adds_authorization_for_each_signer() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Diamond(
+                vec![
+                    Property::new_predicate_from_call(
+                        "signed_by".to_string(),
+                        "/users/alice.id".to_string(),
+                    ),
+                    Property::new_predicate_from_call(
+                        "signed_by".to_string(),
+                        "/users/bob.id".to_string(),
+                    ),
+                ],
+                Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(
+            constraints.authorization.get("APPROVE"),
+            Some(&vec![
+                "/users/alice.id".to_string(),
+                "/users/bob.id".to_string()
+            ])
         );
     }
 
