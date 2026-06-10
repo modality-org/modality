@@ -3839,6 +3839,65 @@ test('validateContractLogic applies parser-backed oracle diamond rules within a 
   assert.equal(validReplacement.state.model.name, 'delivery_oracle');
 });
 
+test('validateContractLogic applies parser-backed threshold rules within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/quorum.modality',
+      content: 'rule quorum { formula { always (threshold(2, /members)) } }',
+      model: `
+        model quorum_witness {
+          initial active
+          active -> active [+threshold(2, /members)]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/quorum-unsafe.modality',
+        content: `
+          model quorum_unsafe {
+            initial active
+            active -> active [+any_signed(/members)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/quorum-ok.modality',
+        content: `
+          model quorum_ok {
+            initial active
+            active -> active [+threshold(2, /members)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'quorum_ok');
+});
+
 test('validateContractLogic applies parser-backed can macro rules within a batch', async () => {
   const store = {
     pullCommits() {
