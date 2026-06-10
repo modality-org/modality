@@ -682,6 +682,21 @@ mod tests {
     }
 
     #[test]
+    fn verify_synthesized_model_rejects_unsatisfied_formula() {
+        let mut model = modality_lang::Model::new("Contract".to_string());
+        let mut part = modality_lang::Part::new("flow".to_string());
+        part.add_transition(modality_lang::Transition::new(
+            "init".to_string(),
+            "done".to_string(),
+        ));
+        model.add_part(part);
+
+        let formulas = vec![modality_lang::FormulaExpr::False];
+
+        assert!(verify_synthesized_model(&model, &formulas).is_err());
+    }
+
+    #[test]
     fn legacy_string_constraints_still_cover_unparseable_llm_output() {
         let formulas = vec![
             "[+RELEASE] implies eventually(<+DELIVER> true)".to_string(),
