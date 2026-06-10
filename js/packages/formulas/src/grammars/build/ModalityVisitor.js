@@ -107,6 +107,12 @@ export default class ModalityVisitor extends antlr4.tree.ParseTreeVisitor {
 	}
 
 
+	// Visit a parse tree produced by ModalityParser#untilMacro.
+	visitUntilMacro(ctx) {
+	  return this.visitChildren(ctx);
+	}
+
+
 	// Visit a parse tree produced by ModalityParser#whenAlsoFormula.
 	visitWhenAlsoFormula(ctx) {
 	  return this.visitChildren(ctx);

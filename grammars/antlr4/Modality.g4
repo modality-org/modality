@@ -21,6 +21,7 @@ formula:
 	| CAN LPAREN formula RPAREN                                                                    # canMacro
 	| ALWAYS LPAREN inner_formula = formula RPAREN (UNTIL LPAREN until_formula = formula RPAREN)?  # alwaysMacro
 	| EVENTUALLY LPAREN inner_formula = formula RPAREN (UNTIL LPAREN until_formula = formula RPAREN)? # eventuallyMacro
+	| UNTIL LPAREN pre_formula = formula COMMA post_formula = formula RPAREN                       # untilMacro
 	| WHEN when_formula = formula ALSO also_formula = formula                                      # whenAlsoFormula
 	| WHEN when_formula = formula NEXT next_formula = formula                                      # whenNextFormula
 	| LPAREN inner = formula RPAREN						                                                     # parenFormula

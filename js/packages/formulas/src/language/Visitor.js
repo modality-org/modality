@@ -23,6 +23,7 @@ import {
   CanMacro,
   AlwaysMacro,
   EventuallyMacro,
+  UntilMacro,
   WhenAlsoFormula,
   WhenNextFormula,
   // other
@@ -136,6 +137,12 @@ export default class ModalityVisitor extends AbstractVisitor {
       ? this.visit(ctx.until_formula)
       : null;
     return new EventuallyMacro(inner_formula, until_formula);
+  }
+
+  visitUntilMacro(ctx) {
+    const pre_formula = this.visit(ctx.pre_formula);
+    const post_formula = this.visit(ctx.post_formula);
+    return new UntilMacro(pre_formula, post_formula);
   }
 
   visitPropsSet(ctx) {

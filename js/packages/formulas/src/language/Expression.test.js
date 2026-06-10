@@ -22,6 +22,7 @@ const VALID_FORMULAS = {
   [`can(+a -b ?c)`]: `<+a -b> true`,
   [`always(must(+a))`]: `gfp(@x, [] @x and [-a] false)`,
   [`eventually(can(+a))`]: `lfp(@x, <> @x or <+a> true)`,
+  [`until(+a, +b)`]: `lfp(@x, +b or (+a and <>@x))`,
   [`post(/a.text)`]: `+post__${escapeArgs("/a.text")}`,
   [`must(post(/a.text))`]: `[-post__${escapeArgs("/a.text")}] false`,
   [`must(-post(/a.text))`]: `[+post__${escapeArgs("/a.text")}] false`,
@@ -135,6 +136,24 @@ describe("Expression", () => {
     expect(formula.toModalFormula()).toBe("lfp(@x, (<>@x or +a) or +b)");
 
     expect(() => new Expression(`eventually(+a) until +b)`)).toThrow();
+  });
+
+  it("should parse until macros", async () => {
+    const formula = new Expression(`until(can(+a), eventually(+b))`);
+
+    expect(formula.constructor.name).toBe("UntilMacro");
+    expect(formula.pre_formula.constructor.name).toBe("CanMacro");
+    expect(formula.post_formula.constructor.name).toBe("EventuallyMacro");
+    expect(formula.toModalFormula()).toBe(
+      "lfp(@x, lfp(@x, <>@x or +b) or (<+a> true and <>@x))"
+    );
+    expect(formula.expandFunctions()).toEqual({
+      constraint: "true",
+      functions: { a: true, b: true },
+    });
+
+    expect(() => new Expression(`until(+a)`)).toThrow();
+    expect(() => new Expression(`until(+a, +b, +c)`)).toThrow();
   });
 
   it("should parse compound modal and when consequents", async () => {

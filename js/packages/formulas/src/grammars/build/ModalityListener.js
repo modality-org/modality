@@ -157,6 +157,15 @@ export default class ModalityListener extends antlr4.tree.ParseTreeListener {
 	}
 
 
+	// Enter a parse tree produced by ModalityParser#untilMacro.
+	enterUntilMacro(ctx) {
+	}
+
+	// Exit a parse tree produced by ModalityParser#untilMacro.
+	exitUntilMacro(ctx) {
+	}
+
+
 	// Enter a parse tree produced by ModalityParser#whenAlsoFormula.
 	enterWhenAlsoFormula(ctx) {
 	}

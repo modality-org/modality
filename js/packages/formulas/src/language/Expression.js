@@ -34,6 +34,7 @@ export { default as MustMacro } from "./MustMacro.js";
 export { default as CanMacro } from "./CanMacro.js";
 export { default as AlwaysMacro } from "./AlwaysMacro.js";
 export { default as EventuallyMacro } from "./EventuallyMacro.js";
+export { default as UntilMacro } from "./UntilMacro.js";
 // ...
 export { default as WhenAlsoFormula } from "./WhenAlsoFormula.js";
 export { default as WhenNextFormula } from "./WhenNextFormula.js";

@@ -3,60 +3,62 @@ import antlr4 from 'antlr4';
 import ModalityListener from './ModalityListener.js';
 import ModalityVisitor from './ModalityVisitor.js';
 
-const serializedATN = [4,1,33,171,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,
+const serializedATN = [4,1,33,178,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,
 4,2,5,7,5,2,6,7,6,2,7,7,7,1,0,1,0,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
 1,5,1,29,8,1,10,1,12,1,32,9,1,1,1,4,1,35,8,1,11,1,12,1,36,3,1,39,8,1,1,1,
 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,1,91,8,1,1,1,1,1,1,
 1,1,1,1,1,1,1,1,1,1,1,1,1,3,1,102,8,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-1,1,1,1,1,1,1,1,1,1,1,3,1,118,8,1,1,1,1,1,1,1,1,1,1,1,1,1,5,1,126,8,1,10,
-1,12,1,129,9,1,1,2,1,2,1,2,1,2,1,2,5,2,136,8,2,10,2,12,2,139,9,2,3,2,141,
-8,2,1,2,1,2,1,3,1,3,1,4,1,4,5,4,149,8,4,10,4,12,4,152,9,4,1,4,1,4,1,5,1,
-5,1,6,1,6,1,6,1,6,3,6,162,8,6,1,7,1,7,1,7,1,7,1,7,3,7,169,8,7,1,7,0,1,2,
-8,0,2,4,6,8,10,12,14,0,1,1,0,22,24,197,0,16,1,0,0,0,2,117,1,0,0,0,4,130,
-1,0,0,0,6,144,1,0,0,0,8,146,1,0,0,0,10,155,1,0,0,0,12,161,1,0,0,0,14,168,
-1,0,0,0,16,17,3,2,1,0,17,18,5,0,0,1,18,1,1,0,0,0,19,20,6,1,-1,0,20,118,5,
-6,0,0,21,118,5,7,0,0,22,23,5,23,0,0,23,118,3,2,1,17,24,25,5,10,0,0,25,118,
-3,2,1,16,26,30,3,6,3,0,27,29,3,8,4,0,28,27,1,0,0,0,29,32,1,0,0,0,30,28,1,
-0,0,0,30,31,1,0,0,0,31,39,1,0,0,0,32,30,1,0,0,0,33,35,3,8,4,0,34,33,1,0,
-0,0,35,36,1,0,0,0,36,34,1,0,0,0,36,37,1,0,0,0,37,39,1,0,0,0,38,26,1,0,0,
-0,38,34,1,0,0,0,39,118,1,0,0,0,40,118,5,30,0,0,41,42,5,14,0,0,42,43,5,15,
-0,0,43,118,3,2,1,13,44,45,5,16,0,0,45,46,5,17,0,0,46,118,3,2,1,12,47,48,
-5,14,0,0,48,49,3,2,1,0,49,50,5,15,0,0,50,51,3,2,1,0,51,118,1,0,0,0,52,53,
-5,16,0,0,53,54,3,2,1,0,54,55,5,17,0,0,55,56,3,2,1,0,56,118,1,0,0,0,57,58,
-5,25,0,0,58,59,5,18,0,0,59,60,3,2,1,0,60,61,5,21,0,0,61,62,3,2,1,0,62,63,
-5,19,0,0,63,118,1,0,0,0,64,65,5,26,0,0,65,66,5,18,0,0,66,67,3,2,1,0,67,68,
-5,21,0,0,68,69,3,2,1,0,69,70,5,19,0,0,70,118,1,0,0,0,71,72,5,1,0,0,72,73,
-5,18,0,0,73,74,3,2,1,0,74,75,5,19,0,0,75,118,1,0,0,0,76,77,5,2,0,0,77,78,
-5,18,0,0,78,79,3,2,1,0,79,80,5,19,0,0,80,118,1,0,0,0,81,82,5,3,0,0,82,83,
-5,18,0,0,83,84,3,2,1,0,84,90,5,19,0,0,85,86,5,5,0,0,86,87,5,18,0,0,87,88,
-3,2,1,0,88,89,5,19,0,0,89,91,1,0,0,0,90,85,1,0,0,0,90,91,1,0,0,0,91,118,
-1,0,0,0,92,93,5,4,0,0,93,94,5,18,0,0,94,95,3,2,1,0,95,101,5,19,0,0,96,97,
-5,5,0,0,97,98,5,18,0,0,98,99,3,2,1,0,99,100,5,19,0,0,100,102,1,0,0,0,101,
-96,1,0,0,0,101,102,1,0,0,0,102,118,1,0,0,0,103,104,5,11,0,0,104,105,3,2,
-1,0,105,106,5,12,0,0,106,107,3,2,1,0,107,118,1,0,0,0,108,109,5,11,0,0,109,
-110,3,2,1,0,110,111,5,13,0,0,111,112,3,2,1,0,112,118,1,0,0,0,113,114,5,18,
-0,0,114,115,3,2,1,0,115,116,5,19,0,0,116,118,1,0,0,0,117,19,1,0,0,0,117,
-21,1,0,0,0,117,22,1,0,0,0,117,24,1,0,0,0,117,38,1,0,0,0,117,40,1,0,0,0,117,
-41,1,0,0,0,117,44,1,0,0,0,117,47,1,0,0,0,117,52,1,0,0,0,117,57,1,0,0,0,117,
-64,1,0,0,0,117,71,1,0,0,0,117,76,1,0,0,0,117,81,1,0,0,0,117,92,1,0,0,0,117,
-103,1,0,0,0,117,108,1,0,0,0,117,113,1,0,0,0,118,127,1,0,0,0,119,120,10,19,
-0,0,120,121,5,9,0,0,121,126,3,2,1,20,122,123,10,18,0,0,123,124,5,8,0,0,124,
-126,3,2,1,19,125,119,1,0,0,0,125,122,1,0,0,0,126,129,1,0,0,0,127,125,1,0,
-0,0,127,128,1,0,0,0,128,3,1,0,0,0,129,127,1,0,0,0,130,131,5,27,0,0,131,140,
-5,18,0,0,132,137,3,14,7,0,133,134,5,21,0,0,134,136,3,14,7,0,135,133,1,0,
-0,0,136,139,1,0,0,0,137,135,1,0,0,0,137,138,1,0,0,0,138,141,1,0,0,0,139,
-137,1,0,0,0,140,132,1,0,0,0,140,141,1,0,0,0,141,142,1,0,0,0,142,143,5,19,
-0,0,143,5,1,0,0,0,144,145,3,12,6,0,145,7,1,0,0,0,146,150,3,10,5,0,147,149,
-5,32,0,0,148,147,1,0,0,0,149,152,1,0,0,0,150,148,1,0,0,0,150,151,1,0,0,0,
-151,153,1,0,0,0,152,150,1,0,0,0,153,154,3,12,6,0,154,9,1,0,0,0,155,156,7,
-0,0,0,156,11,1,0,0,0,157,162,5,6,0,0,158,162,5,7,0,0,159,162,5,27,0,0,160,
-162,3,4,2,0,161,157,1,0,0,0,161,158,1,0,0,0,161,159,1,0,0,0,161,160,1,0,
-0,0,162,13,1,0,0,0,163,169,5,6,0,0,164,169,5,7,0,0,165,169,5,28,0,0,166,
-169,5,29,0,0,167,169,5,31,0,0,168,163,1,0,0,0,168,164,1,0,0,0,168,165,1,
-0,0,0,168,166,1,0,0,0,168,167,1,0,0,0,169,15,1,0,0,0,13,30,36,38,90,101,
-117,125,127,137,140,150,161,168];
+1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,1,125,8,1,1,1,1,1,1,
+1,1,1,1,1,1,1,5,1,133,8,1,10,1,12,1,136,9,1,1,2,1,2,1,2,1,2,1,2,5,2,143,
+8,2,10,2,12,2,146,9,2,3,2,148,8,2,1,2,1,2,1,3,1,3,1,4,1,4,5,4,156,8,4,10,
+4,12,4,159,9,4,1,4,1,4,1,5,1,5,1,6,1,6,1,6,1,6,3,6,169,8,6,1,7,1,7,1,7,1,
+7,1,7,3,7,176,8,7,1,7,0,1,2,8,0,2,4,6,8,10,12,14,0,1,1,0,22,24,205,0,16,
+1,0,0,0,2,124,1,0,0,0,4,137,1,0,0,0,6,151,1,0,0,0,8,153,1,0,0,0,10,162,1,
+0,0,0,12,168,1,0,0,0,14,175,1,0,0,0,16,17,3,2,1,0,17,18,5,0,0,1,18,1,1,0,
+0,0,19,20,6,1,-1,0,20,125,5,6,0,0,21,125,5,7,0,0,22,23,5,23,0,0,23,125,3,
+2,1,18,24,25,5,10,0,0,25,125,3,2,1,17,26,30,3,6,3,0,27,29,3,8,4,0,28,27,
+1,0,0,0,29,32,1,0,0,0,30,28,1,0,0,0,30,31,1,0,0,0,31,39,1,0,0,0,32,30,1,
+0,0,0,33,35,3,8,4,0,34,33,1,0,0,0,35,36,1,0,0,0,36,34,1,0,0,0,36,37,1,0,
+0,0,37,39,1,0,0,0,38,26,1,0,0,0,38,34,1,0,0,0,39,125,1,0,0,0,40,125,5,30,
+0,0,41,42,5,14,0,0,42,43,5,15,0,0,43,125,3,2,1,14,44,45,5,16,0,0,45,46,5,
+17,0,0,46,125,3,2,1,13,47,48,5,14,0,0,48,49,3,2,1,0,49,50,5,15,0,0,50,51,
+3,2,1,0,51,125,1,0,0,0,52,53,5,16,0,0,53,54,3,2,1,0,54,55,5,17,0,0,55,56,
+3,2,1,0,56,125,1,0,0,0,57,58,5,25,0,0,58,59,5,18,0,0,59,60,3,2,1,0,60,61,
+5,21,0,0,61,62,3,2,1,0,62,63,5,19,0,0,63,125,1,0,0,0,64,65,5,26,0,0,65,66,
+5,18,0,0,66,67,3,2,1,0,67,68,5,21,0,0,68,69,3,2,1,0,69,70,5,19,0,0,70,125,
+1,0,0,0,71,72,5,1,0,0,72,73,5,18,0,0,73,74,3,2,1,0,74,75,5,19,0,0,75,125,
+1,0,0,0,76,77,5,2,0,0,77,78,5,18,0,0,78,79,3,2,1,0,79,80,5,19,0,0,80,125,
+1,0,0,0,81,82,5,3,0,0,82,83,5,18,0,0,83,84,3,2,1,0,84,90,5,19,0,0,85,86,
+5,5,0,0,86,87,5,18,0,0,87,88,3,2,1,0,88,89,5,19,0,0,89,91,1,0,0,0,90,85,
+1,0,0,0,90,91,1,0,0,0,91,125,1,0,0,0,92,93,5,4,0,0,93,94,5,18,0,0,94,95,
+3,2,1,0,95,101,5,19,0,0,96,97,5,5,0,0,97,98,5,18,0,0,98,99,3,2,1,0,99,100,
+5,19,0,0,100,102,1,0,0,0,101,96,1,0,0,0,101,102,1,0,0,0,102,125,1,0,0,0,
+103,104,5,5,0,0,104,105,5,18,0,0,105,106,3,2,1,0,106,107,5,21,0,0,107,108,
+3,2,1,0,108,109,5,19,0,0,109,125,1,0,0,0,110,111,5,11,0,0,111,112,3,2,1,
+0,112,113,5,12,0,0,113,114,3,2,1,0,114,125,1,0,0,0,115,116,5,11,0,0,116,
+117,3,2,1,0,117,118,5,13,0,0,118,119,3,2,1,0,119,125,1,0,0,0,120,121,5,18,
+0,0,121,122,3,2,1,0,122,123,5,19,0,0,123,125,1,0,0,0,124,19,1,0,0,0,124,
+21,1,0,0,0,124,22,1,0,0,0,124,24,1,0,0,0,124,38,1,0,0,0,124,40,1,0,0,0,124,
+41,1,0,0,0,124,44,1,0,0,0,124,47,1,0,0,0,124,52,1,0,0,0,124,57,1,0,0,0,124,
+64,1,0,0,0,124,71,1,0,0,0,124,76,1,0,0,0,124,81,1,0,0,0,124,92,1,0,0,0,124,
+103,1,0,0,0,124,110,1,0,0,0,124,115,1,0,0,0,124,120,1,0,0,0,125,134,1,0,
+0,0,126,127,10,20,0,0,127,128,5,9,0,0,128,133,3,2,1,21,129,130,10,19,0,0,
+130,131,5,8,0,0,131,133,3,2,1,20,132,126,1,0,0,0,132,129,1,0,0,0,133,136,
+1,0,0,0,134,132,1,0,0,0,134,135,1,0,0,0,135,3,1,0,0,0,136,134,1,0,0,0,137,
+138,5,27,0,0,138,147,5,18,0,0,139,144,3,14,7,0,140,141,5,21,0,0,141,143,
+3,14,7,0,142,140,1,0,0,0,143,146,1,0,0,0,144,142,1,0,0,0,144,145,1,0,0,0,
+145,148,1,0,0,0,146,144,1,0,0,0,147,139,1,0,0,0,147,148,1,0,0,0,148,149,
+1,0,0,0,149,150,5,19,0,0,150,5,1,0,0,0,151,152,3,12,6,0,152,7,1,0,0,0,153,
+157,3,10,5,0,154,156,5,32,0,0,155,154,1,0,0,0,156,159,1,0,0,0,157,155,1,
+0,0,0,157,158,1,0,0,0,158,160,1,0,0,0,159,157,1,0,0,0,160,161,3,12,6,0,161,
+9,1,0,0,0,162,163,7,0,0,0,163,11,1,0,0,0,164,169,5,6,0,0,165,169,5,7,0,0,
+166,169,5,27,0,0,167,169,3,4,2,0,168,164,1,0,0,0,168,165,1,0,0,0,168,166,
+1,0,0,0,168,167,1,0,0,0,169,13,1,0,0,0,170,176,5,6,0,0,171,176,5,7,0,0,172,
+176,5,28,0,0,173,176,5,29,0,0,174,176,5,31,0,0,175,170,1,0,0,0,175,171,1,
+0,0,0,175,172,1,0,0,0,175,173,1,0,0,0,175,174,1,0,0,0,176,15,1,0,0,0,13,
+30,36,38,90,101,124,132,134,144,147,157,168,175];
 
 
 const atn = new antlr4.atn.ATNDeserializer().deserialize(serializedATN);
@@ -103,9 +105,9 @@ export default class ModalityParser extends antlr4.Parser {
     formula_sempred(localctx, predIndex) {
     	switch(predIndex) {
     		case 0:
-    			return this.precpred(this._ctx, 19);
+    			return this.precpred(this._ctx, 20);
     		case 1:
-    			return this.precpred(this._ctx, 18);
+    			return this.precpred(this._ctx, 19);
     		default:
     			throw "No predicate with index:" + predIndex;
     	}
@@ -150,7 +152,7 @@ export default class ModalityParser extends antlr4.Parser {
 	    this.enterRecursionRule(localctx, 2, ModalityParser.RULE_formula, _p);
 	    try {
 	        this.enterOuterAlt(localctx, 1);
-	        this.state = 117;
+	        this.state = 124;
 	        this._errHandler.sync(this);
 	        var la_ = this._interp.adaptivePredict(this._input,5,this._ctx);
 	        switch(la_) {
@@ -178,7 +180,7 @@ export default class ModalityParser extends antlr4.Parser {
 	            this.state = 22;
 	            this.match(ModalityParser.MINUS);
 	            this.state = 23;
-	            localctx.inner = this.formula(17);
+	            localctx.inner = this.formula(18);
 	            break;
 
 	        case 4:
@@ -188,7 +190,7 @@ export default class ModalityParser extends antlr4.Parser {
 	            this.state = 24;
 	            this.match(ModalityParser.NOT);
 	            this.state = 25;
-	            localctx.inner = this.formula(16);
+	            localctx.inner = this.formula(17);
 	            break;
 
 	        case 5:
@@ -259,7 +261,7 @@ export default class ModalityParser extends antlr4.Parser {
 	            this.state = 42;
 	            this.match(ModalityParser.RBOX);
 	            this.state = 43;
-	            localctx.outer = this.formula(13);
+	            localctx.outer = this.formula(14);
 	            break;
 
 	        case 8:
@@ -271,7 +273,7 @@ export default class ModalityParser extends antlr4.Parser {
 	            this.state = 45;
 	            this.match(ModalityParser.RDIA);
 	            this.state = 46;
-	            localctx.outer = this.formula(12);
+	            localctx.outer = this.formula(13);
 	            break;
 
 	        case 9:
@@ -423,48 +425,66 @@ export default class ModalityParser extends antlr4.Parser {
 	            break;
 
 	        case 17:
-	            localctx = new WhenAlsoFormulaContext(this, localctx);
+	            localctx = new UntilMacroContext(this, localctx);
 	            this._ctx = localctx;
 	            _prevctx = localctx;
 	            this.state = 103;
-	            this.match(ModalityParser.WHEN);
+	            this.match(ModalityParser.UNTIL);
 	            this.state = 104;
-	            localctx.when_formula = this.formula(0);
+	            this.match(ModalityParser.LPAREN);
 	            this.state = 105;
-	            this.match(ModalityParser.ALSO);
+	            localctx.pre_formula = this.formula(0);
 	            this.state = 106;
-	            localctx.also_formula = this.formula(0);
+	            this.match(ModalityParser.COMMA);
+	            this.state = 107;
+	            localctx.post_formula = this.formula(0);
+	            this.state = 108;
+	            this.match(ModalityParser.RPAREN);
 	            break;
 
 	        case 18:
-	            localctx = new WhenNextFormulaContext(this, localctx);
+	            localctx = new WhenAlsoFormulaContext(this, localctx);
 	            this._ctx = localctx;
 	            _prevctx = localctx;
-	            this.state = 108;
-	            this.match(ModalityParser.WHEN);
-	            this.state = 109;
-	            localctx.when_formula = this.formula(0);
 	            this.state = 110;
-	            this.match(ModalityParser.NEXT);
+	            this.match(ModalityParser.WHEN);
 	            this.state = 111;
-	            localctx.next_formula = this.formula(0);
+	            localctx.when_formula = this.formula(0);
+	            this.state = 112;
+	            this.match(ModalityParser.ALSO);
+	            this.state = 113;
+	            localctx.also_formula = this.formula(0);
 	            break;
 
 	        case 19:
+	            localctx = new WhenNextFormulaContext(this, localctx);
+	            this._ctx = localctx;
+	            _prevctx = localctx;
+	            this.state = 115;
+	            this.match(ModalityParser.WHEN);
+	            this.state = 116;
+	            localctx.when_formula = this.formula(0);
+	            this.state = 117;
+	            this.match(ModalityParser.NEXT);
+	            this.state = 118;
+	            localctx.next_formula = this.formula(0);
+	            break;
+
+	        case 20:
 	            localctx = new ParenFormulaContext(this, localctx);
 	            this._ctx = localctx;
 	            _prevctx = localctx;
-	            this.state = 113;
+	            this.state = 120;
 	            this.match(ModalityParser.LPAREN);
-	            this.state = 114;
+	            this.state = 121;
 	            localctx.inner = this.formula(0);
-	            this.state = 115;
+	            this.state = 122;
 	            this.match(ModalityParser.RPAREN);
 	            break;
 
 	        }
 	        this._ctx.stop = this._input.LT(-1);
-	        this.state = 127;
+	        this.state = 134;
 	        this._errHandler.sync(this);
 	        var _alt = this._interp.adaptivePredict(this._input,7,this._ctx)
 	        while(_alt!=2 && _alt!=antlr4.atn.ATN.INVALID_ALT_NUMBER) {
@@ -473,7 +493,7 @@ export default class ModalityParser extends antlr4.Parser {
 	                    this.triggerExitRuleEvent();
 	                }
 	                _prevctx = localctx;
-	                this.state = 125;
+	                this.state = 132;
 	                this._errHandler.sync(this);
 	                var la_ = this._interp.adaptivePredict(this._input,6,this._ctx);
 	                switch(la_) {
@@ -481,33 +501,33 @@ export default class ModalityParser extends antlr4.Parser {
 	                    localctx = new OrFormulaContext(this, new FormulaContext(this, _parentctx, _parentState));
 	                    localctx.left = _prevctx;
 	                    this.pushNewRecursionContext(localctx, _startState, ModalityParser.RULE_formula);
-	                    this.state = 119;
-	                    if (!( this.precpred(this._ctx, 19))) {
-	                        throw new antlr4.error.FailedPredicateException(this, "this.precpred(this._ctx, 19)");
+	                    this.state = 126;
+	                    if (!( this.precpred(this._ctx, 20))) {
+	                        throw new antlr4.error.FailedPredicateException(this, "this.precpred(this._ctx, 20)");
 	                    }
-	                    this.state = 120;
+	                    this.state = 127;
 	                    this.match(ModalityParser.OR);
-	                    this.state = 121;
-	                    localctx.right = this.formula(20);
+	                    this.state = 128;
+	                    localctx.right = this.formula(21);
 	                    break;
 
 	                case 2:
 	                    localctx = new AndFormulaContext(this, new FormulaContext(this, _parentctx, _parentState));
 	                    localctx.left = _prevctx;
 	                    this.pushNewRecursionContext(localctx, _startState, ModalityParser.RULE_formula);
-	                    this.state = 122;
-	                    if (!( this.precpred(this._ctx, 18))) {
-	                        throw new antlr4.error.FailedPredicateException(this, "this.precpred(this._ctx, 18)");
+	                    this.state = 129;
+	                    if (!( this.precpred(this._ctx, 19))) {
+	                        throw new antlr4.error.FailedPredicateException(this, "this.precpred(this._ctx, 19)");
 	                    }
-	                    this.state = 123;
+	                    this.state = 130;
 	                    this.match(ModalityParser.AND);
-	                    this.state = 124;
-	                    localctx.right = this.formula(19);
+	                    this.state = 131;
+	                    localctx.right = this.formula(20);
 	                    break;
 
 	                } 
 	            }
-	            this.state = 129;
+	            this.state = 136;
 	            this._errHandler.sync(this);
 	            _alt = this._interp.adaptivePredict(this._input,7,this._ctx);
 	        }
@@ -534,31 +554,31 @@ export default class ModalityParser extends antlr4.Parser {
 	    var _la = 0;
 	    try {
 	        this.enterOuterAlt(localctx, 1);
-	        this.state = 130;
+	        this.state = 137;
 	        localctx.name = this.match(ModalityParser.NAME);
-	        this.state = 131;
+	        this.state = 138;
 	        this.match(ModalityParser.LPAREN);
-	        this.state = 140;
+	        this.state = 147;
 	        this._errHandler.sync(this);
 	        _la = this._input.LA(1);
 	        if((((_la) & ~0x1f) === 0 && ((1 << _la) & 2952790208) !== 0)) {
-	            this.state = 132;
+	            this.state = 139;
 	            this.arg();
-	            this.state = 137;
+	            this.state = 144;
 	            this._errHandler.sync(this);
 	            _la = this._input.LA(1);
 	            while(_la===21) {
-	                this.state = 133;
+	                this.state = 140;
 	                this.match(ModalityParser.COMMA);
-	                this.state = 134;
+	                this.state = 141;
 	                this.arg();
-	                this.state = 139;
+	                this.state = 146;
 	                this._errHandler.sync(this);
 	                _la = this._input.LA(1);
 	            }
 	        }
 
-	        this.state = 142;
+	        this.state = 149;
 	        this.match(ModalityParser.RPAREN);
 	    } catch (re) {
 	    	if(re instanceof antlr4.error.RecognitionException) {
@@ -581,7 +601,7 @@ export default class ModalityParser extends antlr4.Parser {
 	    this.enterRule(localctx, 6, ModalityParser.RULE_unsignedProp);
 	    try {
 	        this.enterOuterAlt(localctx, 1);
-	        this.state = 144;
+	        this.state = 151;
 	        localctx.theProp = this.prop();
 	    } catch (re) {
 	    	if(re instanceof antlr4.error.RecognitionException) {
@@ -605,19 +625,19 @@ export default class ModalityParser extends antlr4.Parser {
 	    var _la = 0;
 	    try {
 	        this.enterOuterAlt(localctx, 1);
-	        this.state = 146;
+	        this.state = 153;
 	        localctx.theSign = this.sign();
-	        this.state = 150;
+	        this.state = 157;
 	        this._errHandler.sync(this);
 	        _la = this._input.LA(1);
 	        while(_la===32) {
-	            this.state = 147;
+	            this.state = 154;
 	            this.match(ModalityParser.WS);
-	            this.state = 152;
+	            this.state = 159;
 	            this._errHandler.sync(this);
 	            _la = this._input.LA(1);
 	        }
-	        this.state = 153;
+	        this.state = 160;
 	        localctx.theProp = this.prop();
 	    } catch (re) {
 	    	if(re instanceof antlr4.error.RecognitionException) {
@@ -641,7 +661,7 @@ export default class ModalityParser extends antlr4.Parser {
 	    var _la = 0;
 	    try {
 	        this.enterOuterAlt(localctx, 1);
-	        this.state = 155;
+	        this.state = 162;
 	        _la = this._input.LA(1);
 	        if(!((((_la) & ~0x1f) === 0 && ((1 << _la) & 29360128) !== 0))) {
 	        this._errHandler.recoverInline(this);
@@ -670,31 +690,31 @@ export default class ModalityParser extends antlr4.Parser {
 	    let localctx = new PropContext(this, this._ctx, this.state);
 	    this.enterRule(localctx, 12, ModalityParser.RULE_prop);
 	    try {
-	        this.state = 161;
+	        this.state = 168;
 	        this._errHandler.sync(this);
 	        var la_ = this._interp.adaptivePredict(this._input,11,this._ctx);
 	        switch(la_) {
 	        case 1:
 	            this.enterOuterAlt(localctx, 1);
-	            this.state = 157;
+	            this.state = 164;
 	            this.match(ModalityParser.TRUE);
 	            break;
 
 	        case 2:
 	            this.enterOuterAlt(localctx, 2);
-	            this.state = 158;
+	            this.state = 165;
 	            this.match(ModalityParser.FALSE);
 	            break;
 
 	        case 3:
 	            this.enterOuterAlt(localctx, 3);
-	            this.state = 159;
+	            this.state = 166;
 	            this.match(ModalityParser.NAME);
 	            break;
 
 	        case 4:
 	            this.enterOuterAlt(localctx, 4);
-	            this.state = 160;
+	            this.state = 167;
 	            this.functionProp();
 	            break;
 
@@ -719,37 +739,37 @@ export default class ModalityParser extends antlr4.Parser {
 	    let localctx = new ArgContext(this, this._ctx, this.state);
 	    this.enterRule(localctx, 14, ModalityParser.RULE_arg);
 	    try {
-	        this.state = 168;
+	        this.state = 175;
 	        this._errHandler.sync(this);
 	        switch(this._input.LA(1)) {
 	        case 6:
 	            localctx = new TrueArgContext(this, localctx);
 	            this.enterOuterAlt(localctx, 1);
-	            this.state = 163;
+	            this.state = 170;
 	            this.match(ModalityParser.TRUE);
 	            break;
 	        case 7:
 	            localctx = new FalseArgContext(this, localctx);
 	            this.enterOuterAlt(localctx, 2);
-	            this.state = 164;
+	            this.state = 171;
 	            this.match(ModalityParser.FALSE);
 	            break;
 	        case 28:
 	            localctx = new StringArgContext(this, localctx);
 	            this.enterOuterAlt(localctx, 3);
-	            this.state = 165;
+	            this.state = 172;
 	            this.match(ModalityParser.STRING);
 	            break;
 	        case 29:
 	            localctx = new NumberArgContext(this, localctx);
 	            this.enterOuterAlt(localctx, 4);
-	            this.state = 166;
+	            this.state = 173;
 	            this.match(ModalityParser.NUMBER);
 	            break;
 	        case 31:
 	            localctx = new VariableArgContext(this, localctx);
 	            this.enterOuterAlt(localctx, 5);
-	            this.state = 167;
+	            this.state = 174;
 	            this.match(ModalityParser.VARIABLE);
 	            break;
 	        default:
@@ -1691,6 +1711,67 @@ class EventuallyMacroContext extends FormulaContext {
 }
 
 ModalityParser.EventuallyMacroContext = EventuallyMacroContext;
+
+class UntilMacroContext extends FormulaContext {
+
+    constructor(parser, ctx) {
+        super(parser);
+        this.pre_formula = null;;
+        this.post_formula = null;;
+        super.copyFrom(ctx);
+    }
+
+	UNTIL() {
+	    return this.getToken(ModalityParser.UNTIL, 0);
+	};
+
+	LPAREN() {
+	    return this.getToken(ModalityParser.LPAREN, 0);
+	};
+
+	COMMA() {
+	    return this.getToken(ModalityParser.COMMA, 0);
+	};
+
+	RPAREN() {
+	    return this.getToken(ModalityParser.RPAREN, 0);
+	};
+
+	formula = function(i) {
+	    if(i===undefined) {
+	        i = null;
+	    }
+	    if(i===null) {
+	        return this.getTypedRuleContexts(FormulaContext);
+	    } else {
+	        return this.getTypedRuleContext(FormulaContext,i);
+	    }
+	};
+
+	enterRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.enterUntilMacro(this);
+		}
+	}
+
+	exitRule(listener) {
+	    if(listener instanceof ModalityListener ) {
+	        listener.exitUntilMacro(this);
+		}
+	}
+
+	accept(visitor) {
+	    if ( visitor instanceof ModalityVisitor ) {
+	        return visitor.visitUntilMacro(this);
+	    } else {
+	        return visitor.visitChildren(this);
+	    }
+	}
+
+
+}
+
+ModalityParser.UntilMacroContext = UntilMacroContext;
 
 class WhenAlsoFormulaContext extends FormulaContext {
 
