@@ -120,16 +120,22 @@ mod tests {
 
         let encrypted = EncryptedText::encrypt(text, password).unwrap();
         
-        // Corrupt different parts of the data
-        let corrupted_start = format!("A{}", &encrypted[1..]);
-        assert!(EncryptedText::decrypt(&corrupted_start, password).is_err());
+        let combined = BASE64.decode(&encrypted).unwrap();
 
-        let mid = encrypted.len() / 2;
-        let corrupted_middle = format!("{}A{}", &encrypted[..mid], &encrypted[mid+1..]);
-        assert!(EncryptedText::decrypt(&corrupted_middle, password).is_err());
+        // Corrupt authenticated payload bytes directly. Mutating arbitrary
+        // base64 characters can occasionally decode to the same bytes.
+        let mut corrupted_start = combined.clone();
+        corrupted_start[0] ^= 0x01;
+        assert!(EncryptedText::decrypt(&BASE64.encode(corrupted_start), password).is_err());
 
-        let corrupted_end = format!("{}AAAA", &encrypted[..encrypted.len()-4]);
-        assert!(EncryptedText::decrypt(&corrupted_end, password).is_err());
+        let mut corrupted_middle = combined.clone();
+        corrupted_middle[28] ^= 0x01;
+        assert!(EncryptedText::decrypt(&BASE64.encode(corrupted_middle), password).is_err());
+
+        let mut corrupted_end = combined;
+        let last = corrupted_end.len() - 1;
+        corrupted_end[last] ^= 0x01;
+        assert!(EncryptedText::decrypt(&BASE64.encode(corrupted_end), password).is_err());
     }
 
     #[test]
