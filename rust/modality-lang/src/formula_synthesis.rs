@@ -97,6 +97,11 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
             extract_from_expr(inner, constraints);
         }
 
+        // next(φ) delays evaluation but should still expose mentioned actions.
+        FormulaExpr::Next(inner) => {
+            extract_from_expr(inner, constraints);
+        }
+
         // Box with action
         FormulaExpr::Box(props, inner) => {
             for prop in props {
@@ -508,6 +513,18 @@ mod tests {
     #[test]
     fn test_eventually_diamond_extracts_candidate_action() {
         let formula = FormulaExpr::Eventually(Box::new(FormulaExpr::Diamond(
+            vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+            Box::new(FormulaExpr::True),
+        )));
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("APPROVE"));
+    }
+
+    #[test]
+    fn test_next_diamond_extracts_candidate_action() {
+        let formula = FormulaExpr::Next(Box::new(FormulaExpr::Diamond(
             vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
             Box::new(FormulaExpr::True),
         )));
