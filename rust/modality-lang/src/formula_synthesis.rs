@@ -385,6 +385,17 @@ fn topological_sort(ordering: &[(String, String)], all_actions: &HashSet<String>
         }
     }
 
+    // Cyclic or contradictory generated constraints should not make mentioned
+    // actions disappear from the candidate model. Keep the unresolved actions in
+    // a stable order so later verification can reject or refine the candidate.
+    let resolved: HashSet<_> = result.iter().cloned().collect();
+    let remaining: BTreeSet<_> = all_actions
+        .iter()
+        .filter(|action| !resolved.contains(*action))
+        .cloned()
+        .collect();
+    result.extend(remaining);
+
     result
 }
 
@@ -467,6 +478,19 @@ mod tests {
         let ordered = topological_sort(&[], &actions);
 
         assert_eq!(ordered, vec!["ALPHA", "BETA", "GAMMA"]);
+    }
+
+    #[test]
+    fn test_topological_sort_preserves_actions_from_cycles() {
+        let actions = HashSet::from(["APPROVE".to_string(), "REJECT".to_string()]);
+        let ordering = vec![
+            ("APPROVE".to_string(), "REJECT".to_string()),
+            ("REJECT".to_string(), "APPROVE".to_string()),
+        ];
+
+        let ordered = topological_sort(&ordering, &actions);
+
+        assert_eq!(ordered, vec!["APPROVE", "REJECT"]);
     }
 
     #[test]
