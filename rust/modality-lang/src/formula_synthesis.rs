@@ -77,14 +77,17 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
                     }
                 }
                 // Check for always([-Y] true) pattern - forbidden after
-                if let Some(forbidden) = extract_always_forbidden(rhs) {
+                let forbidden_actions = extract_always_forbidden(rhs);
+                if !forbidden_actions.is_empty() {
                     for action_x in &guarded_actions {
-                        constraints
-                            .forbidden_after
-                            .push((action_x.clone(), forbidden.clone()));
+                        for forbidden in &forbidden_actions {
+                            constraints
+                                .forbidden_after
+                                .push((action_x.clone(), forbidden.clone()));
+                        }
                         constraints.actions.insert(action_x.clone());
                     }
-                    constraints.actions.insert(forbidden);
+                    constraints.actions.extend(forbidden_actions);
                 }
             }
             // Also recurse
@@ -243,27 +246,24 @@ fn extract_diamond_signers(expr: &FormulaExpr) -> Vec<String> {
     }
 }
 
-/// Extract forbidden action from always([-ACTION] true) pattern
-fn extract_always_forbidden(expr: &FormulaExpr) -> Option<String> {
+/// Extract forbidden actions from always([-ACTION ...] true) patterns.
+fn extract_always_forbidden(expr: &FormulaExpr) -> Vec<String> {
     match expr {
         FormulaExpr::Always(inner) => extract_forbidden_box_action(inner),
         FormulaExpr::Paren(inner) => extract_always_forbidden(inner),
-        _ => None,
+        _ => Vec::new(),
     }
 }
 
-fn extract_forbidden_box_action(expr: &FormulaExpr) -> Option<String> {
+fn extract_forbidden_box_action(expr: &FormulaExpr) -> Vec<String> {
     match expr {
-        FormulaExpr::Box(props, _) => {
-            for prop in props {
-                if prop.sign == PropertySign::Minus {
-                    return Some(prop.name.clone());
-                }
-            }
-            None
-        }
+        FormulaExpr::Box(props, _) => props
+            .iter()
+            .filter(|prop| prop.sign == PropertySign::Minus)
+            .map(|prop| prop.name.clone())
+            .collect(),
         FormulaExpr::Paren(inner) => extract_forbidden_box_action(inner),
-        _ => None,
+        _ => Vec::new(),
     }
 }
 
@@ -811,6 +811,34 @@ mod tests {
         assert!(constraints
             .forbidden_after
             .contains(&("ESCALATE".to_string(), "RELEASE".to_string())));
+    }
+
+    #[test]
+    fn test_multi_forbidden_box_adds_forbidden_after_for_each_action() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "DISPUTE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Always(Box::new(FormulaExpr::Box(
+                vec![
+                    Property::new(PropertySign::Minus, "RELEASE".to_string()),
+                    Property::new(PropertySign::Minus, "CLOSE".to_string()),
+                ],
+                Box::new(FormulaExpr::True),
+            )))),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .forbidden_after
+            .contains(&("DISPUTE".to_string(), "RELEASE".to_string())));
+        assert!(constraints
+            .forbidden_after
+            .contains(&("DISPUTE".to_string(), "CLOSE".to_string())));
+        assert!(constraints.actions.contains("RELEASE"));
+        assert!(constraints.actions.contains("CLOSE"));
     }
 
     #[test]
