@@ -193,41 +193,37 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
         println!("🔧 Synthesizing from rule file: {}\n", rule_path.display());
 
-        // Try to parse formulas from rule file
-        match modality_lang::parse_all_formulas_content_lalrpop(&content) {
-            Ok(formulas) if !formulas.is_empty() => {
-                let formula_exprs: Vec<_> = formulas.iter().map(|f| f.expression.clone()).collect();
-                let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-                    "Contract",
-                    &formula_exprs,
-                );
+        let formula_exprs = parse_formula_strings(std::slice::from_ref(&content));
+        if !formula_exprs.is_empty() {
+            let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+                "Contract",
+                &formula_exprs,
+            );
 
-                let output = modality_lang::print_model(&model);
+            let output = modality_lang::print_model(&model);
 
-                if let Some(output_path) = &opts.output {
-                    if let Some(parent) = output_path.parent() {
-                        std::fs::create_dir_all(parent)?;
-                    }
-                    std::fs::write(output_path, &output)?;
-                    println!("✅ Synthesized model written to {}", output_path.display());
-                } else {
-                    println!("{}", output);
+            if let Some(output_path) = &opts.output {
+                if let Some(parent) = output_path.parent() {
+                    std::fs::create_dir_all(parent)?;
                 }
+                std::fs::write(output_path, &output)?;
+                println!("✅ Synthesized model written to {}", output_path.display());
+            } else {
+                println!("{}", output);
             }
-            _ => {
-                // Fallback to old heuristic approach
-                let model = synthesize_from_rule(&content, &opts.party_a, &opts.party_b)?;
-                let output = format_model(&model, &opts.format)?;
+        } else {
+            // Fallback to old heuristic approach
+            let model = synthesize_from_rule(&content, &opts.party_a, &opts.party_b)?;
+            let output = format_model(&model, &opts.format)?;
 
-                if let Some(output_path) = &opts.output {
-                    if let Some(parent) = output_path.parent() {
-                        std::fs::create_dir_all(parent)?;
-                    }
-                    std::fs::write(output_path, &output)?;
-                    println!("✅ Synthesized model written to {}", output_path.display());
-                } else {
-                    println!("{}", output);
+            if let Some(output_path) = &opts.output {
+                if let Some(parent) = output_path.parent() {
+                    std::fs::create_dir_all(parent)?;
                 }
+                std::fs::write(output_path, &output)?;
+                println!("✅ Synthesized model written to {}", output_path.display());
+            } else {
+                println!("{}", output);
             }
         }
 
