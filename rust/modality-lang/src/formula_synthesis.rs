@@ -52,14 +52,17 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
             let guarded_actions = extract_box_actions(lhs);
             if !guarded_actions.is_empty() {
                 // Check for eventually(<+Y> true) pattern
-                if let Some(action_y) = extract_eventually_action(rhs) {
+                let required_actions = extract_eventually_actions(rhs);
+                if !required_actions.is_empty() {
                     for action_x in &guarded_actions {
-                        constraints
-                            .ordering
-                            .push((action_x.clone(), action_y.clone()));
+                        for action_y in &required_actions {
+                            constraints
+                                .ordering
+                                .push((action_x.clone(), action_y.clone()));
+                        }
                         constraints.actions.insert(action_x.clone());
                     }
-                    constraints.actions.insert(action_y);
+                    constraints.actions.extend(required_actions);
                 }
                 // Check for <+signed_by(path)> true pattern
                 if let Some(signer) = extract_diamond_signer(rhs) {
@@ -194,30 +197,27 @@ fn extract_box_actions(expr: &FormulaExpr) -> Vec<String> {
     }
 }
 
-/// Extract action name from eventually(<+ACTION> true) pattern
-fn extract_eventually_action(expr: &FormulaExpr) -> Option<String> {
+/// Extract action names from eventually(<+ACTION ...> true) patterns
+fn extract_eventually_actions(expr: &FormulaExpr) -> Vec<String> {
     match expr {
-        FormulaExpr::Eventually(inner) => extract_diamond_action(inner),
+        FormulaExpr::Eventually(inner) => extract_diamond_actions(inner),
         // Also handle direct diamond
-        FormulaExpr::Diamond(_, _) => extract_diamond_action(expr),
-        FormulaExpr::Paren(inner) => extract_eventually_action(inner),
-        _ => None,
+        FormulaExpr::Diamond(_, _) => extract_diamond_actions(expr),
+        FormulaExpr::Paren(inner) => extract_eventually_actions(inner),
+        _ => Vec::new(),
     }
 }
 
-/// Extract action from <+ACTION> true pattern
-fn extract_diamond_action(expr: &FormulaExpr) -> Option<String> {
+/// Extract actions from <+ACTION ...> true patterns
+fn extract_diamond_actions(expr: &FormulaExpr) -> Vec<String> {
     match expr {
-        FormulaExpr::Diamond(props, _) => {
-            for prop in props {
-                if prop.sign == PropertySign::Plus && prop.name != "signed_by" {
-                    return Some(prop.name.clone());
-                }
-            }
-            None
-        }
-        FormulaExpr::Paren(inner) => extract_diamond_action(inner),
-        _ => None,
+        FormulaExpr::Diamond(props, _) => props
+            .iter()
+            .filter(|prop| prop.sign == PropertySign::Plus && prop.name != "signed_by")
+            .map(|prop| prop.name.clone())
+            .collect(),
+        FormulaExpr::Paren(inner) => extract_diamond_actions(inner),
+        _ => Vec::new(),
     }
 }
 
@@ -696,6 +696,32 @@ mod tests {
     }
 
     #[test]
+    fn test_multi_action_eventual_goal_adds_ordering_for_each_action() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Eventually(Box::new(FormulaExpr::Diamond(
+                vec![
+                    Property::new(PropertySign::Plus, "DELIVER".to_string()),
+                    Property::new(PropertySign::Plus, "INSPECT".to_string()),
+                ],
+                Box::new(FormulaExpr::True),
+            )))),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .ordering
+            .contains(&("RELEASE".to_string(), "DELIVER".to_string())));
+        assert!(constraints
+            .ordering
+            .contains(&("RELEASE".to_string(), "INSPECT".to_string())));
+    }
+
+    #[test]
     fn test_multi_action_guard_adds_authorization_for_each_action() {
         let formula = FormulaExpr::Implies(
             Box::new(FormulaExpr::Box(
@@ -762,6 +788,22 @@ mod tests {
         let constraints = extract_constraints(&formula);
 
         assert!(constraints.actions.contains("APPROVE"));
+    }
+
+    #[test]
+    fn test_eventually_diamond_extracts_multiple_candidate_actions() {
+        let formula = FormulaExpr::Eventually(Box::new(FormulaExpr::Diamond(
+            vec![
+                Property::new(PropertySign::Plus, "APPROVE".to_string()),
+                Property::new(PropertySign::Plus, "REJECT".to_string()),
+            ],
+            Box::new(FormulaExpr::True),
+        )));
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("APPROVE"));
+        assert!(constraints.actions.contains("REJECT"));
     }
 
     #[test]
