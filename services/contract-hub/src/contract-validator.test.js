@@ -5771,3 +5771,39 @@ test('existing tautological parser-backed RULE history replays without witness a
     assert.equal(replacement.state.model.name, `${name}_open`);
   }
 });
+
+test('existing negated impossible empty modal RULE history replays without witness and leaves replacements unconstrained', async () => {
+  for (const [name, formula] of [
+    ['not_impossible_box', 'not [] false'],
+    ['not_impossible_diamond', 'not <> false']
+  ]) {
+    const legacyRule = {
+      data: {
+        method: 'RULE',
+        path: `/rules/${name}.modality`,
+        content: `rule ${name} { formula { always (${formula}) } }`
+      }
+    };
+    const validator = new ContractValidator();
+
+    assert.doesNotThrow(() => validator.loadFromCommits([legacyRule]));
+
+    const replacement = await validateContractLogic({ pullCommits: () => [legacyRule] }, 'contract', [
+      {
+        data: {
+          method: 'MODEL',
+          path: `/rules/${name}-open.modality`,
+          content: `
+            model ${name}_open {
+              initial active
+              active -> active []
+            }
+          `
+        }
+      }
+    ]);
+
+    assert.equal(replacement.valid, true);
+    assert.equal(replacement.state.model.name, `${name}_open`);
+  }
+});
