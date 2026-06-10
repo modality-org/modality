@@ -4857,6 +4857,65 @@ test('validateContractLogic applies fallback mixed textual boolean rules within 
   assert.equal(validReplacement.state.model.name, 'docs_safe');
 });
 
+test('validateContractLogic applies fallback non-always temporal rules within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/eventual.modality',
+      content: 'rule eventual { formula { eventually (signed_by(/owner.id)) } }',
+      model: `
+        model eventual_witness {
+          initial active
+          active -> active [+signed_by(/owner.id)]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/eventual-open.modality',
+        content: `
+          model eventual_open {
+            initial active
+            active -> active []
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/eventual-signed.modality',
+        content: `
+          model eventual_signed {
+            initial active
+            active -> active [+signed_by(/owner.id)]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'eventual_signed');
+});
+
 test('validateContractLogic applies fallback modal predicate rules within a batch', async () => {
   const store = {
     pullCommits() {
