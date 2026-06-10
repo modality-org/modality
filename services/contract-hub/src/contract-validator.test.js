@@ -3957,6 +3957,65 @@ test('validateContractLogic applies fallback mixed textual boolean rules within 
   assert.equal(validReplacement.state.model.name, 'docs_safe');
 });
 
+test('validateContractLogic applies fallback modal predicate rules within a batch', async () => {
+  const store = {
+    pullCommits() {
+      return [];
+    }
+  };
+  const ruleCommit = {
+    data: {
+      method: 'RULE',
+      path: '/rules/delivery.modality',
+      content: 'rule delivery { formula { always ([+RELEASE] implies <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true) } }',
+      model: `
+        model delivery_witness {
+          initial active
+          active -> active [-RELEASE]
+        }
+      `
+    }
+  };
+
+  const invalidReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/delivery-unsafe.modality',
+        content: `
+          model delivery_unsafe {
+            initial active
+            active -> active [+RELEASE]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(invalidReplacement.valid, false);
+  assert.match(invalidReplacement.errors[0], /MODEL transition active->active does not satisfy existing rule predicate/);
+
+  const validReplacement = await validateContractLogic(store, 'contract', [
+    ruleCommit,
+    {
+      data: {
+        method: 'MODEL',
+        path: '/rules/delivery-oracle.modality',
+        content: `
+          model delivery_oracle {
+            initial active
+            active -> active [+oracle_attests(/oracles/delivery.id, "delivered", "true")]
+          }
+        `
+      }
+    }
+  ]);
+
+  assert.equal(validReplacement.valid, true);
+  assert.equal(validReplacement.state.model.name, 'delivery_oracle');
+});
+
 test('validateContractLogic rejects unsafe parser-backed rule witnesses', async () => {
   const store = {
     pullCommits() {
