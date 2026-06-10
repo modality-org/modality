@@ -33,6 +33,10 @@ pub struct Opts {
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
+    /// Verify parser-backed synthesized models against their input formulas
+    #[arg(long)]
+    pub verify: bool,
+
     /// First party/signer name
     #[arg(long, default_value = "Alice")]
     pub party_a: String,
@@ -93,6 +97,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
         let parsed_formulas = parse_formula_strings(&formulas);
         let model = if parsed_formulas.is_empty() {
+            if opts.verify {
+                return Err(anyhow::anyhow!(
+                    "--verify requires formulas that can be parsed by the Modality parser"
+                ));
+            }
+
             println!("⚠️  Could not parse formulas; using legacy string heuristics\n");
             let constraints = synthesize_constraints_from_strings(&formulas);
 
@@ -110,6 +120,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
             );
             modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &parsed_formulas)
         };
+
+        if opts.verify {
+            verify_synthesized_model(&model, &parsed_formulas)?;
+            println!();
+        }
 
         println!("✅ Synthesized model:\n");
         let output = format_synthesized_model(&model, &opts.format)?;
@@ -172,6 +187,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
 
+        if opts.verify {
+            verify_synthesized_model(&model, &formulas)?;
+            println!();
+        }
+
         println!("✅ Synthesized model:\n");
         let output = format_synthesized_model(&model, &opts.format)?;
         println!("{}", output);
@@ -200,6 +220,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 &formula_exprs,
             );
 
+            if opts.verify {
+                verify_synthesized_model(&model, &formula_exprs)?;
+                println!();
+            }
+
             let output = format_synthesized_model(&model, &opts.format)?;
 
             if let Some(output_path) = &opts.output {
@@ -212,6 +237,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 println!("{}", output);
             }
         } else {
+            if opts.verify {
+                return Err(anyhow::anyhow!(
+                    "--verify requires formulas that can be parsed by the Modality parser"
+                ));
+            }
+
             // Fallback to old heuristic approach
             let model = synthesize_from_rule(&content, &opts.party_a, &opts.party_b)?;
             let output = format_model(&model, &opts.format)?;
@@ -232,6 +263,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Handle natural language description
     if let Some(description) = &opts.describe {
+        if opts.verify {
+            return Err(anyhow::anyhow!(
+                "--verify requires --formulas, --rule, or --llm-response"
+            ));
+        }
+
         let result = modality_lang::nl_mapper::map_nl_to_pattern(description);
 
         println!(
@@ -265,6 +302,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
             "Please specify --template, --describe, --rule, or use --list to see options"
         )
     })?;
+
+    if opts.verify {
+        return Err(anyhow::anyhow!(
+            "--verify requires --formulas, --rule, or --llm-response"
+        ));
+    }
 
     let model = match template.as_str() {
         "escrow" => modality_lang::synthesis::templates::escrow(&opts.party_a, &opts.party_b),
@@ -464,6 +507,42 @@ fn format_synthesized_model(model: &modality_lang::Model, format: &str) -> Resul
     }
 }
 
+fn verify_synthesized_model(
+    model: &modality_lang::Model,
+    formulas: &[modality_lang::FormulaExpr],
+) -> Result<()> {
+    println!(
+        "🔎 Verifying synthesized model against {} formula(s)",
+        formulas.len()
+    );
+
+    let checker = modality_lang::ModelChecker::new(model.clone());
+    let mut failed = Vec::new();
+
+    for (index, expression) in formulas.iter().enumerate() {
+        let formula_name = format!("F{}", index + 1);
+        let formula = modality_lang::Formula::new(formula_name.clone(), expression.clone());
+        let result = checker.check_formula(&formula);
+
+        if result.is_satisfied {
+            println!("  ✅ {} satisfied", formula_name);
+        } else {
+            println!("  ❌ {} not satisfied", formula_name);
+            failed.push(formula_name);
+        }
+    }
+
+    if failed.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "Synthesized model failed verification for {} formula(s): {}",
+            failed.len(),
+            failed.join(", ")
+        ))
+    }
+}
+
 fn write_or_print_model(output: &str, output_path: Option<&PathBuf>) -> Result<()> {
     if let Some(output_path) = output_path {
         if let Some(parent) = output_path.parent() {
@@ -591,6 +670,15 @@ mod tests {
         let json = format_synthesized_model(&model, "json").unwrap();
 
         assert!(json.contains("\"name\": \"Contract\""));
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_generated_candidate() {
+        let formulas = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
     }
 
     #[test]
