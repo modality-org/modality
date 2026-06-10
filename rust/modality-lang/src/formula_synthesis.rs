@@ -56,9 +56,11 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
                 if !required_actions.is_empty() {
                     for action_x in &guarded_actions {
                         for action_y in &required_actions {
-                            constraints
-                                .ordering
-                                .push((action_x.clone(), action_y.clone()));
+                            push_unique_pair(
+                                &mut constraints.ordering,
+                                action_x.clone(),
+                                action_y.clone(),
+                            );
                         }
                         constraints.actions.insert(action_x.clone());
                     }
@@ -83,9 +85,11 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
                 if !forbidden_actions.is_empty() {
                     for action_x in &guarded_actions {
                         for forbidden in &forbidden_actions {
-                            constraints
-                                .forbidden_after
-                                .push((action_x.clone(), forbidden.clone()));
+                            push_unique_pair(
+                                &mut constraints.forbidden_after,
+                                action_x.clone(),
+                                forbidden.clone(),
+                            );
                         }
                         constraints.actions.insert(action_x.clone());
                     }
@@ -285,6 +289,15 @@ fn extend_unique(target: &mut Vec<String>, values: &[String]) {
     }
 }
 
+fn push_unique_pair(target: &mut Vec<(String, String)>, first: String, second: String) {
+    if !target
+        .iter()
+        .any(|pair| pair.0 == first && pair.1 == second)
+    {
+        target.push((first, second));
+    }
+}
+
 fn is_true_expr(expr: &FormulaExpr) -> bool {
     match expr {
         FormulaExpr::True => true,
@@ -441,14 +454,18 @@ pub fn synthesize_from_formulas(name: &str, formulas: &[FormulaExpr]) -> Model {
     for formula in formulas {
         let fc = extract_constraints(formula);
         // Merge constraints
-        constraints.ordering.extend(fc.ordering);
+        for (action, required) in fc.ordering {
+            push_unique_pair(&mut constraints.ordering, action, required);
+        }
         for (action, signers) in fc.authorization {
             extend_unique(
                 constraints.authorization.entry(action).or_default(),
                 &signers,
             );
         }
-        constraints.forbidden_after.extend(fc.forbidden_after);
+        for (action, forbidden) in fc.forbidden_after {
+            push_unique_pair(&mut constraints.forbidden_after, action, forbidden);
+        }
         constraints.actions.extend(fc.actions);
         constraints.self_loops.extend(fc.self_loops);
     }
@@ -741,6 +758,34 @@ mod tests {
     }
 
     #[test]
+    fn test_duplicate_ordering_constraints_are_deduplicated() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Eventually(Box::new(FormulaExpr::Diamond(
+                vec![
+                    Property::new(PropertySign::Plus, "DELIVER".to_string()),
+                    Property::new(PropertySign::Plus, "DELIVER".to_string()),
+                ],
+                Box::new(FormulaExpr::True),
+            )))),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(
+            constraints
+                .ordering
+                .iter()
+                .filter(|pair| **pair == ("RELEASE".to_string(), "DELIVER".to_string()))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
     fn test_multi_action_guard_adds_authorization_for_each_action() {
         let formula = FormulaExpr::Implies(
             Box::new(FormulaExpr::Box(
@@ -957,6 +1002,45 @@ mod tests {
             .contains(&("DISPUTE".to_string(), "CLOSE".to_string())));
         assert!(constraints.actions.contains("RELEASE"));
         assert!(constraints.actions.contains("CLOSE"));
+    }
+
+    #[test]
+    fn test_duplicate_forbidden_constraints_are_deduplicated() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "DISPUTE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Always(Box::new(FormulaExpr::Box(
+                vec![
+                    Property::new(PropertySign::Minus, "RELEASE".to_string()),
+                    Property::new(PropertySign::Minus, "RELEASE".to_string()),
+                ],
+                Box::new(FormulaExpr::True),
+            )))),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(
+            constraints
+                .forbidden_after
+                .iter()
+                .filter(|pair| **pair == ("DISPUTE".to_string(), "RELEASE".to_string()))
+                .count(),
+            1
+        );
+
+        let model = synthesize_from_constraints("Dispute", &constraints);
+        let release_forbidden = Property::new(PropertySign::Minus, "RELEASE".to_string());
+        assert_eq!(
+            model.parts[0].transitions[1]
+                .properties
+                .iter()
+                .filter(|prop| **prop == release_forbidden)
+                .count(),
+            1
+        );
     }
 
     #[test]
