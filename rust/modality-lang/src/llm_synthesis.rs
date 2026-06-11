@@ -69,7 +69,7 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
             if let Some(separator_pos) = line.find(separator) {
                 let prefix = &line[..separator_pos];
                 if is_formula_prefix(prefix) {
-                    let formula = strip_formula_wrapping(line[separator_pos + 1..].trim());
+                    let formula = strip_labeled_formula_wrapping(line[separator_pos + 1..].trim());
                     if !formula.is_empty() {
                         formulas.push(formula.to_string());
                     }
@@ -89,6 +89,8 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
 }
 
 fn is_formula_prefix(prefix: &str) -> bool {
+    let prefix = prefix.trim().trim_matches(['*', '_']).trim();
+
     if let Some(label) = prefix.strip_prefix(['F', 'f']) {
         if !label.is_empty() && label.chars().all(|c| c.is_ascii_digit()) {
             return true;
@@ -108,6 +110,19 @@ fn strip_quote_marker(line: &str) -> &str {
     line.strip_prefix('>')
         .map(str::trim_start)
         .unwrap_or(line)
+}
+
+fn strip_labeled_formula_wrapping(line: &str) -> &str {
+    let formula = strip_formula_wrapping(line);
+    if formula.len() != line.len() {
+        return formula;
+    }
+
+    strip_formula_wrapping(strip_label_suffix_wrapping(line))
+}
+
+fn strip_label_suffix_wrapping(line: &str) -> &str {
+    line.trim_start_matches(['*', '_']).trim_start()
 }
 
 fn strip_list_marker(line: &str) -> &str {
@@ -310,6 +325,22 @@ always([+PAY] implies eventually(<+WORK> true))
         let response = r#"
 > F1: always([+PAY] implies eventually(<+WORK> true))
 > - <+CANCEL> true
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] implies eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_emphasized_labels() {
+        let response = r#"
+**F1:** always([+PAY] implies eventually(<+WORK> true))
+__Formula 2__: <+CANCEL> true
 "#;
 
         let formulas = parse_llm_response(response);
