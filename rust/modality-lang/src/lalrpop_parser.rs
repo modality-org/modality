@@ -666,6 +666,40 @@ formula committed {
     }
 
     #[test]
+    fn test_parse_multi_argument_predicate_formula() {
+        let content = r#"
+formula oracleAttestation {
+    [+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true
+}
+"#;
+
+        let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
+        assert_eq!(formulas.len(), 1);
+
+        match &formulas[0].expression {
+            FormulaExpr::Implies(_, consequent) => match &**consequent {
+                FormulaExpr::Diamond(props, inner) => {
+                    assert_eq!(props.len(), 1);
+                    assert_eq!(props[0].name, "oracle_attests");
+                    assert!(matches!(**inner, FormulaExpr::True));
+
+                    let (_, args) = props[0].get_predicate().expect("predicate source");
+                    assert_eq!(
+                        args.get("args").and_then(|args| args.as_array()).cloned(),
+                        Some(vec![
+                            serde_json::json!("/oracles/delivery.id"),
+                            serde_json::json!("delivered"),
+                            serde_json::json!("true"),
+                        ])
+                    );
+                }
+                _ => panic!("Expected Diamond consequent, got {:?}", consequent),
+            },
+            _ => panic!("Expected Implies formula, got {:?}", formulas[0].expression),
+        }
+    }
+
+    #[test]
     fn test_parse_always_diamondbox() {
         // always([<+A>] true | [<+B>] true) - explicit diamondbox syntax
         let content = r#"
@@ -913,4 +947,4 @@ rule_for_this_commit {
             _ => panic!("Expected And, got {:?}", rule.expression),
         }
     }
-} 
+}

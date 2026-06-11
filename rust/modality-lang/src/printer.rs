@@ -68,6 +68,16 @@ fn print_property(prop: &Property) -> String {
             if let Some(arg) = args.get("arg").and_then(|v| v.as_str()) {
                 return format!("{}{}({})", sign, prop.name, arg);
             }
+            if let Some(args) = args.get("args").and_then(|v| v.as_array()) {
+                let rendered_args = args
+                    .iter()
+                    .filter_map(|arg| arg.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if !rendered_args.is_empty() {
+                    return format!("{}{}({})", sign, prop.name, rendered_args);
+                }
+            }
         }
     }
     
@@ -117,5 +127,21 @@ mod tests {
     fn test_predicate_printing() {
         let prop = Property::new_predicate_from_call("signed_by".to_string(), "alice_pubkey".to_string());
         assert_eq!(print_property(&prop), "+signed_by(alice_pubkey)");
+    }
+
+    #[test]
+    fn test_multi_argument_predicate_printing() {
+        let prop = Property::new_predicate_from_call_args(
+            "oracle_attests".to_string(),
+            vec![
+                "/oracles/delivery.id".to_string(),
+                "delivered".to_string(),
+                "true".to_string(),
+            ],
+        );
+        assert_eq!(
+            print_property(&prop),
+            "+oracle_attests(/oracles/delivery.id, delivered, true)"
+        );
     }
 }

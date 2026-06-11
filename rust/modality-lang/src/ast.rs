@@ -427,8 +427,13 @@ impl Property {
     /// Create a predicate property from a function call in the grammar
     /// e.g., +signed_by("alice_pubkey") -> predicate that verifies signature
     pub fn new_predicate_from_call(name: String, arg: String) -> Self {
+        Self::new_predicate_from_call_args(name, vec![arg])
+    }
+
+    /// Create a predicate property from a function call with one or more arguments.
+    pub fn new_predicate_from_call_args(name: String, args: Vec<String>) -> Self {
         let path = format!("/_code/modal/{}.wasm", name);
-        let args = serde_json::json!({ "arg": arg });
+        let args = predicate_args_json(args);
         Self {
             sign: PropertySign::Plus,
             name,
@@ -439,8 +444,13 @@ impl Property {
     /// Create a negated predicate property from a function call
     /// e.g., -signed_by("alice_pubkey") -> requires signature NOT present
     pub fn new_predicate_from_call_negated(name: String, arg: String) -> Self {
+        Self::new_predicate_from_call_args_negated(name, vec![arg])
+    }
+
+    /// Create a negated predicate property from a function call with one or more arguments.
+    pub fn new_predicate_from_call_args_negated(name: String, args: Vec<String>) -> Self {
         let path = format!("/_code/modal/{}.wasm", name);
-        let args = serde_json::json!({ "arg": arg });
+        let args = predicate_args_json(args);
         Self {
             sign: PropertySign::Minus,
             name,
@@ -464,6 +474,14 @@ impl Property {
             Some(PropertySource::Predicate { path, args }) => Some((path.as_str(), args)),
             _ => None,
         }
+    }
+}
+
+fn predicate_args_json(args: Vec<String>) -> serde_json::Value {
+    if args.len() == 1 {
+        serde_json::json!({ "arg": args.into_iter().next().unwrap() })
+    } else {
+        serde_json::json!({ "args": args })
     }
 }
 
@@ -638,4 +656,4 @@ impl ContractCommit {
     pub fn add_statement(&mut self, stmt: CommitStatement) {
         self.statements.push(stmt);
     }
-} 
+}
