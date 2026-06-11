@@ -30,6 +30,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "X after Y" | `always([+X] implies eventually(<+Y> true))` |
 | "Must do Y before X" | `always([+X] implies eventually([<+Y>] true))` |
 | "Only A can X" | `always([+X] implies <+signed_by(/users/a.id)> true)` |
+| "Committed X requires A signature" | `always([<+X>] true implies <+signed_by(/users/a.id)> true)` |
 | "X requires committed A signature" | `always([+X] implies [<+signed_by(/users/a.id)>] true)` |
 | "X requires A and B signatures" | `always([+X] implies <+signed_by(/users/a.id) +signed_by(/users/b.id)> true)` |
 | "X requires committed A and B signatures" | `always([+X] implies [<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true)` |
@@ -539,6 +540,13 @@ F1: **always([+PAY] implies eventually(<+WORK> true))**
 
         assert!(prompt.contains("<+signed_by(/users/a.id) +signed_by(/users/b.id)> true"));
         assert!(prompt.contains("[<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true"));
+    }
+
+    #[test]
+    fn test_prompt_includes_committed_action_authorization_pattern() {
+        let prompt = generate_prompt("Committed release requires buyer signature");
+
+        assert!(prompt.contains("always([<+X>] true implies <+signed_by(/users/a.id)> true)"));
     }
 
     #[test]
