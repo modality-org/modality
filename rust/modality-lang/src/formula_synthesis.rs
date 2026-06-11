@@ -37,10 +37,23 @@ pub fn extract_constraints(formula: &FormulaExpr) -> SynthesisConstraints {
         for props in direct_diamond_props {
             push_unique_props(&mut constraints.self_loops, props);
         }
+        extract_non_direct_diamond_branches(formula, &mut constraints);
         return constraints;
     }
     extract_from_expr(formula, &mut constraints);
     constraints
+}
+
+fn extract_non_direct_diamond_branches(expr: &FormulaExpr, constraints: &mut SynthesisConstraints) {
+    match expr {
+        FormulaExpr::Diamond(props, inner) if is_true_expr(inner) && !props.is_empty() => {}
+        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
+            extract_non_direct_diamond_branches(lhs, constraints);
+            extract_non_direct_diamond_branches(rhs, constraints);
+        }
+        FormulaExpr::Paren(inner) => extract_non_direct_diamond_branches(inner, constraints),
+        _ => extract_from_expr(expr, constraints),
+    }
 }
 
 fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints) {
@@ -709,6 +722,35 @@ mod tests {
         assert!(transitions[1]
             .properties
             .contains(&Property::new(PropertySign::Plus, "REJECT".to_string())));
+    }
+
+    #[test]
+    fn test_mixed_direct_diamond_compound_preserves_other_constraints() {
+        let formula = FormulaExpr::And(
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "CANCEL".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Implies(
+                Box::new(FormulaExpr::Box(
+                    vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::Eventually(Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "DELIVER".to_string())],
+                    Box::new(FormulaExpr::True),
+                )))),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(constraints.self_loops.len(), 1);
+        assert!(constraints.self_loops[0]
+            .contains(&Property::new(PropertySign::Plus, "CANCEL".to_string())));
+        assert!(constraints
+            .ordering
+            .contains(&("RELEASE".to_string(), "DELIVER".to_string())));
     }
 
     #[test]
