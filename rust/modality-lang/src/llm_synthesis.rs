@@ -53,7 +53,7 @@ pub fn generate_prompt(nl_description: &str) -> String {
 pub fn parse_llm_response(response: &str) -> Vec<String> {
     let mut formulas = Vec::new();
 
-    for line in response.lines() {
+    'lines: for line in response.lines() {
         let line = line.trim();
 
         // Skip empty lines
@@ -63,15 +63,17 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
 
         let line = strip_list_marker(line);
 
-        // Look for F1:, F2:, etc. pattern
-        if let Some(colon_pos) = line.find(':') {
-            let prefix = &line[..colon_pos];
-            if is_formula_prefix(prefix) {
-                let formula = strip_formula_wrapping(line[colon_pos + 1..].trim());
-                if !formula.is_empty() {
-                    formulas.push(formula.to_string());
+        // Look for F1:, F2., Formula 3), etc. labels.
+        for separator in [':', '.', ')'] {
+            if let Some(separator_pos) = line.find(separator) {
+                let prefix = &line[..separator_pos];
+                if is_formula_prefix(prefix) {
+                    let formula = strip_formula_wrapping(line[separator_pos + 1..].trim());
+                    if !formula.is_empty() {
+                        formulas.push(formula.to_string());
+                    }
+                    continue 'lines;
                 }
-                continue;
             }
         }
 
@@ -207,6 +209,22 @@ F3: always([+DELIVER] implies <+signed_by(/users/bob.id)> true)
             formulas[0],
             "always([+RELEASE] implies eventually(<+DELIVER> true))"
         );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_label_separators() {
+        let response = r#"
+F1. always([+PAY] implies eventually(<+WORK> true))
+Formula 2) <+CANCEL> true
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] implies eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
     }
 
     #[test]
