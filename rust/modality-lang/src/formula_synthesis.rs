@@ -32,8 +32,11 @@ pub struct SynthesisConstraints {
 /// Extract synthesis constraints from a formula
 pub fn extract_constraints(formula: &FormulaExpr) -> SynthesisConstraints {
     let mut constraints = SynthesisConstraints::default();
-    if let Some(props) = extract_direct_diamond_props(formula) {
-        push_unique_props(&mut constraints.self_loops, props);
+    let direct_diamond_props = extract_direct_diamond_prop_groups(formula);
+    if !direct_diamond_props.is_empty() {
+        for props in direct_diamond_props {
+            push_unique_props(&mut constraints.self_loops, props);
+        }
         return constraints;
     }
     extract_from_expr(formula, &mut constraints);
@@ -208,14 +211,21 @@ fn extract_diamond_box_props(expr: &FormulaExpr) -> Vec<Vec<Property>> {
     }
 }
 
-/// Extract permissive action properties from a top-level <+ACTION> true pattern.
-fn extract_direct_diamond_props(expr: &FormulaExpr) -> Option<Vec<Property>> {
+/// Extract permissive action properties from top-level <+ACTION> true patterns.
+fn extract_direct_diamond_prop_groups(expr: &FormulaExpr) -> Vec<Vec<Property>> {
     match expr {
         FormulaExpr::Diamond(props, inner) if is_true_expr(inner) && !props.is_empty() => {
-            Some(props.clone())
+            vec![props.clone()]
         }
-        FormulaExpr::Paren(inner) => extract_direct_diamond_props(inner),
-        _ => None,
+        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
+            let mut props = extract_direct_diamond_prop_groups(lhs);
+            for rhs_props in extract_direct_diamond_prop_groups(rhs) {
+                push_unique_props(&mut props, rhs_props);
+            }
+            props
+        }
+        FormulaExpr::Paren(inner) => extract_direct_diamond_prop_groups(inner),
+        _ => Vec::new(),
     }
 }
 
@@ -666,6 +676,39 @@ mod tests {
         assert!(transitions[0]
             .properties
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
+    }
+
+    #[test]
+    fn test_compound_direct_diamonds_synthesize_permissive_self_loops() {
+        let formula = FormulaExpr::Or(
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "REJECT".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+        assert!(constraints.actions.is_empty());
+        assert_eq!(constraints.self_loops.len(), 2);
+
+        let model = synthesize_from_formulas("Approval", &[formula]);
+        let transitions = &model.parts[0].transitions;
+
+        assert_eq!(transitions.len(), 2);
+        assert_eq!(transitions[0].from, "init");
+        assert_eq!(transitions[0].to, "init");
+        assert!(transitions[0]
+            .properties
+            .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
+        assert_eq!(transitions[1].from, "init");
+        assert_eq!(transitions[1].to, "init");
+        assert!(transitions[1]
+            .properties
+            .contains(&Property::new(PropertySign::Plus, "REJECT".to_string())));
     }
 
     #[test]
@@ -1557,7 +1600,7 @@ mod tests {
 
     #[test]
     fn test_or_extracts_candidate_actions_from_both_branches() {
-        let formula = FormulaExpr::Or(
+        let formula = FormulaExpr::Next(Box::new(FormulaExpr::Or(
             Box::new(FormulaExpr::Diamond(
                 vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
                 Box::new(FormulaExpr::True),
@@ -1566,7 +1609,7 @@ mod tests {
                 vec![Property::new(PropertySign::Plus, "REJECT".to_string())],
                 Box::new(FormulaExpr::True),
             )),
-        );
+        )));
 
         let constraints = extract_constraints(&formula);
 
