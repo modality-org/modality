@@ -162,6 +162,8 @@ fn get_pattern_keywords() -> Vec<PatternKeywords> {
             keywords: vec![
                 "turn taking", "turn-taking", "alternate turns", "alternating turns",
                 "take turns", "round robin", "one after another",
+                "alternate signing", "alternating signing", "alternate signatures",
+                "alternating signatures", "one at a time",
             ],
             weight: 1.0,
         },
@@ -424,6 +426,16 @@ mod tests {
         let model = result.model.expect("turn taking model");
         assert_eq!(model.name, "TurnTaking");
         assert_eq!(model.parts[0].transitions.len(), 2);
+    }
+
+    #[test]
+    fn test_alternating_signing_detection() {
+        let result = map_nl_to_pattern("Alice and Bob should alternate signatures one at a time");
+        assert_eq!(result.pattern, ContractPattern::TurnTaking);
+        assert_eq!(result.confidence, 1.0);
+        assert!(result.parties.contains(&"Alice".to_string()));
+        assert!(result.parties.contains(&"Bob".to_string()));
+        assert!(result.model.is_some());
     }
     
     #[test]
