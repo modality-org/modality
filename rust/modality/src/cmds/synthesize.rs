@@ -179,6 +179,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("  modality model synthesize --formulas \"always([<+APPROVE>] true)\" --verify");
         println!("  modality model synthesize --formulas \"[<+APPROVE>] true\" --verify");
         println!("  modality model synthesize --formulas \"<+APPROVE> true\" --verify");
+        println!(
+            "  modality model synthesize --formulas \"[<+RELEASE>] true -> <+signed_by(/users/buyer.id)> true\" --verify"
+        );
         println!("\nOr generate a prompt and synthesize an LLM response file:");
         println!(
             "  modality model synthesize --describe \"escrow where buyer deposits funds\" --generate-prompt"
