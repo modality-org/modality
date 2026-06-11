@@ -261,6 +261,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
             "  modality model synthesize --formulas \"[+APPROVE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & eventually([<+DELIVER>] true))\" --verify"
         );
         println!(
+            "  modality model synthesize --formulas \"[+APPROVE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & eventually([<+DELIVER>] true))\" --verify"
+        );
+        println!(
             "  modality model synthesize --formulas \"[+APPROVE] true -> [<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true\" --verify"
         );
         println!("\nOr generate a prompt and synthesize an LLM response file:");
@@ -1219,6 +1222,18 @@ always([<+APPROVE>] true)
     fn verify_synthesized_model_accepts_multi_signer_and_committed_followup_example() {
         let formulas = parse_formula_strings(&[
             "[+APPROVE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & eventually([<+DELIVER>] true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_committed_multi_signer_and_committed_followup_example() {
+        let formulas = parse_formula_strings(&[
+            "[+APPROVE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & eventually([<+DELIVER>] true))"
                 .to_string(),
         ]);
         let model =
