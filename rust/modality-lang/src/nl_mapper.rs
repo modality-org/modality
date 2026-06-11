@@ -211,6 +211,8 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("subscriber", "Subscriber"),
         ("moderator", "Moderator"),
         ("admin", "Admin"),
+        ("approver", "Approver"),
+        ("steward", "Steward"),
         ("owner", "Owner"),
         ("user", "User"),
         ("vendor", "Vendor"),
@@ -485,6 +487,14 @@ mod tests {
         assert!(result.parties.contains(&"Reviewer".to_string()));
         assert!(result.parties.contains(&"Verifier".to_string()));
         assert!(result.parties.contains(&"Arbiter".to_string()));
+    }
+
+    #[test]
+    fn test_approval_flow_party_roles() {
+        let result = map_nl_to_pattern("Agent action requires approval from steward and approver");
+        assert!(result.parties.contains(&"Agent".to_string()));
+        assert!(result.parties.contains(&"Steward".to_string()));
+        assert!(result.parties.contains(&"Approver".to_string()));
     }
     
     #[test]
