@@ -799,6 +799,56 @@ mod tests {
     }
 
     #[test]
+    fn test_mixed_direct_diamond_compound_preserves_authorization() {
+        let formula = FormulaExpr::And(
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "CANCEL".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Implies(
+                Box::new(FormulaExpr::Box(
+                    vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::Diamond(
+                    vec![Property::new_predicate_from_call(
+                        "signed_by".to_string(),
+                        "/users/buyer.id".to_string(),
+                    )],
+                    Box::new(FormulaExpr::True),
+                )),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(
+            constraints.authorization.get("RELEASE"),
+            Some(&vec!["/users/buyer.id".to_string()])
+        );
+
+        let model = synthesize_from_formulas("Mixed", &[formula]);
+        let signer_prop = Property::new_predicate_from_call(
+            "signed_by".to_string(),
+            "/users/buyer.id".to_string(),
+        );
+
+        assert!(model.parts[0].transitions.iter().any(|transition| {
+            transition
+                .properties
+                .contains(&Property::new(PropertySign::Plus, "RELEASE".to_string()))
+                && transition.properties.contains(&signer_prop)
+        }));
+        assert!(model.parts[0].transitions.iter().any(|transition| {
+            transition.from == "init"
+                && transition.to == "init"
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "CANCEL".to_string()))
+        }));
+    }
+
+    #[test]
     fn test_always_diamond_box_preserves_negative_guard_props() {
         let formula = FormulaExpr::Always(Box::new(FormulaExpr::DiamondBox(
             vec![
