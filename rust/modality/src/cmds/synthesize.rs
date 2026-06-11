@@ -228,6 +228,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
             "  modality model synthesize --formulas \"[+DISPUTE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & always([-RELEASE] true))\" --verify"
         );
         println!(
+            "  modality model synthesize --formulas \"[<+DISPUTE>] true -> (<+signed_by(/users/arbiter.id)> true & always([-RELEASE] true))\" --verify"
+        );
+        println!(
+            "  modality model synthesize --formulas \"[<+DISPUTE>] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & always([-RELEASE] true))\" --verify"
+        );
+        println!(
             "  modality model synthesize --formulas \"[<+RELEASE>] true -> <+signed_by(/users/buyer.id)> true\" --verify"
         );
         println!(
@@ -1019,6 +1025,30 @@ always([<+APPROVE>] true)
     fn verify_synthesized_model_accepts_multi_signer_and_forbidden_example() {
         let formulas = parse_formula_strings(&[
             "[+DISPUTE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & always([-RELEASE] true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_committed_action_signer_and_forbidden_example() {
+        let formulas = parse_formula_strings(&[
+            "[<+DISPUTE>] true -> (<+signed_by(/users/arbiter.id)> true & always([-RELEASE] true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_committed_action_multi_signer_and_forbidden_example() {
+        let formulas = parse_formula_strings(&[
+            "[<+DISPUTE>] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & always([-RELEASE] true))"
                 .to_string(),
         ]);
         let model =
