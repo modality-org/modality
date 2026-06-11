@@ -611,6 +611,27 @@ mod tests {
     }
 
     #[test]
+    fn test_diamond_box_once_synthesizes_linear_transition() {
+        let formula = FormulaExpr::DiamondBox(
+            vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+            Box::new(FormulaExpr::True),
+        );
+
+        let model = synthesize_from_formulas("Approval", &[formula]);
+        let transitions = &model.parts[0].transitions;
+
+        assert_eq!(transitions.len(), 2);
+        assert_eq!(transitions[0].from, "init");
+        assert_eq!(transitions[0].to, "after_approve");
+        assert!(transitions[0]
+            .properties
+            .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
+        assert_eq!(transitions[1].from, "after_approve");
+        assert_eq!(transitions[1].to, "after_approve");
+        assert!(transitions[1].properties.is_empty());
+    }
+
+    #[test]
     fn test_always_diamond_box_preserves_negative_guard_props() {
         let formula = FormulaExpr::Always(Box::new(FormulaExpr::DiamondBox(
             vec![
