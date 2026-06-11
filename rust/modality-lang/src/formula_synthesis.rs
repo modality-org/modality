@@ -294,10 +294,10 @@ fn extract_diamond_actions(expr: &FormulaExpr) -> Vec<String> {
     }
 }
 
-/// Extract signer paths from <+signed_by(path) ...> true patterns
+/// Extract signer paths from <+signed_by(path) ...> true or [<+signed_by(path) ...>] true patterns.
 fn extract_diamond_signers(expr: &FormulaExpr) -> Vec<String> {
     match expr {
-        FormulaExpr::Diamond(props, _) => props
+        FormulaExpr::Diamond(props, _) | FormulaExpr::DiamondBox(props, _) => props
             .iter()
             .filter_map(|prop| {
                 if prop.sign == PropertySign::Plus && prop.name == "signed_by" {
@@ -1445,6 +1445,30 @@ mod tests {
                 "/users/alice.id".to_string(),
                 "/users/bob.id".to_string()
             ])
+        );
+    }
+
+    #[test]
+    fn test_diamond_box_signer_rhs_adds_authorization() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::DiamondBox(
+                vec![Property::new_predicate_from_call(
+                    "signed_by".to_string(),
+                    "/users/reviewer.id".to_string(),
+                )],
+                Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(
+            constraints.authorization.get("APPROVE"),
+            Some(&vec!["/users/reviewer.id".to_string()])
         );
     }
 
