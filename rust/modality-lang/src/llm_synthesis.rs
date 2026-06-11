@@ -64,7 +64,7 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
         // Look for F1:, F2:, etc. pattern
         if let Some(colon_pos) = line.find(':') {
             let prefix = &line[..colon_pos];
-            if prefix.starts_with('F') && prefix[1..].chars().all(|c| c.is_ascii_digit()) {
+            if is_formula_prefix(prefix) {
                 let formula = strip_formula_wrapping(line[colon_pos + 1..].trim());
                 if !formula.is_empty() {
                     formulas.push(formula.to_string());
@@ -82,6 +82,14 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
     }
 
     formulas
+}
+
+fn is_formula_prefix(prefix: &str) -> bool {
+    let Some(label) = prefix.strip_prefix(['F', 'f']) else {
+        return false;
+    };
+
+    !label.is_empty() && label.chars().all(|c| c.is_ascii_digit())
 }
 
 fn strip_list_marker(line: &str) -> &str {
@@ -166,6 +174,18 @@ F3: always([+DELIVER] implies <+signed_by(/users/bob.id)> true)
         assert_eq!(formulas.len(), 3);
         assert!(formulas[0].contains("RELEASE"));
         assert!(formulas[1].contains("signed_by"));
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_lowercase_prefix() {
+        let response = "f1: always([+RELEASE] implies eventually(<+DELIVER> true))";
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 1);
+        assert_eq!(
+            formulas[0],
+            "always([+RELEASE] implies eventually(<+DELIVER> true))"
+        );
     }
 
     #[test]
