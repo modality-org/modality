@@ -754,6 +754,51 @@ mod tests {
     }
 
     #[test]
+    fn test_mixed_direct_diamond_compound_generates_self_loop_and_ordering() {
+        let formula = FormulaExpr::And(
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "CANCEL".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Implies(
+                Box::new(FormulaExpr::Box(
+                    vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::Eventually(Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "DELIVER".to_string())],
+                    Box::new(FormulaExpr::True),
+                )))),
+            )),
+        );
+
+        let model = synthesize_from_formulas("Mixed", &[formula]);
+        let transitions = &model.parts[0].transitions;
+
+        assert!(transitions.iter().any(|transition| {
+            transition.from == "init"
+                && transition.to == "after_deliver"
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "DELIVER".to_string()))
+        }));
+        assert!(transitions.iter().any(|transition| {
+            transition.from == "after_deliver"
+                && transition.to == "after_release"
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "RELEASE".to_string()))
+        }));
+        assert!(transitions.iter().any(|transition| {
+            transition.from == "init"
+                && transition.to == "init"
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "CANCEL".to_string()))
+        }));
+    }
+
+    #[test]
     fn test_always_diamond_box_preserves_negative_guard_props() {
         let formula = FormulaExpr::Always(Box::new(FormulaExpr::DiamondBox(
             vec![
