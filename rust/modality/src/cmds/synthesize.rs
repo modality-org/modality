@@ -177,6 +177,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("  modality model synthesize --describe \"Alice and Bob take turns signing\"");
         println!("\nOr synthesize and verify from formulas:");
         println!("  modality model synthesize --formulas \"always([<+APPROVE>] true)\" --verify");
+        println!("  modality model synthesize --formulas \"[<+APPROVE>] true\" --verify");
         println!("\nOr generate a prompt and synthesize an LLM response file:");
         println!(
             "  modality model synthesize --describe \"escrow where buyer deposits funds\" --generate-prompt"
