@@ -23,6 +23,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 
 | Requirement | Formula |
 |-------------|---------|
+| "X is allowed" | `<+X> true` |
+| "Can always do X" | `always([<+X>] true)` |
 | "X after Y" | `always([+X] implies eventually(<+Y> true))` |
 | "Only A can X" | `always([+X] implies <+signed_by(/users/a.id)> true)` |
 | "X requires A and B signatures" | `always([+X] implies <+signed_by(/users/a.id) +signed_by(/users/b.id)> true)` |
@@ -161,5 +163,13 @@ always([+PAY] implies eventually(<+WORK> true))
         assert!(
             prompt.contains("<+signed_by(/users/a.id) +signed_by(/users/b.id)> true")
         );
+    }
+
+    #[test]
+    fn test_prompt_includes_direct_diamond_patterns() {
+        let prompt = generate_prompt("Approval is always allowed");
+
+        assert!(prompt.contains("`<+X> true`"));
+        assert!(prompt.contains("`always([<+X>] true)`"));
     }
 }
