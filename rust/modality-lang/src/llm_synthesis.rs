@@ -101,6 +101,11 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
 fn is_formula_prefix(prefix: &str) -> bool {
     let prefix = prefix.trim().trim_matches(['*', '_']).trim();
 
+    let numeric_label = prefix.trim_start_matches('#');
+    if !numeric_label.is_empty() && numeric_label.chars().all(|c| c.is_ascii_digit()) {
+        return true;
+    }
+
     if let Some(label) = prefix.strip_prefix(['F', 'f']) {
         let label = label.trim_start_matches('#');
         if !label.is_empty() && label.chars().all(|c| c.is_ascii_digit()) {
@@ -306,6 +311,22 @@ Formula 2 = <+CANCEL> true
         let response = r#"
 F#1: always([+PAY] implies eventually(<+WORK> true))
 Formula #2: <+CANCEL> true
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] implies eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_numeric_labels() {
+        let response = r#"
+1: always([+PAY] implies eventually(<+WORK> true))
+2 = <+CANCEL> true
 "#;
 
         let formulas = parse_llm_response(response);
