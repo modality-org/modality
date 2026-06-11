@@ -74,8 +74,8 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
             }
         }
 
-        // Look for F1:, F2., Formula 3), etc. labels.
-        for separator in [':', '.', ')'] {
+        // Look for F1:, F2., Formula 3), Formula 4 =, etc. labels.
+        for separator in [':', '.', ')', '='] {
             if let Some(separator_pos) = line.find(separator) {
                 let prefix = &line[..separator_pos];
                 if is_formula_prefix(prefix) {
@@ -273,6 +273,22 @@ Formula 2) <+CANCEL> true
         let response = r#"
 F1 - always([+PAY] implies eventually(<+WORK> true))
 Formula 2 - <+CANCEL> true
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] implies eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_equals_label_separator() {
+        let response = r#"
+F1 = always([+PAY] implies eventually(<+WORK> true))
+Formula 2 = <+CANCEL> true
 "#;
 
         let formulas = parse_llm_response(response);
