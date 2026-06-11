@@ -192,6 +192,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
             "  modality model synthesize --formulas \"[<+RELEASE>] true -> eventually(<+DELIVER> true)\" --verify"
         );
         println!(
+            "  modality model synthesize --formulas \"[<+RELEASE>] true -> eventually([<+DELIVER>] true)\" --verify"
+        );
+        println!(
             "  modality model synthesize --formulas \"[+RELEASE] true -> eventually([<+DELIVER>] true)\" --verify"
         );
         println!(
@@ -946,6 +949,17 @@ always([<+APPROVE>] true)
     fn verify_synthesized_model_accepts_committed_action_eventual_example() {
         let formulas = parse_formula_strings(&[
             "[<+RELEASE>] true -> eventually(<+DELIVER> true)".to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_committed_action_committed_eventual_example() {
+        let formulas = parse_formula_strings(&[
+            "[<+RELEASE>] true -> eventually([<+DELIVER>] true)".to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
