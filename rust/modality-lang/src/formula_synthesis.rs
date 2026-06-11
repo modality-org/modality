@@ -935,6 +935,46 @@ mod tests {
     }
 
     #[test]
+    fn test_diamond_box_guard_adds_ordering_constraint() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::DiamondBox(
+                vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Eventually(Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "DELIVER".to_string())],
+                Box::new(FormulaExpr::True),
+            )))),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .ordering
+            .contains(&("RELEASE".to_string(), "DELIVER".to_string())));
+    }
+
+    #[test]
+    fn test_diamond_box_guard_adds_forbidden_after_constraint() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::DiamondBox(
+                vec![Property::new(PropertySign::Plus, "DISPUTE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Always(Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Minus, "RELEASE".to_string())],
+                Box::new(FormulaExpr::True),
+            )))),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .forbidden_after
+            .contains(&("DISPUTE".to_string(), "RELEASE".to_string())));
+    }
+
+    #[test]
     fn test_parentheses_do_not_hide_implication_forbidden_pattern() {
         let formula = FormulaExpr::Implies(
             Box::new(FormulaExpr::Paren(Box::new(FormulaExpr::Box(
