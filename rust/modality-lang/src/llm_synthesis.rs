@@ -33,6 +33,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "X requires A and B signatures" | `always([+X] implies <+signed_by(/users/a.id) +signed_by(/users/b.id)> true)` |
 | "X requires Y and Z" | `always([+X] implies (eventually(<+Y> true) & eventually(<+Z> true)))` |
 | "Never X after Y" | `always([+Y] implies always([-X] true))` |
+| "Never Y or Z after X" | `always([+X] implies (always([-Y] true) & always([-Z] true)))` |
 
 ## Output Format
 
@@ -550,5 +551,12 @@ F1: **always([+PAY] implies eventually(<+WORK> true))**
 
         assert!(prompt.contains("eventually([<+Y>] true)"));
         assert!(prompt.contains("[<+signed_by(/users/a.id)>] true"));
+    }
+
+    #[test]
+    fn test_prompt_includes_compound_forbidden_after_pattern() {
+        let prompt = generate_prompt("Never release or refund after dispute");
+
+        assert!(prompt.contains("always([+X] implies (always([-Y] true) & always([-Z] true)))"));
     }
 }
