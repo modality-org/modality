@@ -67,10 +67,14 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "X requires A and B signatures and forbids Y" | `always([+X] implies (<+signed_by(/users/a.id) +signed_by(/users/b.id)> true & always([-Y] true)))` |
 | "X requires committed A signature and forbids Y" | `always([+X] implies ([<+signed_by(/users/a.id)>] true & always([-Y] true)))` |
 | "X requires committed A and B signatures and forbids Y" | `always([+X] implies ([<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true & always([-Y] true)))` |
+| "X requires committed A signature and forbids Y or Z" | `always([+X] implies ([<+signed_by(/users/a.id)>] true & (always([-Y] true) & always([-Z] true))))` |
+| "X requires committed A and B signatures and forbids Y or Z" | `always([+X] implies ([<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true & (always([-Y] true) & always([-Z] true))))` |
 | "Committed X requires A signature and forbids Y" | `always([<+X>] true implies (<+signed_by(/users/a.id)> true & always([-Y] true)))` |
 | "Committed X requires A and B signatures and forbids Y" | `always([<+X>] true implies (<+signed_by(/users/a.id) +signed_by(/users/b.id)> true & always([-Y] true)))` |
 | "Committed X requires committed A signature and forbids Y" | `always([<+X>] true implies ([<+signed_by(/users/a.id)>] true & always([-Y] true)))` |
 | "Committed X requires committed A and B signatures and forbids Y" | `always([<+X>] true implies ([<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true & always([-Y] true)))` |
+| "Committed X requires committed A signature and forbids Y or Z" | `always([<+X>] true implies ([<+signed_by(/users/a.id)>] true & (always([-Y] true) & always([-Z] true))))` |
+| "Committed X requires committed A and B signatures and forbids Y or Z" | `always([<+X>] true implies ([<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true & (always([-Y] true) & always([-Z] true))))` |
 
 ## Output Format
 
@@ -692,6 +696,18 @@ F1: **always([+PAY] implies eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([<+X>] true implies ([<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true & always([-Y] true)))"
+        ));
+        assert!(prompt.contains(
+            "always([+X] implies ([<+signed_by(/users/a.id)>] true & (always([-Y] true) & always([-Z] true))))"
+        ));
+        assert!(prompt.contains(
+            "always([+X] implies ([<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true & (always([-Y] true) & always([-Z] true))))"
+        ));
+        assert!(prompt.contains(
+            "always([<+X>] true implies ([<+signed_by(/users/a.id)>] true & (always([-Y] true) & always([-Z] true))))"
+        ));
+        assert!(prompt.contains(
+            "always([<+X>] true implies ([<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true & (always([-Y] true) & always([-Z] true))))"
         ));
     }
 }

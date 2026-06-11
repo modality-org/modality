@@ -234,6 +234,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
             "  modality model synthesize --formulas \"[+DISPUTE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & always([-RELEASE] true))\" --verify"
         );
         println!(
+            "  modality model synthesize --formulas \"[+DISPUTE] true -> ([<+signed_by(/users/arbiter.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))\" --verify"
+        );
+        println!(
+            "  modality model synthesize --formulas \"[+DISPUTE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))\" --verify"
+        );
+        println!(
             "  modality model synthesize --formulas \"[<+DISPUTE>] true -> (<+signed_by(/users/arbiter.id)> true & always([-RELEASE] true))\" --verify"
         );
         println!(
@@ -244,6 +250,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
         );
         println!(
             "  modality model synthesize --formulas \"[<+DISPUTE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & always([-RELEASE] true))\" --verify"
+        );
+        println!(
+            "  modality model synthesize --formulas \"[<+DISPUTE>] true -> ([<+signed_by(/users/arbiter.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))\" --verify"
+        );
+        println!(
+            "  modality model synthesize --formulas \"[<+DISPUTE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))\" --verify"
         );
         println!(
             "  modality model synthesize --formulas \"[<+RELEASE>] true -> <+signed_by(/users/buyer.id)> true\" --verify"
@@ -1070,6 +1082,30 @@ always([<+APPROVE>] true)
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_committed_signer_and_compound_forbidden_example() {
+        let formulas = parse_formula_strings(&[
+            "[+DISPUTE] true -> ([<+signed_by(/users/arbiter.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_committed_multi_signer_compound_forbidden() {
+        let formulas = parse_formula_strings(&[
+            "[+DISPUTE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_accepts_committed_action_signer_and_forbidden_example() {
         let formulas = parse_formula_strings(&[
             "[<+DISPUTE>] true -> (<+signed_by(/users/arbiter.id)> true & always([-RELEASE] true))"
@@ -1109,6 +1145,30 @@ always([<+APPROVE>] true)
     fn verify_synthesized_model_accepts_committed_action_committed_multi_signer_forbidden() {
         let formulas = parse_formula_strings(&[
             "[<+DISPUTE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & always([-RELEASE] true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_committed_action_committed_signer_compound_forbidden() {
+        let formulas = parse_formula_strings(&[
+            "[<+DISPUTE>] true -> ([<+signed_by(/users/arbiter.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_committed_action_committed_multisig_compound_forbidden() {
+        let formulas = parse_formula_strings(&[
+            "[<+DISPUTE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))"
                 .to_string(),
         ]);
         let model =
