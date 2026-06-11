@@ -18,6 +18,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 
 ### Predicates
 - `+signed_by(/users/name.id)` — requires signature from name
+- `+oracle_attests(/oracles/name.id, "field", "value")` — requires an oracle attestation
 
 ## Common Patterns
 
@@ -39,6 +40,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "X requires committed A signature" | `always([+X] implies [<+signed_by(/users/a.id)>] true)` |
 | "X requires A and B signatures" | `always([+X] implies <+signed_by(/users/a.id) +signed_by(/users/b.id)> true)` |
 | "X requires committed A and B signatures" | `always([+X] implies [<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true)` |
+| "X requires oracle attestation" | `always([+X] true -> <+oracle_attests(/oracles/a.id, "delivered", "true")> true)` |
 | "X requires Y and Z" | `always([+X] implies (eventually(<+Y> true) & eventually(<+Z> true)))` |
 | "Committed X requires Y and Z" | `always([<+X>] true implies (eventually(<+Y> true) & eventually(<+Z> true)))` |
 | "X requires committed Y and Z" | `always([+X] implies (eventually([<+Y>] true) & eventually([<+Z>] true)))` |
@@ -594,6 +596,15 @@ F1: **always([+PAY] implies eventually(<+WORK> true))**
 
         assert!(prompt.contains("<+signed_by(/users/a.id) +signed_by(/users/b.id)> true"));
         assert!(prompt.contains("[<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true"));
+    }
+
+    #[test]
+    fn test_prompt_includes_oracle_attestation_pattern() {
+        let prompt = generate_prompt("Release requires oracle attestation");
+
+        assert!(prompt.contains(
+            r#"always([+X] true -> <+oracle_attests(/oracles/a.id, "delivered", "true")> true)"#
+        ));
     }
 
     #[test]
