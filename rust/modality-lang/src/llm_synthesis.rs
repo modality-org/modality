@@ -55,6 +55,7 @@ pub fn generate_prompt(nl_description: &str) -> String {
 /// Parse LLM response to extract formulas
 pub fn parse_llm_response(response: &str) -> Vec<String> {
     let mut formulas = Vec::new();
+    let mut declaration_lines = Vec::new();
 
     'lines: for line in response.lines() {
         let line = line.trim();
@@ -66,13 +67,25 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
 
         let line = strip_quote_marker(line);
         let line = strip_list_marker(line);
+        let line = strip_formula_wrapping(line);
+
+        if line.starts_with("```") {
+            continue;
+        }
+
+        if !declaration_lines.is_empty() {
+            declaration_lines.push(line.to_string());
+            if line.contains('}') {
+                formulas.push(declaration_lines.join("\n"));
+                declaration_lines.clear();
+            }
+            continue;
+        }
 
         if let Some((prefix, formula)) = line.split_once(" - ") {
             if is_formula_prefix(prefix) {
                 let formula = strip_labeled_formula_wrapping(formula.trim());
-                if !formula.is_empty() {
-                    formulas.push(formula.to_string());
-                }
+                push_formula_candidate(&mut formulas, &mut declaration_lines, formula);
                 continue 'lines;
             }
         }
@@ -83,22 +96,45 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
                 let prefix = &line[..separator_pos];
                 if is_formula_prefix(prefix) {
                     let formula = strip_labeled_formula_wrapping(line[separator_pos + 1..].trim());
-                    if !formula.is_empty() {
-                        formulas.push(formula.to_string());
-                    }
+                    push_formula_candidate(&mut formulas, &mut declaration_lines, formula);
                     continue 'lines;
                 }
             }
         }
 
         // Also accept raw formula lines directly when no F1: prefix is present.
-        let line = strip_formula_wrapping(line);
         if is_raw_formula_line(line) {
-            formulas.push(line.to_string());
+            push_formula_candidate(&mut formulas, &mut declaration_lines, line);
         }
     }
 
+    if !declaration_lines.is_empty() {
+        formulas.push(declaration_lines.join("\n"));
+    }
+
     formulas
+}
+
+fn push_formula_candidate(
+    formulas: &mut Vec<String>,
+    declaration_lines: &mut Vec<String>,
+    formula: &str,
+) {
+    let formula = formula.trim();
+    if formula.is_empty() {
+        return;
+    }
+
+    if starts_multiline_formula_declaration(formula) {
+        declaration_lines.push(formula.to_string());
+        return;
+    }
+
+    formulas.push(formula.to_string());
+}
+
+fn starts_multiline_formula_declaration(line: &str) -> bool {
+    line.starts_with("formula ") && line.contains('{') && !line.contains('}')
 }
 
 fn is_formula_prefix(prefix: &str) -> bool {
@@ -363,6 +399,24 @@ always([+PAY] implies eventually(<+WORK> true))
         assert_eq!(
             formulas[0],
             "formula generated_1 { always([+PAY] implies eventually(<+WORK> true)) }"
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_multiline_formula_declaration() {
+        let response = r#"
+```modality
+F1: formula generated_1 {
+  always([+PAY] implies eventually(<+WORK> true))
+}
+```
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 1);
+        assert_eq!(
+            formulas[0],
+            "formula generated_1 {\nalways([+PAY] implies eventually(<+WORK> true))\n}"
         );
     }
 
