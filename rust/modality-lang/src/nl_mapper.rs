@@ -200,9 +200,14 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("receiver", "Receiver"),
         ("bidder", "Bidder"),
         ("arbiter", "Arbiter"),
+        ("arbitrator", "Arbiter"),
+        ("mediator", "Arbiter"),
         ("reviewer", "Reviewer"),
+        ("auditor", "Reviewer"),
+        ("inspector", "Reviewer"),
         ("oracle", "Oracle"),
         ("verifier", "Verifier"),
+        ("validator", "Verifier"),
         ("subscriber", "Subscriber"),
         ("moderator", "Moderator"),
         ("admin", "Admin"),
@@ -469,6 +474,16 @@ mod tests {
         let result = map_nl_to_pattern("Oracle and reviewer verify delivery before arbiter approval");
         assert!(result.parties.contains(&"Oracle".to_string()));
         assert!(result.parties.contains(&"Reviewer".to_string()));
+        assert!(result.parties.contains(&"Arbiter".to_string()));
+    }
+
+    #[test]
+    fn test_verification_party_role_synonyms() {
+        let result = map_nl_to_pattern(
+            "Auditor and validator inspect delivery before arbitrator resolution",
+        );
+        assert!(result.parties.contains(&"Reviewer".to_string()));
+        assert!(result.parties.contains(&"Verifier".to_string()));
         assert!(result.parties.contains(&"Arbiter".to_string()));
     }
     
