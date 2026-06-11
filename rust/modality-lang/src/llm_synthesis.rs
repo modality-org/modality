@@ -61,6 +61,8 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
             continue;
         }
 
+        let line = strip_list_marker(line);
+
         // Look for F1:, F2:, etc. pattern
         if let Some(colon_pos) = line.find(':') {
             let prefix = &line[..colon_pos];
@@ -74,7 +76,6 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
         }
 
         // Also accept raw formula lines directly when no F1: prefix is present.
-        let line = strip_list_marker(line);
         let line = strip_formula_wrapping(line);
         if is_raw_formula_line(line) {
             formulas.push(line.to_string());
@@ -240,6 +241,22 @@ always([+PAY] implies eventually(<+WORK> true))
             "[+EXECUTE] implies <+signed_by(/users/admin.id)> true"
         );
         assert_eq!(formulas[2], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_strips_list_markers_before_prefixes() {
+        let response = r#"
+- F1: always([+PAY] implies eventually(<+WORK> true))
+1. Formula 2: <+CANCEL> true
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] implies eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
     }
 
     #[test]
