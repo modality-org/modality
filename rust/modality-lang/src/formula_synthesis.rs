@@ -32,6 +32,10 @@ pub struct SynthesisConstraints {
 /// Extract synthesis constraints from a formula
 pub fn extract_constraints(formula: &FormulaExpr) -> SynthesisConstraints {
     let mut constraints = SynthesisConstraints::default();
+    if let Some(props) = extract_direct_diamond_props(formula) {
+        push_unique_props(&mut constraints.self_loops, props);
+        return constraints;
+    }
     extract_from_expr(formula, &mut constraints);
     constraints
 }
@@ -201,6 +205,17 @@ fn extract_diamond_box_props(expr: &FormulaExpr) -> Vec<Vec<Property>> {
         }
         FormulaExpr::Paren(inner) => extract_diamond_box_props(inner),
         _ => Vec::new(),
+    }
+}
+
+/// Extract permissive action properties from a top-level <+ACTION> true pattern.
+fn extract_direct_diamond_props(expr: &FormulaExpr) -> Option<Vec<Property>> {
+    match expr {
+        FormulaExpr::Diamond(props, inner) if is_true_expr(inner) && !props.is_empty() => {
+            Some(props.clone())
+        }
+        FormulaExpr::Paren(inner) => extract_direct_diamond_props(inner),
+        _ => None,
     }
 }
 
@@ -629,6 +644,28 @@ mod tests {
         assert_eq!(transitions[1].from, "after_approve");
         assert_eq!(transitions[1].to, "after_approve");
         assert!(transitions[1].properties.is_empty());
+    }
+
+    #[test]
+    fn test_diamond_once_synthesizes_permissive_self_loop() {
+        let formula = FormulaExpr::Diamond(
+            vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+            Box::new(FormulaExpr::True),
+        );
+
+        let constraints = extract_constraints(&formula);
+        assert!(constraints.actions.is_empty());
+        assert_eq!(constraints.self_loops.len(), 1);
+
+        let model = synthesize_from_formulas("Approval", &[formula]);
+        let transitions = &model.parts[0].transitions;
+
+        assert_eq!(transitions.len(), 1);
+        assert_eq!(transitions[0].from, "init");
+        assert_eq!(transitions[0].to, "init");
+        assert!(transitions[0]
+            .properties
+            .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
     }
 
     #[test]
