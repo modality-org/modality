@@ -212,7 +212,12 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("moderator", "Moderator"),
         ("admin", "Admin"),
         ("approver", "Approver"),
+        ("authorizer", "Approver"),
+        ("manager", "Approver"),
+        ("supervisor", "Approver"),
         ("steward", "Steward"),
+        ("custodian", "Steward"),
+        ("governor", "Steward"),
         ("owner", "Owner"),
         ("user", "User"),
         ("vendor", "Vendor"),
@@ -496,7 +501,16 @@ mod tests {
         assert!(result.parties.contains(&"Steward".to_string()));
         assert!(result.parties.contains(&"Approver".to_string()));
     }
-    
+
+    #[test]
+    fn test_approval_flow_role_synonyms() {
+        let result = map_nl_to_pattern(
+            "Manager authorization and supervisor approval require custodian oversight",
+        );
+        assert!(result.parties.contains(&"Approver".to_string()));
+        assert!(result.parties.contains(&"Steward".to_string()));
+    }
+
     #[test]
     fn test_service_pattern() {
         let result = map_nl_to_pattern("Freelance work where contractor delivers and gets payment");
