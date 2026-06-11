@@ -26,6 +26,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "X is allowed" | `<+X> true` |
 | "Must do X once" | `[<+X>] true` |
 | "Can always do X" | `always([<+X>] true)` |
+| "Can always do X and Y" | `always([<+X>] true & [<+Y>] true)` |
 | "X after Y" | `always([+X] implies eventually(<+Y> true))` |
 | "Must do Y before X" | `always([+X] implies eventually([<+Y>] true))` |
 | "Only A can X" | `always([+X] implies <+signed_by(/users/a.id)> true)` |
@@ -543,6 +544,7 @@ F1: **always([+PAY] implies eventually(<+WORK> true))**
         assert!(prompt.contains("`<+X> true`"));
         assert!(prompt.contains("`[<+X>] true`"));
         assert!(prompt.contains("`always([<+X>] true)`"));
+        assert!(prompt.contains("`always([<+X>] true & [<+Y>] true)`"));
     }
 
     #[test]
