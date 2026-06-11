@@ -65,7 +65,7 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
         if let Some(colon_pos) = line.find(':') {
             let prefix = &line[..colon_pos];
             if prefix.starts_with('F') && prefix[1..].chars().all(|c| c.is_ascii_digit()) {
-                let formula = line[colon_pos + 1..].trim();
+                let formula = strip_formula_wrapping(line[colon_pos + 1..].trim());
                 if !formula.is_empty() {
                     formulas.push(formula.to_string());
                 }
@@ -75,6 +75,7 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
 
         // Also accept raw formula lines directly when no F1: prefix is present.
         let line = strip_list_marker(line);
+        let line = strip_formula_wrapping(line);
         if is_raw_formula_line(line) {
             formulas.push(line.to_string());
         }
@@ -96,6 +97,13 @@ fn strip_list_marker(line: &str) -> &str {
     }
 
     line
+}
+
+fn strip_formula_wrapping(line: &str) -> &str {
+    line.strip_prefix('`')
+        .and_then(|line| line.strip_suffix('`'))
+        .unwrap_or(line)
+        .trim()
 }
 
 fn is_raw_formula_line(line: &str) -> bool {
@@ -192,6 +200,22 @@ always([+PAY] implies eventually(<+WORK> true))
             "[+EXECUTE] implies <+signed_by(/users/admin.id)> true"
         );
         assert_eq!(formulas[2], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_strips_inline_code_wrapping() {
+        let response = r#"
+F1: `always([+PAY] implies eventually(<+WORK> true))`
+- `<+CANCEL> true`
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] implies eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
     }
 
     #[test]
