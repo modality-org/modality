@@ -195,6 +195,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
             "  modality model synthesize --formulas \"<+CANCEL> true & ([+DISPUTE] true -> always([-RELEASE] true))\" --verify"
         );
         println!(
+            "  modality model synthesize --formulas \"[+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true))\" --verify"
+        );
+        println!(
             "  modality model synthesize --formulas \"[<+RELEASE>] true -> <+signed_by(/users/buyer.id)> true\" --verify"
         );
         println!(
@@ -882,6 +885,17 @@ always([<+APPROVE>] true)
     fn verify_synthesized_model_accepts_mixed_forbidden_example() {
         let formulas = parse_formula_strings(&[
             "<+CANCEL> true & ([+DISPUTE] true -> always([-RELEASE] true))".to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_compound_forbidden_example() {
+        let formulas = parse_formula_strings(&[
+            "[+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true))".to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
