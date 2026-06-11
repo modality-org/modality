@@ -74,8 +74,12 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
             }
         }
         
-        // Also accept lines starting with "always" or "[" directly
-        if line.starts_with("always") || line.starts_with('[') || line.starts_with("eventually") {
+        // Also accept raw formula lines directly when no F1: prefix is present.
+        if line.starts_with("always")
+            || line.starts_with('[')
+            || line.starts_with('<')
+            || line.starts_with("eventually")
+        {
             formulas.push(line.to_string());
         }
     }
@@ -143,10 +147,12 @@ F3: always([+DELIVER] implies <+signed_by(/users/bob.id)> true)
         let response = r#"
 always([+PAY] implies eventually(<+WORK> true))
 [+EXECUTE] implies <+signed_by(/users/admin.id)> true
+<+CANCEL> true
 "#;
         
         let formulas = parse_llm_response(response);
-        assert_eq!(formulas.len(), 2);
+        assert_eq!(formulas.len(), 3);
+        assert_eq!(formulas[2], "<+CANCEL> true");
     }
     
     #[test]
