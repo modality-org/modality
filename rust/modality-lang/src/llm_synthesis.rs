@@ -32,6 +32,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Only A can X" | `always([+X] implies <+signed_by(/users/a.id)> true)` |
 | "X requires committed A signature" | `always([+X] implies [<+signed_by(/users/a.id)>] true)` |
 | "X requires A and B signatures" | `always([+X] implies <+signed_by(/users/a.id) +signed_by(/users/b.id)> true)` |
+| "X requires committed A and B signatures" | `always([+X] implies [<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true)` |
 | "X requires Y and Z" | `always([+X] implies (eventually(<+Y> true) & eventually(<+Z> true)))` |
 | "Never X after Y" | `always([+Y] implies always([-X] true))` |
 | "Never Y or Z after X" | `always([+X] implies (always([-Y] true) & always([-Z] true)))` |
@@ -535,6 +536,7 @@ F1: **always([+PAY] implies eventually(<+WORK> true))**
         let prompt = generate_prompt("Approval requires Alice and Bob signatures");
 
         assert!(prompt.contains("<+signed_by(/users/a.id) +signed_by(/users/b.id)> true"));
+        assert!(prompt.contains("[<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true"));
     }
 
     #[test]
