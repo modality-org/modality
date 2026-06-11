@@ -210,6 +210,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
             "  modality model synthesize --formulas \"[<+RELEASE>] true -> <+signed_by(/users/buyer.id)> true\" --verify"
         );
         println!(
+            "  modality model synthesize --formulas \"[<+APPROVE>] true -> <+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true\" --verify"
+        );
+        println!(
             "  modality model synthesize --formulas \"[+APPROVE] true -> [<+signed_by(/users/reviewer.id)>] true\" --verify"
         );
         println!(
@@ -987,6 +990,18 @@ always([<+APPROVE>] true)
     fn verify_synthesized_model_accepts_committed_action_signer_example() {
         let formulas = parse_formula_strings(&[
             "[<+RELEASE>] true -> <+signed_by(/users/buyer.id)> true".to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_committed_action_multi_signer_example() {
+        let formulas = parse_formula_strings(&[
+            "[<+APPROVE>] true -> <+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
