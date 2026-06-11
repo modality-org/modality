@@ -179,6 +179,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("  modality model synthesize --formulas \"always([<+APPROVE>] true)\" --verify");
         println!("  modality model synthesize --formulas \"[<+APPROVE>] true\" --verify");
         println!("  modality model synthesize --formulas \"<+APPROVE> true\" --verify");
+        println!("  modality model synthesize --formulas \"<+APPROVE> true | <+REJECT> true\" --verify");
         println!(
             "  modality model synthesize --formulas \"[<+RELEASE>] true -> <+signed_by(/users/buyer.id)> true\" --verify"
         );
