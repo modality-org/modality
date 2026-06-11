@@ -34,6 +34,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Only A can X" | `always([+X] implies <+signed_by(/users/a.id)> true)` |
 | "Committed X requires A signature" | `always([<+X>] true implies <+signed_by(/users/a.id)> true)` |
 | "Committed X requires A and B signatures" | `always([<+X>] true implies <+signed_by(/users/a.id) +signed_by(/users/b.id)> true)` |
+| "Committed X requires committed A signature" | `always([<+X>] true implies [<+signed_by(/users/a.id)>] true)` |
+| "Committed X requires committed A and B signatures" | `always([<+X>] true implies [<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true)` |
 | "X requires committed A signature" | `always([+X] implies [<+signed_by(/users/a.id)>] true)` |
 | "X requires A and B signatures" | `always([+X] implies <+signed_by(/users/a.id) +signed_by(/users/b.id)> true)` |
 | "X requires committed A and B signatures" | `always([+X] implies [<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true)` |
@@ -555,6 +557,12 @@ F1: **always([+PAY] implies eventually(<+WORK> true))**
         assert!(prompt.contains("always([<+X>] true implies <+signed_by(/users/a.id)> true)"));
         assert!(prompt.contains(
             "always([<+X>] true implies <+signed_by(/users/a.id) +signed_by(/users/b.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([<+X>] true implies [<+signed_by(/users/a.id)>] true)"
+        ));
+        assert!(prompt.contains(
+            "always([<+X>] true implies [<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true)"
         ));
     }
 
