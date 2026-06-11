@@ -177,6 +177,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("  modality model synthesize --describe \"Alice and Bob take turns signing\"");
         println!("\nOr synthesize and verify from formulas:");
         println!("  modality model synthesize --formulas \"always([<+APPROVE>] true)\" --verify");
+        println!(
+            "  modality model synthesize --formulas \"always([<+APPROVE>] true & [<+REJECT>] true)\" --verify"
+        );
         println!("  modality model synthesize --formulas \"[<+APPROVE>] true\" --verify");
         println!("  modality model synthesize --formulas \"<+APPROVE> true\" --verify");
         println!(
@@ -875,6 +878,16 @@ always([<+APPROVE>] true)
     #[test]
     fn verify_synthesized_model_accepts_generated_candidate() {
         let formulas = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_compound_self_loop_example() {
+        let formulas =
+            parse_formula_strings(&["always([<+APPROVE>] true & [<+REJECT>] true)".to_string()]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
 

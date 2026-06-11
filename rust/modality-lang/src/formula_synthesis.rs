@@ -212,7 +212,10 @@ fn extract_diamond_box_props(expr: &FormulaExpr) -> Vec<Vec<Property>> {
                 vec![props.clone()]
             }
         }
-        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
+        FormulaExpr::And(lhs, rhs) => {
+            combine_prop_groups(extract_diamond_box_props(lhs), extract_diamond_box_props(rhs))
+        }
+        FormulaExpr::Or(lhs, rhs) => {
             let mut props = extract_diamond_box_props(lhs);
             for rhs_props in extract_diamond_box_props(rhs) {
                 push_unique_props(&mut props, rhs_props);
@@ -379,6 +382,29 @@ fn push_unique_pair(target: &mut Vec<(String, String)>, first: String, second: S
 fn push_unique_props(target: &mut Vec<Vec<Property>>, props: Vec<Property>) {
     if !target.iter().any(|existing| existing == &props) {
         target.push(props);
+    }
+}
+
+fn combine_prop_groups(lhs: Vec<Vec<Property>>, rhs: Vec<Vec<Property>>) -> Vec<Vec<Property>> {
+    match (lhs.is_empty(), rhs.is_empty()) {
+        (true, true) => Vec::new(),
+        (true, false) => rhs,
+        (false, true) => lhs,
+        (false, false) => {
+            let mut combined_groups = Vec::new();
+            for left_props in &lhs {
+                for right_props in &rhs {
+                    let mut combined = left_props.clone();
+                    for prop in right_props {
+                        if !combined.contains(prop) {
+                            combined.push(prop.clone());
+                        }
+                    }
+                    push_unique_props(&mut combined_groups, combined);
+                }
+            }
+            combined_groups
+        }
     }
 }
 
@@ -1000,11 +1026,11 @@ mod tests {
 
         let constraints = extract_constraints(&formula);
 
-        assert_eq!(constraints.self_loops.len(), 2);
-        assert!(constraints.self_loops.iter().any(|props| props
-            .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))));
-        assert!(constraints.self_loops.iter().any(|props| props
-            .contains(&Property::new(PropertySign::Plus, "RENEW".to_string()))));
+        assert_eq!(constraints.self_loops.len(), 1);
+        assert!(constraints.self_loops[0]
+            .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
+        assert!(constraints.self_loops[0]
+            .contains(&Property::new(PropertySign::Plus, "RENEW".to_string())));
     }
 
     #[test]
@@ -1023,21 +1049,15 @@ mod tests {
         let model = synthesize_from_formulas("Approval", &[formula]);
         let transitions = &model.parts[0].transitions;
 
-        assert_eq!(transitions.len(), 2);
-        assert!(transitions.iter().any(|transition| {
-            transition.from == "init"
-                && transition.to == "init"
-                && transition
-                    .properties
-                    .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
-        }));
-        assert!(transitions.iter().any(|transition| {
-            transition.from == "init"
-                && transition.to == "init"
-                && transition
-                    .properties
-                    .contains(&Property::new(PropertySign::Plus, "RENEW".to_string()))
-        }));
+        assert_eq!(transitions.len(), 1);
+        assert_eq!(transitions[0].from, "init");
+        assert_eq!(transitions[0].to, "init");
+        assert!(transitions[0]
+            .properties
+            .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
+        assert!(transitions[0]
+            .properties
+            .contains(&Property::new(PropertySign::Plus, "RENEW".to_string())));
     }
 
     #[test]
