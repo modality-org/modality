@@ -119,10 +119,18 @@ fn strip_list_marker(line: &str) -> &str {
 }
 
 fn strip_formula_wrapping(line: &str) -> &str {
-    line.strip_prefix('`')
-        .and_then(|line| line.strip_suffix('`'))
+    strip_matching_wrapper(line.trim(), "`")
+        .or_else(|| strip_matching_wrapper(line.trim(), "**"))
+        .or_else(|| strip_matching_wrapper(line.trim(), "__"))
+        .or_else(|| strip_matching_wrapper(line.trim(), "*"))
+        .or_else(|| strip_matching_wrapper(line.trim(), "_"))
         .unwrap_or(line)
         .trim()
+}
+
+fn strip_matching_wrapper<'a>(line: &'a str, wrapper: &str) -> Option<&'a str> {
+    line.strip_prefix(wrapper)
+        .and_then(|line| line.strip_suffix(wrapper))
 }
 
 fn is_raw_formula_line(line: &str) -> bool {
@@ -295,6 +303,22 @@ always([+PAY] implies eventually(<+WORK> true))
         let response = r#"
 F1: `always([+PAY] implies eventually(<+WORK> true))`
 - `<+CANCEL> true`
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] implies eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_strips_markdown_emphasis_wrapping() {
+        let response = r#"
+F1: **always([+PAY] implies eventually(<+WORK> true))**
+- _<+CANCEL> true_
 "#;
 
         let formulas = parse_llm_response(response);
