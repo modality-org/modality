@@ -19,6 +19,9 @@ pub struct SynthesisConstraints {
     /// Authorization constraints: action X requires signature from path
     pub authorization: HashMap<String, Vec<String>>,
 
+    /// Predicate constraints: action X requires predicate properties
+    pub predicate_requirements: HashMap<String, Vec<Property>>,
+
     /// Forbidden constraints: action X is forbidden after action Y
     pub forbidden_after: Vec<(String, String)>,
 
@@ -99,6 +102,21 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
                                 .entry(action_x.clone())
                                 .or_default(),
                             &signers,
+                        );
+                        constraints.actions.insert(action_x.clone());
+                    }
+                }
+                // Check for other predicate properties such as
+                // <+oracle_attests(path, status, value)> true.
+                let predicates = extract_diamond_predicates(rhs);
+                if !predicates.is_empty() {
+                    for action_x in &guarded_actions {
+                        extend_unique_props(
+                            constraints
+                                .predicate_requirements
+                                .entry(action_x.clone())
+                                .or_default(),
+                            &predicates,
                         );
                         constraints.actions.insert(action_x.clone());
                     }
@@ -341,6 +359,28 @@ fn extract_diamond_signers(expr: &FormulaExpr) -> Vec<String> {
     }
 }
 
+/// Extract non-signer predicate properties from <+predicate(...)> true patterns.
+fn extract_diamond_predicates(expr: &FormulaExpr) -> Vec<Property> {
+    match expr {
+        FormulaExpr::Diamond(props, _) | FormulaExpr::DiamondBox(props, _) => props
+            .iter()
+            .filter(|prop| {
+                prop.sign == PropertySign::Plus
+                    && prop.name != "signed_by"
+                    && matches!(prop.source, Some(PropertySource::Predicate { .. }))
+            })
+            .cloned()
+            .collect(),
+        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
+            let mut predicates = extract_diamond_predicates(lhs);
+            extend_unique_props(&mut predicates, &extract_diamond_predicates(rhs));
+            predicates
+        }
+        FormulaExpr::Paren(inner) => extract_diamond_predicates(inner),
+        _ => Vec::new(),
+    }
+}
+
 /// Extract forbidden actions from always([-ACTION ...] true) patterns.
 fn extract_always_forbidden(expr: &FormulaExpr) -> Vec<String> {
     match expr {
@@ -454,6 +494,14 @@ fn push_unique_props(target: &mut Vec<Vec<Property>>, props: Vec<Property>) {
     }
 }
 
+fn extend_unique_props(target: &mut Vec<Property>, values: &[Property]) {
+    for value in values {
+        if !target.contains(value) {
+            target.push(value.clone());
+        }
+    }
+}
+
 fn combine_prop_groups(lhs: Vec<Vec<Property>>, rhs: Vec<Vec<Property>>) -> Vec<Vec<Property>> {
     match (lhs.is_empty(), rhs.is_empty()) {
         (true, true) => Vec::new(),
@@ -520,6 +568,13 @@ pub fn synthesize_from_constraints(name: &str, constraints: &SynthesisConstraint
                     "signed_by".to_string(),
                     signer.clone(),
                 ));
+            }
+        }
+
+        // Add generic predicate requirements if present.
+        if let Some(predicates) = constraints.predicate_requirements.get(action) {
+            for predicate in predicates {
+                trans.add_property(predicate.clone());
             }
         }
 
@@ -643,6 +698,12 @@ pub fn synthesize_from_formulas(name: &str, formulas: &[FormulaExpr]) -> Model {
             extend_unique(
                 constraints.authorization.entry(action).or_default(),
                 &signers,
+            );
+        }
+        for (action, predicates) in fc.predicate_requirements {
+            extend_unique_props(
+                constraints.predicate_requirements.entry(action).or_default(),
+                &predicates,
             );
         }
         for (action, forbidden) in fc.forbidden_after {
@@ -1781,6 +1842,46 @@ mod tests {
         assert!(!transitions.iter().any(|transition| transition
             .properties
             .contains(&Property::new(PropertySign::Plus, "signed_by".to_string()))));
+    }
+
+    #[test]
+    fn test_generic_predicate_rhs_is_materialized_on_guarded_transition() {
+        let oracle_prop = Property::new_predicate_from_call_args(
+            "oracle_attests".to_string(),
+            vec![
+                "/oracles/delivery.id".to_string(),
+                "delivered".to_string(),
+                "true".to_string(),
+            ],
+        );
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Diamond(
+                vec![oracle_prop.clone()],
+                Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(
+            constraints.predicate_requirements.get("RELEASE"),
+            Some(&vec![oracle_prop.clone()])
+        );
+        assert!(constraints.actions.contains("RELEASE"));
+        assert!(!constraints.actions.contains("oracle_attests"));
+
+        let model = synthesize_from_constraints("OracleRelease", &constraints);
+        let transitions = &model.parts[0].transitions;
+
+        assert_eq!(transitions.len(), 2);
+        assert!(transitions[0]
+            .properties
+            .contains(&Property::new(PropertySign::Plus, "RELEASE".to_string())));
+        assert!(transitions[0].properties.contains(&oracle_prop));
     }
 
     #[test]
