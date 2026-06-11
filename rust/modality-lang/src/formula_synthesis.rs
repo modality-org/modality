@@ -219,10 +219,10 @@ fn extract_direct_diamond_props(expr: &FormulaExpr) -> Option<Vec<Property>> {
     }
 }
 
-/// Extract action names from [+ACTION ...] patterns
+/// Extract action names from action guards such as [+ACTION ...] or [<+ACTION ...>] patterns.
 fn extract_box_actions(expr: &FormulaExpr) -> Vec<String> {
     match expr {
-        FormulaExpr::Box(props, _) => props
+        FormulaExpr::Box(props, _) | FormulaExpr::DiamondBox(props, _) => props
             .iter()
             .filter(|prop| is_positive_action_property(prop))
             .map(|prop| prop.name.clone())
@@ -898,6 +898,40 @@ mod tests {
             constraints.authorization.get("RELEASE"),
             Some(&vec!["/users/buyer.id".to_string()])
         );
+    }
+
+    #[test]
+    fn test_diamond_box_guard_adds_authorization_to_transition() {
+        let signer = Property::new_predicate_from_call(
+            "signed_by".to_string(),
+            "/users/buyer.id".to_string(),
+        );
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::DiamondBox(
+                vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Diamond(
+                vec![signer.clone()],
+                Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+        assert_eq!(
+            constraints.authorization.get("RELEASE"),
+            Some(&vec!["/users/buyer.id".to_string()])
+        );
+
+        let model = synthesize_from_formulas("Release", &[formula]);
+        let transition = &model.parts[0].transitions[0];
+
+        assert_eq!(transition.from, "init");
+        assert_eq!(transition.to, "after_release");
+        assert!(transition
+            .properties
+            .contains(&Property::new(PropertySign::Plus, "RELEASE".to_string())));
+        assert!(transition.properties.contains(&signer));
     }
 
     #[test]
