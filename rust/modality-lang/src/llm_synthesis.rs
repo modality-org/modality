@@ -40,6 +40,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "X requires Y and Z" | `always([+X] implies (eventually(<+Y> true) & eventually(<+Z> true)))` |
 | "Committed X requires Y and Z" | `always([<+X>] true implies (eventually(<+Y> true) & eventually(<+Z> true)))` |
 | "X requires committed Y and Z" | `always([+X] implies (eventually([<+Y>] true) & eventually([<+Z>] true)))` |
+| "Committed X requires committed Y and Z" | `always([<+X>] true implies (eventually([<+Y>] true) & eventually([<+Z>] true)))` |
 | "Never X after Y" | `always([+Y] implies always([-X] true))` |
 | "Never Y or Z after X" | `always([+X] implies (always([-Y] true) & always([-Z] true)))` |
 | "Committed X forbids Y or Z" | `always([<+X>] true implies (always([-Y] true) & always([-Z] true)))` |
@@ -575,6 +576,9 @@ F1: **always([+PAY] implies eventually(<+WORK> true))**
         assert!(prompt.contains("eventually([<+Y>] true)"));
         assert!(prompt.contains(
             "always([<+X>] true implies (eventually(<+Y> true) & eventually(<+Z> true)))"
+        ));
+        assert!(prompt.contains(
+            "always([<+X>] true implies (eventually([<+Y>] true) & eventually([<+Z>] true)))"
         ));
         assert!(prompt.contains("eventually([<+Y>] true) & eventually([<+Z>] true)"));
         assert!(prompt.contains("[<+signed_by(/users/a.id)>] true"));
