@@ -108,9 +108,15 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
                 // action's pre-state, not only in the linear prefix.
                 let committed_signer_props = extract_committed_signer_props(rhs);
                 if !committed_signer_props.is_empty() {
-                    for action in extract_eventually_committed_actions(rhs) {
+                    let committed_actions = extract_eventually_committed_actions(rhs);
+                    if !committed_actions.is_empty() {
                         let mut props = committed_signer_props.clone();
-                        props.push(Property::new(PropertySign::Plus, action));
+                        for action in committed_actions {
+                            let prop = Property::new(PropertySign::Plus, action);
+                            if !props.contains(&prop) {
+                                props.push(prop);
+                            }
+                        }
                         push_unique_props(&mut constraints.self_loops, props);
                     }
                 }
@@ -1589,6 +1595,53 @@ mod tests {
                 "signed_by".to_string(),
                 "/users/buyer.id".to_string()
             ),
+            Property::new(PropertySign::Plus, "DELIVER".to_string())
+        ]));
+    }
+
+    #[test]
+    fn test_committed_signer_with_compound_committed_followup_uses_combined_self_loop() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::DiamondBox(
+                    vec![Property::new_predicate_from_call(
+                        "signed_by".to_string(),
+                        "/users/buyer.id".to_string(),
+                    )],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::And(
+                    Box::new(FormulaExpr::Eventually(Box::new(FormulaExpr::DiamondBox(
+                        vec![Property::new(PropertySign::Plus, "DEPOSIT".to_string())],
+                        Box::new(FormulaExpr::True),
+                    )))),
+                    Box::new(FormulaExpr::Eventually(Box::new(FormulaExpr::DiamondBox(
+                        vec![Property::new(PropertySign::Plus, "DELIVER".to_string())],
+                        Box::new(FormulaExpr::True),
+                    )))),
+                )),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .ordering
+            .contains(&("RELEASE".to_string(), "DEPOSIT".to_string())));
+        assert!(constraints
+            .ordering
+            .contains(&("RELEASE".to_string(), "DELIVER".to_string())));
+        assert_eq!(constraints.self_loops.len(), 1);
+        assert!(constraints.self_loops.contains(&vec![
+            Property::new_predicate_from_call(
+                "signed_by".to_string(),
+                "/users/buyer.id".to_string()
+            ),
+            Property::new(PropertySign::Plus, "DEPOSIT".to_string()),
             Property::new(PropertySign::Plus, "DELIVER".to_string())
         ]));
     }
