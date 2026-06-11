@@ -25,6 +25,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 |-------------|---------|
 | "X after Y" | `always([+X] implies eventually(<+Y> true))` |
 | "Only A can X" | `always([+X] implies <+signed_by(/users/a.id)> true)` |
+| "X requires A and B signatures" | `always([+X] implies <+signed_by(/users/a.id) +signed_by(/users/b.id)> true)` |
 | "X requires Y and Z" | `always([+X] implies (eventually(<+Y> true) & eventually(<+Z> true)))` |
 | "Never X after Y" | `always([+Y] implies always([-X] true))` |
 
@@ -151,5 +152,14 @@ always([+PAY] implies eventually(<+WORK> true))
         let parties = extract_parties("Alice wants to buy from Bob");
         assert!(parties.contains(&"Alice".to_string()));
         assert!(parties.contains(&"Bob".to_string()));
+    }
+
+    #[test]
+    fn test_prompt_includes_multi_signer_authorization_pattern() {
+        let prompt = generate_prompt("Approval requires Alice and Bob signatures");
+
+        assert!(
+            prompt.contains("<+signed_by(/users/a.id) +signed_by(/users/b.id)> true")
+        );
     }
 }
