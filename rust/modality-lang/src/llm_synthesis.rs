@@ -61,6 +61,7 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
             continue;
         }
 
+        let line = strip_quote_marker(line);
         let line = strip_list_marker(line);
 
         // Look for F1:, F2., Formula 3), etc. labels.
@@ -101,6 +102,12 @@ fn is_formula_prefix(prefix: &str) -> bool {
     let label = label.trim_start();
 
     !label.is_empty() && label.chars().all(|c| c.is_ascii_digit())
+}
+
+fn strip_quote_marker(line: &str) -> &str {
+    line.strip_prefix('>')
+        .map(str::trim_start)
+        .unwrap_or(line)
 }
 
 fn strip_list_marker(line: &str) -> &str {
@@ -287,6 +294,22 @@ always([+PAY] implies eventually(<+WORK> true))
         let response = r#"
 - F1: always([+PAY] implies eventually(<+WORK> true))
 1. Formula 2: <+CANCEL> true
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] implies eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_strips_quote_markers() {
+        let response = r#"
+> F1: always([+PAY] implies eventually(<+WORK> true))
+> - <+CANCEL> true
 "#;
 
         let formulas = parse_llm_response(response);
