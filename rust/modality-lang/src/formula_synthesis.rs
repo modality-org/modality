@@ -264,8 +264,8 @@ fn extract_box_actions(expr: &FormulaExpr) -> Vec<String> {
 fn extract_eventually_actions(expr: &FormulaExpr) -> Vec<String> {
     match expr {
         FormulaExpr::Eventually(inner) => extract_diamond_actions(inner),
-        // Also handle direct diamond
-        FormulaExpr::Diamond(_, _) => extract_diamond_actions(expr),
+        // Also handle direct diamond and committed diamond-box goals.
+        FormulaExpr::Diamond(_, _) | FormulaExpr::DiamondBox(_, _) => extract_diamond_actions(expr),
         FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
             let mut actions = extract_eventually_actions(lhs);
             extend_unique(&mut actions, &extract_eventually_actions(rhs));
@@ -276,10 +276,10 @@ fn extract_eventually_actions(expr: &FormulaExpr) -> Vec<String> {
     }
 }
 
-/// Extract actions from <+ACTION ...> true patterns
+/// Extract actions from <+ACTION ...> true or [<+ACTION ...>] true patterns.
 fn extract_diamond_actions(expr: &FormulaExpr) -> Vec<String> {
     match expr {
-        FormulaExpr::Diamond(props, _) => props
+        FormulaExpr::Diamond(props, _) | FormulaExpr::DiamondBox(props, _) => props
             .iter()
             .filter(|prop| is_positive_action_property(prop))
             .map(|prop| prop.name.clone())
@@ -1746,6 +1746,27 @@ mod tests {
         let constraints = extract_constraints(&formula);
 
         assert!(constraints.actions.contains("APPROVE"));
+    }
+
+    #[test]
+    fn test_eventually_diamond_box_extracts_candidate_action() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Eventually(Box::new(FormulaExpr::DiamondBox(
+                vec![Property::new(PropertySign::Plus, "DELIVER".to_string())],
+                Box::new(FormulaExpr::True),
+            )))),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .ordering
+            .contains(&("RELEASE".to_string(), "DELIVER".to_string())));
+        assert!(constraints.actions.contains("DELIVER"));
     }
 
     #[test]
