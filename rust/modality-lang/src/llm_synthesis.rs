@@ -85,9 +85,17 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
 }
 
 fn is_formula_prefix(prefix: &str) -> bool {
-    let Some(label) = prefix.strip_prefix(['F', 'f']) else {
+    if let Some(label) = prefix.strip_prefix(['F', 'f']) {
+        if !label.is_empty() && label.chars().all(|c| c.is_ascii_digit()) {
+            return true;
+        }
+    }
+
+    let lower_prefix = prefix.to_ascii_lowercase();
+    let Some(label) = lower_prefix.strip_prefix("formula") else {
         return false;
     };
+    let label = label.trim_start();
 
     !label.is_empty() && label.chars().all(|c| c.is_ascii_digit())
 }
@@ -179,6 +187,18 @@ F3: always([+DELIVER] implies <+signed_by(/users/bob.id)> true)
     #[test]
     fn test_parse_llm_response_accepts_lowercase_prefix() {
         let response = "f1: always([+RELEASE] implies eventually(<+DELIVER> true))";
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 1);
+        assert_eq!(
+            formulas[0],
+            "always([+RELEASE] implies eventually(<+DELIVER> true))"
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_formula_prefix() {
+        let response = "Formula 1: always([+RELEASE] implies eventually(<+DELIVER> true))";
 
         let formulas = parse_llm_response(response);
         assert_eq!(formulas.len(), 1);
