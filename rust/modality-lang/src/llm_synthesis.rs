@@ -26,7 +26,9 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "X is allowed" | `<+X> true` |
 | "Can always do X" | `always([<+X>] true)` |
 | "X after Y" | `always([+X] implies eventually(<+Y> true))` |
+| "Must do Y before X" | `always([+X] implies eventually([<+Y>] true))` |
 | "Only A can X" | `always([+X] implies <+signed_by(/users/a.id)> true)` |
+| "X requires committed A signature" | `always([+X] implies [<+signed_by(/users/a.id)>] true)` |
 | "X requires A and B signatures" | `always([+X] implies <+signed_by(/users/a.id) +signed_by(/users/b.id)> true)` |
 | "X requires Y and Z" | `always([+X] implies (eventually(<+Y> true) & eventually(<+Z> true)))` |
 | "Never X after Y" | `always([+Y] implies always([-X] true))` |
@@ -484,5 +486,13 @@ F1: **always([+PAY] implies eventually(<+WORK> true))**
 
         assert!(prompt.contains("`<+X> true`"));
         assert!(prompt.contains("`always([<+X>] true)`"));
+    }
+
+    #[test]
+    fn test_prompt_includes_committed_goal_patterns() {
+        let prompt = generate_prompt("Release requires committed delivery and reviewer signature");
+
+        assert!(prompt.contains("eventually([<+Y>] true)"));
+        assert!(prompt.contains("[<+signed_by(/users/a.id)>] true"));
     }
 }
