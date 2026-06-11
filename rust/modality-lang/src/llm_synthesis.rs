@@ -130,6 +130,7 @@ fn is_raw_formula_line(line: &str) -> bool {
         || line.starts_with('[')
         || line.starts_with('<')
         || line.starts_with("eventually")
+        || line.starts_with("formula ")
 }
 
 /// Extract parties from NL description (simple heuristic)
@@ -238,6 +239,18 @@ always([+PAY] implies eventually(<+WORK> true))
         let formulas = parse_llm_response(response);
         assert_eq!(formulas.len(), 3);
         assert_eq!(formulas[2], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_formula_declaration() {
+        let response = "formula generated_1 { always([+PAY] implies eventually(<+WORK> true)) }";
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 1);
+        assert_eq!(
+            formulas[0],
+            "formula generated_1 { always([+PAY] implies eventually(<+WORK> true)) }"
+        );
     }
 
     #[test]
