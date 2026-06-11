@@ -828,6 +828,26 @@ mod tests {
     }
 
     #[test]
+    fn llm_multiline_formula_declarations_round_trip_to_verification() {
+        let response = r#"
+```modality
+F1: formula generated_1 {
+always([<+APPROVE>] true)
+}
+```
+"#;
+
+        let formula_strings = modality_lang::llm_synthesis::parse_llm_response(response);
+        assert_eq!(formula_strings.len(), 1);
+
+        let formulas = parse_formula_strings(&formula_strings);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn format_synthesized_model_supports_json() {
         let model = modality_lang::Model::new("Contract".to_string());
 
