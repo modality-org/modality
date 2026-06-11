@@ -849,6 +849,47 @@ mod tests {
     }
 
     #[test]
+    fn test_mixed_direct_diamond_compound_preserves_forbidden_after() {
+        let formula = FormulaExpr::And(
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "CANCEL".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Implies(
+                Box::new(FormulaExpr::Box(
+                    vec![Property::new(PropertySign::Plus, "DISPUTE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::Always(Box::new(FormulaExpr::Box(
+                    vec![Property::new(PropertySign::Minus, "RELEASE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )))),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .forbidden_after
+            .contains(&("DISPUTE".to_string(), "RELEASE".to_string())));
+
+        let model = synthesize_from_formulas("Mixed", &[formula]);
+        let forbidden_release = Property::new(PropertySign::Minus, "RELEASE".to_string());
+
+        assert!(model.parts[0].transitions.iter().any(|transition| {
+            transition.from == "after_dispute"
+                && transition.properties.contains(&forbidden_release)
+        }));
+        assert!(model.parts[0].transitions.iter().any(|transition| {
+            transition.from == "init"
+                && transition.to == "init"
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "CANCEL".to_string()))
+        }));
+    }
+
+    #[test]
     fn test_always_diamond_box_preserves_negative_guard_props() {
         let formula = FormulaExpr::Always(Box::new(FormulaExpr::DiamondBox(
             vec![
