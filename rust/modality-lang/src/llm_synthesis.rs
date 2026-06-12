@@ -366,6 +366,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("carrier", "Carrier"),
         ("consignor", "Consignor"),
         ("consignee", "Consignee"),
+        ("bailor", "Bailor"),
+        ("bailee", "Bailee"),
         ("customer", "Customer"),
         ("employee", "Employee"),
         ("employer", "Employer"),
@@ -842,6 +844,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"Shipper".to_string()));
         assert!(parties.contains(&"Carrier".to_string()));
         assert!(parties.contains(&"Consignee".to_string()));
+    }
+
+    #[test]
+    fn test_extract_bailment_party_roles() {
+        let parties = extract_parties("Bailor deposits equipment before bailee returns custody");
+
+        assert!(parties.contains(&"Bailor".to_string()));
+        assert!(parties.contains(&"Bailee".to_string()));
     }
 
     #[test]
