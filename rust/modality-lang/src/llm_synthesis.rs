@@ -289,20 +289,21 @@ pub fn extract_parties(description: &str) -> Vec<String> {
     let mut parties = Vec::new();
     let description_lower = description.to_lowercase();
 
-    // Common party names and contract roles.
+    // Common party name patterns and contract roles. Order matters: specific
+    // multi-word roles are checked before their generic components.
     let common_names = [
-        ("alice", "Alice"),
-        ("bob", "Bob"),
-        ("carol", "Carol"),
-        ("dave", "Dave"),
-        ("eve", "Eve"),
-        ("frank", "Frank"),
+        ("service provider", "ServiceProvider"),
+        ("service consumer", "ServiceConsumer"),
+        ("party a", "PartyA"),
+        ("party b", "PartyB"),
+        ("first party", "FirstParty"),
+        ("second party", "SecondParty"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
-        ("client", "Client"),
-        ("contractor", "Contractor"),
         ("provider", "Provider"),
         ("consumer", "Consumer"),
+        ("client", "Client"),
+        ("contractor", "Contractor"),
         ("principal", "Principal"),
         ("agent", "Agent"),
         ("depositor", "Depositor"),
@@ -339,6 +340,12 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("employer", "Employer"),
         ("tenant", "Tenant"),
         ("landlord", "Landlord"),
+        ("alice", "Alice"),
+        ("bob", "Bob"),
+        ("carol", "Carol"),
+        ("dave", "Dave"),
+        ("eve", "Eve"),
+        ("frank", "Frank"),
     ];
 
     for (lower, proper) in common_names {
@@ -627,6 +634,18 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         let parties = extract_parties("Alice wants to buy from Bob");
         assert!(parties.contains(&"Alice".to_string()));
         assert!(parties.contains(&"Bob".to_string()));
+    }
+
+    #[test]
+    fn test_extract_specific_service_party_roles() {
+        let parties = extract_parties(
+            "Service provider and service consumer agree that party A pays party B",
+        );
+
+        assert!(parties.contains(&"ServiceProvider".to_string()));
+        assert!(parties.contains(&"ServiceConsumer".to_string()));
+        assert!(parties.contains(&"PartyA".to_string()));
+        assert!(parties.contains(&"PartyB".to_string()));
     }
 
     #[test]
