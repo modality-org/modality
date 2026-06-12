@@ -366,6 +366,9 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("subscriber", "Subscriber"),
         ("moderator", "Moderator"),
         ("admin", "Admin"),
+        ("proposer", "Proposer"),
+        ("voter", "Voter"),
+        ("delegate", "Delegate"),
         ("approver", "Approver"),
         ("authorizer", "Approver"),
         ("manager", "Approver"),
@@ -1004,6 +1007,15 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"PlatformOperator".to_string()));
         assert!(parties.contains(&"MarketplaceOperator".to_string()));
         assert!(parties.contains(&"Vendor".to_string()));
+    }
+
+    #[test]
+    fn test_extract_governance_party_roles() {
+        let parties = extract_parties("Proposer submits budget before voter and delegate approve");
+
+        assert!(parties.contains(&"Proposer".to_string()));
+        assert!(parties.contains(&"Voter".to_string()));
+        assert!(parties.contains(&"Delegate".to_string()));
     }
 
     #[test]
