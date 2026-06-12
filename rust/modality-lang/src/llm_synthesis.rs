@@ -343,6 +343,10 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("compliance officer", "ComplianceOfficer"),
         ("certification body", "CertificationBody"),
         ("audit committee", "AuditCommittee"),
+        ("identity provider", "IdentityProvider"),
+        ("relying party", "RelyingParty"),
+        ("kyc provider", "KycProvider"),
+        ("beneficial owner", "BeneficialOwner"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("offeror", "Offeror"),
@@ -1190,6 +1194,18 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"ComplianceOfficer".to_string()));
         assert!(parties.contains(&"CertificationBody".to_string()));
         assert!(parties.contains(&"AuditCommittee".to_string()));
+    }
+
+    #[test]
+    fn test_extract_kyc_party_roles() {
+        let parties = extract_parties(
+            "Relying party accepts onboarding after identity provider, KYC provider, and beneficial owner approve verification",
+        );
+
+        assert!(parties.contains(&"RelyingParty".to_string()));
+        assert!(parties.contains(&"IdentityProvider".to_string()));
+        assert!(parties.contains(&"KycProvider".to_string()));
+        assert!(parties.contains(&"BeneficialOwner".to_string()));
     }
 
     #[test]

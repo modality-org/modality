@@ -229,6 +229,10 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("compliance officer", "ComplianceOfficer"),
         ("certification body", "CertificationBody"),
         ("audit committee", "AuditCommittee"),
+        ("identity provider", "IdentityProvider"),
+        ("relying party", "RelyingParty"),
+        ("kyc provider", "KycProvider"),
+        ("beneficial owner", "BeneficialOwner"),
         // Generic roles
         ("buyer", "Buyer"),
         ("seller", "Seller"),
@@ -960,6 +964,17 @@ mod tests {
         assert!(result.parties.contains(&"ComplianceOfficer".to_string()));
         assert!(result.parties.contains(&"CertificationBody".to_string()));
         assert!(result.parties.contains(&"AuditCommittee".to_string()));
+    }
+
+    #[test]
+    fn test_kyc_party_roles() {
+        let result = map_nl_to_pattern(
+            "Relying party accepts onboarding after identity provider, KYC provider, and beneficial owner approve verification",
+        );
+        assert!(result.parties.contains(&"RelyingParty".to_string()));
+        assert!(result.parties.contains(&"IdentityProvider".to_string()));
+        assert!(result.parties.contains(&"KycProvider".to_string()));
+        assert!(result.parties.contains(&"BeneficialOwner".to_string()));
     }
 
     #[test]
