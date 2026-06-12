@@ -229,6 +229,10 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("sponsor", "Sponsor"),
         ("investigator", "Investigator"),
         ("participant", "Participant"),
+        ("plaintiff", "Plaintiff"),
+        ("defendant", "Defendant"),
+        ("counsel", "Counsel"),
+        ("court", "Court"),
         ("utility", "Utility"),
         ("generator", "Generator"),
         ("offtaker", "Offtaker"),
@@ -786,6 +790,17 @@ mod tests {
         assert!(result.parties.contains(&"Investigator".to_string()));
         assert!(result.parties.contains(&"Participant".to_string()));
         assert!(result.parties.contains(&"ResearchInstitution".to_string()));
+    }
+
+    #[test]
+    fn test_litigation_party_roles() {
+        let result = map_nl_to_pattern(
+            "Plaintiff settles claim after defendant, counsel, and court approve order",
+        );
+        assert!(result.parties.contains(&"Plaintiff".to_string()));
+        assert!(result.parties.contains(&"Defendant".to_string()));
+        assert!(result.parties.contains(&"Counsel".to_string()));
+        assert!(result.parties.contains(&"Court".to_string()));
     }
 
     #[test]
