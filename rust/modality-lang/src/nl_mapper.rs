@@ -214,6 +214,10 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("property manager", "PropertyManager"),
         ("title company", "TitleCompany"),
         ("escrow officer", "EscrowOfficer"),
+        ("carbon registry", "CarbonRegistry"),
+        ("credit buyer", "CreditBuyer"),
+        ("credit seller", "CreditSeller"),
+        ("project developer", "ProjectDeveloper"),
         // Generic roles
         ("buyer", "Buyer"),
         ("seller", "Seller"),
@@ -898,6 +902,17 @@ mod tests {
         assert!(result.parties.contains(&"PropertyManager".to_string()));
         assert!(result.parties.contains(&"TitleCompany".to_string()));
         assert!(result.parties.contains(&"EscrowOfficer".to_string()));
+    }
+
+    #[test]
+    fn test_carbon_market_party_roles() {
+        let result = map_nl_to_pattern(
+            "Credit buyer retires offsets after credit seller, project developer, and carbon registry approve issuance",
+        );
+        assert!(result.parties.contains(&"CreditBuyer".to_string()));
+        assert!(result.parties.contains(&"CreditSeller".to_string()));
+        assert!(result.parties.contains(&"ProjectDeveloper".to_string()));
+        assert!(result.parties.contains(&"CarbonRegistry".to_string()));
     }
 
     #[test]
