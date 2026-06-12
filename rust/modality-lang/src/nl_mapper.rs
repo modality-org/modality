@@ -191,6 +191,8 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("data recipient", "DataRecipient"),
         ("data exporter", "DataExporter"),
         ("data importer", "DataImporter"),
+        ("platform operator", "PlatformOperator"),
+        ("marketplace operator", "MarketplaceOperator"),
         // Generic roles
         ("buyer", "Buyer"),
         ("seller", "Seller"),
@@ -765,6 +767,16 @@ mod tests {
         let result = map_nl_to_pattern("Auctioneer awards lot after bidder satisfies reserve");
         assert!(result.parties.contains(&"Auctioneer".to_string()));
         assert!(result.parties.contains(&"Bidder".to_string()));
+    }
+
+    #[test]
+    fn test_platform_party_roles() {
+        let result = map_nl_to_pattern(
+            "Platform operator escrows listing before marketplace operator releases vendor payout",
+        );
+        assert!(result.parties.contains(&"PlatformOperator".to_string()));
+        assert!(result.parties.contains(&"MarketplaceOperator".to_string()));
+        assert!(result.parties.contains(&"Vendor".to_string()));
     }
 
     #[test]

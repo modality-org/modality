@@ -305,6 +305,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("data recipient", "DataRecipient"),
         ("data exporter", "DataExporter"),
         ("data importer", "DataImporter"),
+        ("platform operator", "PlatformOperator"),
+        ("marketplace operator", "MarketplaceOperator"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("offeror", "Offeror"),
@@ -991,6 +993,17 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Auctioneer".to_string()));
         assert!(parties.contains(&"Bidder".to_string()));
+    }
+
+    #[test]
+    fn test_extract_platform_party_roles() {
+        let parties = extract_parties(
+            "Platform operator escrows listing before marketplace operator releases vendor payout",
+        );
+
+        assert!(parties.contains(&"PlatformOperator".to_string()));
+        assert!(parties.contains(&"MarketplaceOperator".to_string()));
+        assert!(parties.contains(&"Vendor".to_string()));
     }
 
     #[test]
