@@ -645,7 +645,8 @@ impl ParsedFormulaInputs {
             Ok(())
         } else {
             Err(anyhow::anyhow!(
-                "--verify requires every input formula to parse with the Modality parser; unparsed: {}",
+                "--verify requires every input formula to parse with the Modality parser; {} unparsed: {}",
+                self.unparsed.len(),
                 self.unparsed.join(", ")
             ))
         }
@@ -1896,6 +1897,7 @@ always([<+APPROVE>] true)
 
         let err = ensure_all_formula_strings_parsed(&formulas).unwrap_err();
 
+        assert!(err.to_string().contains("1 unparsed"));
         assert!(err.to_string().contains("F2"));
     }
 
