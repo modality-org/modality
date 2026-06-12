@@ -361,7 +361,7 @@ pub fn extract_parties(description: &str) -> Vec<String> {
     ];
 
     for (lower, proper) in common_names {
-        if description_lower.contains(lower) && !parties.contains(&proper.to_string()) {
+        if contains_party_pattern(&description_lower, lower) && !parties.contains(&proper.to_string()) {
             parties.push(proper.to_string());
         }
     }
@@ -373,6 +373,18 @@ pub fn extract_parties(description: &str) -> Vec<String> {
     }
 
     parties
+}
+
+fn contains_party_pattern(text: &str, pattern: &str) -> bool {
+    text.match_indices(pattern).any(|(start, matched)| {
+        let end = start + matched.len();
+        is_party_boundary(text[..start].chars().next_back())
+            && is_party_boundary(text[end..].chars().next())
+    })
+}
+
+fn is_party_boundary(ch: Option<char>) -> bool {
+    ch.is_none_or(|ch| !ch.is_ascii_alphanumeric())
 }
 
 #[cfg(test)]
@@ -732,6 +744,15 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Issuer".to_string()));
         assert!(parties.contains(&"Holder".to_string()));
+    }
+
+    #[test]
+    fn test_extract_party_roles_require_token_boundaries() {
+        let parties = extract_parties("Stakeholder signs after shareholder review");
+
+        assert!(!parties.contains(&"Holder".to_string()));
+        assert!(parties.contains(&"PartyA".to_string()));
+        assert!(parties.contains(&"PartyB".to_string()));
     }
 
     #[test]
