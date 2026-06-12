@@ -185,6 +185,8 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("first party", "FirstParty"),
         ("second party", "SecondParty"),
         ("escrow agent", "EscrowAgent"),
+        ("data controller", "DataController"),
+        ("data processor", "DataProcessor"),
         // Generic roles
         ("buyer", "Buyer"),
         ("seller", "Seller"),
@@ -719,6 +721,14 @@ mod tests {
         let result = map_nl_to_pattern("Registrar renews domain after registrant pays fee");
         assert!(result.parties.contains(&"Registrar".to_string()));
         assert!(result.parties.contains(&"Registrant".to_string()));
+    }
+
+    #[test]
+    fn test_data_processing_party_roles() {
+        let result =
+            map_nl_to_pattern("Data controller approves transfer before data processor exports logs");
+        assert!(result.parties.contains(&"DataController".to_string()));
+        assert!(result.parties.contains(&"DataProcessor".to_string()));
     }
 
     #[test]
