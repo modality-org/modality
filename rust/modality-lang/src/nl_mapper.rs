@@ -257,6 +257,9 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("bailee", "Bailee"),
         ("franchisor", "Franchisor"),
         ("franchisee", "Franchisee"),
+        ("ship owner", "Shipowner"),
+        ("shipowner", "Shipowner"),
+        ("charterer", "Charterer"),
         ("customer", "Customer"),
         ("employee", "Employee"),
         ("employer", "Employer"),
@@ -646,6 +649,13 @@ mod tests {
         let result = map_nl_to_pattern("Franchisor approves opening before franchisee pays fees");
         assert!(result.parties.contains(&"Franchisor".to_string()));
         assert!(result.parties.contains(&"Franchisee".to_string()));
+    }
+
+    #[test]
+    fn test_charter_party_roles() {
+        let result = map_nl_to_pattern("Ship owner delivers vessel before charterer remits hire");
+        assert!(result.parties.contains(&"Shipowner".to_string()));
+        assert!(result.parties.contains(&"Charterer".to_string()));
     }
 
     #[test]
