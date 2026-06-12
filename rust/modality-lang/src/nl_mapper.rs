@@ -233,6 +233,10 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("relying party", "RelyingParty"),
         ("kyc provider", "KycProvider"),
         ("beneficial owner", "BeneficialOwner"),
+        ("model provider", "ModelProvider"),
+        ("model user", "ModelUser"),
+        ("safety reviewer", "SafetyReviewer"),
+        ("red team", "RedTeam"),
         // Generic roles
         ("buyer", "Buyer"),
         ("seller", "Seller"),
@@ -263,6 +267,7 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("sponsor", "Sponsor"),
         ("investigator", "Investigator"),
         ("participant", "Participant"),
+        ("evaluator", "Evaluator"),
         ("plaintiff", "Plaintiff"),
         ("defendant", "Defendant"),
         ("counsel", "Counsel"),
@@ -975,6 +980,18 @@ mod tests {
         assert!(result.parties.contains(&"IdentityProvider".to_string()));
         assert!(result.parties.contains(&"KycProvider".to_string()));
         assert!(result.parties.contains(&"BeneficialOwner".to_string()));
+    }
+
+    #[test]
+    fn test_model_governance_party_roles() {
+        let result = map_nl_to_pattern(
+            "Model provider releases weights after model user, evaluator, safety reviewer, and red team approve deployment",
+        );
+        assert!(result.parties.contains(&"ModelProvider".to_string()));
+        assert!(result.parties.contains(&"ModelUser".to_string()));
+        assert!(result.parties.contains(&"Evaluator".to_string()));
+        assert!(result.parties.contains(&"SafetyReviewer".to_string()));
+        assert!(result.parties.contains(&"RedTeam".to_string()));
     }
 
     #[test]
