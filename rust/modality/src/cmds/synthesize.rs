@@ -676,7 +676,7 @@ fn parse_formula_inputs(formulas: &[String]) -> ParsedFormulaInputs {
                 let label = format!("F{}", index + 1);
                 let preview = formula_preview(formula);
                 if preview.is_empty() {
-                    unparsed.push(label);
+                    unparsed.push(format!("{} `<empty>`", label));
                 } else {
                     unparsed.push(format!("{} `{}`", label, preview));
                 }
@@ -1909,6 +1909,15 @@ always([<+APPROVE>] true)
         let unparsed = unparsed_formula_string_labels(&formulas);
 
         assert_eq!(unparsed, vec!["F2 `always(`".to_string()]);
+    }
+
+    #[test]
+    fn unparsed_formula_labels_mark_empty_formula_preview() {
+        let formulas = vec![" \n\t ".to_string()];
+
+        let unparsed = unparsed_formula_string_labels(&formulas);
+
+        assert_eq!(unparsed, vec!["F1 `<empty>`".to_string()]);
     }
 
     #[test]
