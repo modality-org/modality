@@ -320,6 +320,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("creditor", "Creditor"),
         ("pledgor", "Pledgor"),
         ("pledgee", "Pledgee"),
+        ("mortgagor", "Mortgagor"),
+        ("mortgagee", "Mortgagee"),
         ("trustor", "Trustor"),
         ("trustee", "Trustee"),
         ("beneficiary", "Beneficiary"),
@@ -739,6 +741,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Pledgor".to_string()));
         assert!(parties.contains(&"Pledgee".to_string()));
+    }
+
+    #[test]
+    fn test_extract_mortgage_party_roles() {
+        let parties = extract_parties("Mortgagor cures default before mortgagee releases lien");
+
+        assert!(parties.contains(&"Mortgagor".to_string()));
+        assert!(parties.contains(&"Mortgagee".to_string()));
     }
 
     #[test]
