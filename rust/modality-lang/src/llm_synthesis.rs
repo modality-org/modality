@@ -340,6 +340,9 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("permit holder", "PermitHolder"),
         ("remediation contractor", "RemediationContractor"),
         ("monitoring lab", "MonitoringLab"),
+        ("compliance officer", "ComplianceOfficer"),
+        ("certification body", "CertificationBody"),
+        ("audit committee", "AuditCommittee"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("offeror", "Offeror"),
@@ -376,6 +379,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("claimant", "Claimant"),
         ("respondent", "Respondent"),
         ("tribunal", "Tribunal"),
+        ("auditor", "Auditor"),
+        ("auditee", "Auditee"),
         ("regulator", "Regulator"),
         ("applicant", "Applicant"),
         ("permittee", "Permittee"),
@@ -1172,6 +1177,19 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"EnvironmentalAgency".to_string()));
         assert!(parties.contains(&"RemediationContractor".to_string()));
         assert!(parties.contains(&"MonitoringLab".to_string()));
+    }
+
+    #[test]
+    fn test_extract_audit_party_roles() {
+        let parties = extract_parties(
+            "Auditor files attestation after auditee, compliance officer, certification body, and audit committee approve controls",
+        );
+
+        assert!(parties.contains(&"Auditor".to_string()));
+        assert!(parties.contains(&"Auditee".to_string()));
+        assert!(parties.contains(&"ComplianceOfficer".to_string()));
+        assert!(parties.contains(&"CertificationBody".to_string()));
+        assert!(parties.contains(&"AuditCommittee".to_string()));
     }
 
     #[test]
