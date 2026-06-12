@@ -194,6 +194,7 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("platform operator", "PlatformOperator"),
         ("marketplace operator", "MarketplaceOperator"),
         ("travel agent", "TravelAgent"),
+        ("grid operator", "GridOperator"),
         // Generic roles
         ("buyer", "Buyer"),
         ("seller", "Seller"),
@@ -214,6 +215,9 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("traveler", "Traveler"),
         ("guest", "Guest"),
         ("host", "Host"),
+        ("utility", "Utility"),
+        ("generator", "Generator"),
+        ("offtaker", "Offtaker"),
         ("client", "Client"),
         ("contractor", "Contractor"),
         ("subcontractor", "Subcontractor"),
@@ -715,6 +719,16 @@ mod tests {
         assert!(result.parties.contains(&"Guest".to_string()));
         assert!(result.parties.contains(&"Host".to_string()));
         assert!(result.parties.contains(&"TravelAgent".to_string()));
+    }
+
+    #[test]
+    fn test_energy_party_roles() {
+        let result =
+            map_nl_to_pattern("Grid operator dispatches power after utility, generator, and offtaker agree");
+        assert!(result.parties.contains(&"GridOperator".to_string()));
+        assert!(result.parties.contains(&"Utility".to_string()));
+        assert!(result.parties.contains(&"Generator".to_string()));
+        assert!(result.parties.contains(&"Offtaker".to_string()));
     }
 
     #[test]

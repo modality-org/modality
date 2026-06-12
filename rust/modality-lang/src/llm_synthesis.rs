@@ -308,6 +308,7 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("platform operator", "PlatformOperator"),
         ("marketplace operator", "MarketplaceOperator"),
         ("travel agent", "TravelAgent"),
+        ("grid operator", "GridOperator"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("offeror", "Offeror"),
@@ -327,6 +328,9 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("traveler", "Traveler"),
         ("guest", "Guest"),
         ("host", "Host"),
+        ("utility", "Utility"),
+        ("generator", "Generator"),
+        ("offtaker", "Offtaker"),
         ("client", "Client"),
         ("contractor", "Contractor"),
         ("subcontractor", "Subcontractor"),
@@ -931,6 +935,17 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"Guest".to_string()));
         assert!(parties.contains(&"Host".to_string()));
         assert!(parties.contains(&"TravelAgent".to_string()));
+    }
+
+    #[test]
+    fn test_extract_energy_party_roles() {
+        let parties =
+            extract_parties("Grid operator dispatches power after utility, generator, and offtaker agree");
+
+        assert!(parties.contains(&"GridOperator".to_string()));
+        assert!(parties.contains(&"Utility".to_string()));
+        assert!(parties.contains(&"Generator".to_string()));
+        assert!(parties.contains(&"Offtaker".to_string()));
     }
 
     #[test]
