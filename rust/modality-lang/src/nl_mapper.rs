@@ -221,6 +221,10 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("employer", "Employer"),
         ("employee", "Employee"),
         ("worker", "Worker"),
+        ("publisher", "Publisher"),
+        ("author", "Author"),
+        ("editor", "Editor"),
+        ("advertiser", "Advertiser"),
         ("utility", "Utility"),
         ("generator", "Generator"),
         ("offtaker", "Offtaker"),
@@ -756,6 +760,17 @@ mod tests {
         assert!(result.parties.contains(&"Employee".to_string()));
         assert!(result.parties.contains(&"Worker".to_string()));
         assert!(result.parties.contains(&"LaborUnion".to_string()));
+    }
+
+    #[test]
+    fn test_publishing_party_roles() {
+        let result = map_nl_to_pattern(
+            "Publisher releases article after author, editor, and advertiser approve copy",
+        );
+        assert!(result.parties.contains(&"Publisher".to_string()));
+        assert!(result.parties.contains(&"Author".to_string()));
+        assert!(result.parties.contains(&"Editor".to_string()));
+        assert!(result.parties.contains(&"Advertiser".to_string()));
     }
 
     #[test]

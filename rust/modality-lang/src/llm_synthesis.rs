@@ -334,6 +334,10 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("employer", "Employer"),
         ("employee", "Employee"),
         ("worker", "Worker"),
+        ("publisher", "Publisher"),
+        ("author", "Author"),
+        ("editor", "Editor"),
+        ("advertiser", "Advertiser"),
         ("utility", "Utility"),
         ("generator", "Generator"),
         ("offtaker", "Offtaker"),
@@ -975,6 +979,17 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"Employee".to_string()));
         assert!(parties.contains(&"Worker".to_string()));
         assert!(parties.contains(&"LaborUnion".to_string()));
+    }
+
+    #[test]
+    fn test_extract_publishing_party_roles() {
+        let parties =
+            extract_parties("Publisher releases article after author, editor, and advertiser approve copy");
+
+        assert!(parties.contains(&"Publisher".to_string()));
+        assert!(parties.contains(&"Author".to_string()));
+        assert!(parties.contains(&"Editor".to_string()));
+        assert!(parties.contains(&"Advertiser".to_string()));
     }
 
     #[test]
