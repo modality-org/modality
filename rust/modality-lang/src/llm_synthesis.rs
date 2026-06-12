@@ -298,6 +298,7 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("party b", "PartyB"),
         ("first party", "FirstParty"),
         ("second party", "SecondParty"),
+        ("escrow agent", "EscrowAgent"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("provider", "Provider"),
@@ -922,6 +923,16 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Broker".to_string()));
         assert!(parties.contains(&"Client".to_string()));
+    }
+
+    #[test]
+    fn test_extract_escrow_agent_party_roles() {
+        let parties =
+            extract_parties("Escrow agent releases funds after buyer accepts seller delivery");
+
+        assert!(parties.contains(&"EscrowAgent".to_string()));
+        assert!(parties.contains(&"Buyer".to_string()));
+        assert!(parties.contains(&"Seller".to_string()));
     }
 
     #[test]

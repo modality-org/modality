@@ -184,6 +184,7 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("party b", "PartyB"),
         ("first party", "FirstParty"),
         ("second party", "SecondParty"),
+        ("escrow agent", "EscrowAgent"),
         // Generic roles
         ("buyer", "Buyer"),
         ("seller", "Seller"),
@@ -700,6 +701,15 @@ mod tests {
         let result = map_nl_to_pattern("Broker executes trade after client approves order");
         assert!(result.parties.contains(&"Broker".to_string()));
         assert!(result.parties.contains(&"Client".to_string()));
+    }
+
+    #[test]
+    fn test_escrow_agent_party_roles() {
+        let result =
+            map_nl_to_pattern("Escrow agent releases funds after buyer accepts seller delivery");
+        assert!(result.parties.contains(&"EscrowAgent".to_string()));
+        assert!(result.parties.contains(&"Buyer".to_string()));
+        assert!(result.parties.contains(&"Seller".to_string()));
     }
 
     #[test]
