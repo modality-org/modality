@@ -188,6 +188,7 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("data controller", "DataController"),
         ("data processor", "DataProcessor"),
         ("data subject", "DataSubject"),
+        ("data recipient", "DataRecipient"),
         // Generic roles
         ("buyer", "Buyer"),
         ("seller", "Seller"),
@@ -727,11 +728,12 @@ mod tests {
     #[test]
     fn test_data_processing_party_roles() {
         let result = map_nl_to_pattern(
-            "Data controller approves transfer before data processor exports data subject records",
+            "Data controller approves transfer before data processor exports data subject records to data recipient",
         );
         assert!(result.parties.contains(&"DataController".to_string()));
         assert!(result.parties.contains(&"DataProcessor".to_string()));
         assert!(result.parties.contains(&"DataSubject".to_string()));
+        assert!(result.parties.contains(&"DataRecipient".to_string()));
     }
 
     #[test]

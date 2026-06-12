@@ -302,6 +302,7 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("data controller", "DataController"),
         ("data processor", "DataProcessor"),
         ("data subject", "DataSubject"),
+        ("data recipient", "DataRecipient"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("provider", "Provider"),
@@ -951,12 +952,13 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
     #[test]
     fn test_extract_data_processing_party_roles() {
         let parties = extract_parties(
-            "Data controller approves transfer before data processor exports data subject records",
+            "Data controller approves transfer before data processor exports data subject records to data recipient",
         );
 
         assert!(parties.contains(&"DataController".to_string()));
         assert!(parties.contains(&"DataProcessor".to_string()));
         assert!(parties.contains(&"DataSubject".to_string()));
+        assert!(parties.contains(&"DataRecipient".to_string()));
     }
 
     #[test]
