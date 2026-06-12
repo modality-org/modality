@@ -205,6 +205,8 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("lender", "Lender"),
         ("debtor", "Debtor"),
         ("creditor", "Creditor"),
+        ("obligor", "Obligor"),
+        ("obligee", "Obligee"),
         ("pledgor", "Pledgor"),
         ("pledgee", "Pledgee"),
         ("mortgagor", "Mortgagor"),
@@ -532,6 +534,13 @@ mod tests {
         let result = map_nl_to_pattern("Debtor pays creditor before lien release");
         assert!(result.parties.contains(&"Debtor".to_string()));
         assert!(result.parties.contains(&"Creditor".to_string()));
+    }
+
+    #[test]
+    fn test_obligation_party_roles() {
+        let result = map_nl_to_pattern("Obligor performs covenant before obligee releases waiver");
+        assert!(result.parties.contains(&"Obligor".to_string()));
+        assert!(result.parties.contains(&"Obligee".to_string()));
     }
 
     #[test]

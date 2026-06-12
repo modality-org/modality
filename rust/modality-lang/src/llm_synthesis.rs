@@ -318,6 +318,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("lender", "Lender"),
         ("debtor", "Debtor"),
         ("creditor", "Creditor"),
+        ("obligor", "Obligor"),
+        ("obligee", "Obligee"),
         ("pledgor", "Pledgor"),
         ("pledgee", "Pledgee"),
         ("mortgagor", "Mortgagor"),
@@ -733,6 +735,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Debtor".to_string()));
         assert!(parties.contains(&"Creditor".to_string()));
+    }
+
+    #[test]
+    fn test_extract_obligation_party_roles() {
+        let parties = extract_parties("Obligor performs covenant before obligee releases waiver");
+
+        assert!(parties.contains(&"Obligor".to_string()));
+        assert!(parties.contains(&"Obligee".to_string()));
     }
 
     #[test]
