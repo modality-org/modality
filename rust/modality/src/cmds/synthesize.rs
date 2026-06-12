@@ -720,7 +720,7 @@ fn unparsed_formula_string_labels(formulas: &[String]) -> Vec<String> {
 fn formula_preview(formula: &str) -> String {
     const MAX_PREVIEW_LEN: usize = 80;
 
-    let preview = formula.lines().next().unwrap_or("").trim();
+    let preview = formula.split_whitespace().collect::<Vec<_>>().join(" ");
     let mut chars = preview.chars();
     let truncated: String = chars.by_ref().take(MAX_PREVIEW_LEN).collect();
     if chars.next().is_some() {
@@ -1919,6 +1919,18 @@ always([<+APPROVE>] true)
 
         assert_eq!(unparsed[0].len(), "F1 ``".len() + 83);
         assert!(unparsed[0].ends_with("...`"));
+    }
+
+    #[test]
+    fn unparsed_formula_labels_compact_multiline_formula_preview() {
+        let formulas = vec!["formula Bad {\n  always(\n}".to_string()];
+
+        let unparsed = unparsed_formula_string_labels(&formulas);
+
+        assert_eq!(
+            unparsed,
+            vec!["F1 `formula Bad { always( }`".to_string()]
+        );
     }
 
     #[test]
