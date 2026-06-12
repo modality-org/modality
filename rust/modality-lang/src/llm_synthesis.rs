@@ -320,6 +320,9 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("creditor", "Creditor"),
         ("pledgor", "Pledgor"),
         ("pledgee", "Pledgee"),
+        ("trustor", "Trustor"),
+        ("trustee", "Trustee"),
+        ("beneficiary", "Beneficiary"),
         ("insurer", "Insurer"),
         ("insured", "Insured"),
         ("licensor", "Licensor"),
@@ -736,6 +739,17 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Pledgor".to_string()));
         assert!(parties.contains(&"Pledgee".to_string()));
+    }
+
+    #[test]
+    fn test_extract_trust_party_roles() {
+        let parties = extract_parties(
+            "Trustor appoints trustee before beneficiary receives distribution",
+        );
+
+        assert!(parties.contains(&"Trustor".to_string()));
+        assert!(parties.contains(&"Trustee".to_string()));
+        assert!(parties.contains(&"Beneficiary".to_string()));
     }
 
     #[test]
