@@ -368,6 +368,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("consignee", "Consignee"),
         ("bailor", "Bailor"),
         ("bailee", "Bailee"),
+        ("franchisor", "Franchisor"),
+        ("franchisee", "Franchisee"),
         ("customer", "Customer"),
         ("employee", "Employee"),
         ("employer", "Employer"),
@@ -852,6 +854,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Bailor".to_string()));
         assert!(parties.contains(&"Bailee".to_string()));
+    }
+
+    #[test]
+    fn test_extract_franchise_party_roles() {
+        let parties = extract_parties("Franchisor approves opening before franchisee pays fees");
+
+        assert!(parties.contains(&"Franchisor".to_string()));
+        assert!(parties.contains(&"Franchisee".to_string()));
     }
 
     #[test]
