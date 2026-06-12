@@ -311,6 +311,7 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("grid operator", "GridOperator"),
         ("network operator", "NetworkOperator"),
         ("roaming partner", "RoamingPartner"),
+        ("labor union", "LaborUnion"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("offeror", "Offeror"),
@@ -330,6 +331,9 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("traveler", "Traveler"),
         ("guest", "Guest"),
         ("host", "Host"),
+        ("employer", "Employer"),
+        ("employee", "Employee"),
+        ("worker", "Worker"),
         ("utility", "Utility"),
         ("generator", "Generator"),
         ("offtaker", "Offtaker"),
@@ -959,6 +963,18 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"NetworkOperator".to_string()));
         assert!(parties.contains(&"Subscriber".to_string()));
         assert!(parties.contains(&"RoamingPartner".to_string()));
+    }
+
+    #[test]
+    fn test_extract_employment_party_roles() {
+        let parties = extract_parties(
+            "Employer schedules training after employee, worker, and labor union approve policy",
+        );
+
+        assert!(parties.contains(&"Employer".to_string()));
+        assert!(parties.contains(&"Employee".to_string()));
+        assert!(parties.contains(&"Worker".to_string()));
+        assert!(parties.contains(&"LaborUnion".to_string()));
     }
 
     #[test]

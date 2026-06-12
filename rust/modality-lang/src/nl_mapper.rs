@@ -197,6 +197,7 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("grid operator", "GridOperator"),
         ("network operator", "NetworkOperator"),
         ("roaming partner", "RoamingPartner"),
+        ("labor union", "LaborUnion"),
         // Generic roles
         ("buyer", "Buyer"),
         ("seller", "Seller"),
@@ -217,6 +218,9 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("traveler", "Traveler"),
         ("guest", "Guest"),
         ("host", "Host"),
+        ("employer", "Employer"),
+        ("employee", "Employee"),
+        ("worker", "Worker"),
         ("utility", "Utility"),
         ("generator", "Generator"),
         ("offtaker", "Offtaker"),
@@ -741,6 +745,17 @@ mod tests {
         assert!(result.parties.contains(&"NetworkOperator".to_string()));
         assert!(result.parties.contains(&"Subscriber".to_string()));
         assert!(result.parties.contains(&"RoamingPartner".to_string()));
+    }
+
+    #[test]
+    fn test_employment_party_roles() {
+        let result = map_nl_to_pattern(
+            "Employer schedules training after employee, worker, and labor union approve policy",
+        );
+        assert!(result.parties.contains(&"Employer".to_string()));
+        assert!(result.parties.contains(&"Employee".to_string()));
+        assert!(result.parties.contains(&"Worker".to_string()));
+        assert!(result.parties.contains(&"LaborUnion".to_string()));
     }
 
     #[test]
