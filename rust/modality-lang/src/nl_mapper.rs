@@ -222,6 +222,10 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("patent owner", "PatentOwner"),
         ("trademark owner", "TrademarkOwner"),
         ("rights holder", "RightsHolder"),
+        ("environmental agency", "EnvironmentalAgency"),
+        ("permit holder", "PermitHolder"),
+        ("remediation contractor", "RemediationContractor"),
+        ("monitoring lab", "MonitoringLab"),
         // Generic roles
         ("buyer", "Buyer"),
         ("seller", "Seller"),
@@ -928,6 +932,17 @@ mod tests {
         assert!(result.parties.contains(&"PatentOffice".to_string()));
         assert!(result.parties.contains(&"TrademarkOwner".to_string()));
         assert!(result.parties.contains(&"RightsHolder".to_string()));
+    }
+
+    #[test]
+    fn test_environmental_party_roles() {
+        let result = map_nl_to_pattern(
+            "Permit holder reports remediation work after environmental agency, remediation contractor, and monitoring lab approve cleanup",
+        );
+        assert!(result.parties.contains(&"PermitHolder".to_string()));
+        assert!(result.parties.contains(&"EnvironmentalAgency".to_string()));
+        assert!(result.parties.contains(&"RemediationContractor".to_string()));
+        assert!(result.parties.contains(&"MonitoringLab".to_string()));
     }
 
     #[test]

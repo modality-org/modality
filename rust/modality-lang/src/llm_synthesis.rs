@@ -336,6 +336,10 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("patent owner", "PatentOwner"),
         ("trademark owner", "TrademarkOwner"),
         ("rights holder", "RightsHolder"),
+        ("environmental agency", "EnvironmentalAgency"),
+        ("permit holder", "PermitHolder"),
+        ("remediation contractor", "RemediationContractor"),
+        ("monitoring lab", "MonitoringLab"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("offeror", "Offeror"),
@@ -1156,6 +1160,18 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"PatentOffice".to_string()));
         assert!(parties.contains(&"TrademarkOwner".to_string()));
         assert!(parties.contains(&"RightsHolder".to_string()));
+    }
+
+    #[test]
+    fn test_extract_environmental_party_roles() {
+        let parties = extract_parties(
+            "Permit holder reports remediation work after environmental agency, remediation contractor, and monitoring lab approve cleanup",
+        );
+
+        assert!(parties.contains(&"PermitHolder".to_string()));
+        assert!(parties.contains(&"EnvironmentalAgency".to_string()));
+        assert!(parties.contains(&"RemediationContractor".to_string()));
+        assert!(parties.contains(&"MonitoringLab".to_string()));
     }
 
     #[test]
