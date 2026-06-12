@@ -312,6 +312,7 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("network operator", "NetworkOperator"),
         ("roaming partner", "RoamingPartner"),
         ("labor union", "LaborUnion"),
+        ("research institution", "ResearchInstitution"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("offeror", "Offeror"),
@@ -338,6 +339,9 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("author", "Author"),
         ("editor", "Editor"),
         ("advertiser", "Advertiser"),
+        ("sponsor", "Sponsor"),
+        ("investigator", "Investigator"),
+        ("participant", "Participant"),
         ("utility", "Utility"),
         ("generator", "Generator"),
         ("offtaker", "Offtaker"),
@@ -990,6 +994,18 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"Author".to_string()));
         assert!(parties.contains(&"Editor".to_string()));
         assert!(parties.contains(&"Advertiser".to_string()));
+    }
+
+    #[test]
+    fn test_extract_research_party_roles() {
+        let parties = extract_parties(
+            "Sponsor funds trial after investigator, participant, and research institution approve protocol",
+        );
+
+        assert!(parties.contains(&"Sponsor".to_string()));
+        assert!(parties.contains(&"Investigator".to_string()));
+        assert!(parties.contains(&"Participant".to_string()));
+        assert!(parties.contains(&"ResearchInstitution".to_string()));
     }
 
     #[test]
