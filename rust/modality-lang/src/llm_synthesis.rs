@@ -318,6 +318,9 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("tax authority", "TaxAuthority"),
         ("revenue agency", "RevenueAgency"),
         ("withholding agent", "WithholdingAgent"),
+        ("account holder", "AccountHolder"),
+        ("payment processor", "PaymentProcessor"),
+        ("card issuer", "CardIssuer"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("offeror", "Offeror"),
@@ -358,6 +361,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("applicant", "Applicant"),
         ("permittee", "Permittee"),
         ("taxpayer", "Taxpayer"),
+        ("bank", "Bank"),
+        ("cardholder", "Cardholder"),
         ("utility", "Utility"),
         ("generator", "Generator"),
         ("offtaker", "Offtaker"),
@@ -1069,6 +1074,19 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"TaxAuthority".to_string()));
         assert!(parties.contains(&"WithholdingAgent".to_string()));
         assert!(parties.contains(&"RevenueAgency".to_string()));
+    }
+
+    #[test]
+    fn test_extract_finance_party_roles() {
+        let parties = extract_parties(
+            "Bank settles transfer after account holder, cardholder, card issuer, and payment processor approve charge",
+        );
+
+        assert!(parties.contains(&"Bank".to_string()));
+        assert!(parties.contains(&"AccountHolder".to_string()));
+        assert!(parties.contains(&"Cardholder".to_string()));
+        assert!(parties.contains(&"CardIssuer".to_string()));
+        assert!(parties.contains(&"PaymentProcessor".to_string()));
     }
 
     #[test]
