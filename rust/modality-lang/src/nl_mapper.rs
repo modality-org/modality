@@ -247,6 +247,8 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("user", "User"),
         ("vendor", "Vendor"),
         ("merchant", "Merchant"),
+        ("supplier", "Supplier"),
+        ("purchaser", "Purchaser"),
         ("customer", "Customer"),
         ("employee", "Employee"),
         ("employer", "Employer"),
@@ -606,6 +608,13 @@ mod tests {
         let result = map_nl_to_pattern("Lessor permits access after lessee deposits collateral");
         assert!(result.parties.contains(&"Lessor".to_string()));
         assert!(result.parties.contains(&"Lessee".to_string()));
+    }
+
+    #[test]
+    fn test_procurement_party_roles() {
+        let result = map_nl_to_pattern("Supplier ships goods after purchaser funds escrow");
+        assert!(result.parties.contains(&"Supplier".to_string()));
+        assert!(result.parties.contains(&"Purchaser".to_string()));
     }
 
     #[test]

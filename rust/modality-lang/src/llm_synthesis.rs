@@ -360,6 +360,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("user", "User"),
         ("vendor", "Vendor"),
         ("merchant", "Merchant"),
+        ("supplier", "Supplier"),
+        ("purchaser", "Purchaser"),
         ("customer", "Customer"),
         ("employee", "Employee"),
         ("employer", "Employer"),
@@ -818,6 +820,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Lessor".to_string()));
         assert!(parties.contains(&"Lessee".to_string()));
+    }
+
+    #[test]
+    fn test_extract_procurement_party_roles() {
+        let parties = extract_parties("Supplier ships goods after purchaser funds escrow");
+
+        assert!(parties.contains(&"Supplier".to_string()));
+        assert!(parties.contains(&"Purchaser".to_string()));
     }
 
     #[test]
