@@ -373,6 +373,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("ship owner", "Shipowner"),
         ("shipowner", "Shipowner"),
         ("charterer", "Charterer"),
+        ("indemnitor", "Indemnitor"),
+        ("indemnitee", "Indemnitee"),
         ("customer", "Customer"),
         ("employee", "Employee"),
         ("employer", "Employer"),
@@ -873,6 +875,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Shipowner".to_string()));
         assert!(parties.contains(&"Charterer".to_string()));
+    }
+
+    #[test]
+    fn test_extract_indemnity_party_roles() {
+        let parties = extract_parties("Indemnitor reimburses losses after indemnitee files claim");
+
+        assert!(parties.contains(&"Indemnitor".to_string()));
+        assert!(parties.contains(&"Indemnitee".to_string()));
     }
 
     #[test]
