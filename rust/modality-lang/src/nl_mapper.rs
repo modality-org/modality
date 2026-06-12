@@ -193,6 +193,7 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("data importer", "DataImporter"),
         ("platform operator", "PlatformOperator"),
         ("marketplace operator", "MarketplaceOperator"),
+        ("travel agent", "TravelAgent"),
         // Generic roles
         ("buyer", "Buyer"),
         ("seller", "Seller"),
@@ -210,6 +211,9 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("instructor", "Instructor"),
         ("teacher", "Instructor"),
         ("institution", "Institution"),
+        ("traveler", "Traveler"),
+        ("guest", "Guest"),
+        ("host", "Host"),
         ("client", "Client"),
         ("contractor", "Contractor"),
         ("subcontractor", "Subcontractor"),
@@ -701,6 +705,16 @@ mod tests {
         assert!(result.parties.contains(&"Student".to_string()));
         assert!(result.parties.contains(&"Instructor".to_string()));
         assert!(result.parties.contains(&"Institution".to_string()));
+    }
+
+    #[test]
+    fn test_travel_party_roles() {
+        let result =
+            map_nl_to_pattern("Traveler books stay after guest, host, and travel agent confirm itinerary");
+        assert!(result.parties.contains(&"Traveler".to_string()));
+        assert!(result.parties.contains(&"Guest".to_string()));
+        assert!(result.parties.contains(&"Host".to_string()));
+        assert!(result.parties.contains(&"TravelAgent".to_string()));
     }
 
     #[test]

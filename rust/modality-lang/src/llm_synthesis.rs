@@ -307,6 +307,7 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("data importer", "DataImporter"),
         ("platform operator", "PlatformOperator"),
         ("marketplace operator", "MarketplaceOperator"),
+        ("travel agent", "TravelAgent"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("offeror", "Offeror"),
@@ -323,6 +324,9 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("instructor", "Instructor"),
         ("teacher", "Instructor"),
         ("institution", "Institution"),
+        ("traveler", "Traveler"),
+        ("guest", "Guest"),
+        ("host", "Host"),
         ("client", "Client"),
         ("contractor", "Contractor"),
         ("subcontractor", "Subcontractor"),
@@ -916,6 +920,17 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"Student".to_string()));
         assert!(parties.contains(&"Instructor".to_string()));
         assert!(parties.contains(&"Institution".to_string()));
+    }
+
+    #[test]
+    fn test_extract_travel_party_roles() {
+        let parties =
+            extract_parties("Traveler books stay after guest, host, and travel agent confirm itinerary");
+
+        assert!(parties.contains(&"Traveler".to_string()));
+        assert!(parties.contains(&"Guest".to_string()));
+        assert!(parties.contains(&"Host".to_string()));
+        assert!(parties.contains(&"TravelAgent".to_string()));
     }
 
     #[test]
