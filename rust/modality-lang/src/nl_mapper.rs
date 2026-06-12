@@ -237,6 +237,8 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("customer", "Customer"),
         ("employee", "Employee"),
         ("employer", "Employer"),
+        ("lessor", "Lessor"),
+        ("lessee", "Lessee"),
         ("tenant", "Tenant"),
         ("landlord", "Landlord"),
         // Common names
@@ -540,6 +542,13 @@ mod tests {
         let result = map_nl_to_pattern("Issuer revokes credential after holder fails renewal");
         assert!(result.parties.contains(&"Issuer".to_string()));
         assert!(result.parties.contains(&"Holder".to_string()));
+    }
+
+    #[test]
+    fn test_lease_party_roles() {
+        let result = map_nl_to_pattern("Lessor permits access after lessee deposits collateral");
+        assert!(result.parties.contains(&"Lessor".to_string()));
+        assert!(result.parties.contains(&"Lessee".to_string()));
     }
 
     #[test]

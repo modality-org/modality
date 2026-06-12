@@ -350,6 +350,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("customer", "Customer"),
         ("employee", "Employee"),
         ("employer", "Employer"),
+        ("lessor", "Lessor"),
+        ("lessee", "Lessee"),
         ("tenant", "Tenant"),
         ("landlord", "Landlord"),
         ("alice", "Alice"),
@@ -744,6 +746,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Issuer".to_string()));
         assert!(parties.contains(&"Holder".to_string()));
+    }
+
+    #[test]
+    fn test_extract_lease_party_roles() {
+        let parties = extract_parties("Lessor permits access after lessee deposits collateral");
+
+        assert!(parties.contains(&"Lessor".to_string()));
+        assert!(parties.contains(&"Lessee".to_string()));
     }
 
     #[test]
