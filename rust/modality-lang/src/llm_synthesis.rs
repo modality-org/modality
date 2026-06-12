@@ -325,6 +325,9 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("clearing house", "Clearinghouse"),
         ("clearinghouse", "Clearinghouse"),
         ("asset custodian", "AssetCustodian"),
+        ("property manager", "PropertyManager"),
+        ("title company", "TitleCompany"),
+        ("escrow officer", "EscrowOfficer"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("offeror", "Offeror"),
@@ -369,6 +372,7 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("cardholder", "Cardholder"),
         ("investor", "Investor"),
         ("underwriter", "Underwriter"),
+        ("realtor", "Realtor"),
         ("utility", "Utility"),
         ("generator", "Generator"),
         ("offtaker", "Offtaker"),
@@ -1106,6 +1110,20 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"SecuritiesExchange".to_string()));
         assert!(parties.contains(&"Clearinghouse".to_string()));
         assert!(parties.contains(&"AssetCustodian".to_string()));
+    }
+
+    #[test]
+    fn test_extract_real_estate_party_roles() {
+        let parties = extract_parties(
+            "Landlord transfers keys after tenant, realtor, property manager, title company, and escrow officer approve closing",
+        );
+
+        assert!(parties.contains(&"Landlord".to_string()));
+        assert!(parties.contains(&"Tenant".to_string()));
+        assert!(parties.contains(&"Realtor".to_string()));
+        assert!(parties.contains(&"PropertyManager".to_string()));
+        assert!(parties.contains(&"TitleCompany".to_string()));
+        assert!(parties.contains(&"EscrowOfficer".to_string()));
     }
 
     #[test]
