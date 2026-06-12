@@ -195,6 +195,8 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("marketplace operator", "MarketplaceOperator"),
         ("travel agent", "TravelAgent"),
         ("grid operator", "GridOperator"),
+        ("network operator", "NetworkOperator"),
+        ("roaming partner", "RoamingPartner"),
         // Generic roles
         ("buyer", "Buyer"),
         ("seller", "Seller"),
@@ -729,6 +731,16 @@ mod tests {
         assert!(result.parties.contains(&"Utility".to_string()));
         assert!(result.parties.contains(&"Generator".to_string()));
         assert!(result.parties.contains(&"Offtaker".to_string()));
+    }
+
+    #[test]
+    fn test_telecom_party_roles() {
+        let result = map_nl_to_pattern(
+            "Network operator activates service after subscriber and roaming partner accept terms",
+        );
+        assert!(result.parties.contains(&"NetworkOperator".to_string()));
+        assert!(result.parties.contains(&"Subscriber".to_string()));
+        assert!(result.parties.contains(&"RoamingPartner".to_string()));
     }
 
     #[test]

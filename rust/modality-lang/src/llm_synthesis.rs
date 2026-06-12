@@ -309,6 +309,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("marketplace operator", "MarketplaceOperator"),
         ("travel agent", "TravelAgent"),
         ("grid operator", "GridOperator"),
+        ("network operator", "NetworkOperator"),
+        ("roaming partner", "RoamingPartner"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("offeror", "Offeror"),
@@ -946,6 +948,17 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"Utility".to_string()));
         assert!(parties.contains(&"Generator".to_string()));
         assert!(parties.contains(&"Offtaker".to_string()));
+    }
+
+    #[test]
+    fn test_extract_telecom_party_roles() {
+        let parties = extract_parties(
+            "Network operator activates service after subscriber and roaming partner accept terms",
+        );
+
+        assert!(parties.contains(&"NetworkOperator".to_string()));
+        assert!(parties.contains(&"Subscriber".to_string()));
+        assert!(parties.contains(&"RoamingPartner".to_string()));
     }
 
     #[test]
