@@ -16,6 +16,10 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 - `always(φ)` — φ holds forever on all paths
 - `eventually(φ)` — φ holds at some future state
 
+### Implications
+- Prefer `φ -> ψ` for implications.
+- Modal guards in implications must be complete formulas, e.g. `[+X] true -> eventually(<+Y> true)`.
+
 ### Predicates
 - `+signed_by(/users/name.id)` — requires signature from name
 - `+oracle_attests(/oracles/name.id, "field", "value")` — requires an oracle attestation
@@ -605,6 +609,14 @@ F1: **always([+PAY] implies eventually(<+WORK> true))**
         assert!(prompt.contains(
             r#"always([+X] true -> <+oracle_attests(/oracles/a.id, "delivered", "true")> true)"#
         ));
+    }
+
+    #[test]
+    fn test_prompt_includes_parser_backed_implication_guidance() {
+        let prompt = generate_prompt("Release requires delivery");
+
+        assert!(prompt.contains("Prefer `φ -> ψ` for implications."));
+        assert!(prompt.contains("[+X] true -> eventually(<+Y> true)"));
     }
 
     #[test]
