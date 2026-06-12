@@ -312,6 +312,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("sender", "Sender"),
         ("receiver", "Receiver"),
         ("bidder", "Bidder"),
+        ("payer", "Payer"),
+        ("payee", "Payee"),
         ("arbiter", "Arbiter"),
         ("arbitrator", "Arbiter"),
         ("mediator", "Arbiter"),
@@ -672,6 +674,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             1
         );
         assert!(parties.contains(&"Steward".to_string()));
+    }
+
+    #[test]
+    fn test_extract_payment_party_roles() {
+        let parties = extract_parties("Payer deposits funds before the payee releases receipt");
+
+        assert!(parties.contains(&"Payer".to_string()));
+        assert!(parties.contains(&"Payee".to_string()));
     }
 
     #[test]
