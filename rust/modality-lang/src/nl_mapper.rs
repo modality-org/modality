@@ -202,6 +202,10 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("promisee", "Promisee"),
         ("provider", "Provider"),
         ("consumer", "Consumer"),
+        ("patient", "Patient"),
+        ("clinician", "Clinician"),
+        ("physician", "Physician"),
+        ("caregiver", "Caregiver"),
         ("client", "Client"),
         ("contractor", "Contractor"),
         ("subcontractor", "Subcontractor"),
@@ -673,6 +677,17 @@ mod tests {
         let result = map_nl_to_pattern("Supplier ships goods after purchaser funds escrow");
         assert!(result.parties.contains(&"Supplier".to_string()));
         assert!(result.parties.contains(&"Purchaser".to_string()));
+    }
+
+    #[test]
+    fn test_healthcare_party_roles() {
+        let result = map_nl_to_pattern(
+            "Patient authorizes caregiver access after clinician and physician approve treatment",
+        );
+        assert!(result.parties.contains(&"Patient".to_string()));
+        assert!(result.parties.contains(&"Caregiver".to_string()));
+        assert!(result.parties.contains(&"Clinician".to_string()));
+        assert!(result.parties.contains(&"Physician".to_string()));
     }
 
     #[test]

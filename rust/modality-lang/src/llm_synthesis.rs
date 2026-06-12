@@ -315,6 +315,10 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("promisee", "Promisee"),
         ("provider", "Provider"),
         ("consumer", "Consumer"),
+        ("patient", "Patient"),
+        ("clinician", "Clinician"),
+        ("physician", "Physician"),
+        ("caregiver", "Caregiver"),
         ("client", "Client"),
         ("contractor", "Contractor"),
         ("subcontractor", "Subcontractor"),
@@ -886,6 +890,18 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Supplier".to_string()));
         assert!(parties.contains(&"Purchaser".to_string()));
+    }
+
+    #[test]
+    fn test_extract_healthcare_party_roles() {
+        let parties = extract_parties(
+            "Patient authorizes caregiver access after clinician and physician approve treatment",
+        );
+
+        assert!(parties.contains(&"Patient".to_string()));
+        assert!(parties.contains(&"Caregiver".to_string()));
+        assert!(parties.contains(&"Clinician".to_string()));
+        assert!(parties.contains(&"Physician".to_string()));
     }
 
     #[test]
