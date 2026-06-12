@@ -332,6 +332,10 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("credit buyer", "CreditBuyer"),
         ("credit seller", "CreditSeller"),
         ("project developer", "ProjectDeveloper"),
+        ("patent office", "PatentOffice"),
+        ("patent owner", "PatentOwner"),
+        ("trademark owner", "TrademarkOwner"),
+        ("rights holder", "RightsHolder"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("offeror", "Offeror"),
@@ -1140,6 +1144,18 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"CreditSeller".to_string()));
         assert!(parties.contains(&"ProjectDeveloper".to_string()));
         assert!(parties.contains(&"CarbonRegistry".to_string()));
+    }
+
+    #[test]
+    fn test_extract_ip_party_roles() {
+        let parties = extract_parties(
+            "Patent owner licenses invention after patent office, trademark owner, and rights holder approve filing",
+        );
+
+        assert!(parties.contains(&"PatentOwner".to_string()));
+        assert!(parties.contains(&"PatentOffice".to_string()));
+        assert!(parties.contains(&"TrademarkOwner".to_string()));
+        assert!(parties.contains(&"RightsHolder".to_string()));
     }
 
     #[test]
