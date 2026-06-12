@@ -306,6 +306,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("client", "Client"),
         ("contractor", "Contractor"),
         ("broker", "Broker"),
+        ("registrar", "Registrar"),
+        ("registrant", "Registrant"),
         ("principal", "Principal"),
         ("agent", "Agent"),
         ("depositor", "Depositor"),
@@ -933,6 +935,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"EscrowAgent".to_string()));
         assert!(parties.contains(&"Buyer".to_string()));
         assert!(parties.contains(&"Seller".to_string()));
+    }
+
+    #[test]
+    fn test_extract_registry_party_roles() {
+        let parties = extract_parties("Registrar renews domain after registrant pays fee");
+
+        assert!(parties.contains(&"Registrar".to_string()));
+        assert!(parties.contains(&"Registrant".to_string()));
     }
 
     #[test]
