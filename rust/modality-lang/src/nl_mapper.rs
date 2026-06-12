@@ -201,6 +201,8 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("bidder", "Bidder"),
         ("payer", "Payer"),
         ("payee", "Payee"),
+        ("borrower", "Borrower"),
+        ("lender", "Lender"),
         ("arbiter", "Arbiter"),
         ("arbitrator", "Arbiter"),
         ("mediator", "Arbiter"),
@@ -483,6 +485,13 @@ mod tests {
         let result = map_nl_to_pattern("Payer deposits funds before payee releases receipt");
         assert!(result.parties.contains(&"Payer".to_string()));
         assert!(result.parties.contains(&"Payee".to_string()));
+    }
+
+    #[test]
+    fn test_loan_party_roles() {
+        let result = map_nl_to_pattern("Borrower repays lender after collateral release");
+        assert!(result.parties.contains(&"Borrower".to_string()));
+        assert!(result.parties.contains(&"Lender".to_string()));
     }
 
     #[test]
