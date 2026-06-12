@@ -313,6 +313,7 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("roaming partner", "RoamingPartner"),
         ("labor union", "LaborUnion"),
         ("research institution", "ResearchInstitution"),
+        ("arbitration tribunal", "Tribunal"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("offeror", "Offeror"),
@@ -346,6 +347,9 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("defendant", "Defendant"),
         ("counsel", "Counsel"),
         ("court", "Court"),
+        ("claimant", "Claimant"),
+        ("respondent", "Respondent"),
+        ("tribunal", "Tribunal"),
         ("utility", "Utility"),
         ("generator", "Generator"),
         ("offtaker", "Offtaker"),
@@ -1021,6 +1025,18 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"Defendant".to_string()));
         assert!(parties.contains(&"Counsel".to_string()));
         assert!(parties.contains(&"Court".to_string()));
+    }
+
+    #[test]
+    fn test_extract_arbitration_party_roles() {
+        let parties = extract_parties(
+            "Claimant files notice after respondent, arbitrator, and arbitration tribunal approve award",
+        );
+
+        assert!(parties.contains(&"Claimant".to_string()));
+        assert!(parties.contains(&"Respondent".to_string()));
+        assert!(parties.contains(&"Arbiter".to_string()));
+        assert!(parties.contains(&"Tribunal".to_string()));
     }
 
     #[test]
