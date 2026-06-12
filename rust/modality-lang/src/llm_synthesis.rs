@@ -318,6 +318,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("lender", "Lender"),
         ("debtor", "Debtor"),
         ("creditor", "Creditor"),
+        ("pledgor", "Pledgor"),
+        ("pledgee", "Pledgee"),
         ("insurer", "Insurer"),
         ("insured", "Insured"),
         ("licensor", "Licensor"),
@@ -726,6 +728,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Debtor".to_string()));
         assert!(parties.contains(&"Creditor".to_string()));
+    }
+
+    #[test]
+    fn test_extract_pledge_party_roles() {
+        let parties = extract_parties("Pledgor repays loan before pledgee releases collateral");
+
+        assert!(parties.contains(&"Pledgor".to_string()));
+        assert!(parties.contains(&"Pledgee".to_string()));
     }
 
     #[test]
