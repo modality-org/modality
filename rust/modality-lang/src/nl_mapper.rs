@@ -201,6 +201,9 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("research institution", "ResearchInstitution"),
         ("arbitration tribunal", "Tribunal"),
         ("regulatory agency", "RegulatoryAgency"),
+        ("tax authority", "TaxAuthority"),
+        ("revenue agency", "RevenueAgency"),
+        ("withholding agent", "WithholdingAgent"),
         // Generic roles
         ("buyer", "Buyer"),
         ("seller", "Seller"),
@@ -241,6 +244,7 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("regulator", "Regulator"),
         ("applicant", "Applicant"),
         ("permittee", "Permittee"),
+        ("taxpayer", "Taxpayer"),
         ("utility", "Utility"),
         ("generator", "Generator"),
         ("offtaker", "Offtaker"),
@@ -831,6 +835,17 @@ mod tests {
         assert!(result.parties.contains(&"Applicant".to_string()));
         assert!(result.parties.contains(&"Permittee".to_string()));
         assert!(result.parties.contains(&"RegulatoryAgency".to_string()));
+    }
+
+    #[test]
+    fn test_tax_party_roles() {
+        let result = map_nl_to_pattern(
+            "Taxpayer remits return after tax authority, withholding agent, and revenue agency approve filing",
+        );
+        assert!(result.parties.contains(&"Taxpayer".to_string()));
+        assert!(result.parties.contains(&"TaxAuthority".to_string()));
+        assert!(result.parties.contains(&"WithholdingAgent".to_string()));
+        assert!(result.parties.contains(&"RevenueAgency".to_string()));
     }
 
     #[test]

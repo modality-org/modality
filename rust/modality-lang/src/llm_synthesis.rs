@@ -315,6 +315,9 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("research institution", "ResearchInstitution"),
         ("arbitration tribunal", "Tribunal"),
         ("regulatory agency", "RegulatoryAgency"),
+        ("tax authority", "TaxAuthority"),
+        ("revenue agency", "RevenueAgency"),
+        ("withholding agent", "WithholdingAgent"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("offeror", "Offeror"),
@@ -354,6 +357,7 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("regulator", "Regulator"),
         ("applicant", "Applicant"),
         ("permittee", "Permittee"),
+        ("taxpayer", "Taxpayer"),
         ("utility", "Utility"),
         ("generator", "Generator"),
         ("offtaker", "Offtaker"),
@@ -1053,6 +1057,18 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"Applicant".to_string()));
         assert!(parties.contains(&"Permittee".to_string()));
         assert!(parties.contains(&"RegulatoryAgency".to_string()));
+    }
+
+    #[test]
+    fn test_extract_tax_party_roles() {
+        let parties = extract_parties(
+            "Taxpayer remits return after tax authority, withholding agent, and revenue agency approve filing",
+        );
+
+        assert!(parties.contains(&"Taxpayer".to_string()));
+        assert!(parties.contains(&"TaxAuthority".to_string()));
+        assert!(parties.contains(&"WithholdingAgent".to_string()));
+        assert!(parties.contains(&"RevenueAgency".to_string()));
     }
 
     #[test]
