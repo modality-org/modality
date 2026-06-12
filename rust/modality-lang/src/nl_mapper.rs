@@ -206,6 +206,10 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("clinician", "Clinician"),
         ("physician", "Physician"),
         ("caregiver", "Caregiver"),
+        ("student", "Student"),
+        ("instructor", "Instructor"),
+        ("teacher", "Instructor"),
+        ("institution", "Institution"),
         ("client", "Client"),
         ("contractor", "Contractor"),
         ("subcontractor", "Subcontractor"),
@@ -688,6 +692,15 @@ mod tests {
         assert!(result.parties.contains(&"Caregiver".to_string()));
         assert!(result.parties.contains(&"Clinician".to_string()));
         assert!(result.parties.contains(&"Physician".to_string()));
+    }
+
+    #[test]
+    fn test_education_party_roles() {
+        let result =
+            map_nl_to_pattern("Student submits assignment after instructor and institution approve enrollment");
+        assert!(result.parties.contains(&"Student".to_string()));
+        assert!(result.parties.contains(&"Instructor".to_string()));
+        assert!(result.parties.contains(&"Institution".to_string()));
     }
 
     #[test]
