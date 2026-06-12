@@ -6,8 +6,8 @@ This is the most important thing to understand about Modality validation. If you
 
 ## The Protocol
 
-1. A **MODEL** commit defines a state machine with predicate-guarded transitions
-2. Every subsequent commit must match a valid transition from the current state
+1. A **MODEL** commit defines a witness LTS with predicate-guarded transitions
+2. Every subsequent commit must match a valid transition from the current witness node
 3. Each transition has predicates: `+pred` must hold, `-pred` must NOT hold
 4. **Rules are NEVER evaluated directly at commit time**
 5. Rules only constrain which models are acceptable as witnesses
@@ -17,12 +17,12 @@ This is the most important thing to understand about Modality validation. If you
 
 ```modality
 model hello_world {
-  initial active
-  active -> active [+any_signed(/) -modifies(/README.md) -adds_rule]
+  initial q0
+  q0 -> q0 [+any_signed(/) -modifies(/README.md) -adds_rule]
 }
 ```
 
-This model has one transition from `active → active` with three predicates:
+This model has one transition from `q0 → q0` with three predicates:
 - `+any_signed(/)` — commit must have at least one signature
 - `-modifies(/README.md)` — commit must NOT write to `/README.md`
 - `-adds_rule` — commit must NOT be a RULE commit
@@ -32,7 +32,7 @@ Every incoming commit is checked against this transition. If no transition's pre
 ## Rules vs Models
 
 - **Rules** = permanent protection formulas (e.g. `always (+any_signed(/))`)
-- **Models** = replaceable state machines with predicate-guarded transitions
+- **Models** = replaceable witness LTSs with predicate-guarded transitions
 - When adding a RULE, you must provide a **witness model** that proves the rule is satisfiable
 - The model can be replaced later, but only with one that still satisfies all accumulated rules
 

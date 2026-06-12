@@ -395,12 +395,12 @@ test('RULE value and witnessModel aliases are governed by the active model', () 
 
   assert.throws(
     () => rejectingValidator.applyCommit(ruleCommit),
-    /RULE is not allowed from states 'active'/
+    /RULE is not allowed from witness nodes 'active'/
   );
   assert.equal(rejectingValidator.getState().rulesCount, 0);
   assert.throws(
     () => rejectingValidator.applyCommit(jsonRuleCommit),
-    /RULE is not allowed from states 'active'/
+    /RULE is not allowed from witness nodes 'active'/
   );
   assert.equal(rejectingValidator.getState().rulesCount, 0);
 });
@@ -479,11 +479,11 @@ test('JSON MODEL commits without transitions reject later commits cleanly', () =
   });
 
   assert.equal(result.ok, false);
-  assert.match(result.error, /POST is not allowed from states 'active'/);
+  assert.match(result.error, /POST is not allowed from witness nodes 'active'/);
 
   const actionResult = validator.validateAction('APPROVE');
   assert.equal(actionResult.ok, false);
-  assert.match(actionResult.error, /Action 'APPROVE' not allowed from states 'active'/);
+  assert.match(actionResult.error, /Action 'APPROVE' not allowed from witness nodes 'active'/);
 
   assert.deepEqual(validator.getValidActions(), []);
 });
@@ -6032,12 +6032,12 @@ test('validateContractLogic governs value witnessModel alias RULE commits', asyn
 
   const rejected = await validateContractLogic(rejectingStore, 'contract', [ruleCommit]);
   assert.equal(rejected.valid, false);
-  assert.match(rejected.errors[0], /RULE is not allowed from states 'active'/);
+  assert.match(rejected.errors[0], /RULE is not allowed from witness nodes 'active'/);
   assert.equal(rejected.state.rulesCount, 0);
 
   const rejectedJson = await validateContractLogic(rejectingStore, 'contract', [jsonRuleCommit]);
   assert.equal(rejectedJson.valid, false);
-  assert.match(rejectedJson.errors[0], /RULE is not allowed from states 'active'/);
+  assert.match(rejectedJson.errors[0], /RULE is not allowed from witness nodes 'active'/);
   assert.equal(rejectedJson.state.rulesCount, 0);
 });
 

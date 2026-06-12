@@ -71,13 +71,16 @@ modal c set /users/seller.id $(modal id get --path ./seller.passfile)
 **model/default.modality** — defines allowed transitions:
 ```modality
 export default model {
-  initial pending
-  
-  pending -> funded [+signed_by(/users/buyer.id)]
-  funded -> delivered [+signed_by(/users/seller.id)]
-  delivered -> released [+signed_by(/users/buyer.id)]
+  initial q0
+
+  q0 -> q1 [+DEPOSIT +signed_by(/users/buyer.id)]
+  q1 -> q2 [+DELIVER +signed_by(/users/seller.id)]
+  q2 -> q3 [+RELEASE +signed_by(/users/buyer.id)]
 }
 ```
+
+The `q*` names are witness nodes, not business states. The useful contract
+meaning is on the transition labels and predicates.
 
 **rules/auth.modality** — constrains who can commit:
 ```modality

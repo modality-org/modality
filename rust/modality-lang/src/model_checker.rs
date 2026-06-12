@@ -1,7 +1,10 @@
 use serde::{Serialize, Deserialize};
 use crate::ast::{Model, Part, Transition, Property, Formula, FormulaExpr};
 
-/// Represents a state in the model (part name and node name)
+/// Represents an internal LTS witness node (part name and node id).
+///
+/// Node ids are not user-facing contract states; transition labels carry the
+/// contract meaning.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct State {
     pub part_name: String,
@@ -41,7 +44,7 @@ impl ModelChecker {
         }
     }
 
-    /// Check if any state satisfies the formula (original behavior)
+    /// Check if any witness node satisfies the formula (original behavior)
     pub fn check_formula_any_state(&self, formula: &Formula) -> ModelCheckResult {
         let satisfying_states = self.evaluate_formula(&formula.expression);
         
@@ -52,9 +55,9 @@ impl ModelChecker {
         }
     }
 
-    /// Check if a formula is satisfied starting from a specific state name
+    /// Check if a formula is satisfied starting from a specific witness node id
     /// 
-    /// Returns satisfied if the named state is among the states that satisfy the formula
+    /// Returns satisfied if the named witness node is among the nodes that satisfy the formula
     pub fn check_formula_at_state(&self, formula: &Formula, state_name: &str) -> ModelCheckResult {
         let satisfying_states = self.evaluate_formula(&formula.expression);
         
@@ -98,7 +101,7 @@ impl ModelChecker {
                 Vec::new()
             }
             FormulaExpr::Prop(name) => {
-                // States where current node name matches the proposition
+                // Witness nodes where the opaque node id matches the proposition.
                 self.all_states()
                     .into_iter()
                     .filter(|s| s.node_name == *name)
@@ -360,8 +363,8 @@ impl ModelChecker {
         result
     }
     
-    /// Substitute a variable with a set of states in a formula
-    /// Returns a formula where Var(name) is replaced with an Or of Prop(state_name)
+    /// Substitute a variable with a set of witness nodes in a formula
+    /// Returns a formula where Var(name) is replaced with an Or of Prop(node_id)
     fn substitute_var(&self, expr: &FormulaExpr, var: &str, states: &[State]) -> FormulaExpr {
         match expr {
             FormulaExpr::Var(name) if name == var => {
@@ -673,4 +676,4 @@ mod tests {
         // n1 should satisfy <+blue> true because it has a transition to n2 with +blue
         assert!(result.satisfying_states.iter().any(|s| s.node_name == "n1"));
     }
-} 
+}

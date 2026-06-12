@@ -32,33 +32,28 @@ modal c set /parties/alice.id $(modal id get --path ./alice.passfile)
 modal c set /parties/bob.id $(modal id get --path ./bob.passfile)
 ```
 
-## 4. Define the Model
+## 4. Define the Witness Model
 
 Create `model/escrow.modality`:
 
 ```modality
 model escrow {
-  states { pending, funded, delivered, released, refunded }
-  initial pending
-  terminal released, refunded
-  
-  transition DEPOSIT: pending -> funded
-    +signed_by(/parties/alice.id)
-  
-  transition DELIVER: funded -> delivered
-    +signed_by(/parties/bob.id)
-  
-  transition RELEASE: delivered -> released
-    +signed_by(/parties/alice.id)
-  
-  transition REFUND: funded -> refunded
-    +signed_by(/parties/bob.id)
+  initial q0
+
+  q0 -> q1 [+DEPOSIT +signed_by(/parties/alice.id)]
+  q1 -> q2 [+DELIVER +signed_by(/parties/bob.id)]
+  q2 -> q3 [+RELEASE +signed_by(/parties/alice.id)]
+  q1 -> q4 [+REFUND +signed_by(/parties/bob.id)]
 }
 ```
 
+`q0`, `q1`, and the other node ids are opaque witness nodes. The contract
+meaning is carried by labels such as `+DEPOSIT` and predicates such as
+`+signed_by(...)`.
+
 ## 5. Add Protection Rules
 
-Rules constrain *who can commit* based on contract state. Create `rules/buyer-protection.modality`:
+Rules constrain which labeled transitions and commits remain acceptable. Create `rules/buyer-protection.modality`:
 
 ```modality
 export default rule {
@@ -71,13 +66,13 @@ export default rule {
 
 This says: "Every commit must be signed by Alice or Bob."
 
-For state-dependent authorization:
+For authorization based on recorded contract data:
 
 ```modality
 export default rule {
   starting_at $PARENT
   formula {
-    // Only buyer can commit when not yet delivered
+    // Only buyer can commit while the delivered flag is false.
     !bool_true(/status/delivered.bool) -> signed_by(/parties/buyer.id)
   }
 }

@@ -78,16 +78,16 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
     
     if result_any_state.is_satisfied {
-        println!("✅ Formula is satisfied (any state)");
+        println!("✅ Formula is satisfied (any witness node)");
     } else {
-        println!("❌ Formula is not satisfied (any state)");
+        println!("❌ Formula is not satisfied (any witness node)");
     }
     
     println!();
-    println!("📍 Satisfying states ({}):", result.satisfying_states.len());
+    println!("📍 Satisfying witness nodes ({}):", result.satisfying_states.len());
     for state in &result.satisfying_states {
         println!("   - {}.{}", state.part_name, state.node_name);
     }
     
     Ok(())
-} 
+}

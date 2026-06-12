@@ -177,7 +177,7 @@ export class ContractValidator {
   /**
    * Parse simple Modality model syntax.
    * Supports both:
-   *   model name { state s1, s2; s1 -> s2 : ACTION }
+   *   model name { state q0, q1; q0 -> q1 : ACTION }
    *   model name { initial s1; s1 -> s2 [+signed_by(/alice.id)] }
    */
   parseModalitySyntax(content) {
@@ -216,7 +216,7 @@ export class ContractValidator {
       name,
       states: stateList,
       transitions,
-      initialState: initialMatch?.[1] || stateList[0] || 'init'
+      initialState: initialMatch?.[1] || stateList[0] || 'q0'
     };
   }
   
@@ -239,7 +239,7 @@ export class ContractValidator {
       return { ok: true };
     }
     
-    // Check if action is valid from current state
+    // Check if action is valid from the current witness node set.
     const activeStates = this.currentStates.size > 0 ? this.currentStates : new Set([this.model.initialState]);
     const validTransitions = (this.model.transitions || []).filter(t => 
       activeStates.has(t.from) && t.action === action
@@ -248,7 +248,7 @@ export class ContractValidator {
     if (validTransitions.length === 0) {
       return {
         ok: false,
-        error: `Action '${action}' not allowed from states '${[...activeStates].join(', ')}'`
+        error: `Action '${action}' not allowed from witness nodes '${[...activeStates].join(', ')}'`
       };
     }
     
@@ -305,7 +305,7 @@ export class ContractValidator {
   }
   
   /**
-   * Get valid actions from current state
+   * Get valid actions from current witness node set
    */
   getValidActions() {
     if (!this.model) return [];
@@ -352,7 +352,7 @@ export class ContractValidator {
 
     return {
       ok: false,
-      error: `${method || 'commit'} is not allowed from states '${[...activeStates].join(', ')}'`
+      error: `${method || 'commit'} is not allowed from witness nodes '${[...activeStates].join(', ')}'`
     };
   }
 

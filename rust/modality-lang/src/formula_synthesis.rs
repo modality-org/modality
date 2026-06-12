@@ -538,23 +538,19 @@ pub fn synthesize_from_constraints(name: &str, constraints: &SynthesisConstraint
     // Build ordering graph and topologically sort actions
     let ordered_actions = topological_sort(&constraints.ordering, &constraints.actions);
 
-    // Create states based on ordering
-    let mut states: Vec<String> = vec!["init".to_string()];
-    for action in &ordered_actions {
-        let state_name = format!("after_{}", action.to_lowercase());
-        states.push(state_name);
+    // Create opaque witness nodes based on ordering. These names are an
+    // implementation detail of the synthesized LTS, not contract states.
+    let mut nodes: Vec<String> = vec!["q0".to_string()];
+    for index in 1..=ordered_actions.len() {
+        nodes.push(format!("q{}", index));
     }
 
     // Create transitions
     let mut transitions = Vec::new();
 
     for (i, action) in ordered_actions.iter().enumerate() {
-        let from = if i == 0 {
-            "init".to_string()
-        } else {
-            format!("after_{}", ordered_actions[i - 1].to_lowercase())
-        };
-        let to = format!("after_{}", action.to_lowercase());
+        let from = nodes[i].clone();
+        let to = nodes[i + 1].clone();
 
         let mut trans = Transition::new(from, to);
 
@@ -582,9 +578,9 @@ pub fn synthesize_from_constraints(name: &str, constraints: &SynthesisConstraint
     }
 
     // Add required self-loop patterns, such as always [<+A>] true.
-    for state in &states {
+    for node in &nodes {
         for props in &constraints.self_loops {
-            let mut transition = Transition::new(state.clone(), state.clone());
+            let mut transition = Transition::new(node.clone(), node.clone());
             for prop in props {
                 transition.add_property(prop.clone());
             }
@@ -593,29 +589,32 @@ pub fn synthesize_from_constraints(name: &str, constraints: &SynthesisConstraint
     }
 
     // Add terminal self-loop
-    if let Some(last_action) = ordered_actions
-        .last()
-        .filter(|_| constraints.self_loops.is_empty())
-    {
-        let final_state = format!("after_{}", last_action.to_lowercase());
-        transitions.push(Transition::new(final_state.clone(), final_state));
+    if !ordered_actions.is_empty() && constraints.self_loops.is_empty() {
+        let final_node = nodes[ordered_actions.len()].clone();
+        transitions.push(Transition::new(final_node.clone(), final_node));
     } else if constraints.self_loops.is_empty() {
-        // No actions, just init -> init
-        transitions.push(Transition::new("init".to_string(), "init".to_string()));
+        // No actions, just q0 -> q0
+        transitions.push(Transition::new("q0".to_string(), "q0".to_string()));
     }
 
     // Handle forbidden_after constraints by adding -ACTION to relevant transitions
     for (trigger, forbidden) in &constraints.forbidden_after {
-        let trigger_state = format!("after_{}", trigger.to_lowercase());
-        for trans in &mut transitions {
-            if trans.from == trigger_state {
-                trans.add_property(Property::new(PropertySign::Minus, forbidden.clone()));
+        if let Some(trigger_index) = ordered_actions
+            .iter()
+            .position(|action| action == trigger)
+            .map(|index| index + 1)
+        {
+            let trigger_node = &nodes[trigger_index];
+            for trans in &mut transitions {
+                if trans.from == *trigger_node {
+                    trans.add_property(Property::new(PropertySign::Minus, forbidden.clone()));
+                }
             }
         }
     }
 
     let mut model = Model::new(name.to_string());
-    model.set_initial("init".to_string());
+    model.set_initial("q0".to_string());
 
     // Wrap transitions in a part for proper printing
     let mut part = Part::new("flow".to_string());
@@ -800,8 +799,8 @@ mod tests {
         let transitions = &model.parts[0].transitions;
 
         assert_eq!(transitions.len(), 1);
-        assert_eq!(transitions[0].from, "init");
-        assert_eq!(transitions[0].to, "init");
+        assert_eq!(transitions[0].from, "q0");
+        assert_eq!(transitions[0].to, "q0");
         assert!(transitions[0]
             .properties
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string(),)));
@@ -818,13 +817,13 @@ mod tests {
         let transitions = &model.parts[0].transitions;
 
         assert_eq!(transitions.len(), 2);
-        assert_eq!(transitions[0].from, "init");
-        assert_eq!(transitions[0].to, "after_approve");
+        assert_eq!(transitions[0].from, "q0");
+        assert_eq!(transitions[0].to, "q1");
         assert!(transitions[0]
             .properties
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
-        assert_eq!(transitions[1].from, "after_approve");
-        assert_eq!(transitions[1].to, "after_approve");
+        assert_eq!(transitions[1].from, "q1");
+        assert_eq!(transitions[1].to, "q1");
         assert!(transitions[1].properties.is_empty());
     }
 
@@ -843,8 +842,8 @@ mod tests {
         let transitions = &model.parts[0].transitions;
 
         assert_eq!(transitions.len(), 1);
-        assert_eq!(transitions[0].from, "init");
-        assert_eq!(transitions[0].to, "init");
+        assert_eq!(transitions[0].from, "q0");
+        assert_eq!(transitions[0].to, "q0");
         assert!(transitions[0]
             .properties
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
@@ -871,13 +870,13 @@ mod tests {
         let transitions = &model.parts[0].transitions;
 
         assert_eq!(transitions.len(), 2);
-        assert_eq!(transitions[0].from, "init");
-        assert_eq!(transitions[0].to, "init");
+        assert_eq!(transitions[0].from, "q0");
+        assert_eq!(transitions[0].to, "q0");
         assert!(transitions[0]
             .properties
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
-        assert_eq!(transitions[1].from, "init");
-        assert_eq!(transitions[1].to, "init");
+        assert_eq!(transitions[1].from, "q0");
+        assert_eq!(transitions[1].to, "q0");
         assert!(transitions[1]
             .properties
             .contains(&Property::new(PropertySign::Plus, "REJECT".to_string())));
@@ -935,22 +934,22 @@ mod tests {
         let transitions = &model.parts[0].transitions;
 
         assert!(transitions.iter().any(|transition| {
-            transition.from == "init"
-                && transition.to == "after_deliver"
+            transition.from == "q0"
+                && transition.to == "q1"
                 && transition
                     .properties
                     .contains(&Property::new(PropertySign::Plus, "DELIVER".to_string()))
         }));
         assert!(transitions.iter().any(|transition| {
-            transition.from == "after_deliver"
-                && transition.to == "after_release"
+            transition.from == "q1"
+                && transition.to == "q2"
                 && transition
                     .properties
                     .contains(&Property::new(PropertySign::Plus, "RELEASE".to_string()))
         }));
         assert!(transitions.iter().any(|transition| {
-            transition.from == "init"
-                && transition.to == "init"
+            transition.from == "q0"
+                && transition.to == "q0"
                 && transition
                     .properties
                     .contains(&Property::new(PropertySign::Plus, "CANCEL".to_string()))
@@ -999,8 +998,8 @@ mod tests {
                 && transition.properties.contains(&signer_prop)
         }));
         assert!(model.parts[0].transitions.iter().any(|transition| {
-            transition.from == "init"
-                && transition.to == "init"
+            transition.from == "q0"
+                && transition.to == "q0"
                 && transition
                     .properties
                     .contains(&Property::new(PropertySign::Plus, "CANCEL".to_string()))
@@ -1036,11 +1035,11 @@ mod tests {
         let forbidden_release = Property::new(PropertySign::Minus, "RELEASE".to_string());
 
         assert!(model.parts[0].transitions.iter().any(|transition| {
-            transition.from == "after_dispute" && transition.properties.contains(&forbidden_release)
+            transition.from == "q1" && transition.properties.contains(&forbidden_release)
         }));
         assert!(model.parts[0].transitions.iter().any(|transition| {
-            transition.from == "init"
-                && transition.to == "init"
+                transition.from == "q0"
+                    && transition.to == "q0"
                 && transition
                     .properties
                     .contains(&Property::new(PropertySign::Plus, "CANCEL".to_string()))
@@ -1064,8 +1063,8 @@ mod tests {
         let model = synthesize_from_constraints("Approval", &constraints);
         let transition = &model.parts[0].transitions[0];
 
-        assert_eq!(transition.from, "init");
-        assert_eq!(transition.to, "init");
+        assert_eq!(transition.from, "q0");
+        assert_eq!(transition.to, "q0");
         assert!(transition
             .properties
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
@@ -1182,8 +1181,8 @@ mod tests {
         let transitions = &model.parts[0].transitions;
 
         assert_eq!(transitions.len(), 1);
-        assert_eq!(transitions[0].from, "init");
-        assert_eq!(transitions[0].to, "init");
+        assert_eq!(transitions[0].from, "q0");
+        assert_eq!(transitions[0].to, "q0");
         assert!(transitions[0]
             .properties
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
@@ -1220,8 +1219,8 @@ mod tests {
         let model = synthesize_from_formulas("Approval", &[formula.clone(), formula]);
 
         assert_eq!(model.parts[0].transitions.len(), 1);
-        assert_eq!(model.parts[0].transitions[0].from, "init");
-        assert_eq!(model.parts[0].transitions[0].to, "init");
+        assert_eq!(model.parts[0].transitions[0].from, "q0");
+        assert_eq!(model.parts[0].transitions[0].to, "q0");
         assert!(model.parts[0].transitions[0]
             .properties
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
@@ -1299,8 +1298,8 @@ mod tests {
         let model = synthesize_from_formulas("Release", &[formula]);
         let transition = &model.parts[0].transitions[0];
 
-        assert_eq!(transition.from, "init");
-        assert_eq!(transition.to, "after_release");
+        assert_eq!(transition.from, "q0");
+        assert_eq!(transition.to, "q1");
         assert!(transition
             .properties
             .contains(&Property::new(PropertySign::Plus, "RELEASE".to_string())));

@@ -8,18 +8,18 @@ Understanding the difference between models and rules is fundamental to Modality
 
 | | Model | Rules |
 |---|-------|-------|
-| **Purpose** | Define state machine structure | Enforce protection constraints |
+| **Purpose** | Provide a witness LTS with labeled transitions | Enforce protection constraints |
 | **Mutability** | Can be replaced | Immutable once added |
-| **Without it** | No state tracking | No protection |
+| **Without it** | No transition witness | No protection |
 
 ## Models Are Replaceable
 
-A model defines states and transitions:
+A model defines opaque witness nodes and labeled transitions:
 
 ```modality
 model members_only {
-  initial active
-  active -> active []
+  initial q0
+  q0 -> q0 []
 }
 ```
 
@@ -28,11 +28,11 @@ But models can be replaced by any commit using the MODEL method:
 ```bash
 # Original model with guards
 modal contract commit --method model \
-  --value 'model secure { initial locked; locked -> unlocked [+signed_by(/admin.id)] }'
+  --value 'model secure { initial q0; q0 -> q1 [+signed_by(/admin.id)] }'
 
 # Attacker replaces with permissive model
 modal contract commit --method model \
-  --value 'model open { initial unlocked; unlocked -> unlocked [] }'
+  --value 'model open { initial q0; q0 -> q0 [] }'
 ```
 
 **If there are no rules, this succeeds.** The contract is now wide open.
@@ -69,8 +69,8 @@ modal contract commit --method model \
 
 The model provides structure. Rules provide security. Neither alone is sufficient:
 
-- Model without rules = structure with no enforcement
-- Rules without model = enforcement with no state machine
+- Model without rules = witness structure with no durable protection
+- Rules without model = protection formulas with no witness LTS
 
 ### 2. Immutability Guarantees
 
@@ -204,4 +204,3 @@ Before considering a contract "secure":
 5. **No rules = no protection** — the model alone guarantees nothing
 
 When designing a Modality contract, always ask: "What rules protect this?"
-

@@ -108,7 +108,8 @@ pub enum FormulaExpr {
     /// Boolean literals
     True,
     False,
-    /// State propositions (node names)
+    /// Opaque witness-node propositions. These refer to generated LTS nodes,
+    /// not user-facing contract states.
     Prop(String),
     /// Boolean operations
     And(Box<FormulaExpr>, Box<FormulaExpr>),
