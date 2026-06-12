@@ -351,6 +351,10 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("model user", "ModelUser"),
         ("safety reviewer", "SafetyReviewer"),
         ("red team", "RedTeam"),
+        ("agent coordinator", "AgentCoordinator"),
+        ("task requester", "TaskRequester"),
+        ("worker agent", "WorkerAgent"),
+        ("tool provider", "ToolProvider"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("offeror", "Offeror"),
@@ -1224,6 +1228,18 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"Evaluator".to_string()));
         assert!(parties.contains(&"SafetyReviewer".to_string()));
         assert!(parties.contains(&"RedTeam".to_string()));
+    }
+
+    #[test]
+    fn test_extract_agent_coordination_party_roles() {
+        let parties = extract_parties(
+            "Agent coordinator assigns work after task requester, worker agent, and tool provider approve capability terms",
+        );
+
+        assert!(parties.contains(&"AgentCoordinator".to_string()));
+        assert!(parties.contains(&"TaskRequester".to_string()));
+        assert!(parties.contains(&"WorkerAgent".to_string()));
+        assert!(parties.contains(&"ToolProvider".to_string()));
     }
 
     #[test]

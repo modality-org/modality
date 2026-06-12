@@ -237,6 +237,10 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("model user", "ModelUser"),
         ("safety reviewer", "SafetyReviewer"),
         ("red team", "RedTeam"),
+        ("agent coordinator", "AgentCoordinator"),
+        ("task requester", "TaskRequester"),
+        ("worker agent", "WorkerAgent"),
+        ("tool provider", "ToolProvider"),
         // Generic roles
         ("buyer", "Buyer"),
         ("seller", "Seller"),
@@ -992,6 +996,17 @@ mod tests {
         assert!(result.parties.contains(&"Evaluator".to_string()));
         assert!(result.parties.contains(&"SafetyReviewer".to_string()));
         assert!(result.parties.contains(&"RedTeam".to_string()));
+    }
+
+    #[test]
+    fn test_agent_coordination_party_roles() {
+        let result = map_nl_to_pattern(
+            "Agent coordinator assigns work after task requester, worker agent, and tool provider approve capability terms",
+        );
+        assert!(result.parties.contains(&"AgentCoordinator".to_string()));
+        assert!(result.parties.contains(&"TaskRequester".to_string()));
+        assert!(result.parties.contains(&"WorkerAgent".to_string()));
+        assert!(result.parties.contains(&"ToolProvider".to_string()));
     }
 
     #[test]
