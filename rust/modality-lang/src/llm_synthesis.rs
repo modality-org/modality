@@ -375,6 +375,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("charterer", "Charterer"),
         ("indemnitor", "Indemnitor"),
         ("indemnitee", "Indemnitee"),
+        ("guarantor", "Guarantor"),
+        ("principal", "Principal"),
         ("customer", "Customer"),
         ("employee", "Employee"),
         ("employer", "Employer"),
@@ -883,6 +885,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Indemnitor".to_string()));
         assert!(parties.contains(&"Indemnitee".to_string()));
+    }
+
+    #[test]
+    fn test_extract_guarantee_party_roles() {
+        let parties = extract_parties("Guarantor pays if principal defaults on obligation");
+
+        assert!(parties.contains(&"Guarantor".to_string()));
+        assert!(parties.contains(&"Principal".to_string()));
     }
 
     #[test]
