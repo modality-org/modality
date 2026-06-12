@@ -1938,4 +1938,22 @@ always([<+APPROVE>] true)
             Some(&vec!["/users/alice.id".to_string()])
         );
     }
+
+    #[test]
+    fn legacy_string_constraints_still_accept_implies_output() {
+        let formulas = vec![
+            "[+RELEASE] implies eventually(<+DELIVER> true)".to_string(),
+            "[+RELEASE] implies <+signed_by(/users/alice.id)> true".to_string(),
+        ];
+
+        let constraints = synthesize_constraints_from_strings(&formulas);
+
+        assert!(constraints
+            .ordering
+            .contains(&("RELEASE".to_string(), "DELIVER".to_string())));
+        assert_eq!(
+            constraints.authorization.get("RELEASE"),
+            Some(&vec!["/users/alice.id".to_string()])
+        );
+    }
 }
