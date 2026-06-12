@@ -209,6 +209,8 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("licensee", "Licensee"),
         ("grantor", "Grantor"),
         ("grantee", "Grantee"),
+        ("assignor", "Assignor"),
+        ("assignee", "Assignee"),
         ("issuer", "Issuer"),
         ("holder", "Holder"),
         ("arbiter", "Arbiter"),
@@ -535,6 +537,13 @@ mod tests {
         let result = map_nl_to_pattern("Grantor transfers rights after grantee accepts terms");
         assert!(result.parties.contains(&"Grantor".to_string()));
         assert!(result.parties.contains(&"Grantee".to_string()));
+    }
+
+    #[test]
+    fn test_assignment_party_roles() {
+        let result = map_nl_to_pattern("Assignor transfers claims after assignee signs notice");
+        assert!(result.parties.contains(&"Assignor".to_string()));
+        assert!(result.parties.contains(&"Assignee".to_string()));
     }
 
     #[test]

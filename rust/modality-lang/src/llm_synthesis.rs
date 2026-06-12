@@ -322,6 +322,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("licensee", "Licensee"),
         ("grantor", "Grantor"),
         ("grantee", "Grantee"),
+        ("assignor", "Assignor"),
+        ("assignee", "Assignee"),
         ("issuer", "Issuer"),
         ("holder", "Holder"),
         ("arbiter", "Arbiter"),
@@ -738,6 +740,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Grantor".to_string()));
         assert!(parties.contains(&"Grantee".to_string()));
+    }
+
+    #[test]
+    fn test_extract_assignment_party_roles() {
+        let parties = extract_parties("Assignor transfers claims after assignee signs notice");
+
+        assert!(parties.contains(&"Assignor".to_string()));
+        assert!(parties.contains(&"Assignee".to_string()));
     }
 
     #[test]
