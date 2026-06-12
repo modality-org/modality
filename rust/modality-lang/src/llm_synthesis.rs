@@ -325,6 +325,7 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("recipient", "Recipient"),
         ("sender", "Sender"),
         ("receiver", "Receiver"),
+        ("auctioneer", "Auctioneer"),
         ("bidder", "Bidder"),
         ("payer", "Payer"),
         ("payee", "Payee"),
@@ -982,6 +983,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Registrar".to_string()));
         assert!(parties.contains(&"Registrant".to_string()));
+    }
+
+    #[test]
+    fn test_extract_auction_party_roles() {
+        let parties = extract_parties("Auctioneer awards lot after bidder satisfies reserve");
+
+        assert!(parties.contains(&"Auctioneer".to_string()));
+        assert!(parties.contains(&"Bidder".to_string()));
     }
 
     #[test]

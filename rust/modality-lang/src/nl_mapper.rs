@@ -212,6 +212,7 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("recipient", "Recipient"),
         ("sender", "Sender"),
         ("receiver", "Receiver"),
+        ("auctioneer", "Auctioneer"),
         ("bidder", "Bidder"),
         ("payer", "Payer"),
         ("payee", "Payee"),
@@ -757,6 +758,13 @@ mod tests {
         let result = map_nl_to_pattern("Registrar renews domain after registrant pays fee");
         assert!(result.parties.contains(&"Registrar".to_string()));
         assert!(result.parties.contains(&"Registrant".to_string()));
+    }
+
+    #[test]
+    fn test_auction_party_roles() {
+        let result = map_nl_to_pattern("Auctioneer awards lot after bidder satisfies reserve");
+        assert!(result.parties.contains(&"Auctioneer".to_string()));
+        assert!(result.parties.contains(&"Bidder".to_string()));
     }
 
     #[test]
