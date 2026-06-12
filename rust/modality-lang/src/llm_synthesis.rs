@@ -307,6 +307,10 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("data importer", "DataImporter"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
+        ("offeror", "Offeror"),
+        ("offeree", "Offeree"),
+        ("promisor", "Promisor"),
+        ("promisee", "Promisee"),
         ("provider", "Provider"),
         ("consumer", "Consumer"),
         ("client", "Client"),
@@ -750,6 +754,17 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Payer".to_string()));
         assert!(parties.contains(&"Payee".to_string()));
+    }
+
+    #[test]
+    fn test_extract_contract_formation_party_roles() {
+        let parties =
+            extract_parties("Offeror sends terms after promisor accepts duties to promisee and offeree");
+
+        assert!(parties.contains(&"Offeror".to_string()));
+        assert!(parties.contains(&"Offeree".to_string()));
+        assert!(parties.contains(&"Promisor".to_string()));
+        assert!(parties.contains(&"Promisee".to_string()));
     }
 
     #[test]

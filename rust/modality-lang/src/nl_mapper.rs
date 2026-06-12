@@ -194,6 +194,10 @@ fn extract_parties(description: &str) -> Vec<String> {
         // Generic roles
         ("buyer", "Buyer"),
         ("seller", "Seller"),
+        ("offeror", "Offeror"),
+        ("offeree", "Offeree"),
+        ("promisor", "Promisor"),
+        ("promisee", "Promisee"),
         ("provider", "Provider"),
         ("consumer", "Consumer"),
         ("client", "Client"),
@@ -551,6 +555,17 @@ mod tests {
         let result = map_nl_to_pattern("Payer deposits funds before payee releases receipt");
         assert!(result.parties.contains(&"Payer".to_string()));
         assert!(result.parties.contains(&"Payee".to_string()));
+    }
+
+    #[test]
+    fn test_contract_formation_party_roles() {
+        let result = map_nl_to_pattern(
+            "Offeror sends terms after promisor accepts duties to promisee and offeree",
+        );
+        assert!(result.parties.contains(&"Offeror".to_string()));
+        assert!(result.parties.contains(&"Offeree".to_string()));
+        assert!(result.parties.contains(&"Promisor".to_string()));
+        assert!(result.parties.contains(&"Promisee".to_string()));
     }
 
     #[test]
