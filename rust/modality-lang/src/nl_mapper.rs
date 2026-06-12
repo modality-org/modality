@@ -207,6 +207,10 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("account holder", "AccountHolder"),
         ("payment processor", "PaymentProcessor"),
         ("card issuer", "CardIssuer"),
+        ("securities exchange", "SecuritiesExchange"),
+        ("clearing house", "Clearinghouse"),
+        ("clearinghouse", "Clearinghouse"),
+        ("asset custodian", "AssetCustodian"),
         // Generic roles
         ("buyer", "Buyer"),
         ("seller", "Seller"),
@@ -250,6 +254,8 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("taxpayer", "Taxpayer"),
         ("bank", "Bank"),
         ("cardholder", "Cardholder"),
+        ("investor", "Investor"),
+        ("underwriter", "Underwriter"),
         ("utility", "Utility"),
         ("generator", "Generator"),
         ("offtaker", "Offtaker"),
@@ -863,6 +869,18 @@ mod tests {
         assert!(result.parties.contains(&"Cardholder".to_string()));
         assert!(result.parties.contains(&"CardIssuer".to_string()));
         assert!(result.parties.contains(&"PaymentProcessor".to_string()));
+    }
+
+    #[test]
+    fn test_securities_party_roles() {
+        let result = map_nl_to_pattern(
+            "Investor subscribes after underwriter, securities exchange, clearinghouse, and asset custodian approve settlement",
+        );
+        assert!(result.parties.contains(&"Investor".to_string()));
+        assert!(result.parties.contains(&"Underwriter".to_string()));
+        assert!(result.parties.contains(&"SecuritiesExchange".to_string()));
+        assert!(result.parties.contains(&"Clearinghouse".to_string()));
+        assert!(result.parties.contains(&"AssetCustodian".to_string()));
     }
 
     #[test]

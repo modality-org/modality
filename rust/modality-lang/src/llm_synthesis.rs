@@ -321,6 +321,10 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("account holder", "AccountHolder"),
         ("payment processor", "PaymentProcessor"),
         ("card issuer", "CardIssuer"),
+        ("securities exchange", "SecuritiesExchange"),
+        ("clearing house", "Clearinghouse"),
+        ("clearinghouse", "Clearinghouse"),
+        ("asset custodian", "AssetCustodian"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("offeror", "Offeror"),
@@ -363,6 +367,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("taxpayer", "Taxpayer"),
         ("bank", "Bank"),
         ("cardholder", "Cardholder"),
+        ("investor", "Investor"),
+        ("underwriter", "Underwriter"),
         ("utility", "Utility"),
         ("generator", "Generator"),
         ("offtaker", "Offtaker"),
@@ -1087,6 +1093,19 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(parties.contains(&"Cardholder".to_string()));
         assert!(parties.contains(&"CardIssuer".to_string()));
         assert!(parties.contains(&"PaymentProcessor".to_string()));
+    }
+
+    #[test]
+    fn test_extract_securities_party_roles() {
+        let parties = extract_parties(
+            "Investor subscribes after underwriter, securities exchange, clearinghouse, and asset custodian approve settlement",
+        );
+
+        assert!(parties.contains(&"Investor".to_string()));
+        assert!(parties.contains(&"Underwriter".to_string()));
+        assert!(parties.contains(&"SecuritiesExchange".to_string()));
+        assert!(parties.contains(&"Clearinghouse".to_string()));
+        assert!(parties.contains(&"AssetCustodian".to_string()));
     }
 
     #[test]
