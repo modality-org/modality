@@ -191,6 +191,7 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("consumer", "Consumer"),
         ("client", "Client"),
         ("contractor", "Contractor"),
+        ("broker", "Broker"),
         ("principal", "Principal"),
         ("agent", "Agent"),
         ("depositor", "Depositor"),
@@ -692,6 +693,13 @@ mod tests {
         let result = map_nl_to_pattern("Donor transfers artwork after donee accepts conditions");
         assert!(result.parties.contains(&"Donor".to_string()));
         assert!(result.parties.contains(&"Donee".to_string()));
+    }
+
+    #[test]
+    fn test_brokerage_party_roles() {
+        let result = map_nl_to_pattern("Broker executes trade after client approves order");
+        assert!(result.parties.contains(&"Broker".to_string()));
+        assert!(result.parties.contains(&"Client".to_string()));
     }
 
     #[test]

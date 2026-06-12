@@ -304,6 +304,7 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("consumer", "Consumer"),
         ("client", "Client"),
         ("contractor", "Contractor"),
+        ("broker", "Broker"),
         ("principal", "Principal"),
         ("agent", "Agent"),
         ("depositor", "Depositor"),
@@ -913,6 +914,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Donor".to_string()));
         assert!(parties.contains(&"Donee".to_string()));
+    }
+
+    #[test]
+    fn test_extract_brokerage_party_roles() {
+        let parties = extract_parties("Broker executes trade after client approves order");
+
+        assert!(parties.contains(&"Broker".to_string()));
+        assert!(parties.contains(&"Client".to_string()));
     }
 
     #[test]
