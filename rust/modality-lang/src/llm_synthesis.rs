@@ -376,6 +376,11 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("merchant", "Merchant"),
         ("supplier", "Supplier"),
         ("purchaser", "Purchaser"),
+        ("manufacturer", "Manufacturer"),
+        ("distributor", "Distributor"),
+        ("reseller", "Reseller"),
+        ("retailer", "Retailer"),
+        ("wholesaler", "Wholesaler"),
         ("shipper", "Shipper"),
         ("carrier", "Carrier"),
         ("consignor", "Consignor"),
@@ -872,6 +877,19 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Supplier".to_string()));
         assert!(parties.contains(&"Purchaser".to_string()));
+    }
+
+    #[test]
+    fn test_extract_supply_chain_party_roles() {
+        let parties = extract_parties(
+            "Manufacturer ships goods to distributor before reseller, retailer, and wholesaler confirm allocation",
+        );
+
+        assert!(parties.contains(&"Manufacturer".to_string()));
+        assert!(parties.contains(&"Distributor".to_string()));
+        assert!(parties.contains(&"Reseller".to_string()));
+        assert!(parties.contains(&"Retailer".to_string()));
+        assert!(parties.contains(&"Wholesaler".to_string()));
     }
 
     #[test]
