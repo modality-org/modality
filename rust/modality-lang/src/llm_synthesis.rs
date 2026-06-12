@@ -289,11 +289,14 @@ pub fn extract_parties(description: &str) -> Vec<String> {
     let mut parties = Vec::new();
     let description_lower = description.to_lowercase();
 
-    // Common party names
+    // Common party names and contract roles.
     let common_names = [
         ("alice", "Alice"),
         ("bob", "Bob"),
         ("carol", "Carol"),
+        ("dave", "Dave"),
+        ("eve", "Eve"),
+        ("frank", "Frank"),
         ("buyer", "Buyer"),
         ("seller", "Seller"),
         ("client", "Client"),
@@ -302,12 +305,44 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("consumer", "Consumer"),
         ("principal", "Principal"),
         ("agent", "Agent"),
+        ("depositor", "Depositor"),
+        ("deliverer", "Deliverer"),
+        ("recipient", "Recipient"),
         ("sender", "Sender"),
         ("receiver", "Receiver"),
+        ("bidder", "Bidder"),
+        ("arbiter", "Arbiter"),
+        ("arbitrator", "Arbiter"),
+        ("mediator", "Arbiter"),
+        ("reviewer", "Reviewer"),
+        ("auditor", "Reviewer"),
+        ("inspector", "Reviewer"),
+        ("oracle", "Oracle"),
+        ("verifier", "Verifier"),
+        ("validator", "Verifier"),
+        ("subscriber", "Subscriber"),
+        ("moderator", "Moderator"),
+        ("admin", "Admin"),
+        ("approver", "Approver"),
+        ("authorizer", "Approver"),
+        ("manager", "Approver"),
+        ("supervisor", "Approver"),
+        ("steward", "Steward"),
+        ("custodian", "Steward"),
+        ("governor", "Steward"),
+        ("owner", "Owner"),
+        ("user", "User"),
+        ("vendor", "Vendor"),
+        ("merchant", "Merchant"),
+        ("customer", "Customer"),
+        ("employee", "Employee"),
+        ("employer", "Employer"),
+        ("tenant", "Tenant"),
+        ("landlord", "Landlord"),
     ];
 
     for (lower, proper) in common_names {
-        if description_lower.contains(lower) {
+        if description_lower.contains(lower) && !parties.contains(&proper.to_string()) {
             parties.push(proper.to_string());
         }
     }
@@ -595,6 +630,32 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
     }
 
     #[test]
+    fn test_extract_verification_party_roles() {
+        let parties =
+            extract_parties("Auditor and validator inspect delivery before arbitrator resolution");
+
+        assert!(parties.contains(&"Reviewer".to_string()));
+        assert!(parties.contains(&"Verifier".to_string()));
+        assert!(parties.contains(&"Arbiter".to_string()));
+    }
+
+    #[test]
+    fn test_extract_approval_party_roles() {
+        let parties = extract_parties(
+            "Manager authorization and supervisor approval require custodian oversight",
+        );
+
+        assert_eq!(
+            parties
+                .iter()
+                .filter(|party| party.as_str() == "Approver")
+                .count(),
+            1
+        );
+        assert!(parties.contains(&"Steward".to_string()));
+    }
+
+    #[test]
     fn test_prompt_includes_multi_signer_authorization_pattern() {
         let prompt = generate_prompt("Approval requires Alice and Bob signatures");
 
@@ -746,9 +807,8 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(prompt.contains("always([<+X>] true -> eventually(<+Y> true))"));
         assert!(prompt.contains("always([<+X>] true -> eventually([<+Y>] true))"));
         assert!(prompt.contains("eventually([<+Y>] true)"));
-        assert!(prompt.contains(
-            "always([<+X>] true -> (eventually(<+Y> true) & eventually(<+Z> true)))"
-        ));
+        assert!(prompt
+            .contains("always([<+X>] true -> (eventually(<+Y> true) & eventually(<+Z> true)))"));
         assert!(prompt.contains(
             "always([<+X>] true -> (eventually([<+Y>] true) & eventually([<+Z>] true)))"
         ));
@@ -762,9 +822,7 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(prompt.contains("always([+X] true -> (always([-Y] true) & always([-Z] true)))"));
         assert!(prompt.contains("always([<+X>] true -> always([-Y] true))"));
-        assert!(
-            prompt.contains("always([<+X>] true -> (always([-Y] true) & always([-Z] true)))")
-        );
+        assert!(prompt.contains("always([<+X>] true -> (always([-Y] true) & always([-Z] true)))"));
         assert!(prompt
             .contains("always([+X] true -> (<+signed_by(/users/a.id)> true & always([-Y] true)))"));
         assert!(prompt.contains(
