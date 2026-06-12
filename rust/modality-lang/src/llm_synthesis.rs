@@ -316,6 +316,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("payee", "Payee"),
         ("borrower", "Borrower"),
         ("lender", "Lender"),
+        ("insurer", "Insurer"),
+        ("insured", "Insured"),
         ("arbiter", "Arbiter"),
         ("arbitrator", "Arbiter"),
         ("mediator", "Arbiter"),
@@ -692,6 +694,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Borrower".to_string()));
         assert!(parties.contains(&"Lender".to_string()));
+    }
+
+    #[test]
+    fn test_extract_insurance_party_roles() {
+        let parties = extract_parties("Insurer approves claims before insured receives payout");
+
+        assert!(parties.contains(&"Insurer".to_string()));
+        assert!(parties.contains(&"Insured".to_string()));
     }
 
     #[test]

@@ -203,6 +203,8 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("payee", "Payee"),
         ("borrower", "Borrower"),
         ("lender", "Lender"),
+        ("insurer", "Insurer"),
+        ("insured", "Insured"),
         ("arbiter", "Arbiter"),
         ("arbitrator", "Arbiter"),
         ("mediator", "Arbiter"),
@@ -492,6 +494,13 @@ mod tests {
         let result = map_nl_to_pattern("Borrower repays lender after collateral release");
         assert!(result.parties.contains(&"Borrower".to_string()));
         assert!(result.parties.contains(&"Lender".to_string()));
+    }
+
+    #[test]
+    fn test_insurance_party_roles() {
+        let result = map_nl_to_pattern("Insurer approves claims before insured receives payout");
+        assert!(result.parties.contains(&"Insurer".to_string()));
+        assert!(result.parties.contains(&"Insured".to_string()));
     }
 
     #[test]
