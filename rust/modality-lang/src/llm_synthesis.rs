@@ -377,6 +377,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("indemnitee", "Indemnitee"),
         ("guarantor", "Guarantor"),
         ("principal", "Principal"),
+        ("warrantor", "Warrantor"),
+        ("warrantee", "Warrantee"),
         ("customer", "Customer"),
         ("employee", "Employee"),
         ("employer", "Employer"),
@@ -893,6 +895,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Guarantor".to_string()));
         assert!(parties.contains(&"Principal".to_string()));
+    }
+
+    #[test]
+    fn test_extract_warranty_party_roles() {
+        let parties = extract_parties("Warrantor repairs defects after warrantee reports failure");
+
+        assert!(parties.contains(&"Warrantor".to_string()));
+        assert!(parties.contains(&"Warrantee".to_string()));
     }
 
     #[test]

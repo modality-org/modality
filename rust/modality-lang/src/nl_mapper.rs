@@ -264,6 +264,8 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("indemnitee", "Indemnitee"),
         ("guarantor", "Guarantor"),
         ("principal", "Principal"),
+        ("warrantor", "Warrantor"),
+        ("warrantee", "Warrantee"),
         ("customer", "Customer"),
         ("employee", "Employee"),
         ("employer", "Employer"),
@@ -674,6 +676,13 @@ mod tests {
         let result = map_nl_to_pattern("Guarantor pays if principal defaults on obligation");
         assert!(result.parties.contains(&"Guarantor".to_string()));
         assert!(result.parties.contains(&"Principal".to_string()));
+    }
+
+    #[test]
+    fn test_warranty_party_roles() {
+        let result = map_nl_to_pattern("Warrantor repairs defects after warrantee reports failure");
+        assert!(result.parties.contains(&"Warrantor".to_string()));
+        assert!(result.parties.contains(&"Warrantee".to_string()));
     }
 
     #[test]
