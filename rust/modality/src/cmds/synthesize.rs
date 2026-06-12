@@ -736,8 +736,8 @@ fn synthesize_constraints_from_strings(
     let mut constraints = modality_lang::formula_synthesis::SynthesisConstraints::default();
 
     for f in formulas {
-        // Look for ordering: [+X] implies eventually(<+Y> true)
-        if f.contains("implies") && f.contains("eventually") {
+        // Look for ordering: [+X] true -> eventually(<+Y> true)
+        if (f.contains("->") || f.contains("implies")) && f.contains("eventually") {
             if let Some(box_start) = f.find("[+") {
                 let rest = &f[box_start + 2..];
                 if let Some(box_end) = rest.find(']') {
@@ -1924,8 +1924,8 @@ always([<+APPROVE>] true)
     #[test]
     fn legacy_string_constraints_still_cover_unparseable_llm_output() {
         let formulas = vec![
-            "[+RELEASE] implies eventually(<+DELIVER> true)".to_string(),
-            "[+RELEASE] implies <+signed_by(/users/alice.id)> true".to_string(),
+            "[+RELEASE] true -> eventually(<+DELIVER> true)".to_string(),
+            "[+RELEASE] true -> <+signed_by(/users/alice.id)> true".to_string(),
         ];
 
         let constraints = synthesize_constraints_from_strings(&formulas);
