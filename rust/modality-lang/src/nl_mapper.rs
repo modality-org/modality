@@ -266,6 +266,8 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("principal", "Principal"),
         ("warrantor", "Warrantor"),
         ("warrantee", "Warrantee"),
+        ("donor", "Donor"),
+        ("donee", "Donee"),
         ("customer", "Customer"),
         ("employee", "Employee"),
         ("employer", "Employer"),
@@ -683,6 +685,13 @@ mod tests {
         let result = map_nl_to_pattern("Warrantor repairs defects after warrantee reports failure");
         assert!(result.parties.contains(&"Warrantor".to_string()));
         assert!(result.parties.contains(&"Warrantee".to_string()));
+    }
+
+    #[test]
+    fn test_gift_party_roles() {
+        let result = map_nl_to_pattern("Donor transfers artwork after donee accepts conditions");
+        assert!(result.parties.contains(&"Donor".to_string()));
+        assert!(result.parties.contains(&"Donee".to_string()));
     }
 
     #[test]

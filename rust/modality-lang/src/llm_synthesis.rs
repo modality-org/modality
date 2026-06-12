@@ -379,6 +379,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("principal", "Principal"),
         ("warrantor", "Warrantor"),
         ("warrantee", "Warrantee"),
+        ("donor", "Donor"),
+        ("donee", "Donee"),
         ("customer", "Customer"),
         ("employee", "Employee"),
         ("employer", "Employer"),
@@ -903,6 +905,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Warrantor".to_string()));
         assert!(parties.contains(&"Warrantee".to_string()));
+    }
+
+    #[test]
+    fn test_extract_gift_party_roles() {
+        let parties = extract_parties("Donor transfers artwork after donee accepts conditions");
+
+        assert!(parties.contains(&"Donor".to_string()));
+        assert!(parties.contains(&"Donee".to_string()));
     }
 
     #[test]
