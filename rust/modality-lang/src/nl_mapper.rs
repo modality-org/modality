@@ -209,6 +209,8 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("licensee", "Licensee"),
         ("grantor", "Grantor"),
         ("grantee", "Grantee"),
+        ("issuer", "Issuer"),
+        ("holder", "Holder"),
         ("arbiter", "Arbiter"),
         ("arbitrator", "Arbiter"),
         ("mediator", "Arbiter"),
@@ -519,6 +521,13 @@ mod tests {
         let result = map_nl_to_pattern("Grantor transfers rights after grantee accepts terms");
         assert!(result.parties.contains(&"Grantor".to_string()));
         assert!(result.parties.contains(&"Grantee".to_string()));
+    }
+
+    #[test]
+    fn test_credential_party_roles() {
+        let result = map_nl_to_pattern("Issuer revokes credential after holder fails renewal");
+        assert!(result.parties.contains(&"Issuer".to_string()));
+        assert!(result.parties.contains(&"Holder".to_string()));
     }
 
     #[test]

@@ -322,6 +322,8 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("licensee", "Licensee"),
         ("grantor", "Grantor"),
         ("grantee", "Grantee"),
+        ("issuer", "Issuer"),
+        ("holder", "Holder"),
         ("arbiter", "Arbiter"),
         ("arbitrator", "Arbiter"),
         ("mediator", "Arbiter"),
@@ -722,6 +724,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Grantor".to_string()));
         assert!(parties.contains(&"Grantee".to_string()));
+    }
+
+    #[test]
+    fn test_extract_credential_party_roles() {
+        let parties = extract_parties("Issuer revokes credential after the holder fails renewal");
+
+        assert!(parties.contains(&"Issuer".to_string()));
+        assert!(parties.contains(&"Holder".to_string()));
     }
 
     #[test]
