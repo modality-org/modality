@@ -317,6 +317,9 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("consumer", "Consumer"),
         ("client", "Client"),
         ("contractor", "Contractor"),
+        ("subcontractor", "Subcontractor"),
+        ("architect", "Architect"),
+        ("engineer", "Engineer"),
         ("broker", "Broker"),
         ("registrar", "Registrar"),
         ("registrant", "Registrant"),
@@ -883,6 +886,19 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Supplier".to_string()));
         assert!(parties.contains(&"Purchaser".to_string()));
+    }
+
+    #[test]
+    fn test_extract_construction_party_roles() {
+        let parties = extract_parties(
+            "Owner accepts plans after architect, engineer, contractor, and subcontractor certify work",
+        );
+
+        assert!(parties.contains(&"Owner".to_string()));
+        assert!(parties.contains(&"Architect".to_string()));
+        assert!(parties.contains(&"Engineer".to_string()));
+        assert!(parties.contains(&"Contractor".to_string()));
+        assert!(parties.contains(&"Subcontractor".to_string()));
     }
 
     #[test]

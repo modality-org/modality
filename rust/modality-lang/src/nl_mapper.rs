@@ -204,6 +204,9 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("consumer", "Consumer"),
         ("client", "Client"),
         ("contractor", "Contractor"),
+        ("subcontractor", "Subcontractor"),
+        ("architect", "Architect"),
+        ("engineer", "Engineer"),
         ("broker", "Broker"),
         ("registrar", "Registrar"),
         ("registrant", "Registrant"),
@@ -670,6 +673,18 @@ mod tests {
         let result = map_nl_to_pattern("Supplier ships goods after purchaser funds escrow");
         assert!(result.parties.contains(&"Supplier".to_string()));
         assert!(result.parties.contains(&"Purchaser".to_string()));
+    }
+
+    #[test]
+    fn test_construction_party_roles() {
+        let result = map_nl_to_pattern(
+            "Owner accepts plans after architect, engineer, contractor, and subcontractor certify work",
+        );
+        assert!(result.parties.contains(&"Owner".to_string()));
+        assert!(result.parties.contains(&"Architect".to_string()));
+        assert!(result.parties.contains(&"Engineer".to_string()));
+        assert!(result.parties.contains(&"Contractor".to_string()));
+        assert!(result.parties.contains(&"Subcontractor".to_string()));
     }
 
     #[test]
