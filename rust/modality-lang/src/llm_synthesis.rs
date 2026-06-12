@@ -362,6 +362,10 @@ pub fn extract_parties(description: &str) -> Vec<String> {
         ("merchant", "Merchant"),
         ("supplier", "Supplier"),
         ("purchaser", "Purchaser"),
+        ("shipper", "Shipper"),
+        ("carrier", "Carrier"),
+        ("consignor", "Consignor"),
+        ("consignee", "Consignee"),
         ("customer", "Customer"),
         ("employee", "Employee"),
         ("employer", "Employer"),
@@ -828,6 +832,16 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(parties.contains(&"Supplier".to_string()));
         assert!(parties.contains(&"Purchaser".to_string()));
+    }
+
+    #[test]
+    fn test_extract_logistics_party_roles() {
+        let parties =
+            extract_parties("Shipper tenders goods to carrier before consignee confirms receipt");
+
+        assert!(parties.contains(&"Shipper".to_string()));
+        assert!(parties.contains(&"Carrier".to_string()));
+        assert!(parties.contains(&"Consignee".to_string()));
     }
 
     #[test]
