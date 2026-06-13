@@ -110,6 +110,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Refund requires seller signature and blocks release" | `always([+REFUND] true -> <+signed_by(/users/seller.id)> true)`; `always([+REFUND] true -> always([-RELEASE] true))` |
 | "Approve requires reviewer signature and blocks rejection" | `always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)`; `always([+APPROVE] true -> always([-REJECT] true))` |
 | "Reject requires reviewer signature and blocks approval" | `always([+REJECT] true -> <+signed_by(/users/reviewer.id)> true)`; `always([+REJECT] true -> always([-APPROVE] true))` |
+| "Timeout requires clock oracle and blocks completion" | `always([+TIMEOUT] true -> <+oracle_attests(/oracles/clock.id, "deadline_passed", "true")> true)`; `always([+TIMEOUT] true -> always([-COMPLETE] true))` |
 
 ## Output Format
 
@@ -1712,5 +1713,15 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             prompt.contains("always([+REJECT] true -> <+signed_by(/users/reviewer.id)> true)")
         );
         assert!(prompt.contains("always([+REJECT] true -> always([-APPROVE] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_timeout_pattern() {
+        let prompt = generate_prompt("Timeout requires clock oracle and blocks completion");
+
+        assert!(prompt.contains(
+            "always([+TIMEOUT] true -> <+oracle_attests(/oracles/clock.id, \"deadline_passed\", \"true\")> true)"
+        ));
+        assert!(prompt.contains("always([+TIMEOUT] true -> always([-COMPLETE] true))"));
     }
 }

@@ -1966,6 +1966,19 @@ always([<+APPROVE>] true)
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_timeout_prompt_example() {
+        let formulas = parse_formula_strings(&[
+            "always([+TIMEOUT] true -> <+oracle_attests(/oracles/clock.id, \"deadline_passed\", \"true\")> true)"
+                .to_string(),
+            "always([+TIMEOUT] true -> always([-COMPLETE] true))".to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Timeout", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_rejects_unsatisfied_formula() {
         let mut model = modality_lang::Model::new("Contract".to_string());
         let mut part = modality_lang::Part::new("flow".to_string());
