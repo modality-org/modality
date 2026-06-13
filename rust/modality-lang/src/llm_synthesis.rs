@@ -133,6 +133,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Compliance attestation requires compliance officer signature and blocks noncompliance finding" | `always([+ATTEST_COMPLIANCE] true -> <+signed_by(/users/compliance_officer.id)> true)`; `always([+ATTEST_COMPLIANCE] true -> always([-NONCOMPLIANCE_FINDING] true))` |
 | "Safety approval requires safety reviewer signature and blocks unsafe deployment" | `always([+APPROVE_SAFETY] true -> <+signed_by(/users/safety_reviewer.id)> true)`; `always([+APPROVE_SAFETY] true -> always([-UNSAFE_DEPLOYMENT] true))` |
 | "Risk acceptance requires risk owner signature and blocks unmitigated exposure" | `always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)`; `always([+ACCEPT_RISK] true -> always([-UNMITIGATED_EXPOSURE] true))` |
+| "Incident closure requires incident commander signature and blocks incident reopen" | `always([+CLOSE_INCIDENT] true -> <+signed_by(/users/incident_commander.id)> true)`; `always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))` |
 
 ## Output Format
 
@@ -1981,6 +1982,20 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+ACCEPT_RISK] true -> always([-UNMITIGATED_EXPOSURE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_incident_closure_pattern() {
+        let prompt = generate_prompt(
+            "Incident closure requires incident commander signature and blocks incident reopen",
+        );
+
+        assert!(prompt.contains(
+            "always([+CLOSE_INCIDENT] true -> <+signed_by(/users/incident_commander.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))"
         ));
     }
 }

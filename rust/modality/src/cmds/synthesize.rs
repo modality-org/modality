@@ -2260,6 +2260,21 @@ always([<+APPROVE>] true)
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_incident_closure_prompt_example() {
+        let formulas = parse_formula_strings(&[
+            "always([+CLOSE_INCIDENT] true -> <+signed_by(/users/incident_commander.id)> true)"
+                .to_string(),
+            "always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))".to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "IncidentClosure",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_rejects_unsatisfied_formula() {
         let mut model = modality_lang::Model::new("Contract".to_string());
         let mut part = modality_lang::Part::new("flow".to_string());
