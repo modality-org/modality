@@ -132,6 +132,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Inspection approval requires inspector signature and blocks defect claim" | `always([+APPROVE_INSPECTION] true -> <+signed_by(/users/inspector.id)> true)`; `always([+APPROVE_INSPECTION] true -> always([-DEFECT_CLAIM] true))` |
 | "Compliance attestation requires compliance officer signature and blocks noncompliance finding" | `always([+ATTEST_COMPLIANCE] true -> <+signed_by(/users/compliance_officer.id)> true)`; `always([+ATTEST_COMPLIANCE] true -> always([-NONCOMPLIANCE_FINDING] true))` |
 | "Safety approval requires safety reviewer signature and blocks unsafe deployment" | `always([+APPROVE_SAFETY] true -> <+signed_by(/users/safety_reviewer.id)> true)`; `always([+APPROVE_SAFETY] true -> always([-UNSAFE_DEPLOYMENT] true))` |
+| "Risk acceptance requires risk owner signature and blocks unmitigated exposure" | `always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)`; `always([+ACCEPT_RISK] true -> always([-UNMITIGATED_EXPOSURE] true))` |
 
 ## Output Format
 
@@ -1967,6 +1968,19 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_SAFETY] true -> always([-UNSAFE_DEPLOYMENT] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_risk_acceptance_pattern() {
+        let prompt =
+            generate_prompt("Risk acceptance requires risk owner signature and blocks unmitigated exposure");
+
+        assert!(prompt.contains(
+            "always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+ACCEPT_RISK] true -> always([-UNMITIGATED_EXPOSURE] true))"
         ));
     }
 }
