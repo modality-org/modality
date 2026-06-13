@@ -121,14 +121,14 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
                         constraints.actions.insert(action_x.clone());
                     }
                 }
-                // A committed signer combined with committed eventual goals may
-                // require those goals to remain available from the guarded
-                // action's pre-state, not only in the linear prefix.
-                let committed_signer_props = extract_committed_signer_props(rhs);
-                if !committed_signer_props.is_empty() {
+                // A signer combined with committed eventual goals may require
+                // those goals to remain available from the guarded action's
+                // pre-state, not only in the linear prefix.
+                let signer_props = extract_diamond_signer_props(rhs);
+                if !signer_props.is_empty() {
                     let committed_actions = extract_eventually_committed_actions(rhs);
                     if !committed_actions.is_empty() {
-                        let mut props = committed_signer_props.clone();
+                        let mut props = signer_props.clone();
                         for action in committed_actions {
                             let prop = Property::new(PropertySign::Plus, action);
                             if !props.contains(&prop) {
@@ -412,23 +412,27 @@ fn extract_forbidden_box_action(expr: &FormulaExpr) -> Vec<String> {
     }
 }
 
-fn extract_committed_signer_props(expr: &FormulaExpr) -> Vec<Property> {
+fn extract_diamond_signer_props(expr: &FormulaExpr) -> Vec<Property> {
     match expr {
-        FormulaExpr::DiamondBox(props, inner) if is_true_expr(inner) => props
-            .iter()
-            .filter(|prop| prop.sign == PropertySign::Plus && prop.name == "signed_by")
-            .cloned()
-            .collect(),
+        FormulaExpr::Diamond(props, inner) | FormulaExpr::DiamondBox(props, inner)
+            if is_true_expr(inner) =>
+        {
+            props
+                .iter()
+                .filter(|prop| prop.sign == PropertySign::Plus && prop.name == "signed_by")
+                .cloned()
+                .collect()
+        }
         FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
-            let mut props = extract_committed_signer_props(lhs);
-            for prop in extract_committed_signer_props(rhs) {
+            let mut props = extract_diamond_signer_props(lhs);
+            for prop in extract_diamond_signer_props(rhs) {
                 if !props.contains(&prop) {
                     props.push(prop);
                 }
             }
             props
         }
-        FormulaExpr::Paren(inner) => extract_committed_signer_props(inner),
+        FormulaExpr::Paren(inner) => extract_diamond_signer_props(inner),
         _ => Vec::new(),
     }
 }
@@ -577,9 +581,31 @@ pub fn synthesize_from_constraints(name: &str, constraints: &SynthesisConstraint
         transitions.push(trans);
     }
 
-    // Add required self-loop patterns, such as always [<+A>] true.
+    // Add required self-loop patterns, such as always [<+A>] true. When
+    // obligations introduce self-loops, keep authorization witnesses available
+    // across the same nodes so implication RHS diamonds do not disappear after
+    // unrelated actions.
+    let mut self_loop_groups = constraints.self_loops.clone();
+    if !self_loop_groups.is_empty() {
+        let mut signer_groups: Vec<_> = constraints.authorization.values().collect();
+        signer_groups.sort();
+        let mut signer_props = Vec::new();
+        for signers in signer_groups {
+            for signer in signers {
+                let prop =
+                    Property::new_predicate_from_call("signed_by".to_string(), signer.clone());
+                if !signer_props.contains(&prop) {
+                    signer_props.push(prop);
+                }
+            }
+        }
+        for props in &mut self_loop_groups {
+            extend_unique_props(props, &signer_props);
+        }
+    }
+
     for node in &nodes {
-        for props in &constraints.self_loops {
+        for props in &self_loop_groups {
             let mut transition = Transition::new(node.clone(), node.clone());
             for prop in props {
                 transition.add_property(prop.clone());
@@ -589,10 +615,10 @@ pub fn synthesize_from_constraints(name: &str, constraints: &SynthesisConstraint
     }
 
     // Add terminal self-loop
-    if !ordered_actions.is_empty() && constraints.self_loops.is_empty() {
+    if !ordered_actions.is_empty() && self_loop_groups.is_empty() {
         let final_node = nodes[ordered_actions.len()].clone();
         transitions.push(Transition::new(final_node.clone(), final_node));
-    } else if constraints.self_loops.is_empty() {
+    } else if self_loop_groups.is_empty() {
         // No actions, just q0 -> q0
         transitions.push(Transition::new("q0".to_string(), "q0".to_string()));
     }
@@ -701,7 +727,10 @@ pub fn synthesize_from_formulas(name: &str, formulas: &[FormulaExpr]) -> Model {
         }
         for (action, predicates) in fc.predicate_requirements {
             extend_unique_props(
-                constraints.predicate_requirements.entry(action).or_default(),
+                constraints
+                    .predicate_requirements
+                    .entry(action)
+                    .or_default(),
                 &predicates,
             );
         }
@@ -1038,8 +1067,8 @@ mod tests {
             transition.from == "q1" && transition.properties.contains(&forbidden_release)
         }));
         assert!(model.parts[0].transitions.iter().any(|transition| {
-                transition.from == "q0"
-                    && transition.to == "q0"
+            transition.from == "q0"
+                && transition.to == "q0"
                 && transition
                     .properties
                     .contains(&Property::new(PropertySign::Plus, "CANCEL".to_string()))
@@ -1656,6 +1685,45 @@ mod tests {
                 "/users/buyer.id".to_string()
             ),
             Property::new(PropertySign::Plus, "DELIVER".to_string())
+        ]));
+    }
+
+    #[test]
+    fn test_permissive_signer_with_committed_followup_keeps_followup_available() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "USE_TOOL".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::Diamond(
+                    vec![Property::new_predicate_from_call(
+                        "signed_by".to_string(),
+                        "/users/tool_provider.id".to_string(),
+                    )],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::Eventually(Box::new(FormulaExpr::DiamondBox(
+                    vec![Property::new(
+                        PropertySign::Plus,
+                        "APPROVE_CAPABILITY".to_string(),
+                    )],
+                    Box::new(FormulaExpr::True),
+                )))),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .ordering
+            .contains(&("USE_TOOL".to_string(), "APPROVE_CAPABILITY".to_string())));
+        assert!(constraints.self_loops.contains(&vec![
+            Property::new_predicate_from_call(
+                "signed_by".to_string(),
+                "/users/tool_provider.id".to_string()
+            ),
+            Property::new(PropertySign::Plus, "APPROVE_CAPABILITY".to_string())
         ]));
     }
 

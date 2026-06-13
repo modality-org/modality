@@ -1874,6 +1874,22 @@ always([<+APPROVE>] true)
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_agent_coordination_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+ASSIGN_TASK] true -> <+signed_by(/users/task_requester.id) +signed_by(/users/worker_agent.id)> true)"
+                .to_string(),
+            "always([+USE_TOOL] true -> (<+signed_by(/users/tool_provider.id)> true & eventually([<+APPROVE_CAPABILITY>] true)))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentCoordination",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_rejects_unsatisfied_formula() {
         let mut model = modality_lang::Model::new("Contract".to_string());
         let mut part = modality_lang::Part::new("flow".to_string());
@@ -1938,10 +1954,7 @@ always([<+APPROVE>] true)
 
         let unparsed = unparsed_formula_string_labels(&formulas);
 
-        assert_eq!(
-            unparsed,
-            vec!["F1 `formula Bad { always( }`".to_string()]
-        );
+        assert_eq!(unparsed, vec!["F1 `formula Bad { always( }`".to_string()]);
     }
 
     #[test]
