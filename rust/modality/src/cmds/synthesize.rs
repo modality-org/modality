@@ -1369,6 +1369,18 @@ always([<+APPROVE>] true)
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_compound_eventual_body_committed_actions() {
+        let formulas = parse_formula_strings(&[
+            "[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_accepts_committed_action_compound_required_actions_example() {
         let formulas = parse_formula_strings(&[
             "[<+RELEASE>] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"

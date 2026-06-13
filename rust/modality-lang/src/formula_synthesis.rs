@@ -137,6 +137,12 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
                         }
                         push_unique_props(&mut constraints.self_loops, props);
                     }
+                } else {
+                    for props in extract_eventually_diamond_box_prop_groups(rhs) {
+                        if props.len() > 1 {
+                            push_unique_props(&mut constraints.self_loops, props);
+                        }
+                    }
                 }
                 // Check for always([-Y] true) pattern - forbidden after
                 let forbidden_actions = extract_always_forbidden(rhs);
@@ -446,6 +452,21 @@ fn extract_eventually_committed_actions(expr: &FormulaExpr) -> Vec<String> {
             actions
         }
         FormulaExpr::Paren(inner) => extract_eventually_committed_actions(inner),
+        _ => Vec::new(),
+    }
+}
+
+fn extract_eventually_diamond_box_prop_groups(expr: &FormulaExpr) -> Vec<Vec<Property>> {
+    match expr {
+        FormulaExpr::Eventually(inner) => extract_diamond_box_props(inner),
+        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
+            let mut props = extract_eventually_diamond_box_prop_groups(lhs);
+            for rhs_props in extract_eventually_diamond_box_prop_groups(rhs) {
+                push_unique_props(&mut props, rhs_props);
+            }
+            props
+        }
+        FormulaExpr::Paren(inner) => extract_eventually_diamond_box_prop_groups(inner),
         _ => Vec::new(),
     }
 }
@@ -1628,6 +1649,33 @@ mod tests {
         assert!(constraints
             .ordering
             .contains(&("RELEASE".to_string(), "INSPECT".to_string())));
+    }
+
+    #[test]
+    fn test_compound_committed_eventual_body_adds_combined_self_loop() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Eventually(Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::DiamondBox(
+                    vec![Property::new(PropertySign::Plus, "DEPOSIT".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::DiamondBox(
+                    vec![Property::new(PropertySign::Plus, "DELIVER".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+            )))),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.self_loops.iter().any(|props| {
+            props.contains(&Property::new(PropertySign::Plus, "DEPOSIT".to_string()))
+                && props.contains(&Property::new(PropertySign::Plus, "DELIVER".to_string()))
+        }));
     }
 
     #[test]
