@@ -119,6 +119,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Reinstatement requires administrator signature and blocks suspension" | `always([+REINSTATE] true -> <+signed_by(/users/administrator.id)> true)`; `always([+REINSTATE] true -> always([-SUSPEND] true))` |
 | "Renewal requires holder signature and blocks expiration" | `always([+RENEW] true -> <+signed_by(/users/holder.id)> true)`; `always([+RENEW] true -> always([-EXPIRE] true))` |
 | "Termination requires counterparty signature and blocks renewal" | `always([+TERMINATE] true -> <+signed_by(/users/counterparty.id)> true)`; `always([+TERMINATE] true -> always([-RENEW] true))` |
+| "Extension requires owner signature and blocks termination" | `always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)`; `always([+EXTEND] true -> always([-TERMINATE] true))` |
 
 ## Output Format
 
@@ -1813,5 +1814,13 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             "always([+TERMINATE] true -> <+signed_by(/users/counterparty.id)> true)"
         ));
         assert!(prompt.contains("always([+TERMINATE] true -> always([-RENEW] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_extension_pattern() {
+        let prompt = generate_prompt("Extension requires owner signature and blocks termination");
+
+        assert!(prompt.contains("always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)"));
+        assert!(prompt.contains("always([+EXTEND] true -> always([-TERMINATE] true))"));
     }
 }
