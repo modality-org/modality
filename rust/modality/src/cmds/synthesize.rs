@@ -2015,6 +2015,18 @@ always([<+APPROVE>] true)
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_revocation_prompt_example() {
+        let formulas = parse_formula_strings(&[
+            "always([+REVOKE] true -> <+signed_by(/users/issuer.id)> true)".to_string(),
+            "always([+REVOKE] true -> always([-USE] true))".to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Revocation", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_rejects_unsatisfied_formula() {
         let mut model = modality_lang::Model::new("Contract".to_string());
         let mut part = modality_lang::Part::new("flow".to_string());
