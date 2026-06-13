@@ -128,6 +128,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Acknowledgement requires recipient signature and blocks dispute" | `always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)`; `always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))` |
 | "Delivery confirmation requires recipient signature and blocks refund" | `always([+CONFIRM_DELIVERY] true -> <+signed_by(/users/recipient.id)> true)`; `always([+CONFIRM_DELIVERY] true -> always([-REFUND] true))` |
 | "Invoice approval requires payer signature and blocks chargeback" | `always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)`; `always([+APPROVE_INVOICE] true -> always([-CHARGEBACK] true))` |
+| "Milestone acceptance requires verifier signature and blocks rework" | `always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)`; `always([+ACCEPT_MILESTONE] true -> always([-REWORK] true))` |
 
 ## Output Format
 
@@ -1913,5 +1914,16 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             "always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)"
         ));
         assert!(prompt.contains("always([+APPROVE_INVOICE] true -> always([-CHARGEBACK] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_milestone_acceptance_pattern() {
+        let prompt =
+            generate_prompt("Milestone acceptance requires verifier signature and blocks rework");
+
+        assert!(prompt.contains(
+            "always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)"
+        ));
+        assert!(prompt.contains("always([+ACCEPT_MILESTONE] true -> always([-REWORK] true))"));
     }
 }

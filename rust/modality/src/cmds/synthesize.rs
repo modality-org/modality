@@ -2184,6 +2184,21 @@ always([<+APPROVE>] true)
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_milestone_acceptance_prompt_example() {
+        let formulas = parse_formula_strings(&[
+            "always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)"
+                .to_string(),
+            "always([+ACCEPT_MILESTONE] true -> always([-REWORK] true))".to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "MilestoneAcceptance",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_rejects_unsatisfied_formula() {
         let mut model = modality_lang::Model::new("Contract".to_string());
         let mut part = modality_lang::Part::new("flow".to_string());
