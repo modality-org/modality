@@ -116,6 +116,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Appeal requires appellant signature and blocks enforcement" | `always([+APPEAL] true -> <+signed_by(/users/appellant.id)> true)`; `always([+APPEAL] true -> always([-ENFORCE] true))` |
 | "Revocation requires issuer signature and blocks use" | `always([+REVOKE] true -> <+signed_by(/users/issuer.id)> true)`; `always([+REVOKE] true -> always([-USE] true))` |
 | "Suspension requires administrator signature and blocks access" | `always([+SUSPEND] true -> <+signed_by(/users/administrator.id)> true)`; `always([+SUSPEND] true -> always([-ACCESS] true))` |
+| "Reinstatement requires administrator signature and blocks suspension" | `always([+REINSTATE] true -> <+signed_by(/users/administrator.id)> true)`; `always([+REINSTATE] true -> always([-SUSPEND] true))` |
 
 ## Output Format
 
@@ -1778,5 +1779,16 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             "always([+SUSPEND] true -> <+signed_by(/users/administrator.id)> true)"
         ));
         assert!(prompt.contains("always([+SUSPEND] true -> always([-ACCESS] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_reinstatement_pattern() {
+        let prompt =
+            generate_prompt("Reinstatement requires administrator signature and blocks suspension");
+
+        assert!(prompt.contains(
+            "always([+REINSTATE] true -> <+signed_by(/users/administrator.id)> true)"
+        ));
+        assert!(prompt.contains("always([+REINSTATE] true -> always([-SUSPEND] true))"));
     }
 }
