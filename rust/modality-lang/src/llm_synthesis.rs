@@ -108,6 +108,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Dispute blocks release or refund until arbiter resolution" | `always([+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true)))`; `always([+RESOLVE_DISPUTE] true -> <+signed_by(/users/arbiter.id)> true)` |
 | "Cancel requires requester signature and blocks delivery" | `always([+CANCEL] true -> <+signed_by(/users/requester.id)> true)`; `always([+CANCEL] true -> always([-DELIVER] true))` |
 | "Refund requires seller signature and blocks release" | `always([+REFUND] true -> <+signed_by(/users/seller.id)> true)`; `always([+REFUND] true -> always([-RELEASE] true))` |
+| "Approve requires reviewer signature and blocks rejection" | `always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)`; `always([+APPROVE] true -> always([-REJECT] true))` |
 
 ## Output Format
 
@@ -1690,5 +1691,15 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             prompt.contains("always([+REFUND] true -> <+signed_by(/users/seller.id)> true)")
         );
         assert!(prompt.contains("always([+REFUND] true -> always([-RELEASE] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_review_approval_pattern() {
+        let prompt = generate_prompt("Approve requires reviewer signature and blocks rejection");
+
+        assert!(
+            prompt.contains("always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)")
+        );
+        assert!(prompt.contains("always([+APPROVE] true -> always([-REJECT] true))"));
     }
 }
