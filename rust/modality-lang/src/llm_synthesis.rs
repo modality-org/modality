@@ -131,6 +131,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Milestone acceptance requires verifier signature and blocks rework" | `always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)`; `always([+ACCEPT_MILESTONE] true -> always([-REWORK] true))` |
 | "Inspection approval requires inspector signature and blocks defect claim" | `always([+APPROVE_INSPECTION] true -> <+signed_by(/users/inspector.id)> true)`; `always([+APPROVE_INSPECTION] true -> always([-DEFECT_CLAIM] true))` |
 | "Compliance attestation requires compliance officer signature and blocks noncompliance finding" | `always([+ATTEST_COMPLIANCE] true -> <+signed_by(/users/compliance_officer.id)> true)`; `always([+ATTEST_COMPLIANCE] true -> always([-NONCOMPLIANCE_FINDING] true))` |
+| "Safety approval requires safety reviewer signature and blocks unsafe deployment" | `always([+APPROVE_SAFETY] true -> <+signed_by(/users/safety_reviewer.id)> true)`; `always([+APPROVE_SAFETY] true -> always([-UNSAFE_DEPLOYMENT] true))` |
 
 ## Output Format
 
@@ -1953,6 +1954,19 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+ATTEST_COMPLIANCE] true -> always([-NONCOMPLIANCE_FINDING] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_safety_approval_pattern() {
+        let prompt =
+            generate_prompt("Safety approval requires safety reviewer signature and blocks unsafe deployment");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_SAFETY] true -> <+signed_by(/users/safety_reviewer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SAFETY] true -> always([-UNSAFE_DEPLOYMENT] true))"
         ));
     }
 }
