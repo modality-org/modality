@@ -111,6 +111,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Approve requires reviewer signature and blocks rejection" | `always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)`; `always([+APPROVE] true -> always([-REJECT] true))` |
 | "Reject requires reviewer signature and blocks approval" | `always([+REJECT] true -> <+signed_by(/users/reviewer.id)> true)`; `always([+REJECT] true -> always([-APPROVE] true))` |
 | "Timeout requires clock oracle and blocks completion" | `always([+TIMEOUT] true -> <+oracle_attests(/oracles/clock.id, "deadline_passed", "true")> true)`; `always([+TIMEOUT] true -> always([-COMPLETE] true))` |
+| "Escalation requires manager signature and blocks close" | `always([+ESCALATE] true -> <+signed_by(/users/manager.id)> true)`; `always([+ESCALATE] true -> always([-CLOSE] true))` |
 
 ## Output Format
 
@@ -1723,5 +1724,15 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             "always([+TIMEOUT] true -> <+oracle_attests(/oracles/clock.id, \"deadline_passed\", \"true\")> true)"
         ));
         assert!(prompt.contains("always([+TIMEOUT] true -> always([-COMPLETE] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_escalation_pattern() {
+        let prompt = generate_prompt("Escalation requires manager signature and blocks close");
+
+        assert!(
+            prompt.contains("always([+ESCALATE] true -> <+signed_by(/users/manager.id)> true)")
+        );
+        assert!(prompt.contains("always([+ESCALATE] true -> always([-CLOSE] true))"));
     }
 }
