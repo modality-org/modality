@@ -113,6 +113,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Timeout requires clock oracle and blocks completion" | `always([+TIMEOUT] true -> <+oracle_attests(/oracles/clock.id, "deadline_passed", "true")> true)`; `always([+TIMEOUT] true -> always([-COMPLETE] true))` |
 | "Escalation requires manager signature and blocks close" | `always([+ESCALATE] true -> <+signed_by(/users/manager.id)> true)`; `always([+ESCALATE] true -> always([-CLOSE] true))` |
 | "Withdrawal requires depositor signature and blocks claim" | `always([+WITHDRAW] true -> <+signed_by(/users/depositor.id)> true)`; `always([+WITHDRAW] true -> always([-CLAIM] true))` |
+| "Appeal requires appellant signature and blocks enforcement" | `always([+APPEAL] true -> <+signed_by(/users/appellant.id)> true)`; `always([+APPEAL] true -> always([-ENFORCE] true))` |
 
 ## Output Format
 
@@ -1745,5 +1746,15 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             prompt.contains("always([+WITHDRAW] true -> <+signed_by(/users/depositor.id)> true)")
         );
         assert!(prompt.contains("always([+WITHDRAW] true -> always([-CLAIM] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_appeal_pattern() {
+        let prompt = generate_prompt("Appeal requires appellant signature and blocks enforcement");
+
+        assert!(
+            prompt.contains("always([+APPEAL] true -> <+signed_by(/users/appellant.id)> true)")
+        );
+        assert!(prompt.contains("always([+APPEAL] true -> always([-ENFORCE] true))"));
     }
 }
