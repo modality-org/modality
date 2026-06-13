@@ -539,6 +539,18 @@ fn is_true_expr(expr: &FormulaExpr) -> bool {
 
 /// Synthesize a model from constraints
 pub fn synthesize_from_constraints(name: &str, constraints: &SynthesisConstraints) -> Model {
+    if let Some((first, second)) = two_action_ordering_cycle(constraints) {
+        let mut model = Model::new(name.to_string());
+        model.set_initial("q0".to_string());
+
+        let mut part = Part::new("flow".to_string());
+        part.add_transition(build_action_transition("q0", "q1", &first, constraints));
+        part.add_transition(build_action_transition("q1", "q0", &second, constraints));
+        model.add_part(part);
+
+        return model;
+    }
+
     // Build ordering graph and topologically sort actions
     let ordered_actions = topological_sort(&constraints.ordering, &constraints.actions);
 
@@ -556,29 +568,7 @@ pub fn synthesize_from_constraints(name: &str, constraints: &SynthesisConstraint
         let from = nodes[i].clone();
         let to = nodes[i + 1].clone();
 
-        let mut trans = Transition::new(from, to);
-
-        // Add action property
-        trans.add_property(Property::new(PropertySign::Plus, action.clone()));
-
-        // Add authorization if required
-        if let Some(signers) = constraints.authorization.get(action) {
-            for signer in signers {
-                trans.add_property(Property::new_predicate_from_call(
-                    "signed_by".to_string(),
-                    signer.clone(),
-                ));
-            }
-        }
-
-        // Add generic predicate requirements if present.
-        if let Some(predicates) = constraints.predicate_requirements.get(action) {
-            for predicate in predicates {
-                trans.add_property(predicate.clone());
-            }
-        }
-
-        transitions.push(trans);
+        transitions.push(build_action_transition(&from, &to, action, constraints));
     }
 
     // Add required self-loop patterns, such as always [<+A>] true. When
@@ -650,6 +640,62 @@ pub fn synthesize_from_constraints(name: &str, constraints: &SynthesisConstraint
     model.add_part(part);
 
     model
+}
+
+fn two_action_ordering_cycle(constraints: &SynthesisConstraints) -> Option<(String, String)> {
+    if !constraints.self_loops.is_empty()
+        || !constraints.forbidden_after.is_empty()
+        || constraints.actions.len() != 2
+    {
+        return None;
+    }
+
+    let mut actions: Vec<_> = constraints.actions.iter().cloned().collect();
+    actions.sort();
+    let first = actions[0].clone();
+    let second = actions[1].clone();
+
+    let first_requires_second = constraints
+        .ordering
+        .iter()
+        .any(|(action, required)| action == &first && required == &second);
+    let second_requires_first = constraints
+        .ordering
+        .iter()
+        .any(|(action, required)| action == &second && required == &first);
+
+    if first_requires_second && second_requires_first {
+        Some((first, second))
+    } else {
+        None
+    }
+}
+
+fn build_action_transition(
+    from: &str,
+    to: &str,
+    action: &str,
+    constraints: &SynthesisConstraints,
+) -> Transition {
+    let mut trans = Transition::new(from.to_string(), to.to_string());
+    trans.add_property(Property::new(PropertySign::Plus, action.to_string()));
+
+    if let Some(signers) = constraints.authorization.get(action) {
+        for signer in signers {
+            trans.add_property(Property::new_predicate_from_call(
+                "signed_by".to_string(),
+                signer.clone(),
+            ));
+        }
+    }
+
+    if let Some(predicates) = constraints.predicate_requirements.get(action) {
+        for predicate in predicates {
+            trans.add_property(predicate.clone());
+        }
+    }
+
+    trans
 }
 
 /// Topological sort of actions based on ordering constraints
@@ -811,6 +857,54 @@ mod tests {
         let ordered = topological_sort(&ordering, &actions);
 
         assert_eq!(ordered, vec!["APPROVE", "REJECT"]);
+    }
+
+    #[test]
+    fn test_two_action_ordering_cycle_synthesizes_turn_cycle() {
+        let mut constraints = SynthesisConstraints::default();
+        constraints.actions.insert("ALICE_TURN".to_string());
+        constraints.actions.insert("BOB_TURN".to_string());
+        constraints
+            .ordering
+            .push(("ALICE_TURN".to_string(), "BOB_TURN".to_string()));
+        constraints
+            .ordering
+            .push(("BOB_TURN".to_string(), "ALICE_TURN".to_string()));
+        constraints.authorization.insert(
+            "ALICE_TURN".to_string(),
+            vec!["/users/alice.id".to_string()],
+        );
+        constraints
+            .authorization
+            .insert("BOB_TURN".to_string(), vec!["/users/bob.id".to_string()]);
+
+        let model = synthesize_from_constraints("Turns", &constraints);
+        let transitions = &model.parts[0].transitions;
+
+        assert_eq!(model.initial.as_deref(), Some("q0"));
+        assert_eq!(transitions.len(), 2);
+        assert_eq!(transitions[0].from, "q0");
+        assert_eq!(transitions[0].to, "q1");
+        assert!(transitions[0]
+            .properties
+            .contains(&Property::new(PropertySign::Plus, "ALICE_TURN".to_string())));
+        assert!(transitions[0]
+            .properties
+            .contains(&Property::new_predicate_from_call(
+                "signed_by".to_string(),
+                "/users/alice.id".to_string(),
+            )));
+        assert_eq!(transitions[1].from, "q1");
+        assert_eq!(transitions[1].to, "q0");
+        assert!(transitions[1]
+            .properties
+            .contains(&Property::new(PropertySign::Plus, "BOB_TURN".to_string())));
+        assert!(transitions[1]
+            .properties
+            .contains(&Property::new_predicate_from_call(
+                "signed_by".to_string(),
+                "/users/bob.id".to_string(),
+            )));
     }
 
     #[test]
