@@ -115,6 +115,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Withdrawal requires depositor signature and blocks claim" | `always([+WITHDRAW] true -> <+signed_by(/users/depositor.id)> true)`; `always([+WITHDRAW] true -> always([-CLAIM] true))` |
 | "Appeal requires appellant signature and blocks enforcement" | `always([+APPEAL] true -> <+signed_by(/users/appellant.id)> true)`; `always([+APPEAL] true -> always([-ENFORCE] true))` |
 | "Revocation requires issuer signature and blocks use" | `always([+REVOKE] true -> <+signed_by(/users/issuer.id)> true)`; `always([+REVOKE] true -> always([-USE] true))` |
+| "Suspension requires administrator signature and blocks access" | `always([+SUSPEND] true -> <+signed_by(/users/administrator.id)> true)`; `always([+SUSPEND] true -> always([-ACCESS] true))` |
 
 ## Output Format
 
@@ -1767,5 +1768,15 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             prompt.contains("always([+REVOKE] true -> <+signed_by(/users/issuer.id)> true)")
         );
         assert!(prompt.contains("always([+REVOKE] true -> always([-USE] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_suspension_pattern() {
+        let prompt = generate_prompt("Suspension requires administrator signature and blocks access");
+
+        assert!(prompt.contains(
+            "always([+SUSPEND] true -> <+signed_by(/users/administrator.id)> true)"
+        ));
+        assert!(prompt.contains("always([+SUSPEND] true -> always([-ACCESS] true))"));
     }
 }
