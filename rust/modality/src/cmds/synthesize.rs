@@ -1954,6 +1954,18 @@ always([<+APPROVE>] true)
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_review_rejection_prompt_example() {
+        let formulas = parse_formula_strings(&[
+            "always([+REJECT] true -> <+signed_by(/users/reviewer.id)> true)".to_string(),
+            "always([+REJECT] true -> always([-APPROVE] true))".to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("ReviewRejection", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_rejects_unsatisfied_formula() {
         let mut model = modality_lang::Model::new("Contract".to_string());
         let mut part = modality_lang::Part::new("flow".to_string());
