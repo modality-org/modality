@@ -105,6 +105,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Agents alternate turns" | `always([+AGENT_A_TURN] true -> eventually(<+AGENT_B_TURN> true))`; `always([+AGENT_B_TURN] true -> eventually(<+AGENT_A_TURN> true))` |
 | "Assign task requires requester and worker signatures" | `always([+ASSIGN_TASK] true -> <+signed_by(/users/task_requester.id) +signed_by(/users/worker_agent.id)> true)` |
 | "Use tool requires provider signature and committed capability approval" | `always([+USE_TOOL] true -> (<+signed_by(/users/tool_provider.id)> true & eventually([<+APPROVE_CAPABILITY>] true)))` |
+| "Dispute blocks release or refund until arbiter resolution" | `always([+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true)))`; `always([+RESOLVE_DISPUTE] true -> <+signed_by(/users/arbiter.id)> true)` |
 
 ## Output Format
 
@@ -1656,5 +1657,17 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(prompt.contains("always([+DELIVER] true -> eventually(<+DEPOSIT> true))"));
         assert!(prompt.contains("always([+RELEASE] true -> eventually(<+DELIVER> true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_dispute_resolution_pattern() {
+        let prompt = generate_prompt("Dispute blocks release or refund until arbiter resolution");
+
+        assert!(prompt.contains(
+            "always([+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true)))"
+        ));
+        assert!(prompt.contains(
+            "always([+RESOLVE_DISPUTE] true -> <+signed_by(/users/arbiter.id)> true)"
+        ));
     }
 }
