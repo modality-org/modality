@@ -122,6 +122,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Extension requires owner signature and blocks termination" | `always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)`; `always([+EXTEND] true -> always([-TERMINATE] true))` |
 | "Assignment requires assigner signature and blocks reassignment" | `always([+ASSIGN] true -> <+signed_by(/users/assigner.id)> true)`; `always([+ASSIGN] true -> always([-REASSIGN] true))` |
 | "Certification requires auditor signature and blocks deployment" | `always([+CERTIFY] true -> <+signed_by(/users/auditor.id)> true)`; `always([+CERTIFY] true -> always([-DEPLOY] true))` |
+| "Publication requires editor signature and blocks embargo" | `always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)`; `always([+PUBLISH] true -> always([-EMBARGO] true))` |
 
 ## Output Format
 
@@ -1845,5 +1846,15 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             "always([+CERTIFY] true -> <+signed_by(/users/auditor.id)> true)"
         ));
         assert!(prompt.contains("always([+CERTIFY] true -> always([-DEPLOY] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_publication_pattern() {
+        let prompt = generate_prompt("Publication requires editor signature and blocks embargo");
+
+        assert!(prompt.contains(
+            "always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)"
+        ));
+        assert!(prompt.contains("always([+PUBLISH] true -> always([-EMBARGO] true))"));
     }
 }
