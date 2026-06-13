@@ -1876,6 +1876,8 @@ always([<+APPROVE>] true)
     #[test]
     fn verify_synthesized_model_accepts_agent_coordination_prompt_examples() {
         let formulas = parse_formula_strings(&[
+            "always([+AGENT_A_TURN] true -> eventually(<+AGENT_B_TURN> true))".to_string(),
+            "always([+AGENT_B_TURN] true -> eventually(<+AGENT_A_TURN> true))".to_string(),
             "always([+ASSIGN_TASK] true -> <+signed_by(/users/task_requester.id) +signed_by(/users/worker_agent.id)> true)"
                 .to_string(),
             "always([+USE_TOOL] true -> (<+signed_by(/users/tool_provider.id)> true & eventually([<+APPROVE_CAPABILITY>] true)))"

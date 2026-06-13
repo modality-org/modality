@@ -101,6 +101,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Committed X requires committed A and B signatures and forbids Y" | `always([<+X>] true -> ([<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true & always([-Y] true)))` |
 | "Committed X requires committed A signature and forbids Y or Z" | `always([<+X>] true -> ([<+signed_by(/users/a.id)>] true & (always([-Y] true) & always([-Z] true))))` |
 | "Committed X requires committed A and B signatures and forbids Y or Z" | `always([<+X>] true -> ([<+signed_by(/users/a.id) +signed_by(/users/b.id)>] true & (always([-Y] true) & always([-Z] true))))` |
+| "Agents alternate turns" | `always([+AGENT_A_TURN] true -> eventually(<+AGENT_B_TURN> true))`; `always([+AGENT_B_TURN] true -> eventually(<+AGENT_A_TURN> true))` |
 | "Assign task requires requester and worker signatures" | `always([+ASSIGN_TASK] true -> <+signed_by(/users/task_requester.id) +signed_by(/users/worker_agent.id)> true)` |
 | "Use tool requires provider signature and committed capability approval" | `always([+USE_TOOL] true -> (<+signed_by(/users/tool_provider.id)> true & eventually([<+APPROVE_CAPABILITY>] true)))` |
 
@@ -1634,6 +1635,12 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
     fn test_prompt_includes_agent_coordination_patterns() {
         let prompt = generate_prompt("Agent coordinator assigns work to a worker agent");
 
+        assert!(prompt.contains(
+            "always([+AGENT_A_TURN] true -> eventually(<+AGENT_B_TURN> true))"
+        ));
+        assert!(prompt.contains(
+            "always([+AGENT_B_TURN] true -> eventually(<+AGENT_A_TURN> true))"
+        ));
         assert!(prompt.contains(
             "always([+ASSIGN_TASK] true -> <+signed_by(/users/task_requester.id) +signed_by(/users/worker_agent.id)> true)"
         ));
