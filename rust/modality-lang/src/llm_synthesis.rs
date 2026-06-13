@@ -126,6 +126,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Registration requires registrar signature and blocks deletion" | `always([+REGISTER] true -> <+signed_by(/users/registrar.id)> true)`; `always([+REGISTER] true -> always([-DELETE] true))` |
 | "Acceptance requires recipient signature and blocks rejection" | `always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)`; `always([+ACCEPT] true -> always([-REJECT] true))` |
 | "Acknowledgement requires recipient signature and blocks dispute" | `always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)`; `always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))` |
+| "Delivery confirmation requires recipient signature and blocks refund" | `always([+CONFIRM_DELIVERY] true -> <+signed_by(/users/recipient.id)> true)`; `always([+CONFIRM_DELIVERY] true -> always([-REFUND] true))` |
 
 ## Output Format
 
@@ -1890,5 +1891,16 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             "always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)"
         ));
         assert!(prompt.contains("always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_delivery_confirmation_pattern() {
+        let prompt =
+            generate_prompt("Delivery confirmation requires recipient signature and blocks refund");
+
+        assert!(prompt.contains(
+            "always([+CONFIRM_DELIVERY] true -> <+signed_by(/users/recipient.id)> true)"
+        ));
+        assert!(prompt.contains("always([+CONFIRM_DELIVERY] true -> always([-REFUND] true))"));
     }
 }
