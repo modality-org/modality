@@ -118,6 +118,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Suspension requires administrator signature and blocks access" | `always([+SUSPEND] true -> <+signed_by(/users/administrator.id)> true)`; `always([+SUSPEND] true -> always([-ACCESS] true))` |
 | "Reinstatement requires administrator signature and blocks suspension" | `always([+REINSTATE] true -> <+signed_by(/users/administrator.id)> true)`; `always([+REINSTATE] true -> always([-SUSPEND] true))` |
 | "Renewal requires holder signature and blocks expiration" | `always([+RENEW] true -> <+signed_by(/users/holder.id)> true)`; `always([+RENEW] true -> always([-EXPIRE] true))` |
+| "Termination requires counterparty signature and blocks renewal" | `always([+TERMINATE] true -> <+signed_by(/users/counterparty.id)> true)`; `always([+TERMINATE] true -> always([-RENEW] true))` |
 
 ## Output Format
 
@@ -1801,5 +1802,16 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             prompt.contains("always([+RENEW] true -> <+signed_by(/users/holder.id)> true)")
         );
         assert!(prompt.contains("always([+RENEW] true -> always([-EXPIRE] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_termination_pattern() {
+        let prompt =
+            generate_prompt("Termination requires counterparty signature and blocks renewal");
+
+        assert!(prompt.contains(
+            "always([+TERMINATE] true -> <+signed_by(/users/counterparty.id)> true)"
+        ));
+        assert!(prompt.contains("always([+TERMINATE] true -> always([-RENEW] true))"));
     }
 }
