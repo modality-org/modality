@@ -125,6 +125,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Publication requires editor signature and blocks embargo" | `always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)`; `always([+PUBLISH] true -> always([-EMBARGO] true))` |
 | "Registration requires registrar signature and blocks deletion" | `always([+REGISTER] true -> <+signed_by(/users/registrar.id)> true)`; `always([+REGISTER] true -> always([-DELETE] true))` |
 | "Acceptance requires recipient signature and blocks rejection" | `always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)`; `always([+ACCEPT] true -> always([-REJECT] true))` |
+| "Acknowledgement requires recipient signature and blocks dispute" | `always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)`; `always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))` |
 
 ## Output Format
 
@@ -1878,5 +1879,16 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             "always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)"
         ));
         assert!(prompt.contains("always([+ACCEPT] true -> always([-REJECT] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_acknowledgement_pattern() {
+        let prompt =
+            generate_prompt("Acknowledgement requires recipient signature and blocks dispute");
+
+        assert!(prompt.contains(
+            "always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)"
+        ));
+        assert!(prompt.contains("always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))"));
     }
 }
