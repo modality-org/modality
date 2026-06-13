@@ -120,6 +120,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Renewal requires holder signature and blocks expiration" | `always([+RENEW] true -> <+signed_by(/users/holder.id)> true)`; `always([+RENEW] true -> always([-EXPIRE] true))` |
 | "Termination requires counterparty signature and blocks renewal" | `always([+TERMINATE] true -> <+signed_by(/users/counterparty.id)> true)`; `always([+TERMINATE] true -> always([-RENEW] true))` |
 | "Extension requires owner signature and blocks termination" | `always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)`; `always([+EXTEND] true -> always([-TERMINATE] true))` |
+| "Assignment requires assigner signature and blocks reassignment" | `always([+ASSIGN] true -> <+signed_by(/users/assigner.id)> true)`; `always([+ASSIGN] true -> always([-REASSIGN] true))` |
 
 ## Output Format
 
@@ -1822,5 +1823,15 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         assert!(prompt.contains("always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)"));
         assert!(prompt.contains("always([+EXTEND] true -> always([-TERMINATE] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_assignment_pattern() {
+        let prompt = generate_prompt("Assignment requires assigner signature and blocks reassignment");
+
+        assert!(prompt.contains(
+            "always([+ASSIGN] true -> <+signed_by(/users/assigner.id)> true)"
+        ));
+        assert!(prompt.contains("always([+ASSIGN] true -> always([-REASSIGN] true))"));
     }
 }
