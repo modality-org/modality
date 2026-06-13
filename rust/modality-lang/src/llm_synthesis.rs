@@ -130,6 +130,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Invoice approval requires payer signature and blocks chargeback" | `always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)`; `always([+APPROVE_INVOICE] true -> always([-CHARGEBACK] true))` |
 | "Milestone acceptance requires verifier signature and blocks rework" | `always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)`; `always([+ACCEPT_MILESTONE] true -> always([-REWORK] true))` |
 | "Inspection approval requires inspector signature and blocks defect claim" | `always([+APPROVE_INSPECTION] true -> <+signed_by(/users/inspector.id)> true)`; `always([+APPROVE_INSPECTION] true -> always([-DEFECT_CLAIM] true))` |
+| "Compliance attestation requires compliance officer signature and blocks noncompliance finding" | `always([+ATTEST_COMPLIANCE] true -> <+signed_by(/users/compliance_officer.id)> true)`; `always([+ATTEST_COMPLIANCE] true -> always([-NONCOMPLIANCE_FINDING] true))` |
 
 ## Output Format
 
@@ -1938,6 +1939,20 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_INSPECTION] true -> always([-DEFECT_CLAIM] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_compliance_attestation_pattern() {
+        let prompt = generate_prompt(
+            "Compliance attestation requires compliance officer signature and blocks noncompliance finding",
+        );
+
+        assert!(prompt.contains(
+            "always([+ATTEST_COMPLIANCE] true -> <+signed_by(/users/compliance_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+ATTEST_COMPLIANCE] true -> always([-NONCOMPLIANCE_FINDING] true))"
         ));
     }
 }
