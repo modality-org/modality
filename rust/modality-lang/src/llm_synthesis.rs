@@ -36,6 +36,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Committed X requires Y" | `always([<+X>] true -> eventually(<+Y> true))` |
 | "Must do Y before X" | `always([+X] true -> eventually([<+Y>] true))` |
 | "Committed X requires committed Y" | `always([<+X>] true -> eventually([<+Y>] true))` |
+| "Escrow deposit before deliver before release" | `always([+DELIVER] true -> eventually(<+DEPOSIT> true))`; `always([+RELEASE] true -> eventually(<+DELIVER> true))` |
 | "Only A can X" | `always([+X] true -> <+signed_by(/users/a.id)> true)` |
 | "Committed X requires A signature" | `always([<+X>] true -> <+signed_by(/users/a.id)> true)` |
 | "Committed X requires A and B signatures" | `always([<+X>] true -> <+signed_by(/users/a.id) +signed_by(/users/b.id)> true)` |
@@ -1647,5 +1648,13 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(prompt.contains(
             "always([+USE_TOOL] true -> (<+signed_by(/users/tool_provider.id)> true & eventually([<+APPROVE_CAPABILITY>] true)))"
         ));
+    }
+
+    #[test]
+    fn test_prompt_includes_escrow_progression_pattern() {
+        let prompt = generate_prompt("Escrow deposit before delivery before release");
+
+        assert!(prompt.contains("always([+DELIVER] true -> eventually(<+DEPOSIT> true))"));
+        assert!(prompt.contains("always([+RELEASE] true -> eventually(<+DELIVER> true))"));
     }
 }
