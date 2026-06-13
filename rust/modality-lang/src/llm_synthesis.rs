@@ -124,6 +124,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Certification requires auditor signature and blocks deployment" | `always([+CERTIFY] true -> <+signed_by(/users/auditor.id)> true)`; `always([+CERTIFY] true -> always([-DEPLOY] true))` |
 | "Publication requires editor signature and blocks embargo" | `always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)`; `always([+PUBLISH] true -> always([-EMBARGO] true))` |
 | "Registration requires registrar signature and blocks deletion" | `always([+REGISTER] true -> <+signed_by(/users/registrar.id)> true)`; `always([+REGISTER] true -> always([-DELETE] true))` |
+| "Acceptance requires recipient signature and blocks rejection" | `always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)`; `always([+ACCEPT] true -> always([-REJECT] true))` |
 
 ## Output Format
 
@@ -1867,5 +1868,15 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             "always([+REGISTER] true -> <+signed_by(/users/registrar.id)> true)"
         ));
         assert!(prompt.contains("always([+REGISTER] true -> always([-DELETE] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_acceptance_pattern() {
+        let prompt = generate_prompt("Acceptance requires recipient signature and blocks rejection");
+
+        assert!(prompt.contains(
+            "always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)"
+        ));
+        assert!(prompt.contains("always([+ACCEPT] true -> always([-REJECT] true))"));
     }
 }
