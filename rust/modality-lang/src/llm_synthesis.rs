@@ -106,6 +106,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Assign task requires requester and worker signatures" | `always([+ASSIGN_TASK] true -> <+signed_by(/users/task_requester.id) +signed_by(/users/worker_agent.id)> true)` |
 | "Use tool requires provider signature and committed capability approval" | `always([+USE_TOOL] true -> (<+signed_by(/users/tool_provider.id)> true & eventually([<+APPROVE_CAPABILITY>] true)))` |
 | "Dispute blocks release or refund until arbiter resolution" | `always([+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true)))`; `always([+RESOLVE_DISPUTE] true -> <+signed_by(/users/arbiter.id)> true)` |
+| "Cancel requires requester signature and blocks delivery" | `always([+CANCEL] true -> <+signed_by(/users/requester.id)> true)`; `always([+CANCEL] true -> always([-DELIVER] true))` |
 
 ## Output Format
 
@@ -1669,5 +1670,14 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(prompt.contains(
             "always([+RESOLVE_DISPUTE] true -> <+signed_by(/users/arbiter.id)> true)"
         ));
+    }
+
+    #[test]
+    fn test_prompt_includes_cancellation_pattern() {
+        let prompt = generate_prompt("Cancel requires requester signature and blocks delivery");
+
+        assert!(prompt
+            .contains("always([+CANCEL] true -> <+signed_by(/users/requester.id)> true)"));
+        assert!(prompt.contains("always([+CANCEL] true -> always([-DELIVER] true))"));
     }
 }
