@@ -127,6 +127,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Acceptance requires recipient signature and blocks rejection" | `always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)`; `always([+ACCEPT] true -> always([-REJECT] true))` |
 | "Acknowledgement requires recipient signature and blocks dispute" | `always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)`; `always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))` |
 | "Delivery confirmation requires recipient signature and blocks refund" | `always([+CONFIRM_DELIVERY] true -> <+signed_by(/users/recipient.id)> true)`; `always([+CONFIRM_DELIVERY] true -> always([-REFUND] true))` |
+| "Invoice approval requires payer signature and blocks chargeback" | `always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)`; `always([+APPROVE_INVOICE] true -> always([-CHARGEBACK] true))` |
 
 ## Output Format
 
@@ -1902,5 +1903,15 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             "always([+CONFIRM_DELIVERY] true -> <+signed_by(/users/recipient.id)> true)"
         ));
         assert!(prompt.contains("always([+CONFIRM_DELIVERY] true -> always([-REFUND] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_invoice_approval_pattern() {
+        let prompt = generate_prompt("Invoice approval requires payer signature and blocks chargeback");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)"
+        ));
+        assert!(prompt.contains("always([+APPROVE_INVOICE] true -> always([-CHARGEBACK] true))"));
     }
 }
