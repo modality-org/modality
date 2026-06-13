@@ -121,6 +121,7 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Termination requires counterparty signature and blocks renewal" | `always([+TERMINATE] true -> <+signed_by(/users/counterparty.id)> true)`; `always([+TERMINATE] true -> always([-RENEW] true))` |
 | "Extension requires owner signature and blocks termination" | `always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)`; `always([+EXTEND] true -> always([-TERMINATE] true))` |
 | "Assignment requires assigner signature and blocks reassignment" | `always([+ASSIGN] true -> <+signed_by(/users/assigner.id)> true)`; `always([+ASSIGN] true -> always([-REASSIGN] true))` |
+| "Certification requires auditor signature and blocks deployment" | `always([+CERTIFY] true -> <+signed_by(/users/auditor.id)> true)`; `always([+CERTIFY] true -> always([-DEPLOY] true))` |
 
 ## Output Format
 
@@ -1833,5 +1834,16 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             "always([+ASSIGN] true -> <+signed_by(/users/assigner.id)> true)"
         ));
         assert!(prompt.contains("always([+ASSIGN] true -> always([-REASSIGN] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_certification_pattern() {
+        let prompt =
+            generate_prompt("Certification requires auditor signature and blocks deployment");
+
+        assert!(prompt.contains(
+            "always([+CERTIFY] true -> <+signed_by(/users/auditor.id)> true)"
+        ));
+        assert!(prompt.contains("always([+CERTIFY] true -> always([-DEPLOY] true))"));
     }
 }
