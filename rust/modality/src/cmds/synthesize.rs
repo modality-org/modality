@@ -485,6 +485,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REJECT] true -> always([-APPROVE] true))"#,
             r#"always([+CANCEL] true -> always([-DELIVER] true))"#,
             r#"always([+REFUND] true -> always([-RELEASE] true))"#,
+            r#"always([+TIMEOUT] true -> always([-COMPLETE] true))"#,
             r#"[+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true))"#,
             r#"[<+DISPUTE>] true -> always([-RELEASE] true)"#,
             r#"[+DISPUTE] true -> (<+signed_by(/users/arbiter.id)> true & always([-RELEASE] true))"#,
