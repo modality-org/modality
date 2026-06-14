@@ -453,6 +453,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[+RELEASE] true -> (<+signed_by(/users/buyer.id)> true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))"#,
             r#"[<+RELEASE>] true -> (<+signed_by(/users/buyer.id)> true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))"#,
             r#"[+RELEASE] true -> (<+signed_by(/users/buyer.id)> true & eventually(<+DELIVER> true))"#,
+            r#"[+APPROVE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & eventually([<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (<+oracle_attests(/oracles/delivery.id, "delivered", "true")> true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))"#,
             r#"[+RELEASE] true -> (<+oracle_attests(/oracles/delivery.id, "delivered", "true")> true & eventually(<+DELIVER> true))"#,
             r#"[+RELEASE] true -> (<+oracle_attests(/oracles/delivery.id, "delivered", "true")> true & eventually([<+DELIVER>] true))"#,
