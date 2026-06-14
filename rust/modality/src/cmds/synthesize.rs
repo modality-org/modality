@@ -479,6 +479,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+DISPUTE>] true -> (<+signed_by(/users/arbiter.id)> true & always([-RELEASE] true))"#,
             r#"[<+DISPUTE>] true -> ([<+signed_by(/users/arbiter.id)>] true & always([-RELEASE] true))"#,
             r#"[<+DISPUTE>] true -> (<+oracle_attests(/oracles/dispute.id, "opened", "true")> true & always([-RELEASE] true))"#,
+            r#"[<+DISPUTE>] true -> (<+oracle_attests(/oracles/dispute.id, "opened", "true")> true & (always([-RELEASE] true) & always([-REFUND] true)))"#,
         ],
     },
 ];
@@ -1941,6 +1942,23 @@ F2: formula generated_2 {
 
         assert!(output.contains("+DISPUTE"));
         assert!(output.contains("-RELEASE"));
+        assert!(output.contains("+oracle_attests(/oracles/dispute.id, opened, true)"));
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_committed_action_oracle_compound_forbidden() {
+        let formulas = parse_formula_strings(&[
+            "[<+DISPUTE>] true -> (<+oracle_attests(/oracles/dispute.id, \"opened\", \"true\")> true & (always([-RELEASE] true) & always([-REFUND] true)))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+        let output = format_synthesized_model(&model, "modality").unwrap();
+
+        assert!(output.contains("+DISPUTE"));
+        assert!(output.contains("-RELEASE"));
+        assert!(output.contains("-REFUND"));
         assert!(output.contains("+oracle_attests(/oracles/dispute.id, opened, true)"));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
