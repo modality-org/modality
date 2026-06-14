@@ -1049,8 +1049,14 @@ F2: formula generated_2 {
         std::fs::write(
             &path,
             r#"
-F1: always([<+APPROVE>] true)
-F2: [+APPROVE] true -> <+signed_by(/users/reviewer.id)> true
+```modality
+F1: formula generated_1 {
+always([<+APPROVE>] true)
+}
+F2: formula generated_2 {
+[+APPROVE] true -> <+signed_by(/users/reviewer.id)> true
+}
+```
 "#,
         )
         .unwrap();
@@ -1063,6 +1069,7 @@ F2: [+APPROVE] true -> <+signed_by(/users/reviewer.id)> true
 
         ensure_all_formula_strings_parsed(&formula_strings).unwrap();
         let formulas = parse_formula_strings(&formula_strings);
+        assert_eq!(formulas.len(), 2);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
 
