@@ -387,12 +387,14 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
 struct FormulaExampleGroup {
     title: &'static str,
+    description: &'static str,
     formulas: &'static [&'static str],
 }
 
 const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
     FormulaExampleGroup {
         title: r#"Core formula shapes"#,
+        description: r#"Single-action requirements and always-safe commitments."#,
         formulas: &[
             r#"always([<+APPROVE>] true)"#,
             r#"always([<+APPROVE>] true & [<+REJECT>] true)"#,
@@ -402,6 +404,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
     },
     FormulaExampleGroup {
         title: r#"Alternatives and temporal candidates"#,
+        description: r#"Choices, mixed permissive/committed actions, and next-step candidates."#,
         formulas: &[
             r#"<+APPROVE> true | <+REJECT> true"#,
             r#"<+APPROVE> true | [<+REJECT>] true"#,
@@ -410,6 +413,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
     },
     FormulaExampleGroup {
         title: r#"Ordering and eventual goals"#,
+        description: r#"Requests, releases, and future actions the model should make reachable."#,
         formulas: &[
             r#"[+REQUEST] true -> eventually((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+CANCEL> true & ([+RELEASE] true -> eventually(<+DELIVER> true))"#,
@@ -424,6 +428,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
     },
     FormulaExampleGroup {
         title: r#"Authorization and predicates"#,
+        description: r#"Signer, multisig, and oracle predicates attached to actions."#,
         formulas: &[
             r#"[<+RELEASE>] true -> <+signed_by(/users/buyer.id)> true"#,
             r#"[<+RELEASE>] true -> [<+signed_by(/users/buyer.id)>] true"#,
@@ -438,6 +443,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
     },
     FormulaExampleGroup {
         title: r#"Authorization with eventual goals"#,
+        description: r#"Authorized actions that also create follow-up obligations."#,
         formulas: &[
             r#"[+RELEASE] true -> (<+signed_by(/users/buyer.id)> true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))"#,
             r#"[+APPROVE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))"#,
@@ -453,6 +459,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
     },
     FormulaExampleGroup {
         title: r#"Forbidden-after guards"#,
+        description: r#"Actions that block later transitions, optionally behind authorization."#,
         formulas: &[
             r#"<+CANCEL> true & ([+DISPUTE] true -> always([-RELEASE] true))"#,
             r#"[+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true))"#,
@@ -489,6 +496,7 @@ fn print_synthesis_list() {
     println!("\nOr synthesize and verify from formulas:");
     for group in FORMULA_EXAMPLE_GROUPS {
         println!("\n  {}:", group.title);
+        println!("    {}", group.description);
         for formula in group.formulas {
             println!(
                 "    modality model synthesize --formulas \"{}\" --verify",
