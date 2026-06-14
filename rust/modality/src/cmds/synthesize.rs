@@ -977,6 +977,35 @@ always([<+APPROVE>] true)
     }
 
     #[test]
+    fn llm_response_file_round_trips_to_verified_synthesis() {
+        let path = std::env::temp_dir().join(format!(
+            "modality-synthesize-response-{}.md",
+            std::process::id()
+        ));
+        std::fs::write(
+            &path,
+            r#"
+F1: always([<+APPROVE>] true)
+F2: [+APPROVE] true -> <+signed_by(/users/reviewer.id)> true
+"#,
+        )
+        .unwrap();
+
+        let response = load_llm_response(None, Some(&path)).unwrap().unwrap();
+        std::fs::remove_file(&path).unwrap();
+
+        let formula_strings = modality_lang::llm_synthesis::parse_llm_response(&response);
+        assert_eq!(formula_strings.len(), 2);
+
+        ensure_all_formula_strings_parsed(&formula_strings).unwrap();
+        let formulas = parse_formula_strings(&formula_strings);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_accepts_generated_candidate() {
         let formulas = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
         let model =
