@@ -443,6 +443,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[+APPROVE] true -> <+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"#,
             r#"[+APPROVE] true -> [<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true"#,
             r#"always([+ASSIGN_TASK] true -> <+signed_by(/users/task_requester.id) +signed_by(/users/worker_agent.id)> true)"#,
+            r#"always([+RESOLVE_DISPUTE] true -> <+signed_by(/users/arbiter.id)> true)"#,
         ],
     },
     FormulaExampleGroup {
