@@ -158,251 +158,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     if opts.list {
-        println!("Available templates:\n");
-        println!("  escrow              Two-party escrow with deposit/deliver/release");
-        println!("  handshake           Mutual agreement requiring both signatures");
-        println!("  mutual_cooperation  Cooperation game - both must cooperate, defection blocked");
-        println!("  atomic_swap         Both parties commit before either can claim");
-        println!("  multisig            N-of-M signature approval pattern");
-        println!("  turn_taking         Alternating two-party turn cycle");
-        println!("  service_agreement   Offer → Accept → Deliver → Confirm → Pay");
-        println!("  delegation          Principal grants agent authority to act");
-        println!("  auction             Seller lists, bidders bid, highest wins");
-        println!("  subscription        Recurring payment for service access");
-        println!("  milestone           Multi-phase project with payments");
-        println!("\nUsage:");
-        println!("  modality model synthesize --template escrow --party-a Buyer --party-b Seller");
-        println!("\nOr describe in natural language:");
-        println!("  modality model synthesize --describe \"escrow where buyer deposits funds\"");
-        println!("  modality model synthesize --describe \"Alice and Bob take turns signing\"");
-        println!("\nOr synthesize and verify from formulas:");
-        println!("  modality model synthesize --formulas \"always([<+APPROVE>] true)\" --verify");
-        println!(
-            "  modality model synthesize --formulas \"always([<+APPROVE>] true & [<+REJECT>] true)\" --verify"
-        );
-        println!("  modality model synthesize --formulas \"[<+APPROVE>] true\" --verify");
-        println!("  modality model synthesize --formulas \"<+APPROVE> true\" --verify");
-        println!(
-            "  modality model synthesize --formulas \"<+APPROVE> true | <+REJECT> true\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"<+APPROVE> true | [<+REJECT>] true\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"next((<+APPROVE> true | [<+REJECT>] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+REQUEST] true -> eventually((<+APPROVE> true | [<+REJECT>] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"<+CANCEL> true & ([+RELEASE] true -> eventually(<+DELIVER> true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+RELEASE>] true -> eventually(<+DELIVER> true)\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+RELEASE>] true -> eventually([<+DELIVER>] true)\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+RELEASE] true -> eventually([<+DELIVER>] true)\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+RELEASE>] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+RELEASE] true -> (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+RELEASE>] true -> (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+RELEASE] true -> (<+signed_by(/users/buyer.id)> true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+APPROVE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+RELEASE>] true -> (<+signed_by(/users/buyer.id)> true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+APPROVE>] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+RELEASE] true -> ([<+signed_by(/users/buyer.id)>] true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+APPROVE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+RELEASE>] true -> ([<+signed_by(/users/buyer.id)>] true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+APPROVE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+RELEASE] true -> (<+signed_by(/users/buyer.id)> true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+APPROVE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+RELEASE>] true -> (<+signed_by(/users/buyer.id)> true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+APPROVE>] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+RELEASE] true -> ([<+signed_by(/users/buyer.id)>] true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+APPROVE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+RELEASE>] true -> ([<+signed_by(/users/buyer.id)>] true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+APPROVE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"<+CANCEL> true & ([+DISPUTE] true -> always([-RELEASE] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+DISPUTE>] true -> always([-RELEASE] true)\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+DISPUTE>] true -> (always([-RELEASE] true) & always([-REFUND] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+DISPUTE] true -> (<+signed_by(/users/arbiter.id)> true & always([-RELEASE] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+DISPUTE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & always([-RELEASE] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+DISPUTE] true -> (<+signed_by(/users/arbiter.id)> true & (always([-RELEASE] true) & always([-REFUND] true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+DISPUTE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & (always([-RELEASE] true) & always([-REFUND] true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+DISPUTE] true -> ([<+signed_by(/users/arbiter.id)>] true & always([-RELEASE] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+DISPUTE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & always([-RELEASE] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+DISPUTE] true -> ([<+signed_by(/users/arbiter.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+DISPUTE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+DISPUTE>] true -> (<+signed_by(/users/arbiter.id)> true & always([-RELEASE] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+DISPUTE>] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & always([-RELEASE] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+DISPUTE>] true -> (<+signed_by(/users/arbiter.id)> true & (always([-RELEASE] true) & always([-REFUND] true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+DISPUTE>] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & (always([-RELEASE] true) & always([-REFUND] true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+DISPUTE>] true -> ([<+signed_by(/users/arbiter.id)>] true & always([-RELEASE] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+DISPUTE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & always([-RELEASE] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+DISPUTE>] true -> ([<+signed_by(/users/arbiter.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+DISPUTE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+RELEASE>] true -> <+signed_by(/users/buyer.id)> true\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+RELEASE>] true -> [<+signed_by(/users/buyer.id)>] true\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+RELEASE>] true -> (<+signed_by(/users/buyer.id)> true & eventually([<+DELIVER>] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+RELEASE>] true -> (<+signed_by(/users/buyer.id)> true & eventually(<+DELIVER> true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+RELEASE>] true -> ([<+signed_by(/users/buyer.id)>] true & eventually([<+DELIVER>] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+RELEASE>] true -> ([<+signed_by(/users/buyer.id)>] true & eventually(<+DELIVER> true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+APPROVE>] true -> <+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+APPROVE>] true -> [<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+APPROVE>] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & eventually([<+DELIVER>] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+APPROVE>] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & eventually(<+DELIVER> true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+APPROVE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & eventually([<+DELIVER>] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[<+APPROVE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & eventually(<+DELIVER> true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+APPROVE] true -> [<+signed_by(/users/reviewer.id)>] true\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+RELEASE] true -> (<+signed_by(/users/buyer.id)> true & eventually([<+DELIVER>] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+RELEASE] true -> (<+signed_by(/users/buyer.id)> true & eventually(<+DELIVER> true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+RELEASE] true -> ([<+signed_by(/users/buyer.id)>] true & eventually([<+DELIVER>] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+RELEASE] true -> ([<+signed_by(/users/buyer.id)>] true & eventually(<+DELIVER> true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, \\\"delivered\\\", \\\"true\\\")> true\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+APPROVE] true -> <+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+APPROVE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & eventually([<+DELIVER>] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+APPROVE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & eventually(<+DELIVER> true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+APPROVE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & eventually([<+DELIVER>] true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+APPROVE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & eventually(<+DELIVER> true))\" --verify"
-        );
-        println!(
-            "  modality model synthesize --formulas \"[+APPROVE] true -> [<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true\" --verify"
-        );
-        println!("\nOr generate a prompt and synthesize an LLM response file:");
-        println!(
-            "  modality model synthesize --describe \"escrow where buyer deposits funds\" --generate-prompt"
-        );
-        println!("  modality model synthesize --llm-response-file response.md --verify");
+        print_synthesis_list();
         return Ok(());
     }
 
@@ -627,6 +383,159 @@ pub async fn run(opts: &Opts) -> Result<()> {
     write_or_print_model(&output, opts.output.as_ref())?;
 
     Ok(())
+}
+
+struct FormulaExampleGroup {
+    title: &'static str,
+    formulas: &'static [&'static str],
+}
+
+const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
+    FormulaExampleGroup {
+        title: r#"Core formula shapes"#,
+        formulas: &[
+            r#"always([<+APPROVE>] true)"#,
+            r#"always([<+APPROVE>] true & [<+REJECT>] true)"#,
+            r#"[<+APPROVE>] true"#,
+            r#"<+APPROVE> true"#,
+        ],
+    },
+    FormulaExampleGroup {
+        title: r#"Alternatives and temporal candidates"#,
+        formulas: &[
+            r#"<+APPROVE> true | <+REJECT> true"#,
+            r#"<+APPROVE> true | [<+REJECT>] true"#,
+            r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
+        ],
+    },
+    FormulaExampleGroup {
+        title: r#"Ordering and eventual goals"#,
+        formulas: &[
+            r#"[+REQUEST] true -> eventually((<+APPROVE> true | [<+REJECT>] true))"#,
+            r#"<+CANCEL> true & ([+RELEASE] true -> eventually(<+DELIVER> true))"#,
+            r#"[<+RELEASE>] true -> eventually(<+DELIVER> true)"#,
+            r#"[<+RELEASE>] true -> eventually([<+DELIVER>] true)"#,
+            r#"[+RELEASE] true -> eventually([<+DELIVER>] true)"#,
+            r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
+            r#"[<+RELEASE>] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
+            r#"[+RELEASE] true -> (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true))"#,
+            r#"[<+RELEASE>] true -> (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true))"#,
+        ],
+    },
+    FormulaExampleGroup {
+        title: r#"Authorization and predicates"#,
+        formulas: &[
+            r#"[<+RELEASE>] true -> <+signed_by(/users/buyer.id)> true"#,
+            r#"[<+RELEASE>] true -> [<+signed_by(/users/buyer.id)>] true"#,
+            r#"[<+APPROVE>] true -> <+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"#,
+            r#"[<+APPROVE>] true -> [<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true"#,
+            r#"[+APPROVE] true -> [<+signed_by(/users/reviewer.id)>] true"#,
+            r#"[+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true"#,
+            r#"[+APPROVE] true -> <+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"#,
+            r#"[+APPROVE] true -> [<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true"#,
+        ],
+    },
+    FormulaExampleGroup {
+        title: r#"Authorization with eventual goals"#,
+        formulas: &[
+            r#"[+RELEASE] true -> (<+signed_by(/users/buyer.id)> true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))"#,
+            r#"[+APPROVE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))"#,
+            r#"[<+RELEASE>] true -> (<+signed_by(/users/buyer.id)> true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))"#,
+            r#"[<+APPROVE>] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))"#,
+            r#"[+RELEASE] true -> ([<+signed_by(/users/buyer.id)>] true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))"#,
+            r#"[+APPROVE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))"#,
+            r#"[<+RELEASE>] true -> ([<+signed_by(/users/buyer.id)>] true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))"#,
+            r#"[<+APPROVE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))"#,
+            r#"[+RELEASE] true -> (<+signed_by(/users/buyer.id)> true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))"#,
+            r#"[+APPROVE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))"#,
+            r#"[<+RELEASE>] true -> (<+signed_by(/users/buyer.id)> true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))"#,
+            r#"[<+APPROVE>] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))"#,
+            r#"[+RELEASE] true -> ([<+signed_by(/users/buyer.id)>] true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))"#,
+            r#"[+APPROVE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))"#,
+            r#"[<+RELEASE>] true -> ([<+signed_by(/users/buyer.id)>] true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))"#,
+            r#"[<+APPROVE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))"#,
+            r#"[<+RELEASE>] true -> (<+signed_by(/users/buyer.id)> true & eventually([<+DELIVER>] true))"#,
+            r#"[<+RELEASE>] true -> (<+signed_by(/users/buyer.id)> true & eventually(<+DELIVER> true))"#,
+            r#"[<+RELEASE>] true -> ([<+signed_by(/users/buyer.id)>] true & eventually([<+DELIVER>] true))"#,
+            r#"[<+RELEASE>] true -> ([<+signed_by(/users/buyer.id)>] true & eventually(<+DELIVER> true))"#,
+            r#"[<+APPROVE>] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & eventually([<+DELIVER>] true))"#,
+            r#"[<+APPROVE>] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & eventually(<+DELIVER> true))"#,
+            r#"[<+APPROVE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & eventually([<+DELIVER>] true))"#,
+            r#"[<+APPROVE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & eventually(<+DELIVER> true))"#,
+            r#"[+RELEASE] true -> (<+signed_by(/users/buyer.id)> true & eventually([<+DELIVER>] true))"#,
+            r#"[+RELEASE] true -> (<+signed_by(/users/buyer.id)> true & eventually(<+DELIVER> true))"#,
+            r#"[+RELEASE] true -> ([<+signed_by(/users/buyer.id)>] true & eventually([<+DELIVER>] true))"#,
+            r#"[+RELEASE] true -> ([<+signed_by(/users/buyer.id)>] true & eventually(<+DELIVER> true))"#,
+            r#"[+APPROVE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & eventually([<+DELIVER>] true))"#,
+            r#"[+APPROVE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & eventually(<+DELIVER> true))"#,
+            r#"[+APPROVE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & eventually([<+DELIVER>] true))"#,
+            r#"[+APPROVE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & eventually(<+DELIVER> true))"#,
+        ],
+    },
+    FormulaExampleGroup {
+        title: r#"Forbidden-after guards"#,
+        formulas: &[
+            r#"<+CANCEL> true & ([+DISPUTE] true -> always([-RELEASE] true))"#,
+            r#"[+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true))"#,
+            r#"[<+DISPUTE>] true -> always([-RELEASE] true)"#,
+            r#"[<+DISPUTE>] true -> (always([-RELEASE] true) & always([-REFUND] true))"#,
+            r#"[+DISPUTE] true -> (<+signed_by(/users/arbiter.id)> true & always([-RELEASE] true))"#,
+            r#"[+DISPUTE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & always([-RELEASE] true))"#,
+            r#"[+DISPUTE] true -> (<+signed_by(/users/arbiter.id)> true & (always([-RELEASE] true) & always([-REFUND] true)))"#,
+            r#"[+DISPUTE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & (always([-RELEASE] true) & always([-REFUND] true)))"#,
+            r#"[+DISPUTE] true -> ([<+signed_by(/users/arbiter.id)>] true & always([-RELEASE] true))"#,
+            r#"[+DISPUTE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & always([-RELEASE] true))"#,
+            r#"[+DISPUTE] true -> ([<+signed_by(/users/arbiter.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))"#,
+            r#"[+DISPUTE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))"#,
+            r#"[<+DISPUTE>] true -> (<+signed_by(/users/arbiter.id)> true & always([-RELEASE] true))"#,
+            r#"[<+DISPUTE>] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & always([-RELEASE] true))"#,
+            r#"[<+DISPUTE>] true -> (<+signed_by(/users/arbiter.id)> true & (always([-RELEASE] true) & always([-REFUND] true)))"#,
+            r#"[<+DISPUTE>] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & (always([-RELEASE] true) & always([-REFUND] true)))"#,
+            r#"[<+DISPUTE>] true -> ([<+signed_by(/users/arbiter.id)>] true & always([-RELEASE] true))"#,
+            r#"[<+DISPUTE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & always([-RELEASE] true))"#,
+            r#"[<+DISPUTE>] true -> ([<+signed_by(/users/arbiter.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))"#,
+            r#"[<+DISPUTE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))"#,
+        ],
+    },
+];
+
+fn print_synthesis_list() {
+    println!("Available templates:\n");
+    println!("  escrow              Two-party escrow with deposit/deliver/release");
+    println!("  handshake           Mutual agreement requiring both signatures");
+    println!("  mutual_cooperation  Cooperation game - both must cooperate, defection blocked");
+    println!("  atomic_swap         Both parties commit before either can claim");
+    println!("  multisig            N-of-M signature approval pattern");
+    println!("  turn_taking         Alternating two-party turn cycle");
+    println!("  service_agreement   Offer -> Accept -> Deliver -> Confirm -> Pay");
+    println!("  delegation          Principal grants agent authority to act");
+    println!("  auction             Seller lists, bidders bid, highest wins");
+    println!("  subscription        Recurring payment for service access");
+    println!("  milestone           Multi-phase project with payments");
+    println!("\nUsage:");
+    println!("  modality model synthesize --template escrow --party-a Buyer --party-b Seller");
+    println!("\nOr describe in natural language:");
+    println!("  modality model synthesize --describe \"escrow where buyer deposits funds\"");
+    println!("  modality model synthesize --describe \"Alice and Bob take turns signing\"");
+    println!("\nOr synthesize and verify from formulas:");
+    for group in FORMULA_EXAMPLE_GROUPS {
+        println!("\n  {}:", group.title);
+        for formula in group.formulas {
+            println!(
+                "    modality model synthesize --formulas \"{}\" --verify",
+                escape_formula_for_command(formula)
+            );
+        }
+    }
+    println!("\nOr generate a prompt and synthesize an LLM response file:");
+    println!(
+        "  modality model synthesize --describe \"escrow where buyer deposits funds\" --generate-prompt"
+    );
+    println!("  modality model synthesize --llm-response-file response.md --verify");
+}
+
+fn escape_formula_for_command(formula: &str) -> String {
+    formula.replace('"', "\\\"")
 }
 
 fn load_llm_response(
