@@ -1004,13 +1004,17 @@ formula approval_signed {
 F1: formula generated_1 {
 always([<+APPROVE>] true)
 }
+F2: formula generated_2 {
+[+APPROVE] true -> <+signed_by(/users/reviewer.id)> true
+}
 ```
 "#;
 
         let formula_strings = modality_lang::llm_synthesis::parse_llm_response(response);
-        assert_eq!(formula_strings.len(), 1);
+        assert_eq!(formula_strings.len(), 2);
 
         let formulas = parse_formula_strings(&formula_strings);
+        assert_eq!(formulas.len(), 2);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
 
