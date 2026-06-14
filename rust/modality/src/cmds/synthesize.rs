@@ -466,6 +466,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[+RELEASE] true -> (<+signed_by(/users/buyer.id)> true & eventually([<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (<+signed_by(/users/buyer.id)> true & eventually(<+DELIVER> true))"#,
             r#"[+RELEASE] true -> (<+oracle_attests(/oracles/delivery.id, "delivered", "true")> true & eventually(<+DELIVER> true))"#,
+            r#"[+RELEASE] true -> (<+oracle_attests(/oracles/delivery.id, "delivered", "true")> true & eventually([<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> ([<+signed_by(/users/buyer.id)>] true & eventually([<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> ([<+signed_by(/users/buyer.id)>] true & eventually(<+DELIVER> true))"#,
             r#"[+APPROVE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & eventually([<+DELIVER>] true))"#,
@@ -1660,6 +1661,22 @@ always([<+APPROVE>] true)
     fn verify_synthesized_model_accepts_oracle_and_followup_example() {
         let formulas = parse_formula_strings(&[
             "[+RELEASE] true -> (<+oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true & eventually(<+DELIVER> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+        let output = format_synthesized_model(&model, "modality").unwrap();
+
+        assert!(output.contains("+RELEASE"));
+        assert!(output.contains("+DELIVER"));
+        assert!(output.contains("+oracle_attests(/oracles/delivery.id, delivered, true)"));
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_oracle_and_committed_followup_example() {
+        let formulas = parse_formula_strings(&[
+            "[+RELEASE] true -> (<+oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true & eventually([<+DELIVER>] true))"
                 .to_string(),
         ]);
         let model =
