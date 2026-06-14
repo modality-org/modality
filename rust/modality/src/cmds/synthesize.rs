@@ -913,6 +913,31 @@ mod tests {
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_listed_formula_examples() {
+        for group in FORMULA_EXAMPLE_GROUPS {
+            for formula in group.formulas {
+                let parsed = parse_formula_strings(&[formula.to_string()]);
+                assert_eq!(
+                    parsed.len(),
+                    1,
+                    "{} example failed to parse: {}",
+                    group.title,
+                    formula
+                );
+
+                let model =
+                    modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &parsed);
+                verify_synthesized_model(&model, &parsed).unwrap_or_else(|err| {
+                    panic!(
+                        "{} example failed verification: {}\n{}",
+                        group.title, formula, err
+                    )
+                });
+            }
+        }
+    }
+
+    #[test]
     fn llm_multiline_formula_declarations_round_trip_to_verification() {
         let response = r#"
 ```modality
