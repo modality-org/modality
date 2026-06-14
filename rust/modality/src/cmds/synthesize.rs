@@ -938,6 +938,41 @@ formula approval_signed {
     }
 
     #[test]
+    fn rule_file_content_with_multiple_formula_declarations_verifies() {
+        let path = std::env::temp_dir().join(format!(
+            "modality-synthesize-rules-{}.modality",
+            std::process::id()
+        ));
+        std::fs::write(
+            &path,
+            r#"
+formula approval_required {
+always([<+APPROVE>] true)
+}
+
+formula approval_signed {
+[+APPROVE] true -> <+signed_by(/users/reviewer.id)> true
+}
+"#,
+        )
+        .unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        std::fs::remove_file(&path).unwrap();
+
+        let parsed_input = parse_formula_inputs(std::slice::from_ref(&content));
+        parsed_input.ensure_all_parsed().unwrap();
+        assert_eq!(parsed_input.formulas.len(), 2);
+
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "Contract",
+            &parsed_input.formulas,
+        );
+
+        verify_synthesized_model(&model, &parsed_input.formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_accepts_listed_formula_examples() {
         for group in FORMULA_EXAMPLE_GROUPS {
             for formula in group.formulas {
