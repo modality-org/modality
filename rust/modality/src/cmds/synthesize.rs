@@ -459,6 +459,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[+RELEASE] true -> ([<+signed_by(/users/buyer.id)>] true & eventually([<+DELIVER>] true))"#,
             r#"[<+RELEASE>] true -> (<+oracle_attests(/oracles/delivery.id, "delivered", "true")> true & eventually(<+DELIVER> true))"#,
             r#"[<+RELEASE>] true -> (<+oracle_attests(/oracles/delivery.id, "delivered", "true")> true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))"#,
+            r#"[<+RELEASE>] true -> (<+oracle_attests(/oracles/delivery.id, "delivered", "true")> true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))"#,
         ],
     },
     FormulaExampleGroup {
@@ -1829,6 +1830,23 @@ F2: formula generated_2 {
     fn verify_synthesized_model_accepts_committed_action_oracle_compound_followups() {
         let formulas = parse_formula_strings(&[
             "[<+RELEASE>] true -> (<+oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+        let output = format_synthesized_model(&model, "modality").unwrap();
+
+        assert!(output.contains("+RELEASE"));
+        assert!(output.contains("+DEPOSIT"));
+        assert!(output.contains("+DELIVER"));
+        assert!(output.contains("+oracle_attests(/oracles/delivery.id, delivered, true)"));
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_committed_action_oracle_compound_commitments() {
+        let formulas = parse_formula_strings(&[
+            "[<+RELEASE>] true -> (<+oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))"
                 .to_string(),
         ]);
         let model =
