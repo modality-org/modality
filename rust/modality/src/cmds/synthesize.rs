@@ -883,7 +883,8 @@ mod tests {
 
         assert_eq!(parsed.len(), 2);
 
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &parsed);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &parsed);
         let transitions = &model.parts[0].transitions;
         assert!(transitions
             .iter()
@@ -910,6 +911,30 @@ mod tests {
         let parsed = parse_formula_strings(&formulas);
 
         assert_eq!(parsed.len(), 1);
+    }
+
+    #[test]
+    fn parse_formula_strings_accepts_multiple_declarations_from_one_input() {
+        let formulas = vec![
+            r#"
+formula approval_required {
+always([<+APPROVE>] true)
+}
+
+formula approval_signed {
+[+APPROVE] true -> <+signed_by(/users/reviewer.id)> true
+}
+"#
+            .to_string(),
+        ];
+
+        let parsed = parse_formula_strings(&formulas);
+        assert_eq!(parsed.len(), 2);
+
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &parsed);
+
+        verify_synthesized_model(&model, &parsed).unwrap();
     }
 
     #[test]
