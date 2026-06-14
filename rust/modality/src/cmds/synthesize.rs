@@ -431,6 +431,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE>] true -> [<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true"#,
             r#"[+APPROVE] true -> [<+signed_by(/users/reviewer.id)>] true"#,
             r#"[+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true"#,
+            r#"(<+APPROVE> true | [<+REJECT>] true) & ([+APPROVE] true -> <+oracle_attests(/oracles/review.id, "approved", "true")> true)"#,
             r#"[+APPROVE] true -> <+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"#,
             r#"[+APPROVE] true -> [<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true"#,
         ],
@@ -1357,6 +1358,22 @@ always([<+APPROVE>] true)
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
 
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_mixed_alternatives_with_oracle_requirement() {
+        let formulas = parse_formula_strings(&[
+            "(<+APPROVE> true | [<+REJECT>] true) & ([+APPROVE] true -> <+oracle_attests(/oracles/review.id, \"approved\", \"true\")> true)"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+        let output = format_synthesized_model(&model, "modality").unwrap();
+
+        assert!(output.contains("+APPROVE"));
+        assert!(output.contains("+REJECT"));
+        assert!(output.contains("+oracle_attests(/oracles/review.id, approved, true)"));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
