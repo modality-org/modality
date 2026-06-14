@@ -442,6 +442,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REJECT] true -> <+signed_by(/users/reviewer.id)> true)"#,
             r#"always([+CANCEL] true -> <+signed_by(/users/requester.id)> true)"#,
             r#"always([+REFUND] true -> <+signed_by(/users/seller.id)> true)"#,
+            r#"always([+TIMEOUT] true -> <+oracle_attests(/oracles/clock.id, "deadline_passed", "true")> true)"#,
             r#"[+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true"#,
             r#"(<+APPROVE> true | [<+REJECT>] true) & ([+APPROVE] true -> <+oracle_attests(/oracles/review.id, "approved", "true")> true)"#,
             r#"[+APPROVE] true -> <+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"#,
