@@ -479,6 +479,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
         description: r#"Actions that block later transitions, optionally behind authorization."#,
         formulas: &[
             r#"<+CANCEL> true & ([+DISPUTE] true -> always([-RELEASE] true))"#,
+            r#"always([+APPROVE] true -> always([-REJECT] true))"#,
             r#"always([+CANCEL] true -> always([-DELIVER] true))"#,
             r#"always([+REFUND] true -> always([-RELEASE] true))"#,
             r#"[+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true))"#,
