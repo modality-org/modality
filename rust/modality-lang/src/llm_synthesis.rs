@@ -742,6 +742,29 @@ F1: formula generated_1 {
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_multiple_multiline_formula_declarations() {
+        let response = r#"
+```modality
+F1: formula generated_1 {
+  always([<+APPROVE>] true)
+}
+
+F2: formula generated_2 {
+  [+APPROVE] true -> <+signed_by(/users/reviewer.id)> true
+}
+```
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(formulas[0], "formula generated_1 {\nalways([<+APPROVE>] true)\n}");
+        assert_eq!(
+            formulas[1],
+            "formula generated_2 {\n[+APPROVE] true -> <+signed_by(/users/reviewer.id)> true\n}"
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_strips_list_markers() {
         let response = r#"
 - always([+PAY] true -> eventually(<+WORK> true))
