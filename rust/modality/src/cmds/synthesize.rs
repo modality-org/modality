@@ -186,6 +186,15 @@ pub async fn run(opts: &Opts) -> Result<()> {
             "  modality model synthesize --formulas \"<+APPROVE> true | <+REJECT> true\" --verify"
         );
         println!(
+            "  modality model synthesize --formulas \"<+APPROVE> true | [<+REJECT>] true\" --verify"
+        );
+        println!(
+            "  modality model synthesize --formulas \"next((<+APPROVE> true | [<+REJECT>] true))\" --verify"
+        );
+        println!(
+            "  modality model synthesize --formulas \"[+REQUEST] true -> eventually((<+APPROVE> true | [<+REJECT>] true))\" --verify"
+        );
+        println!(
             "  modality model synthesize --formulas \"<+CANCEL> true & ([+RELEASE] true -> eventually(<+DELIVER> true))\" --verify"
         );
         println!(
