@@ -48,9 +48,10 @@ always([+CLAIM] true -> (
 **NL:** "Agent can act on behalf of principal until revoked"
 **Formula:**
 ```modality
-always([+ACT_ON_BEHALF] implies (
-  eventually(<+DELEGATE> true) & !eventually(<+REVOKE> true)
-))
+always([+DELEGATE] true -> <+signed_by(/users/principal.id)> true) &
+always([+ACT_ON_BEHALF] true -> <+signed_by(/users/agent.id)> true) &
+always([+REVOKE] true -> <+signed_by(/users/principal.id)> true) &
+always([+REVOKE] true -> always([-ACT_ON_BEHALF] true))
 ```
 
 ### Example 7: Quorum
@@ -74,6 +75,7 @@ always([+EXECUTE] true -> (
 | "Never X after Y" | `[+Y] true -> always([-X] true)` |
 | "X or Y must happen" | `eventually(<+X> true) \| eventually(<+Y> true)` |
 | "X before Y" | `[+Y] true -> eventually(<+X> true)` |
+| "Y cannot happen after X" | `[+X] true -> always([-Y] true)` |
 
 ## LLM Prompt Template
 

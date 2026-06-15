@@ -139,15 +139,14 @@ model Delegation {
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [+ACT_ON_BEHALF] implies (
-        <+DELEGATE> true & !<+REVOKE> true
-      )
-    )
+    always([+DELEGATE] true -> <+signed_by(/users/agent_a.id)> true) &
+    always([+ACT_ON_BEHALF] true -> <+signed_by(/users/agent_b.id)> true) &
+    always([+REVOKE] true -> <+signed_by(/users/agent_a.id)> true) &
+    always([+REVOKE] true -> always([-ACT_ON_BEHALF] true))
   }
 }
 ```
-*Meaning: AgentB can only act after delegation and before revocation.*
+*Meaning: AgentA authorizes both delegation and revocation, AgentB authorizes delegated actions, and revocation blocks later delegated actions.*
 
 **Protections:**
 - AgentA: Can revoke at any time; AgentB cannot act after revocation
