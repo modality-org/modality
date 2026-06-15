@@ -69,13 +69,13 @@ Semantically equivalent to: `[-action] false & <+action> φ`
 
 ```modality
 [<+PAY>] true     // Committed to PAY: can pay AND cannot refuse
-[<+signed_by(alice)>] true   // Alice is committed to signing
+[<+signed_by(/users/alice.id)>] true   // Alice is committed to signing
 ```
 
 **Use case:** Express irrevocable commitments:
 
 ```modality
-always (
+always(
   [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
 )
 // At every state, either Alice or Bob is committed to signing
@@ -93,7 +93,7 @@ Temporal operators reason about **paths** through the state machine.
 
 ```modality
 always(safe)           // Safety invariant: always safe
-always([execute] implies signed)  // Execute always requires signature
+always([+EXECUTE] true -> <+signed_by(/users/alice.id)> true)  // Execute requires Alice's signature
 ```
 
 **Semantics:** `always(f) ≡ gfp(X, []X & f)` (greatest fixed point)
@@ -195,8 +195,8 @@ Rules are defined in `.modality` files:
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [+execute] implies (
+    always(
+      [+EXECUTE] true -> (
         <+signed_by(/users/alice.id)> true &
         <+signed_by(/users/bob.id)> true
       )
@@ -218,7 +218,7 @@ export default rule {
 
 ```modality
 formula {
-  always (
+  always(
     [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
   )
 }
@@ -230,9 +230,7 @@ formula {
 
 ```modality
 formula {
-  always (
-    [+RELEASE] implies <+DELIVER> true
-  )
+  always([+RELEASE] true -> <+DELIVER> true)
 }
 ```
 
@@ -242,8 +240,8 @@ formula {
 
 ```modality
 formula {
-  always (
-    [+EXECUTE] implies (
+  always(
+    [+EXECUTE] true -> (
       <+signed_by(/users/alice.id)> true &
       <+signed_by(/users/bob.id)> true
     )
