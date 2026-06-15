@@ -106,7 +106,7 @@ The synthesizer recognizes common patterns:
 
 | Rule Pattern | Generated Model |
 |--------------|-----------------|
-| `always [<+A>] true` | Self-loop requiring +A |
+| `always([<+A>] true)` | Self-loop requiring +A |
 | `[<+A>] true` | Linear: start → after with +A |
 | `[+B] implies <+A> true` | A precedes B |
 | `eventually <+A> true` | Path to state with +A |
