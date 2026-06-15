@@ -36,7 +36,7 @@ cat > rules/auth.modality << 'EOF'
 export default rule {
   starting_at $PARENT
   formula {
-    always (
+    always(
       [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
     )
   }
@@ -66,7 +66,7 @@ export default model {
 ```
 
 **How it works:**
-- `always (A | B)` → need transitions with A or B from every reachable state
+- `always(A | B)` → need transitions with A or B from every reachable state
 - Simplest satisfying model: single state with self-loops for each alternative
 
 ## Step 4: Review & Refine
@@ -108,8 +108,8 @@ The synthesizer recognizes common patterns:
 |--------------|-----------------|
 | `always([<+A>] true)` | Self-loop requiring +A |
 | `[<+A>] true` | Linear: start → after with +A |
-| `[+B] implies <+A> true` | A precedes B |
-| `eventually <+A> true` | Path to state with +A |
+| `[+B] true -> <+A> true` | A precedes B |
+| `eventually(<+A> true)` | Path to state with +A |
 | Alternating parties | Cycle between parties |
 
 ### Example: Escrow
@@ -119,7 +119,7 @@ The synthesizer recognizes common patterns:
 export default rule {
   starting_at $PARENT
   formula {
-    [release] implies <deliver> true
+    [+RELEASE] true -> <+DELIVER> true
   }
 }
 ```
@@ -129,9 +129,9 @@ export default rule {
 export default model {
   initial init
   
-  init -> deposited [+deposit]
-  deposited -> delivered [+deliver]
-  delivered -> released [+release]
+  init -> deposited [+DEPOSIT]
+  deposited -> delivered [+DELIVER]
+  delivered -> released [+RELEASE]
 }
 ```
 
@@ -144,7 +144,7 @@ The synthesizer infers: release requires deliver to have happened first → sequ
 export default rule {
   starting_at $PARENT
   formula {
-    [execute] implies (
+    [+EXECUTE] true -> (
       [<+signed_by(/users/alice.id)>] true &
       [<+signed_by(/users/bob.id)>] true
     )
@@ -157,15 +157,12 @@ export default rule {
 export default model {
   initial init
   
-  init -> alice_signed [+signed_by(/users/alice.id)]
-  init -> bob_signed [+signed_by(/users/bob.id)]
-  alice_signed -> both [+signed_by(/users/bob.id)]
-  bob_signed -> both [+signed_by(/users/alice.id)]
-  both -> executed [+execute]
+  init -> executed [+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)]
+  executed -> executed
 }
 ```
 
-Both signatures required before execute → branching then merge.
+Both signatures are required on the execute transition.
 
 ---
 
@@ -231,7 +228,7 @@ cat > rules/auth.modality << 'EOF'
 export default rule {
   starting_at $PARENT
   formula {
-    always (
+    always(
       [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
     )
   }
