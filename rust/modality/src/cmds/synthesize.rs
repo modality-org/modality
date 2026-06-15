@@ -408,6 +408,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
         formulas: &[
             r#"<+APPROVE> true | <+REJECT> true"#,
             r#"<+APPROVE> true | [<+REJECT>] true"#,
+            r#"(<+APPROVE> true | [<+REJECT>] true) & ([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
