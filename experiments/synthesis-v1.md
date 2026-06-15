@@ -17,7 +17,7 @@ This satisfies any empty rule set. From here, we constrain.
 
 ## Synthesis Heuristics
 
-### Pattern 1: `always [<+A>] true`
+### Pattern 1: `always([<+A>] true)`
 All future commits must include action A (committed to A forever).
 
 **Synthesis:** Add +A to all transitions.
@@ -49,24 +49,24 @@ model CanA:
 ```
 
 ### Pattern 4: Alternating turns (Alice and Bob)
-`always ([<+SIGNED_BY_ALICE>] true | [<+SIGNED_BY_BOB>] true)`
+`always([<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true)`
 
 **Synthesis:** Two-state cycle.
 ```modality
 model AlternatingTurns:
   part p1:
-    alice_turn --> bob_turn: +SIGNED_BY_ALICE
-    bob_turn --> alice_turn: +SIGNED_BY_BOB
+    alice_turn --> bob_turn: +signed_by(/users/alice.id)
+    bob_turn --> alice_turn: +signed_by(/users/bob.id)
 ```
 
 ### Pattern 5: Exclusive actions (only Alice can do X)
-`always [-DO_X] false or [+SIGNED_BY_ALICE] true`
+`always([+DO_X] true -> <+signed_by(/users/alice.id)> true)`
 
-**Synthesis:** Any transition with +DO_X must also have +SIGNED_BY_ALICE.
+**Synthesis:** Any transition with +DO_X must also have +signed_by(/users/alice.id).
 ```modality
 model ExclusiveAction:
   part p1:
-    n1 --> n1: +DO_X +SIGNED_BY_ALICE
+    n1 --> n1: +DO_X +signed_by(/users/alice.id)
     n1 --> n1: -DO_X  // or just neutral
 ```
 
@@ -91,17 +91,17 @@ model Test1:
 ```
 
 ### Test 2: Mutual signature requirement
-Rule: `always ([<+SIGNED_BY_ALICE>] true | [<+SIGNED_BY_BOB>] true)`
+Rule: `always([<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true)`
 Expected model:
 ```modality
 model Test2:
   part p1:
-    n1 --> n1: +SIGNED_BY_ALICE
-    n1 --> n1: +SIGNED_BY_BOB
+    n1 --> n1: +signed_by(/users/alice.id)
+    n1 --> n1: +signed_by(/users/bob.id)
 ```
 
 ### Test 3: Conditional obligation
-Rule: `[+RECEIVED_PAYMENT] always [<+DELIVER>] true`
+Rule: `[+RECEIVED_PAYMENT] true -> always([<+DELIVER>] true)`
 Expected model: State machine with PENDING -> PAID -> DELIVERED
 
 ## Next Steps
