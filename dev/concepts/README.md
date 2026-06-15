@@ -111,8 +111,8 @@ rule buyer_protection {
 
 | Operator | Meaning | Definition |
 |----------|---------|------------|
-| `always φ` | φ holds now and forever | `gfp(X, φ & []X)` |
-| `eventually φ` | φ holds now or sometime later | `lfp(X, φ \| <>X)` |
+| `always(φ)` | φ holds now and forever | `gfp(X, φ & []X)` |
+| `eventually(φ)` | φ holds now or sometime later | `lfp(X, φ \| <>X)` |
 | `until(p, q)` | p holds until q becomes true | `lfp(X, q \| (p & <>X))` |
 
 ### Fixed Points

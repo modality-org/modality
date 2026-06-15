@@ -148,7 +148,7 @@ model Turns:
 3. **`modality propose "<natural language>"`** — NL → rules
    ```bash
    modality propose "I will cooperate if you cooperate"
-   # Generates: formula MutualCoop: always ([+COOPERATE] [<+COOPERATE>] true)
+   # Generates: formula MutualCoop: always([+COOPERATE] true -> <+COOPERATE> true)
    ```
 
 4. **OpenClaw/Moltbook skill** — agents can use Modality as a tool
