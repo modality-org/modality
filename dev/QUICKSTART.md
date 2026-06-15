@@ -64,7 +64,7 @@ Create **rules/auth.modality** — the constraints:
 export default rule {
   starting_at $PARENT
   formula {
-    always (
+    always(
       [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
     )
   }

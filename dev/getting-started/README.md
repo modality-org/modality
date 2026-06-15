@@ -93,9 +93,7 @@ Create `rules/alice-protection.modality`:
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [<+RELEASE>] eventually delivered
-    )
+    always([+RELEASE] true -> <+DELIVER> true)
   }
 }
 ```

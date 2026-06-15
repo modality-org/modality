@@ -25,11 +25,11 @@ Commit 0: Genesis
 
 Commit 1: Alice signs
   ├─ state/parties/alice.id = "ed25519:abc..."
-  └─ rules/alice.modality = "always (...)"
+  └─ rules/alice.modality = "always(...)"
 
 Commit 2: Bob signs  
   ├─ state/parties/bob.id = "ed25519:def..."
-  └─ rules/bob.modality = "always (...)"
+  └─ rules/bob.modality = "always(...)"
 
 Commit 3: Alice deposits (ACTION)
   └─ action: DEPOSIT
@@ -93,9 +93,7 @@ Rules express constraints using **modal mu-calculus** — a logic that reasons a
 rule buyer_protection {
   starting_at $PARENT
   formula {
-    always (
-      [<+RELEASE>] eventually delivered
-    )
+    always([+RELEASE] true -> <+DELIVER> true)
   }
 }
 ```
