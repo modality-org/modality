@@ -11,13 +11,13 @@ Given temporal modal logic formulas, synthesize a state machine that satisfies t
 
 ### Heuristic 1: Ordering Constraints
 
-Formula: `[+X] implies eventually(<+Y> true)`
+Formula: `[+X] true -> eventually(<+Y> true)`
 (X can only happen after Y has happened)
 
 **Synthesis:** Create linear states where Y precedes X.
 
 ```
-Input:  [+RELEASE] implies eventually(<+DELIVER> true)
+Input:  [+RELEASE] true -> eventually(<+DELIVER> true)
 Output:
   init --> delivered: +DELIVER
   delivered --> released: +RELEASE
@@ -26,26 +26,26 @@ Output:
 
 ### Heuristic 2: Authorization Constraints
 
-Formula: `[+X] implies <+signed_by(A)> true`
+Formula: `[+X] true -> <+signed_by(/users/a.id)> true`
 (X requires A's signature)
 
 **Synthesis:** Add signature requirement to all X transitions.
 
 ```
-Input:  [+RELEASE] implies <+signed_by(/users/alice.id)> true
+Input:  [+RELEASE] true -> <+signed_by(/users/alice.id)> true
 Output:
   state --> state: +RELEASE +signed_by(/users/alice.id)
 ```
 
 ### Heuristic 3: Mutual Commitment
 
-Formula: `[+X] implies (eventually(<+A> true) & eventually(<+B> true))`
+Formula: `[+X] true -> (eventually(<+A> true) & eventually(<+B> true))`
 (X requires both A and B to have happened)
 
 **Synthesis:** Create convergent paths.
 
 ```
-Input:  [+ACTIVATE] implies (eventually(<+SIGN_A> true) & eventually(<+SIGN_B> true))
+Input:  [+ACTIVATE] true -> (eventually(<+SIGN_A> true) & eventually(<+SIGN_B> true))
 Output:
   init --> a_signed: +SIGN_A
   init --> b_signed: +SIGN_B
@@ -57,13 +57,13 @@ Output:
 
 ### Heuristic 4: Forbidden After
 
-Formula: `[+X] implies always([-Y] true)`
+Formula: `[+X] true -> always([-Y] true)`
 (Once X happens, Y is forbidden forever)
 
 **Synthesis:** Create absorbing state after X where Y is impossible.
 
 ```
-Input:  [+COMMIT] implies always([-DEFECT] true)
+Input:  [+COMMIT] true -> always([-DEFECT] true)
 Output:
   init --> init: +DEFECT -COMMIT
   init --> committed: +COMMIT -DEFECT
@@ -72,13 +72,13 @@ Output:
 
 ### Heuristic 5: Disjunctive Requirements
 
-Formula: `[+X] implies (<+A> true | <+B> true)`
+Formula: `[+X] true -> (<+A> true | <+B> true)`
 (X requires A or B)
 
 **Synthesis:** Create branching paths that converge.
 
 ```
-Input:  [+PROCEED] implies (<+APPROVE> true | <+OVERRIDE> true)
+Input:  [+PROCEED] true -> (<+APPROVE> true | <+OVERRIDE> true)
 Output:
   init --> approved: +APPROVE
   init --> overridden: +OVERRIDE
