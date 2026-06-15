@@ -62,9 +62,9 @@ modal c set /users/seller.id $(modal id get --path ./seller.passfile)
 export default model {
   initial init
   
-  init -> deposited [+signed_by(/users/buyer.id)]
-  deposited -> delivered [+signed_by(/users/seller.id)]
-  delivered -> released [+signed_by(/users/buyer.id)]
+  init -> deposited [+DEPOSIT +signed_by(/users/buyer.id)]
+  deposited -> delivered [+DELIVER +signed_by(/users/seller.id)]
+  delivered -> released [+RELEASE +signed_by(/users/buyer.id)]
 }
 ```
 
@@ -73,9 +73,7 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [release] implies <deliver> true
-    )
+    always([+RELEASE] true -> <+DELIVER> true)
   }
 }
 ```
@@ -123,10 +121,10 @@ Two agents have verified contracts. A third agent wants to work with both. They 
 export default model {
   initial init
   
-  init -> offered [+signed_by(/users/provider.id)]
-  offered -> accepted [+signed_by(/users/consumer.id)]
-  accepted -> delivered [+signed_by(/users/provider.id)]
-  delivered -> paid [+signed_by(/users/consumer.id)]
+  init -> offered [+OFFER +signed_by(/users/provider.id)]
+  offered -> accepted [+ACCEPT +signed_by(/users/consumer.id)]
+  accepted -> delivered [+DELIVER +signed_by(/users/provider.id)]
+  delivered -> paid [+PAY +signed_by(/users/consumer.id)]
 }
 ```
 
@@ -135,9 +133,7 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [pay] implies <deliver> true
-    )
+    always([+PAY] true -> <+DELIVER> true)
   }
 }
 ```
@@ -149,11 +145,8 @@ export default rule {
 export default model {
   initial init
   
-  init -> alice_signed [+signed_by(/users/alice.id)]
-  init -> bob_signed [+signed_by(/users/bob.id)]
-  alice_signed -> both [+signed_by(/users/bob.id)]
-  bob_signed -> both [+signed_by(/users/alice.id)]
-  both -> executed [+execute]
+  init -> executed [+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)]
+  executed -> executed
 }
 ```
 
@@ -162,28 +155,25 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [+execute] implies (
-        [<+signed_by(/users/alice.id)>] true &
-        [<+signed_by(/users/bob.id)>] true
+    always(
+      [+EXECUTE] true -> (
+        <+signed_by(/users/alice.id)> true &
+        <+signed_by(/users/bob.id)> true
       )
     )
   }
 }
 ```
 
-### Atomic Swap
+### Joint Claim
 
 **model/default.modality:**
 ```
 export default model {
   initial init
   
-  init -> a_committed [+signed_by(/users/alice.id)]
-  init -> b_committed [+signed_by(/users/bob.id)]
-  a_committed -> both [+signed_by(/users/bob.id)]
-  b_committed -> both [+signed_by(/users/alice.id)]
-  both -> complete [+claim]
+  init -> complete [+CLAIM +signed_by(/users/alice.id) +signed_by(/users/bob.id)]
+  complete -> complete
 }
 ```
 
@@ -192,10 +182,10 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [+claim] implies (
-        [<+signed_by(/users/alice.id)>] true &
-        [<+signed_by(/users/bob.id)>] true
+    always(
+      [+CLAIM] true -> (
+        <+signed_by(/users/alice.id)> true &
+        <+signed_by(/users/bob.id)> true
       )
     )
   }
