@@ -16,8 +16,8 @@
 │  NL → Temporal Modal Logic Formulas                             │
 │                                                                 │
 │  Output:                                                        │
-│    F1: always([+RELEASE] implies eventually(<+DELIVER> true))   │
-│    F2: always([+RELEASE] implies <+signed_by(alice)> true)      │
+│    F1: always([+RELEASE] true -> eventually(<+DELIVER> true))   │
+│    F2: always([+RELEASE] true -> <+signed_by(/users/alice.id)> true) │
 └─────────────────────────────┬───────────────────────────────────┘
                               │
                               ▼
@@ -31,7 +31,7 @@
 │    model Contract {                                             │
 │      part flow {                                                │
 │        init --> delivered: +DELIVER                             │
-│        delivered --> released: +RELEASE +signed_by(alice)       │
+│        delivered --> released: +RELEASE +signed_by(/users/alice.id) │
 │        released --> released                                    │
 │      }                                                          │
 │    }                                                            │
