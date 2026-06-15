@@ -536,6 +536,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))"#,
             r#"[+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true))"#,
             r#"[<+DISPUTE>] true -> always([-RELEASE] true)"#,
+            r#"[<+DISPUTE>] true -> (always([-RELEASE] true) & always([-REFUND] true))"#,
             r#"[+DISPUTE] true -> (<+signed_by(/users/arbiter.id)> true & always([-RELEASE] true))"#,
             r#"[+DISPUTE] true -> (<+signed_by(/users/arbiter.id)> true & (always([-RELEASE] true) & always([-REFUND] true)))"#,
             r#"[+DISPUTE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & always([-RELEASE] true))"#,
