@@ -78,14 +78,14 @@ Rules use temporal modal logic:
 export default rule {
   starting_at $PARENT
   formula {
-    always ([+RELEASE] implies eventually(<+DELIVER> true))
+    always([+RELEASE] true -> eventually(<+DELIVER> true))
   }
 }
 ```
 
 Common patterns:
-- `always (P)` — invariant, P holds forever
-- `[+A] implies Q` — if action A happens, Q must hold
+- `always(P)` — invariant, P holds forever
+- `[+A] true -> Q` — if action A happens, Q must hold
 - `eventually(<+A> true)` — action A has happened at some point
 - `[<+A>] true` — committed to A (can do A, cannot refuse)
 
