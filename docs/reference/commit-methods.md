@@ -59,7 +59,7 @@ Adds a temporal logic constraint to the contract. Rules are accumulated over tim
 {
   "method": "rule",
   "path": "/rules/auth.modality",
-  "value": "always ([<+signed_by(/users/alice.id)>] true)"
+  "value": "always([<+signed_by(/users/alice.id)>] true)"
 }
 ```
 

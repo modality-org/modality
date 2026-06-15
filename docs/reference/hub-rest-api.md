@@ -188,7 +188,7 @@ Generate a Modality contract from natural language description.
 {
   "model": "model Escrow {\n  init --> deposited: +DEPOSIT +signed_by(\"/users/alice.id\")\n  deposited --> delivered: +DELIVER +signed_by(\"/users/bob.id\")\n  delivered --> complete: +RELEASE +signed_by(\"/users/alice.id\")\n  deposited --> disputed: +DISPUTE +signed_by(\"/users/alice.id\")\n  disputed --> complete: +RESOLVE +signed_by(\"/users/carol.id\")\n}",
   "rules": [
-    "export default rule {\n  starting_at $PARENT\n  formula {\n    always ([<+signed_by(/users/alice.id)>] true implies eventually(<+RELEASE> true))\n  }\n}"
+    "export default rule {\n  starting_at $PARENT\n  formula {\n    always([<+signed_by(/users/alice.id)>] true -> eventually(<+RELEASE> true))\n  }\n}"
   ],
   "parties": ["alice", "bob", "carol"],
   "protections": {
