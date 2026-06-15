@@ -37,6 +37,11 @@ Output:
   state --> state: +RELEASE +signed_by(/users/alice.id)
 ```
 
+The same extraction path handles other positive predicate requirements, such as
+oracle attestations. A formula like
+`[+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true`
+adds the oracle predicate to every synthesized `+RELEASE` transition.
+
 ### Heuristic 3: Mutual Commitment
 
 Formula: `[+X] true -> (eventually(<+A> true) & eventually(<+B> true))`
