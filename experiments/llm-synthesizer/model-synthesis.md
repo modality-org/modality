@@ -128,11 +128,11 @@ def synthesize(formulas: List[Formula]) -> Model:
 
 ```modality
 // From NL: "Escrow where buyer deposits, seller delivers, buyer releases"
-F1: [+RELEASE] implies eventually(<+DELIVER> true)
-F2: [+DELIVER] implies eventually(<+DEPOSIT> true)
-F3: [+DEPOSIT] implies <+signed_by(/users/buyer.id)> true
-F4: [+DELIVER] implies <+signed_by(/users/seller.id)> true
-F5: [+RELEASE] implies <+signed_by(/users/buyer.id)> true
+F1: [+RELEASE] true -> eventually(<+DELIVER> true)
+F2: [+DELIVER] true -> eventually(<+DEPOSIT> true)
+F3: [+DEPOSIT] true -> <+signed_by(/users/buyer.id)> true
+F4: [+DELIVER] true -> <+signed_by(/users/seller.id)> true
+F5: [+RELEASE] true -> <+signed_by(/users/buyer.id)> true
 ```
 
 ### Synthesis Steps
@@ -183,7 +183,7 @@ model_check(Escrow, F5) ✓
 The synthesized model should be verified:
 
 ```bash
-modality model check escrow.modality --formula "always([+RELEASE] implies eventually(<+DELIVER> true))"
+modality model check escrow.modality --formula "always([+RELEASE] true -> eventually(<+DELIVER> true))"
 ```
 
 If verification fails, the synthesizer refines the model.
