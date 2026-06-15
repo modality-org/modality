@@ -59,7 +59,7 @@ Rules constrain what can happen:
 export default rule {
   starting_at $PARENT
   formula {
-    always (
+    always(
       [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
     )
   }
@@ -70,12 +70,12 @@ This uses the **diamondbox** operator `[<+action>]` — meaning "committed to ac
 
 | Operator | Meaning |
 |----------|---------|
-| `always P` | P holds on all future states |
-| `eventually P` | P holds at some future point |
+| `always(P)` | P holds on all future states |
+| `eventually(P)` | P holds at some future point |
 | `[<+A>] true` | Committed to A (can do AND cannot refuse) |
 | `[A] P` | All A-transitions lead to P |
 | `<A> P` | Some A-transition leads to P |
-| `implies` | If A then B |
+| `P -> Q` | If P then Q |
 | `\|` | Or |
 | `&` | And |
 
@@ -128,7 +128,7 @@ Create **rules/auth.modality**:
 export default rule {
   starting_at $PARENT
   formula {
-    always (
+    always(
       [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
     )
   }
@@ -173,7 +173,7 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always (
+    always(
       [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
     )
   }
@@ -200,27 +200,22 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [release] implies <deliver> true
-    )
+    always([+RELEASE] true -> <+DELIVER> true)
   }
 }
 ```
 
 ### Pattern 3: Multi-Sig
 
-**Use case:** Both parties must sign before execution.
+**Use case:** Both parties must sign the execution.
 
 **model/default.modality:**
 ```
 export default model {
   initial init
   
-  init -> alice_signed [+signed_by(/users/alice.id)]
-  init -> bob_signed [+signed_by(/users/bob.id)]
-  alice_signed -> both [+signed_by(/users/bob.id)]
-  bob_signed -> both [+signed_by(/users/alice.id)]
-  both -> executed [+execute]
+  init -> executed [+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)]
+  executed -> executed
 }
 ```
 
@@ -229,30 +224,27 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [execute] implies (
-        [<+signed_by(/users/alice.id)>] true &
-        [<+signed_by(/users/bob.id)>] true
+    always(
+      [+EXECUTE] true -> (
+        <+signed_by(/users/alice.id)> true &
+        <+signed_by(/users/bob.id)> true
       )
     )
   }
 }
 ```
 
-### Pattern 4: Atomic Swap
+### Pattern 4: Joint Claim
 
-**Use case:** Both commit before either can claim.
+**Use case:** Both parties must sign the claim.
 
 **model/default.modality:**
 ```
 export default model {
   initial init
   
-  init -> a_ready [+signed_by(/users/alice.id)]
-  init -> b_ready [+signed_by(/users/bob.id)]
-  a_ready -> both [+signed_by(/users/bob.id)]
-  b_ready -> both [+signed_by(/users/alice.id)]
-  both -> complete [+claim]
+  init -> complete [+CLAIM +signed_by(/users/alice.id) +signed_by(/users/bob.id)]
+  complete -> complete
 }
 ```
 
@@ -261,10 +253,10 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [claim] implies (
-        [<+signed_by(/users/alice.id)>] true &
-        [<+signed_by(/users/bob.id)>] true
+    always(
+      [+CLAIM] true -> (
+        <+signed_by(/users/alice.id)> true &
+        <+signed_by(/users/bob.id)> true
       )
     )
   }
