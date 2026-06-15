@@ -421,6 +421,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+RELEASE>] true -> eventually([<+DELIVER>] true)"#,
             r#"[+RELEASE] true -> eventually([<+DELIVER>] true)"#,
             r#"always([+DELIVER] true -> eventually(<+DEPOSIT> true))"#,
+            r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
+            r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
             r#"[<+RELEASE>] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
             r#"[+RELEASE] true -> (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true))"#,
