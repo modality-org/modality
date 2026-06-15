@@ -215,7 +215,7 @@ false           // Always false
 rule buyer_protection {
   starting_at $PARENT
   formula {
-    always (
+    always(
       @funded -> (
         eventually(@released) | eventually(@refunded)
       )
@@ -229,7 +229,7 @@ rule buyer_protection {
 rule seller_guarantee {
   starting_at $PARENT
   formula {
-    always (
+    always(
       @delivered -> eventually(@released)
     )
   }
@@ -241,7 +241,7 @@ rule seller_guarantee {
 rule no_double_spend {
   starting_at $PARENT
   formula {
-    always (
+    always(
       @released -> []!(@refunded)
     )
   }
