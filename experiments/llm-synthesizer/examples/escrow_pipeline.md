@@ -21,19 +21,19 @@
 
 ```modality
 // Ordering: release requires prior delivery
-F1: always([+RELEASE] implies eventually(<+DELIVER> true))
+F1: always([+RELEASE] true -> eventually(<+DELIVER> true))
 
 // Ordering: delivery requires prior deposit
-F2: always([+DELIVER] implies eventually(<+DEPOSIT> true))
+F2: always([+DELIVER] true -> eventually(<+DEPOSIT> true))
 
 // Authorization: only Alice can deposit
-F3: always([+DEPOSIT] implies <+signed_by(/users/alice.id)> true)
+F3: always([+DEPOSIT] true -> <+signed_by(/users/alice.id)> true)
 
 // Authorization: only Bob can deliver
-F4: always([+DELIVER] implies <+signed_by(/users/bob.id)> true)
+F4: always([+DELIVER] true -> <+signed_by(/users/bob.id)> true)
 
 // Authorization: only Alice can release
-F5: always([+RELEASE] implies <+signed_by(/users/alice.id)> true)
+F5: always([+RELEASE] true -> <+signed_by(/users/alice.id)> true)
 ```
 
 ---
@@ -73,9 +73,9 @@ Check each formula against the model:
 |---------|--------|--------|
 | F1 | ✓ | RELEASE only in `delivered→released`, DELIVER in prior transition |
 | F2 | ✓ | DELIVER only in `deposited→delivered`, DEPOSIT in prior transition |
-| F3 | ✓ | DEPOSIT transition has +signed_by(alice) |
-| F4 | ✓ | DELIVER transition has +signed_by(bob) |
-| F5 | ✓ | RELEASE transition has +signed_by(alice) |
+| F3 | ✓ | DEPOSIT transition has `+signed_by(/users/alice.id)` |
+| F4 | ✓ | DELIVER transition has `+signed_by(/users/bob.id)` |
+| F5 | ✓ | RELEASE transition has `+signed_by(/users/alice.id)` |
 
 **All formulas satisfied!**
 
@@ -103,7 +103,7 @@ model Escrow {
 export default rule {
   starting_at $PARENT
   formula {
-    always([+RELEASE] implies eventually(<+DELIVER> true))
+    always([+RELEASE] true -> eventually(<+DELIVER> true))
   }
 }
 ```
@@ -113,7 +113,7 @@ export default rule {
 export default rule {
   starting_at $PARENT
   formula {
-    always([+DELIVER] implies eventually(<+DEPOSIT> true))
+    always([+DELIVER] true -> eventually(<+DEPOSIT> true))
   }
 }
 ```
