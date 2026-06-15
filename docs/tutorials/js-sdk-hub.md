@@ -113,7 +113,7 @@ await contract.addRule(`
   rule {
     starting_at $PARENT
     formula {
-      always ([<+RELEASE>] signed_by(/parties/bob.id))
+      always([+RELEASE] true -> <+signed_by(/parties/bob.id)> true)
     }
   }
 `, alice);
