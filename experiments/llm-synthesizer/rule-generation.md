@@ -8,21 +8,21 @@ LLM translates natural language contract requirements into temporal modal logic 
 **NL:** "Alice pays after Bob delivers"
 **Formula:**
 ```modality
-always([+RELEASE] implies eventually(<+DELIVER> true))
+always([+RELEASE] true -> eventually(<+DELIVER> true))
 ```
 
 ### Example 2: Authorization
 **NL:** "Only Alice can release the funds"
 **Formula:**
 ```modality
-always([+RELEASE] implies <+signed_by(/users/alice.id)> true)
+always([+RELEASE] true -> <+signed_by(/users/alice.id)> true)
 ```
 
 ### Example 3: Mutual commitment
 **NL:** "Both parties must sign before the contract is active"
 **Formula:**
 ```modality
-[+ACTIVATE] implies (
+[+ACTIVATE] true -> (
   eventually(<+signed_by(/users/alice.id)> true) & 
   eventually(<+signed_by(/users/bob.id)> true)
 )
@@ -32,14 +32,14 @@ always([+RELEASE] implies <+signed_by(/users/alice.id)> true)
 **NL:** "Neither party can defect once committed"
 **Formula:**
 ```modality
-always([+COMMIT] implies always([-DEFECT] true))
+always([+COMMIT] true -> always([-DEFECT] true))
 ```
 
 ### Example 5: Atomicity
 **NL:** "Neither party can claim until both have committed"
 **Formula:**
 ```modality
-always([+CLAIM] implies (
+always([+CLAIM] true -> (
   eventually(<+COMMIT_A> true) & eventually(<+COMMIT_B> true)
 ))
 ```
@@ -57,7 +57,7 @@ always([+ACT_ON_BEHALF] implies (
 **NL:** "Execution requires 2 of 3 signatures"
 **Formula:**
 ```modality
-always([+EXECUTE] implies (
+always([+EXECUTE] true -> (
   (eventually(<+signed_by(/users/m1.id)> true) & eventually(<+signed_by(/users/m2.id)> true)) |
   (eventually(<+signed_by(/users/m1.id)> true) & eventually(<+signed_by(/users/m3.id)> true)) |
   (eventually(<+signed_by(/users/m2.id)> true) & eventually(<+signed_by(/users/m3.id)> true))
@@ -68,12 +68,12 @@ always([+EXECUTE] implies (
 
 | NL Pattern | Formula Pattern |
 |------------|-----------------|
-| "X after Y" | `[+X] implies eventually(<+Y> true)` |
-| "Only A can X" | `[+X] implies <+signed_by(A)> true` |
-| "X requires Y and Z" | `[+X] implies (eventually(<+Y> true) & eventually(<+Z> true))` |
-| "Never X after Y" | `[+Y] implies always([-X] true)` |
+| "X after Y" | `[+X] true -> eventually(<+Y> true)` |
+| "Only A can X" | `[+X] true -> <+signed_by(/users/a.id)> true` |
+| "X requires Y and Z" | `[+X] true -> (eventually(<+Y> true) & eventually(<+Z> true))` |
+| "Never X after Y" | `[+Y] true -> always([-X] true)` |
 | "X or Y must happen" | `eventually(<+X> true) \| eventually(<+Y> true)` |
-| "X before Y" | `[+Y] implies eventually(<+X> true)` |
+| "X before Y" | `[+Y] true -> eventually(<+X> true)` |
 
 ## LLM Prompt Template
 
