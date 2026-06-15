@@ -33,9 +33,7 @@ model SimpleEscrow {
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [+RELEASE] implies <+DELIVER> true
-    )
+    always([+RELEASE] true -> <+DELIVER> true)
   }
 }
 ```
@@ -46,9 +44,7 @@ export default rule {
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [+DELIVER] implies <+DEPOSIT> true
-    )
+    always([+DELIVER] true -> <+DEPOSIT> true)
   }
 }
 ```
@@ -92,12 +88,10 @@ model AtomicDataExchange {
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [+REVEAL_A] implies (
+    always([+REVEAL_A] true -> (
         <+COMMIT_A> true & <+COMMIT_B> true
       )
-    ) & always (
-      [+REVEAL_B] implies (
+    ) & always([+REVEAL_B] true -> (
         <+COMMIT_A> true & <+COMMIT_B> true
       )
     )
@@ -188,8 +182,7 @@ model Multisig2of3 {
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [+EXECUTE] implies (
+    always([+EXECUTE] true -> (
         (<+signed_by(/users/member1.id)> true & <+signed_by(/users/member2.id)> true) |
         (<+signed_by(/users/member1.id)> true & <+signed_by(/users/member3.id)> true) |
         (<+signed_by(/users/member2.id)> true & <+signed_by(/users/member3.id)> true)
@@ -235,13 +228,9 @@ model MilestoneProject {
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [+PAY_DESIGN] implies <+DELIVER_DESIGN> true
-    ) & always (
-      [+PAY_BUILD] implies <+DELIVER_BUILD> true
-    ) & always (
-      [+PAY_TEST] implies <+DELIVER_TEST> true
-    )
+    always([+PAY_DESIGN] true -> <+DELIVER_DESIGN> true) &
+    always([+PAY_BUILD] true -> <+DELIVER_BUILD> true) &
+    always([+PAY_TEST] true -> <+DELIVER_TEST> true)
   }
 }
 ```
@@ -258,7 +247,7 @@ export default rule {
 
 2. **Atomic operations need commitment phases** - any "both or neither" requirement needs explicit commit-before-reveal patterns.
 
-3. **Formulas express invariants** - "always X implies Y" is the workhorse for conditional requirements.
+3. **Formulas express invariants** - `always(P -> Q)` is the workhorse for conditional requirements.
 
 4. **Signature requirements attach to transitions** - `+signed_by(path)` is how you specify who can take an action.
 
