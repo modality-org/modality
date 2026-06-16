@@ -260,14 +260,22 @@ Predicates are the building blocks for contract rules. They evaluate to true/fal
 model treasury {
   initial locked
   locked -> pending [+PROPOSE +signed_by(/treasury/proposer.id)]
-  pending -> executed [+EXECUTE +threshold(2, /treasury/signers)]
+  pending -> executed [+EXECUTE +signed_by(/treasury/alice.id) +signed_by(/treasury/bob.id)]
+  pending -> executed [+EXECUTE +signed_by(/treasury/alice.id) +signed_by(/treasury/carol.id)]
+  pending -> executed [+EXECUTE +signed_by(/treasury/bob.id) +signed_by(/treasury/carol.id)]
   executed -> locked [+RESET]
 }
 
 rule withdrawal_requires_quorum {
   starting_at $PARENT
   formula {
-    always ([+EXECUTE] implies threshold(2, /treasury/signers))
+    always(
+      [+EXECUTE] true -> (
+        (<+signed_by(/treasury/alice.id)> true & <+signed_by(/treasury/bob.id)> true) |
+        (<+signed_by(/treasury/alice.id)> true & <+signed_by(/treasury/carol.id)> true) |
+        (<+signed_by(/treasury/bob.id)> true & <+signed_by(/treasury/carol.id)> true)
+      )
+    )
   }
 }
 ```
