@@ -24,10 +24,10 @@ Many contracts need deadlines:
 
 ```modality
 // Delivery must happen before deadline
-always([+DELIVER] implies before(/state/deadline.datetime))
+always([+DELIVER] true -> <+before(/state/deadline.datetime)> true)
 
 // Refund only after deadline
-always([+REFUND] implies after(/state/deadline.datetime))
+always([+REFUND] true -> <+after(/state/deadline.datetime)> true)
 ```
 
 **Implementation consideration:** How to get current time trustlessly?
@@ -43,10 +43,10 @@ Payment verification:
 
 ```modality
 // Exact payment
-always([+DEPOSIT] implies amount_equals(/state/price.json))
+always([+DEPOSIT] true -> <+amount_equals(/state/price.json)> true)
 
 // Minimum payment
-always([+PAY] implies amount_gte(/state/minimum.json))
+always([+PAY] true -> <+amount_gte(/state/minimum.json)> true)
 ```
 
 **Implementation consideration:** What's the value source?
@@ -61,10 +61,10 @@ Atomic swaps need hash-locked commitments:
 
 ```modality
 // Reveal phase
-always([+REVEAL_A] implies preimage_of(/state/commitment_a.hash))
+always([+REVEAL_A] true -> <+preimage_of(/state/commitment_a.hash)> true)
 
 // Hash time-locked contracts
-always([+CLAIM] implies hash_matches(/state/secret.hash))
+always([+CLAIM] true -> <+hash_matches(/state/secret.hash)> true)
 ```
 
 **Implementation:** SHA256 or Blake3, committed value in state
@@ -77,10 +77,10 @@ External verification:
 
 ```modality
 // Oracle attestation
-always([+RELEASE] implies oracle_attests(/oracles/delivery.bool))
+always([+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true)
 
 // Reputation check
-always([+PROCEED] implies oracle_attests(/oracles/reputation_ok.bool))
+always([+PROCEED] true -> <+oracle_attests(/oracles/reputation.id, "reputation_ok", "true")> true)
 ```
 
 **Implementation consideration:** 
@@ -94,14 +94,14 @@ N-of-M multisig without enumerating all combinations:
 
 ```modality
 // 2-of-3 multisig
-always([+EXECUTE] implies threshold(2, [
-  /users/alice.id,
-  /users/bob.id,
-  /users/carol.id
-]))
+always([+EXECUTE] true -> <+threshold(2, /users)> true)
 ```
 
 **Implementation:** Count valid signatures, check >= n
+
+**Synthesis status:** The predicate language can represent this direct predicate
+shape, but threshold-specific model synthesis should stay marked as planned until
+there is parser-backed verifier coverage for generated candidates.
 
 ### 6. State-Based: `state_equals(path, value)` / `state_exists(path)`
 
@@ -110,8 +110,8 @@ Check contract state:
 - "Require escrow balance exists"
 
 ```modality
-always([+RELEASE] implies state_equals(/state/status.text, "approved"))
-always([+CLAIM] implies state_exists(/state/escrow.json))
+always([+RELEASE] true -> <+state_equals(/state/status.text, "approved")> true)
+always([+CLAIM] true -> <+state_exists(/state/escrow.json)> true)
 ```
 
 ---
@@ -122,9 +122,9 @@ Predicates should compose with formula operators:
 
 ```modality
 // Time-locked multisig: 2-of-3 OR 1 after deadline
-always([+EXECUTE] implies (
-  threshold(2, [/users/a.id, /users/b.id, /users/c.id]) |
-  (signed_by(/users/a.id) & after(/state/deadline.datetime))
+always([+EXECUTE] true -> (
+  <+threshold(2, /users)> true |
+  (<+signed_by(/users/a.id)> true & <+after(/state/deadline.datetime)> true)
 ))
 ```
 
@@ -160,7 +160,7 @@ threshold = "wasm/threshold.wasm"
 When synthesizing from formulas, predicates translate to transition requirements:
 
 ```
-Formula: always([+PAY] implies (amount_gte(100) & signed_by(buyer)))
+Formula: always([+PAY] true -> <+amount_gte(100) +signed_by(/users/buyer.id)> true)
     ↓
 Transition: state --> paid: +PAY +amount_gte(100) +signed_by(/users/buyer.id)
 ```
@@ -180,7 +180,7 @@ Transition: state --> paid: +PAY +amount_gte(100) +signed_by(/users/buyer.id)
 ## Priority Order
 
 1. `signed_by` ✅ (implemented)
-2. `threshold` ✅ (implemented - n-of-m multisig)
+2. `threshold` ✅ (predicate implemented; synthesis heuristic planned)
 3. `before`/`after` ✅ (implemented - timestamp predicates)
 4. `hash_matches` ✅ (implemented - SHA256, hash equality)
 5. `amount_equals` ✅ (implemented - num_equals, num_gte, etc.)

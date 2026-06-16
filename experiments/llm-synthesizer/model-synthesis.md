@@ -193,17 +193,17 @@ modality model check escrow.modality --formula "always([+RELEASE] true -> eventu
 
 If verification fails, the synthesizer refines the model.
 
-## New Heuristics: Threshold and Oracle
+## Predicate Heuristics: Threshold and Oracle
 
-### Heuristic 8: Threshold (n-of-m Multisig)
+### Heuristic 8: Threshold (n-of-m Multisig, Planned)
 
-Formula: `[+X] implies threshold(n, [A, B, C, ...])`
+Formula: `[+X] true -> <+threshold(n, /signers)> true`
 (X requires n signatures from the list)
 
 **Synthesis:** Create collecting states for signatures.
 
 ```
-Input:  [+EXECUTE] implies threshold(2, [/users/a.id, /users/b.id, /users/c.id])
+Input:  [+EXECUTE] true -> <+threshold(2, /signers)> true
 Output:
   init --> init: +PROPOSE
   init --> one_sig_a: +APPROVE_A +signed_by(/users/a.id)
@@ -223,33 +223,37 @@ Output:
   init --> executed: +EXECUTE +threshold(2, /signers)
 ```
 
+The direct predicate shape matches the predicate language, but threshold-specific
+model synthesis still needs parser-backed verifier coverage before treating this
+as an implemented heuristic.
+
 ### Heuristic 9: Oracle Attestation
 
-Formula: `[+X] implies oracle_attests(O, claim, value)`
+Formula: `[+X] true -> <+oracle_attests(O, claim, value)> true`
 (X requires oracle attestation)
 
 **Synthesis:** Add oracle requirement to transition.
 
 ```
-Input:  [+RELEASE] implies oracle_attests(/oracles/delivery, "delivered", "true")
+Input:  [+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true
 Output:
-  pending --> released: +RELEASE +oracle_attests(/oracles/delivery, "delivered", "true")
+  pending --> released: +RELEASE +oracle_attests(/oracles/delivery.id, delivered, true)
 ```
 
 **With timeout fallback:**
 ```
-Input:  ([+RELEASE] implies oracle_attests(...)) & 
-        ([+TIMEOUT_REFUND] implies (after(deadline) & signed_by(buyer)))
+Input:  ([+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true) &
+        ([+TIMEOUT_REFUND] true -> (<+after(/state/deadline.datetime)> true & <+signed_by(/users/buyer.id)> true))
 Output:
-  pending --> released: +RELEASE +oracle_attests(/oracles/delivery, "delivered", "true")
-  pending --> refunded: +TIMEOUT_REFUND +after(/deadline) +signed_by(/users/buyer.id)
+  pending --> released: +RELEASE +oracle_attests(/oracles/delivery.id, delivered, true)
+  pending --> refunded: +TIMEOUT_REFUND +after(/state/deadline.datetime) +signed_by(/users/buyer.id)
 ```
 
-### Heuristic 10: Graduated Thresholds
+### Heuristic 10: Graduated Thresholds (Planned)
 
-Formula: `([+LOW_RISK_ACTION] implies threshold(1, signers)) &
-         ([+HIGH_RISK_ACTION] implies threshold(2, signers)) &
-         ([+CRITICAL_ACTION] implies threshold(3, signers))`
+Formula: `([+LOW_RISK_ACTION] true -> <+threshold(1, /treasury/signers)> true) &
+         ([+HIGH_RISK_ACTION] true -> <+threshold(2, /treasury/signers)> true) &
+         ([+CRITICAL_ACTION] true -> <+threshold(3, /treasury/signers)> true)`
 
 **Synthesis:** Different actions have different threshold requirements.
 
