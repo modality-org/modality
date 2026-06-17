@@ -27,7 +27,7 @@ Checks if the commit writes to paths under a given prefix.
 **Example:**
 ```modality
 // Only allow membership changes if all members sign
-always (+modifies(/members) implies +all_signed(/members))
+always([+modifies(/members)] true -> <+all_signed(/members)> true)
 ```
 
 ## Signature Predicates
@@ -80,7 +80,7 @@ Verifies ALL members from a path have signed.
 n-of-m multisig verification.
 
 ```modality
-threshold(2, /treasury/signers)
++threshold(2, /treasury/signers.json)
 ```
 
 **Arguments:**
@@ -178,7 +178,7 @@ export default rule {
   starting_at $PARENT
   formula {
     // All commits must be signed by alice OR bob
-    signed_by(/users/alice.id) | signed_by(/users/bob.id)
+    always(<+signed_by(/users/alice.id)> true | <+signed_by(/users/bob.id)> true)
   }
 }
 
@@ -186,17 +186,15 @@ export default rule {
   starting_at $PARENT
   formula {
     // After deadline, only buyer can commit
-    after(/deadlines/expiry.datetime) -> signed_by(/users/buyer.id)
+    always(<+after(/deadlines/expiry.datetime)> true -> <+signed_by(/users/buyer.id)> true)
   }
 }
+```
 
-export default rule {
-  starting_at $PARENT
-  formula {
-    // 2-of-3 multisig required
-    threshold(2, /treasury/signers)
-  }
-}
+Transition predicates use the same predicate names inside governing models:
+
+```modality
+pending -> executed [+threshold(2, /treasury/signers.json)]
 ```
 
 ## Custom WASM Predicates
