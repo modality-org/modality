@@ -495,6 +495,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+PUBLISH_AUDIT>] true -> [<+modifies(/audit) +signed_by(/users/auditor.id) +oracle_attests(/oracles/audit.id, "passed", "true")>] true"#,
             r#"[<+CLOSE_INCIDENT>] true -> [<+modifies(/incidents) +signed_by(/users/incident_commander.id)>] true"#,
             r#"[<+FREEZE_CHANGE>] true -> [<+modifies(/releases) +signed_by(/users/release_manager.id)>] true"#,
+            r#"[<+ACCEPT_RISK>] true -> [<+modifies(/risk) +signed_by(/users/risk_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -1921,6 +1922,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+FREEZE_CHANGE>] true -> [<+modifies(/releases) +signed_by(/users/release_manager.id)>] true"
                 .to_string(),
+            "[<+ACCEPT_RISK>] true -> [<+modifies(/risk) +signed_by(/users/risk_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -1951,6 +1954,7 @@ F2: formula generated_2 {
         assert!(output.contains(
             "+FREEZE_CHANGE +signed_by(/users/release_manager.id) +modifies(/releases)"
         ));
+        assert!(output.contains("+ACCEPT_RISK +signed_by(/users/risk_owner.id) +modifies(/risk)"));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
