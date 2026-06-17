@@ -251,7 +251,7 @@ rule config_protected {
 model membership_majority {
   initial active
   active -> active [+any_signed(/members) -modifies(/members)]
-  active -> active [+modifies(/members) +threshold(2, /members)]
+  active -> active [+modifies(/members) +threshold("2", /members)]
 }
 ```
 

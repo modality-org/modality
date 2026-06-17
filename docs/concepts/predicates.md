@@ -18,10 +18,10 @@ Requires the commit to be signed by the ed25519 key at that path.
 ## Threshold Signatures (Multisig)
 
 ```modality
-+threshold(/signers, 2, 3)
++threshold("2", /signers)
 ```
 
-Requires 2-of-3 signers from the list.
+Requires at least two signers from the list.
 
 ## Oracle Attestations
 
@@ -43,7 +43,7 @@ Requires an external oracle to attest to a condition.
 | Predicate | Description |
 |-----------|-------------|
 | `signed_by(path)` | Commit signed by key at path |
-| `threshold(path, n, m)` | n-of-m signatures from list |
+| `threshold(n, path)` | n-of-m signatures from list |
 | `oracle_attests(oracle, claim, value)` | Oracle attestation |
 | `before(path)` | Current time before timestamp |
 | `after(path)` | Current time after timestamp |
