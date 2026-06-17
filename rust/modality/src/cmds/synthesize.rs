@@ -486,6 +486,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+CHANGE_PRIVATE] true -> <+modifies(/private) +all_signed(/members)> true)"#,
             r#"always([+SETTLE_ESCROW] true -> <+modifies(/escrow) +oracle_attests(/oracles/delivery.id, "delivered", "true")> true)"#,
             r#"[<+ROTATE_KEY>] true -> [<+modifies(/keys) +signed_by(/users/security_admin.id)>] true"#,
+            r#"[<+UPDATE_PROFILE>] true -> [<+any_signed(/members) -modifies(/members)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -1894,6 +1895,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+ROTATE_KEY>] true -> [<+modifies(/keys) +signed_by(/users/security_admin.id)>] true"
                 .to_string(),
+            "[<+UPDATE_PROFILE>] true -> [<+any_signed(/members) -modifies(/members)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -1910,6 +1913,7 @@ F2: formula generated_2 {
         assert!(output.contains(
             "+ROTATE_KEY +signed_by(/users/security_admin.id) +modifies(/keys)"
         ));
+        assert!(output.contains("+UPDATE_PROFILE +any_signed(/members) -modifies(/members)"));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
