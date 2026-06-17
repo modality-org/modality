@@ -221,7 +221,7 @@ const result = await executor.evaluate_predicate(
 **Modality syntax**:
 ```modality
 // Release requires oracle confirmation of delivery
-always ([+RELEASE] implies oracle_attests(/oracles/delivery, "delivered", "true"))
+always([+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true)
 ```
 
 **Security features**:
