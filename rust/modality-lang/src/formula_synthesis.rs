@@ -371,8 +371,7 @@ fn extract_diamond_predicates(expr: &FormulaExpr) -> Vec<Property> {
         FormulaExpr::Diamond(props, _) | FormulaExpr::DiamondBox(props, _) => props
             .iter()
             .filter(|prop| {
-                prop.sign == PropertySign::Plus
-                    && prop.name != "signed_by"
+                prop.name != "signed_by"
                     && matches!(prop.source, Some(PropertySource::Predicate { .. }))
             })
             .cloned()
@@ -1147,6 +1146,55 @@ mod tests {
                 && transition
                     .properties
                     .contains(&Property::new(PropertySign::Plus, "CANCEL".to_string()))
+        }));
+    }
+
+    #[test]
+    fn test_implication_diamond_preserves_negative_predicate_guards() {
+        let modifies_members =
+            Property::new_predicate_from_call_args_negated("modifies".to_string(), vec![
+                "/members".to_string(),
+            ]);
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "UPDATE_PROFILE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Diamond(
+                vec![
+                    Property::new_predicate_from_call(
+                        "any_signed".to_string(),
+                        "/members".to_string(),
+                    ),
+                    modifies_members.clone(),
+                ],
+                Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(
+            constraints
+                .predicate_requirements
+                .get("UPDATE_PROFILE")
+                .unwrap(),
+            &vec![
+                Property::new_predicate_from_call(
+                    "any_signed".to_string(),
+                    "/members".to_string(),
+                ),
+                modifies_members.clone(),
+            ]
+        );
+
+        let model = synthesize_from_formulas("Members", &[formula]);
+
+        assert!(model.parts[0].transitions.iter().any(|transition| {
+            transition
+                .properties
+                .contains(&Property::new(PropertySign::Plus, "UPDATE_PROFILE".to_string()))
+                && transition.properties.contains(&modifies_members)
         }));
     }
 
