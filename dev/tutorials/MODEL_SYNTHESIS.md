@@ -31,7 +31,7 @@ modal c set /users/bob.id $(modal id get --path ./bob.passfile)
 Instead of designing the model upfront, describe what you want:
 
 ```bash
-mkdir -p rules
+mkdir -p model rules
 cat > rules/auth.modality << 'EOF'
 export default rule {
   starting_at $PARENT
@@ -223,7 +223,7 @@ modal c set /users/alice.id $(modal id get --path ./alice.passfile)
 modal c set /users/bob.id $(modal id get --path ./bob.passfile)
 
 # Write rule first
-mkdir -p rules
+mkdir -p model rules
 cat > rules/auth.modality << 'EOF'
 export default rule {
   starting_at $PARENT
