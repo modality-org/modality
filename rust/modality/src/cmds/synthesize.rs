@@ -488,6 +488,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+ROTATE_KEY>] true -> [<+modifies(/keys) +signed_by(/users/security_admin.id)>] true"#,
             r#"[<+UPDATE_PROFILE>] true -> [<+any_signed(/members) -modifies(/members)>] true"#,
             r#"[<+CHANGE_MEMBERS>] true -> [<+modifies(/members) +all_signed(/members)>] true"#,
+            r#"[<+CHANGE_CONFIG>] true -> [<+modifies(/config) +signed_by(/users/admin.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -1900,6 +1901,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+CHANGE_MEMBERS>] true -> [<+modifies(/members) +all_signed(/members)>] true"
                 .to_string(),
+            "[<+CHANGE_CONFIG>] true -> [<+modifies(/config) +signed_by(/users/admin.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -1918,6 +1921,7 @@ F2: formula generated_2 {
         ));
         assert!(output.contains("+UPDATE_PROFILE +any_signed(/members) -modifies(/members)"));
         assert!(output.contains("+CHANGE_MEMBERS +modifies(/members) +all_signed(/members)"));
+        assert!(output.contains("+CHANGE_CONFIG +signed_by(/users/admin.id) +modifies(/config)"));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
