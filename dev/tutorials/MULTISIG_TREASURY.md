@@ -81,8 +81,13 @@ Create **rules/withdrawal.modality**:
 export default rule {
   starting_at $PARENT
   formula {
-    // Withdrawals require 2-of-3 approval
-    always ([+EXECUTE] implies threshold(2, /treasury/signers))
+    // Withdrawals require one of the 2-of-3 signer pairs.
+    // The governing model can enforce the same policy with threshold(...).
+    always([+EXECUTE] true -> (
+      <+signed_by(/treasury/alice.id) +signed_by(/treasury/bob.id)> true |
+      <+signed_by(/treasury/alice.id) +signed_by(/treasury/carol.id)> true |
+      <+signed_by(/treasury/bob.id) +signed_by(/treasury/carol.id)> true
+    ))
   }
 }
 ```

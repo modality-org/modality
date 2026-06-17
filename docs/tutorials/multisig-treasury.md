@@ -65,8 +65,13 @@ Create `rules/treasury-threshold.modality`:
 export default rule {
   starting_at $PARENT
   formula {
-    // Withdrawals require 2-of-3
-    always([+WITHDRAW] implies <+threshold(2, /treasury/signers.json)> true)
+    // Withdrawals require one of the 2-of-3 signer pairs.
+    // The generated model can enforce the same policy with threshold(...).
+    always([+WITHDRAW] true -> (
+      <+signed_by(/treasury/alice.id) +signed_by(/treasury/bob.id)> true |
+      <+signed_by(/treasury/alice.id) +signed_by(/treasury/carol.id)> true |
+      <+signed_by(/treasury/bob.id) +signed_by(/treasury/carol.id)> true
+    ))
   }
 }
 ```
@@ -83,6 +88,7 @@ Or synthesize from your rules:
 
 ```bash
 modality model synthesize --rule rules/treasury-auth.modality -o model/treasury.modality
+modality model synthesize --rule rules/treasury-threshold.modality --verify -o model/treasury.modality
 ```
 
 The generated model enforces your threshold requirements:
