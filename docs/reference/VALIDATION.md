@@ -45,7 +45,7 @@ Every incoming commit is checked against this transition. If no transition's pre
 | `+all_signed(/path)` | Commit signed by ALL members under path |
 | `+modifies(/path)` | Commit writes to path or subpath |
 | `+adds_rule` | Commit is a RULE method |
-| `+threshold(n, /path)` | At least n members under path signed |
+| `+threshold("n", /path)` | At least n members under path signed |
 
 Prefix `+` means "must hold". Prefix `-` means "must NOT hold".
 

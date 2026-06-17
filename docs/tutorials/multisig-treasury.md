@@ -103,7 +103,7 @@ export default model {
   locked -> pending [+signed_by(/treasury/carol.id)]
   
   // Execute withdrawal (2-of-3)
-  pending -> executed [+threshold(2, /treasury/signers.json)]
+  pending -> executed [+threshold("2", /treasury/signers.json)]
   
   // Reset after execution
   executed -> locked [+signed_by(/treasury/alice.id)]

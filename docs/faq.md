@@ -62,7 +62,7 @@ always([+modifies(/members)] true -> <+all_signed(/members)> true)
 always(<+after(/deadlines/expiry.datetime)> true -> <+signed_by(/users/buyer.id)> true)
 ```
 
-For fixed quorum examples, use explicit signer combinations in formulas. Governing models can use predicate guards such as `+threshold(2, /treasury/signers.json)` on transitions.
+For fixed quorum examples, use explicit signer combinations in formulas. Governing models can use predicate guards such as `+threshold("2", /treasury/signers.json)` on transitions.
 
 ## Do I need a blockchain to use Modality?
 

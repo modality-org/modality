@@ -80,7 +80,7 @@ Verifies ALL members from a path have signed.
 n-of-m multisig verification.
 
 ```modality
-+threshold(2, /treasury/signers.json)
++threshold("2", /treasury/signers.json)
 ```
 
 **Arguments:**
@@ -194,7 +194,7 @@ export default rule {
 Transition predicates use the same predicate names inside governing models:
 
 ```modality
-pending -> executed [+threshold(2, /treasury/signers.json)]
+pending -> executed [+threshold("2", /treasury/signers.json)]
 ```
 
 ## Custom WASM Predicates

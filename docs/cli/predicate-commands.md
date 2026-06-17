@@ -151,7 +151,7 @@ predicates/kyc/
 | Predicate | Description | Usage |
 |-----------|-------------|-------|
 | `signed_by(path)` | Single signature | `+signed_by(/alice.id)` |
-| `threshold(path, n, m)` | n-of-m multisig | `+threshold(/signers, 2, 3)` |
+| `threshold(n, signers)` | n-of-m multisig | `+threshold("2", /signers)` |
 
 ### Oracle Predicates
 
