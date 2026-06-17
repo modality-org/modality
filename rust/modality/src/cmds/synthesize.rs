@@ -507,6 +507,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_TIME_OFF>] true -> [<+modifies(/time_off) +signed_by(/users/manager.id)>] true"#,
             r#"[<+APPROVE_EXPENSE>] true -> [<+modifies(/expenses) +signed_by(/users/finance_manager.id)>] true"#,
             r#"[<+APPROVE_TRAVEL>] true -> [<+modifies(/travel) +signed_by(/users/travel_manager.id)>] true"#,
+            r#"[<+APPROVE_REIMBURSEMENT>] true -> [<+modifies(/reimbursements) +signed_by(/users/payroll_manager.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -1957,6 +1958,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_TRAVEL>] true -> [<+modifies(/travel) +signed_by(/users/travel_manager.id)>] true"
                 .to_string(),
+            "[<+APPROVE_REIMBURSEMENT>] true -> [<+modifies(/reimbursements) +signed_by(/users/payroll_manager.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2021,6 +2024,9 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "+APPROVE_TRAVEL +signed_by(/users/travel_manager.id) +modifies(/travel)"
+        ));
+        assert!(output.contains(
+            "+APPROVE_REIMBURSEMENT +signed_by(/users/payroll_manager.id) +modifies(/reimbursements)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
