@@ -484,6 +484,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+UPDATE_PROFILE] true -> <+any_signed(/members) -modifies(/members)> true)"#,
             r#"always([+CHANGE_CONFIG] true -> <+modifies(/config) +signed_by(/users/admin.id)> true)"#,
             r#"always([+CHANGE_PRIVATE] true -> <+modifies(/private) +all_signed(/members)> true)"#,
+            r#"always([+SETTLE_ESCROW] true -> <+modifies(/escrow) +oracle_attests(/oracles/delivery.id, "delivered", "true")> true)"#,
         ],
     },
     FormulaExampleGroup {
@@ -1888,6 +1889,8 @@ F2: formula generated_2 {
                 .to_string(),
             "always([+CHANGE_PRIVATE] true -> <+modifies(/private) +all_signed(/members)> true)"
                 .to_string(),
+            "always([+SETTLE_ESCROW] true -> <+modifies(/escrow) +oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true)"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -1898,6 +1901,9 @@ F2: formula generated_2 {
         assert!(output.contains("+UPDATE_PROFILE +any_signed(/members) -modifies(/members)"));
         assert!(output.contains("+CHANGE_CONFIG +signed_by(/users/admin.id) +modifies(/config)"));
         assert!(output.contains("+CHANGE_PRIVATE +modifies(/private) +all_signed(/members)"));
+        assert!(output.contains(
+            "+SETTLE_ESCROW +modifies(/escrow) +oracle_attests(/oracles/delivery.id, delivered, true)"
+        ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
