@@ -40,7 +40,7 @@ Commit 3: Alice deposits (ACTION)
 - **Immutable**: Once committed, history cannot change
 - **Ordered**: Commits form a linear sequence
 - **Signed**: Each commit is cryptographically signed
-- **Validated**: Action commits are validated against ALL accumulated rules
+- **Validated**: Commits must match the current model's predicate-guarded transitions
 
 ---
 

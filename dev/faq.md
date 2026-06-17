@@ -42,9 +42,9 @@ Each commit may contain values and rules. Values are recorded in the log. Rules 
 
 Whenever a new rule is added, a governing model is provided, proving that all rules remain satisfied.
 
-Whenever a commit is added, its validity against the rules is confirmed using the governing model.
+Whenever a commit is added, it must match a valid transition in the governing model. The model's transition predicates are the commit-time enforcement mechanism; rules constrain which models are acceptable witnesses.
 
-Sometimes the existing governing model over-constrains a contract beyond the specified rules. In such cases, the governing model may be replaced by a new commit.
+Sometimes the existing governing model over-constrains a contract beyond the specified rules. In such cases, the governing model may be replaced by a MODEL commit whose witness still satisfies all accumulated rules.
 
 ## What do rules look like?
 

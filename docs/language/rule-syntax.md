@@ -14,7 +14,7 @@ When adding a rule to a contract, you must include a **model that witnesses sati
 ```bash
 modal c commit \
   --method rule \
-  --rule 'rule my_rule { formula { always (+predicate(...)) } }' \
+  --rule 'rule my_rule { formula { always(<+signed_by(/members/alice.id)> true) } }' \
   --model 'model witness { initial s; s -> s [] }' \
   --sign key.pem
 ```
