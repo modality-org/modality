@@ -34,6 +34,7 @@ modal contract create
 
 # Initialize directories
 modal c checkout
+mkdir -p model rules
 ```
 
 ## Step 3: Set Up Users
@@ -48,13 +49,15 @@ modal c set-named-id /users/bob.id --named bob
 
 Create `rules/auth.modality` — the authorization rule:
 
-```modality
+```bash
+cat > rules/auth.modality << 'EOF'
 export default rule {
   starting_at $PARENT
   formula {
-    signed_by(/users/alice.id) | signed_by(/users/bob.id)
+    always([<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true)
   }
 }
+EOF
 ```
 
 This rule requires every commit to be signed by either Alice or Bob.
