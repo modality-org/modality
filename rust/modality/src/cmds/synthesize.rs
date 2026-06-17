@@ -494,6 +494,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+EXECUTE_TREASURY>] true -> [<+modifies(/treasury) +threshold("2", /treasury/signers)>] true"#,
             r#"[<+PUBLISH_AUDIT>] true -> [<+modifies(/audit) +signed_by(/users/auditor.id) +oracle_attests(/oracles/audit.id, "passed", "true")>] true"#,
             r#"[<+CLOSE_INCIDENT>] true -> [<+modifies(/incidents) +signed_by(/users/incident_commander.id)>] true"#,
+            r#"[<+FREEZE_CHANGE>] true -> [<+modifies(/releases) +signed_by(/users/release_manager.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -1918,6 +1919,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+CLOSE_INCIDENT>] true -> [<+modifies(/incidents) +signed_by(/users/incident_commander.id)>] true"
                 .to_string(),
+            "[<+FREEZE_CHANGE>] true -> [<+modifies(/releases) +signed_by(/users/release_manager.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -1945,6 +1948,9 @@ F2: formula generated_2 {
         ));
         assert!(output
             .contains("+CLOSE_INCIDENT +signed_by(/users/incident_commander.id) +modifies(/incidents)"));
+        assert!(output.contains(
+            "+FREEZE_CHANGE +signed_by(/users/release_manager.id) +modifies(/releases)"
+        ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
