@@ -20,7 +20,7 @@ modal id create --path bob.passfile
 ```bash
 # Initialize directories
 modal c checkout
-mkdir -p rules
+mkdir -p model rules
 
 # Add user IDs
 modal c set /users/alice.id $(modal id get --path ./alice.passfile)
@@ -43,9 +43,7 @@ cat > rules/auth.modality << 'EOF'
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
-    )
+    always([<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true)
   }
 }
 EOF
@@ -150,7 +148,7 @@ modal id create --path bob.passfile
 
 # Initialize directories
 modal c checkout
-mkdir -p state/data rules
+mkdir -p state/data model rules
 
 # Alice sets up users, model, and authorization rule
 modal c set /users/alice.id $(modal id get --path ./alice.passfile)
@@ -171,9 +169,7 @@ cat > rules/auth.modality << 'EOF'
 export default rule {
   starting_at $PARENT
   formula {
-    always (
-      [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
-    )
+    always([<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true)
   }
 }
 EOF
