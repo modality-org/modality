@@ -485,6 +485,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+CHANGE_CONFIG] true -> <+modifies(/config) +signed_by(/users/admin.id)> true)"#,
             r#"always([+CHANGE_PRIVATE] true -> <+modifies(/private) +all_signed(/members)> true)"#,
             r#"always([+SETTLE_ESCROW] true -> <+modifies(/escrow) +oracle_attests(/oracles/delivery.id, "delivered", "true")> true)"#,
+            r#"[<+SETTLE_ESCROW>] true -> [<+modifies(/escrow) +oracle_attests(/oracles/delivery.id, "delivered", "true")>] true"#,
             r#"[<+ROTATE_KEY>] true -> [<+modifies(/keys) +signed_by(/users/security_admin.id)>] true"#,
             r#"[<+UPDATE_PROFILE>] true -> [<+any_signed(/members) -modifies(/members)>] true"#,
             r#"[<+CHANGE_MEMBERS>] true -> [<+modifies(/members) +all_signed(/members)>] true"#,
@@ -1895,6 +1896,8 @@ F2: formula generated_2 {
             "always([+CHANGE_PRIVATE] true -> <+modifies(/private) +all_signed(/members)> true)"
                 .to_string(),
             "always([+SETTLE_ESCROW] true -> <+modifies(/escrow) +oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true)"
+                .to_string(),
+            "[<+SETTLE_ESCROW>] true -> [<+modifies(/escrow) +oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")>] true"
                 .to_string(),
             "[<+ROTATE_KEY>] true -> [<+modifies(/keys) +signed_by(/users/security_admin.id)>] true"
                 .to_string(),
