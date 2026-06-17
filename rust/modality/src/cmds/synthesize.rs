@@ -514,6 +514,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_PAYMENT>] true -> [<+modifies(/payments) +signed_by(/users/payment_approver.id)>] true"#,
             r#"[<+APPROVE_DISCOUNT>] true -> [<+modifies(/discounts) +signed_by(/users/sales_manager.id)>] true"#,
             r#"[<+APPROVE_COMMISSION>] true -> [<+modifies(/commissions) +signed_by(/users/revenue_lead.id)>] true"#,
+            r#"[<+APPROVE_GRANT>] true -> [<+modifies(/grants) +signed_by(/users/grants_manager.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -1978,6 +1979,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_COMMISSION>] true -> [<+modifies(/commissions) +signed_by(/users/revenue_lead.id)>] true"
                 .to_string(),
+            "[<+APPROVE_GRANT>] true -> [<+modifies(/grants) +signed_by(/users/grants_manager.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2064,6 +2067,8 @@ F2: formula generated_2 {
         assert!(output.contains(
             "+APPROVE_COMMISSION +signed_by(/users/revenue_lead.id) +modifies(/commissions)"
         ));
+        assert!(output
+            .contains("+APPROVE_GRANT +signed_by(/users/grants_manager.id) +modifies(/grants)"));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
