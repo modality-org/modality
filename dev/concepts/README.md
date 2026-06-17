@@ -144,10 +144,10 @@ Requires the commit to be signed by the ed25519 key at that path.
 ### Threshold Signatures (Multisig)
 
 ```modality
-+threshold(/signers, 2, 3)
++threshold("2", /signers)
 ```
 
-Requires 2-of-3 signers from the list.
+Requires at least two signers from the list.
 
 ### Oracle Attestations
 

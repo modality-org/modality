@@ -258,8 +258,8 @@ rule no_double_spend {
 +signed_by(/path/to/identity.id)
 // Commit must be signed by this ed25519 key
 
-+threshold(/signers/list, n, m)
-// n-of-m signatures from the list required
++threshold("2", /signers/list)
+// At least two signatures from the list required
 
 +signed_by_n(/signers/list, n)
 // At least n signatures from the list
