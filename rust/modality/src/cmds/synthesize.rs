@@ -517,6 +517,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_GRANT>] true -> [<+modifies(/grants) +signed_by(/users/grants_manager.id)>] true"#,
             r#"[<+APPROVE_LOAN>] true -> [<+modifies(/loans) +signed_by(/users/loan_officer.id)>] true"#,
             r#"[<+APPROVE_CLAIM>] true -> [<+modifies(/claims) +signed_by(/users/claims_adjuster.id)>] true"#,
+            r#"[<+APPROVE_WITHDRAWAL>] true -> [<+modifies(/withdrawals) +signed_by(/users/treasury_officer.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -1987,6 +1988,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_CLAIM>] true -> [<+modifies(/claims) +signed_by(/users/claims_adjuster.id)>] true"
                 .to_string(),
+            "[<+APPROVE_WITHDRAWAL>] true -> [<+modifies(/withdrawals) +signed_by(/users/treasury_officer.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2080,6 +2083,9 @@ F2: formula generated_2 {
         );
         assert!(output
             .contains("+APPROVE_CLAIM +signed_by(/users/claims_adjuster.id) +modifies(/claims)"));
+        assert!(output.contains(
+            "+APPROVE_WITHDRAWAL +signed_by(/users/treasury_officer.id) +modifies(/withdrawals)"
+        ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
