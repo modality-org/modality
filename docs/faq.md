@@ -45,7 +45,7 @@ Each commit may contain values and rules. Values are recorded in the log. Rules 
 
 Whenever a new rule is added, a governing model is provided, proving that all rules remain satisfied.
 
-Whenever a commit is added, its validity against the rules is confirmed using the governing model.
+Whenever a commit is added, it must match a valid transition in the governing model. The model's transition predicates are the commit-time enforcement mechanism; rules constrain which models are acceptable witnesses.
 
 ## What do rules look like?
 
@@ -53,14 +53,16 @@ Modality rules constrain who can commit based on signatures and state. They use 
 
 ```modality
 // All commits must be signed by alice or bob
-signed_by(/users/alice.id) | signed_by(/users/bob.id)
+always(<+signed_by(/users/alice.id)> true | <+signed_by(/users/bob.id)> true)
 
-// 2-of-3 multisig required
-threshold(2, /treasury/signers)
+// Membership changes require every member signature
+always([+modifies(/members)] true -> <+all_signed(/members)> true)
 
 // Time-gated: only after deadline
-after(/deadlines/expiry.datetime) -> signed_by(/users/buyer.id)
+always(<+after(/deadlines/expiry.datetime)> true -> <+signed_by(/users/buyer.id)> true)
 ```
+
+For fixed quorum examples, use explicit signer combinations in formulas. Governing models can use predicate guards such as `+threshold(2, /treasury/signers.json)` on transitions.
 
 ## Do I need a blockchain to use Modality?
 
