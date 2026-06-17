@@ -39,10 +39,10 @@ phases like "funded" or "released."
 The model above is best read as labeled edges:
 
 ```text
-q0 --[+DEPOSIT +signed_by(buyer)]--> q1
-q1 --[+DELIVER +signed_by(seller)]--> q2
-q2 --[+RELEASE +signed_by(buyer)]--> q3
-q1 --[+REFUND +signed_by(seller)]--> q4
+q0 --[+DEPOSIT +signed_by(/parties/buyer.id)]--> q1
+q1 --[+DELIVER +signed_by(/parties/seller.id)]--> q2
+q2 --[+RELEASE +signed_by(/parties/buyer.id)]--> q3
+q1 --[+REFUND +signed_by(/parties/seller.id)]--> q4
 ```
 
 ## Why Opaque Nodes?
