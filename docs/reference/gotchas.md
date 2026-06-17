@@ -12,13 +12,13 @@ Common mistakes when writing Modality contracts.
 **Wrong:** Referencing model action labels in rules
 ```modality
 // DON'T DO THIS
-always ([+ADD_MEMBER] implies +all_signed(/members))
+always([+ADD_MEMBER] true -> <+all_signed(/members)> true)
 ```
 
 **Right:** Use predicates that describe the effect
 ```modality
 // DO THIS
-always (+modifies(/members) implies +all_signed(/members))
+always([+modifies(/members)] true -> <+all_signed(/members)> true)
 ```
 
 Rules should describe *what* a commit does (modifies paths, requires signatures), not *how* it's labeled in the model.
@@ -54,7 +54,7 @@ When submitting a rule, include a model that **actually satisfies** the rule:
 **Wrong:** Empty witness doesn't prove anything
 ```bash
 modal c commit --method rule \
-  --rule 'rule X { formula { always (+any_signed(/members)) } }' \
+  --rule 'rule X { formula { always(<+any_signed(/members)> true) } }' \
   --model 'model Y { initial s; s -> s [] }' \  # ← doesn't satisfy the rule!
   --sign key
 ```
@@ -62,7 +62,7 @@ modal c commit --method rule \
 **Right:** Witness model includes required predicates
 ```bash
 modal c commit --method rule \
-  --rule 'rule X { formula { always (+any_signed(/members)) } }' \
+  --rule 'rule X { formula { always(<+any_signed(/members)> true) } }' \
   --model 'model Y { initial s; s -> s [+any_signed(/members)] }' \
   --sign key
 ```
@@ -77,19 +77,22 @@ model foo { active -> active [] }  // Can be replaced with anything!
 
 // Rules make protections permanent
 rule protect {
-  formula { always (+modifies(/x) implies +signed_by(/admin.id)) }
+  formula { always([+modifies(/x)] true -> <+signed_by(/admin.id)> true) }
 }
 ```
 
-If no rules exist, a user can post a new model with no guards. Rules are the enforcement mechanism.
+If no rules exist, a user can post a new model with no guards. Rules make
+protections permanent by constraining which replacement models are acceptable;
+the current model's transition predicates still decide whether each commit is
+accepted.
 
 ## 5. Predicate Syntax in Formulas
 
 Predicates in formulas need the `+` prefix:
 ```modality
 // In formulas
-always (+any_signed(/members))              // ✓
-always (+modifies(/path) implies +all_signed(/members))  // ✓
+always(<+any_signed(/members)> true)                    // ✓
+always([+modifies(/path)] true -> <+all_signed(/members)> true)  // ✓
 
 // In transition labels  
 active -> active [+any_signed(/members) -modifies(/members)]  // ✓ + for required, - for prohibited
