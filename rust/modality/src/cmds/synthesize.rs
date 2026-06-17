@@ -498,6 +498,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+ACCEPT_RISK>] true -> [<+modifies(/risk) +signed_by(/users/risk_owner.id)>] true"#,
             r#"[<+APPROVE_SAFETY>] true -> [<+modifies(/safety) +signed_by(/users/safety_reviewer.id)>] true"#,
             r#"[<+ATTEST_COMPLIANCE>] true -> [<+modifies(/compliance) +signed_by(/users/compliance_officer.id)>] true"#,
+            r#"[<+CONFIRM_DELIVERY>] true -> [<+modifies(/delivery) +signed_by(/users/recipient.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -1930,6 +1931,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+ATTEST_COMPLIANCE>] true -> [<+modifies(/compliance) +signed_by(/users/compliance_officer.id)>] true"
                 .to_string(),
+            "[<+CONFIRM_DELIVERY>] true -> [<+modifies(/delivery) +signed_by(/users/recipient.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -1966,6 +1969,9 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "+ATTEST_COMPLIANCE +signed_by(/users/compliance_officer.id) +modifies(/compliance)"
+        ));
+        assert!(output.contains(
+            "+CONFIRM_DELIVERY +signed_by(/users/recipient.id) +modifies(/delivery)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
