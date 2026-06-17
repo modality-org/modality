@@ -515,6 +515,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_DISCOUNT>] true -> [<+modifies(/discounts) +signed_by(/users/sales_manager.id)>] true"#,
             r#"[<+APPROVE_COMMISSION>] true -> [<+modifies(/commissions) +signed_by(/users/revenue_lead.id)>] true"#,
             r#"[<+APPROVE_GRANT>] true -> [<+modifies(/grants) +signed_by(/users/grants_manager.id)>] true"#,
+            r#"[<+APPROVE_LOAN>] true -> [<+modifies(/loans) +signed_by(/users/loan_officer.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -1981,6 +1982,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_GRANT>] true -> [<+modifies(/grants) +signed_by(/users/grants_manager.id)>] true"
                 .to_string(),
+            "[<+APPROVE_LOAN>] true -> [<+modifies(/loans) +signed_by(/users/loan_officer.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2069,6 +2072,9 @@ F2: formula generated_2 {
         ));
         assert!(output
             .contains("+APPROVE_GRANT +signed_by(/users/grants_manager.id) +modifies(/grants)"));
+        assert!(
+            output.contains("+APPROVE_LOAN +signed_by(/users/loan_officer.id) +modifies(/loans)")
+        );
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
