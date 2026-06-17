@@ -174,8 +174,15 @@ const result = await executor.evaluate_predicate(
 
 **Modality syntax**:
 ```modality
-// 2-of-3 multisig on EXECUTE action
-always ([+EXECUTE] implies threshold(2, /treasury/signers))
+// Fixed 2-of-3 multisig on EXECUTE action.
+// Expand signer pairs for parser-backed model synthesis today.
+always(
+  [+EXECUTE] true -> (
+    (<+signed_by(/treasury/alice.id)> true & <+signed_by(/treasury/bob.id)> true) |
+    (<+signed_by(/treasury/alice.id)> true & <+signed_by(/treasury/carol.id)> true) |
+    (<+signed_by(/treasury/bob.id)> true & <+signed_by(/treasury/carol.id)> true)
+  )
+)
 ```
 
 **Features**:
