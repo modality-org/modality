@@ -520,6 +520,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_WITHDRAWAL>] true -> [<+modifies(/withdrawals) +signed_by(/users/treasury_officer.id)>] true"#,
             r#"[<+APPROVE_SETTLEMENT>] true -> [<+modifies(/settlements) +signed_by(/users/settlement_manager.id)>] true"#,
             r#"[<+APPROVE_DIVIDEND>] true -> [<+modifies(/dividends) +signed_by(/users/board_secretary.id)>] true"#,
+            r#"[<+APPROVE_ROYALTY>] true -> [<+modifies(/royalties) +signed_by(/users/rights_manager.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -1996,6 +1997,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_DIVIDEND>] true -> [<+modifies(/dividends) +signed_by(/users/board_secretary.id)>] true"
                 .to_string(),
+            "[<+APPROVE_ROYALTY>] true -> [<+modifies(/royalties) +signed_by(/users/rights_manager.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2097,6 +2100,9 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "+APPROVE_DIVIDEND +signed_by(/users/board_secretary.id) +modifies(/dividends)"
+        ));
+        assert!(output.contains(
+            "+APPROVE_ROYALTY +signed_by(/users/rights_manager.id) +modifies(/royalties)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
