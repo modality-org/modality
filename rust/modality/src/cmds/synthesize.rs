@@ -492,6 +492,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+CHANGE_CONFIG>] true -> [<+modifies(/config) +signed_by(/users/admin.id)>] true"#,
             r#"[<+CHANGE_PRIVATE>] true -> [<+modifies(/private) +all_signed(/members)>] true"#,
             r#"[<+EXECUTE_TREASURY>] true -> [<+modifies(/treasury) +threshold("2", /treasury/signers)>] true"#,
+            r#"[<+PUBLISH_AUDIT>] true -> [<+modifies(/audit) +signed_by(/users/auditor.id) +oracle_attests(/oracles/audit.id, "passed", "true")>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -1912,6 +1913,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+EXECUTE_TREASURY>] true -> [<+modifies(/treasury) +threshold(\"2\", /treasury/signers)>] true"
                 .to_string(),
+            "[<+PUBLISH_AUDIT>] true -> [<+modifies(/audit) +signed_by(/users/auditor.id) +oracle_attests(/oracles/audit.id, \"passed\", \"true\")>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -1934,6 +1937,9 @@ F2: formula generated_2 {
         assert!(output.contains("+CHANGE_PRIVATE +modifies(/private) +all_signed(/members)"));
         assert!(output
             .contains("+EXECUTE_TREASURY +modifies(/treasury) +threshold(\"2\", /treasury/signers)"));
+        assert!(output.contains(
+            "+PUBLISH_AUDIT +signed_by(/users/auditor.id) +modifies(/audit) +oracle_attests(/oracles/audit.id, passed, true)"
+        ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
