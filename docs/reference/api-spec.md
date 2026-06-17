@@ -47,9 +47,9 @@ Create a new contract from a template or custom model.
 Or with custom model:
 ```json
 {
-  "model": "model MyContract { init --> ready: +START ... }",
+  "model": "model MyContract {\n  initial ready\n  ready -> ready [+START]\n}",
   "rules": [
-    "rule protect { formula { always (...) } }"
+    "rule protect { formula { always(<+signed_by(/users/alice.id)> true) } }"
   ]
 }
 ```

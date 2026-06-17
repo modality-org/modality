@@ -19,11 +19,11 @@ Commit 0: Genesis
 
 Commit 1: Alice signs
   ├─ state/parties/alice.id = "ed25519:abc..."
-  └─ rules/alice.modality = "always (...)"
+  └─ rules/alice.modality = "always(<+signed_by(/parties/alice.id)> true)"
 
 Commit 2: Bob signs  
   ├─ state/parties/bob.id = "ed25519:def..."
-  └─ rules/bob.modality = "always (...)"
+  └─ rules/bob.modality = "always(<+signed_by(/parties/bob.id)> true)"
 
 Commit 3: Alice deposits (ACTION)
   └─ action: DEPOSIT
@@ -36,7 +36,7 @@ Commit 3: Alice deposits (ACTION)
 | **Immutable** | Once committed, history cannot change |
 | **Ordered** | Commits form a linear sequence |
 | **Signed** | Each commit is cryptographically signed |
-| **Validated** | Action commits are validated against ALL accumulated rules |
+| **Validated** | Commits must match the current model's predicate-guarded transitions |
 
 ## Why Append-Only?
 
