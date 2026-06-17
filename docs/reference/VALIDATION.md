@@ -31,7 +31,7 @@ Every incoming commit is checked against this transition. If no transition's pre
 
 ## Rules vs Models
 
-- **Rules** = permanent protection formulas (e.g. `always (+any_signed(/))`)
+- **Rules** = permanent protection formulas (e.g. `always(<+any_signed(/members)> true)`)
 - **Models** = replaceable witness LTSs with predicate-guarded transitions
 - When adding a RULE, you must provide a **witness model** that proves the rule is satisfiable
 - The model can be replaced later, but only with one that still satisfies all accumulated rules
