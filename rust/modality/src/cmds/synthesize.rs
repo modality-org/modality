@@ -505,6 +505,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_CONTRACT>] true -> [<+modifies(/contracts) +signed_by(/users/legal_reviewer.id)>] true"#,
             r#"[<+ONBOARD_VENDOR>] true -> [<+modifies(/vendors) +signed_by(/users/vendor_manager.id)>] true"#,
             r#"[<+APPROVE_TIME_OFF>] true -> [<+modifies(/time_off) +signed_by(/users/manager.id)>] true"#,
+            r#"[<+APPROVE_EXPENSE>] true -> [<+modifies(/expenses) +signed_by(/users/finance_manager.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -1951,6 +1952,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_TIME_OFF>] true -> [<+modifies(/time_off) +signed_by(/users/manager.id)>] true"
                 .to_string(),
+            "[<+APPROVE_EXPENSE>] true -> [<+modifies(/expenses) +signed_by(/users/finance_manager.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2010,6 +2013,9 @@ F2: formula generated_2 {
         assert!(
             output.contains("+APPROVE_TIME_OFF +signed_by(/users/manager.id) +modifies(/time_off)")
         );
+        assert!(output.contains(
+            "+APPROVE_EXPENSE +signed_by(/users/finance_manager.id) +modifies(/expenses)"
+        ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
