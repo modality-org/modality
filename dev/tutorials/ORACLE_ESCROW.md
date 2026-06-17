@@ -90,13 +90,13 @@ export default rule {
   starting_at $PARENT
   formula {
     // Release requires oracle confirmation
-    always ([+RELEASE] implies oracle_attests(/oracles/delivery, "delivered", "true")) &
+    always([+RELEASE] true -> <+oracle_attests(/oracles/delivery, "delivered", "true")> true) &
     
     // Dispute refund requires oracle denial
-    always ([+DISPUTE_REFUND] implies oracle_attests(/oracles/delivery, "delivered", "false")) &
+    always([+DISPUTE_REFUND] true -> <+oracle_attests(/oracles/delivery, "delivered", "false")> true) &
     
     // Timeout refund requires deadline passed + buyer signature
-    always ([+TIMEOUT_REFUND] implies (signed_by(/users/buyer.id) & after(/escrow/timeout)))
+    always([+TIMEOUT_REFUND] true -> (<+signed_by(/users/buyer.id)> true & <+after(/escrow/timeout)> true))
   }
 }
 ```
