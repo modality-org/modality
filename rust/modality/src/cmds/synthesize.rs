@@ -479,6 +479,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[+APPROVE] true -> [<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true"#,
             r#"always([+ASSIGN_TASK] true -> <+signed_by(/users/task_requester.id) +signed_by(/users/worker_agent.id)> true)"#,
             r#"always([+RESOLVE_DISPUTE] true -> <+signed_by(/users/arbiter.id)> true)"#,
+            r#"always([+UPDATE] true -> <+any_signed(/members)> true)"#,
+            r#"always([+CHANGE_MEMBERS] true -> <+modifies(/members) +all_signed(/members)> true)"#,
         ],
     },
     FormulaExampleGroup {
@@ -1868,6 +1870,22 @@ F2: formula generated_2 {
 
         assert!(output.contains("+RELEASE"));
         assert!(output.contains("+oracle_attests(/oracles/delivery.id, delivered, true)"));
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_membership_predicate_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+UPDATE] true -> <+any_signed(/members)> true)".to_string(),
+            "always([+CHANGE_MEMBERS] true -> <+modifies(/members) +all_signed(/members)> true)"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Membership", &formulas);
+        let output = format_synthesized_model(&model, "modality").unwrap();
+
+        assert!(output.contains("+UPDATE +any_signed(/members)"));
+        assert!(output.contains("+CHANGE_MEMBERS +modifies(/members) +all_signed(/members)"));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
