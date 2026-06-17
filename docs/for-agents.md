@@ -166,7 +166,7 @@ Predicates are the building blocks for rules. They evaluate to true/false based 
 
 | Predicate | Purpose | Example |
 |-----------|---------|---------|
-| `signed_by(path)` | Verify ed25519 signature | `signed_by(/users/alice.id)` |
+| `signed_by(path)` | Verify ed25519 signature | `+signed_by(/users/alice.id)` |
 | `threshold(n, signers)` | n-of-m multisig | `threshold(2, /treasury/signers)` |
 
 ### Time Predicates
