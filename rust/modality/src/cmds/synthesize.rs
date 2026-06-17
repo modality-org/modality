@@ -503,6 +503,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_BUDGET>] true -> [<+modifies(/budgets) +signed_by(/users/budget_owner.id)>] true"#,
             r#"[<+APPROVE_PURCHASE_ORDER>] true -> [<+modifies(/purchase_orders) +signed_by(/users/procurement_manager.id)>] true"#,
             r#"[<+APPROVE_CONTRACT>] true -> [<+modifies(/contracts) +signed_by(/users/legal_reviewer.id)>] true"#,
+            r#"[<+ONBOARD_VENDOR>] true -> [<+modifies(/vendors) +signed_by(/users/vendor_manager.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -1945,6 +1946,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_CONTRACT>] true -> [<+modifies(/contracts) +signed_by(/users/legal_reviewer.id)>] true"
                 .to_string(),
+            "[<+ONBOARD_VENDOR>] true -> [<+modifies(/vendors) +signed_by(/users/vendor_manager.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -1997,6 +2000,10 @@ F2: formula generated_2 {
         assert!(output.contains(
             "+APPROVE_CONTRACT +signed_by(/users/legal_reviewer.id) +modifies(/contracts)"
         ));
+        assert!(
+            output
+                .contains("+ONBOARD_VENDOR +signed_by(/users/vendor_manager.id) +modifies(/vendors)")
+        );
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
