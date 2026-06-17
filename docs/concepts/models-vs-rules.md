@@ -43,7 +43,7 @@ Rules are added via the RULE method and accumulate permanently:
 
 ```bash
 modal contract commit --method rule \
-  --value 'rule admin_only { formula { always (modifies(/) implies signed_by(/admin.id)) } }'
+  --value 'rule admin_only { formula { always([+CHANGE_CONFIG] true -> <+signed_by(/admin.id)> true) } }'
 ```
 
 Once added, this rule:
@@ -86,15 +86,15 @@ Multiple rules combine with AND semantics. A commit must satisfy ALL rules:
 
 ```modality
 rule members_can_post {
-  formula { always (modifies(/data) implies any_signed(/members)) }
+  formula { always([+CHANGE_DATA] true -> <+any_signed(/members)> true) }
 }
 
 rule admins_change_members {
-  formula { always (modifies(/members) implies signed_by(/admin.id)) }
+  formula { always([+CHANGE_MEMBERS] true -> <+signed_by(/admin.id)> true) }
 }
 
 rule no_delete_history {
-  formula { always (not modifies(/history)) }
+  formula { always([-DELETE_HISTORY] true) }
 }
 ```
 
@@ -115,7 +115,7 @@ modal contract commit --method post --path /admin.id --value "$MY_KEY" --sign me
 
 # 3. IMMEDIATELY add protection rules
 modal contract commit --method rule \
-  --value 'rule admin_only { formula { always (modifies(/) implies signed_by(/admin.id)) } }' \
+  --value 'rule admin_only { formula { always([+CHANGE_CONFIG] true -> <+signed_by(/admin.id)> true) } }' \
   --sign me
 
 # Now the contract is protected
@@ -127,11 +127,11 @@ Members control their own expansion:
 
 ```modality
 rule members_required {
-  formula { always (modifies(/data) implies any_signed(/members)) }
+  formula { always([+CHANGE_DATA] true -> <+any_signed(/members)> true) }
 }
 
 rule members_unanimous {
-  formula { always (modifies(/members) implies all_signed(/members)) }
+  formula { always([+CHANGE_MEMBERS] true -> <+all_signed(/members)> true) }
 }
 ```
 
@@ -141,15 +141,15 @@ Different paths, different requirements:
 
 ```modality
 rule public_data {
-  formula { always (modifies(/public) implies any_signed(/members)) }
+  formula { always([+CHANGE_PUBLIC] true -> <+any_signed(/members)> true) }
 }
 
 rule private_data {
-  formula { always (modifies(/private) implies all_signed(/members)) }
+  formula { always([+CHANGE_PRIVATE] true -> <+all_signed(/members)> true) }
 }
 
 rule config_admin_only {
-  formula { always (modifies(/config) implies signed_by(/admin.id)) }
+  formula { always([+CHANGE_CONFIG] true -> <+signed_by(/admin.id)> true) }
 }
 ```
 
@@ -159,7 +159,7 @@ Some paths can never change:
 
 ```modality
 rule genesis_immutable {
-  formula { always (not modifies(/genesis)) }
+  formula { always([-CHANGE_GENESIS] true) }
 }
 ```
 
@@ -172,17 +172,16 @@ Rules use the formula language with these predicates:
 | `signed_by(/path.id)` | Commit signed by key at path |
 | `any_signed(/dir)` | Signed by any key in /dir/*.id |
 | `all_signed(/dir)` | Signed by ALL keys in /dir/*.id |
-| `modifies(/path)` | Commit touches paths under /path |
-| `threshold_signed(n, /dir)` | At least n keys from /dir/*.id |
+| `CHANGE_*` labels | Domain action labels for protected changes |
 
 Combined with logic:
 
 | Operator | Meaning |
 |----------|---------|
-| `implies` | IF left THEN right must hold |
+| `->` | IF left THEN right must hold |
 | `&` | Both must hold |
 | `\|` | Either must hold |
-| `not` | Negation |
+| `[-ACTION]` | No transition with ACTION |
 | `always` | Must hold for all commits |
 
 ## Security Checklist
