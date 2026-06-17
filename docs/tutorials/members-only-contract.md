@@ -222,7 +222,10 @@ The transition `+modifies(/members) +all_signed(/members)` stays constant. But a
 
 ## Variations
 
-### Admin bypass
+### Admin bypass for member-required commits
+
+This variation lets either an admin or a member authorize ordinary commits. It
+does not weaken the separate membership-change rule above.
 
 ```modality
 rule admin_bypass {
