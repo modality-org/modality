@@ -10,16 +10,16 @@ You want a shared contract where:
 
 ## Key Concepts
 
-### Rules Use Predicates, Not Action Labels
+### Rules Constrain Models
 
-Rules are evaluated against commit data using **predicates** — boolean functions that inspect the commit. Rules should NOT reference model action labels directly.
+Rules are permanent formulas over predicates. They do not validate commits directly; instead, each governing model must satisfy the accumulated rules. Commits are accepted or rejected by matching the current governing model's transition predicates.
 
 ```modality
 // WRONG - references model structure
 always ([+ADD_MEMBER] implies +all_signed(/members))
 
-// RIGHT - uses predicates only
-always (+modifies(/members) implies +all_signed(/members))
+// RIGHT - constrains acceptable witness models with predicates
+always([+modifies(/members)] true -> <+all_signed(/members)> true)
 ```
 
 ### Dynamic Membership
@@ -43,23 +43,7 @@ Each `.id` file contains that member's public key (hex-encoded).
 
 ## The Model
 
-### Minimal Approach
-
-```modality
-model members_only {
-  initial active
-  
-  // Simple self-loop - any commit allowed structurally
-  // Permissions enforced by rules via predicates
-  active -> active []
-}
-```
-
-The minimal model delegates all permission logic to rules.
-
-### Explicit Approach
-
-Alternatively, encode permissions directly in transition labels:
+Use transition predicates to encode the permissions that actually gate commits:
 
 ```modality
 model members_only {
@@ -81,20 +65,20 @@ The two transitions partition the action space:
 
 ## The Rules
 
-Rules are immutable once added. They enforce constraints using predicates:
+Rules are immutable once added. They constrain future witness models using predicates, so a replacement model cannot forget the protections:
 
 ```modality
 // Any commit requires at least one member signature
 rule member_required {
   formula {
-    always (+any_signed(/members))
+    always(<+any_signed(/members)> true)
   }
 }
 
 // Modifying /members/ requires ALL current members
 rule membership_unanimous {
   formula {
-    always (+modifies(/members) implies +all_signed(/members))
+    always([+modifies(/members)] true -> <+all_signed(/members)> true)
   }
 }
 ```
@@ -109,8 +93,8 @@ rule membership_unanimous {
 
 ### Why predicates, not action labels?
 
-- **Rules validate commits** — they check predicate conditions against commit data
-- **Models define structure** — they specify allowed state transitions
+- **Models validate commits** — each commit must match a valid transition from the current model state
+- **Rules validate models** — they constrain which witness models are acceptable
 - **Decoupling** — rules shouldn't depend on model action names
 
 ## Walkthrough
@@ -137,7 +121,7 @@ Each rule commit must include a **model that witnesses satisfiability**. The mod
 # Witness model must satisfy the rule
 modal c commit \
   --method rule \
-  --rule 'rule member_required { formula { always (+any_signed(/members)) } }' \
+  --rule 'rule member_required { formula { always(<+any_signed(/members)> true) } }' \
   --model 'model witness { initial s; s -> s [+any_signed(/members)] }' \
   --sign alice.key
 
@@ -145,7 +129,7 @@ modal c commit \
 # Witness must show the implication is satisfiable
 modal c commit \
   --method rule \
-  --rule 'rule membership_unanimous { formula { always (+modifies(/members) implies +all_signed(/members)) } }' \
+  --rule 'rule membership_unanimous { formula { always([+modifies(/members)] true -> <+all_signed(/members)> true) } }' \
   --model 'model witness { initial s; s -> s [+any_signed(/members) -modifies(/members)]; s -> s [+modifies(/members) +all_signed(/members)] }' \
   --sign alice.key
 ```
@@ -226,7 +210,7 @@ modal c commit \
 
 ## How Membership Evolves
 
-The key insight: rules don't change, but their interpretation does.
+The key insight: predicates are evaluated against current state, so the same transition labels become stricter as membership changes.
 
 | Step | Members | `+all_signed(/members)` requires |
 |------|---------|--------------------------------|
@@ -234,7 +218,7 @@ The key insight: rules don't change, but their interpretation does.
 | +bob | [alice, bob] | [alice, bob] |
 | +carol | [alice, bob, carol] | [alice, bob, carol] |
 
-The rule `always (+modifies(/members) implies +all_signed(/members))` stays constant. But as the member set grows, more signatures are required for membership changes.
+The transition `+modifies(/members) +all_signed(/members)` stays constant. But as the member set grows, more signatures are required for membership changes.
 
 ## Variations
 
@@ -243,7 +227,7 @@ The rule `always (+modifies(/members) implies +all_signed(/members))` stays cons
 ```modality
 rule admin_bypass {
   formula {
-    always (+signed_by(/admin.id) | +any_signed(/members))
+    always(<+signed_by(/admin.id)> true | <+any_signed(/members)> true)
   }
 }
 ```
@@ -253,7 +237,7 @@ rule admin_bypass {
 ```modality
 rule config_protected {
   formula {
-    always (+modifies(/config) implies +signed_by(/admin.id))
+    always([+modifies(/config)] true -> <+signed_by(/admin.id)> true)
   }
 }
 ```
@@ -261,17 +245,17 @@ rule config_protected {
 ### Majority for membership
 
 ```modality
-rule membership_majority {
-  formula {
-    always (+modifies(/members) implies +threshold(2, /members))
-  }
+model membership_majority {
+  initial active
+  active -> active [+any_signed(/members) -modifies(/members)]
+  active -> active [+modifies(/members) +threshold(2, /members)]
 }
 ```
 
 ## Summary
 
-1. **Model** defines structure (minimal, permissive)
-2. **Rules** enforce constraints via **predicates**
+1. **Model** enforces commit permissions through transition predicates
+2. **Rules** constrain acceptable witness models via **predicates**
 3. Rules should NOT reference action labels from the model
 4. **Dynamic predicates** (`+any_signed`, `+all_signed`) evolve with state
 5. **Path predicates** (`+modifies`) check what the commit touches
