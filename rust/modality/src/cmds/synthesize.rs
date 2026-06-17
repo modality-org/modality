@@ -510,6 +510,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_REIMBURSEMENT>] true -> [<+modifies(/reimbursements) +signed_by(/users/payroll_manager.id)>] true"#,
             r#"[<+APPROVE_REFUND>] true -> [<+modifies(/refunds) +signed_by(/users/refund_manager.id)>] true"#,
             r#"[<+APPROVE_CREDIT>] true -> [<+modifies(/credits) +signed_by(/users/credit_manager.id)>] true"#,
+            r#"[<+APPROVE_ADJUSTMENT>] true -> [<+modifies(/adjustments) +signed_by(/users/controller.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -1966,6 +1967,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_CREDIT>] true -> [<+modifies(/credits) +signed_by(/users/credit_manager.id)>] true"
                 .to_string(),
+            "[<+APPROVE_ADJUSTMENT>] true -> [<+modifies(/adjustments) +signed_by(/users/controller.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2039,6 +2042,9 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "+APPROVE_CREDIT +signed_by(/users/credit_manager.id) +modifies(/credits)"
+        ));
+        assert!(output.contains(
+            "+APPROVE_ADJUSTMENT +signed_by(/users/controller.id) +modifies(/adjustments)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
