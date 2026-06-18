@@ -579,6 +579,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_KPI>] true -> [<+modifies(/kpis) +signed_by(/users/kpi_owner.id)>] true"#,
             r#"[<+APPROVE_METRIC>] true -> [<+modifies(/metrics) +signed_by(/users/metric_owner.id)>] true"#,
             r#"[<+APPROVE_OKR>] true -> [<+modifies(/okrs) +signed_by(/users/okr_owner.id)>] true"#,
+            r#"[<+APPROVE_INITIATIVE>] true -> [<+modifies(/initiatives) +signed_by(/users/initiative_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2173,6 +2174,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_OKR>] true -> [<+modifies(/okrs) +signed_by(/users/okr_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_INITIATIVE>] true -> [<+modifies(/initiatives) +signed_by(/users/initiative_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2443,6 +2446,9 @@ F2: formula generated_2 {
             output.contains("+APPROVE_METRIC +signed_by(/users/metric_owner.id) +modifies(/metrics)")
         );
         assert!(output.contains("+APPROVE_OKR +signed_by(/users/okr_owner.id) +modifies(/okrs)"));
+        assert!(output.contains(
+            "+APPROVE_INITIATIVE +signed_by(/users/initiative_owner.id) +modifies(/initiatives)"
+        ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
