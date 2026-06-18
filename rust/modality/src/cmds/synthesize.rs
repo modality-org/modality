@@ -554,6 +554,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_CASE>] true -> [<+modifies(/cases) +signed_by(/users/case_owner.id)>] true"#,
             r#"[<+APPROVE_TICKET>] true -> [<+modifies(/tickets) +signed_by(/users/ticket_owner.id)>] true"#,
             r#"[<+APPROVE_PROPOSAL>] true -> [<+modifies(/proposals) +signed_by(/users/proposal_owner.id)>] true"#,
+            r#"[<+APPROVE_REQUEST>] true -> [<+modifies(/requests) +signed_by(/users/request_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2098,6 +2099,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_PROPOSAL>] true -> [<+modifies(/proposals) +signed_by(/users/proposal_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_REQUEST>] true -> [<+modifies(/requests) +signed_by(/users/request_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2301,6 +2304,9 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "+APPROVE_PROPOSAL +signed_by(/users/proposal_owner.id) +modifies(/proposals)"
+        ));
+        assert!(output.contains(
+            "+APPROVE_REQUEST +signed_by(/users/request_owner.id) +modifies(/requests)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
