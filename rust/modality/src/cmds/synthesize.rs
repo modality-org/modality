@@ -569,6 +569,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_SURVEY>] true -> [<+modifies(/surveys) +signed_by(/users/survey_owner.id)>] true"#,
             r#"[<+APPROVE_RESPONSE>] true -> [<+modifies(/responses) +signed_by(/users/response_owner.id)>] true"#,
             r#"[<+APPROVE_RESULT>] true -> [<+modifies(/results) +signed_by(/users/result_owner.id)>] true"#,
+            r#"[<+APPROVE_OUTCOME>] true -> [<+modifies(/outcomes) +signed_by(/users/outcome_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2143,6 +2144,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_RESULT>] true -> [<+modifies(/results) +signed_by(/users/result_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_OUTCOME>] true -> [<+modifies(/outcomes) +signed_by(/users/outcome_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2390,6 +2393,9 @@ F2: formula generated_2 {
         assert!(
             output.contains("+APPROVE_RESULT +signed_by(/users/result_owner.id) +modifies(/results)")
         );
+        assert!(output.contains(
+            "+APPROVE_OUTCOME +signed_by(/users/outcome_owner.id) +modifies(/outcomes)"
+        ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
