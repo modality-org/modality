@@ -19,6 +19,12 @@ members = [
 , "modal-wasm-runtime"
 , "modal-wasm-validation"]
 
+default-members = [
+  "modality",
+  "modality-lang",
+  "modality-lsp",
+]
+
 [profile.release]
 strip = true
 lto = true

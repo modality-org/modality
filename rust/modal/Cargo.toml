@@ -12,7 +12,7 @@ readme = "../README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-modality = { path = "../modality", version = "0.1.7" }
+modality = { path = "../modality", version = "0.1.7", features = ["identity", "passfile", "upgrade"] }
 modality-lang = { path = "../modality-lang", version = "0.1.7" }
 modal-common = { path = "../modal-common", version = "0.1.7" }
 modal-node = { path = "../modal-node", version = "0.1.7" }
@@ -57,4 +57,3 @@ nix = { version = "0.29", features = ["signal"] }
 [dev-dependencies]
 tempfile = "3.10"
 ed25519-dalek = { version = "2.1", features = ["rand_core"] }
-

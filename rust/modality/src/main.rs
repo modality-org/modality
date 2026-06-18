@@ -31,6 +31,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    #[cfg(feature = "identity")]
     #[command(alias = "identity")]
     #[command(about = "ID related commands")]
     Id {
@@ -38,6 +39,7 @@ enum Commands {
         command: IdCommands,
     },
 
+    #[cfg(feature = "passfile")]
     #[command(about = "Passfile related commands")]
     Passfile {
         #[command(subcommand)]
@@ -50,20 +52,24 @@ enum Commands {
         command: ModelCommands,
     },
 
+    #[cfg(feature = "node")]
     #[command(about = "Node related commands")]
     Node {
         #[command(subcommand)]
         command: NodeCommands,
     },
 
+    #[cfg(feature = "contract")]
     #[command(alias = "c")]
     #[command(about = "Agent contract operations (create, propose, execute)")]
     Contract(cmds::contract::Opts),
 
+    #[cfg(feature = "upgrade")]
     #[command(about = "Upgrade modality to the latest version")]
     Upgrade(cmds::upgrade::Opts),
 }
 
+#[cfg(feature = "identity")]
 #[derive(Subcommand)]
 enum IdCommands {
     Create(cmds::id::create::Opts),
@@ -73,6 +79,7 @@ enum IdCommands {
     Get(cmds::id::get::Opts),
 }
 
+#[cfg(feature = "passfile")]
 #[derive(Subcommand)]
 enum PassfileCommands {
     Decrypt(cmds::passfile::decrypt::Opts),
@@ -93,11 +100,12 @@ enum ModelCommands {
 
     #[command(about = "Synthesize a model from a template")]
     Synthesize(cmds::synthesize::Opts),
-    
+
     #[command(about = "Validate a contract model (predicates only, no raw propositions)")]
     Validate(cmds::validate::Opts),
 }
 
+#[cfg(feature = "node")]
 #[derive(Subcommand)]
 enum NodeCommands {
     #[command(about = "Inspect a Modality node's state")]
@@ -108,12 +116,14 @@ enum NodeCommands {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     match &cli.command {
+        #[cfg(feature = "identity")]
         Commands::Id { command } => match command {
             IdCommands::Create(opts) => cmds::id::create::run(opts).await?,
             IdCommands::CreateSub(opts) => cmds::id::create_sub::run(opts).await?,
             IdCommands::Derive(opts) => cmds::id::derive::run(opts).await?,
             IdCommands::Get(opts) => cmds::id::get::run(opts).await?,
         },
+        #[cfg(feature = "passfile")]
         Commands::Passfile { command } => match command {
             PassfileCommands::Decrypt(opts) => cmds::passfile::decrypt::run(opts).await?,
             PassfileCommands::Encrypt(opts) => cmds::passfile::encrypt::run(opts).await?,
@@ -125,10 +135,13 @@ async fn main() -> Result<()> {
             ModelCommands::Synthesize(opts) => cmds::synthesize::run(opts).await?,
             ModelCommands::Validate(opts) => cmds::validate::run(opts).await?,
         },
+        #[cfg(feature = "node")]
         Commands::Node { command } => match command {
             NodeCommands::Inspect(opts) => cmds::inspect::run(opts).await?,
         },
+        #[cfg(feature = "contract")]
         Commands::Contract(opts) => cmds::contract::run(opts).await?,
+        #[cfg(feature = "upgrade")]
         Commands::Upgrade(opts) => cmds::upgrade::run(opts).await?,
     }
 

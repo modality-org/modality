@@ -1,10 +1,15 @@
 pub mod check;
+#[cfg(feature = "contract")]
 pub mod contract;
+#[cfg(feature = "identity")]
 pub mod id;
+#[cfg(feature = "node")]
 pub mod inspect;
 pub mod mermaid;
 pub mod model_create;
+#[cfg(feature = "passfile")]
 pub mod passfile;
 pub mod synthesize;
+#[cfg(feature = "upgrade")]
 pub mod upgrade;
 pub mod validate;

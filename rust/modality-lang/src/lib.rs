@@ -8,6 +8,7 @@ pub mod ast;
 pub mod lexer;
 pub mod lalrpop_parser;
 pub mod mermaid;
+#[cfg(target_arch = "wasm32")]
 pub mod wasm;
 pub mod model_checker;
 pub mod synthesis;
@@ -46,4 +47,4 @@ pub use grammar::FormulaParser;
 pub use grammar::ActionParser;
 pub use grammar::ActionCallParser;
 pub use grammar::TestParser;
-pub use grammar::TopLevelParser; 
+pub use grammar::TopLevelParser;
