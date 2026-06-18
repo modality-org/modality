@@ -527,6 +527,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_ENTITLEMENT>] true -> [<+modifies(/entitlements) +signed_by(/users/access_manager.id)>] true"#,
             r#"[<+APPROVE_DEPRECATION>] true -> [<+modifies(/deprecations) +signed_by(/users/product_manager.id)>] true"#,
             r#"[<+APPROVE_ARCHIVE>] true -> [<+modifies(/archives) +signed_by(/users/records_manager.id)>] true"#,
+            r#"[<+APPROVE_RETENTION>] true -> [<+modifies(/retention) +signed_by(/users/records_counsel.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2017,6 +2018,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_ARCHIVE>] true -> [<+modifies(/archives) +signed_by(/users/records_manager.id)>] true"
                 .to_string(),
+            "[<+APPROVE_RETENTION>] true -> [<+modifies(/retention) +signed_by(/users/records_counsel.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2139,6 +2142,9 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "+APPROVE_ARCHIVE +signed_by(/users/records_manager.id) +modifies(/archives)"
+        ));
+        assert!(output.contains(
+            "+APPROVE_RETENTION +signed_by(/users/records_counsel.id) +modifies(/retention)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
