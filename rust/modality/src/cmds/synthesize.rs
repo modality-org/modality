@@ -528,6 +528,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_DEPRECATION>] true -> [<+modifies(/deprecations) +signed_by(/users/product_manager.id)>] true"#,
             r#"[<+APPROVE_ARCHIVE>] true -> [<+modifies(/archives) +signed_by(/users/records_manager.id)>] true"#,
             r#"[<+APPROVE_RETENTION>] true -> [<+modifies(/retention) +signed_by(/users/records_counsel.id)>] true"#,
+            r#"[<+APPROVE_POLICY>] true -> [<+modifies(/policies) +signed_by(/users/policy_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2020,6 +2021,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_RETENTION>] true -> [<+modifies(/retention) +signed_by(/users/records_counsel.id)>] true"
                 .to_string(),
+            "[<+APPROVE_POLICY>] true -> [<+modifies(/policies) +signed_by(/users/policy_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2145,6 +2148,9 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "+APPROVE_RETENTION +signed_by(/users/records_counsel.id) +modifies(/retention)"
+        ));
+        assert!(output.contains(
+            "+APPROVE_POLICY +signed_by(/users/policy_owner.id) +modifies(/policies)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
