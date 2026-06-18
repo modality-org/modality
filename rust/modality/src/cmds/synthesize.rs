@@ -533,6 +533,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_ACCREDITATION>] true -> [<+modifies(/accreditations) +signed_by(/users/accreditation_manager.id)>] true"#,
             r#"[<+APPROVE_WAIVER>] true -> [<+modifies(/waivers) +signed_by(/users/waiver_authority.id)>] true"#,
             r#"[<+APPROVE_EXCEPTION>] true -> [<+modifies(/exceptions) +signed_by(/users/exception_owner.id)>] true"#,
+            r#"[<+APPROVE_VARIANCE>] true -> [<+modifies(/variances) +signed_by(/users/variance_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2035,6 +2036,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_EXCEPTION>] true -> [<+modifies(/exceptions) +signed_by(/users/exception_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_VARIANCE>] true -> [<+modifies(/variances) +signed_by(/users/variance_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2175,6 +2178,9 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "+APPROVE_EXCEPTION +signed_by(/users/exception_owner.id) +modifies(/exceptions)"
+        ));
+        assert!(output.contains(
+            "+APPROVE_VARIANCE +signed_by(/users/variance_owner.id) +modifies(/variances)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
