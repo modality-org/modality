@@ -525,6 +525,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_RENEWAL>] true -> [<+modifies(/renewals) +signed_by(/users/account_manager.id)>] true"#,
             r#"[<+APPROVE_SUBSCRIPTION>] true -> [<+modifies(/subscriptions) +signed_by(/users/customer_success_manager.id)>] true"#,
             r#"[<+APPROVE_ENTITLEMENT>] true -> [<+modifies(/entitlements) +signed_by(/users/access_manager.id)>] true"#,
+            r#"[<+APPROVE_DEPRECATION>] true -> [<+modifies(/deprecations) +signed_by(/users/product_manager.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2011,6 +2012,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_ENTITLEMENT>] true -> [<+modifies(/entitlements) +signed_by(/users/access_manager.id)>] true"
                 .to_string(),
+            "[<+APPROVE_DEPRECATION>] true -> [<+modifies(/deprecations) +signed_by(/users/product_manager.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2127,6 +2130,9 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "+APPROVE_ENTITLEMENT +signed_by(/users/access_manager.id) +modifies(/entitlements)"
+        ));
+        assert!(output.contains(
+            "+APPROVE_DEPRECATION +signed_by(/users/product_manager.id) +modifies(/deprecations)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
