@@ -574,6 +574,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_PLAN>] true -> [<+modifies(/plans) +signed_by(/users/plan_owner.id)>] true"#,
             r#"[<+APPROVE_STRATEGY>] true -> [<+modifies(/strategies) +signed_by(/users/strategy_owner.id)>] true"#,
             r#"[<+APPROVE_OBJECTIVE>] true -> [<+modifies(/objectives) +signed_by(/users/objective_owner.id)>] true"#,
+            r#"[<+APPROVE_TARGET>] true -> [<+modifies(/targets) +signed_by(/users/target_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2158,6 +2159,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_OBJECTIVE>] true -> [<+modifies(/objectives) +signed_by(/users/objective_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_TARGET>] true -> [<+modifies(/targets) +signed_by(/users/target_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2418,6 +2421,8 @@ F2: formula generated_2 {
         assert!(output.contains(
             "+APPROVE_OBJECTIVE +signed_by(/users/objective_owner.id) +modifies(/objectives)"
         ));
+        assert!(output
+            .contains("+APPROVE_TARGET +signed_by(/users/target_owner.id) +modifies(/targets)"));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
