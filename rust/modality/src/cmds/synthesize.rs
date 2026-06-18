@@ -577,6 +577,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_TARGET>] true -> [<+modifies(/targets) +signed_by(/users/target_owner.id)>] true"#,
             r#"[<+APPROVE_GOAL>] true -> [<+modifies(/goals) +signed_by(/users/goal_owner.id)>] true"#,
             r#"[<+APPROVE_KPI>] true -> [<+modifies(/kpis) +signed_by(/users/kpi_owner.id)>] true"#,
+            r#"[<+APPROVE_METRIC>] true -> [<+modifies(/metrics) +signed_by(/users/metric_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2167,6 +2168,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_KPI>] true -> [<+modifies(/kpis) +signed_by(/users/kpi_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_METRIC>] true -> [<+modifies(/metrics) +signed_by(/users/metric_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2433,6 +2436,9 @@ F2: formula generated_2 {
             output.contains("+APPROVE_GOAL +signed_by(/users/goal_owner.id) +modifies(/goals)")
         );
         assert!(output.contains("+APPROVE_KPI +signed_by(/users/kpi_owner.id) +modifies(/kpis)"));
+        assert!(
+            output.contains("+APPROVE_METRIC +signed_by(/users/metric_owner.id) +modifies(/metrics)")
+        );
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
