@@ -561,6 +561,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_REPORT>] true -> [<+modifies(/reports) +signed_by(/users/report_owner.id)>] true"#,
             r#"[<+APPROVE_MEMO>] true -> [<+modifies(/memos) +signed_by(/users/memo_owner.id)>] true"#,
             r#"[<+APPROVE_NOTE>] true -> [<+modifies(/notes) +signed_by(/users/note_owner.id)>] true"#,
+            r#"[<+APPROVE_COMMENT>] true -> [<+modifies(/comments) +signed_by(/users/comment_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2119,6 +2120,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_NOTE>] true -> [<+modifies(/notes) +signed_by(/users/note_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_COMMENT>] true -> [<+modifies(/comments) +signed_by(/users/comment_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2343,6 +2346,9 @@ F2: formula generated_2 {
         assert!(
             output.contains("+APPROVE_NOTE +signed_by(/users/note_owner.id) +modifies(/notes)")
         );
+        assert!(output.contains(
+            "+APPROVE_COMMENT +signed_by(/users/comment_owner.id) +modifies(/comments)"
+        ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
