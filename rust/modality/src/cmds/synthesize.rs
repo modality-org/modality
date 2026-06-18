@@ -549,6 +549,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_PACKAGE>] true -> [<+modifies(/packages) +signed_by(/users/package_owner.id)>] true"#,
             r#"[<+APPROVE_BUNDLE>] true -> [<+modifies(/bundles) +signed_by(/users/bundle_owner.id)>] true"#,
             r#"[<+APPROVE_DOSSIER>] true -> [<+modifies(/dossiers) +signed_by(/users/dossier_owner.id)>] true"#,
+            r#"[<+APPROVE_FILE>] true -> [<+modifies(/files) +signed_by(/users/file_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2083,6 +2084,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_DOSSIER>] true -> [<+modifies(/dossiers) +signed_by(/users/dossier_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_FILE>] true -> [<+modifies(/files) +signed_by(/users/file_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2271,6 +2274,9 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "+APPROVE_DOSSIER +signed_by(/users/dossier_owner.id) +modifies(/dossiers)"
+        ));
+        assert!(output.contains(
+            "+APPROVE_FILE +signed_by(/users/file_owner.id) +modifies(/files)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
