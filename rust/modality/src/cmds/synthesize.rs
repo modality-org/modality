@@ -546,6 +546,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_ATTACHMENT>] true -> [<+modifies(/attachments) +signed_by(/users/attachment_owner.id)>] true"#,
             r#"[<+APPROVE_ANNEX>] true -> [<+modifies(/annexes) +signed_by(/users/annex_owner.id)>] true"#,
             r#"[<+APPROVE_ENCLOSURE>] true -> [<+modifies(/enclosures) +signed_by(/users/enclosure_owner.id)>] true"#,
+            r#"[<+APPROVE_PACKAGE>] true -> [<+modifies(/packages) +signed_by(/users/package_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2074,6 +2075,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_ENCLOSURE>] true -> [<+modifies(/enclosures) +signed_by(/users/enclosure_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_PACKAGE>] true -> [<+modifies(/packages) +signed_by(/users/package_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2253,6 +2256,9 @@ F2: formula generated_2 {
         );
         assert!(output.contains(
             "+APPROVE_ENCLOSURE +signed_by(/users/enclosure_owner.id) +modifies(/enclosures)"
+        ));
+        assert!(output.contains(
+            "+APPROVE_PACKAGE +signed_by(/users/package_owner.id) +modifies(/packages)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
