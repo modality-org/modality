@@ -49,6 +49,7 @@ jobs:
             ${{ runner.os }}-cargo-build-
       
       - name: Install system dependencies
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake clang libssl-dev pkg-config
@@ -92,6 +93,7 @@ jobs:
             ${{ runner.os }}-cargo-test-
       
       - name: Install system dependencies
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake clang libssl-dev pkg-config
@@ -130,6 +132,7 @@ jobs:
             ${{ runner.os }}-cargo-clippy-
       
       - name: Install system dependencies
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake clang libssl-dev pkg-config
@@ -168,6 +171,7 @@ jobs:
             ${{ runner.os }}-cargo-release-
       
       - name: Install system dependencies
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake clang libssl-dev pkg-config
