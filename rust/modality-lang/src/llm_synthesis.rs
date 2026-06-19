@@ -287,6 +287,10 @@ fn collect_json_formulas(
                     collect_json_text_formulas(value, formulas);
                 } else if key == "arguments" {
                     collect_json_encoded_formulas(value, formulas);
+                } else if (formula_context || array_context)
+                    && matches!(key.as_str(), "value" | "expression")
+                {
+                    collect_json_formulas(value, formulas, true, false);
                 } else {
                     collect_json_formulas(value, formulas, false, false);
                 }
@@ -1210,6 +1214,32 @@ Formula 2: "<+CANCEL> true",
   "formulas": [
     "F1: always([+PAY] true -> eventually(<+WORK> true))",
     "Formula 2: <+CANCEL> true"
+  ]
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] true -> eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_formula_object_values() {
+        let response = r#"
+{
+  "formulas": [
+    {
+      "name": "payment",
+      "value": "always([+PAY] true -> eventually(<+WORK> true))"
+    },
+    {
+      "name": "cancel",
+      "expression": "<+CANCEL> true"
+    }
   ]
 }
 "#;
