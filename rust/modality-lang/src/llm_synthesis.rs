@@ -203,6 +203,10 @@ fn parse_text_llm_response(response: &str) -> Vec<String> {
             continue 'lines;
         }
 
+        if collect_json_field_line_formulas(line, &mut formulas) {
+            continue 'lines;
+        }
+
         if let Some(formula) = extract_json_field_formula(line) {
             push_formula_candidate(&mut formulas, &mut declaration_lines, formula);
             continue 'lines;
@@ -445,6 +449,21 @@ fn collect_json_event_line_formulas(line: &str, formulas: &mut Vec<String>) -> b
     }
 
     true
+}
+
+fn collect_json_field_line_formulas(line: &str, formulas: &mut Vec<String>) -> bool {
+    let line = strip_trailing_json_comma(line);
+    if !line.contains(':') {
+        return false;
+    }
+
+    let Ok(value) = serde_json::from_str(&format!("{{{line}}}")) else {
+        return false;
+    };
+    let len = formulas.len();
+    collect_json_formulas(&value, formulas, false, false);
+
+    formulas.len() != len
 }
 
 fn push_formula_candidate(
@@ -1494,6 +1513,28 @@ Formula 2: "<+CANCEL> true",
 
         let formulas = parse_llm_response(response);
         assert_eq!(formulas, vec!["<+CANCEL> true"]);
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_fenced_json_provider_text_fields() {
+        let response = r#"
+```json
+{
+  "content": "F1: always([+PAY] true -> eventually(<+WORK> true))",
+  "message": "Explanation only.",
+  "output_text": "Formula 2: <+CANCEL> true"
+}
+```
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true"
+            ]
+        );
     }
 
     #[test]
