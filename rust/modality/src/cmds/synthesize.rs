@@ -583,6 +583,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_EPIC>] true -> [<+modifies(/epics) +signed_by(/users/epic_owner.id)>] true"#,
             r#"[<+APPROVE_STORY>] true -> [<+modifies(/stories) +signed_by(/users/story_owner.id)>] true"#,
             r#"[<+APPROVE_TASK>] true -> [<+modifies(/tasks) +signed_by(/users/task_owner.id)>] true"#,
+            r#"[<+APPROVE_BUG>] true -> [<+modifies(/bugs) +signed_by(/users/bug_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2185,6 +2186,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_TASK>] true -> [<+modifies(/tasks) +signed_by(/users/task_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_BUG>] true -> [<+modifies(/bugs) +signed_by(/users/bug_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2467,6 +2470,7 @@ F2: formula generated_2 {
         assert!(
             output.contains("+APPROVE_TASK +signed_by(/users/task_owner.id) +modifies(/tasks)")
         );
+        assert!(output.contains("+APPROVE_BUG +signed_by(/users/bug_owner.id) +modifies(/bugs)"));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
