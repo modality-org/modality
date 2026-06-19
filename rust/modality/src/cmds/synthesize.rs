@@ -825,7 +825,11 @@ fn parse_formula_inputs(formulas: &[String]) -> ParsedFormulaInputs {
                 let label = format!("F{}", index + 1);
                 let preview = formula_preview(formula);
                 if preview.is_empty() {
-                    unparsed.push(format!("{} `<empty>`", label));
+                    unparsed.push(format!(
+                        "{} `<empty>` ({})",
+                        label,
+                        compact_parse_error(&parse_error)
+                    ));
                 } else {
                     unparsed.push(format!(
                         "{} `{}` ({})",
@@ -3604,7 +3608,9 @@ F2: formula generated_2 {
 
         let unparsed = unparsed_formula_string_labels(&formulas);
 
-        assert_eq!(unparsed, vec!["F1 `<empty>`".to_string()]);
+        assert_eq!(unparsed.len(), 1);
+        assert!(unparsed[0].starts_with("F1 `<empty>` (parser:"));
+        assert!(unparsed[0].contains("Failed to parse formula"));
     }
 
     #[test]
