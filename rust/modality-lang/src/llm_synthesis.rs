@@ -264,6 +264,10 @@ fn is_formula_prefix(prefix: &str) -> bool {
     }
 
     let lower_prefix = prefix.to_ascii_lowercase();
+    if lower_prefix == "formula" {
+        return true;
+    }
+
     let Some(label) = lower_prefix.strip_prefix("formula") else {
         return false;
     };
@@ -667,6 +671,18 @@ F3: always([+DELIVER] true -> <+signed_by(/users/bob.id)> true)
     #[test]
     fn test_parse_llm_response_accepts_formula_prefix() {
         let response = "Formula 1: always([+RELEASE] true -> eventually(<+DELIVER> true))";
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 1);
+        assert_eq!(
+            formulas[0],
+            "always([+RELEASE] true -> eventually(<+DELIVER> true))"
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_unnumbered_formula_prefix() {
+        let response = "Formula: always([+RELEASE] true -> eventually(<+DELIVER> true))";
 
         let formulas = parse_llm_response(response);
         assert_eq!(formulas.len(), 1);
