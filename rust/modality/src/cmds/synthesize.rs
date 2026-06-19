@@ -581,6 +581,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_OKR>] true -> [<+modifies(/okrs) +signed_by(/users/okr_owner.id)>] true"#,
             r#"[<+APPROVE_INITIATIVE>] true -> [<+modifies(/initiatives) +signed_by(/users/initiative_owner.id)>] true"#,
             r#"[<+APPROVE_EPIC>] true -> [<+modifies(/epics) +signed_by(/users/epic_owner.id)>] true"#,
+            r#"[<+APPROVE_STORY>] true -> [<+modifies(/stories) +signed_by(/users/story_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2179,6 +2180,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_EPIC>] true -> [<+modifies(/epics) +signed_by(/users/epic_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_STORY>] true -> [<+modifies(/stories) +signed_by(/users/story_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2454,6 +2457,9 @@ F2: formula generated_2 {
         ));
         assert!(
             output.contains("+APPROVE_EPIC +signed_by(/users/epic_owner.id) +modifies(/epics)")
+        );
+        assert!(
+            output.contains("+APPROVE_STORY +signed_by(/users/story_owner.id) +modifies(/stories)")
         );
         verify_synthesized_model(&model, &formulas).unwrap();
     }
