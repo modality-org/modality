@@ -305,6 +305,8 @@ fn collect_json_formulas(
                         | "candidates"
                         | "chunks"
                         | "data"
+                        | "delta"
+                        | "deltas"
                         | "items"
                         | "parts"
                         | "segments"
@@ -1736,6 +1738,28 @@ Formula 2: "<+CANCEL> true",
                 "<+ARCHIVE> true",
                 "always([+EXPORT] true -> <+signed_by(/users/exporter.id)> true)",
                 "always([+AUDIT] true -> eventually(<+REPORT> true))"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_provider_delta_text() {
+        let response = r#"
+{
+  "delta": "F1: always([+STREAM] true -> eventually(<+FINAL> true))",
+  "deltas": [
+    "Partial explanation.",
+    "Formula 2: <+COMMIT> true"
+  ]
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+STREAM] true -> eventually(<+FINAL> true))",
+                "<+COMMIT> true"
             ]
         );
     }
