@@ -294,6 +294,9 @@ fn collect_json_formulas(
                         | "response"
                         | "answer"
                         | "result"
+                        | "message"
+                        | "reply"
+                        | "generated_text"
                 ) {
                     collect_json_text_formulas(value, formulas);
                 } else if matches!(key.as_str(), "arguments" | "input") {
@@ -1492,6 +1495,40 @@ Formula 2: "<+CANCEL> true",
                 "<+CANCEL> true"
             ]
         );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_message_reply_and_generated_text() {
+        let response = r#"
+{
+  "message": "F1: always([+PAY] true -> eventually(<+WORK> true))",
+  "reply": "F2: <+CANCEL> true",
+  "generated_text": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_ignores_json_message_without_formula() {
+        let response = r#"
+{
+  "message": "I found two rules and will explain them below.",
+  "formula": "<+CANCEL> true"
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas, vec!["<+CANCEL> true"]);
     }
 
     #[test]
