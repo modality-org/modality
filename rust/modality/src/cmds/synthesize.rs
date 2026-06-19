@@ -812,16 +812,21 @@ fn parse_formula_inputs(formulas: &[String]) -> ParsedFormulaInputs {
 
     for (index, formula) in formulas.iter().enumerate() {
         match parse_formula_string(index, formula) {
-            Some(parsed) => {
+            Ok(parsed) => {
                 parsed_expressions.extend(parsed.into_iter().map(|formula| formula.expression));
             }
-            None => {
+            Err(parse_error) => {
                 let label = format!("F{}", index + 1);
                 let preview = formula_preview(formula);
                 if preview.is_empty() {
                     unparsed.push(format!("{} `<empty>`", label));
                 } else {
-                    unparsed.push(format!("{} `{}`", label, preview));
+                    unparsed.push(format!(
+                        "{} `{}` ({})",
+                        label,
+                        preview,
+                        compact_parse_error(&parse_error)
+                    ));
                 }
             }
         }
@@ -838,16 +843,31 @@ fn parse_formula_strings(formulas: &[String]) -> Vec<modality_lang::FormulaExpr>
     parse_formula_inputs(formulas).formulas
 }
 
-fn parse_formula_string(index: usize, formula: &str) -> Option<Vec<modality_lang::Formula>> {
-    modality_lang::parse_all_formulas_content_lalrpop(formula)
-        .ok()
-        .filter(|parsed| !parsed.is_empty())
-        .or_else(|| {
+fn parse_formula_string(index: usize, formula: &str) -> Result<Vec<modality_lang::Formula>, String> {
+    match modality_lang::parse_all_formulas_content_lalrpop(formula) {
+        Ok(parsed) if !parsed.is_empty() => return Ok(parsed),
+        Ok(_) => {}
+        Err(err) => {
             let wrapped = format!("formula generated_{} {{\n{}\n}}", index + 1, formula);
-            modality_lang::parse_all_formulas_content_lalrpop(&wrapped)
-                .ok()
-                .filter(|parsed| !parsed.is_empty())
-        })
+            return match modality_lang::parse_all_formulas_content_lalrpop(&wrapped) {
+                Ok(parsed) if !parsed.is_empty() => Ok(parsed),
+                Ok(_) => Err("wrapped expression parse produced no formulas".to_string()),
+                Err(wrapped_err) => Err(
+                    format!(
+                        "declared formula parse failed: {}; wrapped expression parse failed: {}",
+                        err, wrapped_err
+                    ),
+                ),
+            };
+        }
+    }
+
+    let wrapped = format!("formula generated_{} {{\n{}\n}}", index + 1, formula);
+    match modality_lang::parse_all_formulas_content_lalrpop(&wrapped) {
+        Ok(parsed) if !parsed.is_empty() => Ok(parsed),
+        Ok(_) => Err("wrapped expression parse produced no formulas".to_string()),
+        Err(err) => Err(format!("wrapped expression parse failed: {}", err)),
+    }
 }
 
 #[cfg(test)]
@@ -870,6 +890,19 @@ fn formula_preview(formula: &str) -> String {
         format!("{}...", truncated)
     } else {
         truncated
+    }
+}
+
+fn compact_parse_error(error: &str) -> String {
+    const MAX_ERROR_LEN: usize = 160;
+
+    let compact = error.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut chars = compact.chars();
+    let truncated: String = chars.by_ref().take(MAX_ERROR_LEN).collect();
+    if chars.next().is_some() {
+        format!("parser: {}...", truncated)
+    } else {
+        format!("parser: {}", truncated)
     }
 }
 
@@ -3512,6 +3545,7 @@ F2: formula generated_2 {
 
         assert!(err.to_string().contains("1 unparsed"));
         assert!(err.to_string().contains("F2"));
+        assert!(err.to_string().contains("parser:"));
     }
 
     #[test]
@@ -3523,7 +3557,9 @@ F2: formula generated_2 {
 
         let unparsed = unparsed_formula_string_labels(&formulas);
 
-        assert_eq!(unparsed, vec!["F2 `always(`".to_string()]);
+        assert_eq!(unparsed.len(), 1);
+        assert!(unparsed[0].starts_with("F2 `always(` (parser:"));
+        assert!(unparsed[0].contains("Failed to parse formula"));
     }
 
     #[test]
@@ -3541,8 +3577,8 @@ F2: formula generated_2 {
 
         let unparsed = unparsed_formula_string_labels(&formulas);
 
-        assert_eq!(unparsed[0].len(), "F1 ``".len() + 83);
-        assert!(unparsed[0].ends_with("...`"));
+        assert!(unparsed[0].starts_with("F1 `always("));
+        assert!(unparsed[0].contains("...` (parser:"));
     }
 
     #[test]
@@ -3551,7 +3587,9 @@ F2: formula generated_2 {
 
         let unparsed = unparsed_formula_string_labels(&formulas);
 
-        assert_eq!(unparsed, vec!["F1 `formula Bad { always( }`".to_string()]);
+        assert_eq!(unparsed.len(), 1);
+        assert!(unparsed[0].starts_with("F1 `formula Bad { always( }` (parser:"));
+        assert!(unparsed[0].contains("Failed to parse formula"));
     }
 
     #[test]
