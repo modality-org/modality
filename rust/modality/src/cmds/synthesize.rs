@@ -606,6 +606,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_IDENTITY_VERIFICATION>] true -> [<+modifies(/identity_verifications) +signed_by(/users/identity_reviewer.id)>] true"#,
             r#"[<+ISSUE_CREDENTIAL>] true -> [<+modifies(/credentials) +signed_by(/users/credential_issuer.id)>] true"#,
             r#"[<+REVOKE_CREDENTIAL>] true -> [<+modifies(/credential_revocations) +signed_by(/users/credential_issuer.id)>] true"#,
+            r#"[<+RENEW_CREDENTIAL>] true -> [<+modifies(/credential_renewals) +signed_by(/users/credential_issuer.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2254,6 +2255,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+REVOKE_CREDENTIAL>] true -> [<+modifies(/credential_revocations) +signed_by(/users/credential_issuer.id)>] true"
                 .to_string(),
+            "[<+RENEW_CREDENTIAL>] true -> [<+modifies(/credential_renewals) +signed_by(/users/credential_issuer.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2602,6 +2605,9 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "+REVOKE_CREDENTIAL +signed_by(/users/credential_issuer.id) +modifies(/credential_revocations)"
+        ));
+        assert!(output.contains(
+            "+RENEW_CREDENTIAL +signed_by(/users/credential_issuer.id) +modifies(/credential_renewals)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
