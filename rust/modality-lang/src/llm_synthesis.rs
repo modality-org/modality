@@ -288,6 +288,8 @@ fn collect_json_formulas(
                         | "formulas"
                         | "formula_text"
                         | "formulatext"
+                        | "expression"
+                        | "expressions"
                         | "rule"
                         | "rules"
                         | "rule_text"
@@ -1249,6 +1251,29 @@ Formula 2: "<+CANCEL> true",
                 "<+CANCEL> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
                 "<+ESCALATE> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_expression_fields() {
+        let response = r#"
+{
+  "expression": "always([+PAY] true -> eventually(<+WORK> true))",
+  "expressions": [
+    {"value": "<+CANCEL> true"},
+    {"expression": "[<+REFUND>] true"}
+  ]
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true",
+                "[<+REFUND>] true"
             ]
         );
     }
