@@ -593,6 +593,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_ROLLOUT>] true -> [<+modifies(/rollouts) +signed_by(/users/rollout_owner.id)>] true"#,
             r#"[<+APPROVE_LAUNCH>] true -> [<+modifies(/launches) +signed_by(/users/launch_owner.id)>] true"#,
             r#"[<+APPROVE_GENERAL_AVAILABILITY>] true -> [<+modifies(/general_availability) +signed_by(/users/ga_owner.id)>] true"#,
+            r#"[<+APPROVE_PRODUCTION>] true -> [<+modifies(/production) +signed_by(/users/production_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2215,6 +2216,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_GENERAL_AVAILABILITY>] true -> [<+modifies(/general_availability) +signed_by(/users/ga_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_PRODUCTION>] true -> [<+modifies(/production) +signed_by(/users/production_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2524,6 +2527,9 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "+APPROVE_GENERAL_AVAILABILITY +signed_by(/users/ga_owner.id) +modifies(/general_availability)"
+        ));
+        assert!(output.contains(
+            "+APPROVE_PRODUCTION +signed_by(/users/production_owner.id) +modifies(/production)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
