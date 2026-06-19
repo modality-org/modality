@@ -3725,6 +3725,26 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn parsed_formula_labels_number_multiple_declarations_from_one_input() {
+        let formulas = vec![
+            r#"
+formula Approval {
+always([<+APPROVE>] true)
+}
+
+formula ApprovalSigner {
+[+APPROVE] true -> <+signed_by(/users/reviewer.id)> true
+}
+"#
+            .to_string(),
+        ];
+
+        let labels = parsed_formula_string_labels(&formulas);
+
+        assert_eq!(labels, vec!["F1.1 `Approval`", "F1.2 `ApprovalSigner`"]);
+    }
+
+    #[test]
     fn legacy_string_constraints_still_cover_unparseable_llm_output() {
         let formulas = vec![
             "[+RELEASE] true -> eventually(<+DELIVER> true)".to_string(),
