@@ -316,10 +316,13 @@ fn collect_json_formulas(
                         | "output_text"
                         | "outputtext"
                         | "completion"
+                        | "completion_text"
                         | "completiontext"
                         | "response"
+                        | "response_text"
                         | "responsetext"
                         | "answer"
+                        | "answer_text"
                         | "body"
                         | "final"
                         | "final_answer"
@@ -1788,6 +1791,27 @@ Formula 2: "<+CANCEL> true",
                 "<+APPROVE> true",
                 "always([+GENERATE] true -> eventually(<+REVIEW> true))",
                 "always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_snake_case_provider_text_fields() {
+        let response = r#"
+{
+  "answer_text": "F1: always([+ANSWER] true -> eventually(<+CHECK> true))",
+  "completion_text": "F2: <+COMPLETE> true",
+  "response_text": "Plain explanation.\nFormula 3: always([+RESPOND] true -> <+signed_by(/users/responder.id)> true)"
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+ANSWER] true -> eventually(<+CHECK> true))",
+                "<+COMPLETE> true",
+                "always([+RESPOND] true -> <+signed_by(/users/responder.id)> true)"
             ]
         );
     }
