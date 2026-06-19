@@ -585,6 +585,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_TASK>] true -> [<+modifies(/tasks) +signed_by(/users/task_owner.id)>] true"#,
             r#"[<+APPROVE_BUG>] true -> [<+modifies(/bugs) +signed_by(/users/bug_owner.id)>] true"#,
             r#"[<+APPROVE_ISSUE>] true -> [<+modifies(/issues) +signed_by(/users/issue_owner.id)>] true"#,
+            r#"[<+APPROVE_DEFECT>] true -> [<+modifies(/defects) +signed_by(/users/defect_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2191,6 +2192,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_ISSUE>] true -> [<+modifies(/issues) +signed_by(/users/issue_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_DEFECT>] true -> [<+modifies(/defects) +signed_by(/users/defect_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2476,6 +2479,9 @@ F2: formula generated_2 {
         assert!(output.contains("+APPROVE_BUG +signed_by(/users/bug_owner.id) +modifies(/bugs)"));
         assert!(
             output.contains("+APPROVE_ISSUE +signed_by(/users/issue_owner.id) +modifies(/issues)")
+        );
+        assert!(
+            output.contains("+APPROVE_DEFECT +signed_by(/users/defect_owner.id) +modifies(/defects)")
         );
         verify_synthesized_model(&model, &formulas).unwrap();
     }
