@@ -212,6 +212,11 @@ fn parse_text_llm_response(response: &str) -> Vec<String> {
             continue 'lines;
         }
 
+        if let Some(formula) = extract_xml_tagged_formula(line) {
+            push_formula_candidate(&mut formulas, &mut declaration_lines, formula);
+            continue 'lines;
+        }
+
         let line = strip_formula_wrapping(line);
 
         if let Some(formula) = extract_markdown_table_formula(line) {
@@ -592,6 +597,43 @@ fn extract_json_field_formula(line: &str) -> Option<&str> {
     is_raw_formula_line(formula).then_some(formula)
 }
 
+fn extract_xml_tagged_formula(line: &str) -> Option<&str> {
+    let line = line.trim();
+    let lower = line.to_ascii_lowercase();
+
+    for tag in ["formula", "formula_text", "rule"] {
+        if !lower.starts_with(&format!("<{tag}")) {
+            continue;
+        }
+
+        let tag_end = "<".len() + tag.len();
+        let Some(tag_boundary) = lower[tag_end..].chars().next() else {
+            continue;
+        };
+        if tag_boundary != '>' && !tag_boundary.is_ascii_whitespace() {
+            continue;
+        }
+
+        let Some(open_end) = lower.find('>') else {
+            continue;
+        };
+        let close_tag = format!("</{tag}>");
+        let Some(close_start) = lower.rfind(&close_tag) else {
+            continue;
+        };
+        if close_start <= open_end {
+            continue;
+        }
+
+        let formula = strip_formula_wrapping(line[open_end + 1..close_start].trim());
+        if is_raw_formula_line(formula) {
+            return Some(formula);
+        }
+    }
+
+    None
+}
+
 fn strip_trailing_json_comma(line: &str) -> &str {
     line.strip_suffix(',')
         .map(str::trim_end)
@@ -644,7 +686,9 @@ fn strip_matching_wrapper<'a>(line: &'a str, wrapper: &str) -> Option<&'a str> {
 fn is_raw_formula_line(line: &str) -> bool {
     line.starts_with("always")
         || line.starts_with('[')
-        || line.starts_with('<')
+        || line.starts_with("<+")
+        || line.starts_with("<-")
+        || line.starts_with("<>")
         || line.starts_with("eventually")
         || line.starts_with("formula ")
 }
@@ -1893,6 +1937,27 @@ data: [DONE]
             vec![
                 "always([+STREAM] true -> eventually(<+FINAL> true))",
                 "<+COMMIT> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_xml_tagged_formulas() {
+        let response = r#"
+<formulas>
+<formula>always([+TAGGED] true -> eventually(<+REVIEW> true))</formula>
+<formula_text name="commit"><+COMMIT> true</formula_text>
+<rule>`always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)`</rule>
+</formulas>
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+TAGGED] true -> eventually(<+REVIEW> true))",
+                "<+COMMIT> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
             ]
         );
     }
