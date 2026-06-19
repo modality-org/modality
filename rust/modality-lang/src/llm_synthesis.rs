@@ -280,6 +280,8 @@ fn collect_json_formulas(
                     collect_json_formulas(value, formulas, true, false);
                 } else if matches!(key.as_str(), "content" | "text" | "output_text") {
                     collect_json_text_formulas(value, formulas);
+                } else if key == "arguments" {
+                    collect_json_encoded_formulas(value, formulas);
                 } else {
                     collect_json_formulas(value, formulas, false, false);
                 }
@@ -295,6 +297,28 @@ fn collect_json_text_formulas(value: &serde_json::Value, formulas: &mut Vec<Stri
         serde_json::Value::Array(items) => {
             for item in items {
                 collect_json_text_formulas(item, formulas);
+            }
+        }
+        serde_json::Value::Object(fields) => collect_json_formulas(
+            &serde_json::Value::Object(fields.clone()),
+            formulas,
+            false,
+            false,
+        ),
+        _ => {}
+    }
+}
+
+fn collect_json_encoded_formulas(value: &serde_json::Value, formulas: &mut Vec<String>) {
+    match value {
+        serde_json::Value::String(value) => {
+            if let Ok(value) = serde_json::from_str(value) {
+                collect_json_formulas(&value, formulas, false, false);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                collect_json_encoded_formulas(item, formulas);
             }
         }
         serde_json::Value::Object(fields) => collect_json_formulas(
@@ -1249,6 +1273,30 @@ Formula 2: "<+CANCEL> true",
             formulas,
             vec!["always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"]
         );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_tool_arguments() {
+        let response = r#"
+{
+  "tool_calls": [
+    {
+      "function": {
+        "name": "emit_formulas",
+        "arguments": "{\"formulas\":[\"always([+PAY] true -> eventually(<+WORK> true))\",\"<+CANCEL> true\"]}"
+      }
+    }
+  ]
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] true -> eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
     }
 
     #[test]
