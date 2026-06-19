@@ -295,7 +295,7 @@ fn collect_json_formulas(
 
 fn collect_json_text_formulas(value: &serde_json::Value, formulas: &mut Vec<String>) {
     match value {
-        serde_json::Value::String(value) => formulas.extend(parse_text_llm_response(value)),
+        serde_json::Value::String(value) => collect_text_or_encoded_json_formulas(value, formulas),
         serde_json::Value::Array(items) => {
             for item in items {
                 collect_json_text_formulas(item, formulas);
@@ -309,6 +309,18 @@ fn collect_json_text_formulas(value: &serde_json::Value, formulas: &mut Vec<Stri
         ),
         _ => {}
     }
+}
+
+fn collect_text_or_encoded_json_formulas(value: &str, formulas: &mut Vec<String>) {
+    if let Ok(value) = serde_json::from_str(value) {
+        let len = formulas.len();
+        collect_json_formulas(&value, formulas, false, false);
+        if formulas.len() != len {
+            return;
+        }
+    }
+
+    formulas.extend(parse_text_llm_response(value));
 }
 
 fn collect_json_encoded_formulas(value: &serde_json::Value, formulas: &mut Vec<String>) {
@@ -1258,6 +1270,30 @@ Formula 2: "<+CANCEL> true",
       "message": {
         "role": "assistant",
         "content": "F1: always([+PAY] true -> eventually(<+WORK> true))\nF2: <+CANCEL> true"
+      }
+    }
+  ]
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] true -> eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_encoded_message_content() {
+        let response = r#"
+{
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "{\"formulas\":[\"always([+PAY] true -> eventually(<+WORK> true))\",\"<+CANCEL> true\"]}"
       }
     }
   ]
