@@ -403,6 +403,8 @@ fn collect_json_encoded_formulas(value: &serde_json::Value, formulas: &mut Vec<S
         serde_json::Value::String(value) => {
             if let Ok(value) = serde_json::from_str(value) {
                 collect_json_formulas(&value, formulas, false, false);
+            } else {
+                collect_text_or_encoded_json_formulas(value, formulas);
             }
         }
         serde_json::Value::Array(items) => {
@@ -1975,6 +1977,32 @@ Formula 2: "<+CANCEL> true",
                 "always([+PAY] true -> eventually(<+WORK> true))",
                 "<+CANCEL> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_json_tool_payload_strings() {
+        let response = r#"
+{
+  "function_call": {
+    "name": "emit_formulas",
+    "arguments": "F1: always([+PAY] true -> eventually(<+WORK> true))"
+  },
+  "tool_use": {
+    "name": "emit_more_formulas",
+    "input": "Explanation only.\nFormula 2: <+CANCEL> true"
+  },
+  "parameters": "Plain non-formula argument text."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true"
             ]
         );
     }
