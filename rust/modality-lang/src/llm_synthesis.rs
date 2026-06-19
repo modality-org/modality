@@ -337,8 +337,12 @@ fn collect_json_formulas(
                         | "payload"
                         | "prediction"
                         | "predictions"
+                        | "parsed"
                         | "result"
                         | "results"
+                        | "structured"
+                        | "structured_output"
+                        | "structuredoutput"
                         | "message"
                         | "messages"
                         | "reply"
@@ -1837,6 +1841,38 @@ Formula 2: "<+CANCEL> true",
                 "always([+ANSWER] true -> eventually(<+CHECK> true))",
                 "<+COMPLETE> true",
                 "always([+RESPOND] true -> <+signed_by(/users/responder.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_structured_output_aliases() {
+        let response = r#"
+{
+  "parsed": {
+    "rules": [
+      "F1: always([+PARSE] true -> eventually(<+CHECK> true))"
+    ]
+  },
+  "structured_output": [
+    "Explanation only.",
+    "Formula 2: <+STRUCTURE> true"
+  ],
+  "structured": {
+    "items": [
+      "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+    ]
+  }
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PARSE] true -> eventually(<+CHECK> true))",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+STRUCTURE> true"
             ]
         );
     }
