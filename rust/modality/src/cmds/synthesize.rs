@@ -600,6 +600,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_TRAINING>] true -> [<+modifies(/training) +signed_by(/users/training_owner.id)>] true"#,
             r#"[<+APPROVE_COMPLIANCE>] true -> [<+modifies(/compliance) +signed_by(/users/compliance_owner.id)>] true"#,
             r#"[<+APPROVE_ONBOARDING>] true -> [<+modifies(/onboarding) +signed_by(/users/onboarding_owner.id)>] true"#,
+            r#"[<+APPROVE_OFFBOARDING>] true -> [<+modifies(/offboarding) +signed_by(/users/offboarding_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2236,6 +2237,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_ONBOARDING>] true -> [<+modifies(/onboarding) +signed_by(/users/onboarding_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_OFFBOARDING>] true -> [<+modifies(/offboarding) +signed_by(/users/offboarding_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2566,6 +2569,9 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "+APPROVE_ONBOARDING +signed_by(/users/onboarding_owner.id) +modifies(/onboarding)"
+        ));
+        assert!(output.contains(
+            "+APPROVE_OFFBOARDING +signed_by(/users/offboarding_owner.id) +modifies(/offboarding)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
