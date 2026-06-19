@@ -290,13 +290,17 @@ fn collect_json_formulas(
                         | "text"
                         | "output"
                         | "output_text"
+                        | "outputtext"
                         | "completion"
+                        | "completiontext"
                         | "response"
+                        | "responsetext"
                         | "answer"
                         | "result"
                         | "message"
                         | "reply"
                         | "generated_text"
+                        | "generatedtext"
                 ) {
                     collect_json_text_formulas(value, formulas);
                 } else if matches!(key.as_str(), "arguments" | "input") {
@@ -1514,6 +1518,27 @@ Formula 2: "<+CANCEL> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
                 "always([+PAY] true -> eventually(<+WORK> true))",
                 "<+CANCEL> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_camel_case_text_fields() {
+        let response = r#"
+{
+  "generatedText": "F1: always([+PAY] true -> eventually(<+WORK> true))",
+  "outputText": "F2: <+CANCEL> true",
+  "responseText": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
             ]
         );
     }
