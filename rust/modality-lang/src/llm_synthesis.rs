@@ -300,8 +300,10 @@ fn collect_json_formulas(
                     key.as_str(),
                     "content"
                         | "text"
+                        | "blocks"
                         | "choices"
                         | "candidates"
+                        | "chunks"
                         | "data"
                         | "items"
                         | "parts"
@@ -1680,6 +1682,12 @@ Formula 2: "<+CANCEL> true",
   "candidates": [
     "F2: <+CANCEL> true"
   ],
+  "blocks": [
+    "Formula 8: always([+DEPLOY] true -> eventually(<+ROLLBACK> true))"
+  ],
+  "chunks": [
+    "Formula 9: <+RETRY> true"
+  ],
   "data": [
     "The generated rule is ready.",
     "Formula 4: <+ESCALATE> true"
@@ -1703,8 +1711,10 @@ Formula 2: "<+CANCEL> true",
         assert_eq!(
             formulas,
             vec![
+                "always([+DEPLOY] true -> eventually(<+ROLLBACK> true))",
                 "<+CANCEL> true",
                 "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+RETRY> true",
                 "<+ESCALATE> true",
                 "always([+REVIEW] true -> eventually(<+APPROVE> true))",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
