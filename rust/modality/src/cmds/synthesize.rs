@@ -602,6 +602,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_ONBOARDING>] true -> [<+modifies(/onboarding) +signed_by(/users/onboarding_owner.id)>] true"#,
             r#"[<+APPROVE_OFFBOARDING>] true -> [<+modifies(/offboarding) +signed_by(/users/offboarding_owner.id)>] true"#,
             r#"[<+APPROVE_DEPROVISIONING>] true -> [<+modifies(/deprovisioning) +signed_by(/users/access_owner.id)>] true"#,
+            r#"[<+APPROVE_ACCESS_REVIEW>] true -> [<+modifies(/access_reviews) +signed_by(/users/access_reviewer.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2242,6 +2243,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_DEPROVISIONING>] true -> [<+modifies(/deprovisioning) +signed_by(/users/access_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_ACCESS_REVIEW>] true -> [<+modifies(/access_reviews) +signed_by(/users/access_reviewer.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2578,6 +2581,9 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "+APPROVE_DEPROVISIONING +signed_by(/users/access_owner.id) +modifies(/deprovisioning)"
+        ));
+        assert!(output.contains(
+            "+APPROVE_ACCESS_REVIEW +signed_by(/users/access_reviewer.id) +modifies(/access_reviews)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
