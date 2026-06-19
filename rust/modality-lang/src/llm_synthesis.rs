@@ -262,11 +262,7 @@ fn collect_json_formulas(
         serde_json::Value::String(value) => {
             if formula_context || array_context {
                 let formula = strip_formula_wrapping(value);
-                if is_raw_formula_line(formula) {
-                    formulas.push(formula.to_string());
-                } else {
-                    formulas.extend(parse_text_llm_response(formula));
-                }
+                collect_text_or_encoded_json_formulas(formula, formulas);
             }
         }
         serde_json::Value::Array(items) => {
@@ -321,7 +317,7 @@ fn collect_json_text_formulas(value: &serde_json::Value, formulas: &mut Vec<Stri
 fn collect_text_or_encoded_json_formulas(value: &str, formulas: &mut Vec<String>) {
     if let Ok(value) = serde_json::from_str(value) {
         let len = formulas.len();
-        collect_json_formulas(&value, formulas, false, false);
+        collect_json_formulas(&value, formulas, true, false);
         if formulas.len() != len {
             return;
         }
@@ -1215,6 +1211,23 @@ Formula 2: "<+CANCEL> true",
     "F1: always([+PAY] true -> eventually(<+WORK> true))",
     "Formula 2: <+CANCEL> true"
   ]
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] true -> eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_encoded_formulas_value() {
+        let response = r#"
+{
+  "formulas": "[\"always([+PAY] true -> eventually(<+WORK> true))\",\"<+CANCEL> true\"]"
 }
 "#;
 
