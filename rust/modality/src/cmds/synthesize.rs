@@ -596,6 +596,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_PRODUCTION>] true -> [<+modifies(/production) +signed_by(/users/production_owner.id)>] true"#,
             r#"[<+APPROVE_OPERATIONS>] true -> [<+modifies(/operations) +signed_by(/users/operations_owner.id)>] true"#,
             r#"[<+APPROVE_MAINTENANCE>] true -> [<+modifies(/maintenance) +signed_by(/users/maintenance_owner.id)>] true"#,
+            r#"[<+APPROVE_SUPPORT>] true -> [<+modifies(/support) +signed_by(/users/support_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2224,6 +2225,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_MAINTENANCE>] true -> [<+modifies(/maintenance) +signed_by(/users/maintenance_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_SUPPORT>] true -> [<+modifies(/support) +signed_by(/users/support_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2543,6 +2546,9 @@ F2: formula generated_2 {
         assert!(output.contains(
             "+APPROVE_MAINTENANCE +signed_by(/users/maintenance_owner.id) +modifies(/maintenance)"
         ));
+        assert!(
+            output.contains("+APPROVE_SUPPORT +signed_by(/users/support_owner.id) +modifies(/support)")
+        );
         verify_synthesized_model(&model, &formulas).unwrap();
     }
 
