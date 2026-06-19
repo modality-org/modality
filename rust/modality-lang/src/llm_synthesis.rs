@@ -303,7 +303,10 @@ fn collect_json_formulas(
                         | "generatedtext"
                 ) {
                     collect_json_text_formulas(value, formulas);
-                } else if matches!(key.as_str(), "arguments" | "input") {
+                } else if matches!(
+                    key.as_str(),
+                    "arguments" | "args" | "input" | "parameters" | "params"
+                ) {
                     collect_json_encoded_formulas(value, formulas);
                 } else if (formula_context || array_context)
                     && matches!(key.as_str(), "value" | "expression")
@@ -1601,6 +1604,48 @@ Formula 2: "<+CANCEL> true",
             "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
         );
         assert_eq!(formulas[1], "<+ESCALATE> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_tool_payload_aliases() {
+        let response = r#"
+{
+  "tool_calls": [
+    {
+      "function": {
+        "name": "emit_formulas",
+        "args": "{\"formulas\":[\"always([+PAY] true -> eventually(<+WORK> true))\"]}"
+      }
+    },
+    {
+      "function": {
+        "name": "emit_more_formulas",
+        "params": "{\"rules\":[\"<+CANCEL> true\"]}"
+      }
+    },
+    {
+      "function": {
+        "name": "emit_structured_formulas",
+        "parameters": {
+          "formulas": [
+            "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+          ]
+        }
+      }
+    }
+  ]
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
     }
 
     #[test]
