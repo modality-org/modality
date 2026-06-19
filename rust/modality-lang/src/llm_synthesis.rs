@@ -160,6 +160,10 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
         return formulas;
     }
 
+    parse_text_llm_response(response)
+}
+
+fn parse_text_llm_response(response: &str) -> Vec<String> {
     let mut formulas = Vec::new();
     let mut declaration_lines = Vec::new();
 
@@ -265,7 +269,8 @@ fn collect_json_formulas(
         }
         serde_json::Value::Array(items) => {
             for item in items {
-                collect_json_formulas(item, formulas, formula_context, true);
+                let array_context = formula_context || array_context;
+                collect_json_formulas(item, formulas, formula_context, array_context);
             }
         }
         serde_json::Value::Object(fields) => {
@@ -273,9 +278,31 @@ fn collect_json_formulas(
                 let key = key.to_ascii_lowercase();
                 if matches!(key.as_str(), "formula" | "formulas" | "rule" | "rules") {
                     collect_json_formulas(value, formulas, true, false);
+                } else if matches!(key.as_str(), "content" | "text" | "output_text") {
+                    collect_json_text_formulas(value, formulas);
+                } else {
+                    collect_json_formulas(value, formulas, false, false);
                 }
             }
         }
+        _ => {}
+    }
+}
+
+fn collect_json_text_formulas(value: &serde_json::Value, formulas: &mut Vec<String>) {
+    match value {
+        serde_json::Value::String(value) => formulas.extend(parse_text_llm_response(value)),
+        serde_json::Value::Array(items) => {
+            for item in items {
+                collect_json_text_formulas(item, formulas);
+            }
+        }
+        serde_json::Value::Object(fields) => collect_json_formulas(
+            &serde_json::Value::Object(fields.clone()),
+            formulas,
+            false,
+            false,
+        ),
         _ => {}
     }
 }
@@ -1174,6 +1201,54 @@ Formula 2: "<+CANCEL> true",
 
         let formulas = parse_llm_response(response);
         assert_eq!(formulas, vec!["<+CANCEL> true"]);
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_message_content() {
+        let response = r#"
+{
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "F1: always([+PAY] true -> eventually(<+WORK> true))\nF2: <+CANCEL> true"
+      }
+    }
+  ]
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] true -> eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_output_text() {
+        let response = r#"
+{
+  "output": [
+    {
+      "content": [
+        {
+          "type": "output_text",
+          "text": "F1: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+        }
+      ]
+    }
+  ]
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec!["always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"]
+        );
     }
 
     #[test]
