@@ -300,6 +300,7 @@ fn collect_json_formulas(
                     key.as_str(),
                     "content"
                         | "text"
+                        | "value"
                         | "blocks"
                         | "choices"
                         | "candidates"
@@ -1529,6 +1530,10 @@ Formula 2: "<+CANCEL> true",
         {
           "type": "output_text",
           "text": "F1: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+        },
+        {
+          "type": "output_text",
+          "value": "F2: <+ESCALATE> true"
         }
       ]
     }
@@ -1539,7 +1544,10 @@ Formula 2: "<+CANCEL> true",
         let formulas = parse_llm_response(response);
         assert_eq!(
             formulas,
-            vec!["always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"]
+            vec![
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE> true"
+            ]
         );
     }
 
