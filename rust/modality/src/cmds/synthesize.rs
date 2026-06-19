@@ -587,6 +587,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_ISSUE>] true -> [<+modifies(/issues) +signed_by(/users/issue_owner.id)>] true"#,
             r#"[<+APPROVE_DEFECT>] true -> [<+modifies(/defects) +signed_by(/users/defect_owner.id)>] true"#,
             r#"[<+APPROVE_PATCH>] true -> [<+modifies(/patches) +signed_by(/users/patch_owner.id)>] true"#,
+            r#"[<+APPROVE_HOTFIX>] true -> [<+modifies(/hotfixes) +signed_by(/users/hotfix_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2197,6 +2198,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_PATCH>] true -> [<+modifies(/patches) +signed_by(/users/patch_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_HOTFIX>] true -> [<+modifies(/hotfixes) +signed_by(/users/hotfix_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2488,6 +2491,9 @@ F2: formula generated_2 {
         );
         assert!(
             output.contains("+APPROVE_PATCH +signed_by(/users/patch_owner.id) +modifies(/patches)")
+        );
+        assert!(
+            output.contains("+APPROVE_HOTFIX +signed_by(/users/hotfix_owner.id) +modifies(/hotfixes)")
         );
         verify_synthesized_model(&model, &formulas).unwrap();
     }
