@@ -303,6 +303,7 @@ fn collect_json_formulas(
                         | "blocks"
                         | "choices"
                         | "candidates"
+                        | "alternatives"
                         | "chunks"
                         | "candidate"
                         | "data"
@@ -311,6 +312,7 @@ fn collect_json_formulas(
                         | "items"
                         | "parts"
                         | "segments"
+                        | "variants"
                         | "output"
                         | "outputs"
                         | "output_text"
@@ -1691,6 +1693,9 @@ Formula 2: "<+CANCEL> true",
     fn test_parse_llm_response_accepts_json_provider_text_arrays() {
         let response = r#"
 {
+  "alternatives": [
+    "Formula 16: always([+ALTERNATE] true -> eventually(<+SELECT> true))"
+  ],
   "choices": [
     "F1: always([+PAY] true -> eventually(<+WORK> true))"
   ],
@@ -1737,6 +1742,9 @@ Formula 2: "<+CANCEL> true",
   ],
   "outputs": [
     "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+  ],
+  "variants": [
+    "Formula 17: <+VARIANT> true"
   ]
 }
 "#;
@@ -1745,6 +1753,7 @@ Formula 2: "<+CANCEL> true",
         assert_eq!(
             formulas,
             vec![
+                "always([+ALTERNATE] true -> eventually(<+SELECT> true))",
                 "always([+ANSWER] true -> eventually(<+CHECK> true))",
                 "always([+DEPLOY] true -> eventually(<+ROLLBACK> true))",
                 "<+CANCEL> true",
@@ -1759,7 +1768,8 @@ Formula 2: "<+CANCEL> true",
                 "<+ARCHIVE> true",
                 "always([+RESPOND] true -> <+signed_by(/users/responder.id)> true)",
                 "always([+EXPORT] true -> <+signed_by(/users/exporter.id)> true)",
-                "always([+AUDIT] true -> eventually(<+REPORT> true))"
+                "always([+AUDIT] true -> eventually(<+REPORT> true))",
+                "<+VARIANT> true"
             ]
         );
     }
