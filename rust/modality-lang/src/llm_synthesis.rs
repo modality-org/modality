@@ -316,12 +316,15 @@ fn collect_json_formulas(
                         | "output_text"
                         | "outputtext"
                         | "completion"
+                        | "completions"
                         | "completion_text"
                         | "completiontext"
                         | "response"
+                        | "responses"
                         | "response_text"
                         | "responsetext"
                         | "answer"
+                        | "answers"
                         | "answer_text"
                         | "body"
                         | "final"
@@ -1691,8 +1694,14 @@ Formula 2: "<+CANCEL> true",
   "choices": [
     "F1: always([+PAY] true -> eventually(<+WORK> true))"
   ],
+  "answers": [
+    "Formula 13: always([+ANSWER] true -> eventually(<+CHECK> true))"
+  ],
   "candidates": [
     "F2: <+CANCEL> true"
+  ],
+  "completions": [
+    "Formula 14: <+COMPLETE> true"
   ],
   "blocks": [
     "Formula 8: always([+DEPLOY] true -> eventually(<+ROLLBACK> true))"
@@ -1720,6 +1729,9 @@ Formula 2: "<+CANCEL> true",
     "Explanation only.",
     "Formula 12: always([+EXPORT] true -> <+signed_by(/users/exporter.id)> true)"
   ],
+  "responses": [
+    "Formula 15: always([+RESPOND] true -> <+signed_by(/users/responder.id)> true)"
+  ],
   "segments": [
     "Formula 7: always([+AUDIT] true -> eventually(<+REPORT> true))"
   ],
@@ -1733,16 +1745,19 @@ Formula 2: "<+CANCEL> true",
         assert_eq!(
             formulas,
             vec![
+                "always([+ANSWER] true -> eventually(<+CHECK> true))",
                 "always([+DEPLOY] true -> eventually(<+ROLLBACK> true))",
                 "<+CANCEL> true",
                 "always([+PAY] true -> eventually(<+WORK> true))",
                 "<+RETRY> true",
+                "<+COMPLETE> true",
                 "<+ESCALATE> true",
                 "always([+SHIP] true -> eventually(<+CONFIRM> true))",
                 "always([+REVIEW] true -> eventually(<+APPROVE> true))",
                 "<+NOTIFY> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
                 "<+ARCHIVE> true",
+                "always([+RESPOND] true -> <+signed_by(/users/responder.id)> true)",
                 "always([+EXPORT] true -> <+signed_by(/users/exporter.id)> true)",
                 "always([+AUDIT] true -> eventually(<+REPORT> true))"
             ]
