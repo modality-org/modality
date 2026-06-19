@@ -176,6 +176,10 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
             continue;
         }
 
+        if is_json_structure_line(line) {
+            continue;
+        }
+
         if !declaration_lines.is_empty() {
             let line = extract_markdown_table_formula(line)
                 .or_else(|| extract_markdown_table_declaration_close(line))
@@ -319,16 +323,28 @@ fn strip_checkbox_marker(line: &str) -> &str {
     line
 }
 
+fn is_json_structure_line(line: &str) -> bool {
+    matches!(line, "[" | "]")
+}
+
 fn strip_formula_wrapping(line: &str) -> &str {
-    strip_matching_wrapper(line.trim(), "`")
-        .or_else(|| strip_matching_wrapper(line.trim(), "\""))
-        .or_else(|| strip_matching_wrapper(line.trim(), "'"))
-        .or_else(|| strip_matching_wrapper(line.trim(), "**"))
-        .or_else(|| strip_matching_wrapper(line.trim(), "__"))
-        .or_else(|| strip_matching_wrapper(line.trim(), "*"))
-        .or_else(|| strip_matching_wrapper(line.trim(), "_"))
+    let line = strip_trailing_json_comma(line.trim());
+
+    strip_matching_wrapper(line, "`")
+        .or_else(|| strip_matching_wrapper(line, "\""))
+        .or_else(|| strip_matching_wrapper(line, "'"))
+        .or_else(|| strip_matching_wrapper(line, "**"))
+        .or_else(|| strip_matching_wrapper(line, "__"))
+        .or_else(|| strip_matching_wrapper(line, "*"))
+        .or_else(|| strip_matching_wrapper(line, "_"))
         .unwrap_or(line)
         .trim()
+}
+
+fn strip_trailing_json_comma(line: &str) -> &str {
+    line.strip_suffix(',')
+        .map(str::trim_end)
+        .unwrap_or(line)
 }
 
 fn extract_markdown_table_formula(line: &str) -> Option<&str> {
@@ -962,6 +978,40 @@ F1: "always([+PAY] true -> eventually(<+WORK> true))"
         let response = r#"
 F1: 'always([+PAY] true -> eventually(<+WORK> true))'
 - '<+CANCEL> true'
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] true -> eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_strips_json_string_commas() {
+        let response = r#"
+[
+  "always([+PAY] true -> eventually(<+WORK> true))",
+  "<+CANCEL> true"
+]
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] true -> eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_strips_labeled_json_string_commas() {
+        let response = r#"
+F1: "always([+PAY] true -> eventually(<+WORK> true))",
+Formula 2: "<+CANCEL> true",
 "#;
 
         let formulas = parse_llm_response(response);
