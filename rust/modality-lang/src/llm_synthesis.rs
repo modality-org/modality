@@ -300,7 +300,10 @@ fn collect_json_formulas(
                     key.as_str(),
                     "content"
                         | "text"
+                        | "choices"
+                        | "candidates"
                         | "output"
+                        | "outputs"
                         | "output_text"
                         | "outputtext"
                         | "completion"
@@ -1635,6 +1638,33 @@ Formula 2: "<+CANCEL> true",
             vec![
                 "always([+PAY] true -> eventually(<+WORK> true))",
                 "<+CANCEL> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_provider_text_arrays() {
+        let response = r#"
+{
+  "choices": [
+    "F1: always([+PAY] true -> eventually(<+WORK> true))"
+  ],
+  "candidates": [
+    "F2: <+CANCEL> true"
+  ],
+  "outputs": [
+    "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+  ]
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+CANCEL> true",
+                "always([+PAY] true -> eventually(<+WORK> true))",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
             ]
         );
