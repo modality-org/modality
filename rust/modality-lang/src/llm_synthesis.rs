@@ -302,6 +302,8 @@ fn collect_json_formulas(
                         | "text"
                         | "choices"
                         | "candidates"
+                        | "data"
+                        | "items"
                         | "output"
                         | "outputs"
                         | "output_text"
@@ -1653,6 +1655,13 @@ Formula 2: "<+CANCEL> true",
   "candidates": [
     "F2: <+CANCEL> true"
   ],
+  "data": [
+    "The generated rule is ready.",
+    "Formula 4: <+ESCALATE> true"
+  ],
+  "items": [
+    "Formula 5: always([+REVIEW] true -> eventually(<+APPROVE> true))"
+  ],
   "outputs": [
     "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
   ]
@@ -1665,6 +1674,8 @@ Formula 2: "<+CANCEL> true",
             vec![
                 "<+CANCEL> true",
                 "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+ESCALATE> true",
+                "always([+REVIEW] true -> eventually(<+APPROVE> true))",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
             ]
         );
