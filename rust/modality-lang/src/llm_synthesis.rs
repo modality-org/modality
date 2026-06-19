@@ -286,7 +286,14 @@ fn collect_json_formulas(
                     collect_json_formulas(value, formulas, true, false);
                 } else if matches!(
                     key.as_str(),
-                    "content" | "text" | "output_text" | "completion" | "response"
+                    "content"
+                        | "text"
+                        | "output"
+                        | "output_text"
+                        | "completion"
+                        | "response"
+                        | "answer"
+                        | "result"
                 ) {
                     collect_json_text_formulas(value, formulas);
                 } else if matches!(key.as_str(), "arguments" | "input") {
@@ -1420,6 +1427,23 @@ Formula 2: "<+CANCEL> true",
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_output_string() {
+        let response = r#"
+{
+  "output": "F1: always([+PAY] true -> eventually(<+WORK> true))\nF2: <+CANCEL> true"
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] true -> eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_completion_text() {
         let response = r#"
 {
@@ -1448,6 +1472,25 @@ Formula 2: "<+CANCEL> true",
         assert_eq!(
             formulas,
             vec!["always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_answer_and_result_text() {
+        let response = r#"
+{
+  "answer": "F1: always([+PAY] true -> eventually(<+WORK> true))",
+  "result": "F2: <+CANCEL> true"
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true"
+            ]
         );
     }
 
