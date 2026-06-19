@@ -169,6 +169,7 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
 
         let line = strip_quote_marker(line);
         let line = strip_list_marker(line);
+        let line = strip_checkbox_marker(line);
         let line = strip_formula_wrapping(line);
 
         if line.starts_with("```") {
@@ -288,6 +289,17 @@ fn strip_list_marker(line: &str) -> &str {
     if marker == "-" || marker == "*" || marker.ends_with('.') || marker.ends_with(')') {
         let marker_body = marker.trim_end_matches(['.', ')']);
         if marker == "-" || marker == "*" || marker_body.chars().all(|c| c.is_ascii_digit()) {
+            return rest.trim_start();
+        }
+    }
+
+    line
+}
+
+fn strip_checkbox_marker(line: &str) -> &str {
+    let line = line.trim_start();
+    for marker in ["[ ]", "[x]", "[X]"] {
+        if let Some(rest) = line.strip_prefix(marker) {
             return rest.trim_start();
         }
     }
@@ -790,6 +802,22 @@ F2: formula generated_2 {
         let response = r#"
 - F1: always([+PAY] true -> eventually(<+WORK> true))
 1. Formula 2: <+CANCEL> true
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] true -> eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_strips_checklist_markers() {
+        let response = r#"
+- [ ] F1: always([+PAY] true -> eventually(<+WORK> true))
+- [x] Formula 2: <+CANCEL> true
 "#;
 
         let formulas = parse_llm_response(response);
