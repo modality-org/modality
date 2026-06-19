@@ -264,6 +264,8 @@ fn collect_json_formulas(
                 let formula = strip_formula_wrapping(value);
                 if is_raw_formula_line(formula) {
                     formulas.push(formula.to_string());
+                } else {
+                    formulas.extend(parse_text_llm_response(formula));
                 }
             }
         }
@@ -1173,6 +1175,26 @@ Formula 2: "<+CANCEL> true",
   ],
   "notes": [
     "This explanatory string should not be parsed as a formula."
+  ]
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] true -> eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_labeled_json_formula_values() {
+        let response = r#"
+{
+  "formulas": [
+    "F1: always([+PAY] true -> eventually(<+WORK> true))",
+    "Formula 2: <+CANCEL> true"
   ]
 }
 "#;
