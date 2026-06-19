@@ -591,6 +591,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_RELEASE_CANDIDATE>] true -> [<+modifies(/release_candidates) +signed_by(/users/release_manager.id)>] true"#,
             r#"[<+APPROVE_DEPLOYMENT>] true -> [<+modifies(/deployments) +signed_by(/users/deployment_owner.id)>] true"#,
             r#"[<+APPROVE_ROLLOUT>] true -> [<+modifies(/rollouts) +signed_by(/users/rollout_owner.id)>] true"#,
+            r#"[<+APPROVE_LAUNCH>] true -> [<+modifies(/launches) +signed_by(/users/launch_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2209,6 +2210,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_ROLLOUT>] true -> [<+modifies(/rollouts) +signed_by(/users/rollout_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_LAUNCH>] true -> [<+modifies(/launches) +signed_by(/users/launch_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2512,6 +2515,9 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "+APPROVE_ROLLOUT +signed_by(/users/rollout_owner.id) +modifies(/rollouts)"
+        ));
+        assert!(output.contains(
+            "+APPROVE_LAUNCH +signed_by(/users/launch_owner.id) +modifies(/launches)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
