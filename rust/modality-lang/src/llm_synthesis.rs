@@ -313,9 +313,11 @@ fn collect_json_formulas(
                         | "response"
                         | "responsetext"
                         | "answer"
+                        | "body"
                         | "final"
                         | "final_answer"
                         | "finalanswer"
+                        | "payload"
                         | "result"
                         | "message"
                         | "reply"
@@ -1569,6 +1571,27 @@ Formula 2: "<+CANCEL> true",
 {
   "answer": "F1: always([+PAY] true -> eventually(<+WORK> true))",
   "result": "F2: <+CANCEL> true"
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_body_and_payload_text() {
+        let response = r#"
+{
+  "body": "F1: always([+PAY] true -> eventually(<+WORK> true))",
+  "payload": {
+    "text": "F2: <+CANCEL> true"
+  }
 }
 "#;
 
