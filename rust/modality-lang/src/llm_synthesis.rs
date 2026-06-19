@@ -247,7 +247,10 @@ fn parse_text_llm_response(response: &str) -> Vec<String> {
 fn parse_json_llm_response(response: &str) -> Option<Vec<String>> {
     let value: serde_json::Value = serde_json::from_str(response).ok()?;
     let mut formulas = Vec::new();
-    collect_json_formulas(&value, &mut formulas, false, false);
+    let top_level_formula_array = value
+        .as_array()
+        .is_some_and(|items| items.iter().all(serde_json::Value::is_string));
+    collect_json_formulas(&value, &mut formulas, false, top_level_formula_array);
 
     (!formulas.is_empty()).then_some(formulas)
 }
@@ -1192,6 +1195,24 @@ Formula 2: "<+CANCEL> true",
     "This explanatory string should not be parsed as a formula."
   ]
 }
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] true -> eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_top_level_json_formula_array() {
+        let response = r#"
+[
+  "always([+PAY] true -> eventually(<+WORK> true))",
+  "<+CANCEL> true"
+]
 "#;
 
         let formulas = parse_llm_response(response);
