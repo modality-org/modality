@@ -138,7 +138,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
         };
 
         if opts.verify {
-            verify_synthesized_model(&model, &parsed_input.formulas)?;
+            verify_synthesized_model_with_labels(
+                &model,
+                &parsed_input.formulas,
+                &parsed_input.labels,
+            )?;
             println!();
         }
 
@@ -199,7 +203,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
         );
 
         if opts.verify {
-            verify_synthesized_model(&model, &parsed_input.formulas)?;
+            verify_synthesized_model_with_labels(
+                &model,
+                &parsed_input.formulas,
+                &parsed_input.labels,
+            )?;
             println!();
         }
 
@@ -235,7 +243,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
             );
 
             if opts.verify {
-                verify_synthesized_model(&model, &parsed_input.formulas)?;
+                verify_synthesized_model_with_labels(
+                    &model,
+                    &parsed_input.formulas,
+                    &parsed_input.labels,
+                )?;
                 println!();
             }
 
@@ -784,6 +796,7 @@ fn load_llm_response(
 
 struct ParsedFormulaInputs {
     formulas: Vec<modality_lang::FormulaExpr>,
+    labels: Vec<String>,
     unparsed: Vec<String>,
 }
 
@@ -814,12 +827,25 @@ impl ParsedFormulaInputs {
 
 fn parse_formula_inputs(formulas: &[String]) -> ParsedFormulaInputs {
     let mut parsed_expressions = Vec::new();
+    let mut labels = Vec::new();
     let mut unparsed = Vec::new();
 
     for (index, formula) in formulas.iter().enumerate() {
         match parse_formula_string(index, formula) {
             Ok(parsed) => {
-                parsed_expressions.extend(parsed.into_iter().map(|formula| formula.expression));
+                let preview = formula_preview(formula);
+                let formula_count = parsed.len();
+                for (parsed_index, formula) in parsed.into_iter().enumerate() {
+                    let input_label = parsed_formula_label(
+                        index,
+                        parsed_index,
+                        formula_count,
+                        &formula.name,
+                        &preview,
+                    );
+                    parsed_expressions.push(formula.expression);
+                    labels.push(input_label);
+                }
             }
             Err(parse_error) => {
                 let label = format!("F{}", index + 1);
@@ -844,6 +870,7 @@ fn parse_formula_inputs(formulas: &[String]) -> ParsedFormulaInputs {
 
     ParsedFormulaInputs {
         formulas: parsed_expressions,
+        labels,
         unparsed,
     }
 }
@@ -890,6 +917,11 @@ fn unparsed_formula_string_labels(formulas: &[String]) -> Vec<String> {
     parse_formula_inputs(formulas).unparsed
 }
 
+#[cfg(test)]
+fn parsed_formula_string_labels(formulas: &[String]) -> Vec<String> {
+    parse_formula_inputs(formulas).labels
+}
+
 fn formula_preview(formula: &str) -> String {
     const MAX_PREVIEW_LEN: usize = 80;
 
@@ -901,6 +933,30 @@ fn formula_preview(formula: &str) -> String {
     } else {
         truncated
     }
+}
+
+fn parsed_formula_label(
+    input_index: usize,
+    parsed_index: usize,
+    formula_count: usize,
+    formula_name: &str,
+    preview: &str,
+) -> String {
+    let input_label = if formula_count == 1 {
+        format!("F{}", input_index + 1)
+    } else {
+        format!("F{}.{}", input_index + 1, parsed_index + 1)
+    };
+
+    let detail = if !formula_name.starts_with("generated_") && !formula_name.is_empty() {
+        formula_name.to_string()
+    } else if preview.is_empty() {
+        "<empty>".to_string()
+    } else {
+        preview.to_string()
+    };
+
+    format!("{} `{}`", input_label, detail)
 }
 
 fn compact_parse_error(error: &str) -> String {
@@ -1046,9 +1102,21 @@ fn format_synthesized_model(model: &modality_lang::Model, format: &str) -> Resul
     }
 }
 
+#[cfg(test)]
 fn verify_synthesized_model(
     model: &modality_lang::Model,
     formulas: &[modality_lang::FormulaExpr],
+) -> Result<()> {
+    let labels = (1..=formulas.len())
+        .map(|index| format!("F{}", index))
+        .collect::<Vec<_>>();
+    verify_synthesized_model_with_labels(model, formulas, &labels)
+}
+
+fn verify_synthesized_model_with_labels(
+    model: &modality_lang::Model,
+    formulas: &[modality_lang::FormulaExpr],
+    labels: &[String],
 ) -> Result<()> {
     println!(
         "🔎 Verifying synthesized model against {} formula(s)",
@@ -1059,8 +1127,12 @@ fn verify_synthesized_model(
     let mut failed = Vec::new();
 
     for (index, expression) in formulas.iter().enumerate() {
-        let formula_name = format!("F{}", index + 1);
-        let formula = modality_lang::Formula::new(formula_name.clone(), expression.clone());
+        let formula_name = labels
+            .get(index)
+            .cloned()
+            .unwrap_or_else(|| format!("F{}", index + 1));
+        let checker_name = format!("F{}", index + 1);
+        let formula = modality_lang::Formula::new(checker_name, expression.clone());
         let result = checker.check_formula(&formula);
 
         if result.is_satisfied {
@@ -3632,6 +3704,24 @@ F2: formula generated_2 {
         assert_eq!(unparsed.len(), 1);
         assert!(unparsed[0].starts_with("F1 `formula Bad { always( }` (parser:"));
         assert!(unparsed[0].contains("Failed to parse formula"));
+    }
+
+    #[test]
+    fn parsed_formula_labels_include_generated_input_preview() {
+        let formulas = vec!["always([<+APPROVE>] true)".to_string()];
+
+        let labels = parsed_formula_string_labels(&formulas);
+
+        assert_eq!(labels, vec!["F1 `always([<+APPROVE>] true)`"]);
+    }
+
+    #[test]
+    fn parsed_formula_labels_prefer_declared_formula_names() {
+        let formulas = vec!["formula Approval { always([<+APPROVE>] true) }".to_string()];
+
+        let labels = parsed_formula_string_labels(&formulas);
+
+        assert_eq!(labels, vec!["F1 `Approval`"]);
     }
 
     #[test]
