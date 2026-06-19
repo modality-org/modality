@@ -280,7 +280,10 @@ fn collect_json_formulas(
                 let key = key.to_ascii_lowercase();
                 if matches!(key.as_str(), "formula" | "formulas" | "rule" | "rules") {
                     collect_json_formulas(value, formulas, true, false);
-                } else if matches!(key.as_str(), "content" | "text" | "output_text") {
+                } else if matches!(
+                    key.as_str(),
+                    "content" | "text" | "output_text" | "completion" | "response"
+                ) {
                     collect_json_text_formulas(value, formulas);
                 } else if key == "arguments" {
                     collect_json_encoded_formulas(value, formulas);
@@ -1323,6 +1326,38 @@ Formula 2: "<+CANCEL> true",
       ]
     }
   ]
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec!["always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_completion_text() {
+        let response = r#"
+{
+  "completion": "F1: always([+PAY] true -> eventually(<+WORK> true))\nF2: <+CANCEL> true"
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] true -> eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_response_text() {
+        let response = r#"
+{
+  "response": "F1: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
 }
 "#;
 
