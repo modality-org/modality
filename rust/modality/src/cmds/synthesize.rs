@@ -612,6 +612,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+REINSTATE_CREDENTIAL>] true -> [<+modifies(/credential_reinstatements) +signed_by(/users/credential_issuer.id)>] true"#,
             r#"[<+VERIFY_CREDENTIAL>] true -> [<+modifies(/credential_verifications) +signed_by(/users/credential_verifier.id)>] true"#,
             r#"[<+PRESENT_CREDENTIAL>] true -> [<+modifies(/credential_presentations) +signed_by(/users/credential_holder.id)>] true"#,
+            r#"[<+SHARE_CREDENTIAL>] true -> [<+modifies(/credential_shares) +signed_by(/users/credential_holder.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2305,6 +2306,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+PRESENT_CREDENTIAL>] true -> [<+modifies(/credential_presentations) +signed_by(/users/credential_holder.id)>] true"
                 .to_string(),
+            "[<+SHARE_CREDENTIAL>] true -> [<+modifies(/credential_shares) +signed_by(/users/credential_holder.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2671,6 +2674,9 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "+PRESENT_CREDENTIAL +signed_by(/users/credential_holder.id) +modifies(/credential_presentations)"
+        ));
+        assert!(output.contains(
+            "+SHARE_CREDENTIAL +signed_by(/users/credential_holder.id) +modifies(/credential_shares)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
