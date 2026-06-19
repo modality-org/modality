@@ -594,6 +594,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+APPROVE_LAUNCH>] true -> [<+modifies(/launches) +signed_by(/users/launch_owner.id)>] true"#,
             r#"[<+APPROVE_GENERAL_AVAILABILITY>] true -> [<+modifies(/general_availability) +signed_by(/users/ga_owner.id)>] true"#,
             r#"[<+APPROVE_PRODUCTION>] true -> [<+modifies(/production) +signed_by(/users/production_owner.id)>] true"#,
+            r#"[<+APPROVE_OPERATIONS>] true -> [<+modifies(/operations) +signed_by(/users/operations_owner.id)>] true"#,
         ],
     },
     FormulaExampleGroup {
@@ -2218,6 +2219,8 @@ F2: formula generated_2 {
                 .to_string(),
             "[<+APPROVE_PRODUCTION>] true -> [<+modifies(/production) +signed_by(/users/production_owner.id)>] true"
                 .to_string(),
+            "[<+APPROVE_OPERATIONS>] true -> [<+modifies(/operations) +signed_by(/users/operations_owner.id)>] true"
+                .to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("PathPolicy", &formulas);
@@ -2530,6 +2533,9 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "+APPROVE_PRODUCTION +signed_by(/users/production_owner.id) +modifies(/production)"
+        ));
+        assert!(output.contains(
+            "+APPROVE_OPERATIONS +signed_by(/users/operations_owner.id) +modifies(/operations)"
         ));
         verify_synthesized_model(&model, &formulas).unwrap();
     }
