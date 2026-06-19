@@ -177,12 +177,20 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
         }
 
         if !declaration_lines.is_empty() {
+            let line = extract_markdown_table_formula(line)
+                .or_else(|| extract_markdown_table_declaration_close(line))
+                .unwrap_or(line);
             declaration_lines.push(line.to_string());
             if line.contains('}') {
                 formulas.push(declaration_lines.join("\n"));
                 declaration_lines.clear();
             }
             continue;
+        }
+
+        if let Some(formula) = extract_markdown_table_formula(line) {
+            push_formula_candidate(&mut formulas, &mut declaration_lines, formula);
+            continue 'lines;
         }
 
         if let Some((prefix, formula)) = line.split_once(" - ") {
@@ -315,6 +323,44 @@ fn strip_formula_wrapping(line: &str) -> &str {
         .or_else(|| strip_matching_wrapper(line.trim(), "_"))
         .unwrap_or(line)
         .trim()
+}
+
+fn extract_markdown_table_formula(line: &str) -> Option<&str> {
+    if !line.starts_with('|') || !line.ends_with('|') {
+        return None;
+    }
+
+    let cells: Vec<_> = line
+        .trim_matches('|')
+        .split('|')
+        .map(|cell| cell.trim())
+        .collect();
+
+    if cells.iter().all(|cell| {
+        !cell.is_empty()
+            && cell
+                .chars()
+                .all(|ch| ch == '-' || ch == ':' || ch.is_ascii_whitespace())
+    }) {
+        return None;
+    }
+
+    cells
+        .iter()
+        .copied()
+        .map(strip_labeled_formula_wrapping)
+        .find(|cell| is_raw_formula_line(cell))
+}
+
+fn extract_markdown_table_declaration_close(line: &str) -> Option<&str> {
+    if !line.starts_with('|') || !line.ends_with('|') {
+        return None;
+    }
+
+    line.trim_matches('|')
+        .split('|')
+        .map(|cell| cell.trim())
+        .find(|cell| *cell == "}")
 }
 
 fn strip_matching_wrapper<'a>(line: &'a str, wrapper: &str) -> Option<&'a str> {
@@ -891,6 +937,39 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             "always([+PAY] true -> eventually(<+WORK> true))"
         );
         assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_markdown_table_rows() {
+        let response = r#"
+| Label | Formula |
+| --- | --- |
+| F1 | always([+PAY] true -> eventually(<+WORK> true)) |
+| Formula 2 | `<+CANCEL> true` |
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] true -> eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_table_formula_declarations() {
+        let response = r#"
+| Label | Formula |
+| --- | --- |
+| F1 | formula generated_1 { |
+| | always([<+APPROVE>] true) |
+| | } |
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 1);
+        assert_eq!(formulas[0], "formula generated_1 {\nalways([<+APPROVE>] true)\n}");
     }
 
     #[test]
