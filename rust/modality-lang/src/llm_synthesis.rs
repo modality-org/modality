@@ -304,6 +304,7 @@ fn collect_json_formulas(
                         | "choices"
                         | "candidates"
                         | "chunks"
+                        | "candidate"
                         | "data"
                         | "delta"
                         | "deltas"
@@ -323,8 +324,11 @@ fn collect_json_formulas(
                         | "final"
                         | "final_answer"
                         | "finalanswer"
+                        | "generation"
                         | "generations"
                         | "payload"
+                        | "prediction"
+                        | "predictions"
                         | "result"
                         | "results"
                         | "message"
@@ -1760,6 +1764,30 @@ Formula 2: "<+CANCEL> true",
             vec![
                 "always([+STREAM] true -> eventually(<+FINAL> true))",
                 "<+COMMIT> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_provider_generation_aliases() {
+        let response = r#"
+{
+  "generation": "F1: always([+GENERATE] true -> eventually(<+REVIEW> true))",
+  "candidate": "Candidate text\nFormula 2: <+APPROVE> true",
+  "predictions": [
+    "Explanatory prediction.",
+    "F3: always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)"
+  ]
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+APPROVE> true",
+                "always([+GENERATE] true -> eventually(<+REVIEW> true))",
+                "always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)"
             ]
         );
     }
