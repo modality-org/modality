@@ -174,13 +174,8 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
         let line = strip_quote_marker(line);
         let line = strip_list_marker(line);
         let line = strip_checkbox_marker(line);
-        let line = strip_formula_wrapping(line);
 
         if line.starts_with("```") {
-            continue;
-        }
-
-        if is_json_structure_line(line) {
             continue;
         }
 
@@ -195,6 +190,17 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
             }
             continue;
         }
+
+        if is_json_structure_line(line) {
+            continue;
+        }
+
+        if let Some(formula) = extract_json_field_formula(line) {
+            push_formula_candidate(&mut formulas, &mut declaration_lines, formula);
+            continue 'lines;
+        }
+
+        let line = strip_formula_wrapping(line);
 
         if let Some(formula) = extract_markdown_table_formula(line) {
             push_formula_candidate(&mut formulas, &mut declaration_lines, formula);
@@ -368,7 +374,7 @@ fn strip_checkbox_marker(line: &str) -> &str {
 }
 
 fn is_json_structure_line(line: &str) -> bool {
-    matches!(line, "[" | "]")
+    matches!(line, "[" | "]" | "{" | "}")
 }
 
 fn strip_formula_wrapping(line: &str) -> &str {
@@ -383,6 +389,21 @@ fn strip_formula_wrapping(line: &str) -> &str {
         .or_else(|| strip_matching_wrapper(line, "_"))
         .unwrap_or(line)
         .trim()
+}
+
+fn extract_json_field_formula(line: &str) -> Option<&str> {
+    let (key, value) = line.split_once(':')?;
+    let key = key
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_ascii_lowercase();
+    if !matches!(key.as_str(), "formula" | "rule") {
+        return None;
+    }
+
+    let formula = strip_formula_wrapping(value.trim());
+    is_raw_formula_line(formula).then_some(formula)
 }
 
 fn strip_trailing_json_comma(line: &str) -> &str {
@@ -1112,6 +1133,47 @@ Formula 2: "<+CANCEL> true",
             "always([+PAY] true -> eventually(<+WORK> true))"
         );
         assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_fenced_json_formula_fields() {
+        let response = r#"
+```json
+[
+  {
+    "label": "F1",
+    "formula": "always([+PAY] true -> eventually(<+WORK> true))"
+  },
+  {
+    "label": "F2",
+    "formula": "<+CANCEL> true"
+  }
+]
+```
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] true -> eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_ignores_fenced_json_non_formula_fields() {
+        let response = r#"
+```json
+{
+  "notes": "always write an explanation",
+  "formula": "<+CANCEL> true"
+}
+```
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas, vec!["<+CANCEL> true"]);
     }
 
     #[test]
