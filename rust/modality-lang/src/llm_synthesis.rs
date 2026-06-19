@@ -304,6 +304,8 @@ fn collect_json_formulas(
                         | "candidates"
                         | "data"
                         | "items"
+                        | "parts"
+                        | "segments"
                         | "output"
                         | "outputs"
                         | "output_text"
@@ -1685,6 +1687,12 @@ Formula 2: "<+CANCEL> true",
   "items": [
     "Formula 5: always([+REVIEW] true -> eventually(<+APPROVE> true))"
   ],
+  "parts": [
+    "Formula 6: <+ARCHIVE> true"
+  ],
+  "segments": [
+    "Formula 7: always([+AUDIT] true -> eventually(<+REPORT> true))"
+  ],
   "outputs": [
     "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
   ]
@@ -1699,7 +1707,9 @@ Formula 2: "<+CANCEL> true",
                 "always([+PAY] true -> eventually(<+WORK> true))",
                 "<+ESCALATE> true",
                 "always([+REVIEW] true -> eventually(<+APPROVE> true))",
-                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ARCHIVE> true",
+                "always([+AUDIT] true -> eventually(<+REPORT> true))"
             ]
         );
     }
