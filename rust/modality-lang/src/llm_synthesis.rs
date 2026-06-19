@@ -199,6 +199,10 @@ fn parse_text_llm_response(response: &str) -> Vec<String> {
             continue;
         }
 
+        if collect_json_event_line_formulas(line, &mut formulas) {
+            continue 'lines;
+        }
+
         if let Some(formula) = extract_json_field_formula(line) {
             push_formula_candidate(&mut formulas, &mut declaration_lines, formula);
             continue 'lines;
@@ -423,6 +427,24 @@ fn collect_json_encoded_formulas(value: &serde_json::Value, formulas: &mut Vec<S
         ),
         _ => {}
     }
+}
+
+fn collect_json_event_line_formulas(line: &str, formulas: &mut Vec<String>) -> bool {
+    let Some(payload) = line.strip_prefix("data:") else {
+        return false;
+    };
+    let payload = payload.trim();
+    if payload.is_empty() || payload == "[DONE]" {
+        return true;
+    }
+
+    if let Ok(value) = serde_json::from_str(payload) {
+        collect_json_formulas(&value, formulas, false, false);
+    } else {
+        formulas.extend(parse_text_llm_response(payload));
+    }
+
+    true
 }
 
 fn push_formula_candidate(
@@ -1802,6 +1824,26 @@ Formula 2: "<+CANCEL> true",
     "Formula 2: <+COMMIT> true"
   ]
 }
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+STREAM] true -> eventually(<+FINAL> true))",
+                "<+COMMIT> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_stream_data_lines() {
+        let response = r#"
+event: message.delta
+data: {"choices":[{"delta":{"content":"F1: always([+STREAM] true -> eventually(<+FINAL> true))"}}]}
+data: {"output":[{"content":[{"type":"output_text","text":"Formula 2: <+COMMIT> true"}]}]}
+data: {"message":"Explanation only."}
+data: [DONE]
 "#;
 
         let formulas = parse_llm_response(response);
