@@ -156,6 +156,10 @@ pub fn generate_prompt(nl_description: &str) -> String {
 
 /// Parse LLM response to extract formulas
 pub fn parse_llm_response(response: &str) -> Vec<String> {
+    if let Some(formulas) = parse_json_llm_response(response) {
+        return formulas;
+    }
+
     let mut formulas = Vec::new();
     let mut declaration_lines = Vec::new();
 
@@ -228,6 +232,46 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
     }
 
     formulas
+}
+
+fn parse_json_llm_response(response: &str) -> Option<Vec<String>> {
+    let value: serde_json::Value = serde_json::from_str(response).ok()?;
+    let mut formulas = Vec::new();
+    collect_json_formulas(&value, &mut formulas, false, false);
+
+    (!formulas.is_empty()).then_some(formulas)
+}
+
+fn collect_json_formulas(
+    value: &serde_json::Value,
+    formulas: &mut Vec<String>,
+    formula_context: bool,
+    array_context: bool,
+) {
+    match value {
+        serde_json::Value::String(value) => {
+            if formula_context || array_context {
+                let formula = strip_formula_wrapping(value);
+                if is_raw_formula_line(formula) {
+                    formulas.push(formula.to_string());
+                }
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                collect_json_formulas(item, formulas, formula_context, true);
+            }
+        }
+        serde_json::Value::Object(fields) => {
+            for (key, value) in fields {
+                let key = key.to_ascii_lowercase();
+                if matches!(key.as_str(), "formula" | "formulas" | "rule" | "rules") {
+                    collect_json_formulas(value, formulas, true, false);
+                }
+            }
+        }
+        _ => {}
+    }
 }
 
 fn push_formula_candidate(
@@ -1012,6 +1056,53 @@ F1: 'always([+PAY] true -> eventually(<+WORK> true))'
         let response = r#"
 F1: "always([+PAY] true -> eventually(<+WORK> true))",
 Formula 2: "<+CANCEL> true",
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] true -> eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_formula_fields() {
+        let response = r#"
+[
+  {
+    "label": "F1",
+    "formula": "always([+PAY] true -> eventually(<+WORK> true))"
+  },
+  {
+    "label": "F2",
+    "formula": "<+CANCEL> true"
+  }
+]
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(formulas.len(), 2);
+        assert_eq!(
+            formulas[0],
+            "always([+PAY] true -> eventually(<+WORK> true))"
+        );
+        assert_eq!(formulas[1], "<+CANCEL> true");
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_formulas_field() {
+        let response = r#"
+{
+  "formulas": [
+    "always([+PAY] true -> eventually(<+WORK> true))",
+    "<+CANCEL> true"
+  ],
+  "notes": [
+    "This explanatory string should not be parsed as a formula."
+  ]
+}
 "#;
 
         let formulas = parse_llm_response(response);
