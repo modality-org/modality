@@ -398,6 +398,8 @@ fn collect_json_formulas(
                         | "answers"
                         | "answer_text"
                         | "answertext"
+                        | "analysis"
+                        | "analysistext"
                         | "assistant_message"
                         | "assistant_output"
                         | "assistant_response"
@@ -405,9 +407,13 @@ fn collect_json_formulas(
                         | "assistantoutput"
                         | "assistantresponse"
                         | "accepted"
+                        | "assessment"
+                        | "assessmenttext"
                         | "body"
                         | "best"
                         | "chosen"
+                        | "critique"
+                        | "critiquetext"
                         | "final"
                         | "final_answer"
                         | "final_message"
@@ -463,6 +469,8 @@ fn collect_json_formulas(
                         | "edits"
                         | "fixed"
                         | "fixedtext"
+                        | "feedback"
+                        | "feedbacktext"
                         | "fix"
                         | "fixes"
                         | "improved"
@@ -495,6 +503,8 @@ fn collect_json_formulas(
                         | "repairs"
                         | "resolved"
                         | "resolvedtext"
+                        | "review"
+                        | "reviewtext"
                         | "revised"
                         | "revisedtext"
                         | "revision"
@@ -934,10 +944,14 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "answer"
             | "answers"
             | "answertext"
+            | "analysis"
+            | "analysistext"
             | "assistantmessage"
             | "assistantoutput"
             | "assistantresponse"
             | "accepted"
+            | "assessment"
+            | "assessmenttext"
             | "alternative"
             | "alternatives"
             | "result"
@@ -950,6 +964,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "chosen"
             | "choice"
             | "choices"
+            | "critique"
+            | "critiquetext"
             | "chunk"
             | "chunks"
             | "delta"
@@ -997,6 +1013,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "edited"
             | "editedtext"
             | "edits"
+            | "feedback"
+            | "feedbacktext"
             | "fixed"
             | "fixedtext"
             | "fix"
@@ -1031,6 +1049,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "repairs"
             | "resolved"
             | "resolvedtext"
+            | "review"
+            | "reviewtext"
             | "revised"
             | "revisedtext"
             | "revision"
@@ -3055,6 +3075,30 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_feedback_fields() {
+        let response = r#"
+{
+  "feedback": "always([+SHIP] true -> eventually(<+PAY> true))",
+  "analysis": "This only explains why the first draft failed.",
+  "critique_text": "Formula 2: <+REFUND> true",
+  "assessment": {
+    "review": "F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+  }
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+REFUND> true",
+                "always([+SHIP] true -> eventually(<+PAY> true))"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -3272,6 +3316,27 @@ improved formula: always([+SHIP] true -> eventually(<+PAY> true))
 refined = Formula 2: <+REFUND> true
 resolved text: F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 improved text: this response only explains the improvement
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_feedback_fields() {
+        let response = r#"
+feedback: always([+SHIP] true -> eventually(<+PAY> true))
+analysis: this only explains why the first draft failed
+critique text: Formula 2: <+REFUND> true
+review: F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+assessment: prose only
 "#;
 
         let formulas = parse_llm_response(response);
