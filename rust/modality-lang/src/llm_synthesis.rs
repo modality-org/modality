@@ -450,37 +450,53 @@ fn collect_json_formulas(
                         | "correction"
                         | "corrections"
                         | "corrected"
+                        | "correctedtext"
                         | "diagnostic"
                         | "diagnostics"
+                        | "diagnostictext"
                         | "edit"
                         | "edited"
+                        | "editedtext"
                         | "edits"
                         | "fixed"
+                        | "fixedtext"
                         | "fix"
                         | "fixes"
                         | "patch"
                         | "patched"
+                        | "patchedtext"
                         | "patches"
                         | "proposed"
                         | "proposal"
+                        | "proposaltext"
                         | "proposals"
                         | "recommended"
+                        | "recommendedtext"
                         | "recommendation"
+                        | "recommendationtext"
                         | "recommendations"
                         | "remediated"
+                        | "remediatedtext"
                         | "remediation"
+                        | "remediationtext"
                         | "remediations"
                         | "replacement"
+                        | "replacementtext"
                         | "replacements"
                         | "repair"
+                        | "repairtext"
                         | "repairs"
                         | "revised"
+                        | "revisedtext"
                         | "revision"
+                        | "revisiontext"
                         | "revisions"
                         | "suggestion"
+                        | "suggestiontext"
                         | "suggestions"
                         | "update"
                         | "updated"
+                        | "updatedtext"
                         | "updates"
                 ) {
                     collect_json_text_formulas(value, formulas);
@@ -947,37 +963,53 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "correction"
             | "corrections"
             | "corrected"
+            | "correctedtext"
             | "diagnostic"
             | "diagnostics"
+            | "diagnostictext"
             | "edit"
             | "edited"
+            | "editedtext"
             | "edits"
             | "fixed"
+            | "fixedtext"
             | "fix"
             | "fixes"
             | "patch"
             | "patched"
+            | "patchedtext"
             | "patches"
             | "proposed"
             | "proposal"
+            | "proposaltext"
             | "proposals"
             | "recommended"
+            | "recommendedtext"
             | "recommendation"
+            | "recommendationtext"
             | "recommendations"
             | "remediated"
+            | "remediatedtext"
             | "remediation"
+            | "remediationtext"
             | "remediations"
             | "replacement"
+            | "replacementtext"
             | "replacements"
             | "repair"
+            | "repairtext"
             | "repairs"
             | "revised"
+            | "revisedtext"
             | "revision"
+            | "revisiontext"
             | "revisions"
             | "suggestion"
+            | "suggestiontext"
             | "suggestions"
             | "update"
             | "updated"
+            | "updatedtext"
             | "updates"
     ) {
         return None;
@@ -2934,6 +2966,30 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_repair_text_fields() {
+        let response = r#"
+{
+  "corrected_text": "always([+SHIP] true -> eventually(<+PAY> true))",
+  "repair_text": "Formula 2: <+REFUND> true",
+  "updated text": {
+    "text": "F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+  },
+  "replacement_text": "This response only explains the replacement."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -3091,6 +3147,26 @@ replacement: this response only explains the replacement
 corrected formula: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
 proposal formula: F2: <+REFUND> true
 updated formula: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_repair_text_fields() {
+        let response = r#"
+corrected text: always([+SHIP] true -> eventually(<+PAY> true))
+repair text: Formula 2: <+REFUND> true
+updated text: F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+replacement text: this response only explains the replacement
 "#;
 
         let formulas = parse_llm_response(response);
