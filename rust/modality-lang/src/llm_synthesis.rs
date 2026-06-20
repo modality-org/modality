@@ -358,6 +358,8 @@ fn collect_json_formulas(
                         | "evidenceformula"
                         | "explanationformula"
                         | "failureformula"
+                        | "fulfilledformula"
+                        | "fulfillmentformula"
                         | "fixformula"
                         | "fixedformula"
                         | "formulaaccepted"
@@ -388,6 +390,8 @@ fn collect_json_formulas(
                         | "formulaevidence"
                         | "formulaexplanation"
                         | "formulafinal"
+                        | "formulafulfilled"
+                        | "formulafulfillment"
                         | "formulafix"
                         | "formulagenerated"
                         | "formulajustification"
@@ -462,6 +466,8 @@ fn collect_json_formulas(
                         | "ruleevidence"
                         | "ruleexplanation"
                         | "rulefinal"
+                        | "rulefulfilled"
+                        | "rulefulfillment"
                         | "rulefix"
                         | "rulegenerated"
                         | "rulejustification"
@@ -1130,6 +1136,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "evidenceformula"
             | "explanationformula"
             | "failureformula"
+            | "fulfilledformula"
+            | "fulfillmentformula"
             | "fixformula"
             | "fixedformula"
             | "formulaaccepted"
@@ -1160,6 +1168,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaevidence"
             | "formulaexplanation"
             | "formulafinal"
+            | "formulafulfilled"
+            | "formulafulfillment"
             | "formulafix"
             | "formulagenerated"
             | "formulajustification"
@@ -1233,6 +1243,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleevidence"
             | "ruleexplanation"
             | "rulefinal"
+            | "rulefulfilled"
+            | "rulefulfillment"
             | "rulefix"
             | "rulegenerated"
             | "rulejustification"
@@ -1340,6 +1352,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "evidenceformula"
             | "explanationformula"
             | "failureformula"
+            | "fulfilledformula"
+            | "fulfillmentformula"
             | "fixformula"
             | "fixedformula"
             | "formulaaccepted"
@@ -1369,6 +1383,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaevidence"
             | "formulaexplanation"
             | "formulafinal"
+            | "formulafulfilled"
+            | "formulafulfillment"
             | "formulafix"
             | "formulagenerated"
             | "formulajustification"
@@ -1442,6 +1458,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleevidence"
             | "ruleexplanation"
             | "rulefinal"
+            | "rulefulfilled"
+            | "rulefulfillment"
             | "rulefix"
             | "rulegenerated"
             | "rulejustification"
@@ -4686,6 +4704,35 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_fulfillment_field_order_aliases() {
+        let response = r#"
+{
+  "formula_fulfillment": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "fulfilled_formula": "F2: <+REFUND> true",
+  "rule_fulfillment": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "formula_fulfilled": "Formula 4: <+ESCALATE> true",
+  "fulfillment_formula": "Formula 5: <+ARCHIVE> true",
+  "rule_fulfilled": "Formula 6: always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)",
+  "fulfilled": "This fulfilled result is only prose.",
+  "fulfillment": "This fulfillment result is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+ESCALATE> true",
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "<+ARCHIVE> true",
+                "always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -5832,6 +5879,33 @@ rule conformant: Formula 6: always([+CLOSE] true -> <+signed_by(/users/closer.id
 conformance = this conformance result is only prose
 conformant = this conformant candidate is only prose
 conforms = this conforms result is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE> true",
+                "<+ARCHIVE> true",
+                "always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_fulfillment_field_order_aliases() {
+        let response = r#"
+formula fulfillment: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+fulfilled formula: F2: <+REFUND> true
+rule fulfillment: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+formula fulfilled: Formula 4: <+ESCALATE> true
+fulfillment formula: Formula 5: <+ARCHIVE> true
+rule fulfilled: Formula 6: always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)
+fulfilled = this fulfilled result is only prose
+fulfillment = this fulfillment result is only prose
 "#;
 
         let formulas = parse_llm_response(response);
