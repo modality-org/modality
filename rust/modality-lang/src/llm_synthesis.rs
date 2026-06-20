@@ -342,9 +342,13 @@ fn collect_json_formulas(
                         | "authorizedformula"
                         | "accessformula"
                         | "capabilityformula"
+                        | "consentformula"
                         | "denialformula"
                         | "deniedformula"
+                        | "entitlementformula"
+                        | "grantformula"
                         | "permissionformula"
+                        | "privilegeformula"
                         | "candidateformula"
                         | "changeformula"
                         | "chosenformula"
@@ -389,9 +393,13 @@ fn collect_json_formulas(
                         | "formulaauthorized"
                         | "formulaaccess"
                         | "formulacapability"
+                        | "formulaconsent"
                         | "formuladenial"
                         | "formuladenied"
+                        | "formulaentitlement"
+                        | "formulagrant"
                         | "formulapermission"
+                        | "formulaprivilege"
                         | "formulabest"
                         | "formulabreached"
                         | "formulabreach"
@@ -481,9 +489,12 @@ fn collect_json_formulas(
                         | "ruleauthorization"
                         | "ruleauthorized"
                         | "ruleaccess"
+                        | "ruleconsent"
                         | "ruledenial"
                         | "ruledenied"
                         | "rulecapability"
+                        | "ruleentitlement"
+                        | "rulegrant"
                         | "ruleassessment"
                         | "rulebest"
                         | "rulebreached"
@@ -523,6 +534,7 @@ fn collect_json_formulas(
                         | "rulepassed"
                         | "rulepatch"
                         | "rulepermission"
+                        | "ruleprivilege"
                         | "ruleproof"
                         | "ruleproposal"
                         | "rulerationale"
@@ -1201,9 +1213,13 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "authorizedformula"
             | "accessformula"
             | "capabilityformula"
+            | "consentformula"
             | "denialformula"
             | "deniedformula"
+            | "entitlementformula"
+            | "grantformula"
             | "permissionformula"
+            | "privilegeformula"
             | "candidateformula"
             | "changeformula"
             | "chosenformula"
@@ -1248,9 +1264,13 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaauthorized"
             | "formulaaccess"
             | "formulacapability"
+            | "formulaconsent"
             | "formuladenial"
             | "formuladenied"
+            | "formulaentitlement"
+            | "formulagrant"
             | "formulapermission"
+            | "formulaprivilege"
             | "formulabest"
             | "formulabreached"
             | "formulabreach"
@@ -1340,9 +1360,12 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleauthorization"
             | "ruleauthorized"
             | "ruleaccess"
+            | "ruleconsent"
             | "ruledenial"
             | "ruledenied"
             | "rulecapability"
+            | "ruleentitlement"
+            | "rulegrant"
             | "rulebest"
             | "rulebreached"
             | "rulebreach"
@@ -1381,6 +1404,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulepassed"
             | "rulepatch"
             | "rulepermission"
+            | "ruleprivilege"
             | "ruleproof"
             | "ruleproposal"
             | "rulerationale"
@@ -1470,9 +1494,13 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "authorizedformula"
             | "accessformula"
             | "capabilityformula"
+            | "consentformula"
             | "denialformula"
             | "deniedformula"
+            | "entitlementformula"
+            | "grantformula"
             | "permissionformula"
+            | "privilegeformula"
             | "candidateformula"
             | "changeformula"
             | "chosenformula"
@@ -1517,9 +1545,13 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaauthorized"
             | "formulaaccess"
             | "formulacapability"
+            | "formulaconsent"
             | "formuladenial"
             | "formuladenied"
+            | "formulaentitlement"
+            | "formulagrant"
             | "formulapermission"
+            | "formulaprivilege"
             | "formulabest"
             | "formulabreached"
             | "formulabreach"
@@ -1609,9 +1641,12 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleauthorization"
             | "ruleauthorized"
             | "ruleaccess"
+            | "ruleconsent"
             | "ruledenial"
             | "ruledenied"
             | "rulecapability"
+            | "ruleentitlement"
+            | "rulegrant"
             | "rulebest"
             | "rulebreached"
             | "rulebreach"
@@ -1649,6 +1684,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulepassed"
             | "rulepatch"
             | "rulepermission"
+            | "ruleprivilege"
             | "ruleproof"
             | "ruleproposal"
             | "rulerationale"
@@ -5278,6 +5314,39 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_consent_field_order_aliases() {
+        let response = r#"
+{
+  "formula_consent": "Formula 1: always([+SHARE_DATA] true -> <+signed_by(/users/subject.id)> true)",
+  "consent_formula": "F2: <+RECORD_CONSENT> true",
+  "rule_grant": "Formula 3: always([+GRANT] true -> always([-REVOKE] true))",
+  "grant_formula": "Formula 4: <+GRANT_RIGHTS> true",
+  "formula_entitlement": "Formula 5: always([+CLAIM_ENTITLEMENT] true -> <+signed_by(/users/issuer.id)> true)",
+  "privilege_formula": "Formula 6: <+ASSERT_PRIVILEGE> true",
+  "rule_privilege": "Formula 7: always([+USE_PRIVILEGE] true -> <+signed_by(/users/admin.id)> true)",
+  "entitlement": "This entitlement rationale is only prose.",
+  "grant": "This grant rationale is only prose.",
+  "privilege": "This privilege rationale is only prose.",
+  "consent": "This consent rationale is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+RECORD_CONSENT> true",
+                "always([+SHARE_DATA] true -> <+signed_by(/users/subject.id)> true)",
+                "always([+CLAIM_ENTITLEMENT] true -> <+signed_by(/users/issuer.id)> true)",
+                "<+GRANT_RIGHTS> true",
+                "<+ASSERT_PRIVILEGE> true",
+                "always([+GRANT] true -> always([-REVOKE] true))",
+                "always([+USE_PRIVILEGE] true -> <+signed_by(/users/admin.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -6501,6 +6570,37 @@ permission = this permission rationale is only prose
                 "<+GRANT_ACCESS> true",
                 "always([+USE_CAPABILITY] true -> <+signed_by(/users/issuer.id)> true)",
                 "<+ASSUME_PERMISSION> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_consent_field_order_aliases() {
+        let response = r#"
+formula consent: Formula 1: always([+SHARE_DATA] true -> <+signed_by(/users/subject.id)> true)
+consent formula: F2: <+RECORD_CONSENT> true
+rule grant: Formula 3: always([+GRANT] true -> always([-REVOKE] true))
+grant formula: Formula 4: <+GRANT_RIGHTS> true
+formula entitlement: Formula 5: always([+CLAIM_ENTITLEMENT] true -> <+signed_by(/users/issuer.id)> true)
+privilege formula: Formula 6: <+ASSERT_PRIVILEGE> true
+rule privilege: Formula 7: always([+USE_PRIVILEGE] true -> <+signed_by(/users/admin.id)> true)
+entitlement = this entitlement rationale is only prose
+grant = this grant rationale is only prose
+privilege = this privilege rationale is only prose
+consent = this consent rationale is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHARE_DATA] true -> <+signed_by(/users/subject.id)> true)",
+                "<+RECORD_CONSENT> true",
+                "always([+GRANT] true -> always([-REVOKE] true))",
+                "<+GRANT_RIGHTS> true",
+                "always([+CLAIM_ENTITLEMENT] true -> <+signed_by(/users/issuer.id)> true)",
+                "<+ASSERT_PRIVILEGE> true",
+                "always([+USE_PRIVILEGE] true -> <+signed_by(/users/admin.id)> true)"
             ]
         );
     }
