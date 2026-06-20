@@ -464,8 +464,10 @@ fn collect_json_formulas(
                         | "rulereview"
                         | "ruleselected"
                         | "ruleupdate"
+                        | "rulevalid"
                         | "rulevalidation"
                         | "ruleverification"
+                        | "ruleverified"
                         | "revisedformula"
                         | "revisionformula"
                         | "selectedformula"
@@ -477,6 +479,7 @@ fn collect_json_formulas(
                         | "formulasummary"
                         | "formulasuggested"
                         | "formulasuggestion"
+                        | "formulavalid"
                         | "rulesuggested"
                         | "rulesuggestion"
                         | "rulesupport"
@@ -489,6 +492,7 @@ fn collect_json_formulas(
                         | "validationerrorformula"
                         | "validatedformula"
                         | "verifierformula"
+                        | "formulaverified"
                         | "verificationformula"
                         | "verifiedformula"
                         | "expression"
@@ -1214,8 +1218,10 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulereview"
             | "ruleselected"
             | "ruleupdate"
+            | "rulevalid"
             | "rulevalidation"
             | "ruleverification"
+            | "ruleverified"
             | "revisedformula"
             | "revisionformula"
             | "selectedformula"
@@ -1227,6 +1233,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulasummary"
             | "formulasuggested"
             | "formulasuggestion"
+            | "formulavalid"
             | "rulesuggested"
             | "rulesuggestion"
             | "rulesupport"
@@ -1239,6 +1246,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "validationerrorformula"
             | "validatedformula"
             | "verifierformula"
+            | "formulaverified"
             | "verificationformula"
             | "verifiedformula"
             | "expression"
@@ -1402,8 +1410,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulereview"
             | "ruleselected"
             | "ruleupdate"
+            | "rulevalid"
             | "rulevalidation"
             | "ruleverification"
+            | "ruleverified"
             | "selectedformula"
             | "solutionformula"
             | "supportformula"
@@ -1413,6 +1423,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulasummary"
             | "formulasuggested"
             | "formulasuggestion"
+            | "formulavalid"
             | "rulesuggested"
             | "rulesuggestion"
             | "rulesupport"
@@ -1425,6 +1436,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "validationerrorformula"
             | "validatedformula"
             | "verifierformula"
+            | "formulaverified"
             | "verificationformula"
             | "verifiedformula"
             | "content"
@@ -4534,6 +4546,31 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_validity_field_order_aliases() {
+        let response = r#"
+{
+  "formula_valid": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "formula_verified": "F2: <+REFUND> true",
+  "rule_valid": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "rule_verified": "Formula 4: <+ESCALATE> true",
+  "valid": "This valid candidate is only prose.",
+  "verified": "This verified candidate is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE> true"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -5609,6 +5646,29 @@ verification = this verification is only explained in prose
                 "always([+SHIP] true -> eventually(<+PAY> true))",
                 "<+REFUND> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_validity_field_order_aliases() {
+        let response = r#"
+formula valid: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+formula verified: F2: <+REFUND> true
+rule valid: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+rule verified: Formula 4: <+ESCALATE> true
+valid = this valid candidate is only prose
+verified = this verified candidate is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE> true"
             ]
         );
     }
