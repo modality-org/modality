@@ -385,8 +385,10 @@ fn collect_json_formulas(
                         | "answer_text"
                         | "answertext"
                         | "assistant_message"
+                        | "assistant_output"
                         | "assistant_response"
                         | "assistantmessage"
+                        | "assistantoutput"
                         | "assistantresponse"
                         | "body"
                         | "final"
@@ -410,7 +412,21 @@ fn collect_json_formulas(
                         | "message"
                         | "messages"
                         | "model_output"
+                        | "model_response"
                         | "modeloutput"
+                        | "modelresponse"
+                        | "llm_output"
+                        | "llm_response"
+                        | "llmoutput"
+                        | "llmresponse"
+                        | "provider_output"
+                        | "provider_response"
+                        | "provideroutput"
+                        | "providerresponse"
+                        | "raw_output"
+                        | "raw_response"
+                        | "rawoutput"
+                        | "rawresponse"
                         | "reply"
                         | "generated_text"
                         | "generatedtext"
@@ -817,6 +833,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "answer"
             | "answertext"
             | "assistantmessage"
+            | "assistantoutput"
             | "assistantresponse"
             | "result"
             | "body"
@@ -828,7 +845,14 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "payload"
             | "prediction"
             | "message"
+            | "modelresponse"
             | "modeloutput"
+            | "llmoutput"
+            | "llmresponse"
+            | "provideroutput"
+            | "providerresponse"
+            | "rawoutput"
+            | "rawresponse"
             | "reply"
             | "generatedtext"
             | "correction"
@@ -2238,6 +2262,30 @@ finalAnswer: `always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)`
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_provider_response_aliases() {
+        let response = r#"
+{
+  "assistant_output": "F1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "model_response": "Plain explanation.\nFormula 2: <+REFUND> true",
+  "llm_response": "No valid formula in this explanation.",
+  "providerOutput": "Formula 3: <+ESCALATE> true",
+  "raw_output": "F4: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "<+ESCALATE> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_message_reply_and_generated_text() {
         let response = r#"
 {
@@ -2821,6 +2869,28 @@ final message: Formula 2: <+REFUND> true
 assistant response: explanation without a formula
 assistant message: Formula 3: <+ESCALATE> true
 model output: F4: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "<+ESCALATE> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_provider_response_aliases() {
+        let response = r#"
+assistant output: always([+SHIP] true -> eventually(<+PAY> true))
+model response: Formula 2: <+REFUND> true
+llm response: explanation without a formula
+provider output: Formula 3: <+ESCALATE> true
+raw output: F4: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 "#;
 
         let formulas = parse_llm_response(response);
