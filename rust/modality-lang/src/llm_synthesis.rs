@@ -334,6 +334,8 @@ fn collect_json_formulas(
                         | "argumentformula"
                         | "assessmentformula"
                         | "bestformula"
+                        | "breachedformula"
+                        | "breachformula"
                         | "acceptedformula"
                         | "approvedformula"
                         | "candidateformula"
@@ -373,6 +375,8 @@ fn collect_json_formulas(
                         | "formulaargument"
                         | "formulaapproved"
                         | "formulabest"
+                        | "formulabreached"
+                        | "formulabreach"
                         | "formulacandidate"
                         | "formulachange"
                         | "formulachosen"
@@ -454,6 +458,8 @@ fn collect_json_formulas(
                         | "ruleapproved"
                         | "ruleassessment"
                         | "rulebest"
+                        | "rulebreached"
+                        | "rulebreach"
                         | "rulecandidate"
                         | "rulechange"
                         | "rulechosen"
@@ -602,6 +608,11 @@ fn collect_json_formulas(
                         | "assessmenttext"
                         | "body"
                         | "best"
+                        | "breach"
+                        | "breached"
+                        | "breachedtext"
+                        | "breaches"
+                        | "breachtext"
                         | "change"
                         | "changed"
                         | "changedtext"
@@ -1136,6 +1147,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "argumentformula"
             | "assessmentformula"
             | "bestformula"
+            | "breachedformula"
+            | "breachformula"
             | "acceptedformula"
             | "approvedformula"
             | "candidateformula"
@@ -1175,6 +1188,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaargument"
             | "formulaapproved"
             | "formulabest"
+            | "formulabreached"
+            | "formulabreach"
             | "formulacandidate"
             | "formulachange"
             | "formulachosen"
@@ -1255,6 +1270,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleassessment"
             | "ruleapproved"
             | "rulebest"
+            | "rulebreached"
+            | "rulebreach"
             | "rulecandidate"
             | "rulechange"
             | "rulechosen"
@@ -1366,6 +1383,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "argumentformula"
             | "assessmentformula"
             | "bestformula"
+            | "breachedformula"
+            | "breachformula"
             | "acceptedformula"
             | "approvedformula"
             | "candidateformula"
@@ -1405,6 +1424,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaargument"
             | "formulaapproved"
             | "formulabest"
+            | "formulabreached"
+            | "formulabreach"
             | "formulachange"
             | "formulachosen"
             | "formulaclaim"
@@ -1485,6 +1506,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleassessment"
             | "ruleapproved"
             | "rulebest"
+            | "rulebreached"
+            | "rulebreach"
             | "rulechange"
             | "rulechosen"
             | "ruleclaim"
@@ -1603,6 +1626,11 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "blocks"
             | "body"
             | "best"
+            | "breach"
+            | "breached"
+            | "breachedtext"
+            | "breaches"
+            | "breachtext"
             | "candidate"
             | "candidates"
             | "change"
@@ -4878,6 +4906,35 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_breach_field_order_aliases() {
+        let response = r#"
+{
+  "breach_formula": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "formula_breach": "F2: <+REFUND> true",
+  "rule_breach": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "breached_formula": "Formula 4: <+ESCALATE> true",
+  "formula_breached": "Formula 5: <+ARCHIVE> true",
+  "rule_breached": "Formula 6: always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)",
+  "breach": "This breach result is only prose.",
+  "breached": "This breached result is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+ESCALATE> true",
+                "<+REFUND> true",
+                "<+ARCHIVE> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -5260,11 +5317,19 @@ rule violation: Formula 12: always([+BLOCK] true -> <+signed_by(/users/complianc
 violated formula: Formula 13: <+NOTIFY> true
 formula violated: Formula 14: <+ARCHIVE_VIOLATION> true
 rule violated: Formula 15: always([+REOPEN] true -> <+signed_by(/users/reviewer.id)> true)
+breach formula: Formula 16: <+BREACH_ALERT> true
+formula breach: Formula 17: <+ESCALATE_BREACH> true
+rule breach: Formula 18: always([+LOCK] true -> <+signed_by(/users/compliance.id)> true)
+breached formula: Formula 19: <+REPORT_BREACH> true
+formula breached: Formula 20: <+ARCHIVE_BREACH> true
+rule breached: Formula 21: always([+REMEDIATE] true -> <+signed_by(/users/reviewer.id)> true)
 failure = this failure result is only prose
 failed = this failed result is only prose
 counterexample = this counterexample result is only prose
 violation = this violation result is only prose
 violated = this violated result is only prose
+breach = this breach result is only prose
+breached = this breached result is only prose
 "#;
 
         let formulas = parse_llm_response(response);
@@ -5285,7 +5350,13 @@ violated = this violated result is only prose
                 "always([+BLOCK] true -> <+signed_by(/users/compliance.id)> true)",
                 "<+NOTIFY> true",
                 "<+ARCHIVE_VIOLATION> true",
-                "always([+REOPEN] true -> <+signed_by(/users/reviewer.id)> true)"
+                "always([+REOPEN] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+BREACH_ALERT> true",
+                "<+ESCALATE_BREACH> true",
+                "always([+LOCK] true -> <+signed_by(/users/compliance.id)> true)",
+                "<+REPORT_BREACH> true",
+                "<+ARCHIVE_BREACH> true",
+                "always([+REMEDIATE] true -> <+signed_by(/users/reviewer.id)> true)"
             ]
         );
     }
