@@ -335,6 +335,7 @@ fn collect_json_formulas(
                         | "errorformula"
                         | "failureformula"
                         | "fixedformula"
+                        | "formulacandidate"
                         | "formula_text"
                         | "formulatext"
                         | "finalformula"
@@ -351,6 +352,7 @@ fn collect_json_formulas(
                         | "replacementformula"
                         | "resolvedformula"
                         | "responseformula"
+                        | "rulecandidate"
                         | "revisedformula"
                         | "selectedformula"
                         | "solutionformula"
@@ -910,6 +912,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "errorformula"
             | "failureformula"
             | "fixedformula"
+            | "formulacandidate"
             | "formulatext"
             | "finalformula"
             | "generatedformula"
@@ -925,6 +928,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "replacementformula"
             | "resolvedformula"
             | "responseformula"
+            | "rulecandidate"
             | "revisedformula"
             | "selectedformula"
             | "solutionformula"
@@ -1338,7 +1342,7 @@ fn is_raw_formula_line(line: &str) -> bool {
         || line.starts_with("<-")
         || line.starts_with("<>")
         || line.starts_with("eventually")
-        || line.starts_with("formula ")
+        || (line.starts_with("formula ") && line.contains('{'))
 }
 
 /// Extract parties from NL description (simple heuristic)
@@ -3331,6 +3335,26 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_candidate_field_order_aliases() {
+        let response = r#"
+{
+  "formula_candidate": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "rule_candidate": "F2: <+REFUND> true",
+  "formula candidate": "This candidate is only explained in prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -3678,6 +3702,24 @@ hint text: this only suggests trying a simpler rule
                 "always([+SHIP] true -> eventually(<+PAY> true))",
                 "<+REFUND> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_candidate_field_order_aliases() {
+        let response = r#"
+formula candidate: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+rule candidate: F2: <+REFUND> true
+formula candidate = this candidate is only explained in prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true"
             ]
         );
     }
