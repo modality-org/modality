@@ -340,6 +340,7 @@ fn collect_json_formulas(
                         | "changeformula"
                         | "chosenformula"
                         | "claimformula"
+                        | "compliantformula"
                         | "confirmedformula"
                         | "conclusionformula"
                         | "critiqueformula"
@@ -369,6 +370,7 @@ fn collect_json_formulas(
                         | "formulachange"
                         | "formulachosen"
                         | "formulaclaim"
+                        | "formulacompliant"
                         | "formulaconfirmed"
                         | "formulaconclusion"
                         | "formulacorrection"
@@ -394,6 +396,7 @@ fn collect_json_formulas(
                         | "formularesponse"
                         | "formularevision"
                         | "formulareview"
+                        | "formulasatisfied"
                         | "formulaselected"
                         | "formulaupdate"
                         | "formulaassessment"
@@ -438,6 +441,7 @@ fn collect_json_formulas(
                         | "rulechange"
                         | "rulechosen"
                         | "ruleclaim"
+                        | "rulecompliant"
                         | "ruleconfirmed"
                         | "ruleconclusion"
                         | "rulecorrection"
@@ -463,6 +467,7 @@ fn collect_json_formulas(
                         | "ruleresponse"
                         | "rulerevision"
                         | "rulereview"
+                        | "rulesatisfied"
                         | "ruleselected"
                         | "ruleupdate"
                         | "rulevalid"
@@ -473,6 +478,7 @@ fn collect_json_formulas(
                         | "revisedformula"
                         | "revisionformula"
                         | "selectedformula"
+                        | "satisfiedformula"
                         | "solutionformula"
                         | "supportformula"
                         | "summaryformula"
@@ -1096,8 +1102,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "candidateformula"
             | "changeformula"
             | "chosenformula"
-            | "claimformula"
-            | "confirmedformula"
+                        | "claimformula"
+                        | "compliantformula"
+                        | "confirmedformula"
             | "conclusionformula"
             | "critiqueformula"
             | "correctionformula"
@@ -1126,6 +1133,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulachange"
             | "formulachosen"
             | "formulaclaim"
+            | "formulacompliant"
             | "formulaconfirmed"
             | "formulaconclusion"
             | "formulacorrection"
@@ -1151,6 +1159,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formularesponse"
             | "formularevision"
             | "formulareview"
+            | "formulasatisfied"
             | "formulaselected"
             | "formulaupdate"
             | "formulaassessment"
@@ -1179,8 +1188,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "replacementformula"
             | "resolvedformula"
             | "responseformula"
-            | "reviewformula"
-            | "ruleaccepted"
+                        | "reviewformula"
+                        | "ruleaccepted"
             | "ruleadvice"
             | "ruleadvised"
             | "ruleamended"
@@ -1193,8 +1202,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulecandidate"
             | "rulechange"
             | "rulechosen"
-            | "ruleclaim"
-            | "ruleconfirmed"
+                        | "ruleclaim"
+                        | "rulecompliant"
+                        | "ruleconfirmed"
             | "ruleconclusion"
             | "rulecorrection"
             | "rulecritique"
@@ -1218,8 +1228,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulereasoning"
             | "ruleresponse"
             | "rulerevision"
-            | "rulereview"
-            | "ruleselected"
+                        | "rulereview"
+                        | "rulesatisfied"
+                        | "ruleselected"
             | "ruleupdate"
             | "rulevalid"
             | "rulevalidated"
@@ -1228,8 +1239,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleverified"
             | "revisedformula"
             | "revisionformula"
-            | "selectedformula"
-            | "solutionformula"
+                        | "selectedformula"
+                        | "satisfiedformula"
+                        | "solutionformula"
             | "supportformula"
             | "summaryformula"
             | "suggestedformula"
@@ -1292,6 +1304,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "changeformula"
             | "chosenformula"
             | "claimformula"
+            | "compliantformula"
             | "confirmedformula"
             | "conclusionformula"
             | "critiqueformula"
@@ -1320,6 +1333,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulachange"
             | "formulachosen"
             | "formulaclaim"
+            | "formulacompliant"
             | "formulaconfirmed"
             | "formulaconclusion"
             | "formulacorrection"
@@ -1345,6 +1359,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formularesponse"
             | "formularevision"
             | "formulareview"
+            | "formulasatisfied"
             | "formulaselected"
             | "formulaupdate"
             | "formulaassessment"
@@ -1388,6 +1403,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulechange"
             | "rulechosen"
             | "ruleclaim"
+            | "rulecompliant"
             | "ruleconfirmed"
             | "ruleconclusion"
             | "rulecorrection"
@@ -1413,6 +1429,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleresponse"
             | "rulerevision"
             | "rulereview"
+            | "rulesatisfied"
             | "ruleselected"
             | "ruleupdate"
             | "rulevalid"
@@ -1421,6 +1438,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleverification"
             | "ruleverified"
             | "selectedformula"
+            | "satisfiedformula"
             | "solutionformula"
             | "supportformula"
             | "summaryformula"
@@ -4582,6 +4600,35 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_satisfaction_field_order_aliases() {
+        let response = r#"
+{
+  "formula_compliant": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "compliant_formula": "F2: <+REFUND> true",
+  "rule_compliant": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "formula_satisfied": "Formula 4: <+ESCALATE> true",
+  "satisfied_formula": "Formula 5: <+ARCHIVE> true",
+  "rule_satisfied": "Formula 6: always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)",
+  "compliant": "This compliant candidate is only prose.",
+  "satisfied": "This satisfied candidate is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+REFUND> true",
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+ESCALATE> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)",
+                "<+ARCHIVE> true"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -5673,6 +5720,33 @@ rule validated: Formula 6: always([+CLOSE] true -> <+signed_by(/users/closer.id)
 valid = this valid candidate is only prose
 verified = this verified candidate is only prose
 validated = this validated candidate is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE> true",
+                "<+ARCHIVE> true",
+                "always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_satisfaction_field_order_aliases() {
+        let response = r#"
+formula compliant: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+compliant formula: F2: <+REFUND> true
+rule compliant: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+formula satisfied: Formula 4: <+ESCALATE> true
+satisfied formula: Formula 5: <+ARCHIVE> true
+rule satisfied: Formula 6: always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)
+compliant = this compliant candidate is only prose
+satisfied = this satisfied candidate is only prose
 "#;
 
         let formulas = parse_llm_response(response);
