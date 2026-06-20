@@ -333,6 +333,7 @@ fn collect_json_formulas(
                         | "candidateformula"
                         | "changeformula"
                         | "chosenformula"
+                        | "correctionformula"
                         | "correctedformula"
                         | "draftformula"
                         | "editedformula"
@@ -344,6 +345,7 @@ fn collect_json_formulas(
                         | "formulaamendment"
                         | "formulacandidate"
                         | "formulachange"
+                        | "formulacorrection"
                         | "formuladraft"
                         | "formulafix"
                         | "formulapatch"
@@ -371,6 +373,7 @@ fn collect_json_formulas(
                         | "ruleamendment"
                         | "rulecandidate"
                         | "rulechange"
+                        | "rulecorrection"
                         | "ruledraft"
                         | "rulefix"
                         | "rulepatch"
@@ -948,6 +951,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "candidateformula"
             | "changeformula"
             | "chosenformula"
+            | "correctionformula"
             | "correctedformula"
             | "draftformula"
             | "editedformula"
@@ -959,6 +963,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaamendment"
             | "formulacandidate"
             | "formulachange"
+            | "formulacorrection"
             | "formuladraft"
             | "formulafix"
             | "formulapatch"
@@ -985,6 +990,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleamendment"
             | "rulecandidate"
             | "rulechange"
+            | "rulecorrection"
             | "ruledraft"
             | "rulefix"
             | "rulepatch"
@@ -1034,6 +1040,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "candidateformula"
             | "changeformula"
             | "chosenformula"
+            | "correctionformula"
             | "correctedformula"
             | "draftformula"
             | "editedformula"
@@ -1044,6 +1051,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaamended"
             | "formulaamendment"
             | "formulachange"
+            | "formulacorrection"
             | "formuladraft"
             | "formulafix"
             | "formulapatch"
@@ -1070,6 +1078,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleamended"
             | "ruleamendment"
             | "rulechange"
+            | "rulecorrection"
             | "ruledraft"
             | "rulefix"
             | "rulepatch"
@@ -3631,6 +3640,28 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_correction_field_order_aliases() {
+        let response = r#"
+{
+  "formula_correction": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "correction_formula": "F2: <+REFUND> true",
+  "rule_correction": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "correction": "This correction is only explained in prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+REFUND> true",
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -4145,6 +4176,26 @@ formula change: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
 change formula: F2: <+REFUND> true
 rule change: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 change = this change is only explained in prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_correction_field_order_aliases() {
+        let response = r#"
+formula correction: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+correction formula: F2: <+REFUND> true
+rule correction: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+correction = this correction is only explained in prose
 "#;
 
         let formulas = parse_llm_response(response);
