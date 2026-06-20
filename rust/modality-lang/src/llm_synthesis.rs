@@ -326,6 +326,8 @@ fn collect_json_formulas(
                     key.as_str(),
                     "formula"
                         | "formulas"
+                        | "adviceformula"
+                        | "advisedformula"
                         | "amendedformula"
                         | "amendmentformula"
                         | "bestformula"
@@ -343,6 +345,8 @@ fn collect_json_formulas(
                         | "fixedformula"
                         | "formulaamended"
                         | "formulaamendment"
+                        | "formulaadvice"
+                        | "formulaadvised"
                         | "formulacandidate"
                         | "formulachange"
                         | "formulacorrection"
@@ -371,6 +375,8 @@ fn collect_json_formulas(
                         | "replacementformula"
                         | "resolvedformula"
                         | "responseformula"
+                        | "ruleadvice"
+                        | "ruleadvised"
                         | "ruleamended"
                         | "ruleamendment"
                         | "rulecandidate"
@@ -446,6 +452,11 @@ fn collect_json_formulas(
                         | "answertext"
                         | "analysis"
                         | "analysistext"
+                        | "advice"
+                        | "advicetext"
+                        | "advices"
+                        | "advised"
+                        | "advisedtext"
                         | "amended"
                         | "amendedtext"
                         | "amendment"
@@ -955,6 +966,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
         key.as_str(),
         "formula"
             | "formulas"
+            | "adviceformula"
+            | "advisedformula"
             | "amendedformula"
             | "amendmentformula"
             | "bestformula"
@@ -972,6 +985,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "fixedformula"
             | "formulaamended"
             | "formulaamendment"
+            | "formulaadvice"
+            | "formulaadvised"
             | "formulacandidate"
             | "formulachange"
             | "formulacorrection"
@@ -999,6 +1014,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "replacementformula"
             | "resolvedformula"
             | "responseformula"
+            | "ruleadvice"
+            | "ruleadvised"
             | "ruleamended"
             | "ruleamendment"
             | "rulecandidate"
@@ -1053,7 +1070,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
     let key = normalize_llm_field_key(key.trim().trim_matches('"').trim_matches('\''));
     if !matches!(
         key.as_str(),
-        "amendedformula"
+        "adviceformula"
+            | "advisedformula"
+            | "amendedformula"
             | "amendmentformula"
             | "bestformula"
             | "acceptedformula"
@@ -1070,6 +1089,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "fixedformula"
             | "formulaamended"
             | "formulaamendment"
+            | "formulaadvice"
+            | "formulaadvised"
             | "formulachange"
             | "formulacorrection"
             | "formuladraft"
@@ -1097,6 +1118,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "responseformula"
             | "revisedformula"
             | "revisionformula"
+            | "ruleadvice"
+            | "ruleadvised"
             | "ruleamended"
             | "ruleamendment"
             | "rulechange"
@@ -1140,6 +1163,11 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "answertext"
             | "analysis"
             | "analysistext"
+            | "advice"
+            | "advicetext"
+            | "advices"
+            | "advised"
+            | "advisedtext"
             | "amended"
             | "amendedtext"
             | "amendment"
@@ -3737,6 +3765,28 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_advice_field_order_aliases() {
+        let response = r#"
+{
+  "formula_advice": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "advice_formula": "F2: <+REFUND> true",
+  "rule_advice": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "advice": "This advice is only explained in prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+REFUND> true",
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -4311,6 +4361,26 @@ formula recommendation: Formula 1: always([+SHIP] true -> eventually(<+PAY> true
 recommendation formula: F2: <+REFUND> true
 rule recommendation: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 recommendation = this recommendation is only explained in prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_advice_field_order_aliases() {
+        let response = r#"
+formula advice: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+advice formula: F2: <+REFUND> true
+rule advice: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+advice = this advice is only explained in prose
 "#;
 
         let formulas = parse_llm_response(response);
