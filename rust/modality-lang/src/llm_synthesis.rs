@@ -645,7 +645,15 @@ fn extract_xml_tagged_formula(line: &str) -> Option<&str> {
     let line = line.trim();
     let lower = line.to_ascii_lowercase();
 
-    for tag in ["formula", "formula_text", "rule"] {
+    for tag in [
+        "formula",
+        "formula_text",
+        "formula-text",
+        "rule",
+        "rule_text",
+        "rule-text",
+        "expression",
+    ] {
         if !lower.starts_with(&format!("<{tag}")) {
             continue;
         }
@@ -682,7 +690,15 @@ fn extract_xml_formula_block_open(line: &str) -> Option<(&str, &str)> {
     let line = line.trim();
     let lower = line.to_ascii_lowercase();
 
-    for tag in ["formula", "formula_text", "rule"] {
+    for tag in [
+        "formula",
+        "formula_text",
+        "formula-text",
+        "rule",
+        "rule_text",
+        "rule-text",
+        "expression",
+    ] {
         if !lower.starts_with(&format!("<{tag}")) {
             continue;
         }
@@ -2141,6 +2157,27 @@ always([+TAGGED] true -> eventually(<+REVIEW> true))
             vec![
                 "always([+TAGGED] true -> eventually(<+REVIEW> true))",
                 "<+COMMIT> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_dash_separated_xml_tags() {
+        let response = r#"
+<formula-text>always([+PAY] true -> eventually(<+WORK> true))</formula-text>
+<rule-text>
+<+CANCEL> true
+</rule-text>
+<expression>always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)</expression>
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
             ]
         );
