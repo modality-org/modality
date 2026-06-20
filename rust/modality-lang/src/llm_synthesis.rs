@@ -327,7 +327,9 @@ fn collect_json_formulas(
                     "formula"
                         | "formulas"
                         | "bestformula"
+                        | "acceptedformula"
                         | "candidateformula"
+                        | "chosenformula"
                         | "correctedformula"
                         | "fixedformula"
                         | "formula_text"
@@ -340,6 +342,7 @@ fn collect_json_formulas(
                         | "selectedformula"
                         | "validformula"
                         | "validatedformula"
+                        | "verifiedformula"
                         | "expression"
                         | "expressions"
                         | "rule"
@@ -785,7 +788,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
         "formula"
             | "formulas"
             | "bestformula"
+            | "acceptedformula"
             | "candidateformula"
+            | "chosenformula"
             | "correctedformula"
             | "fixedformula"
             | "formulatext"
@@ -797,6 +802,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "selectedformula"
             | "validformula"
             | "validatedformula"
+            | "verifiedformula"
             | "expression"
             | "expressions"
             | "rule"
@@ -816,10 +822,13 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
     if !matches!(
         key.as_str(),
         "bestformula"
+            | "acceptedformula"
             | "candidateformula"
+            | "chosenformula"
             | "selectedformula"
             | "validformula"
             | "validatedformula"
+            | "verifiedformula"
             | "content"
             | "contenttext"
             | "text"
@@ -2788,7 +2797,10 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
   "best_formula": "always([+PAY] true -> eventually(<+DELIVER> true))",
   "candidate_formula": "F2: <+CANCEL> true",
   "selected formula": "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
-  "validated_formula": "<+ESCALATE> true"
+  "validated_formula": "<+ESCALATE> true",
+  "chosen_formula": "Formula 5: always([+MERGE] true -> <+signed_by(/users/maintainer.id)> true)",
+  "accepted formula": "explanation without a formula",
+  "verified_formula": "F6: <+DEPLOY> true"
 }
 "#;
 
@@ -2798,8 +2810,10 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always([+PAY] true -> eventually(<+DELIVER> true))",
                 "<+CANCEL> true",
+                "always([+MERGE] true -> <+signed_by(/users/maintainer.id)> true)",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
-                "<+ESCALATE> true"
+                "<+ESCALATE> true",
+                "<+DEPLOY> true"
             ]
         );
     }
@@ -2848,6 +2862,9 @@ best formula: always([+SHIP] true -> eventually(<+PAY> true))
 candidate formula: F2: <+REFUND> true
 selected formula: explanation without a formula
 validated formula: <+ESCALATE> true
+chosen formula: Formula 4: always([+MERGE] true -> <+signed_by(/users/maintainer.id)> true)
+accepted formula: this is only prose
+verified formula: F5: <+DEPLOY> true
 "#;
 
         let formulas = parse_llm_response(response);
@@ -2856,7 +2873,9 @@ validated formula: <+ESCALATE> true
             vec![
                 "always([+SHIP] true -> eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "<+ESCALATE> true"
+                "<+ESCALATE> true",
+                "always([+MERGE] true -> <+signed_by(/users/maintainer.id)> true)",
+                "<+DEPLOY> true"
             ]
         );
     }
