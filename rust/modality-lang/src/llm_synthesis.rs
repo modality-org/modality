@@ -344,6 +344,8 @@ fn collect_json_formulas(
                         | "claimformula"
                         | "compliantformula"
                         | "confirmedformula"
+                        | "noncomplianceformula"
+                        | "noncompliantformula"
                         | "conformanceformula"
                         | "conformantformula"
                         | "conformsformula"
@@ -383,6 +385,8 @@ fn collect_json_formulas(
                         | "formulaclaim"
                         | "formulacompliant"
                         | "formulaconfirmed"
+                        | "formulanoncompliance"
+                        | "formulanoncompliant"
                         | "formulaconformance"
                         | "formulaconformant"
                         | "formulaconforms"
@@ -466,6 +470,8 @@ fn collect_json_formulas(
                         | "ruleclaim"
                         | "rulecompliant"
                         | "ruleconfirmed"
+                        | "rulenoncompliance"
+                        | "rulenoncompliant"
                         | "ruleconformance"
                         | "ruleconformant"
                         | "ruleconforms"
@@ -650,6 +656,11 @@ fn collect_json_formulas(
                         | "model_response"
                         | "modeloutput"
                         | "modelresponse"
+                        | "noncompliance"
+                        | "noncompliances"
+                        | "noncompliancetext"
+                        | "noncompliant"
+                        | "noncomplianttext"
                         | "llm_output"
                         | "llm_response"
                         | "llmoutput"
@@ -1157,6 +1168,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "claimformula"
             | "compliantformula"
             | "confirmedformula"
+            | "noncomplianceformula"
+            | "noncompliantformula"
             | "conformanceformula"
             | "conformantformula"
             | "conformsformula"
@@ -1196,6 +1209,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaclaim"
             | "formulacompliant"
             | "formulaconfirmed"
+            | "formulanoncompliance"
+            | "formulanoncompliant"
             | "formulaconformance"
             | "formulaconformant"
             | "formulaconforms"
@@ -1278,6 +1293,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleclaim"
             | "rulecompliant"
             | "ruleconfirmed"
+            | "rulenoncompliance"
+            | "rulenoncompliant"
             | "ruleconformance"
             | "ruleconformant"
             | "ruleconforms"
@@ -1393,6 +1410,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "claimformula"
             | "compliantformula"
             | "confirmedformula"
+            | "noncomplianceformula"
+            | "noncompliantformula"
             | "conformanceformula"
             | "conformantformula"
             | "conformsformula"
@@ -1431,6 +1450,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaclaim"
             | "formulacompliant"
             | "formulaconfirmed"
+            | "formulanoncompliance"
+            | "formulanoncompliant"
             | "formulaconformance"
             | "formulaconformant"
             | "formulaconforms"
@@ -1513,6 +1534,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleclaim"
             | "rulecompliant"
             | "ruleconfirmed"
+            | "rulenoncompliance"
+            | "rulenoncompliant"
             | "ruleconformance"
             | "ruleconformant"
             | "ruleconforms"
@@ -1669,6 +1692,11 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "message"
             | "modelresponse"
             | "modeloutput"
+            | "noncompliance"
+            | "noncompliances"
+            | "noncompliancetext"
+            | "noncompliant"
+            | "noncomplianttext"
             | "llmoutput"
             | "llmresponse"
             | "provideroutput"
@@ -4747,8 +4775,16 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
   "formula_satisfied": "Formula 4: <+ESCALATE> true",
   "satisfied_formula": "Formula 5: <+ARCHIVE> true",
   "rule_satisfied": "Formula 6: always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)",
+  "noncompliance_formula": "Formula 7: <+NONCOMPLIANCE_ALERT> true",
+  "formula_noncompliance": "Formula 8: always([+REMEDIATE] true -> <+signed_by(/users/compliance.id)> true)",
+  "rule_noncompliance": "Formula 9: <+REPORT_NONCOMPLIANCE> true",
+  "noncompliant_formula": "Formula 10: <+NONCOMPLIANT_ESCALATE> true",
+  "formula_noncompliant": "Formula 11: always([+BLOCK] true -> <+signed_by(/users/auditor.id)> true)",
+  "rule_noncompliant": "Formula 12: <+ARCHIVE_NONCOMPLIANT> true",
   "compliant": "This compliant candidate is only prose.",
-  "satisfied": "This satisfied candidate is only prose."
+  "satisfied": "This satisfied candidate is only prose.",
+  "noncompliance": "This noncompliance result is only prose.",
+  "noncompliant": "This noncompliant result is only prose."
 }
 "#;
 
@@ -4758,8 +4794,14 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "<+REFUND> true",
                 "always([+SHIP] true -> eventually(<+PAY> true))",
+                "always([+REMEDIATE] true -> <+signed_by(/users/compliance.id)> true)",
+                "always([+BLOCK] true -> <+signed_by(/users/auditor.id)> true)",
                 "<+ESCALATE> true",
+                "<+NONCOMPLIANCE_ALERT> true",
+                "<+NONCOMPLIANT_ESCALATE> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+REPORT_NONCOMPLIANCE> true",
+                "<+ARCHIVE_NONCOMPLIANT> true",
                 "always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)",
                 "<+ARCHIVE> true"
             ]
@@ -6094,8 +6136,16 @@ rule compliant: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer
 formula satisfied: Formula 4: <+ESCALATE> true
 satisfied formula: Formula 5: <+ARCHIVE> true
 rule satisfied: Formula 6: always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)
+noncompliance formula: Formula 7: <+NONCOMPLIANCE_ALERT> true
+formula noncompliance: Formula 8: always([+REMEDIATE] true -> <+signed_by(/users/compliance.id)> true)
+rule noncompliance: Formula 9: <+REPORT_NONCOMPLIANCE> true
+noncompliant formula: Formula 10: <+NONCOMPLIANT_ESCALATE> true
+formula noncompliant: Formula 11: always([+BLOCK] true -> <+signed_by(/users/auditor.id)> true)
+rule noncompliant: Formula 12: <+ARCHIVE_NONCOMPLIANT> true
 compliant = this compliant candidate is only prose
 satisfied = this satisfied candidate is only prose
+noncompliance = this noncompliance result is only prose
+noncompliant = this noncompliant result is only prose
 "#;
 
         let formulas = parse_llm_response(response);
@@ -6107,7 +6157,13 @@ satisfied = this satisfied candidate is only prose
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
                 "<+ESCALATE> true",
                 "<+ARCHIVE> true",
-                "always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)"
+                "always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)",
+                "<+NONCOMPLIANCE_ALERT> true",
+                "always([+REMEDIATE] true -> <+signed_by(/users/compliance.id)> true)",
+                "<+REPORT_NONCOMPLIANCE> true",
+                "<+NONCOMPLIANT_ESCALATE> true",
+                "always([+BLOCK] true -> <+signed_by(/users/auditor.id)> true)",
+                "<+ARCHIVE_NONCOMPLIANT> true"
             ]
         );
     }
