@@ -854,10 +854,13 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "outputs"
             | "outputtext"
             | "completion"
+            | "completions"
             | "completiontext"
             | "response"
+            | "responses"
             | "responsetext"
             | "answer"
+            | "answers"
             | "answertext"
             | "assistantmessage"
             | "assistantoutput"
@@ -866,6 +869,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "alternative"
             | "alternatives"
             | "result"
+            | "block"
+            | "blocks"
             | "body"
             | "best"
             | "candidate"
@@ -875,6 +880,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "choices"
             | "chunk"
             | "chunks"
+            | "delta"
+            | "deltas"
             | "final"
             | "finalanswer"
             | "finalmessage"
@@ -3034,6 +3041,28 @@ variant: Formula 7: <+DEPLOY> true
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
                 "<+ESCALATE> true",
                 "<+DEPLOY> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_batch_text_fields() {
+        let response = r#"
+answers: always([+SHIP] true -> eventually(<+PAY> true))
+completions: Formula 2: <+REFUND> true
+responses: explanation without a formula
+blocks: F4: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+deltas: <+ESCALATE> true
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE> true"
             ]
         );
     }
