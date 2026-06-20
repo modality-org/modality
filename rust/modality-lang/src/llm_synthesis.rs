@@ -445,6 +445,7 @@ fn collect_json_formulas(
                         | "generatedtext"
                         | "correction"
                         | "corrections"
+                        | "corrected"
                         | "diagnostic"
                         | "diagnostics"
                         | "fixed"
@@ -453,12 +454,15 @@ fn collect_json_formulas(
                         | "proposed"
                         | "proposal"
                         | "proposals"
+                        | "recommended"
                         | "recommendation"
                         | "recommendations"
+                        | "remediated"
                         | "remediation"
                         | "remediations"
                         | "repair"
                         | "repairs"
+                        | "revised"
                         | "revision"
                         | "revisions"
                         | "suggestion"
@@ -916,6 +920,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "generatedtext"
             | "correction"
             | "corrections"
+            | "corrected"
             | "diagnostic"
             | "diagnostics"
             | "fixed"
@@ -924,12 +929,15 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "proposed"
             | "proposal"
             | "proposals"
+            | "recommended"
             | "recommendation"
             | "recommendations"
+            | "remediated"
             | "remediation"
             | "remediations"
             | "repair"
             | "repairs"
+            | "revised"
             | "revision"
             | "revisions"
             | "suggestion"
@@ -2841,6 +2849,30 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_repair_status_fields() {
+        let response = r#"
+{
+  "corrected": "always([+SHIP] true -> eventually(<+PAY> true))",
+  "recommended": "Formula 2: <+REFUND> true",
+  "revised": {
+    "text": "F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+  },
+  "remediated": "This response only explains the repair."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -2948,6 +2980,26 @@ remediation: emit a formula label before prose
             vec![
                 "always([+SHIP] true -> eventually(<+PAY> true))",
                 "<+REFUND> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_repair_status_fields() {
+        let response = r#"
+corrected: always([+SHIP] true -> eventually(<+PAY> true))
+recommended: Formula 2: <+REFUND> true
+revised: F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+remediated: this response only explains the repair
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
             ]
         );
     }
