@@ -338,6 +338,8 @@ fn collect_json_formulas(
                         | "breachformula"
                         | "acceptedformula"
                         | "approvedformula"
+                        | "authorizationformula"
+                        | "authorizedformula"
                         | "denialformula"
                         | "deniedformula"
                         | "candidateformula"
@@ -380,6 +382,8 @@ fn collect_json_formulas(
                         | "formulaanalysis"
                         | "formulaargument"
                         | "formulaapproved"
+                        | "formulaauthorization"
+                        | "formulaauthorized"
                         | "formuladenial"
                         | "formuladenied"
                         | "formulabest"
@@ -468,6 +472,8 @@ fn collect_json_formulas(
                         | "ruleanalysis"
                         | "ruleargument"
                         | "ruleapproved"
+                        | "ruleauthorization"
+                        | "ruleauthorized"
                         | "ruledenial"
                         | "ruledenied"
                         | "ruleassessment"
@@ -1182,6 +1188,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "breachformula"
             | "acceptedformula"
             | "approvedformula"
+            | "authorizationformula"
+            | "authorizedformula"
             | "denialformula"
             | "deniedformula"
             | "candidateformula"
@@ -1224,6 +1232,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaanalysis"
             | "formulaargument"
             | "formulaapproved"
+            | "formulaauthorization"
+            | "formulaauthorized"
             | "formuladenial"
             | "formuladenied"
             | "formulabest"
@@ -1312,6 +1322,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleargument"
             | "ruleassessment"
             | "ruleapproved"
+            | "ruleauthorization"
+            | "ruleauthorized"
             | "ruledenial"
             | "ruledenied"
             | "rulebest"
@@ -1436,6 +1448,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "breachformula"
             | "acceptedformula"
             | "approvedformula"
+            | "authorizationformula"
+            | "authorizedformula"
             | "denialformula"
             | "deniedformula"
             | "candidateformula"
@@ -1478,6 +1492,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaanalysis"
             | "formulaargument"
             | "formulaapproved"
+            | "formulaauthorization"
+            | "formulaauthorized"
             | "formuladenial"
             | "formuladenied"
             | "formulabest"
@@ -1566,6 +1582,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleargument"
             | "ruleassessment"
             | "ruleapproved"
+            | "ruleauthorization"
+            | "ruleauthorized"
             | "ruledenial"
             | "ruledenied"
             | "rulebest"
@@ -5176,6 +5194,33 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_authorization_field_order_aliases() {
+        let response = r#"
+{
+  "formula_authorized": "Formula 1: always([+USE_TOOL] true -> <+signed_by(/users/provider.id)> true)",
+  "authorized_formula": "F2: <+APPROVE_ACCESS> true",
+  "rule_authorization": "Formula 3: always([+AUTHORIZE] true -> always([-REVOKE] true))",
+  "authorization_formula": "Formula 4: <+GRANT_CAPABILITY> true",
+  "rule_authorized": "Formula 5: always([+AUTHORIZE] true -> <+signed_by(/users/issuer.id)> true)",
+  "authorized": "This authorized candidate is only prose.",
+  "authorization": "This authorization rationale is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+GRANT_CAPABILITY> true",
+                "<+APPROVE_ACCESS> true",
+                "always([+USE_TOOL] true -> <+signed_by(/users/provider.id)> true)",
+                "always([+AUTHORIZE] true -> always([-REVOKE] true))",
+                "always([+AUTHORIZE] true -> <+signed_by(/users/issuer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -6346,6 +6391,31 @@ passed = this passed candidate is only prose
                 "always([+SHIP] true -> eventually(<+PAY> true))",
                 "<+REFUND> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_authorization_field_order_aliases() {
+        let response = r#"
+formula authorized: Formula 1: always([+USE_TOOL] true -> <+signed_by(/users/provider.id)> true)
+authorized formula: F2: <+APPROVE_ACCESS> true
+rule authorization: Formula 3: always([+AUTHORIZE] true -> always([-REVOKE] true))
+authorization formula: Formula 4: <+GRANT_CAPABILITY> true
+rule authorized: Formula 5: always([+AUTHORIZE] true -> <+signed_by(/users/issuer.id)> true)
+authorized = this authorized candidate is only prose
+authorization = this authorization rationale is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+USE_TOOL] true -> <+signed_by(/users/provider.id)> true)",
+                "<+APPROVE_ACCESS> true",
+                "always([+AUTHORIZE] true -> always([-REVOKE] true))",
+                "<+GRANT_CAPABILITY> true",
+                "always([+AUTHORIZE] true -> <+signed_by(/users/issuer.id)> true)"
             ]
         );
     }
