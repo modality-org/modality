@@ -349,6 +349,7 @@ fn collect_json_formulas(
                         | "critiqueformula"
                         | "correctionformula"
                         | "correctedformula"
+                        | "counterexampleformula"
                         | "diagnosisformula"
                         | "diagnosticformula"
                         | "draftformula"
@@ -384,6 +385,7 @@ fn collect_json_formulas(
                         | "formulaconclusion"
                         | "formulacorrection"
                         | "formulacritique"
+                        | "formulacounterexample"
                         | "formuladiagnosis"
                         | "formuladiagnostic"
                         | "formuladraft"
@@ -461,6 +463,7 @@ fn collect_json_formulas(
                         | "ruleconforms"
                         | "ruleconclusion"
                         | "rulecorrection"
+                        | "rulecounterexample"
                         | "rulecritique"
                         | "rulediagnosis"
                         | "rulediagnostic"
@@ -660,6 +663,9 @@ fn collect_json_formulas(
                         | "corrections"
                         | "corrected"
                         | "correctedtext"
+                        | "counterexample"
+                        | "counterexamples"
+                        | "counterexampletext"
                         | "diagnostic"
                         | "diagnostics"
                         | "diagnostictext"
@@ -1134,6 +1140,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "critiqueformula"
             | "correctionformula"
             | "correctedformula"
+            | "counterexampleformula"
             | "diagnosisformula"
             | "diagnosticformula"
             | "draftformula"
@@ -1169,6 +1176,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaconclusion"
             | "formulacorrection"
             | "formulacritique"
+            | "formulacounterexample"
             | "formuladiagnosis"
             | "formuladiagnostic"
             | "formuladraft"
@@ -1245,6 +1253,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
                         | "ruleconforms"
             | "ruleconclusion"
             | "rulecorrection"
+            | "rulecounterexample"
             | "rulecritique"
             | "rulediagnosis"
             | "rulediagnostic"
@@ -1355,6 +1364,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "critiqueformula"
             | "correctionformula"
             | "correctedformula"
+            | "counterexampleformula"
             | "diagnosisformula"
             | "diagnosticformula"
             | "draftformula"
@@ -1389,6 +1399,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaconclusion"
             | "formulacorrection"
             | "formulacritique"
+            | "formulacounterexample"
             | "formuladiagnosis"
             | "formuladiagnostic"
             | "formuladraft"
@@ -1465,6 +1476,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleconforms"
             | "ruleconclusion"
             | "rulecorrection"
+            | "rulecounterexample"
             | "rulecritique"
             | "rulediagnosis"
             | "rulediagnostic"
@@ -1633,6 +1645,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "corrections"
             | "corrected"
             | "correctedtext"
+            | "counterexample"
+            | "counterexamples"
+            | "counterexampletext"
             | "diagnostic"
             | "diagnostics"
             | "diagnostictext"
@@ -4781,6 +4796,28 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_counterexample_field_order_aliases() {
+        let response = r#"
+{
+  "counterexample_formula": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "formula_counterexample": "F2: <+REFUND> true",
+  "rule_counterexample": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "counterexample": "This counterexample result is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -5154,8 +5191,12 @@ verifier output: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewe
 formula failure: Formula 4: <+ESCALATE> true
 failed formula: Formula 5: <+ARCHIVE> true
 rule failure: Formula 6: always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)
+counterexample formula: Formula 7: <+ROLLBACK> true
+formula counterexample: Formula 8: <+COMPENSATE> true
+rule counterexample: Formula 9: always([+RETRY] true -> <+signed_by(/users/operator.id)> true)
 failure = this failure result is only prose
 failed = this failed result is only prose
+counterexample = this counterexample result is only prose
 "#;
 
         let formulas = parse_llm_response(response);
@@ -5167,7 +5208,10 @@ failed = this failed result is only prose
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
                 "<+ESCALATE> true",
                 "<+ARCHIVE> true",
-                "always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)"
+                "always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)",
+                "<+ROLLBACK> true",
+                "<+COMPENSATE> true",
+                "always([+RETRY] true -> <+signed_by(/users/operator.id)> true)"
             ]
         );
     }
