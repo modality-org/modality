@@ -324,7 +324,7 @@ fn collect_json_formulas(
         }
         serde_json::Value::Object(fields) => {
             for (key, value) in fields {
-                let key = key.to_ascii_lowercase();
+                let key = normalize_llm_field_key(key);
                 if matches!(
                     key.as_str(),
                     "formula"
@@ -374,6 +374,7 @@ fn collect_json_formulas(
                         | "answer"
                         | "answers"
                         | "answer_text"
+                        | "answertext"
                         | "body"
                         | "final"
                         | "final_answer"
@@ -466,6 +467,13 @@ fn collect_json_encoded_formulas(value: &serde_json::Value, formulas: &mut Vec<S
         ),
         _ => {}
     }
+}
+
+fn normalize_llm_field_key(key: &str) -> String {
+    key.chars()
+        .filter(|ch| *ch != '_' && *ch != '-')
+        .flat_map(char::to_lowercase)
+        .collect()
 }
 
 fn collect_json_event_line_formulas(line: &str, formulas: &mut Vec<String>) -> bool {
@@ -614,22 +622,16 @@ fn strip_formula_wrapping(line: &str) -> &str {
 
 fn extract_json_field_formula(line: &str) -> Option<&str> {
     let (key, value) = line.split_once(':')?;
-    let key = key
-        .trim()
-        .trim_matches('"')
-        .trim_matches('\'')
-        .to_ascii_lowercase();
+    let key = normalize_llm_field_key(key.trim().trim_matches('"').trim_matches('\''));
     if !matches!(
         key.as_str(),
         "formula"
             | "formulas"
-            | "formula_text"
             | "formulatext"
             | "expression"
             | "expressions"
             | "rule"
             | "rules"
-            | "rule_text"
             | "ruletext"
     ) {
         return None;
@@ -1476,6 +1478,49 @@ formulas: always([+PAY] true -> eventually(<+WORK> true))
 rules: <+CANCEL> true
 expressions: `always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)`
 content: This is explanatory text, not a formula.
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_dash_separated_field_aliases() {
+        let response = r#"
+[
+  {"formula-text": "always([+PAY] true -> eventually(<+WORK> true))"},
+  {"rule-text": "<+CANCEL> true"},
+  {"output-text": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"},
+  {"answer-text": "Formula 4: <+ESCALATE> true"}
+]
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_dash_separated_formula_fields() {
+        let response = r#"
+formula-text: always([+PAY] true -> eventually(<+WORK> true))
+rule-text: <+CANCEL> true
+expression: `always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)`
+message: This is explanatory text, not a formula.
 "#;
 
         let formulas = parse_llm_response(response);
