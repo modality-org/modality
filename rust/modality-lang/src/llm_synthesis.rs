@@ -332,6 +332,8 @@ fn collect_json_formulas(
                         | "chosenformula"
                         | "correctedformula"
                         | "editedformula"
+                        | "errorformula"
+                        | "failureformula"
                         | "fixedformula"
                         | "formula_text"
                         | "formulatext"
@@ -340,6 +342,7 @@ fn collect_json_formulas(
                         | "improvedformula"
                         | "outputformula"
                         | "patchedformula"
+                        | "parseerrorformula"
                         | "proposalformula"
                         | "proposedformula"
                         | "recommendedformula"
@@ -353,7 +356,9 @@ fn collect_json_formulas(
                         | "solutionformula"
                         | "updatedformula"
                         | "validformula"
+                        | "validationerrorformula"
                         | "validatedformula"
+                        | "verifierformula"
                         | "verifiedformula"
                         | "expression"
                         | "expressions"
@@ -470,8 +475,16 @@ fn collect_json_formulas(
                         | "edited"
                         | "editedtext"
                         | "edits"
+                        | "error"
+                        | "errormessage"
+                        | "errors"
+                        | "errortext"
                         | "explanation"
                         | "explanationtext"
+                        | "failure"
+                        | "failurereason"
+                        | "failures"
+                        | "failuretext"
                         | "fixed"
                         | "fixedtext"
                         | "feedback"
@@ -484,6 +497,8 @@ fn collect_json_formulas(
                         | "patched"
                         | "patchedtext"
                         | "patches"
+                        | "parseerror"
+                        | "parseerrortext"
                         | "proposed"
                         | "proposal"
                         | "proposaltext"
@@ -529,6 +544,12 @@ fn collect_json_formulas(
                         | "updated"
                         | "updatedtext"
                         | "updates"
+                        | "validationerror"
+                        | "validationerrortext"
+                        | "verifiererror"
+                        | "verifiererrortext"
+                        | "verifieroutput"
+                        | "verifierresponse"
                 ) {
                     collect_json_text_formulas(value, formulas);
                 } else if matches!(
@@ -869,6 +890,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "chosenformula"
             | "correctedformula"
             | "editedformula"
+            | "errorformula"
+            | "failureformula"
             | "fixedformula"
             | "formulatext"
             | "finalformula"
@@ -876,6 +899,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "improvedformula"
             | "outputformula"
             | "patchedformula"
+            | "parseerrorformula"
             | "proposalformula"
             | "proposedformula"
             | "recommendedformula"
@@ -889,7 +913,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "solutionformula"
             | "updatedformula"
             | "validformula"
+            | "validationerrorformula"
             | "validatedformula"
+            | "verifierformula"
             | "verifiedformula"
             | "expression"
             | "expressions"
@@ -922,12 +948,15 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "chosenformula"
             | "correctedformula"
             | "editedformula"
+            | "errorformula"
+            | "failureformula"
             | "fixedformula"
             | "finalformula"
             | "generatedformula"
             | "improvedformula"
             | "outputformula"
             | "patchedformula"
+            | "parseerrorformula"
             | "proposalformula"
             | "proposedformula"
             | "recommendedformula"
@@ -941,7 +970,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "solutionformula"
             | "updatedformula"
             | "validformula"
+            | "validationerrorformula"
             | "validatedformula"
+            | "verifierformula"
             | "verifiedformula"
             | "content"
             | "contenttext"
@@ -1029,8 +1060,16 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "edited"
             | "editedtext"
             | "edits"
+            | "error"
+            | "errormessage"
+            | "errors"
+            | "errortext"
             | "explanation"
             | "explanationtext"
+            | "failure"
+            | "failurereason"
+            | "failures"
+            | "failuretext"
             | "feedback"
             | "feedbacktext"
             | "fixed"
@@ -1043,6 +1082,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "patched"
             | "patchedtext"
             | "patches"
+            | "parseerror"
+            | "parseerrortext"
             | "proposed"
             | "proposal"
             | "proposaltext"
@@ -1088,6 +1129,12 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "updated"
             | "updatedtext"
             | "updates"
+            | "validationerror"
+            | "validationerrortext"
+            | "verifiererror"
+            | "verifiererrortext"
+            | "verifieroutput"
+            | "verifierresponse"
     ) {
         return None;
     }
@@ -3172,6 +3219,30 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_error_feedback_fields() {
+        let response = r#"
+{
+  "error": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "error_message": "This only explains why parsing failed.",
+  "validation_error": {
+    "text": "F2: <+REFUND> true"
+  },
+  "verifier_output": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -3450,6 +3521,26 @@ explanation: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
 rationale text: Formula 2: <+REFUND> true
 reasoning = F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 reasoning text: this only explains the repair
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_error_feedback_fields() {
+        let response = r#"
+error: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+error message: this only explains why parsing failed
+validation error = F2: <+REFUND> true
+verifier output: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 "#;
 
         let formulas = parse_llm_response(response);
