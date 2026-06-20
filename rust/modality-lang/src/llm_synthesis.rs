@@ -479,6 +479,9 @@ fn collect_json_formulas(
                         | "diagnostictext"
                         | "diagnosis"
                         | "diagnosistext"
+                        | "detail"
+                        | "details"
+                        | "detailtext"
                         | "edit"
                         | "edited"
                         | "editedtext"
@@ -497,6 +500,9 @@ fn collect_json_formulas(
                         | "fixedtext"
                         | "feedback"
                         | "feedbacktext"
+                        | "hint"
+                        | "hints"
+                        | "hinttext"
                         | "fix"
                         | "fixes"
                         | "improved"
@@ -518,6 +524,9 @@ fn collect_json_formulas(
                         | "recommendations"
                         | "rationale"
                         | "rationaletext"
+                        | "reason"
+                        | "reasontext"
+                        | "reasons"
                         | "reasoning"
                         | "reasoningtext"
                         | "refined"
@@ -1072,6 +1081,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "diagnostictext"
             | "diagnosis"
             | "diagnosistext"
+            | "detail"
+            | "details"
+            | "detailtext"
             | "edit"
             | "edited"
             | "editedtext"
@@ -1090,6 +1102,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "feedbacktext"
             | "fixed"
             | "fixedtext"
+            | "hint"
+            | "hints"
+            | "hinttext"
             | "fix"
             | "fixes"
             | "improved"
@@ -1111,6 +1126,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "recommendations"
             | "rationale"
             | "rationaletext"
+            | "reason"
+            | "reasontext"
+            | "reasons"
             | "reasoning"
             | "reasoningtext"
             | "refined"
@@ -3286,6 +3304,33 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_error_detail_fields() {
+        let response = r#"
+{
+  "detail": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "details": [
+    "F2: <+REFUND> true",
+    "details without a formula"
+  ],
+  "reason": {
+    "text": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+  },
+  "hint": "This only suggests trying a simpler rule."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -3604,6 +3649,26 @@ stdout: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
 stderr: verifier diagnostics without a formula
 logs: F2: <+REFUND> true
 trace = Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_error_detail_fields() {
+        let response = r#"
+detail: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+details: F2: <+REFUND> true
+reason = Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+hint text: this only suggests trying a simpler rule
 "#;
 
         let formulas = parse_llm_response(response);
