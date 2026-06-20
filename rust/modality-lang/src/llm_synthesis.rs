@@ -357,6 +357,7 @@ fn collect_json_formulas(
                         | "evaluationformula"
                         | "evidenceformula"
                         | "explanationformula"
+                        | "failedformula"
                         | "failureformula"
                         | "fulfilledformula"
                         | "fulfillmentformula"
@@ -389,6 +390,8 @@ fn collect_json_formulas(
                         | "formulaevaluation"
                         | "formulaevidence"
                         | "formulaexplanation"
+                        | "formulafailed"
+                        | "formulafailure"
                         | "formulafinal"
                         | "formulafulfilled"
                         | "formulafulfillment"
@@ -465,6 +468,8 @@ fn collect_json_formulas(
                         | "ruleevaluation"
                         | "ruleevidence"
                         | "ruleexplanation"
+                        | "rulefailed"
+                        | "rulefailure"
                         | "rulefinal"
                         | "rulefulfilled"
                         | "rulefulfillment"
@@ -682,6 +687,8 @@ fn collect_json_formulas(
                         | "evidencetext"
                         | "explanation"
                         | "explanationtext"
+                        | "failed"
+                        | "failedtext"
                         | "failure"
                         | "failurereason"
                         | "failures"
@@ -1135,6 +1142,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "evaluationformula"
             | "evidenceformula"
             | "explanationformula"
+            | "failedformula"
             | "failureformula"
             | "fulfilledformula"
             | "fulfillmentformula"
@@ -1167,6 +1175,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaevaluation"
             | "formulaevidence"
             | "formulaexplanation"
+            | "formulafailed"
+            | "formulafailure"
             | "formulafinal"
             | "formulafulfilled"
             | "formulafulfillment"
@@ -1242,6 +1252,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleevaluation"
             | "ruleevidence"
             | "ruleexplanation"
+            | "rulefailed"
+            | "rulefailure"
             | "rulefinal"
             | "rulefulfilled"
             | "rulefulfillment"
@@ -1351,6 +1363,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "evaluationformula"
             | "evidenceformula"
             | "explanationformula"
+            | "failedformula"
             | "failureformula"
             | "fulfilledformula"
             | "fulfillmentformula"
@@ -1382,6 +1395,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaevaluation"
             | "formulaevidence"
             | "formulaexplanation"
+            | "formulafailed"
+            | "formulafailure"
             | "formulafinal"
             | "formulafulfilled"
             | "formulafulfillment"
@@ -1457,6 +1472,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleevaluation"
             | "ruleevidence"
             | "ruleexplanation"
+            | "rulefailed"
+            | "rulefailure"
             | "rulefinal"
             | "rulefulfilled"
             | "rulefulfillment"
@@ -1643,6 +1660,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "evidencetext"
             | "explanation"
             | "explanationtext"
+            | "failed"
+            | "failedtext"
             | "failure"
             | "failurereason"
             | "failures"
@@ -4733,6 +4752,35 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_failure_field_order_aliases() {
+        let response = r#"
+{
+  "formula_failure": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "failure_formula": "F2: <+REFUND> true",
+  "rule_failure": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "formula_failed": "Formula 4: <+ESCALATE> true",
+  "failed_formula": "Formula 5: <+ARCHIVE> true",
+  "rule_failed": "Formula 6: always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)",
+  "failed": "This failed result is only prose.",
+  "failure": "This failure result is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+ARCHIVE> true",
+                "<+REFUND> true",
+                "<+ESCALATE> true",
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -5103,6 +5151,11 @@ error: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
 error message: this only explains why parsing failed
 validation error = F2: <+REFUND> true
 verifier output: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+formula failure: Formula 4: <+ESCALATE> true
+failed formula: Formula 5: <+ARCHIVE> true
+rule failure: Formula 6: always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)
+failure = this failure result is only prose
+failed = this failed result is only prose
 "#;
 
         let formulas = parse_llm_response(response);
@@ -5111,7 +5164,10 @@ verifier output: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewe
             vec![
                 "always([+SHIP] true -> eventually(<+PAY> true))",
                 "<+REFUND> true",
-                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE> true",
+                "<+ARCHIVE> true",
+                "always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)"
             ]
         );
     }
