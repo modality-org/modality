@@ -339,6 +339,7 @@ fn collect_json_formulas(
                         | "changeformula"
                         | "chosenformula"
                         | "claimformula"
+                        | "conclusionformula"
                         | "critiqueformula"
                         | "correctionformula"
                         | "correctedformula"
@@ -362,6 +363,7 @@ fn collect_json_formulas(
                         | "formulacandidate"
                         | "formulachange"
                         | "formulaclaim"
+                        | "formulaconclusion"
                         | "formulacorrection"
                         | "formulacritique"
                         | "formuladiagnosis"
@@ -417,6 +419,7 @@ fn collect_json_formulas(
                         | "rulecandidate"
                         | "rulechange"
                         | "ruleclaim"
+                        | "ruleconclusion"
                         | "rulecorrection"
                         | "rulecritique"
                         | "rulediagnosis"
@@ -443,13 +446,16 @@ fn collect_json_formulas(
                         | "selectedformula"
                         | "solutionformula"
                         | "supportformula"
+                        | "summaryformula"
                         | "suggestedformula"
                         | "formulasupport"
+                        | "formulasummary"
                         | "formulasuggested"
                         | "formulasuggestion"
                         | "rulesuggested"
                         | "rulesuggestion"
                         | "rulesupport"
+                        | "rulesummary"
                         | "suggestionformula"
                         | "updateformula"
                         | "updatedformula"
@@ -538,6 +544,9 @@ fn collect_json_formulas(
                         | "claim"
                         | "claims"
                         | "claimtext"
+                        | "conclusion"
+                        | "conclusions"
+                        | "conclusiontext"
                         | "critique"
                         | "critiquetext"
                         | "final"
@@ -696,6 +705,9 @@ fn collect_json_formulas(
                         | "support"
                         | "supports"
                         | "supporttext"
+                        | "summary"
+                        | "summarytext"
+                        | "summaries"
                         | "update"
                         | "updated"
                         | "updatedtext"
@@ -1053,6 +1065,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "changeformula"
             | "chosenformula"
             | "claimformula"
+            | "conclusionformula"
             | "critiqueformula"
             | "correctionformula"
             | "correctedformula"
@@ -1076,6 +1089,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulacandidate"
             | "formulachange"
             | "formulaclaim"
+            | "formulaconclusion"
             | "formulacorrection"
             | "formulacritique"
             | "formuladiagnosis"
@@ -1130,6 +1144,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulecandidate"
             | "rulechange"
             | "ruleclaim"
+            | "ruleconclusion"
             | "rulecorrection"
             | "rulecritique"
             | "rulediagnosis"
@@ -1156,13 +1171,16 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "selectedformula"
             | "solutionformula"
             | "supportformula"
+            | "summaryformula"
             | "suggestedformula"
             | "formulasupport"
+            | "formulasummary"
             | "formulasuggested"
             | "formulasuggestion"
             | "rulesuggested"
             | "rulesuggestion"
             | "rulesupport"
+            | "rulesummary"
             | "suggestionformula"
             | "updateformula"
             | "updatedformula"
@@ -1211,6 +1229,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "changeformula"
             | "chosenformula"
             | "claimformula"
+            | "conclusionformula"
             | "critiqueformula"
             | "correctionformula"
             | "correctedformula"
@@ -1233,6 +1252,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaargument"
             | "formulachange"
             | "formulaclaim"
+            | "formulaconclusion"
             | "formulacorrection"
             | "formulacritique"
             | "formuladiagnosis"
@@ -1287,6 +1307,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleassessment"
             | "rulechange"
             | "ruleclaim"
+            | "ruleconclusion"
             | "rulecorrection"
             | "rulecritique"
             | "rulediagnosis"
@@ -1311,13 +1332,16 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "selectedformula"
             | "solutionformula"
             | "supportformula"
+            | "summaryformula"
             | "suggestedformula"
             | "formulasupport"
+            | "formulasummary"
             | "formulasuggested"
             | "formulasuggestion"
             | "rulesuggested"
             | "rulesuggestion"
             | "rulesupport"
+            | "rulesummary"
             | "suggestionformula"
             | "updateformula"
             | "updatedformula"
@@ -1381,6 +1405,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "claim"
             | "claims"
             | "claimtext"
+            | "conclusion"
+            | "conclusions"
+            | "conclusiontext"
             | "choice"
             | "choices"
             | "critique"
@@ -1535,6 +1562,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "support"
             | "supports"
             | "supporttext"
+            | "summary"
+            | "summarytext"
+            | "summaries"
             | "update"
             | "updated"
             | "updatedtext"
@@ -4319,6 +4349,28 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_conclusion_field_order_aliases() {
+        let response = r#"
+{
+  "formula_conclusion": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "conclusion_formula": "F2: <+REFUND> true",
+  "rule_conclusion": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "conclusion": "This conclusion is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+REFUND> true",
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_support_field_order_aliases() {
         let response = r#"
 {
@@ -4326,6 +4378,28 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
   "support_formula": "F2: <+REFUND> true",
   "rule_support": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
   "support": "This support is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+REFUND> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_summary_field_order_aliases() {
+        let response = r#"
+{
+  "formula_summary": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "summary_formula": "F2: <+REFUND> true",
+  "rule_summary": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "summary": "This summary is only prose."
 }
 "#;
 
@@ -5293,12 +5367,52 @@ claim = this claim is only prose
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_plain_conclusion_field_order_aliases() {
+        let response = r#"
+formula conclusion: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+conclusion formula: F2: <+REFUND> true
+rule conclusion: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+conclusion = this conclusion is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_plain_support_field_order_aliases() {
         let response = r#"
 formula support: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
 support formula: F2: <+REFUND> true
 rule support: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 support = this support is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_summary_field_order_aliases() {
+        let response = r#"
+formula summary: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+summary formula: F2: <+REFUND> true
+rule summary: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+summary = this summary is only prose
 "#;
 
         let formulas = parse_llm_response(response);
