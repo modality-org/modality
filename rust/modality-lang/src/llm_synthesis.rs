@@ -326,8 +326,12 @@ fn collect_json_formulas(
                     key.as_str(),
                     "formula"
                         | "formulas"
+                        | "correctedformula"
+                        | "fixedformula"
                         | "formula_text"
                         | "formulatext"
+                        | "proposedformula"
+                        | "revisedformula"
                         | "expression"
                         | "expressions"
                         | "rule"
@@ -392,6 +396,16 @@ fn collect_json_formulas(
                         | "reply"
                         | "generated_text"
                         | "generatedtext"
+                        | "correction"
+                        | "corrections"
+                        | "diagnostic"
+                        | "diagnostics"
+                        | "fixed"
+                        | "proposed"
+                        | "revision"
+                        | "revisions"
+                        | "suggestion"
+                        | "suggestions"
                 ) {
                     collect_json_text_formulas(value, formulas);
                 } else if matches!(
@@ -468,7 +482,7 @@ fn collect_json_encoded_formulas(value: &serde_json::Value, formulas: &mut Vec<S
 
 fn normalize_llm_field_key(key: &str) -> String {
     key.chars()
-        .filter(|ch| *ch != '_' && *ch != '-')
+        .filter(|ch| !matches!(*ch, '_' | '-') && !ch.is_whitespace())
         .flat_map(char::to_lowercase)
         .collect()
 }
@@ -726,7 +740,11 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
         key.as_str(),
         "formula"
             | "formulas"
+            | "correctedformula"
+            | "fixedformula"
             | "formulatext"
+            | "proposedformula"
+            | "revisedformula"
             | "expression"
             | "expressions"
             | "rule"
@@ -767,6 +785,16 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "message"
             | "reply"
             | "generatedtext"
+            | "correction"
+            | "corrections"
+            | "diagnostic"
+            | "diagnostics"
+            | "fixed"
+            | "proposed"
+            | "revision"
+            | "revisions"
+            | "suggestion"
+            | "suggestions"
     ) {
         return None;
     }
@@ -2564,6 +2592,51 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
                 "always([+PARSE] true -> eventually(<+CHECK> true))",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
                 "<+STRUCTURE> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_correction_fields() {
+        let response = r#"
+{
+  "diagnostic": "Parse error: expected formula body.",
+  "corrected_formula": "always([+PAY] true -> eventually(<+DELIVER> true))",
+  "suggestions": [
+    "Explanation only.",
+    "Formula 2: <+CANCEL> true"
+  ],
+  "revision": {
+    "fixed formula": "F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+  }
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+DELIVER> true))",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+CANCEL> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_correction_fields() {
+        let response = r#"
+diagnostic: parser expected a modal expression
+corrected formula: always([+SHIP] true -> eventually(<+PAY> true))
+suggestion: Formula 2: <+REFUND> true
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true"
             ]
         );
     }
