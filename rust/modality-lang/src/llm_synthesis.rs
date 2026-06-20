@@ -331,19 +331,23 @@ fn collect_json_formulas(
                         | "candidateformula"
                         | "chosenformula"
                         | "correctedformula"
+                        | "editedformula"
                         | "fixedformula"
                         | "formula_text"
                         | "formulatext"
                         | "finalformula"
                         | "generatedformula"
                         | "outputformula"
+                        | "patchedformula"
                         | "proposalformula"
                         | "proposedformula"
                         | "recommendedformula"
                         | "remediationformula"
+                        | "replacementformula"
                         | "responseformula"
                         | "revisedformula"
                         | "selectedformula"
+                        | "updatedformula"
                         | "validformula"
                         | "validatedformula"
                         | "verifiedformula"
@@ -448,9 +452,15 @@ fn collect_json_formulas(
                         | "corrected"
                         | "diagnostic"
                         | "diagnostics"
+                        | "edit"
+                        | "edited"
+                        | "edits"
                         | "fixed"
                         | "fix"
                         | "fixes"
+                        | "patch"
+                        | "patched"
+                        | "patches"
                         | "proposed"
                         | "proposal"
                         | "proposals"
@@ -460,6 +470,8 @@ fn collect_json_formulas(
                         | "remediated"
                         | "remediation"
                         | "remediations"
+                        | "replacement"
+                        | "replacements"
                         | "repair"
                         | "repairs"
                         | "revised"
@@ -467,6 +479,9 @@ fn collect_json_formulas(
                         | "revisions"
                         | "suggestion"
                         | "suggestions"
+                        | "update"
+                        | "updated"
+                        | "updates"
                 ) {
                     collect_json_text_formulas(value, formulas);
                 } else if matches!(
@@ -806,18 +821,22 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "candidateformula"
             | "chosenformula"
             | "correctedformula"
+            | "editedformula"
             | "fixedformula"
             | "formulatext"
             | "finalformula"
             | "generatedformula"
             | "outputformula"
+            | "patchedformula"
             | "proposalformula"
             | "proposedformula"
             | "recommendedformula"
             | "remediationformula"
+            | "replacementformula"
             | "responseformula"
             | "revisedformula"
             | "selectedformula"
+            | "updatedformula"
             | "validformula"
             | "validatedformula"
             | "verifiedformula"
@@ -923,9 +942,15 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "corrected"
             | "diagnostic"
             | "diagnostics"
+            | "edit"
+            | "edited"
+            | "edits"
             | "fixed"
             | "fix"
             | "fixes"
+            | "patch"
+            | "patched"
+            | "patches"
             | "proposed"
             | "proposal"
             | "proposals"
@@ -935,6 +960,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "remediated"
             | "remediation"
             | "remediations"
+            | "replacement"
+            | "replacements"
             | "repair"
             | "repairs"
             | "revised"
@@ -942,6 +969,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "revisions"
             | "suggestion"
             | "suggestions"
+            | "update"
+            | "updated"
+            | "updates"
     ) {
         return None;
     }
@@ -2873,6 +2903,30 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_repair_edit_fields() {
+        let response = r#"
+{
+  "updated_formula": "always([+SHIP] true -> eventually(<+PAY> true))",
+  "edited_formula": "Formula 2: <+REFUND> true",
+  "patched": {
+    "text": "F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+  },
+  "replacement": "This response only explains the replacement."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "always([+SHIP] true -> eventually(<+PAY> true))"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -2991,6 +3045,26 @@ corrected: always([+SHIP] true -> eventually(<+PAY> true))
 recommended: Formula 2: <+REFUND> true
 revised: F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 remediated: this response only explains the repair
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_repair_edit_fields() {
+        let response = r#"
+updated formula: always([+SHIP] true -> eventually(<+PAY> true))
+edit: Formula 2: <+REFUND> true
+patch: F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+replacement: this response only explains the replacement
 "#;
 
         let formulas = parse_llm_response(response);
