@@ -337,13 +337,16 @@ fn collect_json_formulas(
                         | "formulatext"
                         | "finalformula"
                         | "generatedformula"
+                        | "improvedformula"
                         | "outputformula"
                         | "patchedformula"
                         | "proposalformula"
                         | "proposedformula"
                         | "recommendedformula"
+                        | "refinedformula"
                         | "remediationformula"
                         | "replacementformula"
+                        | "resolvedformula"
                         | "responseformula"
                         | "revisedformula"
                         | "selectedformula"
@@ -462,6 +465,8 @@ fn collect_json_formulas(
                         | "fixedtext"
                         | "fix"
                         | "fixes"
+                        | "improved"
+                        | "improvedtext"
                         | "patch"
                         | "patched"
                         | "patchedtext"
@@ -475,6 +480,8 @@ fn collect_json_formulas(
                         | "recommendation"
                         | "recommendationtext"
                         | "recommendations"
+                        | "refined"
+                        | "refinedtext"
                         | "remediated"
                         | "remediatedtext"
                         | "remediation"
@@ -486,6 +493,8 @@ fn collect_json_formulas(
                         | "repair"
                         | "repairtext"
                         | "repairs"
+                        | "resolved"
+                        | "resolvedtext"
                         | "revised"
                         | "revisedtext"
                         | "revision"
@@ -842,13 +851,16 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulatext"
             | "finalformula"
             | "generatedformula"
+            | "improvedformula"
             | "outputformula"
             | "patchedformula"
             | "proposalformula"
             | "proposedformula"
             | "recommendedformula"
+            | "refinedformula"
             | "remediationformula"
             | "replacementformula"
+            | "resolvedformula"
             | "responseformula"
             | "revisedformula"
             | "selectedformula"
@@ -890,13 +902,16 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "fixedformula"
             | "finalformula"
             | "generatedformula"
+            | "improvedformula"
             | "outputformula"
             | "patchedformula"
             | "proposalformula"
             | "proposedformula"
             | "recommendedformula"
+            | "refinedformula"
             | "remediationformula"
             | "replacementformula"
+            | "resolvedformula"
             | "responseformula"
             | "revisedformula"
             | "selectedformula"
@@ -986,6 +1001,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "fixedtext"
             | "fix"
             | "fixes"
+            | "improved"
+            | "improvedtext"
             | "patch"
             | "patched"
             | "patchedtext"
@@ -999,6 +1016,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "recommendation"
             | "recommendationtext"
             | "recommendations"
+            | "refined"
+            | "refinedtext"
             | "remediated"
             | "remediatedtext"
             | "remediation"
@@ -1010,6 +1029,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "repair"
             | "repairtext"
             | "repairs"
+            | "resolved"
+            | "resolvedtext"
             | "revised"
             | "revisedtext"
             | "revision"
@@ -3010,6 +3031,30 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_refinement_fields() {
+        let response = r#"
+{
+  "improved_formula": "always([+SHIP] true -> eventually(<+PAY> true))",
+  "refined": "Formula 2: <+REFUND> true",
+  "resolved_text": {
+    "text": "F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+  },
+  "improved_text": "This response only explains the improvement."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -3207,6 +3252,26 @@ corrected formula = always([+SHIP] true -> eventually(<+PAY> true))
 repair = Formula 2: <+REFUND> true
 updated text = F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 replacement = this response only explains the replacement
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_refinement_fields() {
+        let response = r#"
+improved formula: always([+SHIP] true -> eventually(<+PAY> true))
+refined = Formula 2: <+REFUND> true
+resolved text: F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+improved text: this response only explains the improvement
 "#;
 
         let formulas = parse_llm_response(response);
