@@ -863,17 +863,32 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "assistantoutput"
             | "assistantresponse"
             | "accepted"
+            | "alternative"
+            | "alternatives"
             | "result"
             | "body"
             | "best"
+            | "candidate"
+            | "candidates"
             | "chosen"
+            | "choice"
+            | "choices"
+            | "chunk"
+            | "chunks"
             | "final"
             | "finalanswer"
             | "finalmessage"
             | "finalresponse"
+            | "generated"
             | "generation"
+            | "generations"
+            | "item"
+            | "items"
+            | "part"
+            | "parts"
             | "payload"
             | "prediction"
+            | "predictions"
             | "message"
             | "modelresponse"
             | "modeloutput"
@@ -885,8 +900,12 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rawresponse"
             | "reply"
             | "selected"
+            | "segment"
+            | "segments"
             | "validated"
             | "verified"
+            | "variant"
+            | "variants"
             | "generatedtext"
             | "correction"
             | "corrections"
@@ -2990,6 +3009,31 @@ verified: this candidate passed validation
                 "<+REFUND> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
                 "<+ESCALATE> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_candidate_text_fields() {
+        let response = r#"
+candidate: always([+SHIP] true -> eventually(<+PAY> true))
+alternative: Formula 2: <+REFUND> true
+choice: explanation without a formula
+chunk: F4: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+part: <+ESCALATE> true
+segment: prose only
+variant: Formula 7: <+DEPLOY> true
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE> true",
+                "<+DEPLOY> true"
             ]
         );
     }
