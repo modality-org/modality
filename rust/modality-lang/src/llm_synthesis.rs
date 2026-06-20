@@ -326,6 +326,8 @@ fn collect_json_formulas(
                     key.as_str(),
                     "formula"
                         | "formulas"
+                        | "bestformula"
+                        | "candidateformula"
                         | "correctedformula"
                         | "fixedformula"
                         | "formula_text"
@@ -335,6 +337,9 @@ fn collect_json_formulas(
                         | "recommendedformula"
                         | "remediationformula"
                         | "revisedformula"
+                        | "selectedformula"
+                        | "validformula"
+                        | "validatedformula"
                         | "expression"
                         | "expressions"
                         | "rule"
@@ -753,6 +758,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
         key.as_str(),
         "formula"
             | "formulas"
+            | "bestformula"
+            | "candidateformula"
             | "correctedformula"
             | "fixedformula"
             | "formulatext"
@@ -761,6 +768,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "recommendedformula"
             | "remediationformula"
             | "revisedformula"
+            | "selectedformula"
+            | "validformula"
+            | "validatedformula"
             | "expression"
             | "expressions"
             | "rule"
@@ -779,7 +789,12 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
     let key = normalize_llm_field_key(key.trim().trim_matches('"').trim_matches('\''));
     if !matches!(
         key.as_str(),
-        "content"
+        "bestformula"
+            | "candidateformula"
+            | "selectedformula"
+            | "validformula"
+            | "validatedformula"
+            | "content"
             | "contenttext"
             | "text"
             | "output"
@@ -2680,6 +2695,29 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
+        let response = r#"
+{
+  "best_formula": "always([+PAY] true -> eventually(<+DELIVER> true))",
+  "candidate_formula": "F2: <+CANCEL> true",
+  "selected formula": "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "validated_formula": "<+ESCALATE> true"
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+DELIVER> true))",
+                "<+CANCEL> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE> true"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_plain_correction_fields() {
         let response = r#"
 diagnostic: parser expected a modal expression
@@ -2712,6 +2750,26 @@ remediation: emit a formula label before prose
             vec![
                 "always([+SHIP] true -> eventually(<+PAY> true))",
                 "<+REFUND> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_candidate_formula_fields() {
+        let response = r#"
+best formula: always([+SHIP] true -> eventually(<+PAY> true))
+candidate formula: F2: <+REFUND> true
+selected formula: explanation without a formula
+validated formula: <+ESCALATE> true
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "<+ESCALATE> true"
             ]
         );
     }
