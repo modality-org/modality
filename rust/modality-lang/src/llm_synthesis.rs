@@ -338,6 +338,8 @@ fn collect_json_formulas(
                         | "breachformula"
                         | "acceptedformula"
                         | "approvedformula"
+                        | "denialformula"
+                        | "deniedformula"
                         | "candidateformula"
                         | "changeformula"
                         | "chosenformula"
@@ -354,6 +356,8 @@ fn collect_json_formulas(
                         | "correctionformula"
                         | "correctedformula"
                         | "counterexampleformula"
+                        | "rejectedformula"
+                        | "rejectionformula"
                         | "diagnosisformula"
                         | "diagnosticformula"
                         | "draftformula"
@@ -376,6 +380,8 @@ fn collect_json_formulas(
                         | "formulaanalysis"
                         | "formulaargument"
                         | "formulaapproved"
+                        | "formuladenial"
+                        | "formuladenied"
                         | "formulabest"
                         | "formulabreached"
                         | "formulabreach"
@@ -394,6 +400,8 @@ fn collect_json_formulas(
                         | "formulacorrection"
                         | "formulacritique"
                         | "formulacounterexample"
+                        | "formularejected"
+                        | "formularejection"
                         | "formuladiagnosis"
                         | "formuladiagnostic"
                         | "formuladraft"
@@ -460,6 +468,8 @@ fn collect_json_formulas(
                         | "ruleanalysis"
                         | "ruleargument"
                         | "ruleapproved"
+                        | "ruledenial"
+                        | "ruledenied"
                         | "ruleassessment"
                         | "rulebest"
                         | "rulebreached"
@@ -478,6 +488,8 @@ fn collect_json_formulas(
                         | "ruleconclusion"
                         | "rulecorrection"
                         | "rulecounterexample"
+                        | "rulerejected"
+                        | "rulerejection"
                         | "rulecritique"
                         | "rulediagnosis"
                         | "rulediagnostic"
@@ -702,6 +714,10 @@ fn collect_json_formulas(
                         | "detail"
                         | "details"
                         | "detailtext"
+                        | "denial"
+                        | "denialtext"
+                        | "denied"
+                        | "deniedtext"
                         | "draft"
                         | "drafts"
                         | "drafttext"
@@ -758,6 +774,10 @@ fn collect_json_formulas(
                         | "recommendation"
                         | "recommendationtext"
                         | "recommendations"
+                        | "rejected"
+                        | "rejectedtext"
+                        | "rejection"
+                        | "rejectiontext"
                         | "rationale"
                         | "rationaletext"
                         | "reason"
@@ -1162,6 +1182,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "breachformula"
             | "acceptedformula"
             | "approvedformula"
+            | "denialformula"
+            | "deniedformula"
             | "candidateformula"
             | "changeformula"
             | "chosenformula"
@@ -1178,6 +1200,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "correctionformula"
             | "correctedformula"
             | "counterexampleformula"
+            | "rejectedformula"
+            | "rejectionformula"
             | "diagnosisformula"
             | "diagnosticformula"
             | "draftformula"
@@ -1200,6 +1224,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaanalysis"
             | "formulaargument"
             | "formulaapproved"
+            | "formuladenial"
+            | "formuladenied"
             | "formulabest"
             | "formulabreached"
             | "formulabreach"
@@ -1218,6 +1244,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulacorrection"
             | "formulacritique"
             | "formulacounterexample"
+            | "formularejected"
+            | "formularejection"
             | "formuladiagnosis"
             | "formuladiagnostic"
             | "formuladraft"
@@ -1284,6 +1312,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleargument"
             | "ruleassessment"
             | "ruleapproved"
+            | "ruledenial"
+            | "ruledenied"
             | "rulebest"
             | "rulebreached"
             | "rulebreach"
@@ -1301,6 +1331,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleconclusion"
             | "rulecorrection"
             | "rulecounterexample"
+            | "rulerejected"
+            | "rulerejection"
             | "rulecritique"
             | "rulediagnosis"
             | "rulediagnostic"
@@ -1404,6 +1436,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "breachformula"
             | "acceptedformula"
             | "approvedformula"
+            | "denialformula"
+            | "deniedformula"
             | "candidateformula"
             | "changeformula"
             | "chosenformula"
@@ -1420,6 +1454,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "correctionformula"
             | "correctedformula"
             | "counterexampleformula"
+            | "rejectedformula"
+            | "rejectionformula"
             | "diagnosisformula"
             | "diagnosticformula"
             | "draftformula"
@@ -1442,6 +1478,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaanalysis"
             | "formulaargument"
             | "formulaapproved"
+            | "formuladenial"
+            | "formuladenied"
             | "formulabest"
             | "formulabreached"
             | "formulabreach"
@@ -1459,6 +1497,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulacorrection"
             | "formulacritique"
             | "formulacounterexample"
+            | "formularejected"
+            | "formularejection"
             | "formuladiagnosis"
             | "formuladiagnostic"
             | "formuladraft"
@@ -1526,6 +1566,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleargument"
             | "ruleassessment"
             | "ruleapproved"
+            | "ruledenial"
+            | "ruledenied"
             | "rulebest"
             | "rulebreached"
             | "rulebreach"
@@ -1542,6 +1584,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleconclusion"
             | "rulecorrection"
             | "rulecounterexample"
+            | "rulerejected"
+            | "rulerejection"
             | "rulecritique"
             | "rulediagnosis"
             | "rulediagnostic"
@@ -1735,6 +1779,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "detail"
             | "details"
             | "detailtext"
+            | "denial"
+            | "denialtext"
+            | "denied"
+            | "deniedtext"
             | "draft"
             | "drafts"
             | "drafttext"
@@ -1791,6 +1839,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "recommendation"
             | "recommendationtext"
             | "recommendations"
+            | "rejected"
+            | "rejectedtext"
+            | "rejection"
+            | "rejectiontext"
             | "rationale"
             | "rationaletext"
             | "reason"
@@ -5124,6 +5176,37 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
+        let response = r#"
+{
+  "formula_rejected": "Formula 1: always([+REJECT] true -> <+signed_by(/users/reviewer.id)> true)",
+  "rejected_formula": "F2: <+ESCALATE_REJECTION> true",
+  "rule_rejection": "Formula 3: always([+REJECT] true -> always([-APPROVE] true))",
+  "formula_denied": "Formula 4: <+DENY_REQUEST> true",
+  "denial_formula": "Formula 5: always([+DENY] true -> <+signed_by(/users/approver.id)> true)",
+  "rule_denied": "Formula 6: <+ARCHIVE_DENIAL> true",
+  "rejected": "This rejected candidate is only prose.",
+  "rejection": "This rejection rationale is only prose.",
+  "denied": "This denied candidate is only prose.",
+  "denial": "This denial rationale is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+DENY] true -> <+signed_by(/users/approver.id)> true)",
+                "<+DENY_REQUEST> true",
+                "always([+REJECT] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE_REJECTION> true",
+                "<+ARCHIVE_DENIAL> true",
+                "always([+REJECT] true -> always([-APPROVE] true))"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_plain_correction_fields() {
         let response = r#"
 diagnostic: parser expected a modal expression
@@ -6263,6 +6346,35 @@ passed = this passed candidate is only prose
                 "always([+SHIP] true -> eventually(<+PAY> true))",
                 "<+REFUND> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_rejection_field_order_aliases() {
+        let response = r#"
+formula rejected: Formula 1: always([+REJECT] true -> <+signed_by(/users/reviewer.id)> true)
+rejected formula: F2: <+ESCALATE_REJECTION> true
+rule rejection: Formula 3: always([+REJECT] true -> always([-APPROVE] true))
+formula denied: Formula 4: <+DENY_REQUEST> true
+denial formula: Formula 5: always([+DENY] true -> <+signed_by(/users/approver.id)> true)
+rule denied: Formula 6: <+ARCHIVE_DENIAL> true
+rejected = this rejected candidate is only prose
+rejection = this rejection rationale is only prose
+denied = this denied candidate is only prose
+denial = this denial rationale is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+REJECT] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE_REJECTION> true",
+                "always([+REJECT] true -> always([-APPROVE] true))",
+                "<+DENY_REQUEST> true",
+                "always([+DENY] true -> <+signed_by(/users/approver.id)> true)",
+                "<+ARCHIVE_DENIAL> true"
             ]
         );
     }
