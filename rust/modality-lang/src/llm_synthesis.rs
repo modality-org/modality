@@ -638,11 +638,15 @@ fn strip_formula_wrapping(line: &str) -> &str {
 }
 
 fn normalize_formula_candidate(line: &str) -> String {
-    let formula = strip_formula_wrapping(line);
-    decode_xml_formula_entities(formula)
-        .unwrap_or_else(|| formula.to_string())
-        .trim()
-        .to_string()
+    let mut formula = strip_formula_wrapping(line).to_string();
+    for _ in 0..3 {
+        let Some(decoded) = decode_xml_formula_entities(&formula) else {
+            break;
+        };
+        formula = decoded;
+    }
+
+    formula.trim().to_string()
 }
 
 fn decode_xml_formula_entities(line: &str) -> Option<String> {
@@ -650,14 +654,56 @@ fn decode_xml_formula_entities(line: &str) -> Option<String> {
         return None;
     }
 
-    let decoded = line
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&amp;", "&")
-        .replace("&quot;", "\"")
-        .replace("&apos;", "'");
+    let mut decoded = String::with_capacity(line.len());
+    let mut rest = line;
+    let mut changed = false;
 
-    (decoded != line).then_some(decoded)
+    while let Some(entity_start) = rest.find('&') {
+        decoded.push_str(&rest[..entity_start]);
+        let entity_body = &rest[entity_start + 1..];
+        let Some(entity_end) = entity_body.find(';') else {
+            decoded.push_str(&rest[entity_start..]);
+            rest = "";
+            break;
+        };
+
+        let entity = &entity_body[..entity_end];
+        if let Some(ch) = decode_xml_formula_entity(entity) {
+            decoded.push(ch);
+            changed = true;
+            rest = &entity_body[entity_end + 1..];
+        } else {
+            decoded.push('&');
+            rest = entity_body;
+        }
+    }
+
+    decoded.push_str(rest);
+
+    changed.then_some(decoded)
+}
+
+fn decode_xml_formula_entity(entity: &str) -> Option<char> {
+    match entity {
+        "lt" => Some('<'),
+        "gt" => Some('>'),
+        "amp" => Some('&'),
+        "quot" => Some('"'),
+        "apos" => Some('\''),
+        _ => decode_numeric_xml_formula_entity(entity),
+    }
+}
+
+fn decode_numeric_xml_formula_entity(entity: &str) -> Option<char> {
+    let value = entity.strip_prefix("#x").or_else(|| entity.strip_prefix("#X"));
+    let value = if let Some(value) = value {
+        u32::from_str_radix(value, 16).ok()?
+    } else {
+        let value = entity.strip_prefix('#')?;
+        value.parse().ok()?
+    };
+
+    char::from_u32(value)
 }
 
 fn strip_cdata_wrapping(line: &str) -> Option<&str> {
@@ -2331,6 +2377,25 @@ formula_text: always([+APPROVE] true -&gt; &lt;+signed_by(/users/reviewer.id)&gt
                 "always([+PAY] true -> eventually(<+WORK> true))",
                 "<+CANCEL> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_numeric_xml_escaped_formulas() {
+        let response = r#"
+F1: always([+PAY] true &#45;&#62; eventually(&#60;+WORK&#62; true))
+<formula>&#x3C;+CANCEL&#x3E; true</formula>
+formula_text: &amp;lt;+ESCALATE&amp;gt; true
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true",
                 "<+ESCALATE> true"
             ]
         );
