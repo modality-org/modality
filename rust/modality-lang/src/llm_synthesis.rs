@@ -194,8 +194,10 @@ fn parse_text_llm_response(response: &str) -> Vec<String> {
                 }
                 let joined_block = block_lines.join("\n");
                 let formula = strip_formula_wrapping(joined_block.trim());
-                if is_raw_formula_line(formula) {
-                    push_formula_candidate(&mut formulas, &mut declaration_lines, formula);
+                let formula = extract_labeled_formula(formula).unwrap_or(formula);
+                let formula = normalize_formula_candidate(formula);
+                if is_raw_formula_line(&formula) {
+                    push_formula_candidate(&mut formulas, &mut declaration_lines, &formula);
                 }
             } else {
                 block_lines.push(line.to_string());
@@ -2396,6 +2398,27 @@ formula_text: &amp;lt;+ESCALATE&amp;gt; true
             vec![
                 "always([+PAY] true -> eventually(<+WORK> true))",
                 "<+CANCEL> true",
+                "<+ESCALATE> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_multiline_xml_escaped_formulas() {
+        let response = r#"
+<formula>
+F1: always([+PAY] true -&gt; eventually(&lt;+WORK&gt; true))
+</formula>
+<rule>
+Formula 2: &amp;lt;+ESCALATE&amp;gt; true
+</rule>
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
                 "<+ESCALATE> true"
             ]
         );
