@@ -326,6 +326,8 @@ fn collect_json_formulas(
                     key.as_str(),
                     "formula"
                         | "formulas"
+                        | "amendedformula"
+                        | "amendmentformula"
                         | "bestformula"
                         | "acceptedformula"
                         | "candidateformula"
@@ -337,6 +339,8 @@ fn collect_json_formulas(
                         | "failureformula"
                         | "fixformula"
                         | "fixedformula"
+                        | "formulaamended"
+                        | "formulaamendment"
                         | "formulacandidate"
                         | "formuladraft"
                         | "formulafix"
@@ -358,6 +362,8 @@ fn collect_json_formulas(
                         | "replacementformula"
                         | "resolvedformula"
                         | "responseformula"
+                        | "ruleamended"
+                        | "ruleamendment"
                         | "rulecandidate"
                         | "ruledraft"
                         | "rulefix"
@@ -419,6 +425,11 @@ fn collect_json_formulas(
                         | "answertext"
                         | "analysis"
                         | "analysistext"
+                        | "amended"
+                        | "amendedtext"
+                        | "amendment"
+                        | "amendmenttext"
+                        | "amendments"
                         | "assistant_message"
                         | "assistant_output"
                         | "assistant_response"
@@ -917,6 +928,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
         key.as_str(),
         "formula"
             | "formulas"
+            | "amendedformula"
+            | "amendmentformula"
             | "bestformula"
             | "acceptedformula"
             | "candidateformula"
@@ -928,6 +941,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "failureformula"
             | "fixformula"
             | "fixedformula"
+            | "formulaamended"
+            | "formulaamendment"
             | "formulacandidate"
             | "formuladraft"
             | "formulafix"
@@ -948,6 +963,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "replacementformula"
             | "resolvedformula"
             | "responseformula"
+            | "ruleamended"
+            | "ruleamendment"
             | "rulecandidate"
             | "ruledraft"
             | "rulefix"
@@ -988,7 +1005,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
     let key = normalize_llm_field_key(key.trim().trim_matches('"').trim_matches('\''));
     if !matches!(
         key.as_str(),
-        "bestformula"
+        "amendedformula"
+            | "amendmentformula"
+            | "bestformula"
             | "acceptedformula"
             | "candidateformula"
             | "chosenformula"
@@ -999,6 +1018,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "failureformula"
             | "fixformula"
             | "fixedformula"
+            | "formulaamended"
+            | "formulaamendment"
             | "formuladraft"
             | "formulafix"
             | "formulaproposal"
@@ -1019,6 +1040,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "responseformula"
             | "revisedformula"
             | "revisionformula"
+            | "ruleamended"
+            | "ruleamendment"
             | "ruledraft"
             | "rulefix"
             | "ruleproposal"
@@ -1048,6 +1071,11 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "answertext"
             | "analysis"
             | "analysistext"
+            | "amended"
+            | "amendedtext"
+            | "amendment"
+            | "amendmenttext"
+            | "amendments"
             | "assistantmessage"
             | "assistantoutput"
             | "assistantresponse"
@@ -3480,6 +3508,28 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_amendment_field_order_aliases() {
+        let response = r#"
+{
+  "formula_amendment": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "amendment_formula": "F2: <+REFUND> true",
+  "rule_amendment": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "amendment": "This amendment is only explained in prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+REFUND> true",
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -3914,6 +3964,26 @@ formula fix: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
 fix formula: F2: <+REFUND> true
 rule fix: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 fix = this fix is only explained in prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_amendment_field_order_aliases() {
+        let response = r#"
+formula amendment: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+amendment formula: F2: <+REFUND> true
+rule amendment: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+amendment = this amendment is only explained in prose
 "#;
 
         let formulas = parse_llm_response(response);
