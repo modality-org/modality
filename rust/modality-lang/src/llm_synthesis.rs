@@ -850,6 +850,13 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
     }
 
     let formula = normalize_formula_candidate(value.trim());
+    if let Some(labeled_formula) = extract_labeled_formula(&formula) {
+        let labeled_formula = normalize_formula_candidate(labeled_formula);
+        if is_raw_formula_line(&labeled_formula) {
+            return Some(labeled_formula);
+        }
+    }
+
     is_raw_formula_line(&formula).then_some(formula)
 }
 
@@ -3065,6 +3072,25 @@ updated formula: always([+SHIP] true -> eventually(<+PAY> true))
 edit: Formula 2: <+REFUND> true
 patch: F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 replacement: this response only explains the replacement
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_labeled_plain_repair_formula_fields() {
+        let response = r#"
+corrected formula: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+proposal formula: F2: <+REFUND> true
+updated formula: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 "#;
 
         let formulas = parse_llm_response(response);
