@@ -354,14 +354,17 @@ fn collect_json_formulas(
                         | "failureformula"
                         | "fixformula"
                         | "fixedformula"
+                        | "formulaaccepted"
                         | "formulaamended"
                         | "formulaamendment"
                         | "formulaadvice"
                         | "formulaadvised"
                         | "formulaanalysis"
                         | "formulaargument"
+                        | "formulabest"
                         | "formulacandidate"
                         | "formulachange"
+                        | "formulachosen"
                         | "formulaclaim"
                         | "formulaconclusion"
                         | "formulacorrection"
@@ -382,6 +385,7 @@ fn collect_json_formulas(
                         | "formulareasoning"
                         | "formularevision"
                         | "formulareview"
+                        | "formulaselected"
                         | "formulaupdate"
                         | "formulaassessment"
                         | "formulavalidation"
@@ -409,6 +413,7 @@ fn collect_json_formulas(
                         | "resolvedformula"
                         | "responseformula"
                         | "reviewformula"
+                        | "ruleaccepted"
                         | "ruleadvice"
                         | "ruleadvised"
                         | "ruleamended"
@@ -416,8 +421,10 @@ fn collect_json_formulas(
                         | "ruleanalysis"
                         | "ruleargument"
                         | "ruleassessment"
+                        | "rulebest"
                         | "rulecandidate"
                         | "rulechange"
+                        | "rulechosen"
                         | "ruleclaim"
                         | "ruleconclusion"
                         | "rulecorrection"
@@ -438,6 +445,7 @@ fn collect_json_formulas(
                         | "rulereasoning"
                         | "rulerevision"
                         | "rulereview"
+                        | "ruleselected"
                         | "ruleupdate"
                         | "rulevalidation"
                         | "ruleverification"
@@ -1080,14 +1088,17 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "failureformula"
             | "fixformula"
             | "fixedformula"
+            | "formulaaccepted"
             | "formulaamended"
             | "formulaamendment"
             | "formulaadvice"
             | "formulaadvised"
             | "formulaanalysis"
             | "formulaargument"
+            | "formulabest"
             | "formulacandidate"
             | "formulachange"
+            | "formulachosen"
             | "formulaclaim"
             | "formulaconclusion"
             | "formulacorrection"
@@ -1108,6 +1119,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulareasoning"
             | "formularevision"
             | "formulareview"
+            | "formulaselected"
             | "formulaupdate"
             | "formulaassessment"
             | "formulavalidation"
@@ -1134,6 +1146,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "resolvedformula"
             | "responseformula"
             | "reviewformula"
+            | "ruleaccepted"
             | "ruleadvice"
             | "ruleadvised"
             | "ruleamended"
@@ -1141,8 +1154,10 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleanalysis"
             | "ruleargument"
             | "ruleassessment"
+            | "rulebest"
             | "rulecandidate"
             | "rulechange"
+            | "rulechosen"
             | "ruleclaim"
             | "ruleconclusion"
             | "rulecorrection"
@@ -1163,6 +1178,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulereasoning"
             | "rulerevision"
             | "rulereview"
+            | "ruleselected"
             | "ruleupdate"
             | "rulevalidation"
             | "ruleverification"
@@ -1244,13 +1260,16 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "failureformula"
             | "fixformula"
             | "fixedformula"
+            | "formulaaccepted"
             | "formulaamended"
             | "formulaamendment"
             | "formulaadvice"
             | "formulaadvised"
             | "formulaanalysis"
             | "formulaargument"
+            | "formulabest"
             | "formulachange"
+            | "formulachosen"
             | "formulaclaim"
             | "formulaconclusion"
             | "formulacorrection"
@@ -1271,6 +1290,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulareasoning"
             | "formularevision"
             | "formulareview"
+            | "formulaselected"
             | "formulaupdate"
             | "formulaassessment"
             | "formulavalidation"
@@ -1298,6 +1318,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "reviewformula"
             | "revisedformula"
             | "revisionformula"
+            | "ruleaccepted"
             | "ruleadvice"
             | "ruleadvised"
             | "ruleamended"
@@ -1305,7 +1326,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleanalysis"
             | "ruleargument"
             | "ruleassessment"
+            | "rulebest"
             | "rulechange"
+            | "rulechosen"
             | "ruleclaim"
             | "ruleconclusion"
             | "rulecorrection"
@@ -1326,6 +1349,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulereasoning"
             | "rulerevision"
             | "rulereview"
+            | "ruleselected"
             | "ruleupdate"
             | "rulevalidation"
             | "ruleverification"
@@ -4534,6 +4558,30 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_status_field_order_aliases() {
+        let response = r#"
+{
+  "formula_best": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "formula_chosen": "F2: <+REFUND> true",
+  "formula_accepted": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "rule_selected": "Formula 4: <+ESCALATE> true",
+  "accepted": "This accepted candidate is only described in prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "<+ESCALATE> true"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_plain_correction_fields() {
         let response = r#"
 diagnostic: parser expected a modal expression
@@ -5462,6 +5510,28 @@ verification = this verification is only explained in prose
                 "always([+SHIP] true -> eventually(<+PAY> true))",
                 "<+REFUND> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_status_field_order_aliases() {
+        let response = r#"
+formula best: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+formula chosen: F2: <+REFUND> true
+formula accepted: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+rule selected: Formula 4: <+ESCALATE> true
+accepted = this accepted candidate is only explained in prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE> true"
             ]
         );
     }
