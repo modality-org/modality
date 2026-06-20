@@ -397,6 +397,7 @@ fn collect_json_formulas(
                         | "formulaselected"
                         | "formulaupdate"
                         | "formulaassessment"
+                        | "formulavalidated"
                         | "formulavalidation"
                         | "formulaverification"
                         | "formula_text"
@@ -465,6 +466,7 @@ fn collect_json_formulas(
                         | "ruleselected"
                         | "ruleupdate"
                         | "rulevalid"
+                        | "rulevalidated"
                         | "rulevalidation"
                         | "ruleverification"
                         | "ruleverified"
@@ -1152,6 +1154,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaselected"
             | "formulaupdate"
             | "formulaassessment"
+            | "formulavalidated"
             | "formulavalidation"
             | "formulaverification"
             | "formulatext"
@@ -1219,6 +1222,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleselected"
             | "ruleupdate"
             | "rulevalid"
+            | "rulevalidated"
             | "rulevalidation"
             | "ruleverification"
             | "ruleverified"
@@ -1344,6 +1348,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaselected"
             | "formulaupdate"
             | "formulaassessment"
+            | "formulavalidated"
             | "formulavalidation"
             | "formulaverification"
             | "finalformula"
@@ -1411,6 +1416,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleselected"
             | "ruleupdate"
             | "rulevalid"
+            | "rulevalidated"
             | "rulevalidation"
             | "ruleverification"
             | "ruleverified"
@@ -4553,8 +4559,11 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
   "formula_verified": "F2: <+REFUND> true",
   "rule_valid": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
   "rule_verified": "Formula 4: <+ESCALATE> true",
+  "formula_validated": "Formula 5: <+ARCHIVE> true",
+  "rule_validated": "Formula 6: always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)",
   "valid": "This valid candidate is only prose.",
-  "verified": "This verified candidate is only prose."
+  "verified": "This verified candidate is only prose.",
+  "validated": "This validated candidate is only prose."
 }
 "#;
 
@@ -4563,8 +4572,10 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
             formulas,
             vec![
                 "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+ARCHIVE> true",
                 "<+REFUND> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)",
                 "<+ESCALATE> true"
             ]
         );
@@ -5657,8 +5668,11 @@ formula valid: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
 formula verified: F2: <+REFUND> true
 rule valid: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 rule verified: Formula 4: <+ESCALATE> true
+formula validated: Formula 5: <+ARCHIVE> true
+rule validated: Formula 6: always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)
 valid = this valid candidate is only prose
 verified = this verified candidate is only prose
+validated = this validated candidate is only prose
 "#;
 
         let formulas = parse_llm_response(response);
@@ -5668,7 +5682,9 @@ verified = this verified candidate is only prose
                 "always([+SHIP] true -> eventually(<+PAY> true))",
                 "<+REFUND> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
-                "<+ESCALATE> true"
+                "<+ESCALATE> true",
+                "<+ARCHIVE> true",
+                "always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)"
             ]
         );
     }
