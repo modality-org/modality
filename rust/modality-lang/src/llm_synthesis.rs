@@ -619,7 +619,10 @@ fn extract_json_field_formula(line: &str) -> Option<&str> {
         .trim_matches('"')
         .trim_matches('\'')
         .to_ascii_lowercase();
-    if !matches!(key.as_str(), "formula" | "rule") {
+    if !matches!(
+        key.as_str(),
+        "formula" | "formula_text" | "formulatext" | "expression" | "rule" | "rule_text" | "ruletext"
+    ) {
         return None;
     }
 
@@ -1433,6 +1436,26 @@ Formula 2: "<+CANCEL> true",
                 "<+CANCEL> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
                 "<+ESCALATE> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_formula_field_aliases() {
+        let response = r#"
+formula_text: always([+PAY] true -> eventually(<+WORK> true))
+rule_text: <+CANCEL> true
+expression: `always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)`
+message: This is explanatory text, not a formula.
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
             ]
         );
     }
