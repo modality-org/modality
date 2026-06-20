@@ -334,10 +334,14 @@ fn collect_json_formulas(
                         | "fixedformula"
                         | "formula_text"
                         | "formulatext"
+                        | "finalformula"
+                        | "generatedformula"
+                        | "outputformula"
                         | "proposalformula"
                         | "proposedformula"
                         | "recommendedformula"
                         | "remediationformula"
+                        | "responseformula"
                         | "revisedformula"
                         | "selectedformula"
                         | "validformula"
@@ -794,10 +798,14 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "correctedformula"
             | "fixedformula"
             | "formulatext"
+            | "finalformula"
+            | "generatedformula"
+            | "outputformula"
             | "proposalformula"
             | "proposedformula"
             | "recommendedformula"
             | "remediationformula"
+            | "responseformula"
             | "revisedformula"
             | "selectedformula"
             | "validformula"
@@ -825,6 +833,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "acceptedformula"
             | "candidateformula"
             | "chosenformula"
+            | "finalformula"
+            | "generatedformula"
+            | "outputformula"
+            | "responseformula"
             | "selectedformula"
             | "validformula"
             | "validatedformula"
@@ -2819,6 +2831,28 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_response_formula_fields() {
+        let response = r#"
+{
+  "generated_formula": "always([+PAY] true -> eventually(<+DELIVER> true))",
+  "final_formula": "F2: <+CANCEL> true",
+  "output formula": "explanation without a formula",
+  "response_formula": "Formula 4: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+CANCEL> true",
+                "always([+PAY] true -> eventually(<+DELIVER> true))",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_plain_correction_fields() {
         let response = r#"
 diagnostic: parser expected a modal expression
@@ -2876,6 +2910,26 @@ verified formula: F5: <+DEPLOY> true
                 "<+ESCALATE> true",
                 "always([+MERGE] true -> <+signed_by(/users/maintainer.id)> true)",
                 "<+DEPLOY> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_response_formula_fields() {
+        let response = r#"
+generated formula: always([+SHIP] true -> eventually(<+PAY> true))
+final formula: Formula 2: <+REFUND> true
+output formula: this is only prose
+response formula: F4: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
             ]
         );
     }
