@@ -365,7 +365,9 @@ fn collect_json_formulas(
                         | "formulaevaluation"
                         | "formulaexplanation"
                         | "formulafix"
+                        | "formulajustification"
                         | "formulapatch"
+                        | "formulaproof"
                         | "formulaproposal"
                         | "formularationale"
                         | "formularecommendation"
@@ -381,10 +383,12 @@ fn collect_json_formulas(
                         | "finalformula"
                         | "generatedformula"
                         | "improvedformula"
+                        | "justificationformula"
                         | "outputformula"
                         | "patchformula"
                         | "patchedformula"
                         | "parseerrorformula"
+                        | "proofformula"
                         | "proposalformula"
                         | "proposedformula"
                         | "recommendedformula"
@@ -413,7 +417,9 @@ fn collect_json_formulas(
                         | "ruleevaluation"
                         | "ruleexplanation"
                         | "rulefix"
+                        | "rulejustification"
                         | "rulepatch"
+                        | "ruleproof"
                         | "ruleproposal"
                         | "rulerationale"
                         | "rulerecommendation"
@@ -609,12 +615,17 @@ fn collect_json_formulas(
                         | "fixes"
                         | "improved"
                         | "improvedtext"
+                        | "justification"
+                        | "justificationtext"
                         | "patch"
                         | "patched"
                         | "patchedtext"
                         | "patches"
                         | "parseerror"
                         | "parseerrortext"
+                        | "proof"
+                        | "proofs"
+                        | "prooftext"
                         | "proposed"
                         | "proposal"
                         | "proposaltext"
@@ -1044,7 +1055,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaevaluation"
             | "formulaexplanation"
             | "formulafix"
+            | "formulajustification"
             | "formulapatch"
+            | "formulaproof"
             | "formulaproposal"
             | "formularationale"
             | "formularecommendation"
@@ -1059,10 +1072,12 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "finalformula"
             | "generatedformula"
             | "improvedformula"
+            | "justificationformula"
             | "outputformula"
             | "patchformula"
             | "patchedformula"
             | "parseerrorformula"
+            | "proofformula"
             | "proposalformula"
             | "proposedformula"
             | "recommendedformula"
@@ -1091,7 +1106,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleevaluation"
             | "ruleexplanation"
             | "rulefix"
+            | "rulejustification"
             | "rulepatch"
+            | "ruleproof"
             | "ruleproposal"
             | "rulerationale"
             | "rulerecommendation"
@@ -1183,7 +1200,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaevaluation"
             | "formulaexplanation"
             | "formulafix"
+            | "formulajustification"
             | "formulapatch"
+            | "formulaproof"
             | "formulaproposal"
             | "formularationale"
             | "formularecommendation"
@@ -1197,10 +1216,12 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "finalformula"
             | "generatedformula"
             | "improvedformula"
+            | "justificationformula"
             | "outputformula"
             | "patchformula"
             | "patchedformula"
             | "parseerrorformula"
+            | "proofformula"
             | "proposalformula"
             | "proposedformula"
             | "recommendedformula"
@@ -1230,7 +1251,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleevaluation"
             | "ruleexplanation"
             | "rulefix"
+            | "rulejustification"
             | "rulepatch"
+            | "ruleproof"
             | "ruleproposal"
             | "rulerationale"
             | "rulerecommendation"
@@ -1388,6 +1411,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "feedbacktext"
             | "fixed"
             | "fixedtext"
+            | "justification"
+            | "justificationtext"
             | "hint"
             | "hints"
             | "hinttext"
@@ -1401,6 +1426,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "patches"
             | "parseerror"
             | "parseerrortext"
+            | "proof"
+            | "proofs"
+            | "prooftext"
             | "proposed"
             | "proposal"
             | "proposaltext"
@@ -4121,6 +4149,50 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_justification_field_order_aliases() {
+        let response = r#"
+{
+  "formula_justification": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "justification_formula": "F2: <+REFUND> true",
+  "rule_justification": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "justification": "This justification is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_proof_field_order_aliases() {
+        let response = r#"
+{
+  "formula_proof": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "proof_formula": "F2: <+REFUND> true",
+  "rule_proof": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "proof": "This proof is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_validation_field_order_aliases() {
         let response = r#"
 {
@@ -4959,6 +5031,46 @@ formula rationale: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
 rationale formula: F2: <+REFUND> true
 rule rationale: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 rationale = this rationale is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_justification_field_order_aliases() {
+        let response = r#"
+formula justification: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+justification formula: F2: <+REFUND> true
+rule justification: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+justification = this justification is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_proof_field_order_aliases() {
+        let response = r#"
+formula proof: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+proof formula: F2: <+REFUND> true
+rule proof: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+proof = this proof is only prose
 "#;
 
         let formulas = parse_llm_response(response);
