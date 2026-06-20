@@ -229,12 +229,12 @@ fn parse_text_llm_response(response: &str) -> Vec<String> {
         }
 
         if let Some(formula) = extract_json_field_formula(line) {
-            push_formula_candidate(&mut formulas, &mut declaration_lines, formula);
+            push_formula_candidate(&mut formulas, &mut declaration_lines, &formula);
             continue 'lines;
         }
 
         if let Some(formula) = extract_xml_tagged_formula(line) {
-            push_formula_candidate(&mut formulas, &mut declaration_lines, formula);
+            push_formula_candidate(&mut formulas, &mut declaration_lines, &formula);
             continue 'lines;
         }
 
@@ -262,6 +262,11 @@ fn parse_text_llm_response(response: &str) -> Vec<String> {
         // Also accept raw formula lines directly when no F1: prefix is present.
         if is_raw_formula_line(line) {
             push_formula_candidate(&mut formulas, &mut declaration_lines, line);
+        } else {
+            let formula = normalize_formula_candidate(line);
+            if formula != line && is_raw_formula_line(&formula) {
+                push_formula_candidate(&mut formulas, &mut declaration_lines, &formula);
+            }
         }
     }
 
@@ -499,6 +504,7 @@ fn push_formula_candidate(
     declaration_lines: &mut Vec<String>,
     formula: &str,
 ) {
+    let formula = normalize_formula_candidate(formula);
     let formula = formula.trim();
     if formula.is_empty() {
         return;
@@ -631,13 +637,36 @@ fn strip_formula_wrapping(line: &str) -> &str {
         .trim()
 }
 
+fn normalize_formula_candidate(line: &str) -> String {
+    let formula = strip_formula_wrapping(line);
+    decode_xml_formula_entities(formula)
+        .unwrap_or_else(|| formula.to_string())
+        .trim()
+        .to_string()
+}
+
+fn decode_xml_formula_entities(line: &str) -> Option<String> {
+    if !line.contains('&') {
+        return None;
+    }
+
+    let decoded = line
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'");
+
+    (decoded != line).then_some(decoded)
+}
+
 fn strip_cdata_wrapping(line: &str) -> Option<&str> {
     line.strip_prefix("<![CDATA[")
         .and_then(|line| line.strip_suffix("]]>"))
         .map(str::trim)
 }
 
-fn extract_json_field_formula(line: &str) -> Option<&str> {
+fn extract_json_field_formula(line: &str) -> Option<String> {
     let (key, value) = line.split_once(':')?;
     let key = normalize_llm_field_key(key.trim().trim_matches('"').trim_matches('\''));
     if !matches!(
@@ -654,11 +683,11 @@ fn extract_json_field_formula(line: &str) -> Option<&str> {
         return None;
     }
 
-    let formula = strip_formula_wrapping(value.trim());
-    is_raw_formula_line(formula).then_some(formula)
+    let formula = normalize_formula_candidate(value.trim());
+    is_raw_formula_line(&formula).then_some(formula)
 }
 
-fn extract_xml_tagged_formula(line: &str) -> Option<&str> {
+fn extract_xml_tagged_formula(line: &str) -> Option<String> {
     let line = line.trim();
     let lower = line.to_ascii_lowercase();
 
@@ -696,9 +725,10 @@ fn extract_xml_tagged_formula(line: &str) -> Option<&str> {
             continue;
         }
 
-        let formula = strip_formula_wrapping(line[open_end + 1..close_start].trim());
+        let formula = line[open_end + 1..close_start].trim();
         let formula = extract_labeled_formula(formula).unwrap_or(formula);
-        if is_raw_formula_line(formula) {
+        let formula = normalize_formula_candidate(formula);
+        if is_raw_formula_line(&formula) {
             return Some(formula);
         }
     }
@@ -2279,6 +2309,29 @@ formula_text: <![CDATA[always([+APPROVE] true -> <+signed_by(/users/reviewer.id)
                 "always([+PAY] true -> eventually(<+WORK> true))",
                 "<+CANCEL> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_xml_escaped_formulas() {
+        let response = r#"
+F1: always([+PAY] true -&gt; eventually(&lt;+WORK&gt; true))
+<formula>&lt;+CANCEL&gt; true</formula>
+formula_text: always([+APPROVE] true -&gt; &lt;+signed_by(/users/reviewer.id)&gt; true)
+{
+  "ruleText": "&lt;+ESCALATE&gt; true"
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE> true"
             ]
         );
     }
