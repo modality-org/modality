@@ -340,6 +340,8 @@ fn collect_json_formulas(
                         | "critiqueformula"
                         | "correctionformula"
                         | "correctedformula"
+                        | "diagnosisformula"
+                        | "diagnosticformula"
                         | "draftformula"
                         | "editedformula"
                         | "errorformula"
@@ -357,6 +359,8 @@ fn collect_json_formulas(
                         | "formulachange"
                         | "formulacorrection"
                         | "formulacritique"
+                        | "formuladiagnosis"
+                        | "formuladiagnostic"
                         | "formuladraft"
                         | "formulaevaluation"
                         | "formulaexplanation"
@@ -403,6 +407,8 @@ fn collect_json_formulas(
                         | "rulechange"
                         | "rulecorrection"
                         | "rulecritique"
+                        | "rulediagnosis"
+                        | "rulediagnostic"
                         | "ruledraft"
                         | "ruleevaluation"
                         | "ruleexplanation"
@@ -1013,6 +1019,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "critiqueformula"
             | "correctionformula"
             | "correctedformula"
+            | "diagnosisformula"
+            | "diagnosticformula"
             | "draftformula"
             | "editedformula"
             | "errorformula"
@@ -1030,6 +1038,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulachange"
             | "formulacorrection"
             | "formulacritique"
+            | "formuladiagnosis"
+            | "formuladiagnostic"
             | "formuladraft"
             | "formulaevaluation"
             | "formulaexplanation"
@@ -1075,6 +1085,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulechange"
             | "rulecorrection"
             | "rulecritique"
+            | "rulediagnosis"
+            | "rulediagnostic"
             | "ruledraft"
             | "ruleevaluation"
             | "ruleexplanation"
@@ -1147,6 +1159,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "critiqueformula"
             | "correctionformula"
             | "correctedformula"
+            | "diagnosisformula"
+            | "diagnosticformula"
             | "draftformula"
             | "editedformula"
             | "errorformula"
@@ -1163,6 +1177,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulachange"
             | "formulacorrection"
             | "formulacritique"
+            | "formuladiagnosis"
+            | "formuladiagnostic"
             | "formuladraft"
             | "formulaevaluation"
             | "formulaexplanation"
@@ -1208,6 +1224,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulechange"
             | "rulecorrection"
             | "rulecritique"
+            | "rulediagnosis"
+            | "rulediagnostic"
             | "ruledraft"
             | "ruleevaluation"
             | "ruleexplanation"
@@ -3817,6 +3835,50 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_diagnostic_field_order_aliases() {
+        let response = r#"
+{
+  "formula_diagnostic": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "diagnostic_formula": "F2: <+REFUND> true",
+  "rule_diagnostic": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "diagnostic": "This diagnostic is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+REFUND> true",
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_json_diagnosis_field_order_aliases() {
+        let response = r#"
+{
+  "formula_diagnosis": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "diagnosis_formula": "F2: <+REFUND> true",
+  "rule_diagnosis": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "diagnosis": "This diagnosis is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+REFUND> true",
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_suggestion_field_order_aliases() {
         let response = r#"
 {
@@ -4637,6 +4699,46 @@ formula correction: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
 correction formula: F2: <+REFUND> true
 rule correction: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 correction = this correction is only explained in prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_diagnostic_field_order_aliases() {
+        let response = r#"
+formula diagnostic: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+diagnostic formula: F2: <+REFUND> true
+rule diagnostic: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+diagnostic = this diagnostic is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_diagnosis_field_order_aliases() {
+        let response = r#"
+formula diagnosis: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+diagnosis formula: F2: <+REFUND> true
+rule diagnosis: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+diagnosis = this diagnosis is only prose
 "#;
 
         let formulas = parse_llm_response(response);
