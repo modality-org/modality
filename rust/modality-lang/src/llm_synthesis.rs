@@ -375,14 +375,18 @@ fn collect_json_formulas(
                         | "formulaevaluation"
                         | "formulaevidence"
                         | "formulaexplanation"
+                        | "formulafinal"
                         | "formulafix"
+                        | "formulagenerated"
                         | "formulajustification"
+                        | "formulaoutput"
                         | "formulapatch"
                         | "formulaproof"
                         | "formulaproposal"
                         | "formularationale"
                         | "formularecommendation"
                         | "formulareasoning"
+                        | "formularesponse"
                         | "formularevision"
                         | "formulareview"
                         | "formulaselected"
@@ -435,14 +439,18 @@ fn collect_json_formulas(
                         | "ruleevaluation"
                         | "ruleevidence"
                         | "ruleexplanation"
+                        | "rulefinal"
                         | "rulefix"
+                        | "rulegenerated"
                         | "rulejustification"
+                        | "ruleoutput"
                         | "rulepatch"
                         | "ruleproof"
                         | "ruleproposal"
                         | "rulerationale"
                         | "rulerecommendation"
                         | "rulereasoning"
+                        | "ruleresponse"
                         | "rulerevision"
                         | "rulereview"
                         | "ruleselected"
@@ -1109,14 +1117,18 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaevaluation"
             | "formulaevidence"
             | "formulaexplanation"
+            | "formulafinal"
             | "formulafix"
+            | "formulagenerated"
             | "formulajustification"
+            | "formulaoutput"
             | "formulapatch"
             | "formulaproof"
             | "formulaproposal"
             | "formularationale"
             | "formularecommendation"
             | "formulareasoning"
+            | "formularesponse"
             | "formularevision"
             | "formulareview"
             | "formulaselected"
@@ -1168,14 +1180,18 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleevaluation"
             | "ruleevidence"
             | "ruleexplanation"
+            | "rulefinal"
             | "rulefix"
+            | "rulegenerated"
             | "rulejustification"
+            | "ruleoutput"
             | "rulepatch"
             | "ruleproof"
             | "ruleproposal"
             | "rulerationale"
             | "rulerecommendation"
             | "rulereasoning"
+            | "ruleresponse"
             | "rulerevision"
             | "rulereview"
             | "ruleselected"
@@ -1280,14 +1296,18 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaevaluation"
             | "formulaevidence"
             | "formulaexplanation"
+            | "formulafinal"
             | "formulafix"
+            | "formulagenerated"
             | "formulajustification"
+            | "formulaoutput"
             | "formulapatch"
             | "formulaproof"
             | "formulaproposal"
             | "formularationale"
             | "formularecommendation"
             | "formulareasoning"
+            | "formularesponse"
             | "formularevision"
             | "formulareview"
             | "formulaselected"
@@ -1339,14 +1359,18 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleevaluation"
             | "ruleevidence"
             | "ruleexplanation"
+            | "rulefinal"
             | "rulefix"
+            | "rulegenerated"
             | "rulejustification"
+            | "ruleoutput"
             | "rulepatch"
             | "ruleproof"
             | "ruleproposal"
             | "rulerationale"
             | "rulerecommendation"
             | "rulereasoning"
+            | "ruleresponse"
             | "rulerevision"
             | "rulereview"
             | "ruleselected"
@@ -4533,6 +4557,30 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_response_field_order_aliases() {
+        let response = r#"
+{
+  "formula_generated": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "formula_final": "F2: <+REFUND> true",
+  "formula_output": "This output is only prose.",
+  "formula_response": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "rule_generated": "Formula 4: <+ESCALATE> true"
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+REFUND> true",
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE> true"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_status_text_fields() {
         let response = r#"
 {
@@ -5577,6 +5625,28 @@ response formula: F4: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)>
                 "always([+SHIP] true -> eventually(<+PAY> true))",
                 "<+REFUND> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_response_field_order_aliases() {
+        let response = r#"
+formula generated: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+formula final: F2: <+REFUND> true
+formula output: this output is only prose
+formula response: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+rule generated: Formula 4: <+ESCALATE> true
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE> true"
             ]
         );
     }
