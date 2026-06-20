@@ -877,7 +877,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
 }
 
 fn extract_plain_text_field_formula(line: &str) -> Option<String> {
-    let (key, value) = line.split_once(':')?;
+    let (key, value) = split_plain_text_field(line)?;
     let key = normalize_llm_field_key(key.trim().trim_matches('"').trim_matches('\''));
     if !matches!(
         key.as_str(),
@@ -885,11 +885,22 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "acceptedformula"
             | "candidateformula"
             | "chosenformula"
+            | "correctedformula"
+            | "editedformula"
+            | "fixedformula"
             | "finalformula"
             | "generatedformula"
             | "outputformula"
+            | "patchedformula"
+            | "proposalformula"
+            | "proposedformula"
+            | "recommendedformula"
+            | "remediationformula"
+            | "replacementformula"
             | "responseformula"
+            | "revisedformula"
             | "selectedformula"
+            | "updatedformula"
             | "validformula"
             | "validatedformula"
             | "verifiedformula"
@@ -1024,6 +1035,15 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
     }
 
     is_raw_formula_line(&formula).then_some(formula)
+}
+
+fn split_plain_text_field(line: &str) -> Option<(&str, &str)> {
+    match (line.find(':'), line.find('=')) {
+        (Some(colon), Some(equals)) if equals < colon => {
+            Some((&line[..equals], &line[equals + 1..]))
+        }
+        _ => line.split_once(':').or_else(|| line.split_once('=')),
+    }
 }
 
 fn extract_xml_tagged_formula(line: &str) -> Option<String> {
@@ -3167,6 +3187,26 @@ corrected text: always([+SHIP] true -> eventually(<+PAY> true))
 repair text: Formula 2: <+REFUND> true
 updated text: F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 replacement text: this response only explains the replacement
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_equals_separated_plain_repair_fields() {
+        let response = r#"
+corrected formula = always([+SHIP] true -> eventually(<+PAY> true))
+repair = Formula 2: <+REFUND> true
+updated text = F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+replacement = this response only explains the replacement
 "#;
 
         let formulas = parse_llm_response(response);
