@@ -166,6 +166,7 @@ pub fn parse_llm_response(response: &str) -> Vec<String> {
 fn parse_text_llm_response(response: &str) -> Vec<String> {
     let mut formulas = Vec::new();
     let mut declaration_lines = Vec::new();
+    let mut xml_formula_block: Option<(String, Vec<String>)> = None;
 
     'lines: for line in response.lines() {
         let line = line.trim();
@@ -181,6 +182,26 @@ fn parse_text_llm_response(response: &str) -> Vec<String> {
 
         if line.starts_with("```") {
             continue;
+        }
+
+        if let Some((tag, mut block_lines)) = xml_formula_block.take() {
+            let lower = line.to_ascii_lowercase();
+            let close_tag = format!("</{tag}>");
+            if let Some(close_start) = lower.find(&close_tag) {
+                let closing_line = line[..close_start].trim();
+                if !closing_line.is_empty() {
+                    block_lines.push(closing_line.to_string());
+                }
+                let joined_block = block_lines.join("\n");
+                let formula = strip_formula_wrapping(joined_block.trim());
+                if is_raw_formula_line(formula) {
+                    push_formula_candidate(&mut formulas, &mut declaration_lines, formula);
+                }
+            } else {
+                block_lines.push(line.to_string());
+                xml_formula_block = Some((tag, block_lines));
+            }
+            continue 'lines;
         }
 
         if !declaration_lines.is_empty() {
@@ -214,6 +235,15 @@ fn parse_text_llm_response(response: &str) -> Vec<String> {
 
         if let Some(formula) = extract_xml_tagged_formula(line) {
             push_formula_candidate(&mut formulas, &mut declaration_lines, formula);
+            continue 'lines;
+        }
+
+        if let Some((tag, content)) = extract_xml_formula_block_open(line) {
+            let mut block_lines = Vec::new();
+            if !content.is_empty() {
+                block_lines.push(content.to_string());
+            }
+            xml_formula_block = Some((tag.to_string(), block_lines));
             continue 'lines;
         }
 
@@ -629,6 +659,36 @@ fn extract_xml_tagged_formula(line: &str) -> Option<&str> {
         if is_raw_formula_line(formula) {
             return Some(formula);
         }
+    }
+
+    None
+}
+
+fn extract_xml_formula_block_open(line: &str) -> Option<(&str, &str)> {
+    let line = line.trim();
+    let lower = line.to_ascii_lowercase();
+
+    for tag in ["formula", "formula_text", "rule"] {
+        if !lower.starts_with(&format!("<{tag}")) {
+            continue;
+        }
+
+        let tag_end = "<".len() + tag.len();
+        let Some(tag_boundary) = lower[tag_end..].chars().next() else {
+            continue;
+        };
+        if tag_boundary != '>' && !tag_boundary.is_ascii_whitespace() {
+            continue;
+        }
+
+        let Some(open_end) = lower.find('>') else {
+            continue;
+        };
+        if lower[open_end + 1..].contains(&format!("</{tag}>")) {
+            continue;
+        }
+
+        return Some((tag, line[open_end + 1..].trim()));
     }
 
     None
@@ -1948,6 +2008,33 @@ data: [DONE]
 <formula>always([+TAGGED] true -> eventually(<+REVIEW> true))</formula>
 <formula_text name="commit"><+COMMIT> true</formula_text>
 <rule>`always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)`</rule>
+</formulas>
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+TAGGED] true -> eventually(<+REVIEW> true))",
+                "<+COMMIT> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_multiline_xml_tagged_formulas() {
+        let response = r#"
+<formulas>
+<formula>
+always([+TAGGED] true -> eventually(<+REVIEW> true))
+</formula>
+<formula_text name="commit">
+<+COMMIT> true
+</formula_text>
+<rule>
+`always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)`
+</rule>
 </formulas>
 "#;
 
