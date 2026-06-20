@@ -615,6 +615,7 @@ fn is_json_structure_line(line: &str) -> bool {
 
 fn strip_formula_wrapping(line: &str) -> &str {
     let line = strip_trailing_json_comma(line.trim());
+    let line = strip_cdata_wrapping(line).unwrap_or(line);
 
     strip_matching_wrapper(line, "`")
         .or_else(|| strip_matching_wrapper(line, "\""))
@@ -625,6 +626,12 @@ fn strip_formula_wrapping(line: &str) -> &str {
         .or_else(|| strip_matching_wrapper(line, "_"))
         .unwrap_or(line)
         .trim()
+}
+
+fn strip_cdata_wrapping(line: &str) -> Option<&str> {
+    line.strip_prefix("<![CDATA[")
+        .and_then(|line| line.strip_suffix("]]>"))
+        .map(str::trim)
 }
 
 fn extract_json_field_formula(line: &str) -> Option<&str> {
@@ -2197,6 +2204,27 @@ always([+TAGGED] true -> eventually(<+REVIEW> true))
 <formula>F1: always([+PAY] true -> eventually(<+WORK> true))</formula>
 <rule>Formula 2: <+CANCEL> true</rule>
 <formula_text>F3 - always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)</formula_text>
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_cdata_wrapped_formulas() {
+        let response = r#"
+<formula><![CDATA[always([+PAY] true -> eventually(<+WORK> true))]]></formula>
+<rule>
+<![CDATA[<+CANCEL> true]]>
+</rule>
+formula_text: <![CDATA[always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)]]>
 "#;
 
         let formulas = parse_llm_response(response);
