@@ -254,24 +254,9 @@ fn parse_text_llm_response(response: &str) -> Vec<String> {
             continue 'lines;
         }
 
-        if let Some((prefix, formula)) = line.split_once(" - ") {
-            if is_formula_prefix(prefix) {
-                let formula = strip_labeled_formula_wrapping(formula.trim());
-                push_formula_candidate(&mut formulas, &mut declaration_lines, formula);
-                continue 'lines;
-            }
-        }
-
-        // Look for F1:, F2., Formula 3), Formula 4 =, etc. labels.
-        for separator in [':', '.', ')', '='] {
-            if let Some(separator_pos) = line.find(separator) {
-                let prefix = &line[..separator_pos];
-                if is_formula_prefix(prefix) {
-                    let formula = strip_labeled_formula_wrapping(line[separator_pos + 1..].trim());
-                    push_formula_candidate(&mut formulas, &mut declaration_lines, formula);
-                    continue 'lines;
-                }
-            }
+        if let Some(formula) = extract_labeled_formula(line) {
+            push_formula_candidate(&mut formulas, &mut declaration_lines, formula);
+            continue 'lines;
         }
 
         // Also accept raw formula lines directly when no F1: prefix is present.
@@ -559,6 +544,28 @@ fn is_formula_prefix(prefix: &str) -> bool {
     !label.is_empty() && label.chars().all(|c| c.is_ascii_digit())
 }
 
+fn extract_labeled_formula(line: &str) -> Option<&str> {
+    if let Some((prefix, formula)) = line.split_once(" - ") {
+        if is_formula_prefix(prefix) {
+            return Some(strip_labeled_formula_wrapping(formula.trim()));
+        }
+    }
+
+    // Look for F1:, F2., Formula 3), Formula 4 =, etc. labels.
+    for separator in [':', '.', ')', '='] {
+        if let Some(separator_pos) = line.find(separator) {
+            let prefix = &line[..separator_pos];
+            if is_formula_prefix(prefix) {
+                return Some(strip_labeled_formula_wrapping(
+                    line[separator_pos + 1..].trim(),
+                ));
+            }
+        }
+    }
+
+    None
+}
+
 fn strip_quote_marker(line: &str) -> &str {
     line.strip_prefix('>').map(str::trim_start).unwrap_or(line)
 }
@@ -678,6 +685,7 @@ fn extract_xml_tagged_formula(line: &str) -> Option<&str> {
         }
 
         let formula = strip_formula_wrapping(line[open_end + 1..close_start].trim());
+        let formula = extract_labeled_formula(formula).unwrap_or(formula);
         if is_raw_formula_line(formula) {
             return Some(formula);
         }
@@ -2170,6 +2178,25 @@ always([+TAGGED] true -> eventually(<+REVIEW> true))
 <+CANCEL> true
 </rule-text>
 <expression>always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)</expression>
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_labeled_xml_tagged_formulas() {
+        let response = r#"
+<formula>F1: always([+PAY] true -> eventually(<+WORK> true))</formula>
+<rule>Formula 2: <+CANCEL> true</rule>
+<formula_text>F3 - always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)</formula_text>
 "#;
 
         let formulas = parse_llm_response(response);
