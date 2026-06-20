@@ -621,7 +621,16 @@ fn extract_json_field_formula(line: &str) -> Option<&str> {
         .to_ascii_lowercase();
     if !matches!(
         key.as_str(),
-        "formula" | "formula_text" | "formulatext" | "expression" | "rule" | "rule_text" | "ruletext"
+        "formula"
+            | "formulas"
+            | "formula_text"
+            | "formulatext"
+            | "expression"
+            | "expressions"
+            | "rule"
+            | "rules"
+            | "rule_text"
+            | "ruletext"
     ) {
         return None;
     }
@@ -1447,6 +1456,26 @@ formula_text: always([+PAY] true -> eventually(<+WORK> true))
 rule_text: <+CANCEL> true
 expression: `always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)`
 message: This is explanatory text, not a formula.
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_plural_formula_field_aliases() {
+        let response = r#"
+formulas: always([+PAY] true -> eventually(<+WORK> true))
+rules: <+CANCEL> true
+expressions: `always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)`
+content: This is explanatory text, not a formula.
 "#;
 
         let formulas = parse_llm_response(response);
