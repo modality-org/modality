@@ -347,6 +347,7 @@ fn collect_json_formulas(
                         | "formulapatch"
                         | "formulaproposal"
                         | "formularevision"
+                        | "formulaupdate"
                         | "formula_text"
                         | "formulatext"
                         | "finalformula"
@@ -372,10 +373,12 @@ fn collect_json_formulas(
                         | "rulepatch"
                         | "ruleproposal"
                         | "rulerevision"
+                        | "ruleupdate"
                         | "revisedformula"
                         | "revisionformula"
                         | "selectedformula"
                         | "solutionformula"
+                        | "updateformula"
                         | "updatedformula"
                         | "validformula"
                         | "validationerrorformula"
@@ -952,6 +955,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulapatch"
             | "formulaproposal"
             | "formularevision"
+            | "formulaupdate"
             | "formulatext"
             | "finalformula"
             | "generatedformula"
@@ -976,10 +980,12 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulepatch"
             | "ruleproposal"
             | "rulerevision"
+            | "ruleupdate"
             | "revisedformula"
             | "revisionformula"
             | "selectedformula"
             | "solutionformula"
+            | "updateformula"
             | "updatedformula"
             | "validformula"
             | "validationerrorformula"
@@ -1031,6 +1037,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulapatch"
             | "formulaproposal"
             | "formularevision"
+            | "formulaupdate"
             | "finalformula"
             | "generatedformula"
             | "improvedformula"
@@ -1055,8 +1062,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulepatch"
             | "ruleproposal"
             | "rulerevision"
+            | "ruleupdate"
             | "selectedformula"
             | "solutionformula"
+            | "updateformula"
             | "updatedformula"
             | "validformula"
             | "validationerrorformula"
@@ -3561,6 +3570,28 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_update_field_order_aliases() {
+        let response = r#"
+{
+  "formula_update": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "update_formula": "F2: <+REFUND> true",
+  "rule_update": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "update": "This update is only explained in prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+REFUND> true"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -4035,6 +4066,26 @@ formula patch: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
 patch formula: F2: <+REFUND> true
 rule patch: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 patch = this patch is only explained in prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_update_field_order_aliases() {
+        let response = r#"
+formula update: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+update formula: F2: <+REFUND> true
+rule update: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+update = this update is only explained in prose
 "#;
 
         let formulas = parse_llm_response(response);
