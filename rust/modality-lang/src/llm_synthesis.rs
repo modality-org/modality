@@ -330,7 +330,10 @@ fn collect_json_formulas(
                         | "fixedformula"
                         | "formula_text"
                         | "formulatext"
+                        | "proposalformula"
                         | "proposedformula"
+                        | "recommendedformula"
+                        | "remediationformula"
                         | "revisedformula"
                         | "expression"
                         | "expressions"
@@ -401,7 +404,17 @@ fn collect_json_formulas(
                         | "diagnostic"
                         | "diagnostics"
                         | "fixed"
+                        | "fix"
+                        | "fixes"
                         | "proposed"
+                        | "proposal"
+                        | "proposals"
+                        | "recommendation"
+                        | "recommendations"
+                        | "remediation"
+                        | "remediations"
+                        | "repair"
+                        | "repairs"
                         | "revision"
                         | "revisions"
                         | "suggestion"
@@ -743,7 +756,10 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "correctedformula"
             | "fixedformula"
             | "formulatext"
+            | "proposalformula"
             | "proposedformula"
+            | "recommendedformula"
+            | "remediationformula"
             | "revisedformula"
             | "expression"
             | "expressions"
@@ -790,7 +806,17 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "diagnostic"
             | "diagnostics"
             | "fixed"
+            | "fix"
+            | "fixes"
             | "proposed"
+            | "proposal"
+            | "proposals"
+            | "recommendation"
+            | "recommendations"
+            | "remediation"
+            | "remediations"
+            | "repair"
+            | "repairs"
             | "revision"
             | "revisions"
             | "suggestion"
@@ -2624,11 +2650,60 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_repair_proposal_fields() {
+        let response = r#"
+{
+  "proposal_formula": "always([+PAY] true -> eventually(<+DELIVER> true))",
+  "recommendations": [
+    "Explanation only.",
+    "Formula 2: <+CANCEL> true"
+  ],
+  "remediation": {
+    "repair": "F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+  },
+  "fixes": [
+    { "recommended formula": "F4: <+ESCALATE> true" }
+  ]
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+ESCALATE> true",
+                "always([+PAY] true -> eventually(<+DELIVER> true))",
+                "<+CANCEL> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_plain_correction_fields() {
         let response = r#"
 diagnostic: parser expected a modal expression
 corrected formula: always([+SHIP] true -> eventually(<+PAY> true))
 suggestion: Formula 2: <+REFUND> true
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_repair_proposal_fields() {
+        let response = r#"
+recommendation: retry with a committed modal action
+proposal formula: always([+SHIP] true -> eventually(<+PAY> true))
+repair: Formula 2: <+REFUND> true
+remediation: emit a formula label before prose
 "#;
 
         let formulas = parse_llm_response(response);
