@@ -335,9 +335,11 @@ fn collect_json_formulas(
                         | "editedformula"
                         | "errorformula"
                         | "failureformula"
+                        | "fixformula"
                         | "fixedformula"
                         | "formulacandidate"
                         | "formuladraft"
+                        | "formulafix"
                         | "formulaproposal"
                         | "formularevision"
                         | "formula_text"
@@ -358,6 +360,7 @@ fn collect_json_formulas(
                         | "responseformula"
                         | "rulecandidate"
                         | "ruledraft"
+                        | "rulefix"
                         | "ruleproposal"
                         | "rulerevision"
                         | "revisedformula"
@@ -923,9 +926,11 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "editedformula"
             | "errorformula"
             | "failureformula"
+            | "fixformula"
             | "fixedformula"
             | "formulacandidate"
             | "formuladraft"
+            | "formulafix"
             | "formulaproposal"
             | "formularevision"
             | "formulatext"
@@ -945,6 +950,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "responseformula"
             | "rulecandidate"
             | "ruledraft"
+            | "rulefix"
             | "ruleproposal"
             | "rulerevision"
             | "revisedformula"
@@ -991,8 +997,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "editedformula"
             | "errorformula"
             | "failureformula"
+            | "fixformula"
             | "fixedformula"
             | "formuladraft"
+            | "formulafix"
             | "formulaproposal"
             | "formularevision"
             | "finalformula"
@@ -1012,6 +1020,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "revisedformula"
             | "revisionformula"
             | "ruledraft"
+            | "rulefix"
             | "ruleproposal"
             | "rulerevision"
             | "selectedformula"
@@ -3449,6 +3458,28 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_fix_field_order_aliases() {
+        let response = r#"
+{
+  "formula_fix": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "fix_formula": "F2: <+REFUND> true",
+  "rule_fix": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "fix": "This fix is only explained in prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+REFUND> true",
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -3863,6 +3894,26 @@ formula revision: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
 revision formula: F2: <+REFUND> true
 rule revision: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 revision = this revision is only explained in prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_fix_field_order_aliases() {
+        let response = r#"
+formula fix: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+fix formula: F2: <+REFUND> true
+rule fix: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+fix = this fix is only explained in prose
 "#;
 
         let formulas = parse_llm_response(response);
