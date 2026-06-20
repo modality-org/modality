@@ -339,6 +339,7 @@ fn collect_json_formulas(
                         | "formulacandidate"
                         | "formuladraft"
                         | "formulaproposal"
+                        | "formularevision"
                         | "formula_text"
                         | "formulatext"
                         | "finalformula"
@@ -358,7 +359,9 @@ fn collect_json_formulas(
                         | "rulecandidate"
                         | "ruledraft"
                         | "ruleproposal"
+                        | "rulerevision"
                         | "revisedformula"
+                        | "revisionformula"
                         | "selectedformula"
                         | "solutionformula"
                         | "updatedformula"
@@ -924,6 +927,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulacandidate"
             | "formuladraft"
             | "formulaproposal"
+            | "formularevision"
             | "formulatext"
             | "finalformula"
             | "generatedformula"
@@ -942,7 +946,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulecandidate"
             | "ruledraft"
             | "ruleproposal"
+            | "rulerevision"
             | "revisedformula"
+            | "revisionformula"
             | "selectedformula"
             | "solutionformula"
             | "updatedformula"
@@ -988,6 +994,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "fixedformula"
             | "formuladraft"
             | "formulaproposal"
+            | "formularevision"
             | "finalformula"
             | "generatedformula"
             | "improvedformula"
@@ -1003,8 +1010,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "resolvedformula"
             | "responseformula"
             | "revisedformula"
+            | "revisionformula"
             | "ruledraft"
             | "ruleproposal"
+            | "rulerevision"
             | "selectedformula"
             | "solutionformula"
             | "updatedformula"
@@ -3418,6 +3427,28 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_revision_field_order_aliases() {
+        let response = r#"
+{
+  "formula_revision": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "revision_formula": "F2: <+REFUND> true",
+  "rule_revision": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "revision": "This revision is only explained in prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -3812,6 +3843,26 @@ formula draft: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
 draft formula: F2: <+REFUND> true
 rule draft: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 draft = this draft is only explained in prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_revision_field_order_aliases() {
+        let response = r#"
+formula revision: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+revision formula: F2: <+REFUND> true
+rule revision: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+revision = this revision is only explained in prose
 "#;
 
         let formulas = parse_llm_response(response);
