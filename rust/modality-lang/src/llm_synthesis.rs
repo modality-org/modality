@@ -230,6 +230,11 @@ fn parse_text_llm_response(response: &str) -> Vec<String> {
             continue 'lines;
         }
 
+        if let Some(formula) = extract_plain_text_field_formula(line) {
+            push_formula_candidate(&mut formulas, &mut declaration_lines, &formula);
+            continue 'lines;
+        }
+
         if let Some(formula) = extract_json_field_formula(line) {
             push_formula_candidate(&mut formulas, &mut declaration_lines, &formula);
             continue 'lines;
@@ -732,6 +737,48 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
     }
 
     let formula = normalize_formula_candidate(value.trim());
+    is_raw_formula_line(&formula).then_some(formula)
+}
+
+fn extract_plain_text_field_formula(line: &str) -> Option<String> {
+    let (key, value) = line.split_once(':')?;
+    let key = normalize_llm_field_key(key.trim().trim_matches('"').trim_matches('\''));
+    if !matches!(
+        key.as_str(),
+        "content"
+            | "contenttext"
+            | "text"
+            | "output"
+            | "outputs"
+            | "outputtext"
+            | "completion"
+            | "completiontext"
+            | "response"
+            | "responsetext"
+            | "answer"
+            | "answertext"
+            | "result"
+            | "body"
+            | "final"
+            | "finalanswer"
+            | "generation"
+            | "payload"
+            | "prediction"
+            | "message"
+            | "reply"
+            | "generatedtext"
+    ) {
+        return None;
+    }
+
+    let formula = normalize_formula_candidate(value.trim());
+    if let Some(labeled_formula) = extract_labeled_formula(&formula) {
+        let labeled_formula = normalize_formula_candidate(labeled_formula);
+        if is_raw_formula_line(&labeled_formula) {
+            return Some(labeled_formula);
+        }
+    }
+
     is_raw_formula_line(&formula).then_some(formula)
 }
 
@@ -1656,6 +1703,26 @@ formula-text: always([+PAY] true -> eventually(<+WORK> true))
 rule-text: <+CANCEL> true
 expression: `always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)`
 message: This is explanatory text, not a formula.
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_provider_text_fields() {
+        let response = r#"
+content: F1: always([+PAY] true -> eventually(<+WORK> true))
+output-text: Formula 2: <+CANCEL> true
+message: This is explanatory text, not a formula.
+finalAnswer: `always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)`
 "#;
 
         let formulas = parse_llm_response(response);
