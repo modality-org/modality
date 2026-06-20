@@ -666,9 +666,11 @@ fn extract_xml_tagged_formula(line: &str) -> Option<&str> {
         "formula",
         "formula_text",
         "formula-text",
+        "formulatext",
         "rule",
         "rule_text",
         "rule-text",
+        "ruletext",
         "expression",
     ] {
         if !lower.starts_with(&format!("<{tag}")) {
@@ -712,9 +714,11 @@ fn extract_xml_formula_block_open(line: &str) -> Option<(&str, &str)> {
         "formula",
         "formula_text",
         "formula-text",
+        "formulatext",
         "rule",
         "rule_text",
         "rule-text",
+        "ruletext",
         "expression",
     ] {
         if !lower.starts_with(&format!("<{tag}")) {
@@ -2216,6 +2220,25 @@ always([+TAGGED] true -> eventually(<+REVIEW> true))
                 "always([+PAY] true -> eventually(<+WORK> true))",
                 "<+CANCEL> true",
                 "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_camel_case_xml_tags() {
+        let response = r#"
+<formulaText>always([+PAY] true -> eventually(<+WORK> true))</formulaText>
+<ruleText>
+<+CANCEL> true
+</ruleText>
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true"
             ]
         );
     }
