@@ -350,6 +350,7 @@ fn collect_json_formulas(
                         | "responseformula"
                         | "revisedformula"
                         | "selectedformula"
+                        | "solutionformula"
                         | "updatedformula"
                         | "validformula"
                         | "validatedformula"
@@ -463,6 +464,8 @@ fn collect_json_formulas(
                         | "diagnostic"
                         | "diagnostics"
                         | "diagnostictext"
+                        | "diagnosis"
+                        | "diagnosistext"
                         | "edit"
                         | "edited"
                         | "editedtext"
@@ -513,6 +516,9 @@ fn collect_json_formulas(
                         | "suggestion"
                         | "suggestiontext"
                         | "suggestions"
+                        | "solution"
+                        | "solutiontext"
+                        | "solutions"
                         | "update"
                         | "updated"
                         | "updatedtext"
@@ -874,6 +880,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "responseformula"
             | "revisedformula"
             | "selectedformula"
+            | "solutionformula"
             | "updatedformula"
             | "validformula"
             | "validatedformula"
@@ -925,6 +932,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "responseformula"
             | "revisedformula"
             | "selectedformula"
+            | "solutionformula"
             | "updatedformula"
             | "validformula"
             | "validatedformula"
@@ -1009,6 +1017,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "diagnostic"
             | "diagnostics"
             | "diagnostictext"
+            | "diagnosis"
+            | "diagnosistext"
             | "edit"
             | "edited"
             | "editedtext"
@@ -1059,6 +1069,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "suggestion"
             | "suggestiontext"
             | "suggestions"
+            | "solution"
+            | "solutiontext"
+            | "solutions"
             | "update"
             | "updated"
             | "updatedtext"
@@ -3099,6 +3112,30 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_solution_fields() {
+        let response = r#"
+{
+  "solution_formula": "always([+SHIP] true -> eventually(<+PAY> true))",
+  "diagnosis_text": "Formula 2: <+REFUND> true",
+  "solution": {
+    "text": "F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+  },
+  "diagnosis": "This only explains the parse failure."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "always([+SHIP] true -> eventually(<+PAY> true))"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -3337,6 +3374,26 @@ analysis: this only explains why the first draft failed
 critique text: Formula 2: <+REFUND> true
 review: F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 assessment: prose only
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_solution_fields() {
+        let response = r#"
+diagnosis text: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+solution = Formula 2: <+REFUND> true
+solution formula: F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+diagnosis: this only explains the parse failure
 "#;
 
         let formulas = parse_llm_response(response);
