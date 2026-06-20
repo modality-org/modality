@@ -456,6 +456,14 @@ fn collect_json_formulas(
                         | "raw_response"
                         | "rawoutput"
                         | "rawresponse"
+                        | "stdout"
+                        | "stderr"
+                        | "log"
+                        | "logs"
+                        | "logtext"
+                        | "trace"
+                        | "traces"
+                        | "tracetext"
                         | "reply"
                         | "selected"
                         | "validated"
@@ -1038,6 +1046,14 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "providerresponse"
             | "rawoutput"
             | "rawresponse"
+            | "stdout"
+            | "stderr"
+            | "log"
+            | "logs"
+            | "logtext"
+            | "trace"
+            | "traces"
+            | "tracetext"
             | "reply"
             | "selected"
             | "segment"
@@ -3243,6 +3259,33 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_log_output_fields() {
+        let response = r#"
+{
+  "stdout": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "stderr": "This only contains verifier diagnostics.",
+  "logs": [
+    "F2: <+REFUND> true",
+    "trace text without a formula"
+  ],
+  "trace": {
+    "text": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+  }
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+REFUND> true",
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -3541,6 +3584,26 @@ error: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
 error message: this only explains why parsing failed
 validation error = F2: <+REFUND> true
 verifier output: Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_log_output_fields() {
+        let response = r#"
+stdout: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+stderr: verifier diagnostics without a formula
+logs: F2: <+REFUND> true
+trace = Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 "#;
 
         let formulas = parse_llm_response(response);
