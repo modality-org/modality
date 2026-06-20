@@ -532,16 +532,19 @@ fn is_formula_prefix(prefix: &str) -> bool {
     }
 
     let lower_prefix = prefix.to_ascii_lowercase();
-    if lower_prefix == "formula" {
+    if matches!(lower_prefix.as_str(), "formula" | "rule" | "expression") {
         return true;
     }
 
-    let Some(label) = lower_prefix.strip_prefix("formula") else {
-        return false;
-    };
-    let label = label.trim_start().trim_start_matches('#');
+    let label = ["formula", "rule", "expression"]
+        .into_iter()
+        .find_map(|prefix| lower_prefix.strip_prefix(prefix))
+        .map(str::trim_start)
+        .map(|label| label.trim_start_matches('#'));
 
-    !label.is_empty() && label.chars().all(|c| c.is_ascii_digit())
+    label.is_some_and(|label| {
+        !label.is_empty() && label.chars().all(|c| c.is_ascii_digit())
+    })
 }
 
 fn extract_labeled_formula(line: &str) -> Option<&str> {
@@ -551,7 +554,7 @@ fn extract_labeled_formula(line: &str) -> Option<&str> {
         }
     }
 
-    // Look for F1:, F2., Formula 3), Formula 4 =, etc. labels.
+    // Look for F1:, F2., Formula 3), Rule 4 =, etc. labels.
     for separator in [':', '.', ')', '='] {
         if let Some(separator_pos) = line.find(separator) {
             let prefix = &line[..separator_pos];
@@ -1095,6 +1098,25 @@ F3: always([+DELIVER] true -> <+signed_by(/users/bob.id)> true)
         assert_eq!(
             formulas[0],
             "always([+RELEASE] true -> eventually(<+DELIVER> true))"
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_rule_and_expression_prefixes() {
+        let response = r#"
+Rule 1: always([+PAY] true -> eventually(<+WORK> true))
+Expression 2: <+CANCEL> true
+Rule: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> eventually(<+WORK> true))",
+                "<+CANCEL> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
         );
     }
 
