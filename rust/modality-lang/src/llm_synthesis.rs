@@ -420,6 +420,8 @@ fn collect_json_formulas(
                         | "formulaverification"
                         | "formula_text"
                         | "formulatext"
+                        | "formulaviolated"
+                        | "formulaviolation"
                         | "finalformula"
                         | "generatedformula"
                         | "improvedformula"
@@ -498,6 +500,8 @@ fn collect_json_formulas(
                         | "rulevalidation"
                         | "ruleverification"
                         | "ruleverified"
+                        | "ruleviolated"
+                        | "ruleviolation"
                         | "revisedformula"
                         | "revisionformula"
                         | "selectedformula"
@@ -526,6 +530,8 @@ fn collect_json_formulas(
                         | "formulaverified"
                         | "verificationformula"
                         | "verifiedformula"
+                        | "violatedformula"
+                        | "violationformula"
                         | "expression"
                         | "expressions"
                         | "rule"
@@ -783,6 +789,11 @@ fn collect_json_formulas(
                         | "verifiererrortext"
                         | "verifieroutput"
                         | "verifierresponse"
+                        | "violated"
+                        | "violatedtext"
+                        | "violation"
+                        | "violations"
+                        | "violationtext"
                 ) {
                     collect_json_text_formulas(value, formulas);
                 } else if matches!(
@@ -946,9 +957,7 @@ fn is_formula_prefix(prefix: &str) -> bool {
         .map(str::trim_start)
         .map(|label| label.trim_start_matches('#'));
 
-    label.is_some_and(|label| {
-        !label.is_empty() && label.chars().all(|c| c.is_ascii_digit())
-    })
+    label.is_some_and(|label| !label.is_empty() && label.chars().all(|c| c.is_ascii_digit()))
 }
 
 fn extract_labeled_formula(line: &str) -> Option<&str> {
@@ -1093,7 +1102,9 @@ fn decode_xml_formula_entity(entity: &str) -> Option<char> {
 }
 
 fn decode_numeric_xml_formula_entity(entity: &str) -> Option<char> {
-    let value = entity.strip_prefix("#x").or_else(|| entity.strip_prefix("#X"));
+    let value = entity
+        .strip_prefix("#x")
+        .or_else(|| entity.strip_prefix("#X"));
     let value = if let Some(value) = value {
         u32::from_str_radix(value, 16).ok()?
     } else {
@@ -1130,12 +1141,12 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "candidateformula"
             | "changeformula"
             | "chosenformula"
-                        | "claimformula"
-                        | "compliantformula"
-                        | "confirmedformula"
-                        | "conformanceformula"
-                        | "conformantformula"
-                        | "conformsformula"
+            | "claimformula"
+            | "compliantformula"
+            | "confirmedformula"
+            | "conformanceformula"
+            | "conformantformula"
+            | "conformsformula"
             | "conclusionformula"
             | "critiqueformula"
             | "correctionformula"
@@ -1210,6 +1221,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulavalidation"
             | "formulaverification"
             | "formulatext"
+            | "formulaviolated"
+            | "formulaviolation"
             | "finalformula"
             | "generatedformula"
             | "improvedformula"
@@ -1231,8 +1244,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "replacementformula"
             | "resolvedformula"
             | "responseformula"
-                        | "reviewformula"
-                        | "ruleaccepted"
+            | "reviewformula"
+            | "ruleaccepted"
             | "ruleadvice"
             | "ruleadvised"
             | "ruleamended"
@@ -1245,12 +1258,12 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulecandidate"
             | "rulechange"
             | "rulechosen"
-                        | "ruleclaim"
-                        | "rulecompliant"
-                        | "ruleconfirmed"
-                        | "ruleconformance"
-                        | "ruleconformant"
-                        | "ruleconforms"
+            | "ruleclaim"
+            | "rulecompliant"
+            | "ruleconfirmed"
+            | "ruleconformance"
+            | "ruleconformant"
+            | "ruleconforms"
             | "ruleconclusion"
             | "rulecorrection"
             | "rulecounterexample"
@@ -1279,20 +1292,22 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulereasoning"
             | "ruleresponse"
             | "rulerevision"
-                        | "rulereview"
-                        | "rulesatisfied"
-                        | "ruleselected"
+            | "rulereview"
+            | "rulesatisfied"
+            | "ruleselected"
             | "ruleupdate"
             | "rulevalid"
             | "rulevalidated"
             | "rulevalidation"
             | "ruleverification"
             | "ruleverified"
+            | "ruleviolated"
+            | "ruleviolation"
             | "revisedformula"
             | "revisionformula"
-                        | "selectedformula"
-                        | "satisfiedformula"
-                        | "solutionformula"
+            | "selectedformula"
+            | "satisfiedformula"
+            | "solutionformula"
             | "supportformula"
             | "summaryformula"
             | "suggestedformula"
@@ -1316,6 +1331,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaverified"
             | "verificationformula"
             | "verifiedformula"
+            | "violatedformula"
+            | "violationformula"
             | "expression"
             | "expressions"
             | "rule"
@@ -1432,6 +1449,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulavalidated"
             | "formulavalidation"
             | "formulaverification"
+            | "formulaviolated"
+            | "formulaviolation"
             | "finalformula"
             | "generatedformula"
             | "improvedformula"
@@ -1511,6 +1530,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulevalidation"
             | "ruleverification"
             | "ruleverified"
+            | "ruleviolated"
+            | "ruleviolation"
             | "selectedformula"
             | "satisfiedformula"
             | "solutionformula"
@@ -1537,6 +1558,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaverified"
             | "verificationformula"
             | "verifiedformula"
+            | "violatedformula"
+            | "violationformula"
             | "content"
             | "contenttext"
             | "text"
@@ -1765,6 +1788,11 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "verifiererrortext"
             | "verifieroutput"
             | "verifierresponse"
+            | "violated"
+            | "violatedtext"
+            | "violation"
+            | "violations"
+            | "violationtext"
     ) {
         return None;
     }
@@ -1879,9 +1907,7 @@ fn extract_xml_formula_block_open(line: &str) -> Option<(&str, &str)> {
 }
 
 fn strip_trailing_json_comma(line: &str) -> &str {
-    line.strip_suffix(',')
-        .map(str::trim_end)
-        .unwrap_or(line)
+    line.strip_suffix(',').map(str::trim_end).unwrap_or(line)
 }
 
 fn extract_markdown_table_formula(line: &str) -> Option<&str> {
@@ -2169,7 +2195,9 @@ pub fn extract_parties(description: &str) -> Vec<String> {
     ];
 
     for (lower, proper) in common_names {
-        if contains_party_pattern(&description_lower, lower) && !parties.contains(&proper.to_string()) {
+        if contains_party_pattern(&description_lower, lower)
+            && !parties.contains(&proper.to_string())
+        {
             parties.push(proper.to_string());
         }
     }
@@ -2407,7 +2435,10 @@ F2: formula generated_2 {
 
         let formulas = parse_llm_response(response);
         assert_eq!(formulas.len(), 2);
-        assert_eq!(formulas[0], "formula generated_1 {\nalways([<+APPROVE>] true)\n}");
+        assert_eq!(
+            formulas[0],
+            "formula generated_1 {\nalways([<+APPROVE>] true)\n}"
+        );
         assert_eq!(
             formulas[1],
             "formula generated_2 {\n[+APPROVE] true -> <+signed_by(/users/reviewer.id)> true\n}"
@@ -4818,6 +4849,35 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_violation_field_order_aliases() {
+        let response = r#"
+{
+  "violation_formula": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "formula_violation": "F2: <+REFUND> true",
+  "rule_violation": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+  "violated_formula": "Formula 4: <+ESCALATE> true",
+  "formula_violated": "Formula 5: <+ARCHIVE> true",
+  "rule_violated": "Formula 6: always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)",
+  "violation": "This violation result is only prose.",
+  "violated": "This violated result is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+ARCHIVE> true",
+                "<+REFUND> true",
+                "always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)",
+                "<+ESCALATE> true",
+                "always([+SHIP] true -> eventually(<+PAY> true))"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -5194,9 +5254,17 @@ rule failure: Formula 6: always([+CLOSE] true -> <+signed_by(/users/closer.id)> 
 counterexample formula: Formula 7: <+ROLLBACK> true
 formula counterexample: Formula 8: <+COMPENSATE> true
 rule counterexample: Formula 9: always([+RETRY] true -> <+signed_by(/users/operator.id)> true)
+violation formula: Formula 10: <+ALERT> true
+formula violation: Formula 11: <+ESCALATE_VIOLATION> true
+rule violation: Formula 12: always([+BLOCK] true -> <+signed_by(/users/compliance.id)> true)
+violated formula: Formula 13: <+NOTIFY> true
+formula violated: Formula 14: <+ARCHIVE_VIOLATION> true
+rule violated: Formula 15: always([+REOPEN] true -> <+signed_by(/users/reviewer.id)> true)
 failure = this failure result is only prose
 failed = this failed result is only prose
 counterexample = this counterexample result is only prose
+violation = this violation result is only prose
+violated = this violated result is only prose
 "#;
 
         let formulas = parse_llm_response(response);
@@ -5211,7 +5279,13 @@ counterexample = this counterexample result is only prose
                 "always([+CLOSE] true -> <+signed_by(/users/closer.id)> true)",
                 "<+ROLLBACK> true",
                 "<+COMPENSATE> true",
-                "always([+RETRY] true -> <+signed_by(/users/operator.id)> true)"
+                "always([+RETRY] true -> <+signed_by(/users/operator.id)> true)",
+                "<+ALERT> true",
+                "<+ESCALATE_VIOLATION> true",
+                "always([+BLOCK] true -> <+signed_by(/users/compliance.id)> true)",
+                "<+NOTIFY> true",
+                "<+ARCHIVE_VIOLATION> true",
+                "always([+REOPEN] true -> <+signed_by(/users/reviewer.id)> true)"
             ]
         );
     }
@@ -6421,7 +6495,10 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
         let formulas = parse_llm_response(response);
         assert_eq!(formulas.len(), 1);
-        assert_eq!(formulas[0], "formula generated_1 {\nalways([<+APPROVE>] true)\n}");
+        assert_eq!(
+            formulas[0],
+            "formula generated_1 {\nalways([<+APPROVE>] true)\n}"
+        );
     }
 
     #[test]
@@ -6479,8 +6556,9 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
     #[test]
     fn test_extract_contract_formation_party_roles() {
-        let parties =
-            extract_parties("Offeror sends terms after promisor accepts duties to promisee and offeree");
+        let parties = extract_parties(
+            "Offeror sends terms after promisor accepts duties to promisee and offeree",
+        );
 
         assert!(parties.contains(&"Offeror".to_string()));
         assert!(parties.contains(&"Offeree".to_string()));
@@ -6530,9 +6608,8 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
     #[test]
     fn test_extract_trust_party_roles() {
-        let parties = extract_parties(
-            "Trustor appoints trustee before beneficiary receives distribution",
-        );
+        let parties =
+            extract_parties("Trustor appoints trustee before beneficiary receives distribution");
 
         assert!(parties.contains(&"Trustor".to_string()));
         assert!(parties.contains(&"Trustee".to_string()));
@@ -6609,8 +6686,9 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
     #[test]
     fn test_extract_education_party_roles() {
-        let parties =
-            extract_parties("Student submits assignment after instructor and institution approve enrollment");
+        let parties = extract_parties(
+            "Student submits assignment after instructor and institution approve enrollment",
+        );
 
         assert!(parties.contains(&"Student".to_string()));
         assert!(parties.contains(&"Instructor".to_string()));
@@ -6619,8 +6697,9 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
     #[test]
     fn test_extract_travel_party_roles() {
-        let parties =
-            extract_parties("Traveler books stay after guest, host, and travel agent confirm itinerary");
+        let parties = extract_parties(
+            "Traveler books stay after guest, host, and travel agent confirm itinerary",
+        );
 
         assert!(parties.contains(&"Traveler".to_string()));
         assert!(parties.contains(&"Guest".to_string()));
@@ -6630,8 +6709,9 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
     #[test]
     fn test_extract_energy_party_roles() {
-        let parties =
-            extract_parties("Grid operator dispatches power after utility, generator, and offtaker agree");
+        let parties = extract_parties(
+            "Grid operator dispatches power after utility, generator, and offtaker agree",
+        );
 
         assert!(parties.contains(&"GridOperator".to_string()));
         assert!(parties.contains(&"Utility".to_string()));
@@ -6664,8 +6744,9 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
     #[test]
     fn test_extract_publishing_party_roles() {
-        let parties =
-            extract_parties("Publisher releases article after author, editor, and advertiser approve copy");
+        let parties = extract_parties(
+            "Publisher releases article after author, editor, and advertiser approve copy",
+        );
 
         assert!(parties.contains(&"Publisher".to_string()));
         assert!(parties.contains(&"Author".to_string()));
@@ -6687,8 +6768,9 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
     #[test]
     fn test_extract_litigation_party_roles() {
-        let parties =
-            extract_parties("Plaintiff settles claim after defendant, counsel, and court approve order");
+        let parties = extract_parties(
+            "Plaintiff settles claim after defendant, counsel, and court approve order",
+        );
 
         assert!(parties.contains(&"Plaintiff".to_string()));
         assert!(parties.contains(&"Defendant".to_string()));
@@ -7248,12 +7330,8 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
     fn test_prompt_includes_agent_coordination_patterns() {
         let prompt = generate_prompt("Agent coordinator assigns work to a worker agent");
 
-        assert!(prompt.contains(
-            "always([+AGENT_A_TURN] true -> eventually(<+AGENT_B_TURN> true))"
-        ));
-        assert!(prompt.contains(
-            "always([+AGENT_B_TURN] true -> eventually(<+AGENT_A_TURN> true))"
-        ));
+        assert!(prompt.contains("always([+AGENT_A_TURN] true -> eventually(<+AGENT_B_TURN> true))"));
+        assert!(prompt.contains("always([+AGENT_B_TURN] true -> eventually(<+AGENT_A_TURN> true))"));
         assert!(prompt.contains(
             "always([+ASSIGN_TASK] true -> <+signed_by(/users/task_requester.id) +signed_by(/users/worker_agent.id)> true)"
         ));
@@ -7277,17 +7355,15 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(prompt.contains(
             "always([+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true)))"
         ));
-        assert!(prompt.contains(
-            "always([+RESOLVE_DISPUTE] true -> <+signed_by(/users/arbiter.id)> true)"
-        ));
+        assert!(prompt
+            .contains("always([+RESOLVE_DISPUTE] true -> <+signed_by(/users/arbiter.id)> true)"));
     }
 
     #[test]
     fn test_prompt_includes_cancellation_pattern() {
         let prompt = generate_prompt("Cancel requires requester signature and blocks delivery");
 
-        assert!(prompt
-            .contains("always([+CANCEL] true -> <+signed_by(/users/requester.id)> true)"));
+        assert!(prompt.contains("always([+CANCEL] true -> <+signed_by(/users/requester.id)> true)"));
         assert!(prompt.contains("always([+CANCEL] true -> always([-DELIVER] true))"));
     }
 
@@ -7295,9 +7371,7 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
     fn test_prompt_includes_refund_pattern() {
         let prompt = generate_prompt("Refund requires seller signature and blocks release");
 
-        assert!(
-            prompt.contains("always([+REFUND] true -> <+signed_by(/users/seller.id)> true)")
-        );
+        assert!(prompt.contains("always([+REFUND] true -> <+signed_by(/users/seller.id)> true)"));
         assert!(prompt.contains("always([+REFUND] true -> always([-RELEASE] true))"));
     }
 
@@ -7305,9 +7379,7 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
     fn test_prompt_includes_review_approval_pattern() {
         let prompt = generate_prompt("Approve requires reviewer signature and blocks rejection");
 
-        assert!(
-            prompt.contains("always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)")
-        );
+        assert!(prompt.contains("always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"));
         assert!(prompt.contains("always([+APPROVE] true -> always([-REJECT] true))"));
     }
 
@@ -7315,9 +7387,7 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
     fn test_prompt_includes_review_rejection_pattern() {
         let prompt = generate_prompt("Reject requires reviewer signature and blocks approval");
 
-        assert!(
-            prompt.contains("always([+REJECT] true -> <+signed_by(/users/reviewer.id)> true)")
-        );
+        assert!(prompt.contains("always([+REJECT] true -> <+signed_by(/users/reviewer.id)> true)"));
         assert!(prompt.contains("always([+REJECT] true -> always([-APPROVE] true))"));
     }
 
@@ -7335,9 +7405,7 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
     fn test_prompt_includes_escalation_pattern() {
         let prompt = generate_prompt("Escalation requires manager signature and blocks close");
 
-        assert!(
-            prompt.contains("always([+ESCALATE] true -> <+signed_by(/users/manager.id)> true)")
-        );
+        assert!(prompt.contains("always([+ESCALATE] true -> <+signed_by(/users/manager.id)> true)"));
         assert!(prompt.contains("always([+ESCALATE] true -> always([-CLOSE] true))"));
     }
 
@@ -7355,9 +7423,7 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
     fn test_prompt_includes_appeal_pattern() {
         let prompt = generate_prompt("Appeal requires appellant signature and blocks enforcement");
 
-        assert!(
-            prompt.contains("always([+APPEAL] true -> <+signed_by(/users/appellant.id)> true)")
-        );
+        assert!(prompt.contains("always([+APPEAL] true -> <+signed_by(/users/appellant.id)> true)"));
         assert!(prompt.contains("always([+APPEAL] true -> always([-ENFORCE] true))"));
     }
 
@@ -7365,19 +7431,17 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
     fn test_prompt_includes_revocation_pattern() {
         let prompt = generate_prompt("Revocation requires issuer signature and blocks use");
 
-        assert!(
-            prompt.contains("always([+REVOKE] true -> <+signed_by(/users/issuer.id)> true)")
-        );
+        assert!(prompt.contains("always([+REVOKE] true -> <+signed_by(/users/issuer.id)> true)"));
         assert!(prompt.contains("always([+REVOKE] true -> always([-USE] true))"));
     }
 
     #[test]
     fn test_prompt_includes_suspension_pattern() {
-        let prompt = generate_prompt("Suspension requires administrator signature and blocks access");
+        let prompt =
+            generate_prompt("Suspension requires administrator signature and blocks access");
 
-        assert!(prompt.contains(
-            "always([+SUSPEND] true -> <+signed_by(/users/administrator.id)> true)"
-        ));
+        assert!(prompt
+            .contains("always([+SUSPEND] true -> <+signed_by(/users/administrator.id)> true)"));
         assert!(prompt.contains("always([+SUSPEND] true -> always([-ACCESS] true))"));
     }
 
@@ -7386,9 +7450,8 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         let prompt =
             generate_prompt("Reinstatement requires administrator signature and blocks suspension");
 
-        assert!(prompt.contains(
-            "always([+REINSTATE] true -> <+signed_by(/users/administrator.id)> true)"
-        ));
+        assert!(prompt
+            .contains("always([+REINSTATE] true -> <+signed_by(/users/administrator.id)> true)"));
         assert!(prompt.contains("always([+REINSTATE] true -> always([-SUSPEND] true))"));
     }
 
@@ -7396,9 +7459,7 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
     fn test_prompt_includes_renewal_pattern() {
         let prompt = generate_prompt("Renewal requires holder signature and blocks expiration");
 
-        assert!(
-            prompt.contains("always([+RENEW] true -> <+signed_by(/users/holder.id)> true)")
-        );
+        assert!(prompt.contains("always([+RENEW] true -> <+signed_by(/users/holder.id)> true)"));
         assert!(prompt.contains("always([+RENEW] true -> always([-EXPIRE] true))"));
     }
 
@@ -7407,9 +7468,8 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         let prompt =
             generate_prompt("Termination requires counterparty signature and blocks renewal");
 
-        assert!(prompt.contains(
-            "always([+TERMINATE] true -> <+signed_by(/users/counterparty.id)> true)"
-        ));
+        assert!(prompt
+            .contains("always([+TERMINATE] true -> <+signed_by(/users/counterparty.id)> true)"));
         assert!(prompt.contains("always([+TERMINATE] true -> always([-RENEW] true))"));
     }
 
@@ -7423,11 +7483,10 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
     #[test]
     fn test_prompt_includes_assignment_pattern() {
-        let prompt = generate_prompt("Assignment requires assigner signature and blocks reassignment");
+        let prompt =
+            generate_prompt("Assignment requires assigner signature and blocks reassignment");
 
-        assert!(prompt.contains(
-            "always([+ASSIGN] true -> <+signed_by(/users/assigner.id)> true)"
-        ));
+        assert!(prompt.contains("always([+ASSIGN] true -> <+signed_by(/users/assigner.id)> true)"));
         assert!(prompt.contains("always([+ASSIGN] true -> always([-REASSIGN] true))"));
     }
 
@@ -7436,9 +7495,7 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         let prompt =
             generate_prompt("Certification requires auditor signature and blocks deployment");
 
-        assert!(prompt.contains(
-            "always([+CERTIFY] true -> <+signed_by(/users/auditor.id)> true)"
-        ));
+        assert!(prompt.contains("always([+CERTIFY] true -> <+signed_by(/users/auditor.id)> true)"));
         assert!(prompt.contains("always([+CERTIFY] true -> always([-DEPLOY] true))"));
     }
 
@@ -7446,29 +7503,27 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
     fn test_prompt_includes_publication_pattern() {
         let prompt = generate_prompt("Publication requires editor signature and blocks embargo");
 
-        assert!(prompt.contains(
-            "always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)"
-        ));
+        assert!(prompt.contains("always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)"));
         assert!(prompt.contains("always([+PUBLISH] true -> always([-EMBARGO] true))"));
     }
 
     #[test]
     fn test_prompt_includes_registration_pattern() {
-        let prompt = generate_prompt("Registration requires registrar signature and blocks deletion");
+        let prompt =
+            generate_prompt("Registration requires registrar signature and blocks deletion");
 
-        assert!(prompt.contains(
-            "always([+REGISTER] true -> <+signed_by(/users/registrar.id)> true)"
-        ));
+        assert!(
+            prompt.contains("always([+REGISTER] true -> <+signed_by(/users/registrar.id)> true)")
+        );
         assert!(prompt.contains("always([+REGISTER] true -> always([-DELETE] true))"));
     }
 
     #[test]
     fn test_prompt_includes_acceptance_pattern() {
-        let prompt = generate_prompt("Acceptance requires recipient signature and blocks rejection");
+        let prompt =
+            generate_prompt("Acceptance requires recipient signature and blocks rejection");
 
-        assert!(prompt.contains(
-            "always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)"
-        ));
+        assert!(prompt.contains("always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)"));
         assert!(prompt.contains("always([+ACCEPT] true -> always([-REJECT] true))"));
     }
 
@@ -7477,9 +7532,8 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         let prompt =
             generate_prompt("Acknowledgement requires recipient signature and blocks dispute");
 
-        assert!(prompt.contains(
-            "always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)"
-        ));
+        assert!(prompt
+            .contains("always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)"));
         assert!(prompt.contains("always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))"));
     }
 
@@ -7496,11 +7550,11 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
     #[test]
     fn test_prompt_includes_invoice_approval_pattern() {
-        let prompt = generate_prompt("Invoice approval requires payer signature and blocks chargeback");
+        let prompt =
+            generate_prompt("Invoice approval requires payer signature and blocks chargeback");
 
-        assert!(prompt.contains(
-            "always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)"
-        ));
+        assert!(prompt
+            .contains("always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)"));
         assert!(prompt.contains("always([+APPROVE_INVOICE] true -> always([-CHARGEBACK] true))"));
     }
 
@@ -7509,23 +7563,23 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         let prompt =
             generate_prompt("Milestone acceptance requires verifier signature and blocks rework");
 
-        assert!(prompt.contains(
-            "always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)"
-        ));
+        assert!(prompt
+            .contains("always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)"));
         assert!(prompt.contains("always([+ACCEPT_MILESTONE] true -> always([-REWORK] true))"));
     }
 
     #[test]
     fn test_prompt_includes_inspection_approval_pattern() {
-        let prompt =
-            generate_prompt("Inspection approval requires inspector signature and blocks defect claim");
+        let prompt = generate_prompt(
+            "Inspection approval requires inspector signature and blocks defect claim",
+        );
 
         assert!(prompt.contains(
             "always([+APPROVE_INSPECTION] true -> <+signed_by(/users/inspector.id)> true)"
         ));
-        assert!(prompt.contains(
-            "always([+APPROVE_INSPECTION] true -> always([-DEFECT_CLAIM] true))"
-        ));
+        assert!(
+            prompt.contains("always([+APPROVE_INSPECTION] true -> always([-DEFECT_CLAIM] true))")
+        );
     }
 
     #[test]
@@ -7544,28 +7598,29 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
 
     #[test]
     fn test_prompt_includes_safety_approval_pattern() {
-        let prompt =
-            generate_prompt("Safety approval requires safety reviewer signature and blocks unsafe deployment");
+        let prompt = generate_prompt(
+            "Safety approval requires safety reviewer signature and blocks unsafe deployment",
+        );
 
         assert!(prompt.contains(
             "always([+APPROVE_SAFETY] true -> <+signed_by(/users/safety_reviewer.id)> true)"
         ));
-        assert!(prompt.contains(
-            "always([+APPROVE_SAFETY] true -> always([-UNSAFE_DEPLOYMENT] true))"
-        ));
+        assert!(
+            prompt.contains("always([+APPROVE_SAFETY] true -> always([-UNSAFE_DEPLOYMENT] true))")
+        );
     }
 
     #[test]
     fn test_prompt_includes_risk_acceptance_pattern() {
-        let prompt =
-            generate_prompt("Risk acceptance requires risk owner signature and blocks unmitigated exposure");
+        let prompt = generate_prompt(
+            "Risk acceptance requires risk owner signature and blocks unmitigated exposure",
+        );
 
-        assert!(prompt.contains(
-            "always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)"
-        ));
-        assert!(prompt.contains(
-            "always([+ACCEPT_RISK] true -> always([-UNMITIGATED_EXPOSURE] true))"
-        ));
+        assert!(prompt
+            .contains("always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)"));
+        assert!(
+            prompt.contains("always([+ACCEPT_RISK] true -> always([-UNMITIGATED_EXPOSURE] true))")
+        );
     }
 
     #[test]
@@ -7577,15 +7632,16 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(prompt.contains(
             "always([+CLOSE_INCIDENT] true -> <+signed_by(/users/incident_commander.id)> true)"
         ));
-        assert!(prompt.contains(
-            "always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))"
-        ));
+        assert!(
+            prompt.contains("always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))")
+        );
     }
 
     #[test]
     fn test_prompt_includes_change_freeze_pattern() {
-        let prompt =
-            generate_prompt("Change freeze requires release manager signature and blocks deployment");
+        let prompt = generate_prompt(
+            "Change freeze requires release manager signature and blocks deployment",
+        );
 
         assert!(prompt.contains(
             "always([+FREEZE_CHANGE] true -> <+signed_by(/users/release_manager.id)> true)"
