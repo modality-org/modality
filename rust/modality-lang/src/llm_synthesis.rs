@@ -470,6 +470,8 @@ fn collect_json_formulas(
                         | "edited"
                         | "editedtext"
                         | "edits"
+                        | "explanation"
+                        | "explanationtext"
                         | "fixed"
                         | "fixedtext"
                         | "feedback"
@@ -491,6 +493,10 @@ fn collect_json_formulas(
                         | "recommendation"
                         | "recommendationtext"
                         | "recommendations"
+                        | "rationale"
+                        | "rationaletext"
+                        | "reasoning"
+                        | "reasoningtext"
                         | "refined"
                         | "refinedtext"
                         | "remediated"
@@ -1023,6 +1029,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "edited"
             | "editedtext"
             | "edits"
+            | "explanation"
+            | "explanationtext"
             | "feedback"
             | "feedbacktext"
             | "fixed"
@@ -1044,6 +1052,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "recommendation"
             | "recommendationtext"
             | "recommendations"
+            | "rationale"
+            | "rationaletext"
+            | "reasoning"
+            | "reasoningtext"
             | "refined"
             | "refinedtext"
             | "remediated"
@@ -3136,6 +3148,30 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_reasoning_fields() {
+        let response = r#"
+{
+  "explanation": "Formula 1: always([+SHIP] true -> eventually(<+PAY> true))",
+  "explanation_text": "This only explains why the repair was needed.",
+  "rationale": "F2: <+REFUND> true",
+  "reasoning": {
+    "text": "Formula 3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+  }
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_candidate_formula_fields() {
         let response = r#"
 {
@@ -3394,6 +3430,26 @@ diagnosis text: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
 solution = Formula 2: <+REFUND> true
 solution formula: F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
 diagnosis: this only explains the parse failure
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SHIP] true -> eventually(<+PAY> true))",
+                "<+REFUND> true",
+                "always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_reasoning_fields() {
+        let response = r#"
+explanation: Formula 1: always([+SHIP] true -> eventually(<+PAY> true))
+rationale text: Formula 2: <+REFUND> true
+reasoning = F3: always([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)
+reasoning text: this only explains the repair
 "#;
 
         let formulas = parse_llm_response(response);
