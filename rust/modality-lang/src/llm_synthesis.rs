@@ -239,6 +239,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "TLS certificate issuance approval requires certificate authority officer signature and blocks misissued certificate activation" | `always([+APPROVE_TLS_CERTIFICATE_ISSUANCE] true -> <+signed_by(/users/certificate_authority_officer.id)> true)`; `always([+APPROVE_TLS_CERTIFICATE_ISSUANCE] true -> always([-MISISSUED_CERTIFICATE_ACTIVATION] true))` |
 | "Secret rotation approval requires platform security officer signature and blocks stale secret reuse" | `always([+APPROVE_SECRET_ROTATION] true -> <+signed_by(/users/platform_security_officer.id)> true)`; `always([+APPROVE_SECRET_ROTATION] true -> always([-STALE_SECRET_REUSE] true))` |
 | "Backup restore approval requires recovery manager signature and blocks unverified data restoration" | `always([+APPROVE_BACKUP_RESTORE] true -> <+signed_by(/users/recovery_manager.id)> true)`; `always([+APPROVE_BACKUP_RESTORE] true -> always([-UNVERIFIED_DATA_RESTORATION] true))` |
+| "Database migration approval requires database administrator signature and blocks unreviewed schema change" | `always([+APPROVE_DATABASE_MIGRATION] true -> <+signed_by(/users/database_administrator.id)> true)`; `always([+APPROVE_DATABASE_MIGRATION] true -> always([-UNREVIEWED_SCHEMA_CHANGE] true))` |
+| "Container image promotion approval requires platform release engineer signature and blocks vulnerable image deployment" | `always([+APPROVE_CONTAINER_IMAGE_PROMOTION] true -> <+signed_by(/users/platform_release_engineer.id)> true)`; `always([+APPROVE_CONTAINER_IMAGE_PROMOTION] true -> always([-VULNERABLE_IMAGE_DEPLOYMENT] true))` |
 
 ## Output Format
 
@@ -11580,6 +11582,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_BACKUP_RESTORE] true -> always([-UNVERIFIED_DATA_RESTORATION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_database_container_governance_patterns() {
+        let prompt = generate_prompt("Database migration and container image controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_DATABASE_MIGRATION] true -> <+signed_by(/users/database_administrator.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DATABASE_MIGRATION] true -> always([-UNREVIEWED_SCHEMA_CHANGE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CONTAINER_IMAGE_PROMOTION] true -> <+signed_by(/users/platform_release_engineer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CONTAINER_IMAGE_PROMOTION] true -> always([-VULNERABLE_IMAGE_DEPLOYMENT] true))"
         ));
     }
 }
