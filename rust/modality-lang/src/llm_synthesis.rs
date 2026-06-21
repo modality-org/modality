@@ -215,6 +215,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Clinical trial enrollment approval requires principal investigator signature and blocks ineligible subject enrollment" | `always([+APPROVE_TRIAL_ENROLLMENT] true -> <+signed_by(/users/principal_investigator.id)> true)`; `always([+APPROVE_TRIAL_ENROLLMENT] true -> always([-INELIGIBLE_SUBJECT_ENROLLMENT] true))` |
 | "Humanitarian aid disbursement approval requires field coordinator signature and blocks duplicate aid payment" | `always([+APPROVE_AID_DISBURSEMENT] true -> <+signed_by(/users/field_coordinator.id)> true)`; `always([+APPROVE_AID_DISBURSEMENT] true -> always([-DUPLICATE_AID_PAYMENT] true))` |
 | "Carbon credit retirement certification requires registry operator signature and blocks double counted offset" | `always([+CERTIFY_CARBON_CREDIT_RETIREMENT] true -> <+signed_by(/users/registry_operator.id)> true)`; `always([+CERTIFY_CARBON_CREDIT_RETIREMENT] true -> always([-DOUBLE_COUNTED_OFFSET] true))` |
+| "Laboratory sample transfer approval requires biosafety officer signature and blocks unapproved biohazard transfer" | `always([+APPROVE_SAMPLE_TRANSFER] true -> <+signed_by(/users/biosafety_officer.id)> true)`; `always([+APPROVE_SAMPLE_TRANSFER] true -> always([-UNAPPROVED_BIOHAZARD_TRANSFER] true))` |
+| "Research compute allocation approval requires computing administrator signature and blocks unauthorized cluster use" | `always([+APPROVE_COMPUTE_ALLOCATION] true -> <+signed_by(/users/computing_administrator.id)> true)`; `always([+APPROVE_COMPUTE_ALLOCATION] true -> always([-UNAUTHORIZED_CLUSTER_USE] true))` |
 
 ## Output Format
 
@@ -11340,6 +11342,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+CERTIFY_CARBON_CREDIT_RETIREMENT] true -> always([-DOUBLE_COUNTED_OFFSET] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_lab_compute_governance_patterns() {
+        let prompt = generate_prompt("Laboratory sample and research compute controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_SAMPLE_TRANSFER] true -> <+signed_by(/users/biosafety_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SAMPLE_TRANSFER] true -> always([-UNAPPROVED_BIOHAZARD_TRANSFER] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_COMPUTE_ALLOCATION] true -> <+signed_by(/users/computing_administrator.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_COMPUTE_ALLOCATION] true -> always([-UNAUTHORIZED_CLUSTER_USE] true))"
         ));
     }
 }
