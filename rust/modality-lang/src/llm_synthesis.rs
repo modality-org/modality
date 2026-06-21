@@ -223,6 +223,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Robotics cell activation requires floor supervisor signature and blocks unguarded robot motion" | `always([+ACTIVATE_ROBOTICS_CELL] true -> <+signed_by(/users/floor_supervisor.id)> true)`; `always([+ACTIVATE_ROBOTICS_CELL] true -> always([-UNGUARDED_ROBOT_MOTION] true))` |
 | "Semiconductor wafer release requires process engineer signature and blocks contaminated lot shipment" | `always([+RELEASE_WAFER_LOT] true -> <+signed_by(/users/process_engineer.id)> true)`; `always([+RELEASE_WAFER_LOT] true -> always([-CONTAMINATED_LOT_SHIPMENT] true))` |
 | "Battery production batch approval requires safety engineer signature and blocks thermal runaway risk" | `always([+APPROVE_BATTERY_BATCH] true -> <+signed_by(/users/safety_engineer.id)> true)`; `always([+APPROVE_BATTERY_BATCH] true -> always([-THERMAL_RUNAWAY_RISK] true))` |
+| "Quantum key ceremony approval requires cryptography officer signature and blocks compromised key activation" | `always([+APPROVE_QUANTUM_KEY_CEREMONY] true -> <+signed_by(/users/cryptography_officer.id)> true)`; `always([+APPROVE_QUANTUM_KEY_CEREMONY] true -> always([-COMPROMISED_KEY_ACTIVATION] true))` |
+| "Edge AI model update approval requires site reliability engineer signature and blocks unsafe field model rollout" | `always([+APPROVE_EDGE_AI_MODEL_UPDATE] true -> <+signed_by(/users/site_reliability_engineer.id)> true)`; `always([+APPROVE_EDGE_AI_MODEL_UPDATE] true -> always([-UNSAFE_FIELD_MODEL_ROLLOUT] true))` |
 
 ## Output Format
 
@@ -11420,6 +11422,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_BATTERY_BATCH] true -> always([-THERMAL_RUNAWAY_RISK] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_quantum_edge_ai_governance_patterns() {
+        let prompt = generate_prompt("Quantum key ceremony and edge AI model update controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_QUANTUM_KEY_CEREMONY] true -> <+signed_by(/users/cryptography_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_QUANTUM_KEY_CEREMONY] true -> always([-COMPROMISED_KEY_ACTIVATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_EDGE_AI_MODEL_UPDATE] true -> <+signed_by(/users/site_reliability_engineer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_EDGE_AI_MODEL_UPDATE] true -> always([-UNSAFE_FIELD_MODEL_ROLLOUT] true))"
         ));
     }
 }
