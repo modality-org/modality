@@ -247,6 +247,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Incident postmortem closure requires reliability lead signature and blocks unresolved corrective action" | `always([+CLOSE_INCIDENT_POSTMORTEM] true -> <+signed_by(/users/reliability_lead.id)> true)`; `always([+CLOSE_INCIDENT_POSTMORTEM] true -> always([-UNRESOLVED_CORRECTIVE_ACTION] true))` |
 | "SLO policy change approval requires reliability manager signature and blocks unreviewed objective downgrade" | `always([+APPROVE_SLO_POLICY_CHANGE] true -> <+signed_by(/users/reliability_manager.id)> true)`; `always([+APPROVE_SLO_POLICY_CHANGE] true -> always([-UNREVIEWED_OBJECTIVE_DOWNGRADE] true))` |
 | "Error budget override authorization requires engineering director signature and blocks silent availability risk acceptance" | `always([+AUTHORIZE_ERROR_BUDGET_OVERRIDE] true -> <+signed_by(/users/engineering_director.id)> true)`; `always([+AUTHORIZE_ERROR_BUDGET_OVERRIDE] true -> always([-SILENT_AVAILABILITY_RISK_ACCEPTANCE] true))` |
+| "Capacity plan approval requires infrastructure owner signature and blocks unbudgeted resource commitment" | `always([+APPROVE_CAPACITY_PLAN] true -> <+signed_by(/users/infrastructure_owner.id)> true)`; `always([+APPROVE_CAPACITY_PLAN] true -> always([-UNBUDGETED_RESOURCE_COMMITMENT] true))` |
+| "Load shedding activation requires on-call lead signature and blocks customer-impacting throttling without incident" | `always([+ACTIVATE_LOAD_SHEDDING] true -> <+signed_by(/users/on_call_lead.id)> true)`; `always([+ACTIVATE_LOAD_SHEDDING] true -> always([-CUSTOMER_IMPACTING_THROTTLING_WITHOUT_INCIDENT] true))` |
 
 ## Output Format
 
@@ -11660,6 +11662,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+AUTHORIZE_ERROR_BUDGET_OVERRIDE] true -> always([-SILENT_AVAILABILITY_RISK_ACCEPTANCE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_capacity_load_shedding_governance_patterns() {
+        let prompt = generate_prompt("Capacity planning and load shedding controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CAPACITY_PLAN] true -> <+signed_by(/users/infrastructure_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CAPACITY_PLAN] true -> always([-UNBUDGETED_RESOURCE_COMMITMENT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+ACTIVATE_LOAD_SHEDDING] true -> <+signed_by(/users/on_call_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+ACTIVATE_LOAD_SHEDDING] true -> always([-CUSTOMER_IMPACTING_THROTTLING_WITHOUT_INCIDENT] true))"
         ));
     }
 }
