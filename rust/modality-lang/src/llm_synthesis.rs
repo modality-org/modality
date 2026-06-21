@@ -335,6 +335,7 @@ fn collect_json_formulas(
                         | "argumentformula"
                         | "assignmentformula"
                         | "auditformula"
+                        | "authorityformula"
                         | "assessmentformula"
                         | "bestformula"
                         | "breachedformula"
@@ -359,6 +360,7 @@ fn collect_json_formulas(
                         | "denialformula"
                         | "deniedformula"
                         | "deadlineformula"
+                        | "delegatedauthorityformula"
                         | "delegatedformula"
                         | "delegateformula"
                         | "delegationformula"
@@ -474,6 +476,7 @@ fn collect_json_formulas(
                         | "formulaargument"
                         | "formulaassignment"
                         | "formulaaudit"
+                        | "formulaauthority"
                         | "formulaapproved"
                         | "formulaauthorization"
                         | "formulaauthorized"
@@ -488,6 +491,7 @@ fn collect_json_formulas(
                         | "formuladamage"
                         | "formuladamages"
                         | "formuladeadline"
+                        | "formuladelegatedauthority"
                         | "formuladelegated"
                         | "formuladelegate"
                         | "formuladelegation"
@@ -661,6 +665,7 @@ fn collect_json_formulas(
                         | "ruleargument"
                         | "ruleassignment"
                         | "ruleaudit"
+                        | "ruleauthority"
                         | "ruleapproved"
                         | "ruleauthorization"
                         | "ruleauthorized"
@@ -672,6 +677,7 @@ fn collect_json_formulas(
                         | "rulecommitment"
                         | "rulecovenant"
                         | "ruledeadline"
+                        | "ruledelegatedauthority"
                         | "ruledelegated"
                         | "ruledelegate"
                         | "ruledelegation"
@@ -1462,6 +1468,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "argumentformula"
             | "assignmentformula"
             | "auditformula"
+            | "authorityformula"
             | "assessmentformula"
             | "bestformula"
             | "breachedformula"
@@ -1486,6 +1493,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "denialformula"
             | "deniedformula"
             | "deadlineformula"
+            | "delegatedauthorityformula"
             | "delegatedformula"
             | "delegateformula"
             | "delegationformula"
@@ -1593,6 +1601,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaargument"
             | "formulaassignment"
             | "formulaaudit"
+            | "formulaauthority"
             | "formulaapproved"
             | "formulaauthorization"
             | "formulaauthorized"
@@ -1607,6 +1616,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formuladamage"
             | "formuladamages"
             | "formuladeadline"
+            | "formuladelegatedauthority"
             | "formuladelegated"
             | "formuladelegate"
             | "formuladelegation"
@@ -1775,6 +1785,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleargument"
             | "ruleassignment"
             | "ruleaudit"
+            | "ruleauthority"
             | "ruleassessment"
             | "ruleapproved"
             | "ruleauthorization"
@@ -1787,6 +1798,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulecommitment"
             | "rulecovenant"
             | "ruledeadline"
+            | "ruledelegatedauthority"
             | "ruledelegated"
             | "ruledelegate"
             | "ruledelegation"
@@ -1984,6 +1996,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "assignmentformula"
             | "assessmentformula"
             | "auditformula"
+            | "authorityformula"
             | "bestformula"
             | "breachedformula"
             | "breachformula"
@@ -2007,6 +2020,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "denialformula"
             | "deniedformula"
             | "deadlineformula"
+            | "delegatedauthorityformula"
             | "delegatedformula"
             | "delegateformula"
             | "delegationformula"
@@ -2122,6 +2136,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaargument"
             | "formulaassignment"
             | "formulaaudit"
+            | "formulaauthority"
             | "formulaapproved"
             | "formulaauthorization"
             | "formulaauthorized"
@@ -2136,6 +2151,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formuladamage"
             | "formuladamages"
             | "formuladeadline"
+            | "formuladelegatedauthority"
             | "formuladelegated"
             | "formuladelegate"
             | "formuladelegation"
@@ -2302,6 +2318,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleassignment"
             | "ruleassessment"
             | "ruleaudit"
+            | "ruleauthority"
             | "ruleapproved"
             | "ruleauthorization"
             | "ruleauthorized"
@@ -2313,6 +2330,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulecommitment"
             | "rulecovenant"
             | "ruledeadline"
+            | "ruledelegatedauthority"
             | "ruledelegated"
             | "ruledelegate"
             | "ruledelegation"
@@ -6289,6 +6307,35 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_authority_field_order_aliases() {
+        let response = r#"
+{
+  "formula_authority": "Formula 1: always([+GRANT_AUTHORITY] true -> <+signed_by(/users/grantor.id)> true)",
+  "authority_formula": "F2: always([+USE_AUTHORITY] true -> <+signed_by(/users/authorized_agent.id)> true)",
+  "rule_authority": "Formula 3: always([+REVOKE_AUTHORITY] true -> <+signed_by(/users/grantor.id)> true)",
+  "formula_delegated_authority": "Formula 4: <+CONFIRM_DELEGATED_AUTHORITY> true",
+  "delegated_authority_formula": "Formula 5: always([+USE_DELEGATED_AUTHORITY] true -> <+signed_by(/users/delegate.id)> true)",
+  "rule_delegated_authority": "Formula 6: always([+USE_DELEGATED_AUTHORITY] true -> always([-REASSIGN] true))",
+  "authority": "This authority explanation is only prose.",
+  "delegated_authority": "This delegated authority summary is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+USE_AUTHORITY] true -> <+signed_by(/users/authorized_agent.id)> true)",
+                "always([+USE_DELEGATED_AUTHORITY] true -> <+signed_by(/users/delegate.id)> true)",
+                "always([+GRANT_AUTHORITY] true -> <+signed_by(/users/grantor.id)> true)",
+                "<+CONFIRM_DELEGATED_AUTHORITY> true",
+                "always([+REVOKE_AUTHORITY] true -> <+signed_by(/users/grantor.id)> true)",
+                "always([+USE_DELEGATED_AUTHORITY] true -> always([-REASSIGN] true))"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_certification_publication_registration_aliases() {
         let response = r#"
 {
@@ -8348,6 +8395,33 @@ delegated = this delegated authority summary is only prose
                 "always([+REVOKE_DELEGATION] true -> <+signed_by(/users/delegator.id)> true)",
                 "always([+USE_DELEGATED_AUTHORITY] true -> <+signed_by(/users/delegate.id)> true)",
                 "<+CONFIRM_DELEGATED_AUTHORITY> true",
+                "always([+USE_DELEGATED_AUTHORITY] true -> always([-REASSIGN] true))"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_authority_field_order_aliases() {
+        let response = r#"
+formula authority: Formula 1: always([+GRANT_AUTHORITY] true -> <+signed_by(/users/grantor.id)> true)
+authority formula: F2: always([+USE_AUTHORITY] true -> <+signed_by(/users/authorized_agent.id)> true)
+rule authority: Formula 3: always([+REVOKE_AUTHORITY] true -> <+signed_by(/users/grantor.id)> true)
+formula delegated authority: Formula 4: <+CONFIRM_DELEGATED_AUTHORITY> true
+delegated authority formula: Formula 5: always([+USE_DELEGATED_AUTHORITY] true -> <+signed_by(/users/delegate.id)> true)
+rule delegated authority: Formula 6: always([+USE_DELEGATED_AUTHORITY] true -> always([-REASSIGN] true))
+authority = this authority explanation is only prose
+delegated authority = this delegated authority summary is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+GRANT_AUTHORITY] true -> <+signed_by(/users/grantor.id)> true)",
+                "always([+USE_AUTHORITY] true -> <+signed_by(/users/authorized_agent.id)> true)",
+                "always([+REVOKE_AUTHORITY] true -> <+signed_by(/users/grantor.id)> true)",
+                "<+CONFIRM_DELEGATED_AUTHORITY> true",
+                "always([+USE_DELEGATED_AUTHORITY] true -> <+signed_by(/users/delegate.id)> true)",
                 "always([+USE_DELEGATED_AUTHORITY] true -> always([-REASSIGN] true))"
             ]
         );
