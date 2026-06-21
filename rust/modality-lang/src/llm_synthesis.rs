@@ -207,6 +207,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Court order enforcement requires court clerk signature and blocks stayed enforcement" | `always([+ENFORCE_COURT_ORDER] true -> <+signed_by(/users/court_clerk.id)> true)`; `always([+ENFORCE_COURT_ORDER] true -> always([-STAYED_ENFORCEMENT] true))` |
 | "Satellite maneuver approval requires mission director signature and blocks unauthorized orbit change" | `always([+APPROVE_SATELLITE_MANEUVER] true -> <+signed_by(/users/mission_director.id)> true)`; `always([+APPROVE_SATELLITE_MANEUVER] true -> always([-UNAUTHORIZED_ORBIT_CHANGE] true))` |
 | "Nuclear maintenance clearance requires radiation safety officer signature and blocks unsafe reactor work" | `always([+ISSUE_NUCLEAR_MAINTENANCE_CLEARANCE] true -> <+signed_by(/users/radiation_safety_officer.id)> true)`; `always([+ISSUE_NUCLEAR_MAINTENANCE_CLEARANCE] true -> always([-UNSAFE_REACTOR_WORK] true))` |
+| "Water treatment discharge approval requires plant operator signature and blocks untreated release" | `always([+APPROVE_WATER_DISCHARGE] true -> <+signed_by(/users/plant_operator.id)> true)`; `always([+APPROVE_WATER_DISCHARGE] true -> always([-UNTREATED_RELEASE] true))` |
+| "Mining blast authorization requires safety superintendent signature and blocks unpermitted blast" | `always([+AUTHORIZE_MINING_BLAST] true -> <+signed_by(/users/safety_superintendent.id)> true)`; `always([+AUTHORIZE_MINING_BLAST] true -> always([-UNPERMITTED_BLAST] true))` |
 
 ## Output Format
 
@@ -11261,6 +11263,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+ISSUE_NUCLEAR_MAINTENANCE_CLEARANCE] true -> always([-UNSAFE_REACTOR_WORK] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_water_mining_governance_patterns() {
+        let prompt = generate_prompt("Water discharge and mining blast controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_WATER_DISCHARGE] true -> <+signed_by(/users/plant_operator.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_WATER_DISCHARGE] true -> always([-UNTREATED_RELEASE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+AUTHORIZE_MINING_BLAST] true -> <+signed_by(/users/safety_superintendent.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+AUTHORIZE_MINING_BLAST] true -> always([-UNPERMITTED_BLAST] true))"
         ));
     }
 }
