@@ -145,6 +145,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Purchase order approval requires budget owner signature and blocks off contract spend" | `always([+APPROVE_PURCHASE_ORDER] true -> <+signed_by(/users/budget_owner.id)> true)`; `always([+APPROVE_PURCHASE_ORDER] true -> always([-OFF_CONTRACT_SPEND] true))` |
 | "Treasury disbursement requires treasurer signature and blocks unauthorized transfer" | `always([+APPROVE_TREASURY_DISBURSEMENT] true -> <+signed_by(/users/treasurer.id)> true)`; `always([+APPROVE_TREASURY_DISBURSEMENT] true -> always([-UNAUTHORIZED_TRANSFER] true))` |
 | "Budget release requires finance controller signature and blocks over budget spend" | `always([+RELEASE_BUDGET] true -> <+signed_by(/users/finance_controller.id)> true)`; `always([+RELEASE_BUDGET] true -> always([-OVER_BUDGET_SPEND] true))` |
+| "Clinical trial enrollment requires principal investigator signature and blocks ineligible enrollment" | `always([+ENROLL_TRIAL_PARTICIPANT] true -> <+signed_by(/users/principal_investigator.id)> true)`; `always([+ENROLL_TRIAL_PARTICIPANT] true -> always([-INELIGIBLE_ENROLLMENT] true))` |
+| "Treatment protocol approval requires medical director signature and blocks off protocol treatment" | `always([+APPROVE_TREATMENT_PROTOCOL] true -> <+signed_by(/users/medical_director.id)> true)`; `always([+APPROVE_TREATMENT_PROTOCOL] true -> always([-OFF_PROTOCOL_TREATMENT] true))` |
 
 ## Output Format
 
@@ -10647,5 +10649,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(
             prompt.contains("always([+RELEASE_BUDGET] true -> always([-OVER_BUDGET_SPEND] true))")
         );
+    }
+
+    #[test]
+    fn test_prompt_includes_healthcare_clinical_governance_patterns() {
+        let prompt =
+            generate_prompt("Clinical enrollment and treatment protocol approval need controls");
+
+        assert!(prompt.contains(
+            "always([+ENROLL_TRIAL_PARTICIPANT] true -> <+signed_by(/users/principal_investigator.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+ENROLL_TRIAL_PARTICIPANT] true -> always([-INELIGIBLE_ENROLLMENT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TREATMENT_PROTOCOL] true -> <+signed_by(/users/medical_director.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TREATMENT_PROTOCOL] true -> always([-OFF_PROTOCOL_TREATMENT] true))"
+        ));
     }
 }
