@@ -249,6 +249,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Error budget override authorization requires engineering director signature and blocks silent availability risk acceptance" | `always([+AUTHORIZE_ERROR_BUDGET_OVERRIDE] true -> <+signed_by(/users/engineering_director.id)> true)`; `always([+AUTHORIZE_ERROR_BUDGET_OVERRIDE] true -> always([-SILENT_AVAILABILITY_RISK_ACCEPTANCE] true))` |
 | "Capacity plan approval requires infrastructure owner signature and blocks unbudgeted resource commitment" | `always([+APPROVE_CAPACITY_PLAN] true -> <+signed_by(/users/infrastructure_owner.id)> true)`; `always([+APPROVE_CAPACITY_PLAN] true -> always([-UNBUDGETED_RESOURCE_COMMITMENT] true))` |
 | "Load shedding activation requires on-call lead signature and blocks customer-impacting throttling without incident" | `always([+ACTIVATE_LOAD_SHEDDING] true -> <+signed_by(/users/on_call_lead.id)> true)`; `always([+ACTIVATE_LOAD_SHEDDING] true -> always([-CUSTOMER_IMPACTING_THROTTLING_WITHOUT_INCIDENT] true))` |
+| "Autoscaling policy change approval requires platform owner signature and blocks runaway resource scaling" | `always([+APPROVE_AUTOSCALING_POLICY_CHANGE] true -> <+signed_by(/users/platform_owner.id)> true)`; `always([+APPROVE_AUTOSCALING_POLICY_CHANGE] true -> always([-RUNAWAY_RESOURCE_SCALING] true))` |
+| "Disaster recovery failover activation requires recovery lead signature and blocks untested failover promotion" | `always([+ACTIVATE_DISASTER_RECOVERY_FAILOVER] true -> <+signed_by(/users/recovery_lead.id)> true)`; `always([+ACTIVATE_DISASTER_RECOVERY_FAILOVER] true -> always([-UNTESTED_FAILOVER_PROMOTION] true))` |
 
 ## Output Format
 
@@ -11680,6 +11682,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+ACTIVATE_LOAD_SHEDDING] true -> always([-CUSTOMER_IMPACTING_THROTTLING_WITHOUT_INCIDENT] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_autoscaling_failover_governance_patterns() {
+        let prompt = generate_prompt("Autoscaling policy and disaster recovery failover controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AUTOSCALING_POLICY_CHANGE] true -> <+signed_by(/users/platform_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AUTOSCALING_POLICY_CHANGE] true -> always([-RUNAWAY_RESOURCE_SCALING] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+ACTIVATE_DISASTER_RECOVERY_FAILOVER] true -> <+signed_by(/users/recovery_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+ACTIVATE_DISASTER_RECOVERY_FAILOVER] true -> always([-UNTESTED_FAILOVER_PROMOTION] true))"
         ));
     }
 }
