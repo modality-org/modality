@@ -346,6 +346,7 @@ fn collect_json_formulas(
                         | "cancellationformula"
                         | "canceledformula"
                         | "cancelledformula"
+                        | "certificationformula"
                         | "compensationformula"
                         | "consentformula"
                         | "damageformula"
@@ -363,7 +364,9 @@ fn collect_json_formulas(
                         | "obligationformula"
                         | "permissionformula"
                         | "privilegeformula"
+                        | "publicationformula"
                         | "refundformula"
+                        | "registrationformula"
                         | "terminatedformula"
                         | "terminationformula"
                         | "warrantyformula"
@@ -415,6 +418,7 @@ fn collect_json_formulas(
                         | "formulacancellation"
                         | "formulacanceled"
                         | "formulacancelled"
+                        | "formulacertification"
                         | "formulacompensation"
                         | "formulaconsent"
                         | "formuladamage"
@@ -432,7 +436,9 @@ fn collect_json_formulas(
                         | "formulaobligation"
                         | "formulapermission"
                         | "formulaprivilege"
+                        | "formulapublication"
                         | "formularefund"
+                        | "formularegistration"
                         | "formulaterminated"
                         | "formulatermination"
                         | "formulawarranty"
@@ -543,6 +549,7 @@ fn collect_json_formulas(
                         | "ruleduty"
                         | "rulecapability"
                         | "rulecompensation"
+                        | "rulecertification"
                         | "ruleentitlement"
                         | "rulegrant"
                         | "ruleindemnification"
@@ -591,6 +598,8 @@ fn collect_json_formulas(
                         | "rulepatch"
                         | "rulepermission"
                         | "ruleprivilege"
+                        | "rulepublication"
+                        | "ruleregistration"
                         | "ruleproof"
                         | "ruleproposal"
                         | "rulerationale"
@@ -1278,6 +1287,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "cancellationformula"
             | "canceledformula"
             | "cancelledformula"
+            | "certificationformula"
             | "compensationformula"
             | "consentformula"
             | "damageformula"
@@ -1295,7 +1305,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "obligationformula"
             | "permissionformula"
             | "privilegeformula"
+            | "publicationformula"
             | "refundformula"
+            | "registrationformula"
             | "terminatedformula"
             | "terminationformula"
             | "warrantyformula"
@@ -1347,6 +1359,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulacancellation"
             | "formulacanceled"
             | "formulacancelled"
+            | "formulacertification"
             | "formulacompensation"
             | "formulaconsent"
             | "formuladamage"
@@ -1364,7 +1377,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaobligation"
             | "formulapermission"
             | "formulaprivilege"
+            | "formulapublication"
             | "formularefund"
+            | "formularegistration"
             | "formulaterminated"
             | "formulatermination"
             | "formulawarranty"
@@ -1475,6 +1490,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleduty"
             | "rulecapability"
             | "rulecompensation"
+            | "rulecertification"
             | "ruleentitlement"
             | "rulegrant"
             | "ruleindemnification"
@@ -1522,6 +1538,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulepatch"
             | "rulepermission"
             | "ruleprivilege"
+            | "rulepublication"
+            | "ruleregistration"
             | "ruleproof"
             | "ruleproposal"
             | "rulerationale"
@@ -1620,6 +1638,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "cancellationformula"
             | "canceledformula"
             | "cancelledformula"
+            | "certificationformula"
             | "compensationformula"
             | "consentformula"
             | "damageformula"
@@ -1637,7 +1656,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "obligationformula"
             | "permissionformula"
             | "privilegeformula"
+            | "publicationformula"
             | "refundformula"
+            | "registrationformula"
             | "terminatedformula"
             | "terminationformula"
             | "warrantyformula"
@@ -1689,6 +1710,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulacancellation"
             | "formulacanceled"
             | "formulacancelled"
+            | "formulacertification"
             | "formulacompensation"
             | "formulaconsent"
             | "formuladamage"
@@ -1706,7 +1728,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaobligation"
             | "formulapermission"
             | "formulaprivilege"
+            | "formulapublication"
             | "formularefund"
+            | "formularegistration"
             | "formulaterminated"
             | "formulatermination"
             | "formulawarranty"
@@ -1817,6 +1841,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleduty"
             | "rulecapability"
             | "rulecompensation"
+            | "rulecertification"
             | "ruleentitlement"
             | "rulegrant"
             | "ruleindemnification"
@@ -1863,6 +1888,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulepatch"
             | "rulepermission"
             | "ruleprivilege"
+            | "rulepublication"
+            | "ruleregistration"
             | "ruleproof"
             | "ruleproposal"
             | "rulerationale"
@@ -5696,6 +5723,42 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_certification_publication_registration_aliases() {
+        let response = r#"
+{
+  "formula_certification": "Formula 1: always([+CERTIFY] true -> <+signed_by(/users/auditor.id)> true)",
+  "certification_formula": "F2: always([+CERTIFY] true -> always([-DEPLOY] true))",
+  "rule_certification": "Formula 3: <+RECORD_CERTIFICATION> true",
+  "formula_publication": "Formula 4: always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)",
+  "publication_formula": "Formula 5: always([+PUBLISH] true -> always([-EMBARGO] true))",
+  "rule_publication": "Formula 6: <+NOTICE_PUBLICATION> true",
+  "formula_registration": "Formula 7: always([+REGISTER] true -> <+signed_by(/users/registrar.id)> true)",
+  "registration_formula": "Formula 8: always([+REGISTER] true -> always([-DELETE] true))",
+  "rule_registration": "Formula 9: <+RECORD_REGISTRATION> true",
+  "certification": "This certification discussion is only prose.",
+  "publication": "This publication rationale is only prose.",
+  "registration": "This registration summary is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+CERTIFY] true -> always([-DEPLOY] true))",
+                "always([+CERTIFY] true -> <+signed_by(/users/auditor.id)> true)",
+                "always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)",
+                "always([+REGISTER] true -> <+signed_by(/users/registrar.id)> true)",
+                "always([+PUBLISH] true -> always([-EMBARGO] true))",
+                "always([+REGISTER] true -> always([-DELETE] true))",
+                "<+RECORD_CERTIFICATION> true",
+                "<+NOTICE_PUBLICATION> true",
+                "<+RECORD_REGISTRATION> true"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -7106,6 +7169,40 @@ extension = this extension rationale is only prose
                 "always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)",
                 "always([+EXTEND] true -> always([-TERMINATE] true))",
                 "<+NOTICE_EXTENSION> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_certification_publication_registration_aliases() {
+        let response = r#"
+formula certification: Formula 1: always([+CERTIFY] true -> <+signed_by(/users/auditor.id)> true)
+certification formula: F2: always([+CERTIFY] true -> always([-DEPLOY] true))
+rule certification: Formula 3: <+RECORD_CERTIFICATION> true
+formula publication: Formula 4: always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)
+publication formula: Formula 5: always([+PUBLISH] true -> always([-EMBARGO] true))
+rule publication: Formula 6: <+NOTICE_PUBLICATION> true
+formula registration: Formula 7: always([+REGISTER] true -> <+signed_by(/users/registrar.id)> true)
+registration formula: Formula 8: always([+REGISTER] true -> always([-DELETE] true))
+rule registration: Formula 9: <+RECORD_REGISTRATION> true
+certification = this certification discussion is only prose
+publication = this publication rationale is only prose
+registration = this registration summary is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+CERTIFY] true -> <+signed_by(/users/auditor.id)> true)",
+                "always([+CERTIFY] true -> always([-DEPLOY] true))",
+                "<+RECORD_CERTIFICATION> true",
+                "always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)",
+                "always([+PUBLISH] true -> always([-EMBARGO] true))",
+                "<+NOTICE_PUBLICATION> true",
+                "always([+REGISTER] true -> <+signed_by(/users/registrar.id)> true)",
+                "always([+REGISTER] true -> always([-DELETE] true))",
+                "<+RECORD_REGISTRATION> true"
             ]
         );
     }
