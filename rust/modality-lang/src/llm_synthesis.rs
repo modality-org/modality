@@ -384,6 +384,11 @@ fn collect_json_formulas(
                         | "incidentformula"
                         | "inspectionformula"
                         | "invoiceformula"
+                        | "jurisdictionformula"
+                        | "governinglawformula"
+                        | "venueformula"
+                        | "forumformula"
+                        | "arbitrationformula"
                         | "licenseformula"
                         | "paymentformula"
                         | "payoutformula"
@@ -506,6 +511,11 @@ fn collect_json_formulas(
                         | "formulainspection"
                         | "formulaindemnification"
                         | "formulainvoice"
+                        | "formulajurisdiction"
+                        | "formulagoverninglaw"
+                        | "formulavenue"
+                        | "formulaforum"
+                        | "formulaarbitration"
                         | "formulalicense"
                         | "formulapayment"
                         | "formulapayout"
@@ -684,6 +694,11 @@ fn collect_json_formulas(
                         | "ruleinspection"
                         | "ruleindemnification"
                         | "ruleinvoice"
+                        | "rulejurisdiction"
+                        | "rulegoverninglaw"
+                        | "rulevenue"
+                        | "ruleforum"
+                        | "rulearbitration"
                         | "rulelicense"
                         | "rulepayment"
                         | "rulepayout"
@@ -1481,6 +1496,11 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "incidentformula"
             | "inspectionformula"
             | "invoiceformula"
+            | "jurisdictionformula"
+            | "governinglawformula"
+            | "venueformula"
+            | "forumformula"
+            | "arbitrationformula"
             | "licenseformula"
             | "paymentformula"
             | "payoutformula"
@@ -1601,6 +1621,11 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulainspection"
             | "formulaindemnification"
             | "formulainvoice"
+            | "formulajurisdiction"
+            | "formulagoverninglaw"
+            | "formulavenue"
+            | "formulaforum"
+            | "formulaarbitration"
             | "formulalicense"
             | "formulapayment"
             | "formulapayout"
@@ -1775,6 +1800,11 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleinspection"
             | "ruleindemnification"
             | "ruleinvoice"
+            | "rulejurisdiction"
+            | "rulegoverninglaw"
+            | "rulevenue"
+            | "ruleforum"
+            | "rulearbitration"
             | "rulelicense"
             | "rulepayment"
             | "rulepayout"
@@ -1984,6 +2014,11 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "incidentformula"
             | "inspectionformula"
             | "invoiceformula"
+            | "jurisdictionformula"
+            | "governinglawformula"
+            | "venueformula"
+            | "forumformula"
+            | "arbitrationformula"
             | "licenseformula"
             | "paymentformula"
             | "payoutformula"
@@ -2102,6 +2137,11 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulainspection"
             | "formulaindemnification"
             | "formulainvoice"
+            | "formulajurisdiction"
+            | "formulagoverninglaw"
+            | "formulavenue"
+            | "formulaforum"
+            | "formulaarbitration"
             | "formulalicense"
             | "formulapayment"
             | "formulapayout"
@@ -2273,6 +2313,11 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleinspection"
             | "ruleindemnification"
             | "ruleinvoice"
+            | "rulejurisdiction"
+            | "rulegoverninglaw"
+            | "rulevenue"
+            | "ruleforum"
+            | "rulearbitration"
             | "rulelicense"
             | "rulepayment"
             | "rulepayout"
@@ -6747,6 +6792,56 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_jurisdiction_forum_aliases() {
+        let response = r#"
+{
+  "formula_jurisdiction": "Formula 1: always([+SELECT_JURISDICTION] true -> <+signed_by(/users/counsel.id)> true)",
+  "jurisdiction_formula": "F2: always([+FILE_CLAIM] true -> eventually(<+SELECT_JURISDICTION> true))",
+  "rule_jurisdiction": "Formula 3: <+RECORD_JURISDICTION> true",
+  "formula_governing_law": "Formula 4: always([+CHOOSE_GOVERNING_LAW] true -> <+signed_by(/users/counsel.id)> true)",
+  "governing_law_formula": "Formula 5: always([+APPLY_GOVERNING_LAW] true -> eventually(<+CHOOSE_GOVERNING_LAW> true))",
+  "rule_governing_law": "Formula 6: <+RECORD_GOVERNING_LAW> true",
+  "formula_venue": "Formula 7: always([+SELECT_VENUE] true -> <+signed_by(/users/counsel.id)> true)",
+  "venue_formula": "Formula 8: always([+FILE_CLAIM] true -> eventually(<+SELECT_VENUE> true))",
+  "rule_venue": "Formula 9: <+RECORD_VENUE> true",
+  "formula_forum": "Formula 10: always([+SELECT_FORUM] true -> <+signed_by(/users/counsel.id)> true)",
+  "forum_formula": "Formula 11: always([+FILE_CLAIM] true -> eventually(<+SELECT_FORUM> true))",
+  "rule_forum": "Formula 12: <+RECORD_FORUM> true",
+  "formula_arbitration": "Formula 13: always([+START_ARBITRATION] true -> <+signed_by(/users/arbiter.id)> true)",
+  "arbitration_formula": "Formula 14: always([+START_ARBITRATION] true -> always([-FILE_COURT_CLAIM] true))",
+  "rule_arbitration": "Formula 15: <+RECORD_ARBITRATION> true",
+  "jurisdiction": "This jurisdiction summary is only prose.",
+  "governing_law": "This governing law summary is only prose.",
+  "venue": "This venue note is only prose.",
+  "forum": "This forum explanation is only prose.",
+  "arbitration": "This arbitration explanation is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+START_ARBITRATION] true -> always([-FILE_COURT_CLAIM] true))",
+                "always([+START_ARBITRATION] true -> <+signed_by(/users/arbiter.id)> true)",
+                "always([+SELECT_FORUM] true -> <+signed_by(/users/counsel.id)> true)",
+                "always([+CHOOSE_GOVERNING_LAW] true -> <+signed_by(/users/counsel.id)> true)",
+                "always([+SELECT_JURISDICTION] true -> <+signed_by(/users/counsel.id)> true)",
+                "always([+SELECT_VENUE] true -> <+signed_by(/users/counsel.id)> true)",
+                "always([+FILE_CLAIM] true -> eventually(<+SELECT_FORUM> true))",
+                "always([+APPLY_GOVERNING_LAW] true -> eventually(<+CHOOSE_GOVERNING_LAW> true))",
+                "always([+FILE_CLAIM] true -> eventually(<+SELECT_JURISDICTION> true))",
+                "<+RECORD_ARBITRATION> true",
+                "<+RECORD_FORUM> true",
+                "<+RECORD_GOVERNING_LAW> true",
+                "<+RECORD_JURISDICTION> true",
+                "<+RECORD_VENUE> true",
+                "always([+FILE_CLAIM] true -> eventually(<+SELECT_VENUE> true))"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -8697,6 +8792,54 @@ exemption = this exemption explanation is only prose
                 "always([+GRANT_EXEMPTION] true -> <+signed_by(/users/approver.id)> true)",
                 "always([+GRANT_EXEMPTION] true -> always([-APPLY_STANDARD] true))",
                 "<+RECORD_EXEMPTION> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_jurisdiction_forum_aliases() {
+        let response = r#"
+formula jurisdiction: Formula 1: always([+SELECT_JURISDICTION] true -> <+signed_by(/users/counsel.id)> true)
+jurisdiction formula: F2: always([+FILE_CLAIM] true -> eventually(<+SELECT_JURISDICTION> true))
+rule jurisdiction: Formula 3: <+RECORD_JURISDICTION> true
+formula governing law: Formula 4: always([+CHOOSE_GOVERNING_LAW] true -> <+signed_by(/users/counsel.id)> true)
+governing law formula: Formula 5: always([+APPLY_GOVERNING_LAW] true -> eventually(<+CHOOSE_GOVERNING_LAW> true))
+rule governing law: Formula 6: <+RECORD_GOVERNING_LAW> true
+formula venue: Formula 7: always([+SELECT_VENUE] true -> <+signed_by(/users/counsel.id)> true)
+venue formula: Formula 8: always([+FILE_CLAIM] true -> eventually(<+SELECT_VENUE> true))
+rule venue: Formula 9: <+RECORD_VENUE> true
+formula forum: Formula 10: always([+SELECT_FORUM] true -> <+signed_by(/users/counsel.id)> true)
+forum formula: Formula 11: always([+FILE_CLAIM] true -> eventually(<+SELECT_FORUM> true))
+rule forum: Formula 12: <+RECORD_FORUM> true
+formula arbitration: Formula 13: always([+START_ARBITRATION] true -> <+signed_by(/users/arbiter.id)> true)
+arbitration formula: Formula 14: always([+START_ARBITRATION] true -> always([-FILE_COURT_CLAIM] true))
+rule arbitration: Formula 15: <+RECORD_ARBITRATION> true
+jurisdiction = this jurisdiction summary is only prose
+governing law = this governing law summary is only prose
+venue = this venue note is only prose
+forum = this forum explanation is only prose
+arbitration = this arbitration explanation is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SELECT_JURISDICTION] true -> <+signed_by(/users/counsel.id)> true)",
+                "always([+FILE_CLAIM] true -> eventually(<+SELECT_JURISDICTION> true))",
+                "<+RECORD_JURISDICTION> true",
+                "always([+CHOOSE_GOVERNING_LAW] true -> <+signed_by(/users/counsel.id)> true)",
+                "always([+APPLY_GOVERNING_LAW] true -> eventually(<+CHOOSE_GOVERNING_LAW> true))",
+                "<+RECORD_GOVERNING_LAW> true",
+                "always([+SELECT_VENUE] true -> <+signed_by(/users/counsel.id)> true)",
+                "always([+FILE_CLAIM] true -> eventually(<+SELECT_VENUE> true))",
+                "<+RECORD_VENUE> true",
+                "always([+SELECT_FORUM] true -> <+signed_by(/users/counsel.id)> true)",
+                "always([+FILE_CLAIM] true -> eventually(<+SELECT_FORUM> true))",
+                "<+RECORD_FORUM> true",
+                "always([+START_ARBITRATION] true -> <+signed_by(/users/arbiter.id)> true)",
+                "always([+START_ARBITRATION] true -> always([-FILE_COURT_CLAIM] true))",
+                "<+RECORD_ARBITRATION> true"
             ]
         );
     }
