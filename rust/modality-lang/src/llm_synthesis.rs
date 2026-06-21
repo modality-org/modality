@@ -171,6 +171,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Hotel room block release requires event coordinator signature and blocks overbooked rooms" | `always([+RELEASE_ROOM_BLOCK] true -> <+signed_by(/users/event_coordinator.id)> true)`; `always([+RELEASE_ROOM_BLOCK] true -> always([-OVERBOOKED_ROOMS] true))` |
 | "Aviation maintenance release requires airworthiness inspector signature and blocks unairworthy dispatch" | `always([+RELEASE_AIRCRAFT_MAINTENANCE] true -> <+signed_by(/users/airworthiness_inspector.id)> true)`; `always([+RELEASE_AIRCRAFT_MAINTENANCE] true -> always([-UNAIRWORTHY_DISPATCH] true))` |
 | "Fleet route approval requires fleet manager signature and blocks unlicensed operator dispatch" | `always([+APPROVE_FLEET_ROUTE] true -> <+signed_by(/users/fleet_manager.id)> true)`; `always([+APPROVE_FLEET_ROUTE] true -> always([-UNLICENSED_OPERATOR_DISPATCH] true))` |
+| "Pharmaceutical batch release requires qualified person signature and blocks uncertified distribution" | `always([+RELEASE_PHARMACEUTICAL_BATCH] true -> <+signed_by(/users/qualified_person.id)> true)`; `always([+RELEASE_PHARMACEUTICAL_BATCH] true -> always([-UNCERTIFIED_DISTRIBUTION] true))` |
+| "Food safety recall closure requires safety officer signature and blocks unresolved contamination" | `always([+CLOSE_FOOD_SAFETY_RECALL] true -> <+signed_by(/users/safety_officer.id)> true)`; `always([+CLOSE_FOOD_SAFETY_RECALL] true -> always([-UNRESOLVED_CONTAMINATION] true))` |
 
 ## Output Format
 
@@ -10904,6 +10906,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_FLEET_ROUTE] true -> always([-UNLICENSED_OPERATOR_DISPATCH] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_pharma_food_safety_governance_patterns() {
+        let prompt = generate_prompt("Pharmaceutical batches and food recalls require controls");
+
+        assert!(prompt.contains(
+            "always([+RELEASE_PHARMACEUTICAL_BATCH] true -> <+signed_by(/users/qualified_person.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+RELEASE_PHARMACEUTICAL_BATCH] true -> always([-UNCERTIFIED_DISTRIBUTION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+CLOSE_FOOD_SAFETY_RECALL] true -> <+signed_by(/users/safety_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+CLOSE_FOOD_SAFETY_RECALL] true -> always([-UNRESOLVED_CONTAMINATION] true))"
         ));
     }
 }
