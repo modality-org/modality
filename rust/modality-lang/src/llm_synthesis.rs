@@ -363,6 +363,7 @@ fn collect_json_formulas(
                         | "covenantformula"
                         | "dutyformula"
                         | "entitlementformula"
+                        | "escalationformula"
                         | "grantformula"
                         | "indemnityformula"
                         | "indemnificationformula"
@@ -382,7 +383,9 @@ fn collect_json_formulas(
                         | "revocationformula"
                         | "terminatedformula"
                         | "terminationformula"
+                        | "timeoutformula"
                         | "warrantyformula"
+                        | "withdrawalformula"
                         | "candidateformula"
                         | "changeformula"
                         | "changefreezeformula"
@@ -453,6 +456,7 @@ fn collect_json_formulas(
                         | "formulacovenant"
                         | "formuladuty"
                         | "formulaentitlement"
+                        | "formulaescalation"
                         | "formulagrant"
                         | "formulaincident"
                         | "formulainspection"
@@ -471,8 +475,10 @@ fn collect_json_formulas(
                         | "formularenewal"
                         | "formulaterminated"
                         | "formulatermination"
+                        | "formulatimeout"
                         | "formularevocation"
                         | "formulawarranty"
+                        | "formulawithdrawal"
                         | "formulabest"
                         | "formulabreached"
                         | "formulabreach"
@@ -597,6 +603,7 @@ fn collect_json_formulas(
                         | "rulecompensation"
                         | "rulecertification"
                         | "ruleentitlement"
+                        | "ruleescalation"
                         | "rulegrant"
                         | "rulecompliance"
                         | "ruleincident"
@@ -608,6 +615,7 @@ fn collect_json_formulas(
                         | "rulemilestone"
                         | "ruleobligation"
                         | "rulewarranty"
+                        | "rulewithdrawal"
                         | "ruleassessment"
                         | "rulebest"
                         | "rulebreached"
@@ -673,6 +681,7 @@ fn collect_json_formulas(
                         | "rulesatisfied"
                         | "ruleselected"
                         | "rulesuspension"
+                        | "ruletimeout"
                         | "ruleupdate"
                         | "rulevalid"
                         | "rulevalidated"
@@ -1367,6 +1376,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "covenantformula"
             | "dutyformula"
             | "entitlementformula"
+            | "escalationformula"
             | "grantformula"
             | "indemnityformula"
             | "indemnificationformula"
@@ -1386,7 +1396,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "revocationformula"
             | "terminatedformula"
             | "terminationformula"
+            | "timeoutformula"
             | "warrantyformula"
+            | "withdrawalformula"
             | "candidateformula"
             | "changeformula"
             | "changefreezeformula"
@@ -1457,6 +1469,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulacovenant"
             | "formuladuty"
             | "formulaentitlement"
+            | "formulaescalation"
             | "formulagrant"
             | "formulaincident"
             | "formulainspection"
@@ -1475,8 +1488,10 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formularenewal"
             | "formulaterminated"
             | "formulatermination"
+            | "formulatimeout"
             | "formularevocation"
             | "formulawarranty"
+            | "formulawithdrawal"
             | "formulabest"
             | "formulabreached"
             | "formulabreach"
@@ -1601,6 +1616,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulecompensation"
             | "rulecertification"
             | "ruleentitlement"
+            | "ruleescalation"
             | "rulegrant"
             | "rulecompliance"
             | "ruleincident"
@@ -1612,6 +1628,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulemilestone"
             | "ruleobligation"
             | "rulewarranty"
+            | "rulewithdrawal"
             | "rulebest"
             | "rulebreached"
             | "rulebreach"
@@ -1676,6 +1693,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulesatisfied"
             | "ruleselected"
             | "rulesuspension"
+            | "ruletimeout"
             | "ruleupdate"
             | "rulevalid"
             | "rulevalidated"
@@ -1781,6 +1799,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "covenantformula"
             | "dutyformula"
             | "entitlementformula"
+            | "escalationformula"
             | "grantformula"
             | "indemnityformula"
             | "indemnificationformula"
@@ -1800,7 +1819,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "revocationformula"
             | "terminatedformula"
             | "terminationformula"
+            | "timeoutformula"
             | "warrantyformula"
+            | "withdrawalformula"
             | "candidateformula"
             | "changeformula"
             | "changefreezeformula"
@@ -1871,6 +1892,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulacovenant"
             | "formuladuty"
             | "formulaentitlement"
+            | "formulaescalation"
             | "formulagrant"
             | "formulaincident"
             | "formulainspection"
@@ -1889,8 +1911,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formularenewal"
             | "formulaterminated"
             | "formulatermination"
+            | "formulatimeout"
             | "formularevocation"
             | "formulawarranty"
+            | "formulawithdrawal"
             | "formulabest"
             | "formulabreached"
             | "formulabreach"
@@ -2013,6 +2037,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulecompensation"
             | "rulecertification"
             | "ruleentitlement"
+            | "ruleescalation"
             | "rulegrant"
             | "rulecompliance"
             | "ruleincident"
@@ -2024,6 +2049,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulemilestone"
             | "ruleobligation"
             | "rulewarranty"
+            | "rulewithdrawal"
             | "rulebest"
             | "rulebreached"
             | "rulebreach"
@@ -2087,6 +2113,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulesatisfied"
             | "ruleselected"
             | "rulesuspension"
+            | "ruletimeout"
             | "ruleupdate"
             | "rulevalid"
             | "rulevalidated"
@@ -6140,6 +6167,42 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_timeout_escalation_aliases() {
+        let response = r#"
+{
+  "formula_timeout": "Formula 1: always([+TIMEOUT] true -> <+oracle_attests(/oracles/clock.id, \"deadline_passed\", \"true\")> true)",
+  "timeout_formula": "F2: always([+TIMEOUT] true -> always([-COMPLETE] true))",
+  "rule_timeout": "Formula 3: <+RECORD_TIMEOUT> true",
+  "formula_escalation": "Formula 4: always([+ESCALATE] true -> <+signed_by(/users/manager.id)> true)",
+  "escalation_formula": "Formula 5: always([+ESCALATE] true -> always([-CLOSE] true))",
+  "rule_escalation": "Formula 6: <+RECORD_ESCALATION> true",
+  "formula_withdrawal": "Formula 7: always([+WITHDRAW] true -> <+signed_by(/users/depositor.id)> true)",
+  "withdrawal_formula": "Formula 8: always([+WITHDRAW] true -> always([-CLAIM] true))",
+  "rule_withdrawal": "Formula 9: <+RECORD_WITHDRAWAL> true",
+  "timeout": "This timeout summary is only prose.",
+  "escalation": "This escalation note is only prose.",
+  "withdrawal": "This withdrawal explanation is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+ESCALATE] true -> always([-CLOSE] true))",
+                "always([+ESCALATE] true -> <+signed_by(/users/manager.id)> true)",
+                "always([+TIMEOUT] true -> <+oracle_attests(/oracles/clock.id, \"deadline_passed\", \"true\")> true)",
+                "always([+WITHDRAW] true -> <+signed_by(/users/depositor.id)> true)",
+                "<+RECORD_ESCALATION> true",
+                "<+RECORD_TIMEOUT> true",
+                "<+RECORD_WITHDRAWAL> true",
+                "always([+TIMEOUT] true -> always([-COMPLETE] true))",
+                "always([+WITHDRAW] true -> always([-CLAIM] true))"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -7769,6 +7832,40 @@ renewal = this renewal summary is only prose
                 "always([+RENEW] true -> <+signed_by(/users/holder.id)> true)",
                 "always([+RENEW] true -> always([-EXPIRE] true))",
                 "<+RECORD_RENEWAL> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_timeout_escalation_aliases() {
+        let response = r#"
+formula timeout: Formula 1: always([+TIMEOUT] true -> <+oracle_attests(/oracles/clock.id, "deadline_passed", "true")> true)
+timeout formula: F2: always([+TIMEOUT] true -> always([-COMPLETE] true))
+rule timeout: Formula 3: <+RECORD_TIMEOUT> true
+formula escalation: Formula 4: always([+ESCALATE] true -> <+signed_by(/users/manager.id)> true)
+escalation formula: Formula 5: always([+ESCALATE] true -> always([-CLOSE] true))
+rule escalation: Formula 6: <+RECORD_ESCALATION> true
+formula withdrawal: Formula 7: always([+WITHDRAW] true -> <+signed_by(/users/depositor.id)> true)
+withdrawal formula: Formula 8: always([+WITHDRAW] true -> always([-CLAIM] true))
+rule withdrawal: Formula 9: <+RECORD_WITHDRAWAL> true
+timeout = this timeout summary is only prose
+escalation = this escalation note is only prose
+withdrawal = this withdrawal explanation is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+TIMEOUT] true -> <+oracle_attests(/oracles/clock.id, \"deadline_passed\", \"true\")> true)",
+                "always([+TIMEOUT] true -> always([-COMPLETE] true))",
+                "<+RECORD_TIMEOUT> true",
+                "always([+ESCALATE] true -> <+signed_by(/users/manager.id)> true)",
+                "always([+ESCALATE] true -> always([-CLOSE] true))",
+                "<+RECORD_ESCALATION> true",
+                "always([+WITHDRAW] true -> <+signed_by(/users/depositor.id)> true)",
+                "always([+WITHDRAW] true -> always([-CLAIM] true))",
+                "<+RECORD_WITHDRAWAL> true"
             ]
         );
     }
