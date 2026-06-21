@@ -135,6 +135,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Risk acceptance requires risk owner signature and blocks unmitigated exposure" | `always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)`; `always([+ACCEPT_RISK] true -> always([-UNMITIGATED_EXPOSURE] true))` |
 | "Incident closure requires incident commander signature and blocks incident reopen" | `always([+CLOSE_INCIDENT] true -> <+signed_by(/users/incident_commander.id)> true)`; `always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))` |
 | "Change freeze requires release manager signature and blocks deployment" | `always([+FREEZE_CHANGE] true -> <+signed_by(/users/release_manager.id)> true)`; `always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))` |
+| "Regulatory filing requires applicant and regulator signatures" | `always([+FILE_REGULATORY_REPORT] true -> <+signed_by(/users/applicant.id) +signed_by(/users/regulator.id)> true)` |
+| "Tax return filing requires tax authority, withholding agent, and revenue agency signatures" | `always([+FILE_TAX_RETURN] true -> <+signed_by(/users/tax_authority.id) +signed_by(/users/withholding_agent.id) +signed_by(/users/revenue_agency.id)> true)` |
 
 ## Output Format
 
@@ -10551,5 +10553,17 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
             "always([+FREEZE_CHANGE] true -> <+signed_by(/users/release_manager.id)> true)"
         ));
         assert!(prompt.contains("always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_regulatory_and_tax_multi_signer_patterns() {
+        let prompt = generate_prompt("Tax return filing requires multiple agency approvals");
+
+        assert!(prompt.contains(
+            "always([+FILE_REGULATORY_REPORT] true -> <+signed_by(/users/applicant.id) +signed_by(/users/regulator.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+FILE_TAX_RETURN] true -> <+signed_by(/users/tax_authority.id) +signed_by(/users/withholding_agent.id) +signed_by(/users/revenue_agency.id)> true)"
+        ));
     }
 }
