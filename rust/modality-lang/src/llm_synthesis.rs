@@ -151,6 +151,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Underwriting exception requires underwriter signature and blocks unpriced risk binding" | `always([+APPROVE_UNDERWRITING_EXCEPTION] true -> <+signed_by(/users/underwriter.id)> true)`; `always([+APPROVE_UNDERWRITING_EXCEPTION] true -> always([-UNPRICED_RISK_BINDING] true))` |
 | "Shipment release requires logistics coordinator signature and blocks unauthorized shipment" | `always([+RELEASE_SHIPMENT] true -> <+signed_by(/users/logistics_coordinator.id)> true)`; `always([+RELEASE_SHIPMENT] true -> always([-UNAUTHORIZED_SHIPMENT] true))` |
 | "Receiving acceptance requires warehouse manager signature and blocks inventory discrepancy" | `always([+ACCEPT_RECEIVING] true -> <+signed_by(/users/warehouse_manager.id)> true)`; `always([+ACCEPT_RECEIVING] true -> always([-INVENTORY_DISCREPANCY] true))` |
+| "Grid interconnection approval requires system operator signature and blocks unsafe energization" | `always([+APPROVE_GRID_INTERCONNECTION] true -> <+signed_by(/users/system_operator.id)> true)`; `always([+APPROVE_GRID_INTERCONNECTION] true -> always([-UNSAFE_ENERGIZATION] true))` |
+| "Maintenance clearance requires outage coordinator signature and blocks live work" | `always([+ISSUE_MAINTENANCE_CLEARANCE] true -> <+signed_by(/users/outage_coordinator.id)> true)`; `always([+ISSUE_MAINTENANCE_CLEARANCE] true -> always([-LIVE_WORK] true))` |
 
 ## Output Format
 
@@ -10707,5 +10709,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt
             .contains("always([+ACCEPT_RECEIVING] true -> always([-INVENTORY_DISCREPANCY] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_energy_utilities_governance_patterns() {
+        let prompt = generate_prompt(
+            "Grid interconnection and maintenance clearance require utility controls",
+        );
+
+        assert!(prompt.contains(
+            "always([+APPROVE_GRID_INTERCONNECTION] true -> <+signed_by(/users/system_operator.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_GRID_INTERCONNECTION] true -> always([-UNSAFE_ENERGIZATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+ISSUE_MAINTENANCE_CLEARANCE] true -> <+signed_by(/users/outage_coordinator.id)> true)"
+        ));
+        assert!(prompt
+            .contains("always([+ISSUE_MAINTENANCE_CLEARANCE] true -> always([-LIVE_WORK] true))"));
     }
 }
