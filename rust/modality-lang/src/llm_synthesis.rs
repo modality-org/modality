@@ -163,6 +163,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Marketplace payout release requires platform operator signature and blocks disputed payout" | `always([+RELEASE_MARKETPLACE_PAYOUT] true -> <+signed_by(/users/platform_operator.id)> true)`; `always([+RELEASE_MARKETPLACE_PAYOUT] true -> always([-DISPUTED_PAYOUT] true))` |
 | "Construction draw approval requires project manager signature and blocks lien exposure" | `always([+APPROVE_CONSTRUCTION_DRAW] true -> <+signed_by(/users/project_manager.id)> true)`; `always([+APPROVE_CONSTRUCTION_DRAW] true -> always([-LIEN_EXPOSURE] true))` |
 | "Manufacturing batch release requires quality manager signature and blocks nonconforming shipment" | `always([+RELEASE_MANUFACTURING_BATCH] true -> <+signed_by(/users/quality_manager.id)> true)`; `always([+RELEASE_MANUFACTURING_BATCH] true -> always([-NONCONFORMING_SHIPMENT] true))` |
+| "Content license approval requires rights manager signature and blocks unlicensed publication" | `always([+APPROVE_CONTENT_LICENSE] true -> <+signed_by(/users/rights_manager.id)> true)`; `always([+APPROVE_CONTENT_LICENSE] true -> always([-UNLICENSED_PUBLICATION] true))` |
+| "Lease amendment approval requires property manager signature and blocks unauthorized occupancy" | `always([+APPROVE_LEASE_AMENDMENT] true -> <+signed_by(/users/property_manager.id)> true)`; `always([+APPROVE_LEASE_AMENDMENT] true -> always([-UNAUTHORIZED_OCCUPANCY] true))` |
 
 ## Output Format
 
@@ -10824,6 +10826,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+RELEASE_MANUFACTURING_BATCH] true -> always([-NONCONFORMING_SHIPMENT] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_media_real_estate_governance_patterns() {
+        let prompt = generate_prompt("Content licensing and lease amendments require controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CONTENT_LICENSE] true -> <+signed_by(/users/rights_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CONTENT_LICENSE] true -> always([-UNLICENSED_PUBLICATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_LEASE_AMENDMENT] true -> <+signed_by(/users/property_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_LEASE_AMENDMENT] true -> always([-UNAUTHORIZED_OCCUPANCY] true))"
         ));
     }
 }
