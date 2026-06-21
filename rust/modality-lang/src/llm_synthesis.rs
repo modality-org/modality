@@ -179,6 +179,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Export license approval requires export control officer signature and blocks restricted shipment" | `always([+APPROVE_EXPORT_LICENSE] true -> <+signed_by(/users/export_control_officer.id)> true)`; `always([+APPROVE_EXPORT_LICENSE] true -> always([-RESTRICTED_SHIPMENT] true))` |
 | "KYC account approval requires identity analyst signature and blocks unverified activation" | `always([+APPROVE_KYC_ACCOUNT] true -> <+signed_by(/users/identity_analyst.id)> true)`; `always([+APPROVE_KYC_ACCOUNT] true -> always([-UNVERIFIED_ACTIVATION] true))` |
 | "Sanctions screening clearance requires sanctions officer signature and blocks sanctioned transfer" | `always([+CLEAR_SANCTIONS_SCREENING] true -> <+signed_by(/users/sanctions_officer.id)> true)`; `always([+CLEAR_SANCTIONS_SCREENING] true -> always([-SANCTIONED_TRANSFER] true))` |
+| "Cyber incident containment requires security lead signature and blocks uncontrolled breach escalation" | `always([+CONTAIN_CYBER_INCIDENT] true -> <+signed_by(/users/security_lead.id)> true)`; `always([+CONTAIN_CYBER_INCIDENT] true -> always([-UNCONTROLLED_BREACH_ESCALATION] true))` |
+| "Disaster recovery failover approval requires continuity manager signature and blocks untested failover" | `always([+APPROVE_DISASTER_RECOVERY_FAILOVER] true -> <+signed_by(/users/continuity_manager.id)> true)`; `always([+APPROVE_DISASTER_RECOVERY_FAILOVER] true -> always([-UNTESTED_FAILOVER] true))` |
 
 ## Output Format
 
@@ -10985,6 +10987,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+CLEAR_SANCTIONS_SCREENING] true -> always([-SANCTIONED_TRANSFER] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_cyber_continuity_governance_patterns() {
+        let prompt = generate_prompt("Cyber incident and disaster recovery controls");
+
+        assert!(prompt.contains(
+            "always([+CONTAIN_CYBER_INCIDENT] true -> <+signed_by(/users/security_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+CONTAIN_CYBER_INCIDENT] true -> always([-UNCONTROLLED_BREACH_ESCALATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DISASTER_RECOVERY_FAILOVER] true -> <+signed_by(/users/continuity_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DISASTER_RECOVERY_FAILOVER] true -> always([-UNTESTED_FAILOVER] true))"
         ));
     }
 }
