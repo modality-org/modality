@@ -203,6 +203,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Grant report certification requires program director signature and blocks unsubstantiated grant expense" | `always([+CERTIFY_GRANT_REPORT] true -> <+signed_by(/users/program_director.id)> true)`; `always([+CERTIFY_GRANT_REPORT] true -> always([-UNSUBSTANTIATED_GRANT_EXPENSE] true))` |
 | "Zoning variance approval requires planning commissioner signature and blocks unpermitted land use" | `always([+APPROVE_ZONING_VARIANCE] true -> <+signed_by(/users/planning_commissioner.id)> true)`; `always([+APPROVE_ZONING_VARIANCE] true -> always([-UNPERMITTED_LAND_USE] true))` |
 | "Public health order closure requires health officer signature and blocks unresolved exposure" | `always([+CLOSE_PUBLIC_HEALTH_ORDER] true -> <+signed_by(/users/health_officer.id)> true)`; `always([+CLOSE_PUBLIC_HEALTH_ORDER] true -> always([-UNRESOLVED_EXPOSURE] true))` |
+| "Emergency resource dispatch approval requires incident commander signature and blocks unauthorized deployment" | `always([+APPROVE_EMERGENCY_RESOURCE_DISPATCH] true -> <+signed_by(/users/incident_commander.id)> true)`; `always([+APPROVE_EMERGENCY_RESOURCE_DISPATCH] true -> always([-UNAUTHORIZED_DEPLOYMENT] true))` |
+| "Court order enforcement requires court clerk signature and blocks stayed enforcement" | `always([+ENFORCE_COURT_ORDER] true -> <+signed_by(/users/court_clerk.id)> true)`; `always([+ENFORCE_COURT_ORDER] true -> always([-STAYED_ENFORCEMENT] true))` |
 
 ## Output Format
 
@@ -11223,5 +11225,22 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(prompt.contains(
             "always([+CLOSE_PUBLIC_HEALTH_ORDER] true -> always([-UNRESOLVED_EXPOSURE] true))"
         ));
+    }
+
+    #[test]
+    fn test_prompt_includes_emergency_court_governance_patterns() {
+        let prompt = generate_prompt("Emergency dispatch and court enforcement controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_EMERGENCY_RESOURCE_DISPATCH] true -> <+signed_by(/users/incident_commander.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_EMERGENCY_RESOURCE_DISPATCH] true -> always([-UNAUTHORIZED_DEPLOYMENT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+ENFORCE_COURT_ORDER] true -> <+signed_by(/users/court_clerk.id)> true)"
+        ));
+        assert!(prompt
+            .contains("always([+ENFORCE_COURT_ORDER] true -> always([-STAYED_ENFORCEMENT] true))"));
     }
 }
