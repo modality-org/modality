@@ -157,6 +157,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Grant award approval requires program officer signature and blocks conflict award" | `always([+APPROVE_GRANT_AWARD] true -> <+signed_by(/users/program_officer.id)> true)`; `always([+APPROVE_GRANT_AWARD] true -> always([-CONFLICT_AWARD] true))` |
 | "Permit issuance requires permitting officer signature and blocks unpermitted work" | `always([+ISSUE_PERMIT] true -> <+signed_by(/users/permitting_officer.id)> true)`; `always([+ISSUE_PERMIT] true -> always([-UNPERMITTED_WORK] true))` |
 | "Legal matter closure requires legal counsel signature and blocks unresolved claim" | `always([+CLOSE_LEGAL_MATTER] true -> <+signed_by(/users/legal_counsel.id)> true)`; `always([+CLOSE_LEGAL_MATTER] true -> always([-UNRESOLVED_CLAIM] true))` |
+| "Release promotion requires release engineer signature and blocks unreviewed deployment" | `always([+PROMOTE_RELEASE] true -> <+signed_by(/users/release_engineer.id)> true)`; `always([+PROMOTE_RELEASE] true -> always([-UNREVIEWED_DEPLOYMENT] true))` |
+| "Model deployment approval requires model risk officer signature and blocks unvalidated model use" | `always([+APPROVE_MODEL_DEPLOYMENT] true -> <+signed_by(/users/model_risk_officer.id)> true)`; `always([+APPROVE_MODEL_DEPLOYMENT] true -> always([-UNVALIDATED_MODEL_USE] true))` |
 
 ## Output Format
 
@@ -10765,5 +10767,22 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt
             .contains("always([+CLOSE_LEGAL_MATTER] true -> always([-UNRESOLVED_CLAIM] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_software_ai_governance_patterns() {
+        let prompt = generate_prompt("Release promotion and model deployment require controls");
+
+        assert!(prompt.contains(
+            "always([+PROMOTE_RELEASE] true -> <+signed_by(/users/release_engineer.id)> true)"
+        ));
+        assert!(prompt
+            .contains("always([+PROMOTE_RELEASE] true -> always([-UNREVIEWED_DEPLOYMENT] true))"));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_DEPLOYMENT] true -> <+signed_by(/users/model_risk_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_DEPLOYMENT] true -> always([-UNVALIDATED_MODEL_USE] true))"
+        ));
     }
 }
