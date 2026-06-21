@@ -229,6 +229,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Confidential compute enclave attestation requires security architect signature and blocks untrusted enclave workload" | `always([+ATTEST_CONFIDENTIAL_ENCLAVE] true -> <+signed_by(/users/security_architect.id)> true)`; `always([+ATTEST_CONFIDENTIAL_ENCLAVE] true -> always([-UNTRUSTED_ENCLAVE_WORKLOAD] true))` |
 | "Software artifact provenance attestation requires build attestor signature and blocks unsigned artifact deployment" | `always([+ATTEST_ARTIFACT_PROVENANCE] true -> <+signed_by(/users/build_attestor.id)> true)`; `always([+ATTEST_ARTIFACT_PROVENANCE] true -> always([-UNSIGNED_ARTIFACT_DEPLOYMENT] true))` |
 | "SBOM publication approval requires security reviewer signature and blocks undocumented dependency release" | `always([+APPROVE_SBOM_PUBLICATION] true -> <+signed_by(/users/security_reviewer.id)> true)`; `always([+APPROVE_SBOM_PUBLICATION] true -> always([-UNDOCUMENTED_DEPENDENCY_RELEASE] true))` |
+| "Cold chain handoff certification requires logistics inspector signature and blocks temperature breach delivery" | `always([+CERTIFY_COLD_CHAIN_HANDOFF] true -> <+signed_by(/users/logistics_inspector.id)> true)`; `always([+CERTIFY_COLD_CHAIN_HANDOFF] true -> always([-TEMPERATURE_BREACH_DELIVERY] true))` |
+| "Medical device release authorization requires quality systems manager signature and blocks unvalidated device distribution" | `always([+AUTHORIZE_MEDICAL_DEVICE_RELEASE] true -> <+signed_by(/users/quality_systems_manager.id)> true)`; `always([+AUTHORIZE_MEDICAL_DEVICE_RELEASE] true -> always([-UNVALIDATED_DEVICE_DISTRIBUTION] true))` |
 
 ## Output Format
 
@@ -11480,6 +11482,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_SBOM_PUBLICATION] true -> always([-UNDOCUMENTED_DEPENDENCY_RELEASE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_cold_chain_medical_device_governance_patterns() {
+        let prompt = generate_prompt("Cold chain and medical device release controls");
+
+        assert!(prompt.contains(
+            "always([+CERTIFY_COLD_CHAIN_HANDOFF] true -> <+signed_by(/users/logistics_inspector.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+CERTIFY_COLD_CHAIN_HANDOFF] true -> always([-TEMPERATURE_BREACH_DELIVERY] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+AUTHORIZE_MEDICAL_DEVICE_RELEASE] true -> <+signed_by(/users/quality_systems_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+AUTHORIZE_MEDICAL_DEVICE_RELEASE] true -> always([-UNVALIDATED_DEVICE_DISTRIBUTION] true))"
         ));
     }
 }
