@@ -217,6 +217,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Carbon credit retirement certification requires registry operator signature and blocks double counted offset" | `always([+CERTIFY_CARBON_CREDIT_RETIREMENT] true -> <+signed_by(/users/registry_operator.id)> true)`; `always([+CERTIFY_CARBON_CREDIT_RETIREMENT] true -> always([-DOUBLE_COUNTED_OFFSET] true))` |
 | "Laboratory sample transfer approval requires biosafety officer signature and blocks unapproved biohazard transfer" | `always([+APPROVE_SAMPLE_TRANSFER] true -> <+signed_by(/users/biosafety_officer.id)> true)`; `always([+APPROVE_SAMPLE_TRANSFER] true -> always([-UNAPPROVED_BIOHAZARD_TRANSFER] true))` |
 | "Research compute allocation approval requires computing administrator signature and blocks unauthorized cluster use" | `always([+APPROVE_COMPUTE_ALLOCATION] true -> <+signed_by(/users/computing_administrator.id)> true)`; `always([+APPROVE_COMPUTE_ALLOCATION] true -> always([-UNAUTHORIZED_CLUSTER_USE] true))` |
+| "Drone flight authorization requires operations lead signature and blocks unauthorized airspace operation" | `always([+AUTHORIZE_DRONE_FLIGHT] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+AUTHORIZE_DRONE_FLIGHT] true -> always([-UNAUTHORIZED_AIRSPACE_OPERATION] true))` |
+| "IoT firmware rollout approval requires device security officer signature and blocks vulnerable device update" | `always([+APPROVE_IOT_FIRMWARE_ROLLOUT] true -> <+signed_by(/users/device_security_officer.id)> true)`; `always([+APPROVE_IOT_FIRMWARE_ROLLOUT] true -> always([-VULNERABLE_DEVICE_UPDATE] true))` |
 
 ## Output Format
 
@@ -11360,6 +11362,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_COMPUTE_ALLOCATION] true -> always([-UNAUTHORIZED_CLUSTER_USE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_drone_iot_governance_patterns() {
+        let prompt = generate_prompt("Drone flight and IoT firmware controls");
+
+        assert!(prompt.contains(
+            "always([+AUTHORIZE_DRONE_FLIGHT] true -> <+signed_by(/users/operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+AUTHORIZE_DRONE_FLIGHT] true -> always([-UNAUTHORIZED_AIRSPACE_OPERATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_IOT_FIRMWARE_ROLLOUT] true -> <+signed_by(/users/device_security_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_IOT_FIRMWARE_ROLLOUT] true -> always([-VULNERABLE_DEVICE_UPDATE] true))"
         ));
     }
 }
