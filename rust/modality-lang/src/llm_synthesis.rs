@@ -342,6 +342,9 @@ fn collect_json_formulas(
                         | "authorizedformula"
                         | "accessformula"
                         | "capabilityformula"
+                        | "cancellationformula"
+                        | "canceledformula"
+                        | "cancelledformula"
                         | "compensationformula"
                         | "consentformula"
                         | "damageformula"
@@ -359,6 +362,9 @@ fn collect_json_formulas(
                         | "obligationformula"
                         | "permissionformula"
                         | "privilegeformula"
+                        | "refundformula"
+                        | "terminatedformula"
+                        | "terminationformula"
                         | "warrantyformula"
                         | "candidateformula"
                         | "changeformula"
@@ -404,6 +410,9 @@ fn collect_json_formulas(
                         | "formulaauthorized"
                         | "formulaaccess"
                         | "formulacapability"
+                        | "formulacancellation"
+                        | "formulacanceled"
+                        | "formulacancelled"
                         | "formulacompensation"
                         | "formulaconsent"
                         | "formuladamage"
@@ -421,6 +430,9 @@ fn collect_json_formulas(
                         | "formulaobligation"
                         | "formulapermission"
                         | "formulaprivilege"
+                        | "formularefund"
+                        | "formulaterminated"
+                        | "formulatermination"
                         | "formulawarranty"
                         | "formulabest"
                         | "formulabreached"
@@ -515,6 +527,9 @@ fn collect_json_formulas(
                         | "ruleauthorization"
                         | "ruleauthorized"
                         | "ruleaccess"
+                        | "rulecancellation"
+                        | "rulecanceled"
+                        | "rulecancelled"
                         | "ruleconsent"
                         | "rulecommitment"
                         | "rulecovenant"
@@ -575,6 +590,7 @@ fn collect_json_formulas(
                         | "rulerationale"
                         | "rulerecommendation"
                         | "rulereasoning"
+                        | "rulerefund"
                         | "ruleremedies"
                         | "ruleremedy"
                         | "ruleresponse"
@@ -607,6 +623,8 @@ fn collect_json_formulas(
                         | "rulesuggestion"
                         | "rulesupport"
                         | "rulesummary"
+                        | "ruleterminated"
+                        | "ruletermination"
                         | "suggestionformula"
                         | "updateformula"
                         | "updatedformula"
@@ -1250,6 +1268,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "authorizedformula"
             | "accessformula"
             | "capabilityformula"
+            | "cancellationformula"
+            | "canceledformula"
+            | "cancelledformula"
             | "compensationformula"
             | "consentformula"
             | "damageformula"
@@ -1267,6 +1288,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "obligationformula"
             | "permissionformula"
             | "privilegeformula"
+            | "refundformula"
+            | "terminatedformula"
+            | "terminationformula"
             | "warrantyformula"
             | "candidateformula"
             | "changeformula"
@@ -1312,6 +1336,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaauthorized"
             | "formulaaccess"
             | "formulacapability"
+            | "formulacancellation"
+            | "formulacanceled"
+            | "formulacancelled"
             | "formulacompensation"
             | "formulaconsent"
             | "formuladamage"
@@ -1329,6 +1356,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaobligation"
             | "formulapermission"
             | "formulaprivilege"
+            | "formularefund"
+            | "formulaterminated"
+            | "formulatermination"
             | "formulawarranty"
             | "formulabest"
             | "formulabreached"
@@ -1423,6 +1453,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleauthorization"
             | "ruleauthorized"
             | "ruleaccess"
+            | "rulecancellation"
+            | "rulecanceled"
+            | "rulecancelled"
             | "ruleconsent"
             | "rulecommitment"
             | "rulecovenant"
@@ -1482,6 +1515,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulerationale"
             | "rulerecommendation"
             | "rulereasoning"
+            | "rulerefund"
             | "ruleremedies"
             | "ruleremedy"
             | "ruleresponse"
@@ -1514,6 +1548,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulesuggestion"
             | "rulesupport"
             | "rulesummary"
+            | "ruleterminated"
+            | "ruletermination"
             | "suggestionformula"
             | "updateformula"
             | "updatedformula"
@@ -1568,6 +1604,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "authorizedformula"
             | "accessformula"
             | "capabilityformula"
+            | "cancellationformula"
+            | "canceledformula"
+            | "cancelledformula"
             | "compensationformula"
             | "consentformula"
             | "damageformula"
@@ -1585,6 +1624,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "obligationformula"
             | "permissionformula"
             | "privilegeformula"
+            | "refundformula"
+            | "terminatedformula"
+            | "terminationformula"
             | "warrantyformula"
             | "candidateformula"
             | "changeformula"
@@ -1630,6 +1672,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaauthorized"
             | "formulaaccess"
             | "formulacapability"
+            | "formulacancellation"
+            | "formulacanceled"
+            | "formulacancelled"
             | "formulacompensation"
             | "formulaconsent"
             | "formuladamage"
@@ -1647,6 +1692,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaobligation"
             | "formulapermission"
             | "formulaprivilege"
+            | "formularefund"
+            | "formulaterminated"
+            | "formulatermination"
             | "formulawarranty"
             | "formulabest"
             | "formulabreached"
@@ -1741,6 +1789,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleauthorization"
             | "ruleauthorized"
             | "ruleaccess"
+            | "rulecancellation"
+            | "rulecanceled"
+            | "rulecancelled"
             | "ruleconsent"
             | "rulecommitment"
             | "rulecovenant"
@@ -1799,6 +1850,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulerationale"
             | "rulerecommendation"
             | "rulereasoning"
+            | "rulerefund"
             | "ruleremedies"
             | "ruleremedy"
             | "ruleresponse"
@@ -1829,6 +1881,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulesuggestion"
             | "rulesupport"
             | "rulesummary"
+            | "ruleterminated"
+            | "ruletermination"
             | "suggestionformula"
             | "updateformula"
             | "updatedformula"
@@ -5559,6 +5613,42 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_termination_field_order_aliases() {
+        let response = r#"
+{
+  "formula_termination": "Formula 1: always([+TERMINATE] true -> <+signed_by(/users/owner.id)> true)",
+  "termination_formula": "F2: always([+EXTEND] true -> always([-TERMINATE] true))",
+  "rule_termination": "Formula 3: <+NOTICE_TERMINATION> true",
+  "formula_cancellation": "Formula 4: always([+CANCEL] true -> <+signed_by(/users/requester.id)> true)",
+  "cancellation_formula": "Formula 5: <+CANCEL_ORDER> true",
+  "rule_cancellation": "Formula 6: always([+CANCEL] true -> always([-SHIP] true))",
+  "formula_refund": "Formula 7: always([+REFUND] true -> <+signed_by(/users/issuer.id)> true)",
+  "refund_formula": "Formula 8: <+ISSUE_REFUND> true",
+  "rule_refund": "Formula 9: always([+DISPUTE] true -> always([-REFUND] true))",
+  "termination": "This termination explanation is only prose.",
+  "cancellation": "This cancellation rationale is only prose.",
+  "refund": "This refund policy summary is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+CANCEL_ORDER> true",
+                "always([+CANCEL] true -> <+signed_by(/users/requester.id)> true)",
+                "always([+REFUND] true -> <+signed_by(/users/issuer.id)> true)",
+                "always([+TERMINATE] true -> <+signed_by(/users/owner.id)> true)",
+                "<+ISSUE_REFUND> true",
+                "always([+CANCEL] true -> always([-SHIP] true))",
+                "always([+DISPUTE] true -> always([-REFUND] true))",
+                "<+NOTICE_TERMINATION> true",
+                "always([+EXTEND] true -> always([-TERMINATE] true))"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -6908,6 +6998,40 @@ compensation = this compensation rationale is only prose
                 "<+AWARD_DAMAGES> true",
                 "<+PAY_COMPENSATION> true",
                 "always([+COMPENSATE] true -> <+signed_by(/users/payer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_termination_field_order_aliases() {
+        let response = r#"
+formula termination: Formula 1: always([+TERMINATE] true -> <+signed_by(/users/owner.id)> true)
+termination formula: F2: always([+EXTEND] true -> always([-TERMINATE] true))
+rule termination: Formula 3: <+NOTICE_TERMINATION> true
+formula cancellation: Formula 4: always([+CANCEL] true -> <+signed_by(/users/requester.id)> true)
+cancellation formula: Formula 5: <+CANCEL_ORDER> true
+rule cancellation: Formula 6: always([+CANCEL] true -> always([-SHIP] true))
+formula refund: Formula 7: always([+REFUND] true -> <+signed_by(/users/issuer.id)> true)
+refund formula: Formula 8: <+ISSUE_REFUND> true
+rule refund: Formula 9: always([+DISPUTE] true -> always([-REFUND] true))
+termination = this termination explanation is only prose
+cancellation = this cancellation rationale is only prose
+refund = this refund policy summary is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+TERMINATE] true -> <+signed_by(/users/owner.id)> true)",
+                "always([+EXTEND] true -> always([-TERMINATE] true))",
+                "<+NOTICE_TERMINATION> true",
+                "always([+CANCEL] true -> <+signed_by(/users/requester.id)> true)",
+                "<+CANCEL_ORDER> true",
+                "always([+CANCEL] true -> always([-SHIP] true))",
+                "always([+REFUND] true -> <+signed_by(/users/issuer.id)> true)",
+                "<+ISSUE_REFUND> true",
+                "always([+DISPUTE] true -> always([-REFUND] true))"
             ]
         );
     }
