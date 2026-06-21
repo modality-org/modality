@@ -195,6 +195,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Collateral release requires lending officer signature and blocks unsecured exposure" | `always([+RELEASE_COLLATERAL] true -> <+signed_by(/users/lending_officer.id)> true)`; `always([+RELEASE_COLLATERAL] true -> always([-UNSECURED_EXPOSURE] true))` |
 | "Retail price override approval requires pricing manager signature and blocks unauthorized discount" | `always([+APPROVE_PRICE_OVERRIDE] true -> <+signed_by(/users/pricing_manager.id)> true)`; `always([+APPROVE_PRICE_OVERRIDE] true -> always([-UNAUTHORIZED_DISCOUNT] true))` |
 | "Franchise territory change requires franchise director signature and blocks territory conflict" | `always([+APPROVE_TERRITORY_CHANGE] true -> <+signed_by(/users/franchise_director.id)> true)`; `always([+APPROVE_TERRITORY_CHANGE] true -> always([-TERRITORY_CONFLICT] true))` |
+| "Artifact loan approval requires curator signature and blocks unauthorized transfer" | `always([+APPROVE_ARTIFACT_LOAN] true -> <+signed_by(/users/curator.id)> true)`; `always([+APPROVE_ARTIFACT_LOAN] true -> always([-UNAUTHORIZED_TRANSFER] true))` |
+| "Archive record declassification requires archivist signature and blocks premature disclosure" | `always([+DECLASSIFY_ARCHIVE_RECORD] true -> <+signed_by(/users/archivist.id)> true)`; `always([+DECLASSIFY_ARCHIVE_RECORD] true -> always([-PREMATURE_DISCLOSURE] true))` |
 
 ## Output Format
 
@@ -11142,6 +11144,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_TERRITORY_CHANGE] true -> always([-TERRITORY_CONFLICT] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_cultural_heritage_archive_governance_patterns() {
+        let prompt = generate_prompt("Artifact loan and archive declassification controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_ARTIFACT_LOAN] true -> <+signed_by(/users/curator.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_ARTIFACT_LOAN] true -> always([-UNAUTHORIZED_TRANSFER] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+DECLASSIFY_ARCHIVE_RECORD] true -> <+signed_by(/users/archivist.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+DECLASSIFY_ARCHIVE_RECORD] true -> always([-PREMATURE_DISCLOSURE] true))"
         ));
     }
 }
