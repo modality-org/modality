@@ -141,6 +141,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Privacy impact acceptance requires privacy officer signature and blocks high risk processing" | `always([+ACCEPT_PRIVACY_IMPACT] true -> <+signed_by(/users/privacy_officer.id)> true)`; `always([+ACCEPT_PRIVACY_IMPACT] true -> always([-HIGH_RISK_PROCESSING] true))` |
 | "Access grant requires security administrator signature and blocks privilege escalation" | `always([+GRANT_ACCESS] true -> <+signed_by(/users/security_administrator.id)> true)`; `always([+GRANT_ACCESS] true -> always([-ESCALATE_PRIVILEGE] true))` |
 | "Audit closure requires auditor signature and blocks unresolved finding" | `always([+CLOSE_AUDIT] true -> <+signed_by(/users/auditor.id)> true)`; `always([+CLOSE_AUDIT] true -> always([-UNRESOLVED_FINDING] true))` |
+| "Vendor onboarding requires procurement officer signature and blocks unapproved vendor payment" | `always([+ONBOARD_VENDOR] true -> <+signed_by(/users/procurement_officer.id)> true)`; `always([+ONBOARD_VENDOR] true -> always([-UNAPPROVED_VENDOR_PAYMENT] true))` |
+| "Purchase order approval requires budget owner signature and blocks off contract spend" | `always([+APPROVE_PURCHASE_ORDER] true -> <+signed_by(/users/budget_owner.id)> true)`; `always([+APPROVE_PURCHASE_ORDER] true -> always([-OFF_CONTRACT_SPEND] true))` |
 
 ## Output Format
 
@@ -10606,5 +10608,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(
             prompt.contains("always([+CLOSE_AUDIT] true -> always([-UNRESOLVED_FINDING] true))")
         );
+    }
+
+    #[test]
+    fn test_prompt_includes_procurement_governance_patterns() {
+        let prompt =
+            generate_prompt("Vendor onboarding and purchase orders require procurement controls");
+
+        assert!(prompt.contains(
+            "always([+ONBOARD_VENDOR] true -> <+signed_by(/users/procurement_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+ONBOARD_VENDOR] true -> always([-UNAPPROVED_VENDOR_PAYMENT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PURCHASE_ORDER] true -> <+signed_by(/users/budget_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PURCHASE_ORDER] true -> always([-OFF_CONTRACT_SPEND] true))"
+        ));
     }
 }
