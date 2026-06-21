@@ -159,6 +159,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Legal matter closure requires legal counsel signature and blocks unresolved claim" | `always([+CLOSE_LEGAL_MATTER] true -> <+signed_by(/users/legal_counsel.id)> true)`; `always([+CLOSE_LEGAL_MATTER] true -> always([-UNRESOLVED_CLAIM] true))` |
 | "Release promotion requires release engineer signature and blocks unreviewed deployment" | `always([+PROMOTE_RELEASE] true -> <+signed_by(/users/release_engineer.id)> true)`; `always([+PROMOTE_RELEASE] true -> always([-UNREVIEWED_DEPLOYMENT] true))` |
 | "Model deployment approval requires model risk officer signature and blocks unvalidated model use" | `always([+APPROVE_MODEL_DEPLOYMENT] true -> <+signed_by(/users/model_risk_officer.id)> true)`; `always([+APPROVE_MODEL_DEPLOYMENT] true -> always([-UNVALIDATED_MODEL_USE] true))` |
+| "DAO proposal execution requires governance council signature and blocks failed quorum execution" | `always([+EXECUTE_DAO_PROPOSAL] true -> <+signed_by(/users/governance_council.id)> true)`; `always([+EXECUTE_DAO_PROPOSAL] true -> always([-FAILED_QUORUM_EXECUTION] true))` |
+| "Marketplace payout release requires platform operator signature and blocks disputed payout" | `always([+RELEASE_MARKETPLACE_PAYOUT] true -> <+signed_by(/users/platform_operator.id)> true)`; `always([+RELEASE_MARKETPLACE_PAYOUT] true -> always([-DISPUTED_PAYOUT] true))` |
 
 ## Output Format
 
@@ -10783,6 +10785,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_MODEL_DEPLOYMENT] true -> always([-UNVALIDATED_MODEL_USE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_dao_marketplace_governance_patterns() {
+        let prompt = generate_prompt("DAO execution and marketplace payout require controls");
+
+        assert!(prompt.contains(
+            "always([+EXECUTE_DAO_PROPOSAL] true -> <+signed_by(/users/governance_council.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+EXECUTE_DAO_PROPOSAL] true -> always([-FAILED_QUORUM_EXECUTION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+RELEASE_MARKETPLACE_PAYOUT] true -> <+signed_by(/users/platform_operator.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+RELEASE_MARKETPLACE_PAYOUT] true -> always([-DISPUTED_PAYOUT] true))"
         ));
     }
 }
