@@ -365,6 +365,10 @@ fn collect_json_formulas(
                         | "dutyformula"
                         | "entitlementformula"
                         | "escalationformula"
+                        | "chargeformula"
+                        | "depositformula"
+                        | "escrowformula"
+                        | "feeformula"
                         | "expirationformula"
                         | "expiryformula"
                         | "grantformula"
@@ -465,6 +469,10 @@ fn collect_json_formulas(
                         | "formuladuty"
                         | "formulaentitlement"
                         | "formulaescalation"
+                        | "formulacharge"
+                        | "formuladeposit"
+                        | "formulaescrow"
+                        | "formulafee"
                         | "formulaexpiration"
                         | "formulaexpiry"
                         | "formulagrant"
@@ -619,6 +627,10 @@ fn collect_json_formulas(
                         | "rulecertification"
                         | "ruleentitlement"
                         | "ruleescalation"
+                        | "rulecharge"
+                        | "ruledeposit"
+                        | "ruleescrow"
+                        | "rulefee"
                         | "ruleexpiration"
                         | "ruleexpiry"
                         | "rulegrant"
@@ -1399,6 +1411,10 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "dutyformula"
             | "entitlementformula"
             | "escalationformula"
+            | "chargeformula"
+            | "depositformula"
+            | "escrowformula"
+            | "feeformula"
             | "expirationformula"
             | "expiryformula"
             | "grantformula"
@@ -1499,6 +1515,10 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formuladuty"
             | "formulaentitlement"
             | "formulaescalation"
+            | "formulacharge"
+            | "formuladeposit"
+            | "formulaescrow"
+            | "formulafee"
             | "formulaexpiration"
             | "formulaexpiry"
             | "formulagrant"
@@ -1653,6 +1673,10 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulecertification"
             | "ruleentitlement"
             | "ruleescalation"
+            | "rulecharge"
+            | "ruledeposit"
+            | "ruleescrow"
+            | "rulefee"
             | "ruleexpiration"
             | "ruleexpiry"
             | "rulegrant"
@@ -1843,6 +1867,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "dutyformula"
             | "entitlementformula"
             | "escalationformula"
+            | "chargeformula"
+            | "depositformula"
+            | "escrowformula"
+            | "feeformula"
             | "expirationformula"
             | "expiryformula"
             | "grantformula"
@@ -1943,6 +1971,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formuladuty"
             | "formulaentitlement"
             | "formulaescalation"
+            | "formulacharge"
+            | "formuladeposit"
+            | "formulaescrow"
+            | "formulafee"
             | "formulaexpiration"
             | "formulaexpiry"
             | "formulagrant"
@@ -2095,6 +2127,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulecertification"
             | "ruleentitlement"
             | "ruleescalation"
+            | "rulecharge"
+            | "ruledeposit"
+            | "ruleescrow"
+            | "rulefee"
             | "ruleexpiration"
             | "ruleexpiry"
             | "rulegrant"
@@ -6345,6 +6381,49 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_charge_deposit_aliases() {
+        let response = r#"
+{
+  "formula_charge": "Formula 1: always([+CHARGE] true -> <+signed_by(/users/merchant.id)> true)",
+  "charge_formula": "F2: always([+CHARGE] true -> always([-REFUND] true))",
+  "rule_charge": "Formula 3: <+RECORD_CHARGE> true",
+  "formula_deposit": "Formula 4: always([+DEPOSIT] true -> <+signed_by(/users/depositor.id)> true)",
+  "deposit_formula": "Formula 5: always([+DEPOSIT] true -> eventually(<+RELEASE> true))",
+  "rule_deposit": "Formula 6: <+RECORD_DEPOSIT> true",
+  "formula_escrow": "Formula 7: always([+ESCROW] true -> <+signed_by(/users/escrow_agent.id)> true)",
+  "escrow_formula": "Formula 8: always([+ESCROW] true -> always([-WITHDRAW] true))",
+  "rule_escrow": "Formula 9: <+RECORD_ESCROW> true",
+  "formula_fee": "Formula 10: always([+COLLECT_FEE] true -> <+signed_by(/users/platform.id)> true)",
+  "fee_formula": "Formula 11: always([+COLLECT_FEE] true -> eventually(<+SERVICE> true))",
+  "rule_fee": "Formula 12: <+RECORD_FEE> true",
+  "charge": "This charge summary is only prose.",
+  "deposit": "This deposit note is only prose.",
+  "escrow": "This escrow explanation is only prose.",
+  "fee": "This fee summary is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+CHARGE] true -> always([-REFUND] true))",
+                "always([+DEPOSIT] true -> eventually(<+RELEASE> true))",
+                "always([+ESCROW] true -> always([-WITHDRAW] true))",
+                "always([+COLLECT_FEE] true -> eventually(<+SERVICE> true))",
+                "always([+CHARGE] true -> <+signed_by(/users/merchant.id)> true)",
+                "always([+DEPOSIT] true -> <+signed_by(/users/depositor.id)> true)",
+                "always([+ESCROW] true -> <+signed_by(/users/escrow_agent.id)> true)",
+                "always([+COLLECT_FEE] true -> <+signed_by(/users/platform.id)> true)",
+                "<+RECORD_CHARGE> true",
+                "<+RECORD_DEPOSIT> true",
+                "<+RECORD_ESCROW> true",
+                "<+RECORD_FEE> true"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -8083,6 +8162,47 @@ transfer = this transfer summary is only prose
                 "always([+TRANSFER] true -> <+signed_by(/users/custodian.id)> true)",
                 "always([+TRANSFER] true -> always([-REVOKE] true))",
                 "<+RECORD_TRANSFER> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_charge_deposit_aliases() {
+        let response = r#"
+formula charge: Formula 1: always([+CHARGE] true -> <+signed_by(/users/merchant.id)> true)
+charge formula: F2: always([+CHARGE] true -> always([-REFUND] true))
+rule charge: Formula 3: <+RECORD_CHARGE> true
+formula deposit: Formula 4: always([+DEPOSIT] true -> <+signed_by(/users/depositor.id)> true)
+deposit formula: Formula 5: always([+DEPOSIT] true -> eventually(<+RELEASE> true))
+rule deposit: Formula 6: <+RECORD_DEPOSIT> true
+formula escrow: Formula 7: always([+ESCROW] true -> <+signed_by(/users/escrow_agent.id)> true)
+escrow formula: Formula 8: always([+ESCROW] true -> always([-WITHDRAW] true))
+rule escrow: Formula 9: <+RECORD_ESCROW> true
+formula fee: Formula 10: always([+COLLECT_FEE] true -> <+signed_by(/users/platform.id)> true)
+fee formula: Formula 11: always([+COLLECT_FEE] true -> eventually(<+SERVICE> true))
+rule fee: Formula 12: <+RECORD_FEE> true
+charge = this charge summary is only prose
+deposit = this deposit note is only prose
+escrow = this escrow explanation is only prose
+fee = this fee summary is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+CHARGE] true -> <+signed_by(/users/merchant.id)> true)",
+                "always([+CHARGE] true -> always([-REFUND] true))",
+                "<+RECORD_CHARGE> true",
+                "always([+DEPOSIT] true -> <+signed_by(/users/depositor.id)> true)",
+                "always([+DEPOSIT] true -> eventually(<+RELEASE> true))",
+                "<+RECORD_DEPOSIT> true",
+                "always([+ESCROW] true -> <+signed_by(/users/escrow_agent.id)> true)",
+                "always([+ESCROW] true -> always([-WITHDRAW] true))",
+                "<+RECORD_ESCROW> true",
+                "always([+COLLECT_FEE] true -> <+signed_by(/users/platform.id)> true)",
+                "always([+COLLECT_FEE] true -> eventually(<+SERVICE> true))",
+                "<+RECORD_FEE> true"
             ]
         );
     }
