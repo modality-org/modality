@@ -169,6 +169,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Agricultural shipment certification requires quality inspector signature and blocks contaminated shipment" | `always([+CERTIFY_AGRICULTURAL_SHIPMENT] true -> <+signed_by(/users/quality_inspector.id)> true)`; `always([+CERTIFY_AGRICULTURAL_SHIPMENT] true -> always([-CONTAMINATED_SHIPMENT] true))` |
 | "Travel itinerary approval requires travel manager signature and blocks unauthorized booking" | `always([+APPROVE_TRAVEL_ITINERARY] true -> <+signed_by(/users/travel_manager.id)> true)`; `always([+APPROVE_TRAVEL_ITINERARY] true -> always([-UNAUTHORIZED_BOOKING] true))` |
 | "Hotel room block release requires event coordinator signature and blocks overbooked rooms" | `always([+RELEASE_ROOM_BLOCK] true -> <+signed_by(/users/event_coordinator.id)> true)`; `always([+RELEASE_ROOM_BLOCK] true -> always([-OVERBOOKED_ROOMS] true))` |
+| "Aviation maintenance release requires airworthiness inspector signature and blocks unairworthy dispatch" | `always([+RELEASE_AIRCRAFT_MAINTENANCE] true -> <+signed_by(/users/airworthiness_inspector.id)> true)`; `always([+RELEASE_AIRCRAFT_MAINTENANCE] true -> always([-UNAIRWORTHY_DISPATCH] true))` |
+| "Fleet route approval requires fleet manager signature and blocks unlicensed operator dispatch" | `always([+APPROVE_FLEET_ROUTE] true -> <+signed_by(/users/fleet_manager.id)> true)`; `always([+APPROVE_FLEET_ROUTE] true -> always([-UNLICENSED_OPERATOR_DISPATCH] true))` |
 
 ## Output Format
 
@@ -10885,5 +10887,23 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt
             .contains("always([+RELEASE_ROOM_BLOCK] true -> always([-OVERBOOKED_ROOMS] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_transportation_mobility_governance_patterns() {
+        let prompt = generate_prompt("Aircraft maintenance and fleet routes require controls");
+
+        assert!(prompt.contains(
+            "always([+RELEASE_AIRCRAFT_MAINTENANCE] true -> <+signed_by(/users/airworthiness_inspector.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+RELEASE_AIRCRAFT_MAINTENANCE] true -> always([-UNAIRWORTHY_DISPATCH] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_FLEET_ROUTE] true -> <+signed_by(/users/fleet_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_FLEET_ROUTE] true -> always([-UNLICENSED_OPERATOR_DISPATCH] true))"
+        ));
     }
 }
