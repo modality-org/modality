@@ -357,6 +357,7 @@ fn collect_json_formulas(
                         | "denialformula"
                         | "deniedformula"
                         | "deliveryformula"
+                        | "deploymentformula"
                         | "commitmentformula"
                         | "covenantformula"
                         | "dutyformula"
@@ -364,6 +365,7 @@ fn collect_json_formulas(
                         | "grantformula"
                         | "indemnityformula"
                         | "indemnificationformula"
+                        | "incidentformula"
                         | "inspectionformula"
                         | "invoiceformula"
                         | "liabilityformula"
@@ -379,8 +381,11 @@ fn collect_json_formulas(
                         | "warrantyformula"
                         | "candidateformula"
                         | "changeformula"
+                        | "changefreezeformula"
                         | "chosenformula"
                         | "claimformula"
+                        | "closeformula"
+                        | "closureformula"
                         | "complianceformula"
                         | "compliantformula"
                         | "confirmedformula"
@@ -410,6 +415,7 @@ fn collect_json_formulas(
                         | "fulfillmentformula"
                         | "fixformula"
                         | "fixedformula"
+                        | "freezeformula"
                         | "formulaaccepted"
                         | "formulaacceptance"
                         | "formulaacknowledgement"
@@ -437,11 +443,13 @@ fn collect_json_formulas(
                         | "formuladenial"
                         | "formuladenied"
                         | "formuladelivery"
+                        | "formuladeployment"
                         | "formulacommitment"
                         | "formulacovenant"
                         | "formuladuty"
                         | "formulaentitlement"
                         | "formulagrant"
+                        | "formulaincident"
                         | "formulainspection"
                         | "formulaindemnification"
                         | "formulainvoice"
@@ -462,8 +470,11 @@ fn collect_json_formulas(
                         | "formulabreach"
                         | "formulacandidate"
                         | "formulachange"
+                        | "formulachangefreeze"
                         | "formulachosen"
                         | "formulaclaim"
+                        | "formulaclose"
+                        | "formulaclosure"
                         | "formulacompliance"
                         | "formulacompliant"
                         | "formulaconfirmed"
@@ -491,6 +502,7 @@ fn collect_json_formulas(
                         | "formulafulfilled"
                         | "formulafulfillment"
                         | "formulafix"
+                        | "formulafreeze"
                         | "formulagenerated"
                         | "formulajustification"
                         | "formulaoutput"
@@ -569,6 +581,7 @@ fn collect_json_formulas(
                         | "ruledenial"
                         | "ruledenied"
                         | "ruledelivery"
+                        | "ruledeployment"
                         | "ruleduty"
                         | "rulecapability"
                         | "rulecompensation"
@@ -576,6 +589,7 @@ fn collect_json_formulas(
                         | "ruleentitlement"
                         | "rulegrant"
                         | "rulecompliance"
+                        | "ruleincident"
                         | "ruleinspection"
                         | "ruleindemnification"
                         | "ruleinvoice"
@@ -590,8 +604,11 @@ fn collect_json_formulas(
                         | "rulebreach"
                         | "rulecandidate"
                         | "rulechange"
+                        | "rulechangefreeze"
                         | "rulechosen"
                         | "ruleclaim"
+                        | "ruleclose"
+                        | "ruleclosure"
                         | "rulecompliant"
                         | "ruleconfirmed"
                         | "rulenoncompliance"
@@ -618,6 +635,7 @@ fn collect_json_formulas(
                         | "rulefulfilled"
                         | "rulefulfillment"
                         | "rulefix"
+                        | "rulefreeze"
                         | "rulegenerated"
                         | "rulejustification"
                         | "ruleoutput"
@@ -1328,6 +1346,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "denialformula"
             | "deniedformula"
             | "deliveryformula"
+            | "deploymentformula"
             | "commitmentformula"
             | "covenantformula"
             | "dutyformula"
@@ -1335,6 +1354,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "grantformula"
             | "indemnityformula"
             | "indemnificationformula"
+            | "incidentformula"
             | "inspectionformula"
             | "invoiceformula"
             | "liabilityformula"
@@ -1350,8 +1370,11 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "warrantyformula"
             | "candidateformula"
             | "changeformula"
+            | "changefreezeformula"
             | "chosenformula"
             | "claimformula"
+            | "closeformula"
+            | "closureformula"
             | "complianceformula"
             | "compliantformula"
             | "confirmedformula"
@@ -1381,6 +1404,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "fulfillmentformula"
             | "fixformula"
             | "fixedformula"
+            | "freezeformula"
             | "formulaaccepted"
             | "formulaacceptance"
             | "formulaacknowledgement"
@@ -1408,11 +1432,13 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formuladenial"
             | "formuladenied"
             | "formuladelivery"
+            | "formuladeployment"
             | "formulacommitment"
             | "formulacovenant"
             | "formuladuty"
             | "formulaentitlement"
             | "formulagrant"
+            | "formulaincident"
             | "formulainspection"
             | "formulaindemnification"
             | "formulainvoice"
@@ -1433,8 +1459,11 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulabreach"
             | "formulacandidate"
             | "formulachange"
+            | "formulachangefreeze"
             | "formulachosen"
             | "formulaclaim"
+            | "formulaclose"
+            | "formulaclosure"
             | "formulacompliance"
             | "formulacompliant"
             | "formulaconfirmed"
@@ -1462,6 +1491,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulafulfilled"
             | "formulafulfillment"
             | "formulafix"
+            | "formulafreeze"
             | "formulagenerated"
             | "formulajustification"
             | "formulaoutput"
@@ -1540,6 +1570,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruledenial"
             | "ruledenied"
             | "ruledelivery"
+            | "ruledeployment"
             | "ruleduty"
             | "rulecapability"
             | "rulecompensation"
@@ -1547,6 +1578,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleentitlement"
             | "rulegrant"
             | "rulecompliance"
+            | "ruleincident"
             | "ruleinspection"
             | "ruleindemnification"
             | "ruleinvoice"
@@ -1560,8 +1592,11 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulebreach"
             | "rulecandidate"
             | "rulechange"
+            | "rulechangefreeze"
             | "rulechosen"
             | "ruleclaim"
+            | "ruleclose"
+            | "ruleclosure"
             | "rulecompliant"
             | "ruleconfirmed"
             | "rulenoncompliance"
@@ -1588,6 +1623,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulefulfilled"
             | "rulefulfillment"
             | "rulefix"
+            | "rulefreeze"
             | "rulegenerated"
             | "rulejustification"
             | "ruleoutput"
@@ -1709,6 +1745,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "denialformula"
             | "deniedformula"
             | "deliveryformula"
+            | "deploymentformula"
             | "commitmentformula"
             | "covenantformula"
             | "dutyformula"
@@ -1716,6 +1753,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "grantformula"
             | "indemnityformula"
             | "indemnificationformula"
+            | "incidentformula"
             | "inspectionformula"
             | "invoiceformula"
             | "liabilityformula"
@@ -1731,8 +1769,11 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "warrantyformula"
             | "candidateformula"
             | "changeformula"
+            | "changefreezeformula"
             | "chosenformula"
             | "claimformula"
+            | "closeformula"
+            | "closureformula"
             | "complianceformula"
             | "compliantformula"
             | "confirmedformula"
@@ -1762,6 +1803,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "fulfillmentformula"
             | "fixformula"
             | "fixedformula"
+            | "freezeformula"
             | "formulaaccepted"
             | "formulaacceptance"
             | "formulaacknowledgement"
@@ -1789,11 +1831,13 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formuladenial"
             | "formuladenied"
             | "formuladelivery"
+            | "formuladeployment"
             | "formulacommitment"
             | "formulacovenant"
             | "formuladuty"
             | "formulaentitlement"
             | "formulagrant"
+            | "formulaincident"
             | "formulainspection"
             | "formulaindemnification"
             | "formulainvoice"
@@ -1813,8 +1857,11 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulabreached"
             | "formulabreach"
             | "formulachange"
+            | "formulachangefreeze"
             | "formulachosen"
             | "formulaclaim"
+            | "formulaclose"
+            | "formulaclosure"
             | "formulacompliance"
             | "formulacompliant"
             | "formulaconfirmed"
@@ -1842,6 +1889,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulafulfilled"
             | "formulafulfillment"
             | "formulafix"
+            | "formulafreeze"
             | "formulagenerated"
             | "formulajustification"
             | "formulaoutput"
@@ -1919,6 +1967,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruledenial"
             | "ruledenied"
             | "ruledelivery"
+            | "ruledeployment"
             | "ruleduty"
             | "rulecapability"
             | "rulecompensation"
@@ -1926,6 +1975,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleentitlement"
             | "rulegrant"
             | "rulecompliance"
+            | "ruleincident"
             | "ruleinspection"
             | "ruleindemnification"
             | "ruleinvoice"
@@ -1938,8 +1988,11 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulebreached"
             | "rulebreach"
             | "rulechange"
+            | "rulechangefreeze"
             | "rulechosen"
             | "ruleclaim"
+            | "ruleclose"
+            | "ruleclosure"
             | "rulecompliant"
             | "ruleconfirmed"
             | "rulenoncompliance"
@@ -1966,6 +2019,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulefulfilled"
             | "rulefulfillment"
             | "rulefix"
+            | "rulefreeze"
             | "rulegenerated"
             | "rulejustification"
             | "ruleoutput"
@@ -5941,6 +5995,56 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_incident_freeze_aliases() {
+        let response = r#"
+{
+  "formula_incident": "Formula 1: always([+CLOSE_INCIDENT] true -> <+signed_by(/users/incident_commander.id)> true)",
+  "incident_formula": "F2: always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))",
+  "rule_incident": "Formula 3: <+RECORD_INCIDENT> true",
+  "formula_closure": "Formula 4: always([+CLOSE_INCIDENT] true -> <+signed_by(/users/incident_commander.id)> true)",
+  "closure_formula": "Formula 5: always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))",
+  "rule_closure": "Formula 6: <+RECORD_CLOSURE> true",
+  "formula_freeze": "Formula 7: always([+FREEZE_CHANGE] true -> <+signed_by(/users/release_manager.id)> true)",
+  "freeze_formula": "Formula 8: always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))",
+  "rule_freeze": "Formula 9: <+RECORD_FREEZE> true",
+  "formula_change_freeze": "Formula 10: always([+FREEZE_CHANGE] true -> <+signed_by(/users/release_manager.id)> true)",
+  "change_freeze_formula": "Formula 11: always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))",
+  "rule_change_freeze": "Formula 12: <+RECORD_CHANGE_FREEZE> true",
+  "formula_deployment": "Formula 13: always([+DEPLOY] true -> <+signed_by(/users/release_manager.id)> true)",
+  "deployment_formula": "Formula 14: always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))",
+  "rule_deployment": "Formula 15: <+RECORD_DEPLOYMENT> true",
+  "incident": "This incident summary is only prose.",
+  "closure": "This closure note is only prose.",
+  "freeze": "This freeze explanation is only prose.",
+  "change_freeze": "This change-freeze summary is only prose.",
+  "deployment": "This deployment summary is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))",
+                "always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))",
+                "always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))",
+                "always([+FREEZE_CHANGE] true -> <+signed_by(/users/release_manager.id)> true)",
+                "always([+CLOSE_INCIDENT] true -> <+signed_by(/users/incident_commander.id)> true)",
+                "always([+DEPLOY] true -> <+signed_by(/users/release_manager.id)> true)",
+                "always([+FREEZE_CHANGE] true -> <+signed_by(/users/release_manager.id)> true)",
+                "always([+CLOSE_INCIDENT] true -> <+signed_by(/users/incident_commander.id)> true)",
+                "always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))",
+                "always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))",
+                "<+RECORD_CHANGE_FREEZE> true",
+                "<+RECORD_CLOSURE> true",
+                "<+RECORD_DEPLOYMENT> true",
+                "<+RECORD_FREEZE> true",
+                "<+RECORD_INCIDENT> true"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -7474,6 +7578,54 @@ safety = this safety explanation is only prose
                 "always([+SAFETY_REVIEW] true -> <+signed_by(/users/safety_officer.id)> true)",
                 "always([+SAFETY_REVIEW] true -> always([-UNSAFE_RELEASE] true))",
                 "<+RECORD_SAFETY> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_incident_freeze_aliases() {
+        let response = r#"
+formula incident: Formula 1: always([+CLOSE_INCIDENT] true -> <+signed_by(/users/incident_commander.id)> true)
+incident formula: F2: always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))
+rule incident: Formula 3: <+RECORD_INCIDENT> true
+formula closure: Formula 4: always([+CLOSE_INCIDENT] true -> <+signed_by(/users/incident_commander.id)> true)
+closure formula: Formula 5: always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))
+rule closure: Formula 6: <+RECORD_CLOSURE> true
+formula freeze: Formula 7: always([+FREEZE_CHANGE] true -> <+signed_by(/users/release_manager.id)> true)
+freeze formula: Formula 8: always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))
+rule freeze: Formula 9: <+RECORD_FREEZE> true
+formula change freeze: Formula 10: always([+FREEZE_CHANGE] true -> <+signed_by(/users/release_manager.id)> true)
+change freeze formula: Formula 11: always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))
+rule change freeze: Formula 12: <+RECORD_CHANGE_FREEZE> true
+formula deployment: Formula 13: always([+DEPLOY] true -> <+signed_by(/users/release_manager.id)> true)
+deployment formula: Formula 14: always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))
+rule deployment: Formula 15: <+RECORD_DEPLOYMENT> true
+incident = this incident summary is only prose
+closure = this closure note is only prose
+freeze = this freeze explanation is only prose
+change freeze = this change-freeze summary is only prose
+deployment = this deployment summary is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+CLOSE_INCIDENT] true -> <+signed_by(/users/incident_commander.id)> true)",
+                "always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))",
+                "<+RECORD_INCIDENT> true",
+                "always([+CLOSE_INCIDENT] true -> <+signed_by(/users/incident_commander.id)> true)",
+                "always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))",
+                "<+RECORD_CLOSURE> true",
+                "always([+FREEZE_CHANGE] true -> <+signed_by(/users/release_manager.id)> true)",
+                "always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))",
+                "<+RECORD_FREEZE> true",
+                "always([+FREEZE_CHANGE] true -> <+signed_by(/users/release_manager.id)> true)",
+                "always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))",
+                "<+RECORD_CHANGE_FREEZE> true",
+                "always([+DEPLOY] true -> <+signed_by(/users/release_manager.id)> true)",
+                "always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))",
+                "<+RECORD_DEPLOYMENT> true"
             ]
         );
     }
