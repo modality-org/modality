@@ -139,6 +139,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Tax return filing requires tax authority, withholding agent, and revenue agency signatures" | `always([+FILE_TAX_RETURN] true -> <+signed_by(/users/tax_authority.id) +signed_by(/users/withholding_agent.id) +signed_by(/users/revenue_agency.id)> true)` |
 | "Data processing approval requires data protection officer signature and blocks unauthorized export" | `always([+APPROVE_DATA_PROCESSING] true -> <+signed_by(/users/data_protection_officer.id)> true)`; `always([+APPROVE_DATA_PROCESSING] true -> always([-UNAUTHORIZED_EXPORT] true))` |
 | "Privacy impact acceptance requires privacy officer signature and blocks high risk processing" | `always([+ACCEPT_PRIVACY_IMPACT] true -> <+signed_by(/users/privacy_officer.id)> true)`; `always([+ACCEPT_PRIVACY_IMPACT] true -> always([-HIGH_RISK_PROCESSING] true))` |
+| "Access grant requires security administrator signature and blocks privilege escalation" | `always([+GRANT_ACCESS] true -> <+signed_by(/users/security_administrator.id)> true)`; `always([+GRANT_ACCESS] true -> always([-ESCALATE_PRIVILEGE] true))` |
+| "Audit closure requires auditor signature and blocks unresolved finding" | `always([+CLOSE_AUDIT] true -> <+signed_by(/users/auditor.id)> true)`; `always([+CLOSE_AUDIT] true -> always([-UNRESOLVED_FINDING] true))` |
 
 ## Output Format
 
@@ -10586,5 +10588,23 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(prompt.contains(
             "always([+ACCEPT_PRIVACY_IMPACT] true -> always([-HIGH_RISK_PROCESSING] true))"
         ));
+    }
+
+    #[test]
+    fn test_prompt_includes_access_audit_governance_patterns() {
+        let prompt = generate_prompt("Access grants and audit closure require governance controls");
+
+        assert!(prompt.contains(
+            "always([+GRANT_ACCESS] true -> <+signed_by(/users/security_administrator.id)> true)"
+        ));
+        assert!(
+            prompt.contains("always([+GRANT_ACCESS] true -> always([-ESCALATE_PRIVILEGE] true))")
+        );
+        assert!(
+            prompt.contains("always([+CLOSE_AUDIT] true -> <+signed_by(/users/auditor.id)> true)")
+        );
+        assert!(
+            prompt.contains("always([+CLOSE_AUDIT] true -> always([-UNRESOLVED_FINDING] true))")
+        );
     }
 }
