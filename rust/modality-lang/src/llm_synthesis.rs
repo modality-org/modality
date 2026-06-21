@@ -221,6 +221,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "IoT firmware rollout approval requires device security officer signature and blocks vulnerable device update" | `always([+APPROVE_IOT_FIRMWARE_ROLLOUT] true -> <+signed_by(/users/device_security_officer.id)> true)`; `always([+APPROVE_IOT_FIRMWARE_ROLLOUT] true -> always([-VULNERABLE_DEVICE_UPDATE] true))` |
 | "Autonomous vehicle route approval requires safety operator signature and blocks unsafe route dispatch" | `always([+APPROVE_AUTONOMOUS_VEHICLE_ROUTE] true -> <+signed_by(/users/safety_operator.id)> true)`; `always([+APPROVE_AUTONOMOUS_VEHICLE_ROUTE] true -> always([-UNSAFE_ROUTE_DISPATCH] true))` |
 | "Robotics cell activation requires floor supervisor signature and blocks unguarded robot motion" | `always([+ACTIVATE_ROBOTICS_CELL] true -> <+signed_by(/users/floor_supervisor.id)> true)`; `always([+ACTIVATE_ROBOTICS_CELL] true -> always([-UNGUARDED_ROBOT_MOTION] true))` |
+| "Semiconductor wafer release requires process engineer signature and blocks contaminated lot shipment" | `always([+RELEASE_WAFER_LOT] true -> <+signed_by(/users/process_engineer.id)> true)`; `always([+RELEASE_WAFER_LOT] true -> always([-CONTAMINATED_LOT_SHIPMENT] true))` |
+| "Battery production batch approval requires safety engineer signature and blocks thermal runaway risk" | `always([+APPROVE_BATTERY_BATCH] true -> <+signed_by(/users/safety_engineer.id)> true)`; `always([+APPROVE_BATTERY_BATCH] true -> always([-THERMAL_RUNAWAY_RISK] true))` |
 
 ## Output Format
 
@@ -11400,6 +11402,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+ACTIVATE_ROBOTICS_CELL] true -> always([-UNGUARDED_ROBOT_MOTION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_semiconductor_battery_governance_patterns() {
+        let prompt = generate_prompt("Semiconductor wafer and battery production controls");
+
+        assert!(prompt.contains(
+            "always([+RELEASE_WAFER_LOT] true -> <+signed_by(/users/process_engineer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+RELEASE_WAFER_LOT] true -> always([-CONTAMINATED_LOT_SHIPMENT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_BATTERY_BATCH] true -> <+signed_by(/users/safety_engineer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_BATTERY_BATCH] true -> always([-THERMAL_RUNAWAY_RISK] true))"
         ));
     }
 }
