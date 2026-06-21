@@ -165,6 +165,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Manufacturing batch release requires quality manager signature and blocks nonconforming shipment" | `always([+RELEASE_MANUFACTURING_BATCH] true -> <+signed_by(/users/quality_manager.id)> true)`; `always([+RELEASE_MANUFACTURING_BATCH] true -> always([-NONCONFORMING_SHIPMENT] true))` |
 | "Content license approval requires rights manager signature and blocks unlicensed publication" | `always([+APPROVE_CONTENT_LICENSE] true -> <+signed_by(/users/rights_manager.id)> true)`; `always([+APPROVE_CONTENT_LICENSE] true -> always([-UNLICENSED_PUBLICATION] true))` |
 | "Lease amendment approval requires property manager signature and blocks unauthorized occupancy" | `always([+APPROVE_LEASE_AMENDMENT] true -> <+signed_by(/users/property_manager.id)> true)`; `always([+APPROVE_LEASE_AMENDMENT] true -> always([-UNAUTHORIZED_OCCUPANCY] true))` |
+| "Environmental permit approval requires environmental officer signature and blocks prohibited discharge" | `always([+APPROVE_ENVIRONMENTAL_PERMIT] true -> <+signed_by(/users/environmental_officer.id)> true)`; `always([+APPROVE_ENVIRONMENTAL_PERMIT] true -> always([-PROHIBITED_DISCHARGE] true))` |
+| "Agricultural shipment certification requires quality inspector signature and blocks contaminated shipment" | `always([+CERTIFY_AGRICULTURAL_SHIPMENT] true -> <+signed_by(/users/quality_inspector.id)> true)`; `always([+CERTIFY_AGRICULTURAL_SHIPMENT] true -> always([-CONTAMINATED_SHIPMENT] true))` |
 
 ## Output Format
 
@@ -10844,6 +10846,25 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_LEASE_AMENDMENT] true -> always([-UNAUTHORIZED_OCCUPANCY] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_environment_agriculture_governance_patterns() {
+        let prompt =
+            generate_prompt("Environmental permits and agricultural shipments require controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_ENVIRONMENTAL_PERMIT] true -> <+signed_by(/users/environmental_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_ENVIRONMENTAL_PERMIT] true -> always([-PROHIBITED_DISCHARGE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+CERTIFY_AGRICULTURAL_SHIPMENT] true -> <+signed_by(/users/quality_inspector.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+CERTIFY_AGRICULTURAL_SHIPMENT] true -> always([-CONTAMINATED_SHIPMENT] true))"
         ));
     }
 }
