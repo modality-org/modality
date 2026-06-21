@@ -350,9 +350,13 @@ fn collect_json_formulas(
                         | "dutyformula"
                         | "entitlementformula"
                         | "grantformula"
+                        | "indemnityformula"
+                        | "indemnificationformula"
+                        | "liabilityformula"
                         | "obligationformula"
                         | "permissionformula"
                         | "privilegeformula"
+                        | "warrantyformula"
                         | "candidateformula"
                         | "changeformula"
                         | "chosenformula"
@@ -405,9 +409,13 @@ fn collect_json_formulas(
                         | "formuladuty"
                         | "formulaentitlement"
                         | "formulagrant"
+                        | "formulaindemnification"
+                        | "formulaindemnity"
+                        | "formulaliability"
                         | "formulaobligation"
                         | "formulapermission"
                         | "formulaprivilege"
+                        | "formulawarranty"
                         | "formulabest"
                         | "formulabreached"
                         | "formulabreach"
@@ -506,7 +514,11 @@ fn collect_json_formulas(
                         | "rulecapability"
                         | "ruleentitlement"
                         | "rulegrant"
+                        | "ruleindemnification"
+                        | "ruleindemnity"
+                        | "ruleliability"
                         | "ruleobligation"
+                        | "rulewarranty"
                         | "ruleassessment"
                         | "rulebest"
                         | "rulebreached"
@@ -1233,9 +1245,13 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "dutyformula"
             | "entitlementformula"
             | "grantformula"
+            | "indemnityformula"
+            | "indemnificationformula"
+            | "liabilityformula"
             | "obligationformula"
             | "permissionformula"
             | "privilegeformula"
+            | "warrantyformula"
             | "candidateformula"
             | "changeformula"
             | "chosenformula"
@@ -1288,9 +1304,13 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formuladuty"
             | "formulaentitlement"
             | "formulagrant"
+            | "formulaindemnification"
+            | "formulaindemnity"
+            | "formulaliability"
             | "formulaobligation"
             | "formulapermission"
             | "formulaprivilege"
+            | "formulawarranty"
             | "formulabest"
             | "formulabreached"
             | "formulabreach"
@@ -1389,7 +1409,11 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulecapability"
             | "ruleentitlement"
             | "rulegrant"
+            | "ruleindemnification"
+            | "ruleindemnity"
+            | "ruleliability"
             | "ruleobligation"
+            | "rulewarranty"
             | "rulebest"
             | "rulebreached"
             | "rulebreach"
@@ -1526,9 +1550,13 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "dutyformula"
             | "entitlementformula"
             | "grantformula"
+            | "indemnityformula"
+            | "indemnificationformula"
+            | "liabilityformula"
             | "obligationformula"
             | "permissionformula"
             | "privilegeformula"
+            | "warrantyformula"
             | "candidateformula"
             | "changeformula"
             | "chosenformula"
@@ -1581,9 +1609,13 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formuladuty"
             | "formulaentitlement"
             | "formulagrant"
+            | "formulaindemnification"
+            | "formulaindemnity"
+            | "formulaliability"
             | "formulaobligation"
             | "formulapermission"
             | "formulaprivilege"
+            | "formulawarranty"
             | "formulabest"
             | "formulabreached"
             | "formulabreach"
@@ -1682,7 +1714,11 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulecapability"
             | "ruleentitlement"
             | "rulegrant"
+            | "ruleindemnification"
+            | "ruleindemnity"
+            | "ruleliability"
             | "ruleobligation"
+            | "rulewarranty"
             | "rulebest"
             | "rulebreached"
             | "rulebreach"
@@ -5416,6 +5452,42 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_liability_field_order_aliases() {
+        let response = r#"
+{
+  "formula_liability": "Formula 1: always([+ASSUME_LIABILITY] true -> <+signed_by(/users/liable_party.id)> true)",
+  "liability_formula": "F2: <+ACCEPT_LIABILITY> true",
+  "rule_liability": "Formula 3: always([+CLAIM_LIABILITY] true -> <+signed_by(/users/claimant.id)> true)",
+  "formula_warranty": "Formula 4: always([+ASSERT_WARRANTY] true -> always([-DISCLAIM_WARRANTY] true))",
+  "warranty_formula": "Formula 5: <+HONOR_WARRANTY> true",
+  "rule_warranty": "Formula 6: always([+REPAIR] true -> <+signed_by(/users/warrantor.id)> true)",
+  "formula_indemnity": "Formula 7: <+INDEMNIFY> true",
+  "indemnity_formula": "Formula 8: always([+INDEMNIFY] true -> <+signed_by(/users/indemnitor.id)> true)",
+  "rule_indemnification": "Formula 9: <+NOTICE_INDEMNIFICATION> true",
+  "liability": "This liability allocation is only prose.",
+  "warranty": "This warranty rationale is only prose.",
+  "indemnity": "This indemnity rationale is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+INDEMNIFY> true",
+                "always([+ASSUME_LIABILITY] true -> <+signed_by(/users/liable_party.id)> true)",
+                "always([+ASSERT_WARRANTY] true -> always([-DISCLAIM_WARRANTY] true))",
+                "always([+INDEMNIFY] true -> <+signed_by(/users/indemnitor.id)> true)",
+                "<+ACCEPT_LIABILITY> true",
+                "<+NOTICE_INDEMNIFICATION> true",
+                "always([+CLAIM_LIABILITY] true -> <+signed_by(/users/claimant.id)> true)",
+                "always([+REPAIR] true -> <+signed_by(/users/warrantor.id)> true)",
+                "<+HONOR_WARRANTY> true"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -6701,6 +6773,40 @@ commitment = this commitment rationale is only prose
                 "always([+COVENANT] true -> always([-BREACH] true))",
                 "<+RECORD_COMMITMENT> true",
                 "always([+HONOR_COMMITMENT] true -> <+signed_by(/users/committer.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_liability_field_order_aliases() {
+        let response = r#"
+formula liability: Formula 1: always([+ASSUME_LIABILITY] true -> <+signed_by(/users/liable_party.id)> true)
+liability formula: F2: <+ACCEPT_LIABILITY> true
+rule liability: Formula 3: always([+CLAIM_LIABILITY] true -> <+signed_by(/users/claimant.id)> true)
+formula warranty: Formula 4: always([+ASSERT_WARRANTY] true -> always([-DISCLAIM_WARRANTY] true))
+warranty formula: Formula 5: <+HONOR_WARRANTY> true
+rule warranty: Formula 6: always([+REPAIR] true -> <+signed_by(/users/warrantor.id)> true)
+formula indemnity: Formula 7: <+INDEMNIFY> true
+indemnity formula: Formula 8: always([+INDEMNIFY] true -> <+signed_by(/users/indemnitor.id)> true)
+rule indemnification: Formula 9: <+NOTICE_INDEMNIFICATION> true
+liability = this liability allocation is only prose
+warranty = this warranty rationale is only prose
+indemnity = this indemnity rationale is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+ASSUME_LIABILITY] true -> <+signed_by(/users/liable_party.id)> true)",
+                "<+ACCEPT_LIABILITY> true",
+                "always([+CLAIM_LIABILITY] true -> <+signed_by(/users/claimant.id)> true)",
+                "always([+ASSERT_WARRANTY] true -> always([-DISCLAIM_WARRANTY] true))",
+                "<+HONOR_WARRANTY> true",
+                "always([+REPAIR] true -> <+signed_by(/users/warrantor.id)> true)",
+                "<+INDEMNIFY> true",
+                "always([+INDEMNIFY] true -> <+signed_by(/users/indemnitor.id)> true)",
+                "<+NOTICE_INDEMNIFICATION> true"
             ]
         );
     }
