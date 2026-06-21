@@ -175,6 +175,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Food safety recall closure requires safety officer signature and blocks unresolved contamination" | `always([+CLOSE_FOOD_SAFETY_RECALL] true -> <+signed_by(/users/safety_officer.id)> true)`; `always([+CLOSE_FOOD_SAFETY_RECALL] true -> always([-UNRESOLVED_CONTAMINATION] true))` |
 | "Telecommunications service change approval requires network operations manager signature and blocks unauthorized outage" | `always([+APPROVE_SERVICE_CHANGE] true -> <+signed_by(/users/network_operations_manager.id)> true)`; `always([+APPROVE_SERVICE_CHANGE] true -> always([-UNAUTHORIZED_OUTAGE] true))` |
 | "Spectrum assignment approval requires spectrum officer signature and blocks unlicensed transmission" | `always([+APPROVE_SPECTRUM_ASSIGNMENT] true -> <+signed_by(/users/spectrum_officer.id)> true)`; `always([+APPROVE_SPECTRUM_ASSIGNMENT] true -> always([-UNLICENSED_TRANSMISSION] true))` |
+| "AML case closure requires compliance analyst signature and blocks suspicious payout" | `always([+CLOSE_AML_CASE] true -> <+signed_by(/users/compliance_analyst.id)> true)`; `always([+CLOSE_AML_CASE] true -> always([-SUSPICIOUS_PAYOUT] true))` |
+| "Export license approval requires export control officer signature and blocks restricted shipment" | `always([+APPROVE_EXPORT_LICENSE] true -> <+signed_by(/users/export_control_officer.id)> true)`; `always([+APPROVE_EXPORT_LICENSE] true -> always([-RESTRICTED_SHIPMENT] true))` |
 
 ## Output Format
 
@@ -10945,6 +10947,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_SPECTRUM_ASSIGNMENT] true -> always([-UNLICENSED_TRANSMISSION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_aml_export_control_governance_patterns() {
+        let prompt = generate_prompt("AML case closure and export licenses need controls");
+
+        assert!(prompt.contains(
+            "always([+CLOSE_AML_CASE] true -> <+signed_by(/users/compliance_analyst.id)> true)"
+        ));
+        assert!(
+            prompt.contains("always([+CLOSE_AML_CASE] true -> always([-SUSPICIOUS_PAYOUT] true))")
+        );
+        assert!(prompt.contains(
+            "always([+APPROVE_EXPORT_LICENSE] true -> <+signed_by(/users/export_control_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_EXPORT_LICENSE] true -> always([-RESTRICTED_SHIPMENT] true))"
         ));
     }
 }
