@@ -233,6 +233,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Medical device release authorization requires quality systems manager signature and blocks unvalidated device distribution" | `always([+AUTHORIZE_MEDICAL_DEVICE_RELEASE] true -> <+signed_by(/users/quality_systems_manager.id)> true)`; `always([+AUTHORIZE_MEDICAL_DEVICE_RELEASE] true -> always([-UNVALIDATED_DEVICE_DISTRIBUTION] true))` |
 | "Rail signal maintenance authorization requires signal engineer signature and blocks unsafe track occupancy" | `always([+AUTHORIZE_RAIL_SIGNAL_MAINTENANCE] true -> <+signed_by(/users/signal_engineer.id)> true)`; `always([+AUTHORIZE_RAIL_SIGNAL_MAINTENANCE] true -> always([-UNSAFE_TRACK_OCCUPANCY] true))` |
 | "Runway reopening approval requires airport operations manager signature and blocks uncleared runway use" | `always([+APPROVE_RUNWAY_REOPENING] true -> <+signed_by(/users/airport_operations_manager.id)> true)`; `always([+APPROVE_RUNWAY_REOPENING] true -> always([-UNCLEARED_RUNWAY_USE] true))` |
+| "Datacenter maintenance window approval requires facilities lead signature and blocks unscheduled power work" | `always([+APPROVE_DATACENTER_MAINTENANCE_WINDOW] true -> <+signed_by(/users/facilities_lead.id)> true)`; `always([+APPROVE_DATACENTER_MAINTENANCE_WINDOW] true -> always([-UNSCHEDULED_POWER_WORK] true))` |
+| "Network peering change approval requires network architect signature and blocks unauthorized route advertisement" | `always([+APPROVE_NETWORK_PEERING_CHANGE] true -> <+signed_by(/users/network_architect.id)> true)`; `always([+APPROVE_NETWORK_PEERING_CHANGE] true -> always([-UNAUTHORIZED_ROUTE_ADVERTISEMENT] true))` |
 
 ## Output Format
 
@@ -11520,6 +11522,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_RUNWAY_REOPENING] true -> always([-UNCLEARED_RUNWAY_USE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_datacenter_network_governance_patterns() {
+        let prompt = generate_prompt("Datacenter maintenance and network peering controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_DATACENTER_MAINTENANCE_WINDOW] true -> <+signed_by(/users/facilities_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DATACENTER_MAINTENANCE_WINDOW] true -> always([-UNSCHEDULED_POWER_WORK] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_NETWORK_PEERING_CHANGE] true -> <+signed_by(/users/network_architect.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_NETWORK_PEERING_CHANGE] true -> always([-UNAUTHORIZED_ROUTE_ADVERTISEMENT] true))"
         ));
     }
 }
