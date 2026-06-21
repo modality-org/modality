@@ -334,6 +334,7 @@ fn collect_json_formulas(
                         | "appealformula"
                         | "argumentformula"
                         | "assignmentformula"
+                        | "auditformula"
                         | "assessmentformula"
                         | "bestformula"
                         | "breachedformula"
@@ -384,12 +385,14 @@ fn collect_json_formulas(
                         | "paymentformula"
                         | "payoutformula"
                         | "settlementformula"
+                        | "securityformula"
                         | "transferformula"
                         | "liabilityformula"
                         | "milestoneformula"
                         | "obligationformula"
                         | "permissionformula"
                         | "privilegeformula"
+                        | "privacyformula"
                         | "publicationformula"
                         | "refundformula"
                         | "registrationformula"
@@ -411,6 +414,8 @@ fn collect_json_formulas(
                         | "closureformula"
                         | "complianceformula"
                         | "compliantformula"
+                        | "confidentialformula"
+                        | "confidentialityformula"
                         | "confirmedformula"
                         | "noncomplianceformula"
                         | "noncompliantformula"
@@ -451,6 +456,7 @@ fn collect_json_formulas(
                         | "formulaappeal"
                         | "formulaargument"
                         | "formulaassignment"
+                        | "formulaaudit"
                         | "formulaapproved"
                         | "formulaauthorization"
                         | "formulaauthorized"
@@ -492,6 +498,7 @@ fn collect_json_formulas(
                         | "formulapayment"
                         | "formulapayout"
                         | "formulasettlement"
+                        | "formulasecurity"
                         | "formulatransfer"
                         | "formulaindemnity"
                         | "formulaliability"
@@ -499,6 +506,7 @@ fn collect_json_formulas(
                         | "formulaobligation"
                         | "formulapermission"
                         | "formulaprivilege"
+                        | "formulaprivacy"
                         | "formulapublication"
                         | "formularefund"
                         | "formularegistration"
@@ -523,6 +531,8 @@ fn collect_json_formulas(
                         | "formulaclosure"
                         | "formulacompliance"
                         | "formulacompliant"
+                        | "formulaconfidential"
+                        | "formulaconfidentiality"
                         | "formulaconfirmed"
                         | "formulanoncompliance"
                         | "formulanoncompliant"
@@ -616,6 +626,7 @@ fn collect_json_formulas(
                         | "ruleappeal"
                         | "ruleargument"
                         | "ruleassignment"
+                        | "ruleaudit"
                         | "ruleapproved"
                         | "ruleauthorization"
                         | "ruleauthorized"
@@ -656,6 +667,7 @@ fn collect_json_formulas(
                         | "rulepayment"
                         | "rulepayout"
                         | "rulesettlement"
+                        | "rulesecurity"
                         | "ruletransfer"
                         | "ruleindemnity"
                         | "ruleliability"
@@ -675,6 +687,8 @@ fn collect_json_formulas(
                         | "ruleclose"
                         | "ruleclosure"
                         | "rulecompliant"
+                        | "ruleconfidential"
+                        | "ruleconfidentiality"
                         | "ruleconfirmed"
                         | "rulenoncompliance"
                         | "rulenoncompliant"
@@ -708,6 +722,7 @@ fn collect_json_formulas(
                         | "rulepatch"
                         | "rulepermission"
                         | "ruleprivilege"
+                        | "ruleprivacy"
                         | "rulepublication"
                         | "ruleregistration"
                         | "rulereinstatement"
@@ -1395,6 +1410,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "appealformula"
             | "argumentformula"
             | "assignmentformula"
+            | "auditformula"
             | "assessmentformula"
             | "bestformula"
             | "breachedformula"
@@ -1441,12 +1457,14 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "paymentformula"
             | "payoutformula"
             | "settlementformula"
+            | "securityformula"
             | "transferformula"
             | "liabilityformula"
             | "milestoneformula"
             | "obligationformula"
             | "permissionformula"
             | "privilegeformula"
+            | "privacyformula"
             | "publicationformula"
             | "refundformula"
             | "registrationformula"
@@ -1467,6 +1485,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "closureformula"
             | "complianceformula"
             | "compliantformula"
+            | "confidentialformula"
+            | "confidentialityformula"
             | "confirmedformula"
             | "noncomplianceformula"
             | "noncompliantformula"
@@ -1507,6 +1527,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaappeal"
             | "formulaargument"
             | "formulaassignment"
+            | "formulaaudit"
             | "formulaapproved"
             | "formulaauthorization"
             | "formulaauthorized"
@@ -1548,6 +1569,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulapayment"
             | "formulapayout"
             | "formulasettlement"
+            | "formulasecurity"
             | "formulatransfer"
             | "formulaindemnity"
             | "formulaliability"
@@ -1555,6 +1577,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaobligation"
             | "formulapermission"
             | "formulaprivilege"
+            | "formulaprivacy"
             | "formulapublication"
             | "formularefund"
             | "formularegistration"
@@ -1579,6 +1602,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaclosure"
             | "formulacompliance"
             | "formulacompliant"
+            | "formulaconfidential"
+            | "formulaconfidentiality"
             | "formulaconfirmed"
             | "formulanoncompliance"
             | "formulanoncompliant"
@@ -1671,6 +1696,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleappeal"
             | "ruleargument"
             | "ruleassignment"
+            | "ruleaudit"
             | "ruleassessment"
             | "ruleapproved"
             | "ruleauthorization"
@@ -1712,6 +1738,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulepayment"
             | "rulepayout"
             | "rulesettlement"
+            | "rulesecurity"
             | "ruletransfer"
             | "ruleindemnity"
             | "ruleliability"
@@ -1730,6 +1757,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleclose"
             | "ruleclosure"
             | "rulecompliant"
+            | "ruleconfidential"
+            | "ruleconfidentiality"
             | "ruleconfirmed"
             | "rulenoncompliance"
             | "rulenoncompliant"
@@ -1763,6 +1792,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulepatch"
             | "rulepermission"
             | "ruleprivilege"
+            | "ruleprivacy"
             | "rulepublication"
             | "ruleregistration"
             | "rulereinstatement"
@@ -1862,6 +1892,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "argumentformula"
             | "assignmentformula"
             | "assessmentformula"
+            | "auditformula"
             | "bestformula"
             | "breachedformula"
             | "breachformula"
@@ -1911,12 +1942,14 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "paymentformula"
             | "payoutformula"
             | "settlementformula"
+            | "securityformula"
             | "transferformula"
             | "liabilityformula"
             | "milestoneformula"
             | "obligationformula"
             | "permissionformula"
             | "privilegeformula"
+            | "privacyformula"
             | "publicationformula"
             | "refundformula"
             | "registrationformula"
@@ -1938,6 +1971,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "closureformula"
             | "complianceformula"
             | "compliantformula"
+            | "confidentialformula"
+            | "confidentialityformula"
             | "confirmedformula"
             | "noncomplianceformula"
             | "noncompliantformula"
@@ -1978,6 +2013,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaappeal"
             | "formulaargument"
             | "formulaassignment"
+            | "formulaaudit"
             | "formulaapproved"
             | "formulaauthorization"
             | "formulaauthorized"
@@ -2015,6 +2051,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulapayment"
             | "formulapayout"
             | "formulasettlement"
+            | "formulasecurity"
             | "formulatransfer"
             | "formulaindemnity"
             | "formulaliability"
@@ -2022,6 +2059,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaobligation"
             | "formulapermission"
             | "formulaprivilege"
+            | "formulaprivacy"
             | "formulapublication"
             | "formularefund"
             | "formularegistration"
@@ -2044,6 +2082,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaclosure"
             | "formulacompliance"
             | "formulacompliant"
+            | "formulaconfidential"
+            | "formulaconfidentiality"
             | "formulaconfirmed"
             | "formulanoncompliance"
             | "formulanoncompliant"
@@ -2136,6 +2176,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleargument"
             | "ruleassignment"
             | "ruleassessment"
+            | "ruleaudit"
             | "ruleapproved"
             | "ruleauthorization"
             | "ruleauthorized"
@@ -2172,6 +2213,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulepayment"
             | "rulepayout"
             | "rulesettlement"
+            | "rulesecurity"
             | "ruletransfer"
             | "ruleindemnity"
             | "ruleliability"
@@ -2189,6 +2231,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleclose"
             | "ruleclosure"
             | "rulecompliant"
+            | "ruleconfidential"
+            | "ruleconfidentiality"
             | "ruleconfirmed"
             | "rulenoncompliance"
             | "rulenoncompliant"
@@ -6497,6 +6541,49 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_control_policy_aliases() {
+        let response = r#"
+{
+  "formula_audit": "Formula 1: always([+AUDIT] true -> <+signed_by(/users/auditor.id)> true)",
+  "audit_formula": "F2: always([+AUDIT] true -> eventually(<+REPORT> true))",
+  "rule_audit": "Formula 3: <+RECORD_AUDIT> true",
+  "formula_confidentiality": "Formula 4: always([+DISCLOSE] true -> <+signed_by(/users/data_owner.id)> true)",
+  "confidentiality_formula": "Formula 5: always([+DISCLOSE] true -> always([-PUBLIC_RELEASE] true))",
+  "rule_confidentiality": "Formula 6: <+RECORD_CONFIDENTIALITY> true",
+  "formula_privacy": "Formula 7: always([+PROCESS_DATA] true -> <+signed_by(/users/subject.id)> true)",
+  "privacy_formula": "Formula 8: always([+PROCESS_DATA] true -> always([-UNAUTHORIZED_SHARE] true))",
+  "rule_privacy": "Formula 9: <+RECORD_PRIVACY> true",
+  "formula_security": "Formula 10: always([+ROTATE_KEY] true -> <+signed_by(/users/security_admin.id)> true)",
+  "security_formula": "Formula 11: always([+DEPLOY] true -> eventually(<+SECURITY_REVIEW> true))",
+  "rule_security": "Formula 12: <+RECORD_SECURITY> true",
+  "audit": "This audit summary is only prose.",
+  "confidentiality": "This confidentiality summary is only prose.",
+  "privacy": "This privacy note is only prose.",
+  "security": "This security explanation is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+AUDIT] true -> eventually(<+REPORT> true))",
+                "always([+DISCLOSE] true -> always([-PUBLIC_RELEASE] true))",
+                "always([+AUDIT] true -> <+signed_by(/users/auditor.id)> true)",
+                "always([+DISCLOSE] true -> <+signed_by(/users/data_owner.id)> true)",
+                "always([+PROCESS_DATA] true -> <+signed_by(/users/subject.id)> true)",
+                "always([+ROTATE_KEY] true -> <+signed_by(/users/security_admin.id)> true)",
+                "always([+PROCESS_DATA] true -> always([-UNAUTHORIZED_SHARE] true))",
+                "<+RECORD_AUDIT> true",
+                "<+RECORD_CONFIDENTIALITY> true",
+                "<+RECORD_PRIVACY> true",
+                "<+RECORD_SECURITY> true",
+                "always([+DEPLOY] true -> eventually(<+SECURITY_REVIEW> true))"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -8317,6 +8404,47 @@ defect claim = this defect claim summary is only prose
                 "always([+DEFECT_CLAIM] true -> <+signed_by(/users/inspector.id)> true)",
                 "always([+DEFECT_CLAIM] true -> always([-ACCEPT] true))",
                 "<+RECORD_DEFECT_CLAIM> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_control_policy_aliases() {
+        let response = r#"
+formula audit: Formula 1: always([+AUDIT] true -> <+signed_by(/users/auditor.id)> true)
+audit formula: F2: always([+AUDIT] true -> eventually(<+REPORT> true))
+rule audit: Formula 3: <+RECORD_AUDIT> true
+formula confidentiality: Formula 4: always([+DISCLOSE] true -> <+signed_by(/users/data_owner.id)> true)
+confidentiality formula: Formula 5: always([+DISCLOSE] true -> always([-PUBLIC_RELEASE] true))
+rule confidentiality: Formula 6: <+RECORD_CONFIDENTIALITY> true
+formula privacy: Formula 7: always([+PROCESS_DATA] true -> <+signed_by(/users/subject.id)> true)
+privacy formula: Formula 8: always([+PROCESS_DATA] true -> always([-UNAUTHORIZED_SHARE] true))
+rule privacy: Formula 9: <+RECORD_PRIVACY> true
+formula security: Formula 10: always([+ROTATE_KEY] true -> <+signed_by(/users/security_admin.id)> true)
+security formula: Formula 11: always([+DEPLOY] true -> eventually(<+SECURITY_REVIEW> true))
+rule security: Formula 12: <+RECORD_SECURITY> true
+audit = this audit summary is only prose
+confidentiality = this confidentiality summary is only prose
+privacy = this privacy note is only prose
+security = this security explanation is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+AUDIT] true -> <+signed_by(/users/auditor.id)> true)",
+                "always([+AUDIT] true -> eventually(<+REPORT> true))",
+                "<+RECORD_AUDIT> true",
+                "always([+DISCLOSE] true -> <+signed_by(/users/data_owner.id)> true)",
+                "always([+DISCLOSE] true -> always([-PUBLIC_RELEASE] true))",
+                "<+RECORD_CONFIDENTIALITY> true",
+                "always([+PROCESS_DATA] true -> <+signed_by(/users/subject.id)> true)",
+                "always([+PROCESS_DATA] true -> always([-UNAUTHORIZED_SHARE] true))",
+                "<+RECORD_PRIVACY> true",
+                "always([+ROTATE_KEY] true -> <+signed_by(/users/security_admin.id)> true)",
+                "always([+DEPLOY] true -> eventually(<+SECURITY_REVIEW> true))",
+                "<+RECORD_SECURITY> true"
             ]
         );
     }
