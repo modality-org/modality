@@ -153,6 +153,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Receiving acceptance requires warehouse manager signature and blocks inventory discrepancy" | `always([+ACCEPT_RECEIVING] true -> <+signed_by(/users/warehouse_manager.id)> true)`; `always([+ACCEPT_RECEIVING] true -> always([-INVENTORY_DISCREPANCY] true))` |
 | "Grid interconnection approval requires system operator signature and blocks unsafe energization" | `always([+APPROVE_GRID_INTERCONNECTION] true -> <+signed_by(/users/system_operator.id)> true)`; `always([+APPROVE_GRID_INTERCONNECTION] true -> always([-UNSAFE_ENERGIZATION] true))` |
 | "Maintenance clearance requires outage coordinator signature and blocks live work" | `always([+ISSUE_MAINTENANCE_CLEARANCE] true -> <+signed_by(/users/outage_coordinator.id)> true)`; `always([+ISSUE_MAINTENANCE_CLEARANCE] true -> always([-LIVE_WORK] true))` |
+| "Student record release requires registrar signature and blocks unauthorized disclosure" | `always([+RELEASE_STUDENT_RECORD] true -> <+signed_by(/users/registrar.id)> true)`; `always([+RELEASE_STUDENT_RECORD] true -> always([-UNAUTHORIZED_DISCLOSURE] true))` |
+| "Grant award approval requires program officer signature and blocks conflict award" | `always([+APPROVE_GRANT_AWARD] true -> <+signed_by(/users/program_officer.id)> true)`; `always([+APPROVE_GRANT_AWARD] true -> always([-CONFLICT_AWARD] true))` |
 
 ## Output Format
 
@@ -10728,5 +10730,23 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt
             .contains("always([+ISSUE_MAINTENANCE_CLEARANCE] true -> always([-LIVE_WORK] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_education_research_governance_patterns() {
+        let prompt =
+            generate_prompt("Student record release and grant award approval require controls");
+
+        assert!(prompt.contains(
+            "always([+RELEASE_STUDENT_RECORD] true -> <+signed_by(/users/registrar.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+RELEASE_STUDENT_RECORD] true -> always([-UNAUTHORIZED_DISCLOSURE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_GRANT_AWARD] true -> <+signed_by(/users/program_officer.id)> true)"
+        ));
+        assert!(prompt
+            .contains("always([+APPROVE_GRANT_AWARD] true -> always([-CONFLICT_AWARD] true))"));
     }
 }
