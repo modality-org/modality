@@ -366,6 +366,8 @@ fn collect_json_formulas(
                         | "dutyformula"
                         | "entitlementformula"
                         | "escalationformula"
+                        | "exceptionformula"
+                        | "exemptionformula"
                         | "chargebackformula"
                         | "chargeformula"
                         | "depositformula"
@@ -382,8 +384,10 @@ fn collect_json_formulas(
                         | "incidentformula"
                         | "inspectionformula"
                         | "invoiceformula"
+                        | "licenseformula"
                         | "paymentformula"
                         | "payoutformula"
+                        | "permitformula"
                         | "settlementformula"
                         | "securityformula"
                         | "transferformula"
@@ -408,6 +412,7 @@ fn collect_json_formulas(
                         | "terminationformula"
                         | "timeoutformula"
                         | "warrantyformula"
+                        | "waiverformula"
                         | "withdrawalformula"
                         | "candidateformula"
                         | "changeformula"
@@ -484,6 +489,8 @@ fn collect_json_formulas(
                         | "formuladuty"
                         | "formulaentitlement"
                         | "formulaescalation"
+                        | "formulaexception"
+                        | "formulaexemption"
                         | "formulachargeback"
                         | "formulacharge"
                         | "formuladeposit"
@@ -499,8 +506,10 @@ fn collect_json_formulas(
                         | "formulainspection"
                         | "formulaindemnification"
                         | "formulainvoice"
+                        | "formulalicense"
                         | "formulapayment"
                         | "formulapayout"
+                        | "formulapermit"
                         | "formulasettlement"
                         | "formulasecurity"
                         | "formulatransfer"
@@ -526,6 +535,7 @@ fn collect_json_formulas(
                         | "formulatimeout"
                         | "formularevocation"
                         | "formulawarranty"
+                        | "formulawaiver"
                         | "formulawithdrawal"
                         | "formulabest"
                         | "formulabreached"
@@ -656,6 +666,8 @@ fn collect_json_formulas(
                         | "rulecertification"
                         | "ruleentitlement"
                         | "ruleescalation"
+                        | "ruleexception"
+                        | "ruleexemption"
                         | "rulechargeback"
                         | "rulecharge"
                         | "ruledeposit"
@@ -672,8 +684,10 @@ fn collect_json_formulas(
                         | "ruleinspection"
                         | "ruleindemnification"
                         | "ruleinvoice"
+                        | "rulelicense"
                         | "rulepayment"
                         | "rulepayout"
+                        | "rulepermit"
                         | "rulesettlement"
                         | "rulesecurity"
                         | "ruletransfer"
@@ -685,6 +699,7 @@ fn collect_json_formulas(
                         | "ruleobligation"
                         | "rulepolicy"
                         | "rulewarranty"
+                        | "rulewaiver"
                         | "rulewithdrawal"
                         | "ruleretention"
                         | "ruleassessment"
@@ -1466,8 +1481,10 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "incidentformula"
             | "inspectionformula"
             | "invoiceformula"
+            | "licenseformula"
             | "paymentformula"
             | "payoutformula"
+            | "permitformula"
             | "settlementformula"
             | "securityformula"
             | "transferformula"
@@ -1567,6 +1584,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formuladuty"
             | "formulaentitlement"
             | "formulaescalation"
+            | "formulaexception"
+            | "formulaexemption"
             | "formulachargeback"
             | "formulacharge"
             | "formuladeposit"
@@ -1582,8 +1601,10 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulainspection"
             | "formulaindemnification"
             | "formulainvoice"
+            | "formulalicense"
             | "formulapayment"
             | "formulapayout"
+            | "formulapermit"
             | "formulasettlement"
             | "formulasecurity"
             | "formulatransfer"
@@ -1605,6 +1626,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulatimeout"
             | "formularevocation"
             | "formulawarranty"
+            | "formulawaiver"
             | "formulawithdrawal"
             | "formulabest"
             | "formulabreached"
@@ -1735,6 +1757,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulecertification"
             | "ruleentitlement"
             | "ruleescalation"
+            | "ruleexception"
+            | "ruleexemption"
             | "rulechargeback"
             | "rulecharge"
             | "ruledeposit"
@@ -1751,8 +1775,10 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleinspection"
             | "ruleindemnification"
             | "ruleinvoice"
+            | "rulelicense"
             | "rulepayment"
             | "rulepayout"
+            | "rulepermit"
             | "rulesettlement"
             | "rulesecurity"
             | "ruletransfer"
@@ -1761,6 +1787,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulemilestone"
             | "ruleobligation"
             | "rulewarranty"
+            | "rulewaiver"
             | "rulewithdrawal"
             | "rulebest"
             | "rulebreached"
@@ -1939,6 +1966,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "dutyformula"
             | "entitlementformula"
             | "escalationformula"
+            | "exceptionformula"
+            | "exemptionformula"
             | "chargebackformula"
             | "chargeformula"
             | "depositformula"
@@ -1955,8 +1984,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "incidentformula"
             | "inspectionformula"
             | "invoiceformula"
+            | "licenseformula"
             | "paymentformula"
             | "payoutformula"
+            | "permitformula"
             | "settlementformula"
             | "securityformula"
             | "transferformula"
@@ -1981,6 +2012,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "terminationformula"
             | "timeoutformula"
             | "warrantyformula"
+            | "waiverformula"
             | "withdrawalformula"
             | "candidateformula"
             | "changeformula"
@@ -2057,6 +2089,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formuladuty"
             | "formulaentitlement"
             | "formulaescalation"
+            | "formulaexception"
+            | "formulaexemption"
             | "formulacharge"
             | "formuladeposit"
             | "formulaescrow"
@@ -2068,8 +2102,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulainspection"
             | "formulaindemnification"
             | "formulainvoice"
+            | "formulalicense"
             | "formulapayment"
             | "formulapayout"
+            | "formulapermit"
             | "formulasettlement"
             | "formulasecurity"
             | "formulatransfer"
@@ -2094,6 +2130,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulatimeout"
             | "formularevocation"
             | "formulawarranty"
+            | "formulawaiver"
             | "formulawithdrawal"
             | "formulabest"
             | "formulabreached"
@@ -2222,6 +2259,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulecertification"
             | "ruleentitlement"
             | "ruleescalation"
+            | "ruleexception"
+            | "ruleexemption"
             | "rulecharge"
             | "ruledeposit"
             | "ruleescrow"
@@ -2234,8 +2273,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleinspection"
             | "ruleindemnification"
             | "ruleinvoice"
+            | "rulelicense"
             | "rulepayment"
             | "rulepayout"
+            | "rulepermit"
             | "rulesettlement"
             | "rulesecurity"
             | "ruletransfer"
@@ -2247,6 +2288,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleobligation"
             | "rulepolicy"
             | "rulewarranty"
+            | "rulewaiver"
             | "rulewithdrawal"
             | "ruleretention"
             | "rulebest"
@@ -6655,6 +6697,56 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_license_exception_aliases() {
+        let response = r#"
+{
+  "formula_license": "Formula 1: always([+ISSUE_LICENSE] true -> <+signed_by(/users/licensor.id)> true)",
+  "license_formula": "F2: always([+USE_LICENSE] true -> eventually(<+ISSUE_LICENSE> true))",
+  "rule_license": "Formula 3: <+RECORD_LICENSE> true",
+  "formula_permit": "Formula 4: always([+ISSUE_PERMIT] true -> <+signed_by(/users/issuer.id)> true)",
+  "permit_formula": "Formula 5: always([+USE_PERMIT] true -> eventually(<+ISSUE_PERMIT> true))",
+  "rule_permit": "Formula 6: <+RECORD_PERMIT> true",
+  "formula_waiver": "Formula 7: always([+GRANT_WAIVER] true -> <+signed_by(/users/waiver_authority.id)> true)",
+  "waiver_formula": "Formula 8: always([+GRANT_WAIVER] true -> always([-ENFORCE_REQUIREMENT] true))",
+  "rule_waiver": "Formula 9: <+RECORD_WAIVER> true",
+  "formula_exception": "Formula 10: always([+ALLOW_EXCEPTION] true -> <+signed_by(/users/approver.id)> true)",
+  "exception_formula": "Formula 11: always([+ALLOW_EXCEPTION] true -> eventually(<+REVIEW_EXCEPTION> true))",
+  "rule_exception": "Formula 12: <+RECORD_EXCEPTION> true",
+  "formula_exemption": "Formula 13: always([+GRANT_EXEMPTION] true -> <+signed_by(/users/approver.id)> true)",
+  "exemption_formula": "Formula 14: always([+GRANT_EXEMPTION] true -> always([-APPLY_STANDARD] true))",
+  "rule_exemption": "Formula 15: <+RECORD_EXEMPTION> true",
+  "license": "This license summary is only prose.",
+  "permit": "This permit summary is only prose.",
+  "waiver": "This waiver note is only prose.",
+  "exception": "This exception explanation is only prose.",
+  "exemption": "This exemption explanation is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+ALLOW_EXCEPTION] true -> eventually(<+REVIEW_EXCEPTION> true))",
+                "always([+GRANT_EXEMPTION] true -> always([-APPLY_STANDARD] true))",
+                "always([+ALLOW_EXCEPTION] true -> <+signed_by(/users/approver.id)> true)",
+                "always([+GRANT_EXEMPTION] true -> <+signed_by(/users/approver.id)> true)",
+                "always([+ISSUE_LICENSE] true -> <+signed_by(/users/licensor.id)> true)",
+                "always([+ISSUE_PERMIT] true -> <+signed_by(/users/issuer.id)> true)",
+                "always([+GRANT_WAIVER] true -> <+signed_by(/users/waiver_authority.id)> true)",
+                "always([+USE_LICENSE] true -> eventually(<+ISSUE_LICENSE> true))",
+                "always([+USE_PERMIT] true -> eventually(<+ISSUE_PERMIT> true))",
+                "<+RECORD_EXCEPTION> true",
+                "<+RECORD_EXEMPTION> true",
+                "<+RECORD_LICENSE> true",
+                "<+RECORD_PERMIT> true",
+                "<+RECORD_WAIVER> true",
+                "always([+GRANT_WAIVER] true -> always([-ENFORCE_REQUIREMENT] true))"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -8557,6 +8649,54 @@ retention = this retention explanation is only prose
                 "always([+RETENTION_REVIEW] true -> <+signed_by(/users/records_admin.id)> true)",
                 "always([+PURGE_RECORDS] true -> eventually(<+RETENTION_REVIEW> true))",
                 "<+RECORD_RETENTION> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_license_exception_aliases() {
+        let response = r#"
+formula license: Formula 1: always([+ISSUE_LICENSE] true -> <+signed_by(/users/licensor.id)> true)
+license formula: F2: always([+USE_LICENSE] true -> eventually(<+ISSUE_LICENSE> true))
+rule license: Formula 3: <+RECORD_LICENSE> true
+formula permit: Formula 4: always([+ISSUE_PERMIT] true -> <+signed_by(/users/issuer.id)> true)
+permit formula: Formula 5: always([+USE_PERMIT] true -> eventually(<+ISSUE_PERMIT> true))
+rule permit: Formula 6: <+RECORD_PERMIT> true
+formula waiver: Formula 7: always([+GRANT_WAIVER] true -> <+signed_by(/users/waiver_authority.id)> true)
+waiver formula: Formula 8: always([+GRANT_WAIVER] true -> always([-ENFORCE_REQUIREMENT] true))
+rule waiver: Formula 9: <+RECORD_WAIVER> true
+formula exception: Formula 10: always([+ALLOW_EXCEPTION] true -> <+signed_by(/users/approver.id)> true)
+exception formula: Formula 11: always([+ALLOW_EXCEPTION] true -> eventually(<+REVIEW_EXCEPTION> true))
+rule exception: Formula 12: <+RECORD_EXCEPTION> true
+formula exemption: Formula 13: always([+GRANT_EXEMPTION] true -> <+signed_by(/users/approver.id)> true)
+exemption formula: Formula 14: always([+GRANT_EXEMPTION] true -> always([-APPLY_STANDARD] true))
+rule exemption: Formula 15: <+RECORD_EXEMPTION> true
+license = this license summary is only prose
+permit = this permit summary is only prose
+waiver = this waiver note is only prose
+exception = this exception explanation is only prose
+exemption = this exemption explanation is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+ISSUE_LICENSE] true -> <+signed_by(/users/licensor.id)> true)",
+                "always([+USE_LICENSE] true -> eventually(<+ISSUE_LICENSE> true))",
+                "<+RECORD_LICENSE> true",
+                "always([+ISSUE_PERMIT] true -> <+signed_by(/users/issuer.id)> true)",
+                "always([+USE_PERMIT] true -> eventually(<+ISSUE_PERMIT> true))",
+                "<+RECORD_PERMIT> true",
+                "always([+GRANT_WAIVER] true -> <+signed_by(/users/waiver_authority.id)> true)",
+                "always([+GRANT_WAIVER] true -> always([-ENFORCE_REQUIREMENT] true))",
+                "<+RECORD_WAIVER> true",
+                "always([+ALLOW_EXCEPTION] true -> <+signed_by(/users/approver.id)> true)",
+                "always([+ALLOW_EXCEPTION] true -> eventually(<+REVIEW_EXCEPTION> true))",
+                "<+RECORD_EXCEPTION> true",
+                "always([+GRANT_EXEMPTION] true -> <+signed_by(/users/approver.id)> true)",
+                "always([+GRANT_EXEMPTION] true -> always([-APPLY_STANDARD] true))",
+                "<+RECORD_EXEMPTION> true"
             ]
         );
     }
