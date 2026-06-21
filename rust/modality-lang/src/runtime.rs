@@ -22,10 +22,10 @@
 //! let state = instance.current_state();
 //! ```
 
-use crate::ast::{Model, Part, Transition, Property, PropertySign, PropertySource};
-use crate::paths::{ContractStore, PathValue, parse_path_reference};
+use crate::ast::{Model, Part, Property, PropertySign, PropertySource, Transition};
+use crate::paths::{parse_path_reference, ContractStore, PathValue};
 // Note: WasmPredicateEvaluator would be used here for production predicate verification
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Result type for runtime operations
@@ -35,7 +35,11 @@ pub type RuntimeResult<T> = Result<T, RuntimeError>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum RuntimeError {
     /// No valid transition for the given action
-    InvalidTransition { from: String, action: String, reason: String },
+    InvalidTransition {
+        from: String,
+        action: String,
+        reason: String,
+    },
     /// Missing required signature
     MissingSignature { required: String },
     /// Invalid signature
@@ -53,20 +57,27 @@ pub enum RuntimeError {
 impl std::fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RuntimeError::InvalidTransition { from, action, reason } => 
-                write!(f, "Invalid transition from '{}' with action '{}': {}", from, action, reason),
-            RuntimeError::MissingSignature { required } => 
-                write!(f, "Missing required signature: {}", required),
-            RuntimeError::InvalidSignature { signer, reason } => 
-                write!(f, "Invalid signature from '{}': {}", signer, reason),
-            RuntimeError::PredicateFailed { predicate, reason } => 
-                write!(f, "Predicate '{}' failed: {}", predicate, reason),
-            RuntimeError::ContractTerminated => 
-                write!(f, "Contract has terminated"),
-            RuntimeError::PartNotFound { name } => 
-                write!(f, "Part not found: {}", name),
-            RuntimeError::InvalidState { reason } => 
-                write!(f, "Invalid state: {}", reason),
+            RuntimeError::InvalidTransition {
+                from,
+                action,
+                reason,
+            } => write!(
+                f,
+                "Invalid transition from '{}' with action '{}': {}",
+                from, action, reason
+            ),
+            RuntimeError::MissingSignature { required } => {
+                write!(f, "Missing required signature: {}", required)
+            }
+            RuntimeError::InvalidSignature { signer, reason } => {
+                write!(f, "Invalid signature from '{}': {}", signer, reason)
+            }
+            RuntimeError::PredicateFailed { predicate, reason } => {
+                write!(f, "Predicate '{}' failed: {}", predicate, reason)
+            }
+            RuntimeError::ContractTerminated => write!(f, "Contract has terminated"),
+            RuntimeError::PartNotFound { name } => write!(f, "Part not found: {}", name),
+            RuntimeError::InvalidState { reason } => write!(f, "Invalid state: {}", reason),
         }
     }
 }
@@ -159,20 +170,22 @@ impl ContractInstance {
         let mut part_states = HashMap::new();
         for part in &model.parts {
             // Find initial state - first 'from' node that isn't a 'to' of any transition
-            let to_nodes: std::collections::HashSet<_> = part.transitions.iter()
-                .map(|t| &t.to)
-                .collect();
-            
-            let initial = part.transitions.iter()
+            let to_nodes: std::collections::HashSet<_> =
+                part.transitions.iter().map(|t| &t.to).collect();
+
+            let initial = part
+                .transitions
+                .iter()
                 .find(|t| !to_nodes.contains(&t.from))
                 .map(|t| t.from.clone())
                 .unwrap_or_else(|| {
                     // Fallback: use first transition's from
-                    part.transitions.first()
+                    part.transitions
+                        .first()
                         .map(|t| t.from.clone())
                         .unwrap_or_else(|| "init".to_string())
                 });
-            
+
             part_states.insert(part.name.clone(), initial);
         }
 
@@ -237,13 +250,19 @@ impl ContractInstance {
             match req.sign {
                 PropertySign::Plus => {
                     // Must have this property with Plus
-                    if !action_props.iter().any(|p| p.name == req.name && p.sign == PropertySign::Plus) {
+                    if !action_props
+                        .iter()
+                        .any(|p| p.name == req.name && p.sign == PropertySign::Plus)
+                    {
                         return false;
                     }
                 }
                 PropertySign::Minus => {
                     // Must NOT have this property with Plus
-                    if action_props.iter().any(|p| p.name == req.name && p.sign == PropertySign::Plus) {
+                    if action_props
+                        .iter()
+                        .any(|p| p.name == req.name && p.sign == PropertySign::Plus)
+                    {
                         return false;
                     }
                 }
@@ -257,9 +276,9 @@ impl ContractInstance {
         let part = self.model.parts.iter().find(|p| p.name == part_name)?;
         let current_node = self.state.part_states.get(part_name)?;
 
-        part.transitions.iter().find(|t| {
-            &t.from == current_node && self.properties_satisfy(properties, &t.properties)
-        })
+        part.transitions
+            .iter()
+            .find(|t| &t.from == current_node && self.properties_satisfy(properties, &t.properties))
     }
 
     /// Commit a signed action
@@ -295,8 +314,10 @@ impl ContractInstance {
             for part in &self.model.parts {
                 if let Some(current) = self.state.part_states.get(&part.name) {
                     for t in &part.transitions {
-                        if &t.from == current && &t.to == current && 
-                           self.properties_satisfy(&action.properties, &t.properties) {
+                        if &t.from == current
+                            && &t.to == current
+                            && self.properties_satisfy(&action.properties, &t.properties)
+                        {
                             found_transition = true;
                             break;
                         }
@@ -306,8 +327,20 @@ impl ContractInstance {
         }
 
         if !found_transition {
-            let prop_names: Vec<_> = action.properties.iter()
-                .map(|p| format!("{}{}", if p.sign == PropertySign::Plus { "+" } else { "-" }, p.name))
+            let prop_names: Vec<_> = action
+                .properties
+                .iter()
+                .map(|p| {
+                    format!(
+                        "{}{}",
+                        if p.sign == PropertySign::Plus {
+                            "+"
+                        } else {
+                            "-"
+                        },
+                        p.name
+                    )
+                })
                 .collect();
             return Err(RuntimeError::InvalidTransition {
                 from: format!("{:?}", from_state),
@@ -371,7 +404,9 @@ impl ContractInstance {
 
     /// Set a value at a path
     pub fn store_set(&mut self, path: &str, value: PathValue) -> RuntimeResult<()> {
-        self.store.set(path, value).map_err(|e| RuntimeError::InvalidState { reason: e })
+        self.store
+            .set(path, value)
+            .map_err(|e| RuntimeError::InvalidState { reason: e })
     }
 
     /// Get a value at a path
@@ -396,30 +431,34 @@ impl ContractInstance {
 
     /// Check if a predicate with path reference is satisfied
     /// Example: signed_by(/members/alice.pubkey)
-    /// 
+    ///
     /// For signature verification, pass the signature hex and the message that was signed.
-    pub fn check_path_predicate(&self, predicate: &str, signature_hex: &str, message: &[u8]) -> bool {
+    pub fn check_path_predicate(
+        &self,
+        predicate: &str,
+        signature_hex: &str,
+        message: &[u8],
+    ) -> bool {
         if let Some((name, path)) = parse_path_reference(predicate) {
             match name.as_str() {
                 "signed_by" => {
                     // Get pubkey from path and verify signature
                     if let Some(pubkey) = self.resolve_pubkey(&path) {
                         // Actually verify the signature using ed25519
-                        matches!(crate::crypto::verify_ed25519(pubkey, message, signature_hex), crate::crypto::VerifyResult::Valid)
+                        matches!(
+                            crate::crypto::verify_ed25519(pubkey, message, signature_hex),
+                            crate::crypto::VerifyResult::Valid
+                        )
                     } else {
                         false
                     }
                 }
-                "has_balance" => {
-                    self.resolve_balance(&path).is_some()
-                }
+                "has_balance" => self.resolve_balance(&path).is_some(),
                 "has_min_balance" => {
                     // Parse minimum from predicate args if needed
                     self.resolve_balance(&path).map(|b| b > 0).unwrap_or(false)
                 }
-                "exists" => {
-                    self.store.exists(&path)
-                }
+                "exists" => self.store.exists(&path),
                 _ => false,
             }
         } else {
@@ -436,7 +475,10 @@ impl ContractInstance {
         signature_hex: &str,
     ) -> bool {
         if let Some(pubkey) = self.resolve_pubkey(signer_path) {
-            matches!(crate::crypto::verify_ed25519(pubkey, action_json.as_bytes(), signature_hex), crate::crypto::VerifyResult::Valid)
+            matches!(
+                crate::crypto::verify_ed25519(pubkey, action_json.as_bytes(), signature_hex),
+                crate::crypto::VerifyResult::Valid
+            )
         } else {
             false
         }
@@ -447,8 +489,12 @@ impl ContractInstance {
     /// Add to a balance at a path
     pub fn add_balance(&mut self, path: &str, amount: u64) -> RuntimeResult<u64> {
         let current = self.resolve_balance(path).unwrap_or(0);
-        let new_balance = current.checked_add(amount)
-            .ok_or_else(|| RuntimeError::InvalidState { reason: "Balance overflow".to_string() })?;
+        let new_balance =
+            current
+                .checked_add(amount)
+                .ok_or_else(|| RuntimeError::InvalidState {
+                    reason: "Balance overflow".to_string(),
+                })?;
         self.store_set(path, PathValue::Balance(new_balance))?;
         Ok(new_balance)
     }
@@ -456,14 +502,23 @@ impl ContractInstance {
     /// Subtract from a balance at a path
     pub fn subtract_balance(&mut self, path: &str, amount: u64) -> RuntimeResult<u64> {
         let current = self.resolve_balance(path).unwrap_or(0);
-        let new_balance = current.checked_sub(amount)
-            .ok_or_else(|| RuntimeError::InvalidState { reason: "Insufficient balance".to_string() })?;
+        let new_balance =
+            current
+                .checked_sub(amount)
+                .ok_or_else(|| RuntimeError::InvalidState {
+                    reason: "Insufficient balance".to_string(),
+                })?;
         self.store_set(path, PathValue::Balance(new_balance))?;
         Ok(new_balance)
     }
 
     /// Transfer balance from one path to another
-    pub fn transfer_balance(&mut self, from_path: &str, to_path: &str, amount: u64) -> RuntimeResult<(u64, u64)> {
+    pub fn transfer_balance(
+        &mut self,
+        from_path: &str,
+        to_path: &str,
+        amount: u64,
+    ) -> RuntimeResult<(u64, u64)> {
         let from_balance = self.subtract_balance(from_path, amount)?;
         let to_balance = self.add_balance(to_path, amount)?;
         Ok((from_balance, to_balance))
@@ -471,7 +526,9 @@ impl ContractInstance {
 
     /// Check if a balance is sufficient
     pub fn has_sufficient_balance(&self, path: &str, required: u64) -> bool {
-        self.resolve_balance(path).map(|b| b >= required).unwrap_or(false)
+        self.resolve_balance(path)
+            .map(|b| b >= required)
+            .unwrap_or(false)
     }
 
     // ==================== Time Operations ====================
@@ -545,14 +602,16 @@ impl ContractInstance {
 
     /// Get events of a specific type
     pub fn get_events_by_type(&self, event_type: &str) -> Vec<&ContractEvent> {
-        self.events.iter()
+        self.events
+            .iter()
             .filter(|e| e.event_type == event_type)
             .collect()
     }
 
     /// Get events since a sequence number
     pub fn get_events_since(&self, since_seq: u64) -> Vec<&ContractEvent> {
-        self.events.iter()
+        self.events
+            .iter()
             .filter(|e| e.sequence > since_seq)
             .collect()
     }
@@ -570,8 +629,19 @@ pub struct AvailableTransition {
 impl AvailableTransition {
     /// Format required properties as a string
     pub fn properties_string(&self) -> String {
-        self.required_properties.iter()
-            .map(|p| format!("{}{}", if p.sign == PropertySign::Plus { "+" } else { "-" }, p.name))
+        self.required_properties
+            .iter()
+            .map(|p| {
+                format!(
+                    "{}{}",
+                    if p.sign == PropertySign::Plus {
+                        "+"
+                    } else {
+                        "-"
+                    },
+                    p.name
+                )
+            })
             .collect::<Vec<_>>()
             .join(" ")
     }
@@ -597,13 +667,15 @@ impl ActionBuilder {
 
     /// Add a positive property
     pub fn with(mut self, name: &str) -> Self {
-        self.properties.push(Property::new(PropertySign::Plus, name.to_string()));
+        self.properties
+            .push(Property::new(PropertySign::Plus, name.to_string()));
         self
     }
 
     /// Add a negative property
     pub fn without(mut self, name: &str) -> Self {
-        self.properties.push(Property::new(PropertySign::Minus, name.to_string()));
+        self.properties
+            .push(Property::new(PropertySign::Minus, name.to_string()));
         self
     }
 
@@ -697,7 +769,7 @@ pub mod negotiation {
                 return false;
             }
             self.signatures.insert(party.to_string(), signature);
-            
+
             // Check if all parties signed
             if self.signatures.len() == self.parties.len() {
                 self.status = ProposalStatus::Accepted;
@@ -723,7 +795,9 @@ pub mod negotiation {
                 });
             }
 
-            let parties: HashMap<String, String> = self.parties.iter()
+            let parties: HashMap<String, String> = self
+                .parties
+                .iter()
                 .map(|p| (p.clone(), p.clone())) // In production, map to public keys
                 .collect();
 
@@ -754,8 +828,8 @@ pub mod negotiation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::synthesis::templates;
     use crate::paths::PathValue;
+    use crate::synthesis::templates;
 
     #[test]
     fn test_create_instance() {
@@ -778,7 +852,7 @@ mod tests {
 
         let instance = ContractInstance::new(model, parties).unwrap();
         let transitions = instance.available_transitions();
-        
+
         // From init state, should have deposit transition
         assert!(!transitions.is_empty());
     }
@@ -791,13 +865,13 @@ mod tests {
         parties.insert("Bob".to_string(), "bob_key".to_string());
 
         let mut instance = ContractInstance::new(model, parties).unwrap();
-        
+
         // Commit first signature
         let action = ActionBuilder::new()
             .with("SIGNED_BY_ALICE")
             .signed_by("Alice")
             .build();
-        
+
         let record = instance.commit(action).unwrap();
         assert_eq!(record.seq, 1);
     }
@@ -810,13 +884,13 @@ mod tests {
         parties.insert("Bob".to_string(), "bob_key".to_string());
 
         let mut instance = ContractInstance::new(model, parties).unwrap();
-        
+
         // Try to deliver without depositing first
         let action = ActionBuilder::new()
             .with("DELIVER")
             .signed_by("Bob")
             .build();
-        
+
         let result = instance.commit(action);
         assert!(result.is_err());
     }
@@ -868,7 +942,7 @@ mod tests {
         let instance = ContractInstance::new(model, parties).unwrap();
         let json = instance.to_json().unwrap();
         let restored = ContractInstance::from_json(&json).unwrap();
-        
+
         assert_eq!(instance.id, restored.id);
         assert_eq!(instance.sequence, restored.sequence);
     }
@@ -940,8 +1014,10 @@ mod tests {
         let mut instance = ContractInstance::new(model, parties).unwrap();
 
         // POST a value
-        instance.post("/status/state.text", PathValue::Text("active".to_string())).unwrap();
-        
+        instance
+            .post("/status/state.text", PathValue::Text("active".to_string()))
+            .unwrap();
+
         assert_eq!(
             instance.store_get("/status/state.text"),
             Some(&PathValue::Text("active".to_string()))
@@ -969,11 +1045,11 @@ mod tests {
         use crate::crypto::{generate_keypair, sign_ed25519};
 
         let model = templates::escrow("Alice", "Bob");
-        
+
         // Generate real keypairs
         let (alice_secret, alice_public) = generate_keypair();
         let (_, bob_public) = generate_keypair();
-        
+
         let mut parties = HashMap::new();
         parties.insert("Alice".to_string(), alice_public.clone());
         parties.insert("Bob".to_string(), bob_public.clone());
@@ -1012,9 +1088,9 @@ mod tests {
         use crate::crypto::{generate_keypair, sign_ed25519};
 
         let model = templates::escrow("Alice", "Bob");
-        
+
         let (alice_secret, alice_public) = generate_keypair();
-        
+
         let mut parties = HashMap::new();
         parties.insert("Alice".to_string(), alice_public);
         parties.insert("Bob".to_string(), "bob_fake_key".to_string());
@@ -1026,18 +1102,10 @@ mod tests {
         let signature = sign_ed25519(&alice_secret, action_json.as_bytes()).unwrap();
 
         // Verify with correct path
-        assert!(instance.verify_action_signature(
-            "/members/alice.pubkey",
-            action_json,
-            &signature
-        ));
+        assert!(instance.verify_action_signature("/members/alice.pubkey", action_json, &signature));
 
         // Verify with wrong path should fail
-        assert!(!instance.verify_action_signature(
-            "/members/bob.pubkey",
-            action_json,
-            &signature
-        ));
+        assert!(!instance.verify_action_signature("/members/bob.pubkey", action_json, &signature));
     }
 
     #[test]
@@ -1050,14 +1118,20 @@ mod tests {
         let mut instance = ContractInstance::new(model, parties).unwrap();
 
         // Set initial balance
-        instance.store_set("/balances/alice.balance", PathValue::Balance(1000)).unwrap();
+        instance
+            .store_set("/balances/alice.balance", PathValue::Balance(1000))
+            .unwrap();
 
         // Add balance
-        let new_balance = instance.add_balance("/balances/alice.balance", 500).unwrap();
+        let new_balance = instance
+            .add_balance("/balances/alice.balance", 500)
+            .unwrap();
         assert_eq!(new_balance, 1500);
 
         // Subtract balance
-        let new_balance = instance.subtract_balance("/balances/alice.balance", 300).unwrap();
+        let new_balance = instance
+            .subtract_balance("/balances/alice.balance", 300)
+            .unwrap();
         assert_eq!(new_balance, 1200);
 
         // Check sufficient balance
@@ -1075,18 +1149,20 @@ mod tests {
         let mut instance = ContractInstance::new(model, parties).unwrap();
 
         // Set initial balances
-        instance.store_set("/balances/alice.balance", PathValue::Balance(1000)).unwrap();
-        instance.store_set("/balances/bob.balance", PathValue::Balance(0)).unwrap();
+        instance
+            .store_set("/balances/alice.balance", PathValue::Balance(1000))
+            .unwrap();
+        instance
+            .store_set("/balances/bob.balance", PathValue::Balance(0))
+            .unwrap();
 
         // Transfer
-        let (from, to) = instance.transfer_balance(
-            "/balances/alice.balance",
-            "/balances/bob.balance",
-            400
-        ).unwrap();
+        let (from, to) = instance
+            .transfer_balance("/balances/alice.balance", "/balances/bob.balance", 400)
+            .unwrap();
 
-        assert_eq!(from, 600);  // Alice now has 600
-        assert_eq!(to, 400);    // Bob now has 400
+        assert_eq!(from, 600); // Alice now has 600
+        assert_eq!(to, 400); // Bob now has 400
     }
 
     #[test]
@@ -1099,7 +1175,9 @@ mod tests {
         let mut instance = ContractInstance::new(model, parties).unwrap();
 
         // Set small balance
-        instance.store_set("/balances/alice.balance", PathValue::Balance(100)).unwrap();
+        instance
+            .store_set("/balances/alice.balance", PathValue::Balance(100))
+            .unwrap();
 
         // Try to subtract more than available
         let result = instance.subtract_balance("/balances/alice.balance", 500);
@@ -1116,7 +1194,9 @@ mod tests {
         let mut instance = ContractInstance::new(model, parties).unwrap();
 
         // Set a deadline 1 hour from now
-        let deadline = instance.set_deadline_from_now("/escrow/deadline.int", 3600_000).unwrap();
+        let deadline = instance
+            .set_deadline_from_now("/escrow/deadline.int", 3_600_000)
+            .unwrap();
         assert!(deadline > instance.now_ms());
 
         // Should be before deadline
@@ -1125,7 +1205,7 @@ mod tests {
 
         // Time remaining should be close to 1 hour
         let remaining = instance.time_until_deadline("/escrow/deadline.int");
-        assert!(remaining > 3599_000 && remaining <= 3600_000);
+        assert!(remaining > 3_599_000 && remaining <= 3_600_000);
     }
 
     #[test]
@@ -1156,19 +1236,28 @@ mod tests {
         let mut instance = ContractInstance::new(model, parties).unwrap();
 
         // Emit some events
-        instance.emit_event("deposit", serde_json::json!({
-            "from": "Alice",
-            "amount": 100
-        }));
-        instance.emit_event("transfer", serde_json::json!({
-            "from": "Alice",
-            "to": "Bob",
-            "amount": 50
-        }));
-        instance.emit_event("deposit", serde_json::json!({
-            "from": "Bob",
-            "amount": 25
-        }));
+        instance.emit_event(
+            "deposit",
+            serde_json::json!({
+                "from": "Alice",
+                "amount": 100
+            }),
+        );
+        instance.emit_event(
+            "transfer",
+            serde_json::json!({
+                "from": "Alice",
+                "to": "Bob",
+                "amount": 50
+            }),
+        );
+        instance.emit_event(
+            "deposit",
+            serde_json::json!({
+                "from": "Bob",
+                "amount": 25
+            }),
+        );
 
         // Check all events
         let events = instance.get_events();

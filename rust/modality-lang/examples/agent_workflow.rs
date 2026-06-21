@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Type: {}", proposal.proposal_type);
     println!("  Parties: {:?}", proposal.parties);
     println!("  Terms: {:?}", proposal.terms);
-    println!("");
+    println!();
 
     // Simulate sending to Agent B
     println!("Agent A sends proposal to Agent B...\n");
@@ -40,13 +40,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Agent B receives proposal:");
     println!("  From: {}", received.proposed_by);
     println!("  Terms: {:?}", received.terms);
-    println!("");
+    println!();
 
     let mut contract = received.accept();
     println!("Agent B accepts! Contract created.");
     println!("  ID: {}", contract.id());
     println!("  {}", contract.summary());
-    println!("");
+    println!();
 
     // =========================================================================
     // Add custom state via paths
@@ -56,12 +56,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Set up contract details via paths
     contract.post("/escrow/amount.balance", PathValue::Balance(100))?;
-    contract.post("/escrow/description.text", PathValue::Text("Data analysis service".to_string()))?;
+    contract.post(
+        "/escrow/description.text",
+        PathValue::Text("Data analysis service".to_string()),
+    )?;
 
     println!("Contract state:");
-    println!("  Amount: {} tokens", contract.get_balance("/escrow/amount.balance").unwrap_or(0));
-    println!("  Has description: {}", contract.path_exists("/escrow/description.text"));
-    println!("");
+    println!(
+        "  Amount: {} tokens",
+        contract.get_balance("/escrow/amount.balance").unwrap_or(0)
+    );
+    println!(
+        "  Has description: {}",
+        contract.path_exists("/escrow/description.text")
+    );
+    println!();
 
     // =========================================================================
     // Execute the contract
@@ -71,32 +80,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Check who can act
     println!("Who can act: {:?}", contract.who_can_act());
-    println!("");
+    println!();
 
     // Agent A offers
     println!("Agent A offers service:");
     contract.act("agent_a", "offer")?;
     println!("  {}", contract.summary());
     println!("  Next steps: {:?}", contract.next_steps());
-    println!("");
+    println!();
 
     // Agent B accepts
     println!("Agent B accepts offer:");
     contract.act("agent_b", "accept")?;
     println!("  {}", contract.summary());
-    println!("");
+    println!();
 
     // Agent A delivers
     println!("Agent A delivers:");
     contract.act("agent_a", "deliver")?;
     println!("  {}", contract.summary());
-    println!("");
+    println!();
 
     // Agent B confirms
     println!("Agent B confirms receipt:");
     contract.act("agent_b", "confirm")?;
     println!("  {}", contract.summary());
-    println!("");
+    println!();
 
     // =========================================================================
     // Final status
@@ -111,13 +120,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Active: {}", status.is_active);
     println!("  Complete: {}", status.is_complete);
     println!("  Actions: {}", status.action_count);
-    println!("");
+    println!();
 
     println!("History:");
     for entry in contract.history() {
         println!("  #{} {} (by {})", entry.sequence, entry.action, entry.by);
     }
-    println!("");
+    println!();
 
     // =========================================================================
     // Serialization demo
@@ -128,11 +137,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let json = contract.to_json()?;
     println!("Contract JSON (truncated):");
     println!("  {:.200}...", json);
-    println!("");
+    println!();
 
     let restored = Contract::from_json(&json)?;
     println!("Restored contract: {}", restored.summary());
-    println!("");
+    println!();
 
     println!("=== Demo Complete ===");
 

@@ -96,15 +96,16 @@ impl MemberContract {
     fn apply(&mut self, commit: &Commit) -> Result<(), String> {
         // Check rules
         for rule in &self.rules {
-            if rule.contains("modifies(/members) implies all_signed(/members)") {
-                if commit.modifies_path("/members") && !self.all_members_signed(commit) {
-                    let required: Vec<_> = self.all_member_ids().into_iter().collect();
-                    let have: Vec<_> = commit.signers.iter().cloned().collect();
-                    return Err(format!(
-                        "Rule violation: modifies(/members) requires all_signed(/members). Required: {:?}, Have: {:?}",
-                        required, have
-                    ));
-                }
+            if rule.contains("modifies(/members) implies all_signed(/members)")
+                && commit.modifies_path("/members")
+                && !self.all_members_signed(commit)
+            {
+                let required: Vec<_> = self.all_member_ids().into_iter().collect();
+                let have: Vec<_> = commit.signers.iter().cloned().collect();
+                return Err(format!(
+                    "Rule violation: modifies(/members) requires all_signed(/members). Required: {:?}, Have: {:?}",
+                    required, have
+                ));
             }
         }
 
@@ -166,7 +167,10 @@ fn test_membership_evolution_with_rule_enforcement() {
         .signed_by(alice_id);
 
     let result = contract.apply(&commit3);
-    assert!(result.is_ok(), "Alice alone can add Bob (she's the only member)");
+    assert!(
+        result.is_ok(),
+        "Alice alone can add Bob (she's the only member)"
+    );
     assert_eq!(contract.members.len(), 2);
 
     // === Step 4: Try to add Carol with only Alice's signature ===
