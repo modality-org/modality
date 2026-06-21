@@ -251,6 +251,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Load shedding activation requires on-call lead signature and blocks customer-impacting throttling without incident" | `always([+ACTIVATE_LOAD_SHEDDING] true -> <+signed_by(/users/on_call_lead.id)> true)`; `always([+ACTIVATE_LOAD_SHEDDING] true -> always([-CUSTOMER_IMPACTING_THROTTLING_WITHOUT_INCIDENT] true))` |
 | "Autoscaling policy change approval requires platform owner signature and blocks runaway resource scaling" | `always([+APPROVE_AUTOSCALING_POLICY_CHANGE] true -> <+signed_by(/users/platform_owner.id)> true)`; `always([+APPROVE_AUTOSCALING_POLICY_CHANGE] true -> always([-RUNAWAY_RESOURCE_SCALING] true))` |
 | "Disaster recovery failover activation requires recovery lead signature and blocks untested failover promotion" | `always([+ACTIVATE_DISASTER_RECOVERY_FAILOVER] true -> <+signed_by(/users/recovery_lead.id)> true)`; `always([+ACTIVATE_DISASTER_RECOVERY_FAILOVER] true -> always([-UNTESTED_FAILOVER_PROMOTION] true))` |
+| "Traffic shift approval requires release captain signature and blocks unmonitored production diversion" | `always([+APPROVE_TRAFFIC_SHIFT] true -> <+signed_by(/users/release_captain.id)> true)`; `always([+APPROVE_TRAFFIC_SHIFT] true -> always([-UNMONITORED_PRODUCTION_DIVERSION] true))` |
+| "Chaos experiment authorization requires resilience engineer signature and blocks unsafe fault injection" | `always([+AUTHORIZE_CHAOS_EXPERIMENT] true -> <+signed_by(/users/resilience_engineer.id)> true)`; `always([+AUTHORIZE_CHAOS_EXPERIMENT] true -> always([-UNSAFE_FAULT_INJECTION] true))` |
 
 ## Output Format
 
@@ -11700,6 +11702,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+ACTIVATE_DISASTER_RECOVERY_FAILOVER] true -> always([-UNTESTED_FAILOVER_PROMOTION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_traffic_shift_chaos_governance_patterns() {
+        let prompt = generate_prompt("Traffic shift and chaos experiment controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_TRAFFIC_SHIFT] true -> <+signed_by(/users/release_captain.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TRAFFIC_SHIFT] true -> always([-UNMONITORED_PRODUCTION_DIVERSION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+AUTHORIZE_CHAOS_EXPERIMENT] true -> <+signed_by(/users/resilience_engineer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+AUTHORIZE_CHAOS_EXPERIMENT] true -> always([-UNSAFE_FAULT_INJECTION] true))"
         ));
     }
 }
