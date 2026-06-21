@@ -185,6 +185,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "E-discovery production approval requires litigation support manager signature and blocks privileged disclosure" | `always([+APPROVE_EDISCOVERY_PRODUCTION] true -> <+signed_by(/users/litigation_support_manager.id)> true)`; `always([+APPROVE_EDISCOVERY_PRODUCTION] true -> always([-PRIVILEGED_DISCLOSURE] true))` |
 | "Patent filing approval requires IP counsel signature and blocks premature public disclosure" | `always([+APPROVE_PATENT_FILING] true -> <+signed_by(/users/ip_counsel.id)> true)`; `always([+APPROVE_PATENT_FILING] true -> always([-PREMATURE_PUBLIC_DISCLOSURE] true))` |
 | "Trademark usage approval requires brand counsel signature and blocks unauthorized mark use" | `always([+APPROVE_TRADEMARK_USAGE] true -> <+signed_by(/users/brand_counsel.id)> true)`; `always([+APPROVE_TRADEMARK_USAGE] true -> always([-UNAUTHORIZED_MARK_USE] true))` |
+| "Employee onboarding approval requires HR manager signature and blocks unverified worker access" | `always([+APPROVE_EMPLOYEE_ONBOARDING] true -> <+signed_by(/users/hr_manager.id)> true)`; `always([+APPROVE_EMPLOYEE_ONBOARDING] true -> always([-UNVERIFIED_WORKER_ACCESS] true))` |
+| "Labor compliance attestation requires compliance officer signature and blocks wage violation" | `always([+ATTEST_LABOR_COMPLIANCE] true -> <+signed_by(/users/compliance_officer.id)> true)`; `always([+ATTEST_LABOR_COMPLIANCE] true -> always([-WAGE_VIOLATION] true))` |
 
 ## Output Format
 
@@ -11045,5 +11047,22 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(prompt.contains(
             "always([+APPROVE_TRADEMARK_USAGE] true -> always([-UNAUTHORIZED_MARK_USE] true))"
         ));
+    }
+
+    #[test]
+    fn test_prompt_includes_employment_labor_governance_patterns() {
+        let prompt = generate_prompt("Employee onboarding and labor compliance controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_EMPLOYEE_ONBOARDING] true -> <+signed_by(/users/hr_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_EMPLOYEE_ONBOARDING] true -> always([-UNVERIFIED_WORKER_ACCESS] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+ATTEST_LABOR_COMPLIANCE] true -> <+signed_by(/users/compliance_officer.id)> true)"
+        ));
+        assert!(prompt
+            .contains("always([+ATTEST_LABOR_COMPLIANCE] true -> always([-WAGE_VIOLATION] true))"));
     }
 }
