@@ -241,6 +241,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Backup restore approval requires recovery manager signature and blocks unverified data restoration" | `always([+APPROVE_BACKUP_RESTORE] true -> <+signed_by(/users/recovery_manager.id)> true)`; `always([+APPROVE_BACKUP_RESTORE] true -> always([-UNVERIFIED_DATA_RESTORATION] true))` |
 | "Database migration approval requires database administrator signature and blocks unreviewed schema change" | `always([+APPROVE_DATABASE_MIGRATION] true -> <+signed_by(/users/database_administrator.id)> true)`; `always([+APPROVE_DATABASE_MIGRATION] true -> always([-UNREVIEWED_SCHEMA_CHANGE] true))` |
 | "Container image promotion approval requires platform release engineer signature and blocks vulnerable image deployment" | `always([+APPROVE_CONTAINER_IMAGE_PROMOTION] true -> <+signed_by(/users/platform_release_engineer.id)> true)`; `always([+APPROVE_CONTAINER_IMAGE_PROMOTION] true -> always([-VULNERABLE_IMAGE_DEPLOYMENT] true))` |
+| "Feature flag rollout approval requires product owner signature and blocks unauthorized exposure" | `always([+APPROVE_FEATURE_FLAG_ROLLOUT] true -> <+signed_by(/users/product_owner.id)> true)`; `always([+APPROVE_FEATURE_FLAG_ROLLOUT] true -> always([-UNAUTHORIZED_FEATURE_EXPOSURE] true))` |
+| "Production rollback authorization requires incident commander signature and blocks data loss rollback" | `always([+AUTHORIZE_PRODUCTION_ROLLBACK] true -> <+signed_by(/users/incident_commander.id)> true)`; `always([+AUTHORIZE_PRODUCTION_ROLLBACK] true -> always([-DATA_LOSS_ROLLBACK] true))` |
 
 ## Output Format
 
@@ -11600,6 +11602,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CONTAINER_IMAGE_PROMOTION] true -> always([-VULNERABLE_IMAGE_DEPLOYMENT] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_feature_flag_rollback_governance_patterns() {
+        let prompt = generate_prompt("Feature flag rollout and production rollback controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_FEATURE_FLAG_ROLLOUT] true -> <+signed_by(/users/product_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_FEATURE_FLAG_ROLLOUT] true -> always([-UNAUTHORIZED_FEATURE_EXPOSURE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+AUTHORIZE_PRODUCTION_ROLLBACK] true -> <+signed_by(/users/incident_commander.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+AUTHORIZE_PRODUCTION_ROLLBACK] true -> always([-DATA_LOSS_ROLLBACK] true))"
         ));
     }
 }
