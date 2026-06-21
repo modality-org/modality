@@ -201,6 +201,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Ballot audit closure requires audit board signature and blocks unresolved ballot discrepancy" | `always([+CLOSE_BALLOT_AUDIT] true -> <+signed_by(/users/audit_board.id)> true)`; `always([+CLOSE_BALLOT_AUDIT] true -> always([-UNRESOLVED_BALLOT_DISCREPANCY] true))` |
 | "Donation release approval requires nonprofit treasurer signature and blocks restricted fund misuse" | `always([+APPROVE_DONATION_RELEASE] true -> <+signed_by(/users/nonprofit_treasurer.id)> true)`; `always([+APPROVE_DONATION_RELEASE] true -> always([-RESTRICTED_FUND_MISUSE] true))` |
 | "Grant report certification requires program director signature and blocks unsubstantiated grant expense" | `always([+CERTIFY_GRANT_REPORT] true -> <+signed_by(/users/program_director.id)> true)`; `always([+CERTIFY_GRANT_REPORT] true -> always([-UNSUBSTANTIATED_GRANT_EXPENSE] true))` |
+| "Zoning variance approval requires planning commissioner signature and blocks unpermitted land use" | `always([+APPROVE_ZONING_VARIANCE] true -> <+signed_by(/users/planning_commissioner.id)> true)`; `always([+APPROVE_ZONING_VARIANCE] true -> always([-UNPERMITTED_LAND_USE] true))` |
+| "Public health order closure requires health officer signature and blocks unresolved exposure" | `always([+CLOSE_PUBLIC_HEALTH_ORDER] true -> <+signed_by(/users/health_officer.id)> true)`; `always([+CLOSE_PUBLIC_HEALTH_ORDER] true -> always([-UNRESOLVED_EXPOSURE] true))` |
 
 ## Output Format
 
@@ -11202,6 +11204,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+CERTIFY_GRANT_REPORT] true -> always([-UNSUBSTANTIATED_GRANT_EXPENSE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_municipal_public_health_governance_patterns() {
+        let prompt = generate_prompt("Zoning variance and public health order controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_ZONING_VARIANCE] true -> <+signed_by(/users/planning_commissioner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_ZONING_VARIANCE] true -> always([-UNPERMITTED_LAND_USE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+CLOSE_PUBLIC_HEALTH_ORDER] true -> <+signed_by(/users/health_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+CLOSE_PUBLIC_HEALTH_ORDER] true -> always([-UNRESOLVED_EXPOSURE] true))"
         ));
     }
 }
