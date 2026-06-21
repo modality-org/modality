@@ -389,15 +389,19 @@ fn collect_json_formulas(
                         | "transferformula"
                         | "liabilityformula"
                         | "milestoneformula"
+                        | "noticeformula"
+                        | "notificationformula"
                         | "obligationformula"
                         | "permissionformula"
                         | "privilegeformula"
+                        | "policyformula"
                         | "privacyformula"
                         | "publicationformula"
                         | "refundformula"
                         | "registrationformula"
                         | "reinstatementformula"
                         | "renewalformula"
+                        | "retentionformula"
                         | "reworkformula"
                         | "revocationformula"
                         | "terminatedformula"
@@ -503,15 +507,19 @@ fn collect_json_formulas(
                         | "formulaindemnity"
                         | "formulaliability"
                         | "formulamilestone"
+                        | "formulanotice"
+                        | "formulanotification"
                         | "formulaobligation"
                         | "formulapermission"
                         | "formulaprivilege"
+                        | "formulapolicy"
                         | "formulaprivacy"
                         | "formulapublication"
                         | "formularefund"
                         | "formularegistration"
                         | "formulareinstatement"
                         | "formularenewal"
+                        | "formularetention"
                         | "formularework"
                         | "formulaterminated"
                         | "formulatermination"
@@ -672,9 +680,13 @@ fn collect_json_formulas(
                         | "ruleindemnity"
                         | "ruleliability"
                         | "rulemilestone"
+                        | "rulenotice"
+                        | "rulenotification"
                         | "ruleobligation"
+                        | "rulepolicy"
                         | "rulewarranty"
                         | "rulewithdrawal"
+                        | "ruleretention"
                         | "ruleassessment"
                         | "rulebest"
                         | "rulebreached"
@@ -1461,15 +1473,19 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "transferformula"
             | "liabilityformula"
             | "milestoneformula"
+            | "noticeformula"
+            | "notificationformula"
             | "obligationformula"
             | "permissionformula"
             | "privilegeformula"
+            | "policyformula"
             | "privacyformula"
             | "publicationformula"
             | "refundformula"
             | "registrationformula"
             | "reinstatementformula"
             | "renewalformula"
+            | "retentionformula"
             | "revocationformula"
             | "terminatedformula"
             | "terminationformula"
@@ -1946,15 +1962,19 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "transferformula"
             | "liabilityformula"
             | "milestoneformula"
+            | "noticeformula"
+            | "notificationformula"
             | "obligationformula"
             | "permissionformula"
             | "privilegeformula"
+            | "policyformula"
             | "privacyformula"
             | "publicationformula"
             | "refundformula"
             | "registrationformula"
             | "reinstatementformula"
             | "renewalformula"
+            | "retentionformula"
             | "reworkformula"
             | "revocationformula"
             | "terminatedformula"
@@ -2056,15 +2076,19 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaindemnity"
             | "formulaliability"
             | "formulamilestone"
+            | "formulanotice"
+            | "formulanotification"
             | "formulaobligation"
             | "formulapermission"
             | "formulaprivilege"
+            | "formulapolicy"
             | "formulaprivacy"
             | "formulapublication"
             | "formularefund"
             | "formularegistration"
             | "formulareinstatement"
             | "formularenewal"
+            | "formularetention"
             | "formulaterminated"
             | "formulatermination"
             | "formulatimeout"
@@ -2218,9 +2242,13 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleindemnity"
             | "ruleliability"
             | "rulemilestone"
+            | "rulenotice"
+            | "rulenotification"
             | "ruleobligation"
+            | "rulepolicy"
             | "rulewarranty"
             | "rulewithdrawal"
+            | "ruleretention"
             | "rulebest"
             | "rulebreached"
             | "rulebreach"
@@ -6584,6 +6612,49 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_policy_notice_aliases() {
+        let response = r#"
+{
+  "formula_policy": "Formula 1: always([+APPROVE_POLICY] true -> <+signed_by(/users/policy_owner.id)> true)",
+  "policy_formula": "F2: always([+APPROVE_POLICY] true -> always([-REJECT_POLICY] true))",
+  "rule_policy": "Formula 3: <+RECORD_POLICY> true",
+  "formula_notice": "Formula 4: always([+SEND_NOTICE] true -> <+signed_by(/users/notifier.id)> true)",
+  "notice_formula": "Formula 5: always([+SEND_NOTICE] true -> eventually(<+ACKNOWLEDGE_NOTICE> true))",
+  "rule_notice": "Formula 6: <+RECORD_NOTICE> true",
+  "formula_notification": "Formula 7: always([+NOTIFY] true -> <+signed_by(/users/notifier.id)> true)",
+  "notification_formula": "Formula 8: always([+NOTIFY] true -> eventually(<+CONFIRM_NOTIFICATION> true))",
+  "rule_notification": "Formula 9: <+RECORD_NOTIFICATION> true",
+  "formula_retention": "Formula 10: always([+RETENTION_REVIEW] true -> <+signed_by(/users/records_admin.id)> true)",
+  "retention_formula": "Formula 11: always([+PURGE_RECORDS] true -> eventually(<+RETENTION_REVIEW> true))",
+  "rule_retention": "Formula 12: <+RECORD_RETENTION> true",
+  "policy": "This policy summary is only prose.",
+  "notice": "This notice summary is only prose.",
+  "notification": "This notification note is only prose.",
+  "retention": "This retention explanation is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+SEND_NOTICE] true -> <+signed_by(/users/notifier.id)> true)",
+                "always([+NOTIFY] true -> <+signed_by(/users/notifier.id)> true)",
+                "always([+APPROVE_POLICY] true -> <+signed_by(/users/policy_owner.id)> true)",
+                "always([+RETENTION_REVIEW] true -> <+signed_by(/users/records_admin.id)> true)",
+                "always([+SEND_NOTICE] true -> eventually(<+ACKNOWLEDGE_NOTICE> true))",
+                "always([+NOTIFY] true -> eventually(<+CONFIRM_NOTIFICATION> true))",
+                "always([+APPROVE_POLICY] true -> always([-REJECT_POLICY] true))",
+                "always([+PURGE_RECORDS] true -> eventually(<+RETENTION_REVIEW> true))",
+                "<+RECORD_NOTICE> true",
+                "<+RECORD_NOTIFICATION> true",
+                "<+RECORD_POLICY> true",
+                "<+RECORD_RETENTION> true"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -8445,6 +8516,47 @@ security = this security explanation is only prose
                 "always([+ROTATE_KEY] true -> <+signed_by(/users/security_admin.id)> true)",
                 "always([+DEPLOY] true -> eventually(<+SECURITY_REVIEW> true))",
                 "<+RECORD_SECURITY> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_policy_notice_aliases() {
+        let response = r#"
+formula policy: Formula 1: always([+APPROVE_POLICY] true -> <+signed_by(/users/policy_owner.id)> true)
+policy formula: F2: always([+APPROVE_POLICY] true -> always([-REJECT_POLICY] true))
+rule policy: Formula 3: <+RECORD_POLICY> true
+formula notice: Formula 4: always([+SEND_NOTICE] true -> <+signed_by(/users/notifier.id)> true)
+notice formula: Formula 5: always([+SEND_NOTICE] true -> eventually(<+ACKNOWLEDGE_NOTICE> true))
+rule notice: Formula 6: <+RECORD_NOTICE> true
+formula notification: Formula 7: always([+NOTIFY] true -> <+signed_by(/users/notifier.id)> true)
+notification formula: Formula 8: always([+NOTIFY] true -> eventually(<+CONFIRM_NOTIFICATION> true))
+rule notification: Formula 9: <+RECORD_NOTIFICATION> true
+formula retention: Formula 10: always([+RETENTION_REVIEW] true -> <+signed_by(/users/records_admin.id)> true)
+retention formula: Formula 11: always([+PURGE_RECORDS] true -> eventually(<+RETENTION_REVIEW> true))
+rule retention: Formula 12: <+RECORD_RETENTION> true
+policy = this policy summary is only prose
+notice = this notice summary is only prose
+notification = this notification note is only prose
+retention = this retention explanation is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+APPROVE_POLICY] true -> <+signed_by(/users/policy_owner.id)> true)",
+                "always([+APPROVE_POLICY] true -> always([-REJECT_POLICY] true))",
+                "<+RECORD_POLICY> true",
+                "always([+SEND_NOTICE] true -> <+signed_by(/users/notifier.id)> true)",
+                "always([+SEND_NOTICE] true -> eventually(<+ACKNOWLEDGE_NOTICE> true))",
+                "<+RECORD_NOTICE> true",
+                "always([+NOTIFY] true -> <+signed_by(/users/notifier.id)> true)",
+                "always([+NOTIFY] true -> eventually(<+CONFIRM_NOTIFICATION> true))",
+                "<+RECORD_NOTIFICATION> true",
+                "always([+RETENTION_REVIEW] true -> <+signed_by(/users/records_admin.id)> true)",
+                "always([+PURGE_RECORDS] true -> eventually(<+RETENTION_REVIEW> true))",
+                "<+RECORD_RETENTION> true"
             ]
         );
     }
