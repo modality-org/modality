@@ -199,6 +199,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Archive record declassification requires archivist signature and blocks premature disclosure" | `always([+DECLASSIFY_ARCHIVE_RECORD] true -> <+signed_by(/users/archivist.id)> true)`; `always([+DECLASSIFY_ARCHIVE_RECORD] true -> always([-PREMATURE_DISCLOSURE] true))` |
 | "Election result certification requires election officer signature and blocks uncertified seating" | `always([+CERTIFY_ELECTION_RESULT] true -> <+signed_by(/users/election_officer.id)> true)`; `always([+CERTIFY_ELECTION_RESULT] true -> always([-UNCERTIFIED_SEATING] true))` |
 | "Ballot audit closure requires audit board signature and blocks unresolved ballot discrepancy" | `always([+CLOSE_BALLOT_AUDIT] true -> <+signed_by(/users/audit_board.id)> true)`; `always([+CLOSE_BALLOT_AUDIT] true -> always([-UNRESOLVED_BALLOT_DISCREPANCY] true))` |
+| "Donation release approval requires nonprofit treasurer signature and blocks restricted fund misuse" | `always([+APPROVE_DONATION_RELEASE] true -> <+signed_by(/users/nonprofit_treasurer.id)> true)`; `always([+APPROVE_DONATION_RELEASE] true -> always([-RESTRICTED_FUND_MISUSE] true))` |
+| "Grant report certification requires program director signature and blocks unsubstantiated grant expense" | `always([+CERTIFY_GRANT_REPORT] true -> <+signed_by(/users/program_director.id)> true)`; `always([+CERTIFY_GRANT_REPORT] true -> always([-UNSUBSTANTIATED_GRANT_EXPENSE] true))` |
 
 ## Output Format
 
@@ -11182,6 +11184,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+CLOSE_BALLOT_AUDIT] true -> always([-UNRESOLVED_BALLOT_DISCREPANCY] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_nonprofit_grant_governance_patterns() {
+        let prompt = generate_prompt("Donation release and grant reporting controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_DONATION_RELEASE] true -> <+signed_by(/users/nonprofit_treasurer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DONATION_RELEASE] true -> always([-RESTRICTED_FUND_MISUSE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+CERTIFY_GRANT_REPORT] true -> <+signed_by(/users/program_director.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+CERTIFY_GRANT_REPORT] true -> always([-UNSUBSTANTIATED_GRANT_EXPENSE] true))"
         ));
     }
 }
