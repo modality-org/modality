@@ -235,6 +235,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Runway reopening approval requires airport operations manager signature and blocks uncleared runway use" | `always([+APPROVE_RUNWAY_REOPENING] true -> <+signed_by(/users/airport_operations_manager.id)> true)`; `always([+APPROVE_RUNWAY_REOPENING] true -> always([-UNCLEARED_RUNWAY_USE] true))` |
 | "Datacenter maintenance window approval requires facilities lead signature and blocks unscheduled power work" | `always([+APPROVE_DATACENTER_MAINTENANCE_WINDOW] true -> <+signed_by(/users/facilities_lead.id)> true)`; `always([+APPROVE_DATACENTER_MAINTENANCE_WINDOW] true -> always([-UNSCHEDULED_POWER_WORK] true))` |
 | "Network peering change approval requires network architect signature and blocks unauthorized route advertisement" | `always([+APPROVE_NETWORK_PEERING_CHANGE] true -> <+signed_by(/users/network_architect.id)> true)`; `always([+APPROVE_NETWORK_PEERING_CHANGE] true -> always([-UNAUTHORIZED_ROUTE_ADVERTISEMENT] true))` |
+| "DNS zone change approval requires DNS administrator signature and blocks unauthorized record publication" | `always([+APPROVE_DNS_ZONE_CHANGE] true -> <+signed_by(/users/dns_administrator.id)> true)`; `always([+APPROVE_DNS_ZONE_CHANGE] true -> always([-UNAUTHORIZED_RECORD_PUBLICATION] true))` |
+| "TLS certificate issuance approval requires certificate authority officer signature and blocks misissued certificate activation" | `always([+APPROVE_TLS_CERTIFICATE_ISSUANCE] true -> <+signed_by(/users/certificate_authority_officer.id)> true)`; `always([+APPROVE_TLS_CERTIFICATE_ISSUANCE] true -> always([-MISISSUED_CERTIFICATE_ACTIVATION] true))` |
 
 ## Output Format
 
@@ -11540,6 +11542,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_NETWORK_PEERING_CHANGE] true -> always([-UNAUTHORIZED_ROUTE_ADVERTISEMENT] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_dns_certificate_governance_patterns() {
+        let prompt = generate_prompt("DNS zone and certificate issuance controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_DNS_ZONE_CHANGE] true -> <+signed_by(/users/dns_administrator.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DNS_ZONE_CHANGE] true -> always([-UNAUTHORIZED_RECORD_PUBLICATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TLS_CERTIFICATE_ISSUANCE] true -> <+signed_by(/users/certificate_authority_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TLS_CERTIFICATE_ISSUANCE] true -> always([-MISISSUED_CERTIFICATE_ACTIVATION] true))"
         ));
     }
 }
