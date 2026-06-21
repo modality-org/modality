@@ -227,6 +227,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Edge AI model update approval requires site reliability engineer signature and blocks unsafe field model rollout" | `always([+APPROVE_EDGE_AI_MODEL_UPDATE] true -> <+signed_by(/users/site_reliability_engineer.id)> true)`; `always([+APPROVE_EDGE_AI_MODEL_UPDATE] true -> always([-UNSAFE_FIELD_MODEL_ROLLOUT] true))` |
 | "Digital identity credential issuance requires identity authority signature and blocks fraudulent credential activation" | `always([+ISSUE_DIGITAL_CREDENTIAL] true -> <+signed_by(/users/identity_authority.id)> true)`; `always([+ISSUE_DIGITAL_CREDENTIAL] true -> always([-FRAUDULENT_CREDENTIAL_ACTIVATION] true))` |
 | "Confidential compute enclave attestation requires security architect signature and blocks untrusted enclave workload" | `always([+ATTEST_CONFIDENTIAL_ENCLAVE] true -> <+signed_by(/users/security_architect.id)> true)`; `always([+ATTEST_CONFIDENTIAL_ENCLAVE] true -> always([-UNTRUSTED_ENCLAVE_WORKLOAD] true))` |
+| "Software artifact provenance attestation requires build attestor signature and blocks unsigned artifact deployment" | `always([+ATTEST_ARTIFACT_PROVENANCE] true -> <+signed_by(/users/build_attestor.id)> true)`; `always([+ATTEST_ARTIFACT_PROVENANCE] true -> always([-UNSIGNED_ARTIFACT_DEPLOYMENT] true))` |
+| "SBOM publication approval requires security reviewer signature and blocks undocumented dependency release" | `always([+APPROVE_SBOM_PUBLICATION] true -> <+signed_by(/users/security_reviewer.id)> true)`; `always([+APPROVE_SBOM_PUBLICATION] true -> always([-UNDOCUMENTED_DEPENDENCY_RELEASE] true))` |
 
 ## Output Format
 
@@ -11460,6 +11462,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+ATTEST_CONFIDENTIAL_ENCLAVE] true -> always([-UNTRUSTED_ENCLAVE_WORKLOAD] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_artifact_sbom_governance_patterns() {
+        let prompt = generate_prompt("Artifact provenance and SBOM publication controls");
+
+        assert!(prompt.contains(
+            "always([+ATTEST_ARTIFACT_PROVENANCE] true -> <+signed_by(/users/build_attestor.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+ATTEST_ARTIFACT_PROVENANCE] true -> always([-UNSIGNED_ARTIFACT_DEPLOYMENT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SBOM_PUBLICATION] true -> <+signed_by(/users/security_reviewer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SBOM_PUBLICATION] true -> always([-UNDOCUMENTED_DEPENDENCY_RELEASE] true))"
         ));
     }
 }
