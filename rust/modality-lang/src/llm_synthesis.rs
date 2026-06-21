@@ -245,6 +245,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Production rollback authorization requires incident commander signature and blocks data loss rollback" | `always([+AUTHORIZE_PRODUCTION_ROLLBACK] true -> <+signed_by(/users/incident_commander.id)> true)`; `always([+AUTHORIZE_PRODUCTION_ROLLBACK] true -> always([-DATA_LOSS_ROLLBACK] true))` |
 | "Observability dashboard change approval requires service owner signature and blocks unaudited alert suppression" | `always([+APPROVE_OBSERVABILITY_DASHBOARD_CHANGE] true -> <+signed_by(/users/service_owner.id)> true)`; `always([+APPROVE_OBSERVABILITY_DASHBOARD_CHANGE] true -> always([-UNAUDITED_ALERT_SUPPRESSION] true))` |
 | "Incident postmortem closure requires reliability lead signature and blocks unresolved corrective action" | `always([+CLOSE_INCIDENT_POSTMORTEM] true -> <+signed_by(/users/reliability_lead.id)> true)`; `always([+CLOSE_INCIDENT_POSTMORTEM] true -> always([-UNRESOLVED_CORRECTIVE_ACTION] true))` |
+| "SLO policy change approval requires reliability manager signature and blocks unreviewed objective downgrade" | `always([+APPROVE_SLO_POLICY_CHANGE] true -> <+signed_by(/users/reliability_manager.id)> true)`; `always([+APPROVE_SLO_POLICY_CHANGE] true -> always([-UNREVIEWED_OBJECTIVE_DOWNGRADE] true))` |
+| "Error budget override authorization requires engineering director signature and blocks silent availability risk acceptance" | `always([+AUTHORIZE_ERROR_BUDGET_OVERRIDE] true -> <+signed_by(/users/engineering_director.id)> true)`; `always([+AUTHORIZE_ERROR_BUDGET_OVERRIDE] true -> always([-SILENT_AVAILABILITY_RISK_ACCEPTANCE] true))` |
 
 ## Output Format
 
@@ -11640,6 +11642,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+CLOSE_INCIDENT_POSTMORTEM] true -> always([-UNRESOLVED_CORRECTIVE_ACTION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_slo_error_budget_governance_patterns() {
+        let prompt = generate_prompt("SLO policy and error budget override controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_SLO_POLICY_CHANGE] true -> <+signed_by(/users/reliability_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SLO_POLICY_CHANGE] true -> always([-UNREVIEWED_OBJECTIVE_DOWNGRADE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+AUTHORIZE_ERROR_BUDGET_OVERRIDE] true -> <+signed_by(/users/engineering_director.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+AUTHORIZE_ERROR_BUDGET_OVERRIDE] true -> always([-SILENT_AVAILABILITY_RISK_ACCEPTANCE] true))"
         ));
     }
 }
