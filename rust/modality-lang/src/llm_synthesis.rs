@@ -331,6 +331,7 @@ fn collect_json_formulas(
                         | "amendedformula"
                         | "amendmentformula"
                         | "analysisformula"
+                        | "appealformula"
                         | "argumentformula"
                         | "assignmentformula"
                         | "assessmentformula"
@@ -376,6 +377,9 @@ fn collect_json_formulas(
                         | "publicationformula"
                         | "refundformula"
                         | "registrationformula"
+                        | "reinstatementformula"
+                        | "renewalformula"
+                        | "revocationformula"
                         | "terminatedformula"
                         | "terminationformula"
                         | "warrantyformula"
@@ -425,6 +429,7 @@ fn collect_json_formulas(
                         | "formulaadvice"
                         | "formulaadvised"
                         | "formulaanalysis"
+                        | "formulaappeal"
                         | "formulaargument"
                         | "formulaassignment"
                         | "formulaapproved"
@@ -462,8 +467,11 @@ fn collect_json_formulas(
                         | "formulapublication"
                         | "formularefund"
                         | "formularegistration"
+                        | "formulareinstatement"
+                        | "formularenewal"
                         | "formulaterminated"
                         | "formulatermination"
+                        | "formularevocation"
                         | "formulawarranty"
                         | "formulabest"
                         | "formulabreached"
@@ -521,6 +529,7 @@ fn collect_json_formulas(
                         | "formulareview"
                         | "formulasatisfied"
                         | "formulaselected"
+                        | "formulasuspension"
                         | "formulasafety"
                         | "formulaupdate"
                         | "formulaassessment"
@@ -566,6 +575,7 @@ fn collect_json_formulas(
                         | "ruleamended"
                         | "ruleamendment"
                         | "ruleanalysis"
+                        | "ruleappeal"
                         | "ruleargument"
                         | "ruleassignment"
                         | "ruleapproved"
@@ -645,6 +655,8 @@ fn collect_json_formulas(
                         | "ruleprivilege"
                         | "rulepublication"
                         | "ruleregistration"
+                        | "rulereinstatement"
+                        | "rulerenewal"
                         | "ruleproof"
                         | "ruleproposal"
                         | "rulerationale"
@@ -657,8 +669,10 @@ fn collect_json_formulas(
                         | "rulerisk"
                         | "rulerevision"
                         | "rulereview"
+                        | "rulerevocation"
                         | "rulesatisfied"
                         | "ruleselected"
+                        | "rulesuspension"
                         | "ruleupdate"
                         | "rulevalid"
                         | "rulevalidated"
@@ -672,6 +686,7 @@ fn collect_json_formulas(
                         | "revisionformula"
                         | "selectedformula"
                         | "satisfiedformula"
+                        | "suspensionformula"
                         | "safetyformula"
                         | "solutionformula"
                         | "supportformula"
@@ -1320,6 +1335,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "amendedformula"
             | "amendmentformula"
             | "analysisformula"
+            | "appealformula"
             | "argumentformula"
             | "assignmentformula"
             | "assessmentformula"
@@ -1365,6 +1381,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "publicationformula"
             | "refundformula"
             | "registrationformula"
+            | "reinstatementformula"
+            | "renewalformula"
+            | "revocationformula"
             | "terminatedformula"
             | "terminationformula"
             | "warrantyformula"
@@ -1414,6 +1433,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaadvice"
             | "formulaadvised"
             | "formulaanalysis"
+            | "formulaappeal"
             | "formulaargument"
             | "formulaassignment"
             | "formulaapproved"
@@ -1451,8 +1471,11 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulapublication"
             | "formularefund"
             | "formularegistration"
+            | "formulareinstatement"
+            | "formularenewal"
             | "formulaterminated"
             | "formulatermination"
+            | "formularevocation"
             | "formulawarranty"
             | "formulabest"
             | "formulabreached"
@@ -1510,6 +1533,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulareview"
             | "formulasatisfied"
             | "formulaselected"
+            | "formulasuspension"
             | "formulasafety"
             | "formulaupdate"
             | "formulaassessment"
@@ -1554,6 +1578,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleamended"
             | "ruleamendment"
             | "ruleanalysis"
+            | "ruleappeal"
             | "ruleargument"
             | "ruleassignment"
             | "ruleassessment"
@@ -1633,6 +1658,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleprivilege"
             | "rulepublication"
             | "ruleregistration"
+            | "rulereinstatement"
+            | "rulerenewal"
             | "ruleproof"
             | "ruleproposal"
             | "rulerationale"
@@ -1645,8 +1672,10 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulerisk"
             | "rulerevision"
             | "rulereview"
+            | "rulerevocation"
             | "rulesatisfied"
             | "ruleselected"
+            | "rulesuspension"
             | "ruleupdate"
             | "rulevalid"
             | "rulevalidated"
@@ -1660,6 +1689,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "revisionformula"
             | "selectedformula"
             | "satisfiedformula"
+            | "suspensionformula"
             | "safetyformula"
             | "solutionformula"
             | "supportformula"
@@ -1719,6 +1749,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "amendedformula"
             | "amendmentformula"
             | "analysisformula"
+            | "appealformula"
             | "argumentformula"
             | "assignmentformula"
             | "assessmentformula"
@@ -1764,6 +1795,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "publicationformula"
             | "refundformula"
             | "registrationformula"
+            | "reinstatementformula"
+            | "renewalformula"
+            | "revocationformula"
             | "terminatedformula"
             | "terminationformula"
             | "warrantyformula"
@@ -1813,6 +1847,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaadvice"
             | "formulaadvised"
             | "formulaanalysis"
+            | "formulaappeal"
             | "formulaargument"
             | "formulaassignment"
             | "formulaapproved"
@@ -1850,8 +1885,11 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulapublication"
             | "formularefund"
             | "formularegistration"
+            | "formulareinstatement"
+            | "formularenewal"
             | "formulaterminated"
             | "formulatermination"
+            | "formularevocation"
             | "formulawarranty"
             | "formulabest"
             | "formulabreached"
@@ -1907,6 +1945,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulareview"
             | "formulasatisfied"
             | "formulaselected"
+            | "formulasuspension"
             | "formulaupdate"
             | "formulaassessment"
             | "formulavalidated"
@@ -1951,6 +1990,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleamended"
             | "ruleamendment"
             | "ruleanalysis"
+            | "ruleappeal"
             | "ruleargument"
             | "ruleassignment"
             | "ruleassessment"
@@ -2029,6 +2069,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleprivilege"
             | "rulepublication"
             | "ruleregistration"
+            | "rulereinstatement"
+            | "rulerenewal"
             | "ruleproof"
             | "ruleproposal"
             | "rulerationale"
@@ -2041,8 +2083,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulerisk"
             | "rulerevision"
             | "rulereview"
+            | "rulerevocation"
             | "rulesatisfied"
             | "ruleselected"
+            | "rulesuspension"
             | "ruleupdate"
             | "rulevalid"
             | "rulevalidated"
@@ -2054,6 +2098,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulesafety"
             | "selectedformula"
             | "satisfiedformula"
+            | "suspensionformula"
             | "safetyformula"
             | "solutionformula"
             | "supportformula"
@@ -6045,6 +6090,56 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_lifecycle_action_aliases() {
+        let response = r#"
+{
+  "formula_appeal": "Formula 1: always([+APPEAL] true -> <+signed_by(/users/appellant.id)> true)",
+  "appeal_formula": "F2: always([+APPEAL] true -> always([-ENFORCE] true))",
+  "rule_appeal": "Formula 3: <+RECORD_APPEAL> true",
+  "formula_revocation": "Formula 4: always([+REVOKE] true -> <+signed_by(/users/issuer.id)> true)",
+  "revocation_formula": "Formula 5: always([+REVOKE] true -> always([-USE] true))",
+  "rule_revocation": "Formula 6: <+RECORD_REVOCATION> true",
+  "formula_suspension": "Formula 7: always([+SUSPEND] true -> <+signed_by(/users/administrator.id)> true)",
+  "suspension_formula": "Formula 8: always([+SUSPEND] true -> always([-ACCESS] true))",
+  "rule_suspension": "Formula 9: <+RECORD_SUSPENSION> true",
+  "formula_reinstatement": "Formula 10: always([+REINSTATE] true -> <+signed_by(/users/administrator.id)> true)",
+  "reinstatement_formula": "Formula 11: always([+REINSTATE] true -> always([-SUSPEND] true))",
+  "rule_reinstatement": "Formula 12: <+RECORD_REINSTATEMENT> true",
+  "formula_renewal": "Formula 13: always([+RENEW] true -> <+signed_by(/users/holder.id)> true)",
+  "renewal_formula": "Formula 14: always([+RENEW] true -> always([-EXPIRE] true))",
+  "rule_renewal": "Formula 15: <+RECORD_RENEWAL> true",
+  "appeal": "This appeal summary is only prose.",
+  "revocation": "This revocation note is only prose.",
+  "suspension": "This suspension explanation is only prose.",
+  "reinstatement": "This reinstatement summary is only prose.",
+  "renewal": "This renewal summary is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+APPEAL] true -> always([-ENFORCE] true))",
+                "always([+APPEAL] true -> <+signed_by(/users/appellant.id)> true)",
+                "always([+REINSTATE] true -> <+signed_by(/users/administrator.id)> true)",
+                "always([+RENEW] true -> <+signed_by(/users/holder.id)> true)",
+                "always([+REVOKE] true -> <+signed_by(/users/issuer.id)> true)",
+                "always([+SUSPEND] true -> <+signed_by(/users/administrator.id)> true)",
+                "always([+REINSTATE] true -> always([-SUSPEND] true))",
+                "always([+RENEW] true -> always([-EXPIRE] true))",
+                "always([+REVOKE] true -> always([-USE] true))",
+                "<+RECORD_APPEAL> true",
+                "<+RECORD_REINSTATEMENT> true",
+                "<+RECORD_RENEWAL> true",
+                "<+RECORD_REVOCATION> true",
+                "<+RECORD_SUSPENSION> true",
+                "always([+SUSPEND] true -> always([-ACCESS] true))"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -7626,6 +7721,54 @@ deployment = this deployment summary is only prose
                 "always([+DEPLOY] true -> <+signed_by(/users/release_manager.id)> true)",
                 "always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))",
                 "<+RECORD_DEPLOYMENT> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_lifecycle_action_aliases() {
+        let response = r#"
+formula appeal: Formula 1: always([+APPEAL] true -> <+signed_by(/users/appellant.id)> true)
+appeal formula: F2: always([+APPEAL] true -> always([-ENFORCE] true))
+rule appeal: Formula 3: <+RECORD_APPEAL> true
+formula revocation: Formula 4: always([+REVOKE] true -> <+signed_by(/users/issuer.id)> true)
+revocation formula: Formula 5: always([+REVOKE] true -> always([-USE] true))
+rule revocation: Formula 6: <+RECORD_REVOCATION> true
+formula suspension: Formula 7: always([+SUSPEND] true -> <+signed_by(/users/administrator.id)> true)
+suspension formula: Formula 8: always([+SUSPEND] true -> always([-ACCESS] true))
+rule suspension: Formula 9: <+RECORD_SUSPENSION> true
+formula reinstatement: Formula 10: always([+REINSTATE] true -> <+signed_by(/users/administrator.id)> true)
+reinstatement formula: Formula 11: always([+REINSTATE] true -> always([-SUSPEND] true))
+rule reinstatement: Formula 12: <+RECORD_REINSTATEMENT> true
+formula renewal: Formula 13: always([+RENEW] true -> <+signed_by(/users/holder.id)> true)
+renewal formula: Formula 14: always([+RENEW] true -> always([-EXPIRE] true))
+rule renewal: Formula 15: <+RECORD_RENEWAL> true
+appeal = this appeal summary is only prose
+revocation = this revocation note is only prose
+suspension = this suspension explanation is only prose
+reinstatement = this reinstatement summary is only prose
+renewal = this renewal summary is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+APPEAL] true -> <+signed_by(/users/appellant.id)> true)",
+                "always([+APPEAL] true -> always([-ENFORCE] true))",
+                "<+RECORD_APPEAL> true",
+                "always([+REVOKE] true -> <+signed_by(/users/issuer.id)> true)",
+                "always([+REVOKE] true -> always([-USE] true))",
+                "<+RECORD_REVOCATION> true",
+                "always([+SUSPEND] true -> <+signed_by(/users/administrator.id)> true)",
+                "always([+SUSPEND] true -> always([-ACCESS] true))",
+                "<+RECORD_SUSPENSION> true",
+                "always([+REINSTATE] true -> <+signed_by(/users/administrator.id)> true)",
+                "always([+REINSTATE] true -> always([-SUSPEND] true))",
+                "<+RECORD_REINSTATEMENT> true",
+                "always([+RENEW] true -> <+signed_by(/users/holder.id)> true)",
+                "always([+RENEW] true -> always([-EXPIRE] true))",
+                "<+RECORD_RENEWAL> true"
             ]
         );
     }
