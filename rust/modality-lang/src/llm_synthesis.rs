@@ -173,6 +173,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Fleet route approval requires fleet manager signature and blocks unlicensed operator dispatch" | `always([+APPROVE_FLEET_ROUTE] true -> <+signed_by(/users/fleet_manager.id)> true)`; `always([+APPROVE_FLEET_ROUTE] true -> always([-UNLICENSED_OPERATOR_DISPATCH] true))` |
 | "Pharmaceutical batch release requires qualified person signature and blocks uncertified distribution" | `always([+RELEASE_PHARMACEUTICAL_BATCH] true -> <+signed_by(/users/qualified_person.id)> true)`; `always([+RELEASE_PHARMACEUTICAL_BATCH] true -> always([-UNCERTIFIED_DISTRIBUTION] true))` |
 | "Food safety recall closure requires safety officer signature and blocks unresolved contamination" | `always([+CLOSE_FOOD_SAFETY_RECALL] true -> <+signed_by(/users/safety_officer.id)> true)`; `always([+CLOSE_FOOD_SAFETY_RECALL] true -> always([-UNRESOLVED_CONTAMINATION] true))` |
+| "Telecommunications service change approval requires network operations manager signature and blocks unauthorized outage" | `always([+APPROVE_SERVICE_CHANGE] true -> <+signed_by(/users/network_operations_manager.id)> true)`; `always([+APPROVE_SERVICE_CHANGE] true -> always([-UNAUTHORIZED_OUTAGE] true))` |
+| "Spectrum assignment approval requires spectrum officer signature and blocks unlicensed transmission" | `always([+APPROVE_SPECTRUM_ASSIGNMENT] true -> <+signed_by(/users/spectrum_officer.id)> true)`; `always([+APPROVE_SPECTRUM_ASSIGNMENT] true -> always([-UNLICENSED_TRANSMISSION] true))` |
 
 ## Output Format
 
@@ -10924,6 +10926,25 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+CLOSE_FOOD_SAFETY_RECALL] true -> always([-UNRESOLVED_CONTAMINATION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_telecom_spectrum_governance_patterns() {
+        let prompt =
+            generate_prompt("Telecom service changes and spectrum assignments need controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_SERVICE_CHANGE] true -> <+signed_by(/users/network_operations_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SERVICE_CHANGE] true -> always([-UNAUTHORIZED_OUTAGE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SPECTRUM_ASSIGNMENT] true -> <+signed_by(/users/spectrum_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SPECTRUM_ASSIGNMENT] true -> always([-UNLICENSED_TRANSMISSION] true))"
         ));
     }
 }
