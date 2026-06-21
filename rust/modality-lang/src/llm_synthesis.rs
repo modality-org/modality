@@ -338,6 +338,9 @@ fn collect_json_formulas(
                         | "breachedformula"
                         | "breachformula"
                         | "acceptedformula"
+                        | "acceptanceformula"
+                        | "acknowledgementformula"
+                        | "acknowledgmentformula"
                         | "approvedformula"
                         | "authorizationformula"
                         | "authorizedformula"
@@ -353,6 +356,7 @@ fn collect_json_formulas(
                         | "damagesformula"
                         | "denialformula"
                         | "deniedformula"
+                        | "deliveryformula"
                         | "commitmentformula"
                         | "covenantformula"
                         | "dutyformula"
@@ -360,6 +364,7 @@ fn collect_json_formulas(
                         | "grantformula"
                         | "indemnityformula"
                         | "indemnificationformula"
+                        | "invoiceformula"
                         | "liabilityformula"
                         | "obligationformula"
                         | "permissionformula"
@@ -403,6 +408,9 @@ fn collect_json_formulas(
                         | "fixformula"
                         | "fixedformula"
                         | "formulaaccepted"
+                        | "formulaacceptance"
+                        | "formulaacknowledgement"
+                        | "formulaacknowledgment"
                         | "formulaamended"
                         | "formulaamendment"
                         | "formulaadvice"
@@ -425,12 +433,14 @@ fn collect_json_formulas(
                         | "formuladamages"
                         | "formuladenial"
                         | "formuladenied"
+                        | "formuladelivery"
                         | "formulacommitment"
                         | "formulacovenant"
                         | "formuladuty"
                         | "formulaentitlement"
                         | "formulagrant"
                         | "formulaindemnification"
+                        | "formulainvoice"
                         | "formulaindemnity"
                         | "formulaliability"
                         | "formulaobligation"
@@ -527,6 +537,9 @@ fn collect_json_formulas(
                         | "responseformula"
                         | "reviewformula"
                         | "ruleaccepted"
+                        | "ruleacceptance"
+                        | "ruleacknowledgement"
+                        | "ruleacknowledgment"
                         | "ruleadvice"
                         | "ruleadvised"
                         | "ruleamended"
@@ -546,6 +559,7 @@ fn collect_json_formulas(
                         | "rulecovenant"
                         | "ruledenial"
                         | "ruledenied"
+                        | "ruledelivery"
                         | "ruleduty"
                         | "rulecapability"
                         | "rulecompensation"
@@ -553,6 +567,7 @@ fn collect_json_formulas(
                         | "ruleentitlement"
                         | "rulegrant"
                         | "ruleindemnification"
+                        | "ruleinvoice"
                         | "ruleindemnity"
                         | "ruleliability"
                         | "ruleobligation"
@@ -1279,6 +1294,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "breachedformula"
             | "breachformula"
             | "acceptedformula"
+            | "acceptanceformula"
+            | "acknowledgementformula"
+            | "acknowledgmentformula"
             | "approvedformula"
             | "authorizationformula"
             | "authorizedformula"
@@ -1294,6 +1312,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "damagesformula"
             | "denialformula"
             | "deniedformula"
+            | "deliveryformula"
             | "commitmentformula"
             | "covenantformula"
             | "dutyformula"
@@ -1301,6 +1320,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "grantformula"
             | "indemnityformula"
             | "indemnificationformula"
+            | "invoiceformula"
             | "liabilityformula"
             | "obligationformula"
             | "permissionformula"
@@ -1344,6 +1364,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "fixformula"
             | "fixedformula"
             | "formulaaccepted"
+            | "formulaacceptance"
+            | "formulaacknowledgement"
+            | "formulaacknowledgment"
             | "formulaamended"
             | "formulaamendment"
             | "formulaadvice"
@@ -1366,12 +1389,14 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formuladamages"
             | "formuladenial"
             | "formuladenied"
+            | "formuladelivery"
             | "formulacommitment"
             | "formulacovenant"
             | "formuladuty"
             | "formulaentitlement"
             | "formulagrant"
             | "formulaindemnification"
+            | "formulainvoice"
             | "formulaindemnity"
             | "formulaliability"
             | "formulaobligation"
@@ -1467,6 +1492,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "responseformula"
             | "reviewformula"
             | "ruleaccepted"
+            | "ruleacceptance"
+            | "ruleacknowledgement"
+            | "ruleacknowledgment"
             | "ruleadvice"
             | "ruleadvised"
             | "ruleamended"
@@ -1487,6 +1515,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulecovenant"
             | "ruledenial"
             | "ruledenied"
+            | "ruledelivery"
             | "ruleduty"
             | "rulecapability"
             | "rulecompensation"
@@ -1494,6 +1523,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleentitlement"
             | "rulegrant"
             | "ruleindemnification"
+            | "ruleinvoice"
             | "ruleindemnity"
             | "ruleliability"
             | "ruleobligation"
@@ -1630,6 +1660,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "breachedformula"
             | "breachformula"
             | "acceptedformula"
+            | "acceptanceformula"
+            | "acknowledgementformula"
+            | "acknowledgmentformula"
             | "approvedformula"
             | "authorizationformula"
             | "authorizedformula"
@@ -1645,6 +1678,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "damagesformula"
             | "denialformula"
             | "deniedformula"
+            | "deliveryformula"
             | "commitmentformula"
             | "covenantformula"
             | "dutyformula"
@@ -1652,6 +1686,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "grantformula"
             | "indemnityformula"
             | "indemnificationformula"
+            | "invoiceformula"
             | "liabilityformula"
             | "obligationformula"
             | "permissionformula"
@@ -1695,6 +1730,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "fixformula"
             | "fixedformula"
             | "formulaaccepted"
+            | "formulaacceptance"
+            | "formulaacknowledgement"
+            | "formulaacknowledgment"
             | "formulaamended"
             | "formulaamendment"
             | "formulaadvice"
@@ -1717,12 +1755,14 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formuladamages"
             | "formuladenial"
             | "formuladenied"
+            | "formuladelivery"
             | "formulacommitment"
             | "formulacovenant"
             | "formuladuty"
             | "formulaentitlement"
             | "formulagrant"
             | "formulaindemnification"
+            | "formulainvoice"
             | "formulaindemnity"
             | "formulaliability"
             | "formulaobligation"
@@ -1818,6 +1858,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "revisedformula"
             | "revisionformula"
             | "ruleaccepted"
+            | "ruleacceptance"
+            | "ruleacknowledgement"
+            | "ruleacknowledgment"
             | "ruleadvice"
             | "ruleadvised"
             | "ruleamended"
@@ -1838,6 +1881,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulecovenant"
             | "ruledenial"
             | "ruledenied"
+            | "ruledelivery"
             | "ruleduty"
             | "rulecapability"
             | "rulecompensation"
@@ -1845,6 +1889,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleentitlement"
             | "rulegrant"
             | "ruleindemnification"
+            | "ruleinvoice"
             | "ruleindemnity"
             | "ruleliability"
             | "ruleobligation"
@@ -5759,6 +5804,49 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_acceptance_delivery_invoice_aliases() {
+        let response = r#"
+{
+  "formula_acceptance": "Formula 1: always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)",
+  "acceptance_formula": "F2: always([+ACCEPT] true -> always([-REJECT] true))",
+  "rule_acceptance": "Formula 3: <+RECORD_ACCEPTANCE> true",
+  "formula_acknowledgement": "Formula 4: always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)",
+  "acknowledgement_formula": "Formula 5: always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))",
+  "rule_acknowledgment": "Formula 6: <+RECORD_ACKNOWLEDGMENT> true",
+  "formula_delivery": "Formula 7: always([+CONFIRM_DELIVERY] true -> <+signed_by(/users/recipient.id)> true)",
+  "delivery_formula": "Formula 8: always([+CONFIRM_DELIVERY] true -> always([-REFUND] true))",
+  "rule_delivery": "Formula 9: <+RECORD_DELIVERY> true",
+  "formula_invoice": "Formula 10: always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)",
+  "invoice_formula": "Formula 11: always([+APPROVE_INVOICE] true -> always([-CHARGEBACK] true))",
+  "rule_invoice": "Formula 12: <+RECORD_INVOICE> true",
+  "acceptance": "This acceptance explanation is only prose.",
+  "acknowledgement": "This acknowledgement rationale is only prose.",
+  "delivery": "This delivery summary is only prose.",
+  "invoice": "This invoice approval summary is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+ACCEPT] true -> always([-REJECT] true))",
+                "always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))",
+                "always([+CONFIRM_DELIVERY] true -> always([-REFUND] true))",
+                "always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)",
+                "always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)",
+                "always([+CONFIRM_DELIVERY] true -> <+signed_by(/users/recipient.id)> true)",
+                "always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)",
+                "always([+APPROVE_INVOICE] true -> always([-CHARGEBACK] true))",
+                "<+RECORD_ACCEPTANCE> true",
+                "<+RECORD_ACKNOWLEDGMENT> true",
+                "<+RECORD_DELIVERY> true",
+                "<+RECORD_INVOICE> true"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -7203,6 +7291,47 @@ registration = this registration summary is only prose
                 "always([+REGISTER] true -> <+signed_by(/users/registrar.id)> true)",
                 "always([+REGISTER] true -> always([-DELETE] true))",
                 "<+RECORD_REGISTRATION> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_acceptance_delivery_invoice_aliases() {
+        let response = r#"
+formula acceptance: Formula 1: always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)
+acceptance formula: F2: always([+ACCEPT] true -> always([-REJECT] true))
+rule acceptance: Formula 3: <+RECORD_ACCEPTANCE> true
+formula acknowledgement: Formula 4: always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)
+acknowledgment formula: Formula 5: always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))
+rule acknowledgement: Formula 6: <+RECORD_ACKNOWLEDGEMENT> true
+formula delivery: Formula 7: always([+CONFIRM_DELIVERY] true -> <+signed_by(/users/recipient.id)> true)
+delivery formula: Formula 8: always([+CONFIRM_DELIVERY] true -> always([-REFUND] true))
+rule delivery: Formula 9: <+RECORD_DELIVERY> true
+formula invoice: Formula 10: always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)
+invoice formula: Formula 11: always([+APPROVE_INVOICE] true -> always([-CHARGEBACK] true))
+rule invoice: Formula 12: <+RECORD_INVOICE> true
+acceptance = this acceptance explanation is only prose
+acknowledgement = this acknowledgement rationale is only prose
+delivery = this delivery summary is only prose
+invoice = this invoice approval summary is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)",
+                "always([+ACCEPT] true -> always([-REJECT] true))",
+                "<+RECORD_ACCEPTANCE> true",
+                "always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)",
+                "always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))",
+                "<+RECORD_ACKNOWLEDGEMENT> true",
+                "always([+CONFIRM_DELIVERY] true -> <+signed_by(/users/recipient.id)> true)",
+                "always([+CONFIRM_DELIVERY] true -> always([-REFUND] true))",
+                "<+RECORD_DELIVERY> true",
+                "always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)",
+                "always([+APPROVE_INVOICE] true -> always([-CHARGEBACK] true))",
+                "<+RECORD_INVOICE> true"
             ]
         );
     }
