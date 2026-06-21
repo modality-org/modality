@@ -211,6 +211,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Mining blast authorization requires safety superintendent signature and blocks unpermitted blast" | `always([+AUTHORIZE_MINING_BLAST] true -> <+signed_by(/users/safety_superintendent.id)> true)`; `always([+AUTHORIZE_MINING_BLAST] true -> always([-UNPERMITTED_BLAST] true))` |
 | "Fisheries catch certification requires fisheries officer signature and blocks illegal catch landing" | `always([+CERTIFY_FISHERIES_CATCH] true -> <+signed_by(/users/fisheries_officer.id)> true)`; `always([+CERTIFY_FISHERIES_CATCH] true -> always([-ILLEGAL_CATCH_LANDING] true))` |
 | "Forestry harvest permit approval requires forest ranger signature and blocks unauthorized logging" | `always([+APPROVE_FORESTRY_HARVEST_PERMIT] true -> <+signed_by(/users/forest_ranger.id)> true)`; `always([+APPROVE_FORESTRY_HARVEST_PERMIT] true -> always([-UNAUTHORIZED_LOGGING] true))` |
+| "Insurance claim payout approval requires claims adjuster signature and blocks fraudulent payout" | `always([+APPROVE_CLAIM_PAYOUT] true -> <+signed_by(/users/claims_adjuster.id)> true)`; `always([+APPROVE_CLAIM_PAYOUT] true -> always([-FRAUDULENT_PAYOUT] true))` |
+| "Clinical trial enrollment approval requires principal investigator signature and blocks ineligible subject enrollment" | `always([+APPROVE_TRIAL_ENROLLMENT] true -> <+signed_by(/users/principal_investigator.id)> true)`; `always([+APPROVE_TRIAL_ENROLLMENT] true -> always([-INELIGIBLE_SUBJECT_ENROLLMENT] true))` |
 
 ## Output Format
 
@@ -11301,6 +11303,23 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_FORESTRY_HARVEST_PERMIT] true -> always([-UNAUTHORIZED_LOGGING] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_insurance_clinical_governance_patterns() {
+        let prompt = generate_prompt("Insurance payout and clinical enrollment controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CLAIM_PAYOUT] true -> <+signed_by(/users/claims_adjuster.id)> true)"
+        ));
+        assert!(prompt
+            .contains("always([+APPROVE_CLAIM_PAYOUT] true -> always([-FRAUDULENT_PAYOUT] true))"));
+        assert!(prompt.contains(
+            "always([+APPROVE_TRIAL_ENROLLMENT] true -> <+signed_by(/users/principal_investigator.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TRIAL_ENROLLMENT] true -> always([-INELIGIBLE_SUBJECT_ENROLLMENT] true))"
         ));
     }
 }
