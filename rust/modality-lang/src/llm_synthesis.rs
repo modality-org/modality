@@ -143,6 +143,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Audit closure requires auditor signature and blocks unresolved finding" | `always([+CLOSE_AUDIT] true -> <+signed_by(/users/auditor.id)> true)`; `always([+CLOSE_AUDIT] true -> always([-UNRESOLVED_FINDING] true))` |
 | "Vendor onboarding requires procurement officer signature and blocks unapproved vendor payment" | `always([+ONBOARD_VENDOR] true -> <+signed_by(/users/procurement_officer.id)> true)`; `always([+ONBOARD_VENDOR] true -> always([-UNAPPROVED_VENDOR_PAYMENT] true))` |
 | "Purchase order approval requires budget owner signature and blocks off contract spend" | `always([+APPROVE_PURCHASE_ORDER] true -> <+signed_by(/users/budget_owner.id)> true)`; `always([+APPROVE_PURCHASE_ORDER] true -> always([-OFF_CONTRACT_SPEND] true))` |
+| "Treasury disbursement requires treasurer signature and blocks unauthorized transfer" | `always([+APPROVE_TREASURY_DISBURSEMENT] true -> <+signed_by(/users/treasurer.id)> true)`; `always([+APPROVE_TREASURY_DISBURSEMENT] true -> always([-UNAUTHORIZED_TRANSFER] true))` |
+| "Budget release requires finance controller signature and blocks over budget spend" | `always([+RELEASE_BUDGET] true -> <+signed_by(/users/finance_controller.id)> true)`; `always([+RELEASE_BUDGET] true -> always([-OVER_BUDGET_SPEND] true))` |
 
 ## Output Format
 
@@ -10627,5 +10629,23 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(prompt.contains(
             "always([+APPROVE_PURCHASE_ORDER] true -> always([-OFF_CONTRACT_SPEND] true))"
         ));
+    }
+
+    #[test]
+    fn test_prompt_includes_finance_treasury_governance_patterns() {
+        let prompt = generate_prompt("Treasury disbursements and budget releases need controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_TREASURY_DISBURSEMENT] true -> <+signed_by(/users/treasurer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TREASURY_DISBURSEMENT] true -> always([-UNAUTHORIZED_TRANSFER] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+RELEASE_BUDGET] true -> <+signed_by(/users/finance_controller.id)> true)"
+        ));
+        assert!(
+            prompt.contains("always([+RELEASE_BUDGET] true -> always([-OVER_BUDGET_SPEND] true))")
+        );
     }
 }
