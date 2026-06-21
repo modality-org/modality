@@ -181,6 +181,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Sanctions screening clearance requires sanctions officer signature and blocks sanctioned transfer" | `always([+CLEAR_SANCTIONS_SCREENING] true -> <+signed_by(/users/sanctions_officer.id)> true)`; `always([+CLEAR_SANCTIONS_SCREENING] true -> always([-SANCTIONED_TRANSFER] true))` |
 | "Cyber incident containment requires security lead signature and blocks uncontrolled breach escalation" | `always([+CONTAIN_CYBER_INCIDENT] true -> <+signed_by(/users/security_lead.id)> true)`; `always([+CONTAIN_CYBER_INCIDENT] true -> always([-UNCONTROLLED_BREACH_ESCALATION] true))` |
 | "Disaster recovery failover approval requires continuity manager signature and blocks untested failover" | `always([+APPROVE_DISASTER_RECOVERY_FAILOVER] true -> <+signed_by(/users/continuity_manager.id)> true)`; `always([+APPROVE_DISASTER_RECOVERY_FAILOVER] true -> always([-UNTESTED_FAILOVER] true))` |
+| "Legal hold approval requires records counsel signature and blocks premature purge" | `always([+APPROVE_LEGAL_HOLD] true -> <+signed_by(/users/records_counsel.id)> true)`; `always([+APPROVE_LEGAL_HOLD] true -> always([-PREMATURE_PURGE] true))` |
+| "E-discovery production approval requires litigation support manager signature and blocks privileged disclosure" | `always([+APPROVE_EDISCOVERY_PRODUCTION] true -> <+signed_by(/users/litigation_support_manager.id)> true)`; `always([+APPROVE_EDISCOVERY_PRODUCTION] true -> always([-PRIVILEGED_DISCLOSURE] true))` |
 
 ## Output Format
 
@@ -11005,6 +11007,23 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_DISASTER_RECOVERY_FAILOVER] true -> always([-UNTESTED_FAILOVER] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_legal_records_governance_patterns() {
+        let prompt = generate_prompt("Legal hold and e-discovery controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_LEGAL_HOLD] true -> <+signed_by(/users/records_counsel.id)> true)"
+        ));
+        assert!(prompt
+            .contains("always([+APPROVE_LEGAL_HOLD] true -> always([-PREMATURE_PURGE] true))"));
+        assert!(prompt.contains(
+            "always([+APPROVE_EDISCOVERY_PRODUCTION] true -> <+signed_by(/users/litigation_support_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_EDISCOVERY_PRODUCTION] true -> always([-PRIVILEGED_DISCLOSURE] true))"
         ));
     }
 }
