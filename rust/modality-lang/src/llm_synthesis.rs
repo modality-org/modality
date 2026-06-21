@@ -243,6 +243,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Container image promotion approval requires platform release engineer signature and blocks vulnerable image deployment" | `always([+APPROVE_CONTAINER_IMAGE_PROMOTION] true -> <+signed_by(/users/platform_release_engineer.id)> true)`; `always([+APPROVE_CONTAINER_IMAGE_PROMOTION] true -> always([-VULNERABLE_IMAGE_DEPLOYMENT] true))` |
 | "Feature flag rollout approval requires product owner signature and blocks unauthorized exposure" | `always([+APPROVE_FEATURE_FLAG_ROLLOUT] true -> <+signed_by(/users/product_owner.id)> true)`; `always([+APPROVE_FEATURE_FLAG_ROLLOUT] true -> always([-UNAUTHORIZED_FEATURE_EXPOSURE] true))` |
 | "Production rollback authorization requires incident commander signature and blocks data loss rollback" | `always([+AUTHORIZE_PRODUCTION_ROLLBACK] true -> <+signed_by(/users/incident_commander.id)> true)`; `always([+AUTHORIZE_PRODUCTION_ROLLBACK] true -> always([-DATA_LOSS_ROLLBACK] true))` |
+| "Observability dashboard change approval requires service owner signature and blocks unaudited alert suppression" | `always([+APPROVE_OBSERVABILITY_DASHBOARD_CHANGE] true -> <+signed_by(/users/service_owner.id)> true)`; `always([+APPROVE_OBSERVABILITY_DASHBOARD_CHANGE] true -> always([-UNAUDITED_ALERT_SUPPRESSION] true))` |
+| "Incident postmortem closure requires reliability lead signature and blocks unresolved corrective action" | `always([+CLOSE_INCIDENT_POSTMORTEM] true -> <+signed_by(/users/reliability_lead.id)> true)`; `always([+CLOSE_INCIDENT_POSTMORTEM] true -> always([-UNRESOLVED_CORRECTIVE_ACTION] true))` |
 
 ## Output Format
 
@@ -11620,6 +11622,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+AUTHORIZE_PRODUCTION_ROLLBACK] true -> always([-DATA_LOSS_ROLLBACK] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_observability_postmortem_governance_patterns() {
+        let prompt = generate_prompt("Observability dashboard and incident postmortem controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_OBSERVABILITY_DASHBOARD_CHANGE] true -> <+signed_by(/users/service_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_OBSERVABILITY_DASHBOARD_CHANGE] true -> always([-UNAUDITED_ALERT_SUPPRESSION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+CLOSE_INCIDENT_POSTMORTEM] true -> <+signed_by(/users/reliability_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+CLOSE_INCIDENT_POSTMORTEM] true -> always([-UNRESOLVED_CORRECTIVE_ACTION] true))"
         ));
     }
 }
