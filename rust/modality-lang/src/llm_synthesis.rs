@@ -191,6 +191,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Broadcast rights clearance requires rights coordinator signature and blocks unauthorized stream" | `always([+CLEAR_BROADCAST_RIGHTS] true -> <+signed_by(/users/rights_coordinator.id)> true)`; `always([+CLEAR_BROADCAST_RIGHTS] true -> always([-UNAUTHORIZED_STREAM] true))` |
 | "Port departure clearance requires harbor master signature and blocks unauthorized sailing" | `always([+CLEAR_PORT_DEPARTURE] true -> <+signed_by(/users/harbor_master.id)> true)`; `always([+CLEAR_PORT_DEPARTURE] true -> always([-UNAUTHORIZED_SAILING] true))` |
 | "Customs cargo release requires customs officer signature and blocks smuggled goods release" | `always([+RELEASE_CUSTOMS_CARGO] true -> <+signed_by(/users/customs_officer.id)> true)`; `always([+RELEASE_CUSTOMS_CARGO] true -> always([-SMUGGLED_GOODS_RELEASE] true))` |
+| "Loan disbursement approval requires credit officer signature and blocks unauthorized drawdown" | `always([+APPROVE_LOAN_DISBURSEMENT] true -> <+signed_by(/users/credit_officer.id)> true)`; `always([+APPROVE_LOAN_DISBURSEMENT] true -> always([-UNAUTHORIZED_DRAWDOWN] true))` |
+| "Collateral release requires lending officer signature and blocks unsecured exposure" | `always([+RELEASE_COLLATERAL] true -> <+signed_by(/users/lending_officer.id)> true)`; `always([+RELEASE_COLLATERAL] true -> always([-UNSECURED_EXPOSURE] true))` |
 
 ## Output Format
 
@@ -11104,5 +11106,22 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(prompt.contains(
             "always([+RELEASE_CUSTOMS_CARGO] true -> always([-SMUGGLED_GOODS_RELEASE] true))"
         ));
+    }
+
+    #[test]
+    fn test_prompt_includes_lending_collateral_governance_patterns() {
+        let prompt = generate_prompt("Loan disbursement and collateral release controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_LOAN_DISBURSEMENT] true -> <+signed_by(/users/credit_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_LOAN_DISBURSEMENT] true -> always([-UNAUTHORIZED_DRAWDOWN] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+RELEASE_COLLATERAL] true -> <+signed_by(/users/lending_officer.id)> true)"
+        ));
+        assert!(prompt
+            .contains("always([+RELEASE_COLLATERAL] true -> always([-UNSECURED_EXPOSURE] true))"));
     }
 }
