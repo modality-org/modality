@@ -359,6 +359,9 @@ fn collect_json_formulas(
                         | "denialformula"
                         | "deniedformula"
                         | "deadlineformula"
+                        | "delegatedformula"
+                        | "delegateformula"
+                        | "delegationformula"
                         | "deliveryformula"
                         | "deploymentformula"
                         | "commitmentformula"
@@ -485,6 +488,9 @@ fn collect_json_formulas(
                         | "formuladamage"
                         | "formuladamages"
                         | "formuladeadline"
+                        | "formuladelegated"
+                        | "formuladelegate"
+                        | "formuladelegation"
                         | "formuladenial"
                         | "formuladenied"
                         | "formuladelivery"
@@ -666,6 +672,9 @@ fn collect_json_formulas(
                         | "rulecommitment"
                         | "rulecovenant"
                         | "ruledeadline"
+                        | "ruledelegated"
+                        | "ruledelegate"
+                        | "ruledelegation"
                         | "ruledenial"
                         | "ruledenied"
                         | "ruledelivery"
@@ -1477,6 +1486,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "denialformula"
             | "deniedformula"
             | "deadlineformula"
+            | "delegatedformula"
+            | "delegateformula"
+            | "delegationformula"
             | "deliveryformula"
             | "deploymentformula"
             | "commitmentformula"
@@ -1595,6 +1607,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formuladamage"
             | "formuladamages"
             | "formuladeadline"
+            | "formuladelegated"
+            | "formuladelegate"
+            | "formuladelegation"
             | "formuladenial"
             | "formuladenied"
             | "formuladelivery"
@@ -1772,6 +1787,9 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulecommitment"
             | "rulecovenant"
             | "ruledeadline"
+            | "ruledelegated"
+            | "ruledelegate"
+            | "ruledelegation"
             | "ruledenial"
             | "ruledenied"
             | "ruledelivery"
@@ -1989,6 +2007,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "denialformula"
             | "deniedformula"
             | "deadlineformula"
+            | "delegatedformula"
+            | "delegateformula"
+            | "delegationformula"
             | "deliveryformula"
             | "deploymentformula"
             | "commitmentformula"
@@ -2115,6 +2136,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formuladamage"
             | "formuladamages"
             | "formuladeadline"
+            | "formuladelegated"
+            | "formuladelegate"
+            | "formuladelegation"
             | "formuladenial"
             | "formuladenied"
             | "formuladelivery"
@@ -2289,6 +2313,9 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulecommitment"
             | "rulecovenant"
             | "ruledeadline"
+            | "ruledelegated"
+            | "ruledelegate"
+            | "ruledelegation"
             | "ruledenial"
             | "ruledenied"
             | "ruledelivery"
@@ -6226,6 +6253,42 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_delegation_field_order_aliases() {
+        let response = r#"
+{
+  "formula_delegate": "Formula 1: always([+DELEGATE] true -> <+signed_by(/users/delegator.id)> true)",
+  "delegate_formula": "F2: always([+DELEGATE] true -> always([-REVOKE_DELEGATION] true))",
+  "rule_delegate": "Formula 3: <+RECORD_DELEGATION> true",
+  "formula_delegation": "Formula 4: always([+ACCEPT_DELEGATION] true -> <+signed_by(/users/delegate.id)> true)",
+  "delegation_formula": "Formula 5: <+NOTICE_DELEGATION> true",
+  "rule_delegation": "Formula 6: always([+REVOKE_DELEGATION] true -> <+signed_by(/users/delegator.id)> true)",
+  "delegated_formula": "Formula 7: always([+USE_DELEGATED_AUTHORITY] true -> <+signed_by(/users/delegate.id)> true)",
+  "formula_delegated": "Formula 8: <+CONFIRM_DELEGATED_AUTHORITY> true",
+  "rule_delegated": "Formula 9: always([+USE_DELEGATED_AUTHORITY] true -> always([-REASSIGN] true))",
+  "delegate": "This delegate explanation is only prose.",
+  "delegation": "This delegation rationale is only prose.",
+  "delegated": "This delegated authority summary is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+DELEGATE] true -> always([-REVOKE_DELEGATION] true))",
+                "always([+USE_DELEGATED_AUTHORITY] true -> <+signed_by(/users/delegate.id)> true)",
+                "<+NOTICE_DELEGATION> true",
+                "always([+DELEGATE] true -> <+signed_by(/users/delegator.id)> true)",
+                "<+CONFIRM_DELEGATED_AUTHORITY> true",
+                "always([+ACCEPT_DELEGATION] true -> <+signed_by(/users/delegate.id)> true)",
+                "<+RECORD_DELEGATION> true",
+                "always([+USE_DELEGATED_AUTHORITY] true -> always([-REASSIGN] true))",
+                "always([+REVOKE_DELEGATION] true -> <+signed_by(/users/delegator.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_certification_publication_registration_aliases() {
         let response = r#"
 {
@@ -8252,6 +8315,40 @@ extension = this extension rationale is only prose
                 "always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)",
                 "always([+EXTEND] true -> always([-TERMINATE] true))",
                 "<+NOTICE_EXTENSION> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_delegation_field_order_aliases() {
+        let response = r#"
+formula delegate: Formula 1: always([+DELEGATE] true -> <+signed_by(/users/delegator.id)> true)
+delegate formula: F2: always([+DELEGATE] true -> always([-REVOKE_DELEGATION] true))
+rule delegate: Formula 3: <+RECORD_DELEGATION> true
+formula delegation: Formula 4: always([+ACCEPT_DELEGATION] true -> <+signed_by(/users/delegate.id)> true)
+delegation formula: Formula 5: <+NOTICE_DELEGATION> true
+rule delegation: Formula 6: always([+REVOKE_DELEGATION] true -> <+signed_by(/users/delegator.id)> true)
+delegated formula: Formula 7: always([+USE_DELEGATED_AUTHORITY] true -> <+signed_by(/users/delegate.id)> true)
+formula delegated: Formula 8: <+CONFIRM_DELEGATED_AUTHORITY> true
+rule delegated: Formula 9: always([+USE_DELEGATED_AUTHORITY] true -> always([-REASSIGN] true))
+delegate = this delegate explanation is only prose
+delegation = this delegation rationale is only prose
+delegated = this delegated authority summary is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+DELEGATE] true -> <+signed_by(/users/delegator.id)> true)",
+                "always([+DELEGATE] true -> always([-REVOKE_DELEGATION] true))",
+                "<+RECORD_DELEGATION> true",
+                "always([+ACCEPT_DELEGATION] true -> <+signed_by(/users/delegate.id)> true)",
+                "<+NOTICE_DELEGATION> true",
+                "always([+REVOKE_DELEGATION] true -> <+signed_by(/users/delegator.id)> true)",
+                "always([+USE_DELEGATED_AUTHORITY] true -> <+signed_by(/users/delegate.id)> true)",
+                "<+CONFIRM_DELEGATED_AUTHORITY> true",
+                "always([+USE_DELEGATED_AUTHORITY] true -> always([-REASSIGN] true))"
             ]
         );
     }
