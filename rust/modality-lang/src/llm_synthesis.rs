@@ -177,6 +177,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Spectrum assignment approval requires spectrum officer signature and blocks unlicensed transmission" | `always([+APPROVE_SPECTRUM_ASSIGNMENT] true -> <+signed_by(/users/spectrum_officer.id)> true)`; `always([+APPROVE_SPECTRUM_ASSIGNMENT] true -> always([-UNLICENSED_TRANSMISSION] true))` |
 | "AML case closure requires compliance analyst signature and blocks suspicious payout" | `always([+CLOSE_AML_CASE] true -> <+signed_by(/users/compliance_analyst.id)> true)`; `always([+CLOSE_AML_CASE] true -> always([-SUSPICIOUS_PAYOUT] true))` |
 | "Export license approval requires export control officer signature and blocks restricted shipment" | `always([+APPROVE_EXPORT_LICENSE] true -> <+signed_by(/users/export_control_officer.id)> true)`; `always([+APPROVE_EXPORT_LICENSE] true -> always([-RESTRICTED_SHIPMENT] true))` |
+| "KYC account approval requires identity analyst signature and blocks unverified activation" | `always([+APPROVE_KYC_ACCOUNT] true -> <+signed_by(/users/identity_analyst.id)> true)`; `always([+APPROVE_KYC_ACCOUNT] true -> always([-UNVERIFIED_ACTIVATION] true))` |
+| "Sanctions screening clearance requires sanctions officer signature and blocks sanctioned transfer" | `always([+CLEAR_SANCTIONS_SCREENING] true -> <+signed_by(/users/sanctions_officer.id)> true)`; `always([+CLEAR_SANCTIONS_SCREENING] true -> always([-SANCTIONED_TRANSFER] true))` |
 
 ## Output Format
 
@@ -10965,6 +10967,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_EXPORT_LICENSE] true -> always([-RESTRICTED_SHIPMENT] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_kyc_sanctions_governance_patterns() {
+        let prompt = generate_prompt("KYC approval and sanctions clearance need controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_KYC_ACCOUNT] true -> <+signed_by(/users/identity_analyst.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_KYC_ACCOUNT] true -> always([-UNVERIFIED_ACTIVATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+CLEAR_SANCTIONS_SCREENING] true -> <+signed_by(/users/sanctions_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+CLEAR_SANCTIONS_SCREENING] true -> always([-SANCTIONED_TRANSFER] true))"
         ));
     }
 }
