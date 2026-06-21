@@ -357,6 +357,7 @@ fn collect_json_formulas(
                         | "damagesformula"
                         | "denialformula"
                         | "deniedformula"
+                        | "deadlineformula"
                         | "deliveryformula"
                         | "deploymentformula"
                         | "commitmentformula"
@@ -364,6 +365,8 @@ fn collect_json_formulas(
                         | "dutyformula"
                         | "entitlementformula"
                         | "escalationformula"
+                        | "expirationformula"
+                        | "expiryformula"
                         | "grantformula"
                         | "indemnityformula"
                         | "indemnificationformula"
@@ -448,6 +451,7 @@ fn collect_json_formulas(
                         | "formulaconsent"
                         | "formuladamage"
                         | "formuladamages"
+                        | "formuladeadline"
                         | "formuladenial"
                         | "formuladenied"
                         | "formuladelivery"
@@ -457,6 +461,8 @@ fn collect_json_formulas(
                         | "formuladuty"
                         | "formulaentitlement"
                         | "formulaescalation"
+                        | "formulaexpiration"
+                        | "formulaexpiry"
                         | "formulagrant"
                         | "formulaincident"
                         | "formulainspection"
@@ -594,6 +600,7 @@ fn collect_json_formulas(
                         | "ruleconsent"
                         | "rulecommitment"
                         | "rulecovenant"
+                        | "ruledeadline"
                         | "ruledenial"
                         | "ruledenied"
                         | "ruledelivery"
@@ -604,6 +611,8 @@ fn collect_json_formulas(
                         | "rulecertification"
                         | "ruleentitlement"
                         | "ruleescalation"
+                        | "ruleexpiration"
+                        | "ruleexpiry"
                         | "rulegrant"
                         | "rulecompliance"
                         | "ruleincident"
@@ -1370,6 +1379,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "damagesformula"
             | "denialformula"
             | "deniedformula"
+            | "deadlineformula"
             | "deliveryformula"
             | "deploymentformula"
             | "commitmentformula"
@@ -1377,6 +1387,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "dutyformula"
             | "entitlementformula"
             | "escalationformula"
+            | "expirationformula"
+            | "expiryformula"
             | "grantformula"
             | "indemnityformula"
             | "indemnificationformula"
@@ -1461,6 +1473,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaconsent"
             | "formuladamage"
             | "formuladamages"
+            | "formuladeadline"
             | "formuladenial"
             | "formuladenied"
             | "formuladelivery"
@@ -1470,6 +1483,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formuladuty"
             | "formulaentitlement"
             | "formulaescalation"
+            | "formulaexpiration"
+            | "formulaexpiry"
             | "formulagrant"
             | "formulaincident"
             | "formulainspection"
@@ -1607,6 +1622,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleconsent"
             | "rulecommitment"
             | "rulecovenant"
+            | "ruledeadline"
             | "ruledenial"
             | "ruledenied"
             | "ruledelivery"
@@ -1617,6 +1633,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulecertification"
             | "ruleentitlement"
             | "ruleescalation"
+            | "ruleexpiration"
+            | "ruleexpiry"
             | "rulegrant"
             | "rulecompliance"
             | "ruleincident"
@@ -1793,6 +1811,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "damagesformula"
             | "denialformula"
             | "deniedformula"
+            | "deadlineformula"
             | "deliveryformula"
             | "deploymentformula"
             | "commitmentformula"
@@ -1800,6 +1819,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "dutyformula"
             | "entitlementformula"
             | "escalationformula"
+            | "expirationformula"
+            | "expiryformula"
             | "grantformula"
             | "indemnityformula"
             | "indemnificationformula"
@@ -1884,6 +1905,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaconsent"
             | "formuladamage"
             | "formuladamages"
+            | "formuladeadline"
             | "formuladenial"
             | "formuladenied"
             | "formuladelivery"
@@ -1893,6 +1915,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formuladuty"
             | "formulaentitlement"
             | "formulaescalation"
+            | "formulaexpiration"
+            | "formulaexpiry"
             | "formulagrant"
             | "formulaincident"
             | "formulainspection"
@@ -2028,6 +2052,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleconsent"
             | "rulecommitment"
             | "rulecovenant"
+            | "ruledeadline"
             | "ruledenial"
             | "ruledenied"
             | "ruledelivery"
@@ -2038,6 +2063,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulecertification"
             | "ruleentitlement"
             | "ruleescalation"
+            | "ruleexpiration"
+            | "ruleexpiry"
             | "rulegrant"
             | "rulecompliance"
             | "ruleincident"
@@ -6203,6 +6230,42 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_deadline_expiry_aliases() {
+        let response = r#"
+{
+  "formula_deadline": "Formula 1: always([+DEADLINE] true -> <+oracle_attests(/oracles/clock.id, \"due\", \"true\")> true)",
+  "deadline_formula": "F2: always([+DEADLINE] true -> always([-SUBMIT] true))",
+  "rule_deadline": "Formula 3: <+RECORD_DEADLINE> true",
+  "formula_expiry": "Formula 4: always([+EXPIRE] true -> <+signed_by(/users/issuer.id)> true)",
+  "expiry_formula": "Formula 5: always([+EXPIRE] true -> always([-RENEW] true))",
+  "rule_expiry": "Formula 6: <+RECORD_EXPIRY> true",
+  "formula_expiration": "Formula 7: always([+EXPIRATION] true -> <+signed_by(/users/admin.id)> true)",
+  "expiration_formula": "Formula 8: always([+EXPIRATION] true -> always([-ACCESS] true))",
+  "rule_expiration": "Formula 9: <+RECORD_EXPIRATION> true",
+  "deadline": "This deadline summary is only prose.",
+  "expiry": "This expiry summary is only prose.",
+  "expiration": "This expiration summary is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+DEADLINE] true -> always([-SUBMIT] true))",
+                "always([+EXPIRATION] true -> always([-ACCESS] true))",
+                "always([+EXPIRE] true -> always([-RENEW] true))",
+                "always([+DEADLINE] true -> <+oracle_attests(/oracles/clock.id, \"due\", \"true\")> true)",
+                "always([+EXPIRATION] true -> <+signed_by(/users/admin.id)> true)",
+                "always([+EXPIRE] true -> <+signed_by(/users/issuer.id)> true)",
+                "<+RECORD_DEADLINE> true",
+                "<+RECORD_EXPIRATION> true",
+                "<+RECORD_EXPIRY> true"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -7866,6 +7929,40 @@ withdrawal = this withdrawal explanation is only prose
                 "always([+WITHDRAW] true -> <+signed_by(/users/depositor.id)> true)",
                 "always([+WITHDRAW] true -> always([-CLAIM] true))",
                 "<+RECORD_WITHDRAWAL> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_deadline_expiry_aliases() {
+        let response = r#"
+formula deadline: Formula 1: always([+DEADLINE] true -> <+oracle_attests(/oracles/clock.id, "due", "true")> true)
+deadline formula: F2: always([+DEADLINE] true -> always([-SUBMIT] true))
+rule deadline: Formula 3: <+RECORD_DEADLINE> true
+formula expiry: Formula 4: always([+EXPIRE] true -> <+signed_by(/users/issuer.id)> true)
+expiry formula: Formula 5: always([+EXPIRE] true -> always([-RENEW] true))
+rule expiry: Formula 6: <+RECORD_EXPIRY> true
+formula expiration: Formula 7: always([+EXPIRATION] true -> <+signed_by(/users/admin.id)> true)
+expiration formula: Formula 8: always([+EXPIRATION] true -> always([-ACCESS] true))
+rule expiration: Formula 9: <+RECORD_EXPIRATION> true
+deadline = this deadline summary is only prose
+expiry = this expiry summary is only prose
+expiration = this expiration summary is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+DEADLINE] true -> <+oracle_attests(/oracles/clock.id, \"due\", \"true\")> true)",
+                "always([+DEADLINE] true -> always([-SUBMIT] true))",
+                "<+RECORD_DEADLINE> true",
+                "always([+EXPIRE] true -> <+signed_by(/users/issuer.id)> true)",
+                "always([+EXPIRE] true -> always([-RENEW] true))",
+                "<+RECORD_EXPIRY> true",
+                "always([+EXPIRATION] true -> <+signed_by(/users/admin.id)> true)",
+                "always([+EXPIRATION] true -> always([-ACCESS] true))",
+                "<+RECORD_EXPIRATION> true"
             ]
         );
     }
