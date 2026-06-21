@@ -147,6 +147,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Budget release requires finance controller signature and blocks over budget spend" | `always([+RELEASE_BUDGET] true -> <+signed_by(/users/finance_controller.id)> true)`; `always([+RELEASE_BUDGET] true -> always([-OVER_BUDGET_SPEND] true))` |
 | "Clinical trial enrollment requires principal investigator signature and blocks ineligible enrollment" | `always([+ENROLL_TRIAL_PARTICIPANT] true -> <+signed_by(/users/principal_investigator.id)> true)`; `always([+ENROLL_TRIAL_PARTICIPANT] true -> always([-INELIGIBLE_ENROLLMENT] true))` |
 | "Treatment protocol approval requires medical director signature and blocks off protocol treatment" | `always([+APPROVE_TREATMENT_PROTOCOL] true -> <+signed_by(/users/medical_director.id)> true)`; `always([+APPROVE_TREATMENT_PROTOCOL] true -> always([-OFF_PROTOCOL_TREATMENT] true))` |
+| "Claim settlement requires claims adjuster signature and blocks fraudulent payout" | `always([+SETTLE_CLAIM] true -> <+signed_by(/users/claims_adjuster.id)> true)`; `always([+SETTLE_CLAIM] true -> always([-FRAUDULENT_PAYOUT] true))` |
+| "Underwriting exception requires underwriter signature and blocks unpriced risk binding" | `always([+APPROVE_UNDERWRITING_EXCEPTION] true -> <+signed_by(/users/underwriter.id)> true)`; `always([+APPROVE_UNDERWRITING_EXCEPTION] true -> always([-UNPRICED_RISK_BINDING] true))` |
 
 ## Output Format
 
@@ -10667,6 +10669,25 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_TREATMENT_PROTOCOL] true -> always([-OFF_PROTOCOL_TREATMENT] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_insurance_claims_governance_patterns() {
+        let prompt =
+            generate_prompt("Claim settlement and underwriting exceptions require controls");
+
+        assert!(prompt.contains(
+            "always([+SETTLE_CLAIM] true -> <+signed_by(/users/claims_adjuster.id)> true)"
+        ));
+        assert!(
+            prompt.contains("always([+SETTLE_CLAIM] true -> always([-FRAUDULENT_PAYOUT] true))")
+        );
+        assert!(prompt.contains(
+            "always([+APPROVE_UNDERWRITING_EXCEPTION] true -> <+signed_by(/users/underwriter.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_UNDERWRITING_EXCEPTION] true -> always([-UNPRICED_RISK_BINDING] true))"
         ));
     }
 }
