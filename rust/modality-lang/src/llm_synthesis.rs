@@ -161,6 +161,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Model deployment approval requires model risk officer signature and blocks unvalidated model use" | `always([+APPROVE_MODEL_DEPLOYMENT] true -> <+signed_by(/users/model_risk_officer.id)> true)`; `always([+APPROVE_MODEL_DEPLOYMENT] true -> always([-UNVALIDATED_MODEL_USE] true))` |
 | "DAO proposal execution requires governance council signature and blocks failed quorum execution" | `always([+EXECUTE_DAO_PROPOSAL] true -> <+signed_by(/users/governance_council.id)> true)`; `always([+EXECUTE_DAO_PROPOSAL] true -> always([-FAILED_QUORUM_EXECUTION] true))` |
 | "Marketplace payout release requires platform operator signature and blocks disputed payout" | `always([+RELEASE_MARKETPLACE_PAYOUT] true -> <+signed_by(/users/platform_operator.id)> true)`; `always([+RELEASE_MARKETPLACE_PAYOUT] true -> always([-DISPUTED_PAYOUT] true))` |
+| "Construction draw approval requires project manager signature and blocks lien exposure" | `always([+APPROVE_CONSTRUCTION_DRAW] true -> <+signed_by(/users/project_manager.id)> true)`; `always([+APPROVE_CONSTRUCTION_DRAW] true -> always([-LIEN_EXPOSURE] true))` |
+| "Manufacturing batch release requires quality manager signature and blocks nonconforming shipment" | `always([+RELEASE_MANUFACTURING_BATCH] true -> <+signed_by(/users/quality_manager.id)> true)`; `always([+RELEASE_MANUFACTURING_BATCH] true -> always([-NONCONFORMING_SHIPMENT] true))` |
 
 ## Output Format
 
@@ -10803,6 +10805,25 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+RELEASE_MARKETPLACE_PAYOUT] true -> always([-DISPUTED_PAYOUT] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_construction_manufacturing_governance_patterns() {
+        let prompt =
+            generate_prompt("Construction draws and manufacturing batch release require controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CONSTRUCTION_DRAW] true -> <+signed_by(/users/project_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CONSTRUCTION_DRAW] true -> always([-LIEN_EXPOSURE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+RELEASE_MANUFACTURING_BATCH] true -> <+signed_by(/users/quality_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+RELEASE_MANUFACTURING_BATCH] true -> always([-NONCONFORMING_SHIPMENT] true))"
         ));
     }
 }
