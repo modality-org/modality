@@ -205,6 +205,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Public health order closure requires health officer signature and blocks unresolved exposure" | `always([+CLOSE_PUBLIC_HEALTH_ORDER] true -> <+signed_by(/users/health_officer.id)> true)`; `always([+CLOSE_PUBLIC_HEALTH_ORDER] true -> always([-UNRESOLVED_EXPOSURE] true))` |
 | "Emergency resource dispatch approval requires incident commander signature and blocks unauthorized deployment" | `always([+APPROVE_EMERGENCY_RESOURCE_DISPATCH] true -> <+signed_by(/users/incident_commander.id)> true)`; `always([+APPROVE_EMERGENCY_RESOURCE_DISPATCH] true -> always([-UNAUTHORIZED_DEPLOYMENT] true))` |
 | "Court order enforcement requires court clerk signature and blocks stayed enforcement" | `always([+ENFORCE_COURT_ORDER] true -> <+signed_by(/users/court_clerk.id)> true)`; `always([+ENFORCE_COURT_ORDER] true -> always([-STAYED_ENFORCEMENT] true))` |
+| "Satellite maneuver approval requires mission director signature and blocks unauthorized orbit change" | `always([+APPROVE_SATELLITE_MANEUVER] true -> <+signed_by(/users/mission_director.id)> true)`; `always([+APPROVE_SATELLITE_MANEUVER] true -> always([-UNAUTHORIZED_ORBIT_CHANGE] true))` |
+| "Nuclear maintenance clearance requires radiation safety officer signature and blocks unsafe reactor work" | `always([+ISSUE_NUCLEAR_MAINTENANCE_CLEARANCE] true -> <+signed_by(/users/radiation_safety_officer.id)> true)`; `always([+ISSUE_NUCLEAR_MAINTENANCE_CLEARANCE] true -> always([-UNSAFE_REACTOR_WORK] true))` |
 
 ## Output Format
 
@@ -11242,5 +11244,23 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt
             .contains("always([+ENFORCE_COURT_ORDER] true -> always([-STAYED_ENFORCEMENT] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_space_nuclear_governance_patterns() {
+        let prompt = generate_prompt("Satellite maneuver and nuclear maintenance controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_SATELLITE_MANEUVER] true -> <+signed_by(/users/mission_director.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SATELLITE_MANEUVER] true -> always([-UNAUTHORIZED_ORBIT_CHANGE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+ISSUE_NUCLEAR_MAINTENANCE_CLEARANCE] true -> <+signed_by(/users/radiation_safety_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+ISSUE_NUCLEAR_MAINTENANCE_CLEARANCE] true -> always([-UNSAFE_REACTOR_WORK] true))"
+        ));
     }
 }
