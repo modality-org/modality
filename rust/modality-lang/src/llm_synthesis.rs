@@ -137,6 +137,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Change freeze requires release manager signature and blocks deployment" | `always([+FREEZE_CHANGE] true -> <+signed_by(/users/release_manager.id)> true)`; `always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))` |
 | "Regulatory filing requires applicant and regulator signatures" | `always([+FILE_REGULATORY_REPORT] true -> <+signed_by(/users/applicant.id) +signed_by(/users/regulator.id)> true)` |
 | "Tax return filing requires tax authority, withholding agent, and revenue agency signatures" | `always([+FILE_TAX_RETURN] true -> <+signed_by(/users/tax_authority.id) +signed_by(/users/withholding_agent.id) +signed_by(/users/revenue_agency.id)> true)` |
+| "Data processing approval requires data protection officer signature and blocks unauthorized export" | `always([+APPROVE_DATA_PROCESSING] true -> <+signed_by(/users/data_protection_officer.id)> true)`; `always([+APPROVE_DATA_PROCESSING] true -> always([-UNAUTHORIZED_EXPORT] true))` |
+| "Privacy impact acceptance requires privacy officer signature and blocks high risk processing" | `always([+ACCEPT_PRIVACY_IMPACT] true -> <+signed_by(/users/privacy_officer.id)> true)`; `always([+ACCEPT_PRIVACY_IMPACT] true -> always([-HIGH_RISK_PROCESSING] true))` |
 
 ## Output Format
 
@@ -10564,6 +10566,25 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+FILE_TAX_RETURN] true -> <+signed_by(/users/tax_authority.id) +signed_by(/users/withholding_agent.id) +signed_by(/users/revenue_agency.id)> true)"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_privacy_data_governance_patterns() {
+        let prompt =
+            generate_prompt("Data processing approval requires privacy governance controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_PROCESSING] true -> <+signed_by(/users/data_protection_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_PROCESSING] true -> always([-UNAUTHORIZED_EXPORT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+ACCEPT_PRIVACY_IMPACT] true -> <+signed_by(/users/privacy_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+ACCEPT_PRIVACY_IMPACT] true -> always([-HIGH_RISK_PROCESSING] true))"
         ));
     }
 }
