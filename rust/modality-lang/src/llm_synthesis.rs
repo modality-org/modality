@@ -187,6 +187,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Trademark usage approval requires brand counsel signature and blocks unauthorized mark use" | `always([+APPROVE_TRADEMARK_USAGE] true -> <+signed_by(/users/brand_counsel.id)> true)`; `always([+APPROVE_TRADEMARK_USAGE] true -> always([-UNAUTHORIZED_MARK_USE] true))` |
 | "Employee onboarding approval requires HR manager signature and blocks unverified worker access" | `always([+APPROVE_EMPLOYEE_ONBOARDING] true -> <+signed_by(/users/hr_manager.id)> true)`; `always([+APPROVE_EMPLOYEE_ONBOARDING] true -> always([-UNVERIFIED_WORKER_ACCESS] true))` |
 | "Labor compliance attestation requires compliance officer signature and blocks wage violation" | `always([+ATTEST_LABOR_COMPLIANCE] true -> <+signed_by(/users/compliance_officer.id)> true)`; `always([+ATTEST_LABOR_COMPLIANCE] true -> always([-WAGE_VIOLATION] true))` |
+| "Athlete eligibility certification requires compliance officer signature and blocks ineligible competition" | `always([+CERTIFY_ATHLETE_ELIGIBILITY] true -> <+signed_by(/users/compliance_officer.id)> true)`; `always([+CERTIFY_ATHLETE_ELIGIBILITY] true -> always([-INELIGIBLE_COMPETITION] true))` |
+| "Broadcast rights clearance requires rights coordinator signature and blocks unauthorized stream" | `always([+CLEAR_BROADCAST_RIGHTS] true -> <+signed_by(/users/rights_coordinator.id)> true)`; `always([+CLEAR_BROADCAST_RIGHTS] true -> always([-UNAUTHORIZED_STREAM] true))` |
 
 ## Output Format
 
@@ -11064,5 +11066,23 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt
             .contains("always([+ATTEST_LABOR_COMPLIANCE] true -> always([-WAGE_VIOLATION] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_sports_broadcast_governance_patterns() {
+        let prompt = generate_prompt("Athlete eligibility and broadcast rights controls");
+
+        assert!(prompt.contains(
+            "always([+CERTIFY_ATHLETE_ELIGIBILITY] true -> <+signed_by(/users/compliance_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+CERTIFY_ATHLETE_ELIGIBILITY] true -> always([-INELIGIBLE_COMPETITION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+CLEAR_BROADCAST_RIGHTS] true -> <+signed_by(/users/rights_coordinator.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+CLEAR_BROADCAST_RIGHTS] true -> always([-UNAUTHORIZED_STREAM] true))"
+        ));
     }
 }
