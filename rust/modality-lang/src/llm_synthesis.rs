@@ -231,6 +231,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "SBOM publication approval requires security reviewer signature and blocks undocumented dependency release" | `always([+APPROVE_SBOM_PUBLICATION] true -> <+signed_by(/users/security_reviewer.id)> true)`; `always([+APPROVE_SBOM_PUBLICATION] true -> always([-UNDOCUMENTED_DEPENDENCY_RELEASE] true))` |
 | "Cold chain handoff certification requires logistics inspector signature and blocks temperature breach delivery" | `always([+CERTIFY_COLD_CHAIN_HANDOFF] true -> <+signed_by(/users/logistics_inspector.id)> true)`; `always([+CERTIFY_COLD_CHAIN_HANDOFF] true -> always([-TEMPERATURE_BREACH_DELIVERY] true))` |
 | "Medical device release authorization requires quality systems manager signature and blocks unvalidated device distribution" | `always([+AUTHORIZE_MEDICAL_DEVICE_RELEASE] true -> <+signed_by(/users/quality_systems_manager.id)> true)`; `always([+AUTHORIZE_MEDICAL_DEVICE_RELEASE] true -> always([-UNVALIDATED_DEVICE_DISTRIBUTION] true))` |
+| "Rail signal maintenance authorization requires signal engineer signature and blocks unsafe track occupancy" | `always([+AUTHORIZE_RAIL_SIGNAL_MAINTENANCE] true -> <+signed_by(/users/signal_engineer.id)> true)`; `always([+AUTHORIZE_RAIL_SIGNAL_MAINTENANCE] true -> always([-UNSAFE_TRACK_OCCUPANCY] true))` |
+| "Runway reopening approval requires airport operations manager signature and blocks uncleared runway use" | `always([+APPROVE_RUNWAY_REOPENING] true -> <+signed_by(/users/airport_operations_manager.id)> true)`; `always([+APPROVE_RUNWAY_REOPENING] true -> always([-UNCLEARED_RUNWAY_USE] true))` |
 
 ## Output Format
 
@@ -11500,6 +11502,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+AUTHORIZE_MEDICAL_DEVICE_RELEASE] true -> always([-UNVALIDATED_DEVICE_DISTRIBUTION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_rail_runway_governance_patterns() {
+        let prompt = generate_prompt("Rail signal and runway reopening controls");
+
+        assert!(prompt.contains(
+            "always([+AUTHORIZE_RAIL_SIGNAL_MAINTENANCE] true -> <+signed_by(/users/signal_engineer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+AUTHORIZE_RAIL_SIGNAL_MAINTENANCE] true -> always([-UNSAFE_TRACK_OCCUPANCY] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_RUNWAY_REOPENING] true -> <+signed_by(/users/airport_operations_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_RUNWAY_REOPENING] true -> always([-UNCLEARED_RUNWAY_USE] true))"
         ));
     }
 }
