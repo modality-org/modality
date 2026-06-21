@@ -365,8 +365,12 @@ fn collect_json_formulas(
                         | "dutyformula"
                         | "entitlementformula"
                         | "escalationformula"
+                        | "chargebackformula"
                         | "chargeformula"
                         | "depositformula"
+                        | "defectclaimformula"
+                        | "defectformula"
+                        | "disputeformula"
                         | "escrowformula"
                         | "feeformula"
                         | "expirationformula"
@@ -391,6 +395,7 @@ fn collect_json_formulas(
                         | "registrationformula"
                         | "reinstatementformula"
                         | "renewalformula"
+                        | "reworkformula"
                         | "revocationformula"
                         | "terminatedformula"
                         | "terminationformula"
@@ -469,8 +474,12 @@ fn collect_json_formulas(
                         | "formuladuty"
                         | "formulaentitlement"
                         | "formulaescalation"
+                        | "formulachargeback"
                         | "formulacharge"
                         | "formuladeposit"
+                        | "formuladefect"
+                        | "formuladefectclaim"
+                        | "formuladispute"
                         | "formulaescrow"
                         | "formulafee"
                         | "formulaexpiration"
@@ -495,6 +504,7 @@ fn collect_json_formulas(
                         | "formularegistration"
                         | "formulareinstatement"
                         | "formularenewal"
+                        | "formularework"
                         | "formulaterminated"
                         | "formulatermination"
                         | "formulatimeout"
@@ -627,8 +637,12 @@ fn collect_json_formulas(
                         | "rulecertification"
                         | "ruleentitlement"
                         | "ruleescalation"
+                        | "rulechargeback"
                         | "rulecharge"
                         | "ruledeposit"
+                        | "ruledefect"
+                        | "ruledefectclaim"
+                        | "ruledispute"
                         | "ruleescrow"
                         | "rulefee"
                         | "ruleexpiration"
@@ -698,6 +712,7 @@ fn collect_json_formulas(
                         | "ruleregistration"
                         | "rulereinstatement"
                         | "rulerenewal"
+                        | "rulerework"
                         | "ruleproof"
                         | "ruleproposal"
                         | "rulerationale"
@@ -1515,8 +1530,12 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formuladuty"
             | "formulaentitlement"
             | "formulaescalation"
+            | "formulachargeback"
             | "formulacharge"
             | "formuladeposit"
+            | "formuladefect"
+            | "formuladefectclaim"
+            | "formuladispute"
             | "formulaescrow"
             | "formulafee"
             | "formulaexpiration"
@@ -1541,6 +1560,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formularegistration"
             | "formulareinstatement"
             | "formularenewal"
+            | "formularework"
             | "formulaterminated"
             | "formulatermination"
             | "formulatimeout"
@@ -1673,8 +1693,12 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulecertification"
             | "ruleentitlement"
             | "ruleescalation"
+            | "rulechargeback"
             | "rulecharge"
             | "ruledeposit"
+            | "ruledefect"
+            | "ruledefectclaim"
+            | "ruledispute"
             | "ruleescrow"
             | "rulefee"
             | "ruleexpiration"
@@ -1743,6 +1767,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleregistration"
             | "rulereinstatement"
             | "rulerenewal"
+            | "rulerework"
             | "ruleproof"
             | "ruleproposal"
             | "rulerationale"
@@ -1867,8 +1892,12 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "dutyformula"
             | "entitlementformula"
             | "escalationformula"
+            | "chargebackformula"
             | "chargeformula"
             | "depositformula"
+            | "defectclaimformula"
+            | "defectformula"
+            | "disputeformula"
             | "escrowformula"
             | "feeformula"
             | "expirationformula"
@@ -1893,6 +1922,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "registrationformula"
             | "reinstatementformula"
             | "renewalformula"
+            | "reworkformula"
             | "revocationformula"
             | "terminatedformula"
             | "terminationformula"
@@ -6424,6 +6454,49 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_dispute_adverse_event_aliases() {
+        let response = r#"
+{
+  "formula_dispute": "Formula 1: always([+DISPUTE] true -> <+signed_by(/users/claimant.id)> true)",
+  "dispute_formula": "F2: always([+DISPUTE] true -> always([-RELEASE] true))",
+  "rule_dispute": "Formula 3: <+RECORD_DISPUTE> true",
+  "formula_chargeback": "Formula 4: always([+CHARGEBACK] true -> <+signed_by(/users/cardholder.id)> true)",
+  "chargeback_formula": "Formula 5: always([+CHARGEBACK] true -> always([-PAYOUT] true))",
+  "rule_chargeback": "Formula 6: <+RECORD_CHARGEBACK> true",
+  "formula_rework": "Formula 7: always([+REWORK] true -> <+signed_by(/users/verifier.id)> true)",
+  "rework_formula": "Formula 8: always([+REWORK] true -> eventually(<+REINSPECT> true))",
+  "rule_rework": "Formula 9: <+RECORD_REWORK> true",
+  "formula_defect_claim": "Formula 10: always([+DEFECT_CLAIM] true -> <+signed_by(/users/inspector.id)> true)",
+  "defect_claim_formula": "Formula 11: always([+DEFECT_CLAIM] true -> always([-ACCEPT] true))",
+  "rule_defect_claim": "Formula 12: <+RECORD_DEFECT_CLAIM> true",
+  "dispute": "This dispute summary is only prose.",
+  "chargeback": "This chargeback explanation is only prose.",
+  "rework": "This rework note is only prose.",
+  "defect_claim": "This defect claim summary is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+CHARGEBACK] true -> always([-PAYOUT] true))",
+                "always([+DEFECT_CLAIM] true -> always([-ACCEPT] true))",
+                "always([+DISPUTE] true -> always([-RELEASE] true))",
+                "always([+CHARGEBACK] true -> <+signed_by(/users/cardholder.id)> true)",
+                "always([+DEFECT_CLAIM] true -> <+signed_by(/users/inspector.id)> true)",
+                "always([+DISPUTE] true -> <+signed_by(/users/claimant.id)> true)",
+                "always([+REWORK] true -> <+signed_by(/users/verifier.id)> true)",
+                "always([+REWORK] true -> eventually(<+REINSPECT> true))",
+                "<+RECORD_CHARGEBACK> true",
+                "<+RECORD_DEFECT_CLAIM> true",
+                "<+RECORD_DISPUTE> true",
+                "<+RECORD_REWORK> true"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -8203,6 +8276,47 @@ fee = this fee summary is only prose
                 "always([+COLLECT_FEE] true -> <+signed_by(/users/platform.id)> true)",
                 "always([+COLLECT_FEE] true -> eventually(<+SERVICE> true))",
                 "<+RECORD_FEE> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_dispute_adverse_event_aliases() {
+        let response = r#"
+formula dispute: Formula 1: always([+DISPUTE] true -> <+signed_by(/users/claimant.id)> true)
+dispute formula: F2: always([+DISPUTE] true -> always([-RELEASE] true))
+rule dispute: Formula 3: <+RECORD_DISPUTE> true
+formula chargeback: Formula 4: always([+CHARGEBACK] true -> <+signed_by(/users/cardholder.id)> true)
+chargeback formula: Formula 5: always([+CHARGEBACK] true -> always([-PAYOUT] true))
+rule chargeback: Formula 6: <+RECORD_CHARGEBACK> true
+formula rework: Formula 7: always([+REWORK] true -> <+signed_by(/users/verifier.id)> true)
+rework formula: Formula 8: always([+REWORK] true -> eventually(<+REINSPECT> true))
+rule rework: Formula 9: <+RECORD_REWORK> true
+formula defect claim: Formula 10: always([+DEFECT_CLAIM] true -> <+signed_by(/users/inspector.id)> true)
+defect claim formula: Formula 11: always([+DEFECT_CLAIM] true -> always([-ACCEPT] true))
+rule defect claim: Formula 12: <+RECORD_DEFECT_CLAIM> true
+dispute = this dispute summary is only prose
+chargeback = this chargeback explanation is only prose
+rework = this rework note is only prose
+defect claim = this defect claim summary is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+DISPUTE] true -> <+signed_by(/users/claimant.id)> true)",
+                "always([+DISPUTE] true -> always([-RELEASE] true))",
+                "<+RECORD_DISPUTE> true",
+                "always([+CHARGEBACK] true -> <+signed_by(/users/cardholder.id)> true)",
+                "always([+CHARGEBACK] true -> always([-PAYOUT] true))",
+                "<+RECORD_CHARGEBACK> true",
+                "always([+REWORK] true -> <+signed_by(/users/verifier.id)> true)",
+                "always([+REWORK] true -> eventually(<+REINSPECT> true))",
+                "<+RECORD_REWORK> true",
+                "always([+DEFECT_CLAIM] true -> <+signed_by(/users/inspector.id)> true)",
+                "always([+DEFECT_CLAIM] true -> always([-ACCEPT] true))",
+                "<+RECORD_DEFECT_CLAIM> true"
             ]
         );
     }
