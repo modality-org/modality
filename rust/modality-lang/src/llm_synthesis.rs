@@ -345,8 +345,12 @@ fn collect_json_formulas(
                         | "consentformula"
                         | "denialformula"
                         | "deniedformula"
+                        | "commitmentformula"
+                        | "covenantformula"
+                        | "dutyformula"
                         | "entitlementformula"
                         | "grantformula"
+                        | "obligationformula"
                         | "permissionformula"
                         | "privilegeformula"
                         | "candidateformula"
@@ -396,8 +400,12 @@ fn collect_json_formulas(
                         | "formulaconsent"
                         | "formuladenial"
                         | "formuladenied"
+                        | "formulacommitment"
+                        | "formulacovenant"
+                        | "formuladuty"
                         | "formulaentitlement"
                         | "formulagrant"
+                        | "formulaobligation"
                         | "formulapermission"
                         | "formulaprivilege"
                         | "formulabest"
@@ -490,11 +498,15 @@ fn collect_json_formulas(
                         | "ruleauthorized"
                         | "ruleaccess"
                         | "ruleconsent"
+                        | "rulecommitment"
+                        | "rulecovenant"
                         | "ruledenial"
                         | "ruledenied"
+                        | "ruleduty"
                         | "rulecapability"
                         | "ruleentitlement"
                         | "rulegrant"
+                        | "ruleobligation"
                         | "ruleassessment"
                         | "rulebest"
                         | "rulebreached"
@@ -1216,8 +1228,12 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "consentformula"
             | "denialformula"
             | "deniedformula"
+            | "commitmentformula"
+            | "covenantformula"
+            | "dutyformula"
             | "entitlementformula"
             | "grantformula"
+            | "obligationformula"
             | "permissionformula"
             | "privilegeformula"
             | "candidateformula"
@@ -1267,8 +1283,12 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaconsent"
             | "formuladenial"
             | "formuladenied"
+            | "formulacommitment"
+            | "formulacovenant"
+            | "formuladuty"
             | "formulaentitlement"
             | "formulagrant"
+            | "formulaobligation"
             | "formulapermission"
             | "formulaprivilege"
             | "formulabest"
@@ -1361,11 +1381,15 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleauthorized"
             | "ruleaccess"
             | "ruleconsent"
+            | "rulecommitment"
+            | "rulecovenant"
             | "ruledenial"
             | "ruledenied"
+            | "ruleduty"
             | "rulecapability"
             | "ruleentitlement"
             | "rulegrant"
+            | "ruleobligation"
             | "rulebest"
             | "rulebreached"
             | "rulebreach"
@@ -1497,8 +1521,12 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "consentformula"
             | "denialformula"
             | "deniedformula"
+            | "commitmentformula"
+            | "covenantformula"
+            | "dutyformula"
             | "entitlementformula"
             | "grantformula"
+            | "obligationformula"
             | "permissionformula"
             | "privilegeformula"
             | "candidateformula"
@@ -1548,8 +1576,12 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaconsent"
             | "formuladenial"
             | "formuladenied"
+            | "formulacommitment"
+            | "formulacovenant"
+            | "formuladuty"
             | "formulaentitlement"
             | "formulagrant"
+            | "formulaobligation"
             | "formulapermission"
             | "formulaprivilege"
             | "formulabest"
@@ -1642,11 +1674,15 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleauthorized"
             | "ruleaccess"
             | "ruleconsent"
+            | "rulecommitment"
+            | "rulecovenant"
             | "ruledenial"
             | "ruledenied"
+            | "ruleduty"
             | "rulecapability"
             | "ruleentitlement"
             | "rulegrant"
+            | "ruleobligation"
             | "rulebest"
             | "rulebreached"
             | "rulebreach"
@@ -5347,6 +5383,39 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_obligation_field_order_aliases() {
+        let response = r#"
+{
+  "formula_obligation": "Formula 1: always([+PAY] true -> <+signed_by(/users/debtor.id)> true)",
+  "obligation_formula": "F2: <+ACK_OBLIGATION> true",
+  "rule_duty": "Formula 3: always([+PERFORM_DUTY] true -> <+signed_by(/users/obligor.id)> true)",
+  "duty_formula": "Formula 4: <+PERFORM_DUTY> true",
+  "formula_covenant": "Formula 5: always([+COVENANT] true -> always([-BREACH] true))",
+  "commitment_formula": "Formula 6: <+RECORD_COMMITMENT> true",
+  "rule_commitment": "Formula 7: always([+HONOR_COMMITMENT] true -> <+signed_by(/users/committer.id)> true)",
+  "obligation": "This obligation rationale is only prose.",
+  "duty": "This duty rationale is only prose.",
+  "covenant": "This covenant rationale is only prose.",
+  "commitment": "This commitment rationale is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+RECORD_COMMITMENT> true",
+                "<+PERFORM_DUTY> true",
+                "always([+COVENANT] true -> always([-BREACH] true))",
+                "always([+PAY] true -> <+signed_by(/users/debtor.id)> true)",
+                "<+ACK_OBLIGATION> true",
+                "always([+HONOR_COMMITMENT] true -> <+signed_by(/users/committer.id)> true)",
+                "always([+PERFORM_DUTY] true -> <+signed_by(/users/obligor.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -6601,6 +6670,37 @@ consent = this consent rationale is only prose
                 "always([+CLAIM_ENTITLEMENT] true -> <+signed_by(/users/issuer.id)> true)",
                 "<+ASSERT_PRIVILEGE> true",
                 "always([+USE_PRIVILEGE] true -> <+signed_by(/users/admin.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_obligation_field_order_aliases() {
+        let response = r#"
+formula obligation: Formula 1: always([+PAY] true -> <+signed_by(/users/debtor.id)> true)
+obligation formula: F2: <+ACK_OBLIGATION> true
+rule duty: Formula 3: always([+PERFORM_DUTY] true -> <+signed_by(/users/obligor.id)> true)
+duty formula: Formula 4: <+PERFORM_DUTY> true
+formula covenant: Formula 5: always([+COVENANT] true -> always([-BREACH] true))
+commitment formula: Formula 6: <+RECORD_COMMITMENT> true
+rule commitment: Formula 7: always([+HONOR_COMMITMENT] true -> <+signed_by(/users/committer.id)> true)
+obligation = this obligation rationale is only prose
+duty = this duty rationale is only prose
+covenant = this covenant rationale is only prose
+commitment = this commitment rationale is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> <+signed_by(/users/debtor.id)> true)",
+                "<+ACK_OBLIGATION> true",
+                "always([+PERFORM_DUTY] true -> <+signed_by(/users/obligor.id)> true)",
+                "<+PERFORM_DUTY> true",
+                "always([+COVENANT] true -> always([-BREACH] true))",
+                "<+RECORD_COMMITMENT> true",
+                "always([+HONOR_COMMITMENT] true -> <+signed_by(/users/committer.id)> true)"
             ]
         );
     }
