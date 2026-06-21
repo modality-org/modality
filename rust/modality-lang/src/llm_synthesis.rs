@@ -167,6 +167,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Lease amendment approval requires property manager signature and blocks unauthorized occupancy" | `always([+APPROVE_LEASE_AMENDMENT] true -> <+signed_by(/users/property_manager.id)> true)`; `always([+APPROVE_LEASE_AMENDMENT] true -> always([-UNAUTHORIZED_OCCUPANCY] true))` |
 | "Environmental permit approval requires environmental officer signature and blocks prohibited discharge" | `always([+APPROVE_ENVIRONMENTAL_PERMIT] true -> <+signed_by(/users/environmental_officer.id)> true)`; `always([+APPROVE_ENVIRONMENTAL_PERMIT] true -> always([-PROHIBITED_DISCHARGE] true))` |
 | "Agricultural shipment certification requires quality inspector signature and blocks contaminated shipment" | `always([+CERTIFY_AGRICULTURAL_SHIPMENT] true -> <+signed_by(/users/quality_inspector.id)> true)`; `always([+CERTIFY_AGRICULTURAL_SHIPMENT] true -> always([-CONTAMINATED_SHIPMENT] true))` |
+| "Travel itinerary approval requires travel manager signature and blocks unauthorized booking" | `always([+APPROVE_TRAVEL_ITINERARY] true -> <+signed_by(/users/travel_manager.id)> true)`; `always([+APPROVE_TRAVEL_ITINERARY] true -> always([-UNAUTHORIZED_BOOKING] true))` |
+| "Hotel room block release requires event coordinator signature and blocks overbooked rooms" | `always([+RELEASE_ROOM_BLOCK] true -> <+signed_by(/users/event_coordinator.id)> true)`; `always([+RELEASE_ROOM_BLOCK] true -> always([-OVERBOOKED_ROOMS] true))` |
 
 ## Output Format
 
@@ -10866,5 +10868,22 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(prompt.contains(
             "always([+CERTIFY_AGRICULTURAL_SHIPMENT] true -> always([-CONTAMINATED_SHIPMENT] true))"
         ));
+    }
+
+    #[test]
+    fn test_prompt_includes_travel_hospitality_governance_patterns() {
+        let prompt = generate_prompt("Travel itineraries and room blocks require controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_TRAVEL_ITINERARY] true -> <+signed_by(/users/travel_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TRAVEL_ITINERARY] true -> always([-UNAUTHORIZED_BOOKING] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+RELEASE_ROOM_BLOCK] true -> <+signed_by(/users/event_coordinator.id)> true)"
+        ));
+        assert!(prompt
+            .contains("always([+RELEASE_ROOM_BLOCK] true -> always([-OVERBOOKED_ROOMS] true))"));
     }
 }
