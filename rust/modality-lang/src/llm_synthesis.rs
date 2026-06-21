@@ -149,6 +149,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Treatment protocol approval requires medical director signature and blocks off protocol treatment" | `always([+APPROVE_TREATMENT_PROTOCOL] true -> <+signed_by(/users/medical_director.id)> true)`; `always([+APPROVE_TREATMENT_PROTOCOL] true -> always([-OFF_PROTOCOL_TREATMENT] true))` |
 | "Claim settlement requires claims adjuster signature and blocks fraudulent payout" | `always([+SETTLE_CLAIM] true -> <+signed_by(/users/claims_adjuster.id)> true)`; `always([+SETTLE_CLAIM] true -> always([-FRAUDULENT_PAYOUT] true))` |
 | "Underwriting exception requires underwriter signature and blocks unpriced risk binding" | `always([+APPROVE_UNDERWRITING_EXCEPTION] true -> <+signed_by(/users/underwriter.id)> true)`; `always([+APPROVE_UNDERWRITING_EXCEPTION] true -> always([-UNPRICED_RISK_BINDING] true))` |
+| "Shipment release requires logistics coordinator signature and blocks unauthorized shipment" | `always([+RELEASE_SHIPMENT] true -> <+signed_by(/users/logistics_coordinator.id)> true)`; `always([+RELEASE_SHIPMENT] true -> always([-UNAUTHORIZED_SHIPMENT] true))` |
+| "Receiving acceptance requires warehouse manager signature and blocks inventory discrepancy" | `always([+ACCEPT_RECEIVING] true -> <+signed_by(/users/warehouse_manager.id)> true)`; `always([+ACCEPT_RECEIVING] true -> always([-INVENTORY_DISCREPANCY] true))` |
 
 ## Output Format
 
@@ -10689,5 +10691,21 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(prompt.contains(
             "always([+APPROVE_UNDERWRITING_EXCEPTION] true -> always([-UNPRICED_RISK_BINDING] true))"
         ));
+    }
+
+    #[test]
+    fn test_prompt_includes_logistics_warehouse_governance_patterns() {
+        let prompt = generate_prompt("Shipment release and receiving acceptance require controls");
+
+        assert!(prompt.contains(
+            "always([+RELEASE_SHIPMENT] true -> <+signed_by(/users/logistics_coordinator.id)> true)"
+        ));
+        assert!(prompt
+            .contains("always([+RELEASE_SHIPMENT] true -> always([-UNAUTHORIZED_SHIPMENT] true))"));
+        assert!(prompt.contains(
+            "always([+ACCEPT_RECEIVING] true -> <+signed_by(/users/warehouse_manager.id)> true)"
+        ));
+        assert!(prompt
+            .contains("always([+ACCEPT_RECEIVING] true -> always([-INVENTORY_DISCREPANCY] true))"));
     }
 }
