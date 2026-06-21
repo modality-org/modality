@@ -332,6 +332,7 @@ fn collect_json_formulas(
                         | "amendmentformula"
                         | "analysisformula"
                         | "argumentformula"
+                        | "assignmentformula"
                         | "assessmentformula"
                         | "bestformula"
                         | "breachedformula"
@@ -405,6 +406,7 @@ fn collect_json_formulas(
                         | "formulaadvised"
                         | "formulaanalysis"
                         | "formulaargument"
+                        | "formulaassignment"
                         | "formulaapproved"
                         | "formulaauthorization"
                         | "formulaauthorized"
@@ -460,6 +462,7 @@ fn collect_json_formulas(
                         | "formulaevaluation"
                         | "formulaevidence"
                         | "formulaexplanation"
+                        | "formulaextension"
                         | "formulafailed"
                         | "formulafailure"
                         | "formulafinal"
@@ -496,6 +499,7 @@ fn collect_json_formulas(
                         | "generatedformula"
                         | "improvedformula"
                         | "justificationformula"
+                        | "extensionformula"
                         | "outputformula"
                         | "passedformula"
                         | "patchformula"
@@ -523,6 +527,7 @@ fn collect_json_formulas(
                         | "ruleamendment"
                         | "ruleanalysis"
                         | "ruleargument"
+                        | "ruleassignment"
                         | "ruleapproved"
                         | "ruleauthorization"
                         | "ruleauthorized"
@@ -572,6 +577,7 @@ fn collect_json_formulas(
                         | "ruleevaluation"
                         | "ruleevidence"
                         | "ruleexplanation"
+                        | "ruleextension"
                         | "rulefailed"
                         | "rulefailure"
                         | "rulefinal"
@@ -1258,6 +1264,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "amendmentformula"
             | "analysisformula"
             | "argumentformula"
+            | "assignmentformula"
             | "assessmentformula"
             | "bestformula"
             | "breachedformula"
@@ -1331,6 +1338,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaadvised"
             | "formulaanalysis"
             | "formulaargument"
+            | "formulaassignment"
             | "formulaapproved"
             | "formulaauthorization"
             | "formulaauthorized"
@@ -1386,6 +1394,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaevaluation"
             | "formulaevidence"
             | "formulaexplanation"
+            | "formulaextension"
             | "formulafailed"
             | "formulafailure"
             | "formulafinal"
@@ -1419,6 +1428,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaviolation"
             | "finalformula"
             | "generatedformula"
+            | "extensionformula"
             | "improvedformula"
             | "justificationformula"
             | "outputformula"
@@ -1448,6 +1458,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleamendment"
             | "ruleanalysis"
             | "ruleargument"
+            | "ruleassignment"
             | "ruleassessment"
             | "ruleapproved"
             | "ruleauthorization"
@@ -1497,6 +1508,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleevaluation"
             | "ruleevidence"
             | "ruleexplanation"
+            | "ruleextension"
             | "rulefailed"
             | "rulefailure"
             | "rulefinal"
@@ -1594,6 +1606,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "amendmentformula"
             | "analysisformula"
             | "argumentformula"
+            | "assignmentformula"
             | "assessmentformula"
             | "bestformula"
             | "breachedformula"
@@ -1667,6 +1680,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaadvised"
             | "formulaanalysis"
             | "formulaargument"
+            | "formulaassignment"
             | "formulaapproved"
             | "formulaauthorization"
             | "formulaauthorized"
@@ -1721,6 +1735,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaevaluation"
             | "formulaevidence"
             | "formulaexplanation"
+            | "formulaextension"
             | "formulafailed"
             | "formulafailure"
             | "formulafinal"
@@ -1753,6 +1768,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaviolation"
             | "finalformula"
             | "generatedformula"
+            | "extensionformula"
             | "improvedformula"
             | "justificationformula"
             | "outputformula"
@@ -1784,6 +1800,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleamendment"
             | "ruleanalysis"
             | "ruleargument"
+            | "ruleassignment"
             | "ruleassessment"
             | "ruleapproved"
             | "ruleauthorization"
@@ -1832,6 +1849,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleevaluation"
             | "ruleevidence"
             | "ruleexplanation"
+            | "ruleextension"
             | "rulefailed"
             | "rulefailure"
             | "rulefinal"
@@ -5649,6 +5667,35 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_assignment_extension_field_order_aliases() {
+        let response = r#"
+{
+  "formula_assignment": "Formula 1: always([+ASSIGN] true -> <+signed_by(/users/assigner.id)> true)",
+  "assignment_formula": "F2: always([+ASSIGN] true -> always([-REASSIGN] true))",
+  "rule_assignment": "Formula 3: <+RECORD_ASSIGNMENT> true",
+  "formula_extension": "Formula 4: always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)",
+  "extension_formula": "Formula 5: always([+EXTEND] true -> always([-TERMINATE] true))",
+  "rule_extension": "Formula 6: <+NOTICE_EXTENSION> true",
+  "assignment": "This assignment explanation is only prose.",
+  "extension": "This extension rationale is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+ASSIGN] true -> always([-REASSIGN] true))",
+                "always([+EXTEND] true -> always([-TERMINATE] true))",
+                "always([+ASSIGN] true -> <+signed_by(/users/assigner.id)> true)",
+                "always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)",
+                "<+RECORD_ASSIGNMENT> true",
+                "<+NOTICE_EXTENSION> true"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -7032,6 +7079,33 @@ refund = this refund policy summary is only prose
                 "always([+REFUND] true -> <+signed_by(/users/issuer.id)> true)",
                 "<+ISSUE_REFUND> true",
                 "always([+DISPUTE] true -> always([-REFUND] true))"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_assignment_extension_field_order_aliases() {
+        let response = r#"
+formula assignment: Formula 1: always([+ASSIGN] true -> <+signed_by(/users/assigner.id)> true)
+assignment formula: F2: always([+ASSIGN] true -> always([-REASSIGN] true))
+rule assignment: Formula 3: <+RECORD_ASSIGNMENT> true
+formula extension: Formula 4: always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)
+extension formula: Formula 5: always([+EXTEND] true -> always([-TERMINATE] true))
+rule extension: Formula 6: <+NOTICE_EXTENSION> true
+assignment = this assignment explanation is only prose
+extension = this extension rationale is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+ASSIGN] true -> <+signed_by(/users/assigner.id)> true)",
+                "always([+ASSIGN] true -> always([-REASSIGN] true))",
+                "<+RECORD_ASSIGNMENT> true",
+                "always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)",
+                "always([+EXTEND] true -> always([-TERMINATE] true))",
+                "<+NOTICE_EXTENSION> true"
             ]
         );
     }
