@@ -197,6 +197,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Franchise territory change requires franchise director signature and blocks territory conflict" | `always([+APPROVE_TERRITORY_CHANGE] true -> <+signed_by(/users/franchise_director.id)> true)`; `always([+APPROVE_TERRITORY_CHANGE] true -> always([-TERRITORY_CONFLICT] true))` |
 | "Artifact loan approval requires curator signature and blocks unauthorized transfer" | `always([+APPROVE_ARTIFACT_LOAN] true -> <+signed_by(/users/curator.id)> true)`; `always([+APPROVE_ARTIFACT_LOAN] true -> always([-UNAUTHORIZED_TRANSFER] true))` |
 | "Archive record declassification requires archivist signature and blocks premature disclosure" | `always([+DECLASSIFY_ARCHIVE_RECORD] true -> <+signed_by(/users/archivist.id)> true)`; `always([+DECLASSIFY_ARCHIVE_RECORD] true -> always([-PREMATURE_DISCLOSURE] true))` |
+| "Election result certification requires election officer signature and blocks uncertified seating" | `always([+CERTIFY_ELECTION_RESULT] true -> <+signed_by(/users/election_officer.id)> true)`; `always([+CERTIFY_ELECTION_RESULT] true -> always([-UNCERTIFIED_SEATING] true))` |
+| "Ballot audit closure requires audit board signature and blocks unresolved ballot discrepancy" | `always([+CLOSE_BALLOT_AUDIT] true -> <+signed_by(/users/audit_board.id)> true)`; `always([+CLOSE_BALLOT_AUDIT] true -> always([-UNRESOLVED_BALLOT_DISCREPANCY] true))` |
 
 ## Output Format
 
@@ -11162,6 +11164,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+DECLASSIFY_ARCHIVE_RECORD] true -> always([-PREMATURE_DISCLOSURE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_election_audit_governance_patterns() {
+        let prompt = generate_prompt("Election certification and ballot audit controls");
+
+        assert!(prompt.contains(
+            "always([+CERTIFY_ELECTION_RESULT] true -> <+signed_by(/users/election_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+CERTIFY_ELECTION_RESULT] true -> always([-UNCERTIFIED_SEATING] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+CLOSE_BALLOT_AUDIT] true -> <+signed_by(/users/audit_board.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+CLOSE_BALLOT_AUDIT] true -> always([-UNRESOLVED_BALLOT_DISCREPANCY] true))"
         ));
     }
 }
