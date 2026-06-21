@@ -373,6 +373,10 @@ fn collect_json_formulas(
                         | "incidentformula"
                         | "inspectionformula"
                         | "invoiceformula"
+                        | "paymentformula"
+                        | "payoutformula"
+                        | "settlementformula"
+                        | "transferformula"
                         | "liabilityformula"
                         | "milestoneformula"
                         | "obligationformula"
@@ -468,6 +472,10 @@ fn collect_json_formulas(
                         | "formulainspection"
                         | "formulaindemnification"
                         | "formulainvoice"
+                        | "formulapayment"
+                        | "formulapayout"
+                        | "formulasettlement"
+                        | "formulatransfer"
                         | "formulaindemnity"
                         | "formulaliability"
                         | "formulamilestone"
@@ -619,6 +627,10 @@ fn collect_json_formulas(
                         | "ruleinspection"
                         | "ruleindemnification"
                         | "ruleinvoice"
+                        | "rulepayment"
+                        | "rulepayout"
+                        | "rulesettlement"
+                        | "ruletransfer"
                         | "ruleindemnity"
                         | "ruleliability"
                         | "rulemilestone"
@@ -1395,6 +1407,10 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "incidentformula"
             | "inspectionformula"
             | "invoiceformula"
+            | "paymentformula"
+            | "payoutformula"
+            | "settlementformula"
+            | "transferformula"
             | "liabilityformula"
             | "milestoneformula"
             | "obligationformula"
@@ -1490,6 +1506,10 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulainspection"
             | "formulaindemnification"
             | "formulainvoice"
+            | "formulapayment"
+            | "formulapayout"
+            | "formulasettlement"
+            | "formulatransfer"
             | "formulaindemnity"
             | "formulaliability"
             | "formulamilestone"
@@ -1641,6 +1661,10 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleinspection"
             | "ruleindemnification"
             | "ruleinvoice"
+            | "rulepayment"
+            | "rulepayout"
+            | "rulesettlement"
+            | "ruletransfer"
             | "ruleindemnity"
             | "ruleliability"
             | "rulemilestone"
@@ -1827,6 +1851,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "incidentformula"
             | "inspectionformula"
             | "invoiceformula"
+            | "paymentformula"
+            | "payoutformula"
+            | "settlementformula"
+            | "transferformula"
             | "liabilityformula"
             | "milestoneformula"
             | "obligationformula"
@@ -1922,6 +1950,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulainspection"
             | "formulaindemnification"
             | "formulainvoice"
+            | "formulapayment"
+            | "formulapayout"
+            | "formulasettlement"
+            | "formulatransfer"
             | "formulaindemnity"
             | "formulaliability"
             | "formulamilestone"
@@ -2071,6 +2103,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleinspection"
             | "ruleindemnification"
             | "ruleinvoice"
+            | "rulepayment"
+            | "rulepayout"
+            | "rulesettlement"
+            | "ruletransfer"
             | "ruleindemnity"
             | "ruleliability"
             | "rulemilestone"
@@ -6266,6 +6302,49 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_payment_settlement_aliases() {
+        let response = r#"
+{
+  "formula_payment": "Formula 1: always([+PAY] true -> <+signed_by(/users/payer.id)> true)",
+  "payment_formula": "F2: always([+PAY] true -> eventually(<+RECEIPT> true))",
+  "rule_payment": "Formula 3: <+RECORD_PAYMENT> true",
+  "formula_payout": "Formula 4: always([+PAYOUT] true -> <+signed_by(/users/treasurer.id)> true)",
+  "payout_formula": "Formula 5: always([+PAYOUT] true -> always([-CHARGEBACK] true))",
+  "rule_payout": "Formula 6: <+RECORD_PAYOUT> true",
+  "formula_settlement": "Formula 7: always([+SETTLE] true -> <+signed_by(/users/clearinghouse.id)> true)",
+  "settlement_formula": "Formula 8: always([+SETTLE] true -> always([-DISPUTE] true))",
+  "rule_settlement": "Formula 9: <+RECORD_SETTLEMENT> true",
+  "formula_transfer": "Formula 10: always([+TRANSFER] true -> <+signed_by(/users/custodian.id)> true)",
+  "transfer_formula": "Formula 11: always([+TRANSFER] true -> always([-REVOKE] true))",
+  "rule_transfer": "Formula 12: <+RECORD_TRANSFER> true",
+  "payment": "This payment summary is only prose.",
+  "payout": "This payout note is only prose.",
+  "settlement": "This settlement explanation is only prose.",
+  "transfer": "This transfer summary is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> <+signed_by(/users/payer.id)> true)",
+                "always([+PAYOUT] true -> <+signed_by(/users/treasurer.id)> true)",
+                "always([+SETTLE] true -> <+signed_by(/users/clearinghouse.id)> true)",
+                "always([+TRANSFER] true -> <+signed_by(/users/custodian.id)> true)",
+                "always([+PAY] true -> eventually(<+RECEIPT> true))",
+                "always([+PAYOUT] true -> always([-CHARGEBACK] true))",
+                "<+RECORD_PAYMENT> true",
+                "<+RECORD_PAYOUT> true",
+                "<+RECORD_SETTLEMENT> true",
+                "<+RECORD_TRANSFER> true",
+                "always([+SETTLE] true -> always([-DISPUTE] true))",
+                "always([+TRANSFER] true -> always([-REVOKE] true))"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -7963,6 +8042,47 @@ expiration = this expiration summary is only prose
                 "always([+EXPIRATION] true -> <+signed_by(/users/admin.id)> true)",
                 "always([+EXPIRATION] true -> always([-ACCESS] true))",
                 "<+RECORD_EXPIRATION> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_payment_settlement_aliases() {
+        let response = r#"
+formula payment: Formula 1: always([+PAY] true -> <+signed_by(/users/payer.id)> true)
+payment formula: F2: always([+PAY] true -> eventually(<+RECEIPT> true))
+rule payment: Formula 3: <+RECORD_PAYMENT> true
+formula payout: Formula 4: always([+PAYOUT] true -> <+signed_by(/users/treasurer.id)> true)
+payout formula: Formula 5: always([+PAYOUT] true -> always([-CHARGEBACK] true))
+rule payout: Formula 6: <+RECORD_PAYOUT> true
+formula settlement: Formula 7: always([+SETTLE] true -> <+signed_by(/users/clearinghouse.id)> true)
+settlement formula: Formula 8: always([+SETTLE] true -> always([-DISPUTE] true))
+rule settlement: Formula 9: <+RECORD_SETTLEMENT> true
+formula transfer: Formula 10: always([+TRANSFER] true -> <+signed_by(/users/custodian.id)> true)
+transfer formula: Formula 11: always([+TRANSFER] true -> always([-REVOKE] true))
+rule transfer: Formula 12: <+RECORD_TRANSFER> true
+payment = this payment summary is only prose
+payout = this payout note is only prose
+settlement = this settlement explanation is only prose
+transfer = this transfer summary is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+PAY] true -> <+signed_by(/users/payer.id)> true)",
+                "always([+PAY] true -> eventually(<+RECEIPT> true))",
+                "<+RECORD_PAYMENT> true",
+                "always([+PAYOUT] true -> <+signed_by(/users/treasurer.id)> true)",
+                "always([+PAYOUT] true -> always([-CHARGEBACK] true))",
+                "<+RECORD_PAYOUT> true",
+                "always([+SETTLE] true -> <+signed_by(/users/clearinghouse.id)> true)",
+                "always([+SETTLE] true -> always([-DISPUTE] true))",
+                "<+RECORD_SETTLEMENT> true",
+                "always([+TRANSFER] true -> <+signed_by(/users/custodian.id)> true)",
+                "always([+TRANSFER] true -> always([-REVOKE] true))",
+                "<+RECORD_TRANSFER> true"
             ]
         );
     }
