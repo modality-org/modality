@@ -189,6 +189,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Labor compliance attestation requires compliance officer signature and blocks wage violation" | `always([+ATTEST_LABOR_COMPLIANCE] true -> <+signed_by(/users/compliance_officer.id)> true)`; `always([+ATTEST_LABOR_COMPLIANCE] true -> always([-WAGE_VIOLATION] true))` |
 | "Athlete eligibility certification requires compliance officer signature and blocks ineligible competition" | `always([+CERTIFY_ATHLETE_ELIGIBILITY] true -> <+signed_by(/users/compliance_officer.id)> true)`; `always([+CERTIFY_ATHLETE_ELIGIBILITY] true -> always([-INELIGIBLE_COMPETITION] true))` |
 | "Broadcast rights clearance requires rights coordinator signature and blocks unauthorized stream" | `always([+CLEAR_BROADCAST_RIGHTS] true -> <+signed_by(/users/rights_coordinator.id)> true)`; `always([+CLEAR_BROADCAST_RIGHTS] true -> always([-UNAUTHORIZED_STREAM] true))` |
+| "Port departure clearance requires harbor master signature and blocks unauthorized sailing" | `always([+CLEAR_PORT_DEPARTURE] true -> <+signed_by(/users/harbor_master.id)> true)`; `always([+CLEAR_PORT_DEPARTURE] true -> always([-UNAUTHORIZED_SAILING] true))` |
+| "Customs cargo release requires customs officer signature and blocks smuggled goods release" | `always([+RELEASE_CUSTOMS_CARGO] true -> <+signed_by(/users/customs_officer.id)> true)`; `always([+RELEASE_CUSTOMS_CARGO] true -> always([-SMUGGLED_GOODS_RELEASE] true))` |
 
 ## Output Format
 
@@ -11083,6 +11085,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+CLEAR_BROADCAST_RIGHTS] true -> always([-UNAUTHORIZED_STREAM] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_maritime_customs_governance_patterns() {
+        let prompt = generate_prompt("Port departure and customs cargo controls");
+
+        assert!(prompt.contains(
+            "always([+CLEAR_PORT_DEPARTURE] true -> <+signed_by(/users/harbor_master.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+CLEAR_PORT_DEPARTURE] true -> always([-UNAUTHORIZED_SAILING] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+RELEASE_CUSTOMS_CARGO] true -> <+signed_by(/users/customs_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+RELEASE_CUSTOMS_CARGO] true -> always([-SMUGGLED_GOODS_RELEASE] true))"
         ));
     }
 }
