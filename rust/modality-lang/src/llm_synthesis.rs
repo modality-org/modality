@@ -193,6 +193,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customs cargo release requires customs officer signature and blocks smuggled goods release" | `always([+RELEASE_CUSTOMS_CARGO] true -> <+signed_by(/users/customs_officer.id)> true)`; `always([+RELEASE_CUSTOMS_CARGO] true -> always([-SMUGGLED_GOODS_RELEASE] true))` |
 | "Loan disbursement approval requires credit officer signature and blocks unauthorized drawdown" | `always([+APPROVE_LOAN_DISBURSEMENT] true -> <+signed_by(/users/credit_officer.id)> true)`; `always([+APPROVE_LOAN_DISBURSEMENT] true -> always([-UNAUTHORIZED_DRAWDOWN] true))` |
 | "Collateral release requires lending officer signature and blocks unsecured exposure" | `always([+RELEASE_COLLATERAL] true -> <+signed_by(/users/lending_officer.id)> true)`; `always([+RELEASE_COLLATERAL] true -> always([-UNSECURED_EXPOSURE] true))` |
+| "Retail price override approval requires pricing manager signature and blocks unauthorized discount" | `always([+APPROVE_PRICE_OVERRIDE] true -> <+signed_by(/users/pricing_manager.id)> true)`; `always([+APPROVE_PRICE_OVERRIDE] true -> always([-UNAUTHORIZED_DISCOUNT] true))` |
+| "Franchise territory change requires franchise director signature and blocks territory conflict" | `always([+APPROVE_TERRITORY_CHANGE] true -> <+signed_by(/users/franchise_director.id)> true)`; `always([+APPROVE_TERRITORY_CHANGE] true -> always([-TERRITORY_CONFLICT] true))` |
 
 ## Output Format
 
@@ -11123,5 +11125,23 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt
             .contains("always([+RELEASE_COLLATERAL] true -> always([-UNSECURED_EXPOSURE] true))"));
+    }
+
+    #[test]
+    fn test_prompt_includes_retail_franchise_governance_patterns() {
+        let prompt = generate_prompt("Retail price override and franchise territory controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_PRICE_OVERRIDE] true -> <+signed_by(/users/pricing_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PRICE_OVERRIDE] true -> always([-UNAUTHORIZED_DISCOUNT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TERRITORY_CHANGE] true -> <+signed_by(/users/franchise_director.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TERRITORY_CHANGE] true -> always([-TERRITORY_CONFLICT] true))"
+        ));
     }
 }
