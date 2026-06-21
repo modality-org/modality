@@ -364,8 +364,10 @@ fn collect_json_formulas(
                         | "grantformula"
                         | "indemnityformula"
                         | "indemnificationformula"
+                        | "inspectionformula"
                         | "invoiceformula"
                         | "liabilityformula"
+                        | "milestoneformula"
                         | "obligationformula"
                         | "permissionformula"
                         | "privilegeformula"
@@ -379,6 +381,7 @@ fn collect_json_formulas(
                         | "changeformula"
                         | "chosenformula"
                         | "claimformula"
+                        | "complianceformula"
                         | "compliantformula"
                         | "confirmedformula"
                         | "noncomplianceformula"
@@ -439,10 +442,12 @@ fn collect_json_formulas(
                         | "formuladuty"
                         | "formulaentitlement"
                         | "formulagrant"
+                        | "formulainspection"
                         | "formulaindemnification"
                         | "formulainvoice"
                         | "formulaindemnity"
                         | "formulaliability"
+                        | "formulamilestone"
                         | "formulaobligation"
                         | "formulapermission"
                         | "formulaprivilege"
@@ -459,6 +464,7 @@ fn collect_json_formulas(
                         | "formulachange"
                         | "formulachosen"
                         | "formulaclaim"
+                        | "formulacompliance"
                         | "formulacompliant"
                         | "formulaconfirmed"
                         | "formulanoncompliance"
@@ -498,10 +504,12 @@ fn collect_json_formulas(
                         | "formularemedies"
                         | "formularemedy"
                         | "formularesponse"
+                        | "formularisk"
                         | "formularevision"
                         | "formulareview"
                         | "formulasatisfied"
                         | "formulaselected"
+                        | "formulasafety"
                         | "formulaupdate"
                         | "formulaassessment"
                         | "formulavalidated"
@@ -535,6 +543,7 @@ fn collect_json_formulas(
                         | "replacementformula"
                         | "resolvedformula"
                         | "responseformula"
+                        | "riskformula"
                         | "reviewformula"
                         | "ruleaccepted"
                         | "ruleacceptance"
@@ -566,10 +575,13 @@ fn collect_json_formulas(
                         | "rulecertification"
                         | "ruleentitlement"
                         | "rulegrant"
+                        | "rulecompliance"
+                        | "ruleinspection"
                         | "ruleindemnification"
                         | "ruleinvoice"
                         | "ruleindemnity"
                         | "ruleliability"
+                        | "rulemilestone"
                         | "ruleobligation"
                         | "rulewarranty"
                         | "ruleassessment"
@@ -624,6 +636,7 @@ fn collect_json_formulas(
                         | "ruleremedies"
                         | "ruleremedy"
                         | "ruleresponse"
+                        | "rulerisk"
                         | "rulerevision"
                         | "rulereview"
                         | "rulesatisfied"
@@ -636,10 +649,12 @@ fn collect_json_formulas(
                         | "ruleverified"
                         | "ruleviolated"
                         | "ruleviolation"
+                        | "rulesafety"
                         | "revisedformula"
                         | "revisionformula"
                         | "selectedformula"
                         | "satisfiedformula"
+                        | "safetyformula"
                         | "solutionformula"
                         | "supportformula"
                         | "summaryformula"
@@ -1320,8 +1335,10 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "grantformula"
             | "indemnityformula"
             | "indemnificationformula"
+            | "inspectionformula"
             | "invoiceformula"
             | "liabilityformula"
+            | "milestoneformula"
             | "obligationformula"
             | "permissionformula"
             | "privilegeformula"
@@ -1335,6 +1352,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "changeformula"
             | "chosenformula"
             | "claimformula"
+            | "complianceformula"
             | "compliantformula"
             | "confirmedformula"
             | "noncomplianceformula"
@@ -1395,10 +1413,12 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formuladuty"
             | "formulaentitlement"
             | "formulagrant"
+            | "formulainspection"
             | "formulaindemnification"
             | "formulainvoice"
             | "formulaindemnity"
             | "formulaliability"
+            | "formulamilestone"
             | "formulaobligation"
             | "formulapermission"
             | "formulaprivilege"
@@ -1415,6 +1435,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulachange"
             | "formulachosen"
             | "formulaclaim"
+            | "formulacompliance"
             | "formulacompliant"
             | "formulaconfirmed"
             | "formulanoncompliance"
@@ -1454,10 +1475,12 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formularemedies"
             | "formularemedy"
             | "formularesponse"
+            | "formularisk"
             | "formularevision"
             | "formulareview"
             | "formulasatisfied"
             | "formulaselected"
+            | "formulasafety"
             | "formulaupdate"
             | "formulaassessment"
             | "formulavalidated"
@@ -1490,6 +1513,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "replacementformula"
             | "resolvedformula"
             | "responseformula"
+            | "riskformula"
             | "reviewformula"
             | "ruleaccepted"
             | "ruleacceptance"
@@ -1522,10 +1546,13 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulecertification"
             | "ruleentitlement"
             | "rulegrant"
+            | "rulecompliance"
+            | "ruleinspection"
             | "ruleindemnification"
             | "ruleinvoice"
             | "ruleindemnity"
             | "ruleliability"
+            | "rulemilestone"
             | "ruleobligation"
             | "rulewarranty"
             | "rulebest"
@@ -1579,6 +1606,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleremedies"
             | "ruleremedy"
             | "ruleresponse"
+            | "rulerisk"
             | "rulerevision"
             | "rulereview"
             | "rulesatisfied"
@@ -1591,10 +1619,12 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruleverified"
             | "ruleviolated"
             | "ruleviolation"
+            | "rulesafety"
             | "revisedformula"
             | "revisionformula"
             | "selectedformula"
             | "satisfiedformula"
+            | "safetyformula"
             | "solutionformula"
             | "supportformula"
             | "summaryformula"
@@ -1686,8 +1716,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "grantformula"
             | "indemnityformula"
             | "indemnificationformula"
+            | "inspectionformula"
             | "invoiceformula"
             | "liabilityformula"
+            | "milestoneformula"
             | "obligationformula"
             | "permissionformula"
             | "privilegeformula"
@@ -1701,6 +1733,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "changeformula"
             | "chosenformula"
             | "claimformula"
+            | "complianceformula"
             | "compliantformula"
             | "confirmedformula"
             | "noncomplianceformula"
@@ -1761,10 +1794,12 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formuladuty"
             | "formulaentitlement"
             | "formulagrant"
+            | "formulainspection"
             | "formulaindemnification"
             | "formulainvoice"
             | "formulaindemnity"
             | "formulaliability"
+            | "formulamilestone"
             | "formulaobligation"
             | "formulapermission"
             | "formulaprivilege"
@@ -1780,6 +1815,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulachange"
             | "formulachosen"
             | "formulaclaim"
+            | "formulacompliance"
             | "formulacompliant"
             | "formulaconfirmed"
             | "formulanoncompliance"
@@ -1854,6 +1890,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "replacementformula"
             | "resolvedformula"
             | "responseformula"
+            | "riskformula"
             | "reviewformula"
             | "revisedformula"
             | "revisionformula"
@@ -1888,10 +1925,13 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulecertification"
             | "ruleentitlement"
             | "rulegrant"
+            | "rulecompliance"
+            | "ruleinspection"
             | "ruleindemnification"
             | "ruleinvoice"
             | "ruleindemnity"
             | "ruleliability"
+            | "rulemilestone"
             | "ruleobligation"
             | "rulewarranty"
             | "rulebest"
@@ -1944,6 +1984,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleremedies"
             | "ruleremedy"
             | "ruleresponse"
+            | "rulerisk"
             | "rulerevision"
             | "rulereview"
             | "rulesatisfied"
@@ -1956,14 +1997,17 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruleverified"
             | "ruleviolated"
             | "ruleviolation"
+            | "rulesafety"
             | "selectedformula"
             | "satisfiedformula"
+            | "safetyformula"
             | "solutionformula"
             | "supportformula"
             | "summaryformula"
             | "suggestedformula"
             | "formulasupport"
             | "formulasummary"
+            | "formulasafety"
             | "formulasuggested"
             | "formulasuggestion"
             | "formulavalid"
@@ -5847,6 +5891,56 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_compliance_risk_aliases() {
+        let response = r#"
+{
+  "formula_compliance": "Formula 1: always([+CERTIFY_COMPLIANCE] true -> <+signed_by(/users/auditor.id)> true)",
+  "compliance_formula": "F2: always([+CERTIFY_COMPLIANCE] true -> always([-NONCOMPLIANCE] true))",
+  "rule_compliance": "Formula 3: <+RECORD_COMPLIANCE> true",
+  "formula_inspection": "Formula 4: always([+INSPECT] true -> <+signed_by(/users/inspector.id)> true)",
+  "inspection_formula": "Formula 5: always([+INSPECT] true -> always([-BYPASS_REVIEW] true))",
+  "rule_inspection": "Formula 6: <+RECORD_INSPECTION> true",
+  "formula_milestone": "Formula 7: always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)",
+  "milestone_formula": "Formula 8: always([+ACCEPT_MILESTONE] true -> always([-REWORK] true))",
+  "rule_milestone": "Formula 9: <+RECORD_MILESTONE> true",
+  "formula_risk": "Formula 10: always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)",
+  "risk_formula": "Formula 11: always([+ACCEPT_RISK] true -> always([-UNMITIGATED_EXPOSURE] true))",
+  "rule_risk": "Formula 12: <+RECORD_RISK> true",
+  "formula_safety": "Formula 13: always([+SAFETY_REVIEW] true -> <+signed_by(/users/safety_officer.id)> true)",
+  "safety_formula": "Formula 14: always([+SAFETY_REVIEW] true -> always([-UNSAFE_RELEASE] true))",
+  "rule_safety": "Formula 15: <+RECORD_SAFETY> true",
+  "compliance": "This compliance summary is only prose.",
+  "inspection": "This inspection summary is only prose.",
+  "milestone": "This milestone note is only prose.",
+  "risk": "This risk explanation is only prose.",
+  "safety": "This safety explanation is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+CERTIFY_COMPLIANCE] true -> always([-NONCOMPLIANCE] true))",
+                "always([+CERTIFY_COMPLIANCE] true -> <+signed_by(/users/auditor.id)> true)",
+                "always([+INSPECT] true -> <+signed_by(/users/inspector.id)> true)",
+                "always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)",
+                "always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)",
+                "always([+SAFETY_REVIEW] true -> <+signed_by(/users/safety_officer.id)> true)",
+                "always([+INSPECT] true -> always([-BYPASS_REVIEW] true))",
+                "always([+ACCEPT_MILESTONE] true -> always([-REWORK] true))",
+                "always([+ACCEPT_RISK] true -> always([-UNMITIGATED_EXPOSURE] true))",
+                "<+RECORD_COMPLIANCE> true",
+                "<+RECORD_INSPECTION> true",
+                "<+RECORD_MILESTONE> true",
+                "<+RECORD_RISK> true",
+                "<+RECORD_SAFETY> true",
+                "always([+SAFETY_REVIEW] true -> always([-UNSAFE_RELEASE] true))"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -7332,6 +7426,54 @@ invoice = this invoice approval summary is only prose
                 "always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)",
                 "always([+APPROVE_INVOICE] true -> always([-CHARGEBACK] true))",
                 "<+RECORD_INVOICE> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_compliance_risk_aliases() {
+        let response = r#"
+formula compliance: Formula 1: always([+CERTIFY_COMPLIANCE] true -> <+signed_by(/users/auditor.id)> true)
+compliance formula: F2: always([+CERTIFY_COMPLIANCE] true -> always([-NONCOMPLIANCE] true))
+rule compliance: Formula 3: <+RECORD_COMPLIANCE> true
+formula inspection: Formula 4: always([+INSPECT] true -> <+signed_by(/users/inspector.id)> true)
+inspection formula: Formula 5: always([+INSPECT] true -> always([-BYPASS_REVIEW] true))
+rule inspection: Formula 6: <+RECORD_INSPECTION> true
+formula milestone: Formula 7: always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)
+milestone formula: Formula 8: always([+ACCEPT_MILESTONE] true -> always([-REWORK] true))
+rule milestone: Formula 9: <+RECORD_MILESTONE> true
+formula risk: Formula 10: always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)
+risk formula: Formula 11: always([+ACCEPT_RISK] true -> always([-UNMITIGATED_EXPOSURE] true))
+rule risk: Formula 12: <+RECORD_RISK> true
+formula safety: Formula 13: always([+SAFETY_REVIEW] true -> <+signed_by(/users/safety_officer.id)> true)
+safety formula: Formula 14: always([+SAFETY_REVIEW] true -> always([-UNSAFE_RELEASE] true))
+rule safety: Formula 15: <+RECORD_SAFETY> true
+compliance = this compliance summary is only prose
+inspection = this inspection summary is only prose
+milestone = this milestone note is only prose
+risk = this risk explanation is only prose
+safety = this safety explanation is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+CERTIFY_COMPLIANCE] true -> <+signed_by(/users/auditor.id)> true)",
+                "always([+CERTIFY_COMPLIANCE] true -> always([-NONCOMPLIANCE] true))",
+                "<+RECORD_COMPLIANCE> true",
+                "always([+INSPECT] true -> <+signed_by(/users/inspector.id)> true)",
+                "always([+INSPECT] true -> always([-BYPASS_REVIEW] true))",
+                "<+RECORD_INSPECTION> true",
+                "always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)",
+                "always([+ACCEPT_MILESTONE] true -> always([-REWORK] true))",
+                "<+RECORD_MILESTONE> true",
+                "always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)",
+                "always([+ACCEPT_RISK] true -> always([-UNMITIGATED_EXPOSURE] true))",
+                "<+RECORD_RISK> true",
+                "always([+SAFETY_REVIEW] true -> <+signed_by(/users/safety_officer.id)> true)",
+                "always([+SAFETY_REVIEW] true -> always([-UNSAFE_RELEASE] true))",
+                "<+RECORD_SAFETY> true"
             ]
         );
     }
