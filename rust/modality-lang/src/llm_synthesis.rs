@@ -342,7 +342,10 @@ fn collect_json_formulas(
                         | "authorizedformula"
                         | "accessformula"
                         | "capabilityformula"
+                        | "compensationformula"
                         | "consentformula"
+                        | "damageformula"
+                        | "damagesformula"
                         | "denialformula"
                         | "deniedformula"
                         | "commitmentformula"
@@ -401,7 +404,10 @@ fn collect_json_formulas(
                         | "formulaauthorized"
                         | "formulaaccess"
                         | "formulacapability"
+                        | "formulacompensation"
                         | "formulaconsent"
+                        | "formuladamage"
+                        | "formuladamages"
                         | "formuladenial"
                         | "formuladenied"
                         | "formulacommitment"
@@ -458,6 +464,8 @@ fn collect_json_formulas(
                         | "formularationale"
                         | "formularecommendation"
                         | "formulareasoning"
+                        | "formularemedies"
+                        | "formularemedy"
                         | "formularesponse"
                         | "formularevision"
                         | "formulareview"
@@ -488,6 +496,8 @@ fn collect_json_formulas(
                         | "recommendationformula"
                         | "rationaleformula"
                         | "reasoningformula"
+                        | "remediesformula"
+                        | "remedyformula"
                         | "refinedformula"
                         | "remediationformula"
                         | "replacementformula"
@@ -512,6 +522,7 @@ fn collect_json_formulas(
                         | "ruledenied"
                         | "ruleduty"
                         | "rulecapability"
+                        | "rulecompensation"
                         | "ruleentitlement"
                         | "rulegrant"
                         | "ruleindemnification"
@@ -564,6 +575,8 @@ fn collect_json_formulas(
                         | "rulerationale"
                         | "rulerecommendation"
                         | "rulereasoning"
+                        | "ruleremedies"
+                        | "ruleremedy"
                         | "ruleresponse"
                         | "rulerevision"
                         | "rulereview"
@@ -1237,7 +1250,10 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "authorizedformula"
             | "accessformula"
             | "capabilityformula"
+            | "compensationformula"
             | "consentformula"
+            | "damageformula"
+            | "damagesformula"
             | "denialformula"
             | "deniedformula"
             | "commitmentformula"
@@ -1296,7 +1312,10 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formulaauthorized"
             | "formulaaccess"
             | "formulacapability"
+            | "formulacompensation"
             | "formulaconsent"
+            | "formuladamage"
+            | "formuladamages"
             | "formuladenial"
             | "formuladenied"
             | "formulacommitment"
@@ -1353,6 +1372,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "formularationale"
             | "formularecommendation"
             | "formulareasoning"
+            | "formularemedies"
+            | "formularemedy"
             | "formularesponse"
             | "formularevision"
             | "formulareview"
@@ -1382,6 +1403,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "recommendationformula"
             | "rationaleformula"
             | "reasoningformula"
+            | "remediesformula"
+            | "remedyformula"
             | "refinedformula"
             | "remediationformula"
             | "replacementformula"
@@ -1407,6 +1430,7 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "ruledenied"
             | "ruleduty"
             | "rulecapability"
+            | "rulecompensation"
             | "ruleentitlement"
             | "rulegrant"
             | "ruleindemnification"
@@ -1458,6 +1482,8 @@ fn extract_json_field_formula(line: &str) -> Option<String> {
             | "rulerationale"
             | "rulerecommendation"
             | "rulereasoning"
+            | "ruleremedies"
+            | "ruleremedy"
             | "ruleresponse"
             | "rulerevision"
             | "rulereview"
@@ -1542,7 +1568,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "authorizedformula"
             | "accessformula"
             | "capabilityformula"
+            | "compensationformula"
             | "consentformula"
+            | "damageformula"
+            | "damagesformula"
             | "denialformula"
             | "deniedformula"
             | "commitmentformula"
@@ -1601,7 +1630,10 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formulaauthorized"
             | "formulaaccess"
             | "formulacapability"
+            | "formulacompensation"
             | "formulaconsent"
+            | "formuladamage"
+            | "formuladamages"
             | "formuladenial"
             | "formuladenied"
             | "formulacommitment"
@@ -1657,6 +1689,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "formularationale"
             | "formularecommendation"
             | "formulareasoning"
+            | "formularemedies"
+            | "formularemedy"
             | "formularesponse"
             | "formularevision"
             | "formulareview"
@@ -1685,6 +1719,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "recommendationformula"
             | "rationaleformula"
             | "reasoningformula"
+            | "remediesformula"
+            | "remedyformula"
             | "refinedformula"
             | "remediationformula"
             | "replacementformula"
@@ -1712,6 +1748,7 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "ruledenied"
             | "ruleduty"
             | "rulecapability"
+            | "rulecompensation"
             | "ruleentitlement"
             | "rulegrant"
             | "ruleindemnification"
@@ -1762,6 +1799,8 @@ fn extract_plain_text_field_formula(line: &str) -> Option<String> {
             | "rulerationale"
             | "rulerecommendation"
             | "rulereasoning"
+            | "ruleremedies"
+            | "ruleremedy"
             | "ruleresponse"
             | "rulerevision"
             | "rulereview"
@@ -5488,6 +5527,38 @@ Formula 2: &amp;lt;+ESCALATE&amp;gt; true
     }
 
     #[test]
+    fn test_parse_llm_response_accepts_json_remedy_field_order_aliases() {
+        let response = r#"
+{
+  "formula_remedy": "Formula 1: always([+REMEDY] true -> <+signed_by(/users/remedial_party.id)> true)",
+  "remedy_formula": "F2: <+PROVIDE_REMEDY> true",
+  "rule_remedy": "Formula 3: always([+SEEK_REMEDY] true -> <+signed_by(/users/claimant.id)> true)",
+  "formula_damages": "Formula 4: always([+PAY_DAMAGES] true -> <+signed_by(/users/liable_party.id)> true)",
+  "damages_formula": "Formula 5: <+AWARD_DAMAGES> true",
+  "compensation_formula": "Formula 6: <+PAY_COMPENSATION> true",
+  "rule_compensation": "Formula 7: always([+COMPENSATE] true -> <+signed_by(/users/payer.id)> true)",
+  "remedy": "This remedy description is only prose.",
+  "damages": "This damages discussion is only prose.",
+  "compensation": "This compensation rationale is only prose."
+}
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "<+PAY_COMPENSATION> true",
+                "<+AWARD_DAMAGES> true",
+                "always([+PAY_DAMAGES] true -> <+signed_by(/users/liable_party.id)> true)",
+                "always([+REMEDY] true -> <+signed_by(/users/remedial_party.id)> true)",
+                "<+PROVIDE_REMEDY> true",
+                "always([+COMPENSATE] true -> <+signed_by(/users/payer.id)> true)",
+                "always([+SEEK_REMEDY] true -> <+signed_by(/users/claimant.id)> true)"
+            ]
+        );
+    }
+
+    #[test]
     fn test_parse_llm_response_accepts_json_rejection_field_order_aliases() {
         let response = r#"
 {
@@ -6807,6 +6878,36 @@ indemnity = this indemnity rationale is only prose
                 "<+INDEMNIFY> true",
                 "always([+INDEMNIFY] true -> <+signed_by(/users/indemnitor.id)> true)",
                 "<+NOTICE_INDEMNIFICATION> true"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_llm_response_accepts_plain_remedy_field_order_aliases() {
+        let response = r#"
+formula remedy: Formula 1: always([+REMEDY] true -> <+signed_by(/users/remedial_party.id)> true)
+remedy formula: F2: <+PROVIDE_REMEDY> true
+rule remedy: Formula 3: always([+SEEK_REMEDY] true -> <+signed_by(/users/claimant.id)> true)
+formula damages: Formula 4: always([+PAY_DAMAGES] true -> <+signed_by(/users/liable_party.id)> true)
+damages formula: Formula 5: <+AWARD_DAMAGES> true
+compensation formula: Formula 6: <+PAY_COMPENSATION> true
+rule compensation: Formula 7: always([+COMPENSATE] true -> <+signed_by(/users/payer.id)> true)
+remedy = this remedy description is only prose
+damages = this damages discussion is only prose
+compensation = this compensation rationale is only prose
+"#;
+
+        let formulas = parse_llm_response(response);
+        assert_eq!(
+            formulas,
+            vec![
+                "always([+REMEDY] true -> <+signed_by(/users/remedial_party.id)> true)",
+                "<+PROVIDE_REMEDY> true",
+                "always([+SEEK_REMEDY] true -> <+signed_by(/users/claimant.id)> true)",
+                "always([+PAY_DAMAGES] true -> <+signed_by(/users/liable_party.id)> true)",
+                "<+AWARD_DAMAGES> true",
+                "<+PAY_COMPENSATION> true",
+                "always([+COMPENSATE] true -> <+signed_by(/users/payer.id)> true)"
             ]
         );
     }
