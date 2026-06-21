@@ -237,6 +237,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Network peering change approval requires network architect signature and blocks unauthorized route advertisement" | `always([+APPROVE_NETWORK_PEERING_CHANGE] true -> <+signed_by(/users/network_architect.id)> true)`; `always([+APPROVE_NETWORK_PEERING_CHANGE] true -> always([-UNAUTHORIZED_ROUTE_ADVERTISEMENT] true))` |
 | "DNS zone change approval requires DNS administrator signature and blocks unauthorized record publication" | `always([+APPROVE_DNS_ZONE_CHANGE] true -> <+signed_by(/users/dns_administrator.id)> true)`; `always([+APPROVE_DNS_ZONE_CHANGE] true -> always([-UNAUTHORIZED_RECORD_PUBLICATION] true))` |
 | "TLS certificate issuance approval requires certificate authority officer signature and blocks misissued certificate activation" | `always([+APPROVE_TLS_CERTIFICATE_ISSUANCE] true -> <+signed_by(/users/certificate_authority_officer.id)> true)`; `always([+APPROVE_TLS_CERTIFICATE_ISSUANCE] true -> always([-MISISSUED_CERTIFICATE_ACTIVATION] true))` |
+| "Secret rotation approval requires platform security officer signature and blocks stale secret reuse" | `always([+APPROVE_SECRET_ROTATION] true -> <+signed_by(/users/platform_security_officer.id)> true)`; `always([+APPROVE_SECRET_ROTATION] true -> always([-STALE_SECRET_REUSE] true))` |
+| "Backup restore approval requires recovery manager signature and blocks unverified data restoration" | `always([+APPROVE_BACKUP_RESTORE] true -> <+signed_by(/users/recovery_manager.id)> true)`; `always([+APPROVE_BACKUP_RESTORE] true -> always([-UNVERIFIED_DATA_RESTORATION] true))` |
 
 ## Output Format
 
@@ -11560,6 +11562,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_TLS_CERTIFICATE_ISSUANCE] true -> always([-MISISSUED_CERTIFICATE_ACTIVATION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_secret_backup_governance_patterns() {
+        let prompt = generate_prompt("Secret rotation and backup restore controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_SECRET_ROTATION] true -> <+signed_by(/users/platform_security_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SECRET_ROTATION] true -> always([-STALE_SECRET_REUSE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_BACKUP_RESTORE] true -> <+signed_by(/users/recovery_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_BACKUP_RESTORE] true -> always([-UNVERIFIED_DATA_RESTORATION] true))"
         ));
     }
 }
