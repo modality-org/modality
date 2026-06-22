@@ -313,6 +313,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Model output logging approval requires privacy monitoring lead signature and blocks unredacted sensitive prompt retention" | `always([+APPROVE_MODEL_OUTPUT_LOGGING] true -> <+signed_by(/users/privacy_monitoring_lead.id)> true)`; `always([+APPROVE_MODEL_OUTPUT_LOGGING] true -> always([-UNREDACTED_SENSITIVE_PROMPT_RETENTION] true))` |
 | "Model evaluation benchmark approval requires AI quality lead signature and blocks cherry-picked performance claim" | `always([+APPROVE_MODEL_EVALUATION_BENCHMARK] true -> <+signed_by(/users/ai_quality_lead.id)> true)`; `always([+APPROVE_MODEL_EVALUATION_BENCHMARK] true -> always([-CHERRY_PICKED_PERFORMANCE_CLAIM] true))` |
 | "Prompt template release approval requires product safety owner signature and blocks unsafe instruction exposure" | `always([+APPROVE_PROMPT_TEMPLATE_RELEASE] true -> <+signed_by(/users/product_safety_owner.id)> true)`; `always([+APPROVE_PROMPT_TEMPLATE_RELEASE] true -> always([-UNSAFE_INSTRUCTION_EXPOSURE] true))` |
+| "Model rollback approval requires AI operations lead signature and blocks unreverted harmful model behavior" | `always([+APPROVE_MODEL_ROLLBACK] true -> <+signed_by(/users/ai_operations_lead.id)> true)`; `always([+APPROVE_MODEL_ROLLBACK] true -> always([-UNREVERTED_HARMFUL_MODEL_BEHAVIOR] true))` |
+| "AI incident response approval requires responsible AI officer signature and blocks untriaged model harm report" | `always([+APPROVE_AI_INCIDENT_RESPONSE] true -> <+signed_by(/users/responsible_ai_officer.id)> true)`; `always([+APPROVE_AI_INCIDENT_RESPONSE] true -> always([-UNTRIAGED_MODEL_HARM_REPORT] true))` |
 
 ## Output Format
 
@@ -12321,6 +12323,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_PROMPT_TEMPLATE_RELEASE] true -> always([-UNSAFE_INSTRUCTION_EXPOSURE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_model_rollback_incident_governance_patterns() {
+        let prompt = generate_prompt("Model rollback and AI incident controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_ROLLBACK] true -> <+signed_by(/users/ai_operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_ROLLBACK] true -> always([-UNREVERTED_HARMFUL_MODEL_BEHAVIOR] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_INCIDENT_RESPONSE] true -> <+signed_by(/users/responsible_ai_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_INCIDENT_RESPONSE] true -> always([-UNTRIAGED_MODEL_HARM_REPORT] true))"
         ));
     }
 }
