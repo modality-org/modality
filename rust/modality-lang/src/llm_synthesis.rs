@@ -315,6 +315,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Prompt template release approval requires product safety owner signature and blocks unsafe instruction exposure" | `always([+APPROVE_PROMPT_TEMPLATE_RELEASE] true -> <+signed_by(/users/product_safety_owner.id)> true)`; `always([+APPROVE_PROMPT_TEMPLATE_RELEASE] true -> always([-UNSAFE_INSTRUCTION_EXPOSURE] true))` |
 | "Model rollback approval requires AI operations lead signature and blocks unreverted harmful model behavior" | `always([+APPROVE_MODEL_ROLLBACK] true -> <+signed_by(/users/ai_operations_lead.id)> true)`; `always([+APPROVE_MODEL_ROLLBACK] true -> always([-UNREVERTED_HARMFUL_MODEL_BEHAVIOR] true))` |
 | "AI incident response approval requires responsible AI officer signature and blocks untriaged model harm report" | `always([+APPROVE_AI_INCIDENT_RESPONSE] true -> <+signed_by(/users/responsible_ai_officer.id)> true)`; `always([+APPROVE_AI_INCIDENT_RESPONSE] true -> always([-UNTRIAGED_MODEL_HARM_REPORT] true))` |
+| "Model fine tuning job approval requires ML platform owner signature and blocks unapproved model adaptation" | `always([+APPROVE_MODEL_FINE_TUNING_JOB] true -> <+signed_by(/users/ml_platform_owner.id)> true)`; `always([+APPROVE_MODEL_FINE_TUNING_JOB] true -> always([-UNAPPROVED_MODEL_ADAPTATION] true))` |
+| "AI agent tool permission approval requires agent safety lead signature and blocks unauthorized tool invocation" | `always([+APPROVE_AI_AGENT_TOOL_PERMISSION] true -> <+signed_by(/users/agent_safety_lead.id)> true)`; `always([+APPROVE_AI_AGENT_TOOL_PERMISSION] true -> always([-UNAUTHORIZED_TOOL_INVOCATION] true))` |
 
 ## Output Format
 
@@ -12341,6 +12343,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_AI_INCIDENT_RESPONSE] true -> always([-UNTRIAGED_MODEL_HARM_REPORT] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_model_tuning_agent_tool_governance_patterns() {
+        let prompt = generate_prompt("Model tuning and agent tool permission controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_FINE_TUNING_JOB] true -> <+signed_by(/users/ml_platform_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_FINE_TUNING_JOB] true -> always([-UNAPPROVED_MODEL_ADAPTATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_AGENT_TOOL_PERMISSION] true -> <+signed_by(/users/agent_safety_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_AGENT_TOOL_PERMISSION] true -> always([-UNAUTHORIZED_TOOL_INVOCATION] true))"
         ));
     }
 }
