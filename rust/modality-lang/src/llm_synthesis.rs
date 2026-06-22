@@ -337,6 +337,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Model access tier change approval requires AI security owner signature and blocks unauthorized sensitive model access" | `always([+APPROVE_MODEL_ACCESS_TIER_CHANGE] true -> <+signed_by(/users/ai_security_owner.id)> true)`; `always([+APPROVE_MODEL_ACCESS_TIER_CHANGE] true -> always([-UNAUTHORIZED_SENSITIVE_MODEL_ACCESS] true))` |
 | "AI deployment approval requires model release owner signature and blocks unapproved production inference" | `always([+APPROVE_AI_DEPLOYMENT] true -> <+signed_by(/users/model_release_owner.id)> true)`; `always([+APPROVE_AI_DEPLOYMENT] true -> always([-UNAPPROVED_PRODUCTION_INFERENCE] true))` |
 | "AI agent delegation approval requires agent governance lead signature and blocks unsupervised autonomous delegation" | `always([+APPROVE_AI_AGENT_DELEGATION] true -> <+signed_by(/users/agent_governance_lead.id)> true)`; `always([+APPROVE_AI_AGENT_DELEGATION] true -> always([-UNSUPERVISED_AUTONOMOUS_DELEGATION] true))` |
+| "AI audit log retention approval requires compliance auditor signature and blocks missing decision trace" | `always([+APPROVE_AI_AUDIT_LOG_RETENTION] true -> <+signed_by(/users/compliance_auditor.id)> true)`; `always([+APPROVE_AI_AUDIT_LOG_RETENTION] true -> always([-MISSING_DECISION_TRACE] true))` |
+| "Model explanation release approval requires explainability lead signature and blocks misleading explanation publication" | `always([+APPROVE_MODEL_EXPLANATION_RELEASE] true -> <+signed_by(/users/explainability_lead.id)> true)`; `always([+APPROVE_MODEL_EXPLANATION_RELEASE] true -> always([-MISLEADING_EXPLANATION_PUBLICATION] true))` |
 
 ## Output Format
 
@@ -12561,6 +12563,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_AI_AGENT_DELEGATION] true -> always([-UNSUPERVISED_AUTONOMOUS_DELEGATION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_audit_log_explanation_governance_patterns() {
+        let prompt = generate_prompt("AI audit logging and model explanation release controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_AUDIT_LOG_RETENTION] true -> <+signed_by(/users/compliance_auditor.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_AUDIT_LOG_RETENTION] true -> always([-MISSING_DECISION_TRACE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_EXPLANATION_RELEASE] true -> <+signed_by(/users/explainability_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_EXPLANATION_RELEASE] true -> always([-MISLEADING_EXPLANATION_PUBLICATION] true))"
         ));
     }
 }
