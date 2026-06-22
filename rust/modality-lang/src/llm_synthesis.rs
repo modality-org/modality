@@ -331,6 +331,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Training data removal approval requires data rights officer signature and blocks retained revoked training record" | `always([+APPROVE_TRAINING_DATA_REMOVAL] true -> <+signed_by(/users/data_rights_officer.id)> true)`; `always([+APPROVE_TRAINING_DATA_REMOVAL] true -> always([-RETAINED_REVOKED_TRAINING_RECORD] true))` |
 | "AI usage policy exception approval requires AI compliance owner signature and blocks prohibited use case" | `always([+APPROVE_AI_USAGE_POLICY_EXCEPTION] true -> <+signed_by(/users/ai_compliance_owner.id)> true)`; `always([+APPROVE_AI_USAGE_POLICY_EXCEPTION] true -> always([-PROHIBITED_USE_CASE] true))` |
 | "Model output quarantine release approval requires trust and safety reviewer signature and blocks harmful content release" | `always([+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE] true -> <+signed_by(/users/trust_and_safety_reviewer.id)> true)`; `always([+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE] true -> always([-HARMFUL_CONTENT_RELEASE] true))` |
+| "AI vendor model onboarding approval requires third party risk owner signature and blocks unvetted external model dependency" | `always([+APPROVE_AI_VENDOR_MODEL_ONBOARDING] true -> <+signed_by(/users/third_party_risk_owner.id)> true)`; `always([+APPROVE_AI_VENDOR_MODEL_ONBOARDING] true -> always([-UNVETTED_EXTERNAL_MODEL_DEPENDENCY] true))` |
+| "Prompt injection finding closure requires security reviewer signature and blocks unresolved prompt injection exploit" | `always([+CLOSE_PROMPT_INJECTION_FINDING] true -> <+signed_by(/users/security_reviewer.id)> true)`; `always([+CLOSE_PROMPT_INJECTION_FINDING] true -> always([-UNRESOLVED_PROMPT_INJECTION_EXPLOIT] true))` |
 
 ## Output Format
 
@@ -12501,6 +12503,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE] true -> always([-HARMFUL_CONTENT_RELEASE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_vendor_prompt_injection_governance_patterns() {
+        let prompt = generate_prompt("AI vendor model and prompt injection controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_VENDOR_MODEL_ONBOARDING] true -> <+signed_by(/users/third_party_risk_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_VENDOR_MODEL_ONBOARDING] true -> always([-UNVETTED_EXTERNAL_MODEL_DEPENDENCY] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+CLOSE_PROMPT_INJECTION_FINDING] true -> <+signed_by(/users/security_reviewer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+CLOSE_PROMPT_INJECTION_FINDING] true -> always([-UNRESOLVED_PROMPT_INJECTION_EXPLOIT] true))"
         ));
     }
 }
