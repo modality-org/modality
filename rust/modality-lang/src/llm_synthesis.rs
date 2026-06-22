@@ -389,6 +389,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Founder share repurchase approval requires corporate counsel signature and blocks invalid repurchase exercise" | `always([+APPROVE_FOUNDER_SHARE_REPURCHASE] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_FOUNDER_SHARE_REPURCHASE] true -> always([-INVALID_REPURCHASE_EXERCISE] true))` |
 | "Secondary share sale approval requires transfer agent signature and blocks unauthorized secondary transfer" | `always([+APPROVE_SECONDARY_SHARE_SALE] true -> <+signed_by(/users/transfer_agent.id)> true)`; `always([+APPROVE_SECONDARY_SHARE_SALE] true -> always([-UNAUTHORIZED_SECONDARY_TRANSFER] true))` |
 | "Liquidation preference amendment approval requires investor counsel signature and blocks unapproved preference change" | `always([+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT] true -> <+signed_by(/users/investor_counsel.id)> true)`; `always([+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT] true -> always([-UNAPPROVED_PREFERENCE_CHANGE] true))` |
+| "Pro rata rights waiver approval requires investor relations lead signature and blocks improper allocation reduction" | `always([+APPROVE_PRO_RATA_RIGHTS_WAIVER] true -> <+signed_by(/users/investor_relations_lead.id)> true)`; `always([+APPROVE_PRO_RATA_RIGHTS_WAIVER] true -> always([-IMPROPER_ALLOCATION_REDUCTION] true))` |
+| "Board observer appointment approval requires corporate secretary signature and blocks unauthorized observer access" | `always([+APPROVE_BOARD_OBSERVER_APPOINTMENT] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_BOARD_OBSERVER_APPOINTMENT] true -> always([-UNAUTHORIZED_OBSERVER_ACCESS] true))` |
 
 ## Output Format
 
@@ -13083,6 +13085,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT] true -> always([-UNAPPROVED_PREFERENCE_CHANGE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_pro_rata_observer_governance_patterns() {
+        let prompt = generate_prompt("Pro rata waiver and board observer controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_PRO_RATA_RIGHTS_WAIVER] true -> <+signed_by(/users/investor_relations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PRO_RATA_RIGHTS_WAIVER] true -> always([-IMPROPER_ALLOCATION_REDUCTION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_BOARD_OBSERVER_APPOINTMENT] true -> <+signed_by(/users/corporate_secretary.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_BOARD_OBSERVER_APPOINTMENT] true -> always([-UNAUTHORIZED_OBSERVER_ACCESS] true))"
         ));
     }
 }
