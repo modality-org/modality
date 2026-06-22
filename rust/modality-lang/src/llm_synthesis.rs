@@ -369,6 +369,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Agent settlement offer approval requires principal approver signature and blocks out of mandate concession" | `always([+APPROVE_AGENT_SETTLEMENT_OFFER] true -> <+signed_by(/users/principal_approver.id)> true)`; `always([+APPROVE_AGENT_SETTLEMENT_OFFER] true -> always([-OUT_OF_MANDATE_CONCESSION] true))` |
 | "Fundraising outreach approval requires founder signature and blocks unauthorized investor claim" | `always([+APPROVE_FUNDRAISING_OUTREACH] true -> <+signed_by(/users/founder.id)> true)`; `always([+APPROVE_FUNDRAISING_OUTREACH] true -> always([-UNAUTHORIZED_INVESTOR_CLAIM] true))` |
 | "Investor data room release approval requires fundraising owner signature and blocks unapproved confidential disclosure" | `always([+APPROVE_INVESTOR_DATA_ROOM_RELEASE] true -> <+signed_by(/users/fundraising_owner.id)> true)`; `always([+APPROVE_INVESTOR_DATA_ROOM_RELEASE] true -> always([-UNAPPROVED_CONFIDENTIAL_DISCLOSURE] true))` |
+| "Pitch deck publication approval requires fundraising owner signature and blocks unapproved public fundraising material" | `always([+APPROVE_PITCH_DECK_PUBLICATION] true -> <+signed_by(/users/fundraising_owner.id)> true)`; `always([+APPROVE_PITCH_DECK_PUBLICATION] true -> always([-UNAPPROVED_PUBLIC_FUNDRAISING_MATERIAL] true))` |
+| "Investor diligence response approval requires legal reviewer signature and blocks inaccurate diligence representation" | `always([+APPROVE_INVESTOR_DILIGENCE_RESPONSE] true -> <+signed_by(/users/legal_reviewer.id)> true)`; `always([+APPROVE_INVESTOR_DILIGENCE_RESPONSE] true -> always([-INACCURATE_DILIGENCE_REPRESENTATION] true))` |
 
 ## Output Format
 
@@ -12883,6 +12885,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_INVESTOR_DATA_ROOM_RELEASE] true -> always([-UNAPPROVED_CONFIDENTIAL_DISCLOSURE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_pitch_deck_diligence_governance_patterns() {
+        let prompt = generate_prompt("Pitch deck publication and investor diligence controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_PITCH_DECK_PUBLICATION] true -> <+signed_by(/users/fundraising_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PITCH_DECK_PUBLICATION] true -> always([-UNAPPROVED_PUBLIC_FUNDRAISING_MATERIAL] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_INVESTOR_DILIGENCE_RESPONSE] true -> <+signed_by(/users/legal_reviewer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_INVESTOR_DILIGENCE_RESPONSE] true -> always([-INACCURATE_DILIGENCE_REPRESENTATION] true))"
         ));
     }
 }
