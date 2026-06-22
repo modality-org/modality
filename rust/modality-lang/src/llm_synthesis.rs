@@ -311,6 +311,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Synthetic data release approval requires model risk owner signature and blocks production data leakage" | `always([+APPROVE_SYNTHETIC_DATA_RELEASE] true -> <+signed_by(/users/model_risk_owner.id)> true)`; `always([+APPROVE_SYNTHETIC_DATA_RELEASE] true -> always([-PRODUCTION_DATA_LEAKAGE] true))` |
 | "AI training dataset approval requires data ethics board signature and blocks unauthorized personal data training" | `always([+APPROVE_AI_TRAINING_DATASET] true -> <+signed_by(/users/data_ethics_board.id)> true)`; `always([+APPROVE_AI_TRAINING_DATASET] true -> always([-UNAUTHORIZED_PERSONAL_DATA_TRAINING] true))` |
 | "Model output logging approval requires privacy monitoring lead signature and blocks unredacted sensitive prompt retention" | `always([+APPROVE_MODEL_OUTPUT_LOGGING] true -> <+signed_by(/users/privacy_monitoring_lead.id)> true)`; `always([+APPROVE_MODEL_OUTPUT_LOGGING] true -> always([-UNREDACTED_SENSITIVE_PROMPT_RETENTION] true))` |
+| "Model evaluation benchmark approval requires AI quality lead signature and blocks cherry-picked performance claim" | `always([+APPROVE_MODEL_EVALUATION_BENCHMARK] true -> <+signed_by(/users/ai_quality_lead.id)> true)`; `always([+APPROVE_MODEL_EVALUATION_BENCHMARK] true -> always([-CHERRY_PICKED_PERFORMANCE_CLAIM] true))` |
+| "Prompt template release approval requires product safety owner signature and blocks unsafe instruction exposure" | `always([+APPROVE_PROMPT_TEMPLATE_RELEASE] true -> <+signed_by(/users/product_safety_owner.id)> true)`; `always([+APPROVE_PROMPT_TEMPLATE_RELEASE] true -> always([-UNSAFE_INSTRUCTION_EXPOSURE] true))` |
 
 ## Output Format
 
@@ -12301,6 +12303,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_MODEL_OUTPUT_LOGGING] true -> always([-UNREDACTED_SENSITIVE_PROMPT_RETENTION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_evaluation_prompt_template_governance_patterns() {
+        let prompt = generate_prompt("Model evaluation and prompt template controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_EVALUATION_BENCHMARK] true -> <+signed_by(/users/ai_quality_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_EVALUATION_BENCHMARK] true -> always([-CHERRY_PICKED_PERFORMANCE_CLAIM] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PROMPT_TEMPLATE_RELEASE] true -> <+signed_by(/users/product_safety_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PROMPT_TEMPLATE_RELEASE] true -> always([-UNSAFE_INSTRUCTION_EXPOSURE] true))"
         ));
     }
 }
