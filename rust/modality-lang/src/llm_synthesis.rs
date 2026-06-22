@@ -349,6 +349,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Training consent withdrawal approval requires data protection officer signature and blocks retained revoked subject data" | `always([+APPROVE_TRAINING_CONSENT_WITHDRAWAL] true -> <+signed_by(/users/data_protection_officer.id)> true)`; `always([+APPROVE_TRAINING_CONSENT_WITHDRAWAL] true -> always([-RETAINED_REVOKED_SUBJECT_DATA] true))` |
 | "AI transparency notice approval requires responsible AI communications lead signature and blocks undisclosed automated decision notice" | `always([+APPROVE_AI_TRANSPARENCY_NOTICE] true -> <+signed_by(/users/responsible_ai_communications_lead.id)> true)`; `always([+APPROVE_AI_TRANSPARENCY_NOTICE] true -> always([-UNDISCLOSED_AUTOMATED_DECISION_NOTICE] true))` |
 | "AI decision appeal workflow approval requires accountability officer signature and blocks unavailable human review path" | `always([+APPROVE_AI_DECISION_APPEAL_WORKFLOW] true -> <+signed_by(/users/accountability_officer.id)> true)`; `always([+APPROVE_AI_DECISION_APPEAL_WORKFLOW] true -> always([-UNAVAILABLE_HUMAN_REVIEW_PATH] true))` |
+| "AI fairness remediation approval requires fairness reviewer signature and blocks unresolved disparate impact" | `always([+APPROVE_AI_FAIRNESS_REMEDIATION] true -> <+signed_by(/users/fairness_reviewer.id)> true)`; `always([+APPROVE_AI_FAIRNESS_REMEDIATION] true -> always([-UNRESOLVED_DISPARATE_IMPACT] true))` |
+| "Model use limitation update approval requires responsible AI owner signature and blocks out of scope model use" | `always([+APPROVE_MODEL_USE_LIMITATION_UPDATE] true -> <+signed_by(/users/responsible_ai_owner.id)> true)`; `always([+APPROVE_MODEL_USE_LIMITATION_UPDATE] true -> always([-OUT_OF_SCOPE_MODEL_USE] true))` |
 
 ## Output Format
 
@@ -12682,6 +12684,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_AI_DECISION_APPEAL_WORKFLOW] true -> always([-UNAVAILABLE_HUMAN_REVIEW_PATH] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_fairness_use_limitation_governance_patterns() {
+        let prompt = generate_prompt("AI fairness remediation and model use limitation controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_FAIRNESS_REMEDIATION] true -> <+signed_by(/users/fairness_reviewer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_FAIRNESS_REMEDIATION] true -> always([-UNRESOLVED_DISPARATE_IMPACT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_USE_LIMITATION_UPDATE] true -> <+signed_by(/users/responsible_ai_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_USE_LIMITATION_UPDATE] true -> always([-OUT_OF_SCOPE_MODEL_USE] true))"
         ));
     }
 }
