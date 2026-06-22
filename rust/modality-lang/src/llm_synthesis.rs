@@ -309,6 +309,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Cookie consent configuration approval requires privacy product counsel signature and blocks noncompliant tracking activation" | `always([+APPROVE_COOKIE_CONSENT_CONFIGURATION] true -> <+signed_by(/users/privacy_product_counsel.id)> true)`; `always([+APPROVE_COOKIE_CONSENT_CONFIGURATION] true -> always([-NONCOMPLIANT_TRACKING_ACTIVATION] true))` |
 | "Data lineage correction approval requires data governance lead signature and blocks untraceable data provenance" | `always([+APPROVE_DATA_LINEAGE_CORRECTION] true -> <+signed_by(/users/data_governance_lead.id)> true)`; `always([+APPROVE_DATA_LINEAGE_CORRECTION] true -> always([-UNTRACEABLE_DATA_PROVENANCE] true))` |
 | "Synthetic data release approval requires model risk owner signature and blocks production data leakage" | `always([+APPROVE_SYNTHETIC_DATA_RELEASE] true -> <+signed_by(/users/model_risk_owner.id)> true)`; `always([+APPROVE_SYNTHETIC_DATA_RELEASE] true -> always([-PRODUCTION_DATA_LEAKAGE] true))` |
+| "AI training dataset approval requires data ethics board signature and blocks unauthorized personal data training" | `always([+APPROVE_AI_TRAINING_DATASET] true -> <+signed_by(/users/data_ethics_board.id)> true)`; `always([+APPROVE_AI_TRAINING_DATASET] true -> always([-UNAUTHORIZED_PERSONAL_DATA_TRAINING] true))` |
+| "Model output logging approval requires privacy monitoring lead signature and blocks unredacted sensitive prompt retention" | `always([+APPROVE_MODEL_OUTPUT_LOGGING] true -> <+signed_by(/users/privacy_monitoring_lead.id)> true)`; `always([+APPROVE_MODEL_OUTPUT_LOGGING] true -> always([-UNREDACTED_SENSITIVE_PROMPT_RETENTION] true))` |
 
 ## Output Format
 
@@ -12281,6 +12283,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_SYNTHETIC_DATA_RELEASE] true -> always([-PRODUCTION_DATA_LEAKAGE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_training_logging_data_governance_patterns() {
+        let prompt = generate_prompt("AI training data and model logging controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_TRAINING_DATASET] true -> <+signed_by(/users/data_ethics_board.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_TRAINING_DATASET] true -> always([-UNAUTHORIZED_PERSONAL_DATA_TRAINING] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_OUTPUT_LOGGING] true -> <+signed_by(/users/privacy_monitoring_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_OUTPUT_LOGGING] true -> always([-UNREDACTED_SENSITIVE_PROMPT_RETENTION] true))"
         ));
     }
 }
