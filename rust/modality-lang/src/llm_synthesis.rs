@@ -323,6 +323,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "AI memory retention policy approval requires privacy counsel signature and blocks undeclared long term context storage" | `always([+APPROVE_AI_MEMORY_RETENTION_POLICY] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_AI_MEMORY_RETENTION_POLICY] true -> always([-UNDECLARED_LONG_TERM_CONTEXT_STORAGE] true))` |
 | "AI guardrail policy change approval requires safety reviewer signature and blocks unreviewed safety bypass" | `always([+APPROVE_AI_GUARDRAIL_POLICY_CHANGE] true -> <+signed_by(/users/safety_reviewer.id)> true)`; `always([+APPROVE_AI_GUARDRAIL_POLICY_CHANGE] true -> always([-UNREVIEWED_SAFETY_BYPASS] true))` |
 | "AI red team finding closure requires model risk owner signature and blocks unresolved critical model weakness" | `always([+CLOSE_AI_RED_TEAM_FINDING] true -> <+signed_by(/users/model_risk_owner.id)> true)`; `always([+CLOSE_AI_RED_TEAM_FINDING] true -> always([-UNRESOLVED_CRITICAL_MODEL_WEAKNESS] true))` |
+| "Model card publication approval requires responsible AI documentation lead signature and blocks undocumented model limitation" | `always([+APPROVE_MODEL_CARD_PUBLICATION] true -> <+signed_by(/users/responsible_ai_documentation_lead.id)> true)`; `always([+APPROVE_MODEL_CARD_PUBLICATION] true -> always([-UNDOCUMENTED_MODEL_LIMITATION] true))` |
+| "Human oversight exception approval requires AI governance board signature and blocks fully automated high impact decision" | `always([+APPROVE_HUMAN_OVERSIGHT_EXCEPTION] true -> <+signed_by(/users/ai_governance_board.id)> true)`; `always([+APPROVE_HUMAN_OVERSIGHT_EXCEPTION] true -> always([-FULLY_AUTOMATED_HIGH_IMPACT_DECISION] true))` |
 
 ## Output Format
 
@@ -12421,6 +12423,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+CLOSE_AI_RED_TEAM_FINDING] true -> always([-UNRESOLVED_CRITICAL_MODEL_WEAKNESS] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_model_card_oversight_governance_patterns() {
+        let prompt = generate_prompt("Model card and human oversight controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_CARD_PUBLICATION] true -> <+signed_by(/users/responsible_ai_documentation_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_CARD_PUBLICATION] true -> always([-UNDOCUMENTED_MODEL_LIMITATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_HUMAN_OVERSIGHT_EXCEPTION] true -> <+signed_by(/users/ai_governance_board.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_HUMAN_OVERSIGHT_EXCEPTION] true -> always([-FULLY_AUTOMATED_HIGH_IMPACT_DECISION] true))"
         ));
     }
 }
