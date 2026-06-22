@@ -343,6 +343,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Model risk register update approval requires model risk committee signature and blocks untracked material model risk" | `always([+APPROVE_MODEL_RISK_REGISTER_UPDATE] true -> <+signed_by(/users/model_risk_committee.id)> true)`; `always([+APPROVE_MODEL_RISK_REGISTER_UPDATE] true -> always([-UNTRACKED_MATERIAL_MODEL_RISK] true))` |
 | "AI assurance report approval requires assurance lead signature and blocks unaudited control claim" | `always([+APPROVE_AI_ASSURANCE_REPORT] true -> <+signed_by(/users/assurance_lead.id)> true)`; `always([+APPROVE_AI_ASSURANCE_REPORT] true -> always([-UNAUDITED_CONTROL_CLAIM] true))` |
 | "Model registry promotion approval requires model registry owner signature and blocks unapproved production candidate" | `always([+APPROVE_MODEL_REGISTRY_PROMOTION] true -> <+signed_by(/users/model_registry_owner.id)> true)`; `always([+APPROVE_MODEL_REGISTRY_PROMOTION] true -> always([-UNAPPROVED_PRODUCTION_CANDIDATE] true))` |
+| "AI incident disclosure approval requires AI incident commander signature and blocks undisclosed material model incident" | `always([+APPROVE_AI_INCIDENT_DISCLOSURE] true -> <+signed_by(/users/ai_incident_commander.id)> true)`; `always([+APPROVE_AI_INCIDENT_DISCLOSURE] true -> always([-UNDISCLOSED_MATERIAL_MODEL_INCIDENT] true))` |
+| "Model evaluation benchmark update approval requires evaluation lead signature and blocks unvalidated benchmark substitution" | `always([+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE] true -> <+signed_by(/users/evaluation_lead.id)> true)`; `always([+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE] true -> always([-UNVALIDATED_BENCHMARK_SUBSTITUTION] true))` |
 
 ## Output Format
 
@@ -12621,6 +12623,25 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_MODEL_REGISTRY_PROMOTION] true -> always([-UNAPPROVED_PRODUCTION_CANDIDATE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_incident_benchmark_governance_patterns() {
+        let prompt =
+            generate_prompt("AI incident disclosure and model evaluation benchmark controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_INCIDENT_DISCLOSURE] true -> <+signed_by(/users/ai_incident_commander.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_INCIDENT_DISCLOSURE] true -> always([-UNDISCLOSED_MATERIAL_MODEL_INCIDENT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE] true -> <+signed_by(/users/evaluation_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE] true -> always([-UNVALIDATED_BENCHMARK_SUBSTITUTION] true))"
         ));
     }
 }
