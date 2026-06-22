@@ -287,6 +287,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Legal hold release approval requires counsel signature and blocks spoliation risk" | `always([+APPROVE_LEGAL_HOLD_RELEASE] true -> <+signed_by(/users/counsel.id)> true)`; `always([+APPROVE_LEGAL_HOLD_RELEASE] true -> always([-SPOLIATION_RISK] true))` |
 | "Data subject access response approval requires privacy operations lead signature and blocks unauthorized personal data disclosure" | `always([+APPROVE_DATA_SUBJECT_ACCESS_RESPONSE] true -> <+signed_by(/users/privacy_operations_lead.id)> true)`; `always([+APPROVE_DATA_SUBJECT_ACCESS_RESPONSE] true -> always([-UNAUTHORIZED_PERSONAL_DATA_DISCLOSURE] true))` |
 | "Consent revocation processing approval requires consent governance owner signature and blocks continued processing after withdrawal" | `always([+APPROVE_CONSENT_REVOCATION_PROCESSING] true -> <+signed_by(/users/consent_governance_owner.id)> true)`; `always([+APPROVE_CONSENT_REVOCATION_PROCESSING] true -> always([-CONTINUED_PROCESSING_AFTER_WITHDRAWAL] true))` |
+| "Cross-border data transfer approval requires privacy counsel signature and blocks unlawful jurisdiction transfer" | `always([+APPROVE_CROSS_BORDER_DATA_TRANSFER] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_CROSS_BORDER_DATA_TRANSFER] true -> always([-UNLAWFUL_JURISDICTION_TRANSFER] true))` |
+| "Processor subprocesser approval requires vendor risk owner signature and blocks unvetted subprocesser access" | `always([+APPROVE_PROCESSOR_SUBPROCESSER] true -> <+signed_by(/users/vendor_risk_owner.id)> true)`; `always([+APPROVE_PROCESSOR_SUBPROCESSER] true -> always([-UNVETTED_SUBPROCESSER_ACCESS] true))` |
 
 ## Output Format
 
@@ -12061,6 +12063,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CONSENT_REVOCATION_PROCESSING] true -> always([-CONTINUED_PROCESSING_AFTER_WITHDRAWAL] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_cross_border_subprocesser_governance_patterns() {
+        let prompt = generate_prompt("Cross-border transfer and subprocesser controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CROSS_BORDER_DATA_TRANSFER] true -> <+signed_by(/users/privacy_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CROSS_BORDER_DATA_TRANSFER] true -> always([-UNLAWFUL_JURISDICTION_TRANSFER] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PROCESSOR_SUBPROCESSER] true -> <+signed_by(/users/vendor_risk_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PROCESSOR_SUBPROCESSER] true -> always([-UNVETTED_SUBPROCESSER_ACCESS] true))"
         ));
     }
 }
