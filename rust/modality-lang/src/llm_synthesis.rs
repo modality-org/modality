@@ -285,6 +285,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Data classification label change approval requires information governance lead signature and blocks misclassified regulated data" | `always([+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE] true -> <+signed_by(/users/information_governance_lead.id)> true)`; `always([+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE] true -> always([-MISCLASSIFIED_REGULATED_DATA] true))` |
 | "Retention schedule change approval requires records manager signature and blocks premature record deletion" | `always([+APPROVE_RETENTION_SCHEDULE_CHANGE] true -> <+signed_by(/users/records_manager.id)> true)`; `always([+APPROVE_RETENTION_SCHEDULE_CHANGE] true -> always([-PREMATURE_RECORD_DELETION] true))` |
 | "Legal hold release approval requires counsel signature and blocks spoliation risk" | `always([+APPROVE_LEGAL_HOLD_RELEASE] true -> <+signed_by(/users/counsel.id)> true)`; `always([+APPROVE_LEGAL_HOLD_RELEASE] true -> always([-SPOLIATION_RISK] true))` |
+| "Data subject access response approval requires privacy operations lead signature and blocks unauthorized personal data disclosure" | `always([+APPROVE_DATA_SUBJECT_ACCESS_RESPONSE] true -> <+signed_by(/users/privacy_operations_lead.id)> true)`; `always([+APPROVE_DATA_SUBJECT_ACCESS_RESPONSE] true -> always([-UNAUTHORIZED_PERSONAL_DATA_DISCLOSURE] true))` |
+| "Consent revocation processing approval requires consent governance owner signature and blocks continued processing after withdrawal" | `always([+APPROVE_CONSENT_REVOCATION_PROCESSING] true -> <+signed_by(/users/consent_governance_owner.id)> true)`; `always([+APPROVE_CONSENT_REVOCATION_PROCESSING] true -> always([-CONTINUED_PROCESSING_AFTER_WITHDRAWAL] true))` |
 
 ## Output Format
 
@@ -12041,6 +12043,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_LEGAL_HOLD_RELEASE] true -> always([-SPOLIATION_RISK] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_data_subject_consent_governance_patterns() {
+        let prompt = generate_prompt("Data subject access and consent revocation controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_SUBJECT_ACCESS_RESPONSE] true -> <+signed_by(/users/privacy_operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_SUBJECT_ACCESS_RESPONSE] true -> always([-UNAUTHORIZED_PERSONAL_DATA_DISCLOSURE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CONSENT_REVOCATION_PROCESSING] true -> <+signed_by(/users/consent_governance_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CONSENT_REVOCATION_PROCESSING] true -> always([-CONTINUED_PROCESSING_AFTER_WITHDRAWAL] true))"
         ));
     }
 }
