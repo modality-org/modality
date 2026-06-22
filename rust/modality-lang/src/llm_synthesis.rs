@@ -379,6 +379,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Option exercise processing approval requires stock plan administrator signature and blocks invalid exercise record" | `always([+APPROVE_OPTION_EXERCISE_PROCESSING] true -> <+signed_by(/users/stock_plan_administrator.id)> true)`; `always([+APPROVE_OPTION_EXERCISE_PROCESSING] true -> always([-INVALID_EXERCISE_RECORD] true))` |
 | "Stock transfer approval requires corporate counsel signature and blocks restricted share transfer" | `always([+APPROVE_STOCK_TRANSFER] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_STOCK_TRANSFER] true -> always([-RESTRICTED_SHARE_TRANSFER] true))` |
 | "Vesting schedule amendment approval requires compensation committee signature and blocks unapproved vesting acceleration" | `always([+APPROVE_VESTING_SCHEDULE_AMENDMENT] true -> <+signed_by(/users/compensation_committee.id)> true)`; `always([+APPROVE_VESTING_SCHEDULE_AMENDMENT] true -> always([-UNAPPROVED_VESTING_ACCELERATION] true))` |
+| "Board consent approval requires corporate secretary signature and blocks unauthorized corporate action" | `always([+APPROVE_BOARD_CONSENT] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_BOARD_CONSENT] true -> always([-UNAUTHORIZED_CORPORATE_ACTION] true))` |
+| "Option pool increase approval requires board chair signature and blocks unapproved dilution" | `always([+APPROVE_OPTION_POOL_INCREASE] true -> <+signed_by(/users/board_chair.id)> true)`; `always([+APPROVE_OPTION_POOL_INCREASE] true -> always([-UNAPPROVED_DILUTION] true))` |
 
 ## Output Format
 
@@ -12983,6 +12985,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_VESTING_SCHEDULE_AMENDMENT] true -> always([-UNAPPROVED_VESTING_ACCELERATION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_board_consent_option_pool_governance_patterns() {
+        let prompt = generate_prompt("Board consent and option pool increase controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_BOARD_CONSENT] true -> <+signed_by(/users/corporate_secretary.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_BOARD_CONSENT] true -> always([-UNAUTHORIZED_CORPORATE_ACTION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_OPTION_POOL_INCREASE] true -> <+signed_by(/users/board_chair.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_OPTION_POOL_INCREASE] true -> always([-UNAPPROVED_DILUTION] true))"
         ));
     }
 }
