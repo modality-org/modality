@@ -387,6 +387,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "409A valuation approval requires finance lead signature and blocks stale valuation grant" | `always([+APPROVE_409A_VALUATION] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_409A_VALUATION] true -> always([-STALE_VALUATION_GRANT] true))` |
 | "Investor information rights approval requires investor relations lead signature and blocks unauthorized financial disclosure" | `always([+APPROVE_INVESTOR_INFORMATION_RIGHTS] true -> <+signed_by(/users/investor_relations_lead.id)> true)`; `always([+APPROVE_INVESTOR_INFORMATION_RIGHTS] true -> always([-UNAUTHORIZED_FINANCIAL_DISCLOSURE] true))` |
 | "Founder share repurchase approval requires corporate counsel signature and blocks invalid repurchase exercise" | `always([+APPROVE_FOUNDER_SHARE_REPURCHASE] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_FOUNDER_SHARE_REPURCHASE] true -> always([-INVALID_REPURCHASE_EXERCISE] true))` |
+| "Secondary share sale approval requires transfer agent signature and blocks unauthorized secondary transfer" | `always([+APPROVE_SECONDARY_SHARE_SALE] true -> <+signed_by(/users/transfer_agent.id)> true)`; `always([+APPROVE_SECONDARY_SHARE_SALE] true -> always([-UNAUTHORIZED_SECONDARY_TRANSFER] true))` |
+| "Liquidation preference amendment approval requires investor counsel signature and blocks unapproved preference change" | `always([+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT] true -> <+signed_by(/users/investor_counsel.id)> true)`; `always([+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT] true -> always([-UNAPPROVED_PREFERENCE_CHANGE] true))` |
 
 ## Output Format
 
@@ -13063,6 +13065,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_FOUNDER_SHARE_REPURCHASE] true -> always([-INVALID_REPURCHASE_EXERCISE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_secondary_preference_governance_patterns() {
+        let prompt = generate_prompt("Secondary share sale and liquidation preference controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_SECONDARY_SHARE_SALE] true -> <+signed_by(/users/transfer_agent.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SECONDARY_SHARE_SALE] true -> always([-UNAUTHORIZED_SECONDARY_TRANSFER] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT] true -> <+signed_by(/users/investor_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT] true -> always([-UNAPPROVED_PREFERENCE_CHANGE] true))"
         ));
     }
 }
