@@ -293,6 +293,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Purpose limitation exception approval requires data governance owner signature and blocks incompatible secondary use" | `always([+APPROVE_PURPOSE_LIMITATION_EXCEPTION] true -> <+signed_by(/users/data_governance_owner.id)> true)`; `always([+APPROVE_PURPOSE_LIMITATION_EXCEPTION] true -> always([-INCOMPATIBLE_SECONDARY_USE] true))` |
 | "Data sharing agreement approval requires data steward signature and blocks unapproved third-party sharing" | `always([+APPROVE_DATA_SHARING_AGREEMENT] true -> <+signed_by(/users/data_steward.id)> true)`; `always([+APPROVE_DATA_SHARING_AGREEMENT] true -> always([-UNAPPROVED_THIRD_PARTY_SHARING] true))` |
 | "Privacy breach notification approval requires privacy incident lead signature and blocks unreported breach" | `always([+APPROVE_PRIVACY_BREACH_NOTIFICATION] true -> <+signed_by(/users/privacy_incident_lead.id)> true)`; `always([+APPROVE_PRIVACY_BREACH_NOTIFICATION] true -> always([-UNREPORTED_BREACH] true))` |
+| "Data deletion request approval requires retention counsel signature and blocks unlawful erasure" | `always([+APPROVE_DATA_DELETION_REQUEST] true -> <+signed_by(/users/retention_counsel.id)> true)`; `always([+APPROVE_DATA_DELETION_REQUEST] true -> always([-UNLAWFUL_ERASURE] true))` |
+| "Automated decisioning policy approval requires algorithmic accountability lead signature and blocks unreviewed profiling" | `always([+APPROVE_AUTOMATED_DECISIONING_POLICY] true -> <+signed_by(/users/algorithmic_accountability_lead.id)> true)`; `always([+APPROVE_AUTOMATED_DECISIONING_POLICY] true -> always([-UNREVIEWED_PROFILING] true))` |
 
 ## Output Format
 
@@ -12121,6 +12123,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_PRIVACY_BREACH_NOTIFICATION] true -> always([-UNREPORTED_BREACH] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_deletion_decisioning_governance_patterns() {
+        let prompt = generate_prompt("Deletion and automated decisioning controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_DELETION_REQUEST] true -> <+signed_by(/users/retention_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_DELETION_REQUEST] true -> always([-UNLAWFUL_ERASURE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AUTOMATED_DECISIONING_POLICY] true -> <+signed_by(/users/algorithmic_accountability_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AUTOMATED_DECISIONING_POLICY] true -> always([-UNREVIEWED_PROFILING] true))"
         ));
     }
 }
