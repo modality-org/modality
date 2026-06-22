@@ -329,6 +329,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "AI safety waiver approval requires responsible AI committee signature and blocks unmitigated high severity safety risk" | `always([+APPROVE_AI_SAFETY_WAIVER] true -> <+signed_by(/users/responsible_ai_committee.id)> true)`; `always([+APPROVE_AI_SAFETY_WAIVER] true -> always([-UNMITIGATED_HIGH_SEVERITY_SAFETY_RISK] true))` |
 | "Model decommission approval requires AI operations owner signature and blocks orphaned production dependency" | `always([+APPROVE_MODEL_DECOMMISSION] true -> <+signed_by(/users/ai_operations_owner.id)> true)`; `always([+APPROVE_MODEL_DECOMMISSION] true -> always([-ORPHANED_PRODUCTION_DEPENDENCY] true))` |
 | "Training data removal approval requires data rights officer signature and blocks retained revoked training record" | `always([+APPROVE_TRAINING_DATA_REMOVAL] true -> <+signed_by(/users/data_rights_officer.id)> true)`; `always([+APPROVE_TRAINING_DATA_REMOVAL] true -> always([-RETAINED_REVOKED_TRAINING_RECORD] true))` |
+| "AI usage policy exception approval requires AI compliance owner signature and blocks prohibited use case" | `always([+APPROVE_AI_USAGE_POLICY_EXCEPTION] true -> <+signed_by(/users/ai_compliance_owner.id)> true)`; `always([+APPROVE_AI_USAGE_POLICY_EXCEPTION] true -> always([-PROHIBITED_USE_CASE] true))` |
+| "Model output quarantine release approval requires trust and safety reviewer signature and blocks harmful content release" | `always([+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE] true -> <+signed_by(/users/trust_and_safety_reviewer.id)> true)`; `always([+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE] true -> always([-HARMFUL_CONTENT_RELEASE] true))` |
 
 ## Output Format
 
@@ -12481,6 +12483,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_TRAINING_DATA_REMOVAL] true -> always([-RETAINED_REVOKED_TRAINING_RECORD] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_usage_policy_quarantine_governance_patterns() {
+        let prompt = generate_prompt("AI usage policy and output quarantine controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_USAGE_POLICY_EXCEPTION] true -> <+signed_by(/users/ai_compliance_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_USAGE_POLICY_EXCEPTION] true -> always([-PROHIBITED_USE_CASE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE] true -> <+signed_by(/users/trust_and_safety_reviewer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE] true -> always([-HARMFUL_CONTENT_RELEASE] true))"
         ));
     }
 }
