@@ -377,6 +377,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "SAFE note issuance approval requires board designee signature and blocks unauthorized financing instrument" | `always([+APPROVE_SAFE_NOTE_ISSUANCE] true -> <+signed_by(/users/board_designee.id)> true)`; `always([+APPROVE_SAFE_NOTE_ISSUANCE] true -> always([-UNAUTHORIZED_FINANCING_INSTRUMENT] true))` |
 | "Equity grant approval requires board administrator signature and blocks unauthorized equity award" | `always([+APPROVE_EQUITY_GRANT] true -> <+signed_by(/users/board_administrator.id)> true)`; `always([+APPROVE_EQUITY_GRANT] true -> always([-UNAUTHORIZED_EQUITY_AWARD] true))` |
 | "Option exercise processing approval requires stock plan administrator signature and blocks invalid exercise record" | `always([+APPROVE_OPTION_EXERCISE_PROCESSING] true -> <+signed_by(/users/stock_plan_administrator.id)> true)`; `always([+APPROVE_OPTION_EXERCISE_PROCESSING] true -> always([-INVALID_EXERCISE_RECORD] true))` |
+| "Stock transfer approval requires corporate counsel signature and blocks restricted share transfer" | `always([+APPROVE_STOCK_TRANSFER] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_STOCK_TRANSFER] true -> always([-RESTRICTED_SHARE_TRANSFER] true))` |
+| "Vesting schedule amendment approval requires compensation committee signature and blocks unapproved vesting acceleration" | `always([+APPROVE_VESTING_SCHEDULE_AMENDMENT] true -> <+signed_by(/users/compensation_committee.id)> true)`; `always([+APPROVE_VESTING_SCHEDULE_AMENDMENT] true -> always([-UNAPPROVED_VESTING_ACCELERATION] true))` |
 
 ## Output Format
 
@@ -12963,6 +12965,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_OPTION_EXERCISE_PROCESSING] true -> always([-INVALID_EXERCISE_RECORD] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_stock_transfer_vesting_governance_patterns() {
+        let prompt = generate_prompt("Stock transfer and vesting amendment controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_STOCK_TRANSFER] true -> <+signed_by(/users/corporate_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_STOCK_TRANSFER] true -> always([-RESTRICTED_SHARE_TRANSFER] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_VESTING_SCHEDULE_AMENDMENT] true -> <+signed_by(/users/compensation_committee.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_VESTING_SCHEDULE_AMENDMENT] true -> always([-UNAPPROVED_VESTING_ACCELERATION] true))"
         ));
     }
 }
