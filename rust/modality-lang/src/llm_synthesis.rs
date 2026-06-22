@@ -347,6 +347,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Model evaluation benchmark update approval requires evaluation lead signature and blocks unvalidated benchmark substitution" | `always([+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE] true -> <+signed_by(/users/evaluation_lead.id)> true)`; `always([+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE] true -> always([-UNVALIDATED_BENCHMARK_SUBSTITUTION] true))` |
 | "AI audit trail amendment approval requires AI compliance lead signature and blocks tampered decision history" | `always([+APPROVE_AI_AUDIT_TRAIL_AMENDMENT] true -> <+signed_by(/users/ai_compliance_lead.id)> true)`; `always([+APPROVE_AI_AUDIT_TRAIL_AMENDMENT] true -> always([-TAMPERED_DECISION_HISTORY] true))` |
 | "Training consent withdrawal approval requires data protection officer signature and blocks retained revoked subject data" | `always([+APPROVE_TRAINING_CONSENT_WITHDRAWAL] true -> <+signed_by(/users/data_protection_officer.id)> true)`; `always([+APPROVE_TRAINING_CONSENT_WITHDRAWAL] true -> always([-RETAINED_REVOKED_SUBJECT_DATA] true))` |
+| "AI transparency notice approval requires responsible AI communications lead signature and blocks undisclosed automated decision notice" | `always([+APPROVE_AI_TRANSPARENCY_NOTICE] true -> <+signed_by(/users/responsible_ai_communications_lead.id)> true)`; `always([+APPROVE_AI_TRANSPARENCY_NOTICE] true -> always([-UNDISCLOSED_AUTOMATED_DECISION_NOTICE] true))` |
+| "AI decision appeal workflow approval requires accountability officer signature and blocks unavailable human review path" | `always([+APPROVE_AI_DECISION_APPEAL_WORKFLOW] true -> <+signed_by(/users/accountability_officer.id)> true)`; `always([+APPROVE_AI_DECISION_APPEAL_WORKFLOW] true -> always([-UNAVAILABLE_HUMAN_REVIEW_PATH] true))` |
 
 ## Output Format
 
@@ -12662,6 +12664,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_TRAINING_CONSENT_WITHDRAWAL] true -> always([-RETAINED_REVOKED_SUBJECT_DATA] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_transparency_appeal_governance_patterns() {
+        let prompt = generate_prompt("AI transparency notice and decision appeal controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_TRANSPARENCY_NOTICE] true -> <+signed_by(/users/responsible_ai_communications_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_TRANSPARENCY_NOTICE] true -> always([-UNDISCLOSED_AUTOMATED_DECISION_NOTICE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_DECISION_APPEAL_WORKFLOW] true -> <+signed_by(/users/accountability_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_DECISION_APPEAL_WORKFLOW] true -> always([-UNAVAILABLE_HUMAN_REVIEW_PATH] true))"
         ));
     }
 }
