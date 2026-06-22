@@ -291,6 +291,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Processor subprocesser approval requires vendor risk owner signature and blocks unvetted subprocesser access" | `always([+APPROVE_PROCESSOR_SUBPROCESSER] true -> <+signed_by(/users/vendor_risk_owner.id)> true)`; `always([+APPROVE_PROCESSOR_SUBPROCESSER] true -> always([-UNVETTED_SUBPROCESSER_ACCESS] true))` |
 | "Data minimization exception approval requires privacy architect signature and blocks excessive data collection" | `always([+APPROVE_DATA_MINIMIZATION_EXCEPTION] true -> <+signed_by(/users/privacy_architect.id)> true)`; `always([+APPROVE_DATA_MINIMIZATION_EXCEPTION] true -> always([-EXCESSIVE_DATA_COLLECTION] true))` |
 | "Purpose limitation exception approval requires data governance owner signature and blocks incompatible secondary use" | `always([+APPROVE_PURPOSE_LIMITATION_EXCEPTION] true -> <+signed_by(/users/data_governance_owner.id)> true)`; `always([+APPROVE_PURPOSE_LIMITATION_EXCEPTION] true -> always([-INCOMPATIBLE_SECONDARY_USE] true))` |
+| "Data sharing agreement approval requires data steward signature and blocks unapproved third-party sharing" | `always([+APPROVE_DATA_SHARING_AGREEMENT] true -> <+signed_by(/users/data_steward.id)> true)`; `always([+APPROVE_DATA_SHARING_AGREEMENT] true -> always([-UNAPPROVED_THIRD_PARTY_SHARING] true))` |
+| "Privacy breach notification approval requires privacy incident lead signature and blocks unreported breach" | `always([+APPROVE_PRIVACY_BREACH_NOTIFICATION] true -> <+signed_by(/users/privacy_incident_lead.id)> true)`; `always([+APPROVE_PRIVACY_BREACH_NOTIFICATION] true -> always([-UNREPORTED_BREACH] true))` |
 
 ## Output Format
 
@@ -12101,6 +12103,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_PURPOSE_LIMITATION_EXCEPTION] true -> always([-INCOMPATIBLE_SECONDARY_USE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_data_sharing_breach_governance_patterns() {
+        let prompt = generate_prompt("Data sharing and privacy breach controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_SHARING_AGREEMENT] true -> <+signed_by(/users/data_steward.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_SHARING_AGREEMENT] true -> always([-UNAPPROVED_THIRD_PARTY_SHARING] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PRIVACY_BREACH_NOTIFICATION] true -> <+signed_by(/users/privacy_incident_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PRIVACY_BREACH_NOTIFICATION] true -> always([-UNREPORTED_BREACH] true))"
         ));
     }
 }
