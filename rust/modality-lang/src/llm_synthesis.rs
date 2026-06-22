@@ -261,6 +261,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Status page update approval requires support lead signature and blocks inaccurate service status" | `always([+APPROVE_STATUS_PAGE_UPDATE] true -> <+signed_by(/users/support_lead.id)> true)`; `always([+APPROVE_STATUS_PAGE_UPDATE] true -> always([-INACCURATE_SERVICE_STATUS] true))` |
 | "Dependency upgrade approval requires platform security reviewer signature and blocks untested dependency rollout" | `always([+APPROVE_DEPENDENCY_UPGRADE] true -> <+signed_by(/users/platform_security_reviewer.id)> true)`; `always([+APPROVE_DEPENDENCY_UPGRADE] true -> always([-UNTESTED_DEPENDENCY_ROLLOUT] true))` |
 | "Vulnerability exception approval requires security risk owner signature and blocks unbounded exposure acceptance" | `always([+APPROVE_VULNERABILITY_EXCEPTION] true -> <+signed_by(/users/security_risk_owner.id)> true)`; `always([+APPROVE_VULNERABILITY_EXCEPTION] true -> always([-UNBOUNDED_EXPOSURE_ACCEPTANCE] true))` |
+| "API rate limit change approval requires platform operations lead signature and blocks abusive traffic exposure" | `always([+APPROVE_API_RATE_LIMIT_CHANGE] true -> <+signed_by(/users/platform_operations_lead.id)> true)`; `always([+APPROVE_API_RATE_LIMIT_CHANGE] true -> always([-ABUSIVE_TRAFFIC_EXPOSURE] true))` |
+| "Webhook endpoint registration approval requires integration owner signature and blocks unsigned callback delivery" | `always([+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION] true -> <+signed_by(/users/integration_owner.id)> true)`; `always([+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION] true -> always([-UNSIGNED_CALLBACK_DELIVERY] true))` |
 
 ## Output Format
 
@@ -11800,6 +11802,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_VULNERABILITY_EXCEPTION] true -> always([-UNBOUNDED_EXPOSURE_ACCEPTANCE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_api_webhook_governance_patterns() {
+        let prompt = generate_prompt("API rate limit and webhook endpoint controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_API_RATE_LIMIT_CHANGE] true -> <+signed_by(/users/platform_operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_API_RATE_LIMIT_CHANGE] true -> always([-ABUSIVE_TRAFFIC_EXPOSURE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION] true -> <+signed_by(/users/integration_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION] true -> always([-UNSIGNED_CALLBACK_DELIVERY] true))"
         ));
     }
 }
