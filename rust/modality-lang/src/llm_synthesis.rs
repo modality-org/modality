@@ -259,6 +259,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Pager escalation policy change approval requires incident response lead signature and blocks missed critical page" | `always([+APPROVE_PAGER_ESCALATION_POLICY_CHANGE] true -> <+signed_by(/users/incident_response_lead.id)> true)`; `always([+APPROVE_PAGER_ESCALATION_POLICY_CHANGE] true -> always([-MISSED_CRITICAL_PAGE] true))` |
 | "Incident communication approval requires communications lead signature and blocks unapproved customer notice" | `always([+APPROVE_INCIDENT_COMMUNICATION] true -> <+signed_by(/users/communications_lead.id)> true)`; `always([+APPROVE_INCIDENT_COMMUNICATION] true -> always([-UNAPPROVED_CUSTOMER_NOTICE] true))` |
 | "Status page update approval requires support lead signature and blocks inaccurate service status" | `always([+APPROVE_STATUS_PAGE_UPDATE] true -> <+signed_by(/users/support_lead.id)> true)`; `always([+APPROVE_STATUS_PAGE_UPDATE] true -> always([-INACCURATE_SERVICE_STATUS] true))` |
+| "Dependency upgrade approval requires platform security reviewer signature and blocks untested dependency rollout" | `always([+APPROVE_DEPENDENCY_UPGRADE] true -> <+signed_by(/users/platform_security_reviewer.id)> true)`; `always([+APPROVE_DEPENDENCY_UPGRADE] true -> always([-UNTESTED_DEPENDENCY_ROLLOUT] true))` |
+| "Vulnerability exception approval requires security risk owner signature and blocks unbounded exposure acceptance" | `always([+APPROVE_VULNERABILITY_EXCEPTION] true -> <+signed_by(/users/security_risk_owner.id)> true)`; `always([+APPROVE_VULNERABILITY_EXCEPTION] true -> always([-UNBOUNDED_EXPOSURE_ACCEPTANCE] true))` |
 
 ## Output Format
 
@@ -11780,6 +11782,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_STATUS_PAGE_UPDATE] true -> always([-INACCURATE_SERVICE_STATUS] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_dependency_vulnerability_governance_patterns() {
+        let prompt = generate_prompt("Dependency upgrade and vulnerability exception controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_DEPENDENCY_UPGRADE] true -> <+signed_by(/users/platform_security_reviewer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DEPENDENCY_UPGRADE] true -> always([-UNTESTED_DEPENDENCY_ROLLOUT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_VULNERABILITY_EXCEPTION] true -> <+signed_by(/users/security_risk_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_VULNERABILITY_EXCEPTION] true -> always([-UNBOUNDED_EXPOSURE_ACCEPTANCE] true))"
         ));
     }
 }
