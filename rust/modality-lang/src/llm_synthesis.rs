@@ -381,6 +381,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Vesting schedule amendment approval requires compensation committee signature and blocks unapproved vesting acceleration" | `always([+APPROVE_VESTING_SCHEDULE_AMENDMENT] true -> <+signed_by(/users/compensation_committee.id)> true)`; `always([+APPROVE_VESTING_SCHEDULE_AMENDMENT] true -> always([-UNAPPROVED_VESTING_ACCELERATION] true))` |
 | "Board consent approval requires corporate secretary signature and blocks unauthorized corporate action" | `always([+APPROVE_BOARD_CONSENT] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_BOARD_CONSENT] true -> always([-UNAUTHORIZED_CORPORATE_ACTION] true))` |
 | "Option pool increase approval requires board chair signature and blocks unapproved dilution" | `always([+APPROVE_OPTION_POOL_INCREASE] true -> <+signed_by(/users/board_chair.id)> true)`; `always([+APPROVE_OPTION_POOL_INCREASE] true -> always([-UNAPPROVED_DILUTION] true))` |
+| "Bylaws amendment approval requires corporate counsel signature and blocks invalid governance change" | `always([+APPROVE_BYLAWS_AMENDMENT] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_BYLAWS_AMENDMENT] true -> always([-INVALID_GOVERNANCE_CHANGE] true))` |
+| "Board minutes finalization approval requires corporate secretary signature and blocks inaccurate meeting record" | `always([+APPROVE_BOARD_MINUTES_FINALIZATION] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_BOARD_MINUTES_FINALIZATION] true -> always([-INACCURATE_MEETING_RECORD] true))` |
 
 ## Output Format
 
@@ -13003,6 +13005,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_OPTION_POOL_INCREASE] true -> always([-UNAPPROVED_DILUTION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_bylaws_minutes_governance_patterns() {
+        let prompt = generate_prompt("Bylaws amendment and board minutes controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_BYLAWS_AMENDMENT] true -> <+signed_by(/users/corporate_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_BYLAWS_AMENDMENT] true -> always([-INVALID_GOVERNANCE_CHANGE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_BOARD_MINUTES_FINALIZATION] true -> <+signed_by(/users/corporate_secretary.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_BOARD_MINUTES_FINALIZATION] true -> always([-INACCURATE_MEETING_RECORD] true))"
         ));
     }
 }
