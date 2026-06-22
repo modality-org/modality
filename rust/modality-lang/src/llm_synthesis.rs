@@ -365,6 +365,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "AI memory export approval requires privacy operations owner signature and blocks unapproved conversational context disclosure" | `always([+APPROVE_AI_MEMORY_EXPORT] true -> <+signed_by(/users/privacy_operations_owner.id)> true)`; `always([+APPROVE_AI_MEMORY_EXPORT] true -> always([-UNAPPROVED_CONVERSATIONAL_CONTEXT_DISCLOSURE] true))` |
 | "AI agent identity binding approval requires identity governance owner signature and blocks agent impersonation" | `always([+APPROVE_AI_AGENT_IDENTITY_BINDING] true -> <+signed_by(/users/identity_governance_owner.id)> true)`; `always([+APPROVE_AI_AGENT_IDENTITY_BINDING] true -> always([-AGENT_IMPERSONATION] true))` |
 | "Autonomous contract execution approval requires contract controller signature and blocks unreviewed binding commitment" | `always([+APPROVE_AUTONOMOUS_CONTRACT_EXECUTION] true -> <+signed_by(/users/contract_controller.id)> true)`; `always([+APPROVE_AUTONOMOUS_CONTRACT_EXECUTION] true -> always([-UNREVIEWED_BINDING_COMMITMENT] true))` |
+| "Agent negotiation authority approval requires negotiation sponsor signature and blocks unauthorized counterparty commitment" | `always([+APPROVE_AGENT_NEGOTIATION_AUTHORITY] true -> <+signed_by(/users/negotiation_sponsor.id)> true)`; `always([+APPROVE_AGENT_NEGOTIATION_AUTHORITY] true -> always([-UNAUTHORIZED_COUNTERPARTY_COMMITMENT] true))` |
+| "Agent settlement offer approval requires principal approver signature and blocks out of mandate concession" | `always([+APPROVE_AGENT_SETTLEMENT_OFFER] true -> <+signed_by(/users/principal_approver.id)> true)`; `always([+APPROVE_AGENT_SETTLEMENT_OFFER] true -> always([-OUT_OF_MANDATE_CONCESSION] true))` |
 
 ## Output Format
 
@@ -12842,6 +12844,25 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_AUTONOMOUS_CONTRACT_EXECUTION] true -> always([-UNREVIEWED_BINDING_COMMITMENT] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_agent_negotiation_settlement_governance_patterns() {
+        let prompt =
+            generate_prompt("AI agent negotiation authority and settlement offer controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AGENT_NEGOTIATION_AUTHORITY] true -> <+signed_by(/users/negotiation_sponsor.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AGENT_NEGOTIATION_AUTHORITY] true -> always([-UNAUTHORIZED_COUNTERPARTY_COMMITMENT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AGENT_SETTLEMENT_OFFER] true -> <+signed_by(/users/principal_approver.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AGENT_SETTLEMENT_OFFER] true -> always([-OUT_OF_MANDATE_CONCESSION] true))"
         ));
     }
 }
