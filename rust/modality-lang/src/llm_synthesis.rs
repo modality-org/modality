@@ -327,6 +327,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Human oversight exception approval requires AI governance board signature and blocks fully automated high impact decision" | `always([+APPROVE_HUMAN_OVERSIGHT_EXCEPTION] true -> <+signed_by(/users/ai_governance_board.id)> true)`; `always([+APPROVE_HUMAN_OVERSIGHT_EXCEPTION] true -> always([-FULLY_AUTOMATED_HIGH_IMPACT_DECISION] true))` |
 | "Model monitoring threshold approval requires AI reliability lead signature and blocks silent model drift" | `always([+APPROVE_MODEL_MONITORING_THRESHOLD] true -> <+signed_by(/users/ai_reliability_lead.id)> true)`; `always([+APPROVE_MODEL_MONITORING_THRESHOLD] true -> always([-SILENT_MODEL_DRIFT] true))` |
 | "AI safety waiver approval requires responsible AI committee signature and blocks unmitigated high severity safety risk" | `always([+APPROVE_AI_SAFETY_WAIVER] true -> <+signed_by(/users/responsible_ai_committee.id)> true)`; `always([+APPROVE_AI_SAFETY_WAIVER] true -> always([-UNMITIGATED_HIGH_SEVERITY_SAFETY_RISK] true))` |
+| "Model decommission approval requires AI operations owner signature and blocks orphaned production dependency" | `always([+APPROVE_MODEL_DECOMMISSION] true -> <+signed_by(/users/ai_operations_owner.id)> true)`; `always([+APPROVE_MODEL_DECOMMISSION] true -> always([-ORPHANED_PRODUCTION_DEPENDENCY] true))` |
+| "Training data removal approval requires data rights officer signature and blocks retained revoked training record" | `always([+APPROVE_TRAINING_DATA_REMOVAL] true -> <+signed_by(/users/data_rights_officer.id)> true)`; `always([+APPROVE_TRAINING_DATA_REMOVAL] true -> always([-RETAINED_REVOKED_TRAINING_RECORD] true))` |
 
 ## Output Format
 
@@ -12461,6 +12463,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_AI_SAFETY_WAIVER] true -> always([-UNMITIGATED_HIGH_SEVERITY_SAFETY_RISK] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_decommission_training_removal_governance_patterns() {
+        let prompt = generate_prompt("Model decommission and training data removal controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_DECOMMISSION] true -> <+signed_by(/users/ai_operations_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_DECOMMISSION] true -> always([-ORPHANED_PRODUCTION_DEPENDENCY] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TRAINING_DATA_REMOVAL] true -> <+signed_by(/users/data_rights_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TRAINING_DATA_REMOVAL] true -> always([-RETAINED_REVOKED_TRAINING_RECORD] true))"
         ));
     }
 }
