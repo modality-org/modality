@@ -253,6 +253,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Disaster recovery failover activation requires recovery lead signature and blocks untested failover promotion" | `always([+ACTIVATE_DISASTER_RECOVERY_FAILOVER] true -> <+signed_by(/users/recovery_lead.id)> true)`; `always([+ACTIVATE_DISASTER_RECOVERY_FAILOVER] true -> always([-UNTESTED_FAILOVER_PROMOTION] true))` |
 | "Traffic shift approval requires release captain signature and blocks unmonitored production diversion" | `always([+APPROVE_TRAFFIC_SHIFT] true -> <+signed_by(/users/release_captain.id)> true)`; `always([+APPROVE_TRAFFIC_SHIFT] true -> always([-UNMONITORED_PRODUCTION_DIVERSION] true))` |
 | "Chaos experiment authorization requires resilience engineer signature and blocks unsafe fault injection" | `always([+AUTHORIZE_CHAOS_EXPERIMENT] true -> <+signed_by(/users/resilience_engineer.id)> true)`; `always([+AUTHORIZE_CHAOS_EXPERIMENT] true -> always([-UNSAFE_FAULT_INJECTION] true))` |
+| "Canary analysis approval requires release analyst signature and blocks unanalyzed production promotion" | `always([+APPROVE_CANARY_ANALYSIS] true -> <+signed_by(/users/release_analyst.id)> true)`; `always([+APPROVE_CANARY_ANALYSIS] true -> always([-UNANALYZED_PRODUCTION_PROMOTION] true))` |
+| "Synthetic monitor change approval requires observability owner signature and blocks blind availability reporting" | `always([+APPROVE_SYNTHETIC_MONITOR_CHANGE] true -> <+signed_by(/users/observability_owner.id)> true)`; `always([+APPROVE_SYNTHETIC_MONITOR_CHANGE] true -> always([-BLIND_AVAILABILITY_REPORTING] true))` |
 
 ## Output Format
 
@@ -11720,6 +11722,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+AUTHORIZE_CHAOS_EXPERIMENT] true -> always([-UNSAFE_FAULT_INJECTION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_canary_synthetic_monitor_governance_patterns() {
+        let prompt = generate_prompt("Canary analysis and synthetic monitor controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CANARY_ANALYSIS] true -> <+signed_by(/users/release_analyst.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CANARY_ANALYSIS] true -> always([-UNANALYZED_PRODUCTION_PROMOTION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SYNTHETIC_MONITOR_CHANGE] true -> <+signed_by(/users/observability_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SYNTHETIC_MONITOR_CHANGE] true -> always([-BLIND_AVAILABILITY_REPORTING] true))"
         ));
     }
 }
