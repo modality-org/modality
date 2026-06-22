@@ -335,6 +335,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Prompt injection finding closure requires security reviewer signature and blocks unresolved prompt injection exploit" | `always([+CLOSE_PROMPT_INJECTION_FINDING] true -> <+signed_by(/users/security_reviewer.id)> true)`; `always([+CLOSE_PROMPT_INJECTION_FINDING] true -> always([-UNRESOLVED_PROMPT_INJECTION_EXPLOIT] true))` |
 | "AI impact assessment approval requires responsible AI assessor signature and blocks unassessed high impact deployment" | `always([+APPROVE_AI_IMPACT_ASSESSMENT] true -> <+signed_by(/users/responsible_ai_assessor.id)> true)`; `always([+APPROVE_AI_IMPACT_ASSESSMENT] true -> always([-UNASSESSED_HIGH_IMPACT_DEPLOYMENT] true))` |
 | "Model access tier change approval requires AI security owner signature and blocks unauthorized sensitive model access" | `always([+APPROVE_MODEL_ACCESS_TIER_CHANGE] true -> <+signed_by(/users/ai_security_owner.id)> true)`; `always([+APPROVE_MODEL_ACCESS_TIER_CHANGE] true -> always([-UNAUTHORIZED_SENSITIVE_MODEL_ACCESS] true))` |
+| "AI deployment approval requires model release owner signature and blocks unapproved production inference" | `always([+APPROVE_AI_DEPLOYMENT] true -> <+signed_by(/users/model_release_owner.id)> true)`; `always([+APPROVE_AI_DEPLOYMENT] true -> always([-UNAPPROVED_PRODUCTION_INFERENCE] true))` |
+| "AI agent delegation approval requires agent governance lead signature and blocks unsupervised autonomous delegation" | `always([+APPROVE_AI_AGENT_DELEGATION] true -> <+signed_by(/users/agent_governance_lead.id)> true)`; `always([+APPROVE_AI_AGENT_DELEGATION] true -> always([-UNSUPERVISED_AUTONOMOUS_DELEGATION] true))` |
 
 ## Output Format
 
@@ -12541,6 +12543,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_MODEL_ACCESS_TIER_CHANGE] true -> always([-UNAUTHORIZED_SENSITIVE_MODEL_ACCESS] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_deployment_delegation_governance_patterns() {
+        let prompt = generate_prompt("AI deployment and agent delegation controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_DEPLOYMENT] true -> <+signed_by(/users/model_release_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_DEPLOYMENT] true -> always([-UNAPPROVED_PRODUCTION_INFERENCE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_AGENT_DELEGATION] true -> <+signed_by(/users/agent_governance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_AGENT_DELEGATION] true -> always([-UNSUPERVISED_AUTONOMOUS_DELEGATION] true))"
         ));
     }
 }
