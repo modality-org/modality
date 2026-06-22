@@ -301,6 +301,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Processing restriction approval requires privacy operations manager signature and blocks unrestricted contested processing" | `always([+APPROVE_PROCESSING_RESTRICTION] true -> <+signed_by(/users/privacy_operations_manager.id)> true)`; `always([+APPROVE_PROCESSING_RESTRICTION] true -> always([-UNRESTRICTED_CONTESTED_PROCESSING] true))` |
 | "Data retention exception approval requires records counsel signature and blocks indefinite personal data retention" | `always([+APPROVE_DATA_RETENTION_EXCEPTION] true -> <+signed_by(/users/records_counsel.id)> true)`; `always([+APPROVE_DATA_RETENTION_EXCEPTION] true -> always([-INDEFINITE_PERSONAL_DATA_RETENTION] true))` |
 | "Sensitive data processing approval requires privacy review board signature and blocks unapproved special category processing" | `always([+APPROVE_SENSITIVE_DATA_PROCESSING] true -> <+signed_by(/users/privacy_review_board.id)> true)`; `always([+APPROVE_SENSITIVE_DATA_PROCESSING] true -> always([-UNAPPROVED_SPECIAL_CATEGORY_PROCESSING] true))` |
+| "DPIA approval requires privacy risk officer signature and blocks high-risk processing without assessment" | `always([+APPROVE_DPIA] true -> <+signed_by(/users/privacy_risk_officer.id)> true)`; `always([+APPROVE_DPIA] true -> always([-HIGH_RISK_PROCESSING_WITHOUT_ASSESSMENT] true))` |
+| "Privacy remediation closure approval requires data protection officer signature and blocks unresolved privacy risk" | `always([+APPROVE_PRIVACY_REMEDIATION_CLOSURE] true -> <+signed_by(/users/data_protection_officer.id)> true)`; `always([+APPROVE_PRIVACY_REMEDIATION_CLOSURE] true -> always([-UNRESOLVED_PRIVACY_RISK] true))` |
 
 ## Output Format
 
@@ -12201,6 +12203,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_SENSITIVE_DATA_PROCESSING] true -> always([-UNAPPROVED_SPECIAL_CATEGORY_PROCESSING] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_dpia_remediation_governance_patterns() {
+        let prompt = generate_prompt("DPIA and privacy remediation controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_DPIA] true -> <+signed_by(/users/privacy_risk_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DPIA] true -> always([-HIGH_RISK_PROCESSING_WITHOUT_ASSESSMENT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PRIVACY_REMEDIATION_CLOSURE] true -> <+signed_by(/users/data_protection_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PRIVACY_REMEDIATION_CLOSURE] true -> always([-UNRESOLVED_PRIVACY_RISK] true))"
         ));
     }
 }
