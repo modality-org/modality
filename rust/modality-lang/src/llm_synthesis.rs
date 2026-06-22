@@ -407,6 +407,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Indemnity claim settlement approval requires corporate counsel signature and blocks improper escrow release" | `always([+APPROVE_INDEMNITY_CLAIM_SETTLEMENT] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_INDEMNITY_CLAIM_SETTLEMENT] true -> always([-IMPROPER_ESCROW_RELEASE] true))` |
 | "Escrow holdback release approval requires finance lead signature and blocks unresolved purchase price adjustment" | `always([+APPROVE_ESCROW_HOLDBACK_RELEASE] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_ESCROW_HOLDBACK_RELEASE] true -> always([-UNRESOLVED_PURCHASE_PRICE_ADJUSTMENT] true))` |
 | "Representations and warranties disclosure approval requires corporate counsel signature and blocks undisclosed material exception" | `always([+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE] true -> always([-UNDISCLOSED_MATERIAL_EXCEPTION] true))` |
+| "Closing deliverables approval requires corporate secretary signature and blocks missing officer certificate" | `always([+APPROVE_CLOSING_DELIVERABLES] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_CLOSING_DELIVERABLES] true -> always([-MISSING_OFFICER_CERTIFICATE] true))` |
+| "Regulatory filing approval requires corporate counsel signature and blocks late required notice" | `always([+APPROVE_REGULATORY_FILING] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_REGULATORY_FILING] true -> always([-LATE_REQUIRED_NOTICE] true))` |
 
 ## Output Format
 
@@ -13263,6 +13265,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE] true -> always([-UNDISCLOSED_MATERIAL_EXCEPTION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_closing_filing_governance_patterns() {
+        let prompt = generate_prompt("Closing deliverables and regulatory filing controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CLOSING_DELIVERABLES] true -> <+signed_by(/users/corporate_secretary.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CLOSING_DELIVERABLES] true -> always([-MISSING_OFFICER_CERTIFICATE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_REGULATORY_FILING] true -> <+signed_by(/users/corporate_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_REGULATORY_FILING] true -> always([-LATE_REQUIRED_NOTICE] true))"
         ));
     }
 }
