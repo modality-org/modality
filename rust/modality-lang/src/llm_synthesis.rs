@@ -319,6 +319,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "AI agent tool permission approval requires agent safety lead signature and blocks unauthorized tool invocation" | `always([+APPROVE_AI_AGENT_TOOL_PERMISSION] true -> <+signed_by(/users/agent_safety_lead.id)> true)`; `always([+APPROVE_AI_AGENT_TOOL_PERMISSION] true -> always([-UNAUTHORIZED_TOOL_INVOCATION] true))` |
 | "Retrieval corpus update approval requires knowledge steward signature and blocks unvetted source injection" | `always([+APPROVE_RETRIEVAL_CORPUS_UPDATE] true -> <+signed_by(/users/knowledge_steward.id)> true)`; `always([+APPROVE_RETRIEVAL_CORPUS_UPDATE] true -> always([-UNVETTED_SOURCE_INJECTION] true))` |
 | "Embedding index rebuild approval requires AI platform owner signature and blocks stale sensitive vector exposure" | `always([+APPROVE_EMBEDDING_INDEX_REBUILD] true -> <+signed_by(/users/ai_platform_owner.id)> true)`; `always([+APPROVE_EMBEDDING_INDEX_REBUILD] true -> always([-STALE_SENSITIVE_VECTOR_EXPOSURE] true))` |
+| "Vector store access approval requires data access steward signature and blocks unauthorized semantic search" | `always([+APPROVE_VECTOR_STORE_ACCESS] true -> <+signed_by(/users/data_access_steward.id)> true)`; `always([+APPROVE_VECTOR_STORE_ACCESS] true -> always([-UNAUTHORIZED_SEMANTIC_SEARCH] true))` |
+| "AI memory retention policy approval requires privacy counsel signature and blocks undeclared long term context storage" | `always([+APPROVE_AI_MEMORY_RETENTION_POLICY] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_AI_MEMORY_RETENTION_POLICY] true -> always([-UNDECLARED_LONG_TERM_CONTEXT_STORAGE] true))` |
 
 ## Output Format
 
@@ -12381,6 +12383,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_EMBEDDING_INDEX_REBUILD] true -> always([-STALE_SENSITIVE_VECTOR_EXPOSURE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_vector_store_memory_governance_patterns() {
+        let prompt = generate_prompt("Vector store access and AI memory retention controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_VECTOR_STORE_ACCESS] true -> <+signed_by(/users/data_access_steward.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_VECTOR_STORE_ACCESS] true -> always([-UNAUTHORIZED_SEMANTIC_SEARCH] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_MEMORY_RETENTION_POLICY] true -> <+signed_by(/users/privacy_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_MEMORY_RETENTION_POLICY] true -> always([-UNDECLARED_LONG_TERM_CONTEXT_STORAGE] true))"
         ));
     }
 }
