@@ -271,6 +271,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "SCIM provisioning rule approval requires directory administrator signature and blocks orphaned account activation" | `always([+APPROVE_SCIM_PROVISIONING_RULE] true -> <+signed_by(/users/directory_administrator.id)> true)`; `always([+APPROVE_SCIM_PROVISIONING_RULE] true -> always([-ORPHANED_ACCOUNT_ACTIVATION] true))` |
 | "OIDC token exchange policy approval requires identity protocol owner signature and blocks audience confusion" | `always([+APPROVE_OIDC_TOKEN_EXCHANGE_POLICY] true -> <+signed_by(/users/identity_protocol_owner.id)> true)`; `always([+APPROVE_OIDC_TOKEN_EXCHANGE_POLICY] true -> always([-AUDIENCE_CONFUSION] true))` |
 | "MFA recovery exception approval requires account security lead signature and blocks unverified factor reset" | `always([+APPROVE_MFA_RECOVERY_EXCEPTION] true -> <+signed_by(/users/account_security_lead.id)> true)`; `always([+APPROVE_MFA_RECOVERY_EXCEPTION] true -> always([-UNVERIFIED_FACTOR_RESET] true))` |
+| "Passkey attestation policy approval requires identity assurance lead signature and blocks untrusted authenticator enrollment" | `always([+APPROVE_PASSKEY_ATTESTATION_POLICY] true -> <+signed_by(/users/identity_assurance_lead.id)> true)`; `always([+APPROVE_PASSKEY_ATTESTATION_POLICY] true -> always([-UNTRUSTED_AUTHENTICATOR_ENROLLMENT] true))` |
+| "Privileged access exception approval requires access governance owner signature and blocks standing admin access" | `always([+APPROVE_PRIVILEGED_ACCESS_EXCEPTION] true -> <+signed_by(/users/access_governance_owner.id)> true)`; `always([+APPROVE_PRIVILEGED_ACCESS_EXCEPTION] true -> always([-STANDING_ADMIN_ACCESS] true))` |
 
 ## Output Format
 
@@ -11900,6 +11902,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_MFA_RECOVERY_EXCEPTION] true -> always([-UNVERIFIED_FACTOR_RESET] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_passkey_privileged_access_governance_patterns() {
+        let prompt = generate_prompt("Passkey attestation and privileged access controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_PASSKEY_ATTESTATION_POLICY] true -> <+signed_by(/users/identity_assurance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PASSKEY_ATTESTATION_POLICY] true -> always([-UNTRUSTED_AUTHENTICATOR_ENROLLMENT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PRIVILEGED_ACCESS_EXCEPTION] true -> <+signed_by(/users/access_governance_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PRIVILEGED_ACCESS_EXCEPTION] true -> always([-STANDING_ADMIN_ACCESS] true))"
         ));
     }
 }
