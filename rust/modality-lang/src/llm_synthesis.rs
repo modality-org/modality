@@ -317,6 +317,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "AI incident response approval requires responsible AI officer signature and blocks untriaged model harm report" | `always([+APPROVE_AI_INCIDENT_RESPONSE] true -> <+signed_by(/users/responsible_ai_officer.id)> true)`; `always([+APPROVE_AI_INCIDENT_RESPONSE] true -> always([-UNTRIAGED_MODEL_HARM_REPORT] true))` |
 | "Model fine tuning job approval requires ML platform owner signature and blocks unapproved model adaptation" | `always([+APPROVE_MODEL_FINE_TUNING_JOB] true -> <+signed_by(/users/ml_platform_owner.id)> true)`; `always([+APPROVE_MODEL_FINE_TUNING_JOB] true -> always([-UNAPPROVED_MODEL_ADAPTATION] true))` |
 | "AI agent tool permission approval requires agent safety lead signature and blocks unauthorized tool invocation" | `always([+APPROVE_AI_AGENT_TOOL_PERMISSION] true -> <+signed_by(/users/agent_safety_lead.id)> true)`; `always([+APPROVE_AI_AGENT_TOOL_PERMISSION] true -> always([-UNAUTHORIZED_TOOL_INVOCATION] true))` |
+| "Retrieval corpus update approval requires knowledge steward signature and blocks unvetted source injection" | `always([+APPROVE_RETRIEVAL_CORPUS_UPDATE] true -> <+signed_by(/users/knowledge_steward.id)> true)`; `always([+APPROVE_RETRIEVAL_CORPUS_UPDATE] true -> always([-UNVETTED_SOURCE_INJECTION] true))` |
+| "Embedding index rebuild approval requires AI platform owner signature and blocks stale sensitive vector exposure" | `always([+APPROVE_EMBEDDING_INDEX_REBUILD] true -> <+signed_by(/users/ai_platform_owner.id)> true)`; `always([+APPROVE_EMBEDDING_INDEX_REBUILD] true -> always([-STALE_SENSITIVE_VECTOR_EXPOSURE] true))` |
 
 ## Output Format
 
@@ -12361,6 +12363,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_AI_AGENT_TOOL_PERMISSION] true -> always([-UNAUTHORIZED_TOOL_INVOCATION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_retrieval_embedding_governance_patterns() {
+        let prompt = generate_prompt("Retrieval corpus and embedding index controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_RETRIEVAL_CORPUS_UPDATE] true -> <+signed_by(/users/knowledge_steward.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_RETRIEVAL_CORPUS_UPDATE] true -> always([-UNVETTED_SOURCE_INJECTION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_EMBEDDING_INDEX_REBUILD] true -> <+signed_by(/users/ai_platform_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_EMBEDDING_INDEX_REBUILD] true -> always([-STALE_SENSITIVE_VECTOR_EXPOSURE] true))"
         ));
     }
 }
