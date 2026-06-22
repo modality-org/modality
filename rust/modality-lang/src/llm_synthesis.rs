@@ -307,6 +307,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Data anonymization release approval requires privacy engineer signature and blocks reidentifiable dataset publication" | `always([+APPROVE_DATA_ANONYMIZATION_RELEASE] true -> <+signed_by(/users/privacy_engineer.id)> true)`; `always([+APPROVE_DATA_ANONYMIZATION_RELEASE] true -> always([-REIDENTIFIABLE_DATASET_PUBLICATION] true))` |
 | "Data subject identity verification approval requires privacy operations lead signature and blocks unauthorized rights request fulfillment" | `always([+APPROVE_DATA_SUBJECT_IDENTITY_VERIFICATION] true -> <+signed_by(/users/privacy_operations_lead.id)> true)`; `always([+APPROVE_DATA_SUBJECT_IDENTITY_VERIFICATION] true -> always([-UNAUTHORIZED_RIGHTS_REQUEST_FULFILLMENT] true))` |
 | "Cookie consent configuration approval requires privacy product counsel signature and blocks noncompliant tracking activation" | `always([+APPROVE_COOKIE_CONSENT_CONFIGURATION] true -> <+signed_by(/users/privacy_product_counsel.id)> true)`; `always([+APPROVE_COOKIE_CONSENT_CONFIGURATION] true -> always([-NONCOMPLIANT_TRACKING_ACTIVATION] true))` |
+| "Data lineage correction approval requires data governance lead signature and blocks untraceable data provenance" | `always([+APPROVE_DATA_LINEAGE_CORRECTION] true -> <+signed_by(/users/data_governance_lead.id)> true)`; `always([+APPROVE_DATA_LINEAGE_CORRECTION] true -> always([-UNTRACEABLE_DATA_PROVENANCE] true))` |
+| "Synthetic data release approval requires model risk owner signature and blocks production data leakage" | `always([+APPROVE_SYNTHETIC_DATA_RELEASE] true -> <+signed_by(/users/model_risk_owner.id)> true)`; `always([+APPROVE_SYNTHETIC_DATA_RELEASE] true -> always([-PRODUCTION_DATA_LEAKAGE] true))` |
 
 ## Output Format
 
@@ -12261,6 +12263,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_COOKIE_CONSENT_CONFIGURATION] true -> always([-NONCOMPLIANT_TRACKING_ACTIVATION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_lineage_synthetic_data_governance_patterns() {
+        let prompt = generate_prompt("Data lineage and synthetic data controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_LINEAGE_CORRECTION] true -> <+signed_by(/users/data_governance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_LINEAGE_CORRECTION] true -> always([-UNTRACEABLE_DATA_PROVENANCE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SYNTHETIC_DATA_RELEASE] true -> <+signed_by(/users/model_risk_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SYNTHETIC_DATA_RELEASE] true -> always([-PRODUCTION_DATA_LEAKAGE] true))"
         ));
     }
 }
