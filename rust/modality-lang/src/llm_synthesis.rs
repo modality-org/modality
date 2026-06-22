@@ -399,6 +399,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Convertible note conversion approval requires finance lead signature and blocks incorrect conversion calculation" | `always([+APPROVE_CONVERTIBLE_NOTE_CONVERSION] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_CONVERTIBLE_NOTE_CONVERSION] true -> always([-INCORRECT_CONVERSION_CALCULATION] true))` |
 | "Warrant exercise approval requires corporate counsel signature and blocks invalid warrant exercise" | `always([+APPROVE_WARRANT_EXERCISE] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_WARRANT_EXERCISE] true -> always([-INVALID_WARRANT_EXERCISE] true))` |
 | "Investor consent solicitation approval requires corporate secretary signature and blocks defective consent notice" | `always([+APPROVE_INVESTOR_CONSENT_SOLICITATION] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_INVESTOR_CONSENT_SOLICITATION] true -> always([-DEFECTIVE_CONSENT_NOTICE] true))` |
+| "Side letter approval requires corporate counsel signature and blocks undisclosed investor preference" | `always([+APPROVE_SIDE_LETTER] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_SIDE_LETTER] true -> always([-UNDISCLOSED_INVESTOR_PREFERENCE] true))` |
+| "Information memorandum distribution approval requires fundraising owner signature and blocks misleading investor material" | `always([+APPROVE_INFORMATION_MEMORANDUM_DISTRIBUTION] true -> <+signed_by(/users/fundraising_owner.id)> true)`; `always([+APPROVE_INFORMATION_MEMORANDUM_DISTRIBUTION] true -> always([-MISLEADING_INVESTOR_MATERIAL] true))` |
 
 ## Output Format
 
@@ -13183,6 +13185,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_INVESTOR_CONSENT_SOLICITATION] true -> always([-DEFECTIVE_CONSENT_NOTICE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_side_letter_information_memorandum_governance_patterns() {
+        let prompt = generate_prompt("Side letter and information memorandum controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_SIDE_LETTER] true -> <+signed_by(/users/corporate_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SIDE_LETTER] true -> always([-UNDISCLOSED_INVESTOR_PREFERENCE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_INFORMATION_MEMORANDUM_DISTRIBUTION] true -> <+signed_by(/users/fundraising_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_INFORMATION_MEMORANDUM_DISTRIBUTION] true -> always([-MISLEADING_INVESTOR_MATERIAL] true))"
         ));
     }
 }
