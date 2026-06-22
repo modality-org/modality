@@ -351,6 +351,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "AI decision appeal workflow approval requires accountability officer signature and blocks unavailable human review path" | `always([+APPROVE_AI_DECISION_APPEAL_WORKFLOW] true -> <+signed_by(/users/accountability_officer.id)> true)`; `always([+APPROVE_AI_DECISION_APPEAL_WORKFLOW] true -> always([-UNAVAILABLE_HUMAN_REVIEW_PATH] true))` |
 | "AI fairness remediation approval requires fairness reviewer signature and blocks unresolved disparate impact" | `always([+APPROVE_AI_FAIRNESS_REMEDIATION] true -> <+signed_by(/users/fairness_reviewer.id)> true)`; `always([+APPROVE_AI_FAIRNESS_REMEDIATION] true -> always([-UNRESOLVED_DISPARATE_IMPACT] true))` |
 | "Model use limitation update approval requires responsible AI owner signature and blocks out of scope model use" | `always([+APPROVE_MODEL_USE_LIMITATION_UPDATE] true -> <+signed_by(/users/responsible_ai_owner.id)> true)`; `always([+APPROVE_MODEL_USE_LIMITATION_UPDATE] true -> always([-OUT_OF_SCOPE_MODEL_USE] true))` |
+| "AI evaluation dataset approval requires evaluation steward signature and blocks contaminated test data use" | `always([+APPROVE_AI_EVALUATION_DATASET] true -> <+signed_by(/users/evaluation_steward.id)> true)`; `always([+APPROVE_AI_EVALUATION_DATASET] true -> always([-CONTAMINATED_TEST_DATA_USE] true))` |
+| "AI provenance watermark policy approval requires content authenticity lead signature and blocks unverifiable synthetic media distribution" | `always([+APPROVE_AI_PROVENANCE_WATERMARK_POLICY] true -> <+signed_by(/users/content_authenticity_lead.id)> true)`; `always([+APPROVE_AI_PROVENANCE_WATERMARK_POLICY] true -> always([-UNVERIFIABLE_SYNTHETIC_MEDIA_DISTRIBUTION] true))` |
 
 ## Output Format
 
@@ -12702,6 +12704,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_MODEL_USE_LIMITATION_UPDATE] true -> always([-OUT_OF_SCOPE_MODEL_USE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_evaluation_provenance_governance_patterns() {
+        let prompt = generate_prompt("AI evaluation dataset and provenance watermark controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_EVALUATION_DATASET] true -> <+signed_by(/users/evaluation_steward.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_EVALUATION_DATASET] true -> always([-CONTAMINATED_TEST_DATA_USE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_PROVENANCE_WATERMARK_POLICY] true -> <+signed_by(/users/content_authenticity_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_PROVENANCE_WATERMARK_POLICY] true -> always([-UNVERIFIABLE_SYNTHETIC_MEDIA_DISTRIBUTION] true))"
         ));
     }
 }
