@@ -405,6 +405,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Acquisition term acceptance approval requires board chair signature and blocks unauthorized change of control" | `always([+APPROVE_ACQUISITION_TERM_ACCEPTANCE] true -> <+signed_by(/users/board_chair.id)> true)`; `always([+APPROVE_ACQUISITION_TERM_ACCEPTANCE] true -> always([-UNAUTHORIZED_CHANGE_OF_CONTROL] true))` |
 | "Merger closing approval requires board chair signature and blocks unapproved merger consummation" | `always([+APPROVE_MERGER_CLOSING] true -> <+signed_by(/users/board_chair.id)> true)`; `always([+APPROVE_MERGER_CLOSING] true -> always([-UNAPPROVED_MERGER_CONSUMMATION] true))` |
 | "Indemnity claim settlement approval requires corporate counsel signature and blocks improper escrow release" | `always([+APPROVE_INDEMNITY_CLAIM_SETTLEMENT] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_INDEMNITY_CLAIM_SETTLEMENT] true -> always([-IMPROPER_ESCROW_RELEASE] true))` |
+| "Escrow holdback release approval requires finance lead signature and blocks unresolved purchase price adjustment" | `always([+APPROVE_ESCROW_HOLDBACK_RELEASE] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_ESCROW_HOLDBACK_RELEASE] true -> always([-UNRESOLVED_PURCHASE_PRICE_ADJUSTMENT] true))` |
+| "Representations and warranties disclosure approval requires corporate counsel signature and blocks undisclosed material exception" | `always([+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE] true -> always([-UNDISCLOSED_MATERIAL_EXCEPTION] true))` |
 
 ## Output Format
 
@@ -13243,6 +13245,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_INDEMNITY_CLAIM_SETTLEMENT] true -> always([-IMPROPER_ESCROW_RELEASE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_escrow_representations_governance_patterns() {
+        let prompt = generate_prompt("Escrow holdback and representations disclosure controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_ESCROW_HOLDBACK_RELEASE] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_ESCROW_HOLDBACK_RELEASE] true -> always([-UNRESOLVED_PURCHASE_PRICE_ADJUSTMENT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE] true -> <+signed_by(/users/corporate_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE] true -> always([-UNDISCLOSED_MATERIAL_EXCEPTION] true))"
         ));
     }
 }
