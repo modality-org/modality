@@ -277,6 +277,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Device compliance exception approval requires endpoint security owner signature and blocks unmanaged device access" | `always([+APPROVE_DEVICE_COMPLIANCE_EXCEPTION] true -> <+signed_by(/users/endpoint_security_owner.id)> true)`; `always([+APPROVE_DEVICE_COMPLIANCE_EXCEPTION] true -> always([-UNMANAGED_DEVICE_ACCESS] true))` |
 | "Conditional access rule approval requires zero trust architect signature and blocks bypassed location policy" | `always([+APPROVE_CONDITIONAL_ACCESS_RULE] true -> <+signed_by(/users/zero_trust_architect.id)> true)`; `always([+APPROVE_CONDITIONAL_ACCESS_RULE] true -> always([-BYPASSED_LOCATION_POLICY] true))` |
 | "Identity risk threshold change approval requires fraud security lead signature and blocks undetected risky sign-in" | `always([+APPROVE_IDENTITY_RISK_THRESHOLD_CHANGE] true -> <+signed_by(/users/fraud_security_lead.id)> true)`; `always([+APPROVE_IDENTITY_RISK_THRESHOLD_CHANGE] true -> always([-UNDETECTED_RISKY_SIGN_IN] true))` |
+| "Session token binding policy approval requires application security architect signature and blocks bearer token replay" | `always([+APPROVE_SESSION_TOKEN_BINDING_POLICY] true -> <+signed_by(/users/application_security_architect.id)> true)`; `always([+APPROVE_SESSION_TOKEN_BINDING_POLICY] true -> always([-BEARER_TOKEN_REPLAY] true))` |
+| "Browser isolation exception approval requires enterprise security owner signature and blocks unmanaged web session exposure" | `always([+APPROVE_BROWSER_ISOLATION_EXCEPTION] true -> <+signed_by(/users/enterprise_security_owner.id)> true)`; `always([+APPROVE_BROWSER_ISOLATION_EXCEPTION] true -> always([-UNMANAGED_WEB_SESSION_EXPOSURE] true))` |
 
 ## Output Format
 
@@ -11961,6 +11963,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_IDENTITY_RISK_THRESHOLD_CHANGE] true -> always([-UNDETECTED_RISKY_SIGN_IN] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_token_binding_browser_isolation_governance_patterns() {
+        let prompt = generate_prompt("Session token binding and browser isolation controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_SESSION_TOKEN_BINDING_POLICY] true -> <+signed_by(/users/application_security_architect.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SESSION_TOKEN_BINDING_POLICY] true -> always([-BEARER_TOKEN_REPLAY] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_BROWSER_ISOLATION_EXCEPTION] true -> <+signed_by(/users/enterprise_security_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_BROWSER_ISOLATION_EXCEPTION] true -> always([-UNMANAGED_WEB_SESSION_EXPOSURE] true))"
         ));
     }
 }
