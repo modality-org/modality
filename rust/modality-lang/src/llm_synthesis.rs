@@ -265,6 +265,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Webhook endpoint registration approval requires integration owner signature and blocks unsigned callback delivery" | `always([+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION] true -> <+signed_by(/users/integration_owner.id)> true)`; `always([+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION] true -> always([-UNSIGNED_CALLBACK_DELIVERY] true))` |
 | "Authentication policy change approval requires identity platform owner signature and blocks weakened login assurance" | `always([+APPROVE_AUTHENTICATION_POLICY_CHANGE] true -> <+signed_by(/users/identity_platform_owner.id)> true)`; `always([+APPROVE_AUTHENTICATION_POLICY_CHANGE] true -> always([-WEAKENED_LOGIN_ASSURANCE] true))` |
 | "Session lifetime exception approval requires security operations lead signature and blocks stale session persistence" | `always([+APPROVE_SESSION_LIFETIME_EXCEPTION] true -> <+signed_by(/users/security_operations_lead.id)> true)`; `always([+APPROVE_SESSION_LIFETIME_EXCEPTION] true -> always([-STALE_SESSION_PERSISTENCE] true))` |
+| "OAuth client registration approval requires identity security reviewer signature and blocks unreviewed redirect target" | `always([+APPROVE_OAUTH_CLIENT_REGISTRATION] true -> <+signed_by(/users/identity_security_reviewer.id)> true)`; `always([+APPROVE_OAUTH_CLIENT_REGISTRATION] true -> always([-UNREVIEWED_REDIRECT_TARGET] true))` |
+| "API key rotation approval requires service owner signature and blocks stale credential exposure" | `always([+APPROVE_API_KEY_ROTATION] true -> <+signed_by(/users/service_owner.id)> true)`; `always([+APPROVE_API_KEY_ROTATION] true -> always([-STALE_CREDENTIAL_EXPOSURE] true))` |
 
 ## Output Format
 
@@ -11840,6 +11842,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_SESSION_LIFETIME_EXCEPTION] true -> always([-STALE_SESSION_PERSISTENCE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_oauth_api_key_governance_patterns() {
+        let prompt = generate_prompt("OAuth client registration and API key rotation controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_OAUTH_CLIENT_REGISTRATION] true -> <+signed_by(/users/identity_security_reviewer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_OAUTH_CLIENT_REGISTRATION] true -> always([-UNREVIEWED_REDIRECT_TARGET] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_API_KEY_ROTATION] true -> <+signed_by(/users/service_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_API_KEY_ROTATION] true -> always([-STALE_CREDENTIAL_EXPOSURE] true))"
         ));
     }
 }
