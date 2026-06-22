@@ -275,6 +275,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Privileged access exception approval requires access governance owner signature and blocks standing admin access" | `always([+APPROVE_PRIVILEGED_ACCESS_EXCEPTION] true -> <+signed_by(/users/access_governance_owner.id)> true)`; `always([+APPROVE_PRIVILEGED_ACCESS_EXCEPTION] true -> always([-STANDING_ADMIN_ACCESS] true))` |
 | "Phishing-resistant login policy approval requires authentication architect signature and blocks password-only fallback" | `always([+APPROVE_PHISHING_RESISTANT_LOGIN_POLICY] true -> <+signed_by(/users/authentication_architect.id)> true)`; `always([+APPROVE_PHISHING_RESISTANT_LOGIN_POLICY] true -> always([-PASSWORD_ONLY_FALLBACK] true))` |
 | "Device compliance exception approval requires endpoint security owner signature and blocks unmanaged device access" | `always([+APPROVE_DEVICE_COMPLIANCE_EXCEPTION] true -> <+signed_by(/users/endpoint_security_owner.id)> true)`; `always([+APPROVE_DEVICE_COMPLIANCE_EXCEPTION] true -> always([-UNMANAGED_DEVICE_ACCESS] true))` |
+| "Conditional access rule approval requires zero trust architect signature and blocks bypassed location policy" | `always([+APPROVE_CONDITIONAL_ACCESS_RULE] true -> <+signed_by(/users/zero_trust_architect.id)> true)`; `always([+APPROVE_CONDITIONAL_ACCESS_RULE] true -> always([-BYPASSED_LOCATION_POLICY] true))` |
+| "Identity risk threshold change approval requires fraud security lead signature and blocks undetected risky sign-in" | `always([+APPROVE_IDENTITY_RISK_THRESHOLD_CHANGE] true -> <+signed_by(/users/fraud_security_lead.id)> true)`; `always([+APPROVE_IDENTITY_RISK_THRESHOLD_CHANGE] true -> always([-UNDETECTED_RISKY_SIGN_IN] true))` |
 
 ## Output Format
 
@@ -11941,6 +11943,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_DEVICE_COMPLIANCE_EXCEPTION] true -> always([-UNMANAGED_DEVICE_ACCESS] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_conditional_access_identity_risk_governance_patterns() {
+        let prompt = generate_prompt("Conditional access and identity risk controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CONDITIONAL_ACCESS_RULE] true -> <+signed_by(/users/zero_trust_architect.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CONDITIONAL_ACCESS_RULE] true -> always([-BYPASSED_LOCATION_POLICY] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_IDENTITY_RISK_THRESHOLD_CHANGE] true -> <+signed_by(/users/fraud_security_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_IDENTITY_RISK_THRESHOLD_CHANGE] true -> always([-UNDETECTED_RISKY_SIGN_IN] true))"
         ));
     }
 }
