@@ -281,6 +281,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Browser isolation exception approval requires enterprise security owner signature and blocks unmanaged web session exposure" | `always([+APPROVE_BROWSER_ISOLATION_EXCEPTION] true -> <+signed_by(/users/enterprise_security_owner.id)> true)`; `always([+APPROVE_BROWSER_ISOLATION_EXCEPTION] true -> always([-UNMANAGED_WEB_SESSION_EXPOSURE] true))` |
 | "ZTNA policy change approval requires network security architect signature and blocks broad private network exposure" | `always([+APPROVE_ZTNA_POLICY_CHANGE] true -> <+signed_by(/users/network_security_architect.id)> true)`; `always([+APPROVE_ZTNA_POLICY_CHANGE] true -> always([-BROAD_PRIVATE_NETWORK_EXPOSURE] true))` |
 | "DLP exception approval requires data security officer signature and blocks unsanctioned sensitive data egress" | `always([+APPROVE_DLP_EXCEPTION] true -> <+signed_by(/users/data_security_officer.id)> true)`; `always([+APPROVE_DLP_EXCEPTION] true -> always([-UNSANCTIONED_SENSITIVE_DATA_EGRESS] true))` |
+| "CASB policy exception approval requires cloud security owner signature and blocks shadow SaaS usage" | `always([+APPROVE_CASB_POLICY_EXCEPTION] true -> <+signed_by(/users/cloud_security_owner.id)> true)`; `always([+APPROVE_CASB_POLICY_EXCEPTION] true -> always([-SHADOW_SAAS_USAGE] true))` |
+| "Data classification label change approval requires information governance lead signature and blocks misclassified regulated data" | `always([+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE] true -> <+signed_by(/users/information_governance_lead.id)> true)`; `always([+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE] true -> always([-MISCLASSIFIED_REGULATED_DATA] true))` |
 
 ## Output Format
 
@@ -12001,6 +12003,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_DLP_EXCEPTION] true -> always([-UNSANCTIONED_SENSITIVE_DATA_EGRESS] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_casb_data_classification_governance_patterns() {
+        let prompt = generate_prompt("CASB and data classification controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CASB_POLICY_EXCEPTION] true -> <+signed_by(/users/cloud_security_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CASB_POLICY_EXCEPTION] true -> always([-SHADOW_SAAS_USAGE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE] true -> <+signed_by(/users/information_governance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE] true -> always([-MISCLASSIFIED_REGULATED_DATA] true))"
         ));
     }
 }
