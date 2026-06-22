@@ -289,6 +289,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Consent revocation processing approval requires consent governance owner signature and blocks continued processing after withdrawal" | `always([+APPROVE_CONSENT_REVOCATION_PROCESSING] true -> <+signed_by(/users/consent_governance_owner.id)> true)`; `always([+APPROVE_CONSENT_REVOCATION_PROCESSING] true -> always([-CONTINUED_PROCESSING_AFTER_WITHDRAWAL] true))` |
 | "Cross-border data transfer approval requires privacy counsel signature and blocks unlawful jurisdiction transfer" | `always([+APPROVE_CROSS_BORDER_DATA_TRANSFER] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_CROSS_BORDER_DATA_TRANSFER] true -> always([-UNLAWFUL_JURISDICTION_TRANSFER] true))` |
 | "Processor subprocesser approval requires vendor risk owner signature and blocks unvetted subprocesser access" | `always([+APPROVE_PROCESSOR_SUBPROCESSER] true -> <+signed_by(/users/vendor_risk_owner.id)> true)`; `always([+APPROVE_PROCESSOR_SUBPROCESSER] true -> always([-UNVETTED_SUBPROCESSER_ACCESS] true))` |
+| "Data minimization exception approval requires privacy architect signature and blocks excessive data collection" | `always([+APPROVE_DATA_MINIMIZATION_EXCEPTION] true -> <+signed_by(/users/privacy_architect.id)> true)`; `always([+APPROVE_DATA_MINIMIZATION_EXCEPTION] true -> always([-EXCESSIVE_DATA_COLLECTION] true))` |
+| "Purpose limitation exception approval requires data governance owner signature and blocks incompatible secondary use" | `always([+APPROVE_PURPOSE_LIMITATION_EXCEPTION] true -> <+signed_by(/users/data_governance_owner.id)> true)`; `always([+APPROVE_PURPOSE_LIMITATION_EXCEPTION] true -> always([-INCOMPATIBLE_SECONDARY_USE] true))` |
 
 ## Output Format
 
@@ -12081,6 +12083,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_PROCESSOR_SUBPROCESSER] true -> always([-UNVETTED_SUBPROCESSER_ACCESS] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_minimization_purpose_governance_patterns() {
+        let prompt = generate_prompt("Data minimization and purpose limitation controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_MINIMIZATION_EXCEPTION] true -> <+signed_by(/users/privacy_architect.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_MINIMIZATION_EXCEPTION] true -> always([-EXCESSIVE_DATA_COLLECTION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PURPOSE_LIMITATION_EXCEPTION] true -> <+signed_by(/users/data_governance_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PURPOSE_LIMITATION_EXCEPTION] true -> always([-INCOMPATIBLE_SECONDARY_USE] true))"
         ));
     }
 }
