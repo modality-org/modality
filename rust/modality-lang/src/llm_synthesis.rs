@@ -325,6 +325,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "AI red team finding closure requires model risk owner signature and blocks unresolved critical model weakness" | `always([+CLOSE_AI_RED_TEAM_FINDING] true -> <+signed_by(/users/model_risk_owner.id)> true)`; `always([+CLOSE_AI_RED_TEAM_FINDING] true -> always([-UNRESOLVED_CRITICAL_MODEL_WEAKNESS] true))` |
 | "Model card publication approval requires responsible AI documentation lead signature and blocks undocumented model limitation" | `always([+APPROVE_MODEL_CARD_PUBLICATION] true -> <+signed_by(/users/responsible_ai_documentation_lead.id)> true)`; `always([+APPROVE_MODEL_CARD_PUBLICATION] true -> always([-UNDOCUMENTED_MODEL_LIMITATION] true))` |
 | "Human oversight exception approval requires AI governance board signature and blocks fully automated high impact decision" | `always([+APPROVE_HUMAN_OVERSIGHT_EXCEPTION] true -> <+signed_by(/users/ai_governance_board.id)> true)`; `always([+APPROVE_HUMAN_OVERSIGHT_EXCEPTION] true -> always([-FULLY_AUTOMATED_HIGH_IMPACT_DECISION] true))` |
+| "Model monitoring threshold approval requires AI reliability lead signature and blocks silent model drift" | `always([+APPROVE_MODEL_MONITORING_THRESHOLD] true -> <+signed_by(/users/ai_reliability_lead.id)> true)`; `always([+APPROVE_MODEL_MONITORING_THRESHOLD] true -> always([-SILENT_MODEL_DRIFT] true))` |
+| "AI safety waiver approval requires responsible AI committee signature and blocks unmitigated high severity safety risk" | `always([+APPROVE_AI_SAFETY_WAIVER] true -> <+signed_by(/users/responsible_ai_committee.id)> true)`; `always([+APPROVE_AI_SAFETY_WAIVER] true -> always([-UNMITIGATED_HIGH_SEVERITY_SAFETY_RISK] true))` |
 
 ## Output Format
 
@@ -12441,6 +12443,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_HUMAN_OVERSIGHT_EXCEPTION] true -> always([-FULLY_AUTOMATED_HIGH_IMPACT_DECISION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_monitoring_safety_waiver_governance_patterns() {
+        let prompt = generate_prompt("Model monitoring and AI safety waiver controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_MONITORING_THRESHOLD] true -> <+signed_by(/users/ai_reliability_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_MONITORING_THRESHOLD] true -> always([-SILENT_MODEL_DRIFT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_SAFETY_WAIVER] true -> <+signed_by(/users/responsible_ai_committee.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_SAFETY_WAIVER] true -> always([-UNMITIGATED_HIGH_SEVERITY_SAFETY_RISK] true))"
         ));
     }
 }
