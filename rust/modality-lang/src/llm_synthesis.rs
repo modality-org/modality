@@ -371,6 +371,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Investor data room release approval requires fundraising owner signature and blocks unapproved confidential disclosure" | `always([+APPROVE_INVESTOR_DATA_ROOM_RELEASE] true -> <+signed_by(/users/fundraising_owner.id)> true)`; `always([+APPROVE_INVESTOR_DATA_ROOM_RELEASE] true -> always([-UNAPPROVED_CONFIDENTIAL_DISCLOSURE] true))` |
 | "Pitch deck publication approval requires fundraising owner signature and blocks unapproved public fundraising material" | `always([+APPROVE_PITCH_DECK_PUBLICATION] true -> <+signed_by(/users/fundraising_owner.id)> true)`; `always([+APPROVE_PITCH_DECK_PUBLICATION] true -> always([-UNAPPROVED_PUBLIC_FUNDRAISING_MATERIAL] true))` |
 | "Investor diligence response approval requires legal reviewer signature and blocks inaccurate diligence representation" | `always([+APPROVE_INVESTOR_DILIGENCE_RESPONSE] true -> <+signed_by(/users/legal_reviewer.id)> true)`; `always([+APPROVE_INVESTOR_DILIGENCE_RESPONSE] true -> always([-INACCURATE_DILIGENCE_REPRESENTATION] true))` |
+| "Term sheet circulation approval requires board observer signature and blocks unapproved valuation term disclosure" | `always([+APPROVE_TERM_SHEET_CIRCULATION] true -> <+signed_by(/users/board_observer.id)> true)`; `always([+APPROVE_TERM_SHEET_CIRCULATION] true -> always([-UNAPPROVED_VALUATION_TERM_DISCLOSURE] true))` |
+| "Investor update publication approval requires finance lead signature and blocks inaccurate runway statement" | `always([+APPROVE_INVESTOR_UPDATE_PUBLICATION] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_INVESTOR_UPDATE_PUBLICATION] true -> always([-INACCURATE_RUNWAY_STATEMENT] true))` |
 
 ## Output Format
 
@@ -12903,6 +12905,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_INVESTOR_DILIGENCE_RESPONSE] true -> always([-INACCURATE_DILIGENCE_REPRESENTATION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_term_sheet_update_governance_patterns() {
+        let prompt = generate_prompt("Term sheet circulation and investor update controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_TERM_SHEET_CIRCULATION] true -> <+signed_by(/users/board_observer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TERM_SHEET_CIRCULATION] true -> always([-UNAPPROVED_VALUATION_TERM_DISCLOSURE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_INVESTOR_UPDATE_PUBLICATION] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_INVESTOR_UPDATE_PUBLICATION] true -> always([-INACCURATE_RUNWAY_STATEMENT] true))"
         ));
     }
 }
