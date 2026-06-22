@@ -257,6 +257,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Synthetic monitor change approval requires observability owner signature and blocks blind availability reporting" | `always([+APPROVE_SYNTHETIC_MONITOR_CHANGE] true -> <+signed_by(/users/observability_owner.id)> true)`; `always([+APPROVE_SYNTHETIC_MONITOR_CHANGE] true -> always([-BLIND_AVAILABILITY_REPORTING] true))` |
 | "On-call rotation change approval requires reliability manager signature and blocks unowned incident coverage" | `always([+APPROVE_ON_CALL_ROTATION_CHANGE] true -> <+signed_by(/users/reliability_manager.id)> true)`; `always([+APPROVE_ON_CALL_ROTATION_CHANGE] true -> always([-UNOWNED_INCIDENT_COVERAGE] true))` |
 | "Pager escalation policy change approval requires incident response lead signature and blocks missed critical page" | `always([+APPROVE_PAGER_ESCALATION_POLICY_CHANGE] true -> <+signed_by(/users/incident_response_lead.id)> true)`; `always([+APPROVE_PAGER_ESCALATION_POLICY_CHANGE] true -> always([-MISSED_CRITICAL_PAGE] true))` |
+| "Incident communication approval requires communications lead signature and blocks unapproved customer notice" | `always([+APPROVE_INCIDENT_COMMUNICATION] true -> <+signed_by(/users/communications_lead.id)> true)`; `always([+APPROVE_INCIDENT_COMMUNICATION] true -> always([-UNAPPROVED_CUSTOMER_NOTICE] true))` |
+| "Status page update approval requires support lead signature and blocks inaccurate service status" | `always([+APPROVE_STATUS_PAGE_UPDATE] true -> <+signed_by(/users/support_lead.id)> true)`; `always([+APPROVE_STATUS_PAGE_UPDATE] true -> always([-INACCURATE_SERVICE_STATUS] true))` |
 
 ## Output Format
 
@@ -11760,6 +11762,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_PAGER_ESCALATION_POLICY_CHANGE] true -> always([-MISSED_CRITICAL_PAGE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_incident_status_governance_patterns() {
+        let prompt = generate_prompt("Incident communication and status page controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_INCIDENT_COMMUNICATION] true -> <+signed_by(/users/communications_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_INCIDENT_COMMUNICATION] true -> always([-UNAPPROVED_CUSTOMER_NOTICE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_STATUS_PAGE_UPDATE] true -> <+signed_by(/users/support_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_STATUS_PAGE_UPDATE] true -> always([-INACCURATE_SERVICE_STATUS] true))"
         ));
     }
 }
