@@ -391,6 +391,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Liquidation preference amendment approval requires investor counsel signature and blocks unapproved preference change" | `always([+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT] true -> <+signed_by(/users/investor_counsel.id)> true)`; `always([+APPROVE_LIQUIDATION_PREFERENCE_AMENDMENT] true -> always([-UNAPPROVED_PREFERENCE_CHANGE] true))` |
 | "Pro rata rights waiver approval requires investor relations lead signature and blocks improper allocation reduction" | `always([+APPROVE_PRO_RATA_RIGHTS_WAIVER] true -> <+signed_by(/users/investor_relations_lead.id)> true)`; `always([+APPROVE_PRO_RATA_RIGHTS_WAIVER] true -> always([-IMPROPER_ALLOCATION_REDUCTION] true))` |
 | "Board observer appointment approval requires corporate secretary signature and blocks unauthorized observer access" | `always([+APPROVE_BOARD_OBSERVER_APPOINTMENT] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_BOARD_OBSERVER_APPOINTMENT] true -> always([-UNAUTHORIZED_OBSERVER_ACCESS] true))` |
+| "Protective provision waiver approval requires investor counsel signature and blocks unconsented major action" | `always([+APPROVE_PROTECTIVE_PROVISION_WAIVER] true -> <+signed_by(/users/investor_counsel.id)> true)`; `always([+APPROVE_PROTECTIVE_PROVISION_WAIVER] true -> always([-UNCONSENTED_MAJOR_ACTION] true))` |
+| "Right of first refusal exercise approval requires corporate counsel signature and blocks missed transfer right" | `always([+APPROVE_RIGHT_OF_FIRST_REFUSAL_EXERCISE] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_RIGHT_OF_FIRST_REFUSAL_EXERCISE] true -> always([-MISSED_TRANSFER_RIGHT] true))` |
 
 ## Output Format
 
@@ -13103,6 +13105,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_BOARD_OBSERVER_APPOINTMENT] true -> always([-UNAUTHORIZED_OBSERVER_ACCESS] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_protective_rofr_governance_patterns() {
+        let prompt = generate_prompt("Protective provision waiver and ROFR controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_PROTECTIVE_PROVISION_WAIVER] true -> <+signed_by(/users/investor_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PROTECTIVE_PROVISION_WAIVER] true -> always([-UNCONSENTED_MAJOR_ACTION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_RIGHT_OF_FIRST_REFUSAL_EXERCISE] true -> <+signed_by(/users/corporate_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_RIGHT_OF_FIRST_REFUSAL_EXERCISE] true -> always([-MISSED_TRANSFER_RIGHT] true))"
         ));
     }
 }
