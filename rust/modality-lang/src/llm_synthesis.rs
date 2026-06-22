@@ -403,6 +403,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Information memorandum distribution approval requires fundraising owner signature and blocks misleading investor material" | `always([+APPROVE_INFORMATION_MEMORANDUM_DISTRIBUTION] true -> <+signed_by(/users/fundraising_owner.id)> true)`; `always([+APPROVE_INFORMATION_MEMORANDUM_DISTRIBUTION] true -> always([-MISLEADING_INVESTOR_MATERIAL] true))` |
 | "Financing closing approval requires corporate secretary signature and blocks premature share issuance" | `always([+APPROVE_FINANCING_CLOSING] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_FINANCING_CLOSING] true -> always([-PREMATURE_SHARE_ISSUANCE] true))` |
 | "Acquisition term acceptance approval requires board chair signature and blocks unauthorized change of control" | `always([+APPROVE_ACQUISITION_TERM_ACCEPTANCE] true -> <+signed_by(/users/board_chair.id)> true)`; `always([+APPROVE_ACQUISITION_TERM_ACCEPTANCE] true -> always([-UNAUTHORIZED_CHANGE_OF_CONTROL] true))` |
+| "Merger closing approval requires board chair signature and blocks unapproved merger consummation" | `always([+APPROVE_MERGER_CLOSING] true -> <+signed_by(/users/board_chair.id)> true)`; `always([+APPROVE_MERGER_CLOSING] true -> always([-UNAPPROVED_MERGER_CONSUMMATION] true))` |
+| "Indemnity claim settlement approval requires corporate counsel signature and blocks improper escrow release" | `always([+APPROVE_INDEMNITY_CLAIM_SETTLEMENT] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_INDEMNITY_CLAIM_SETTLEMENT] true -> always([-IMPROPER_ESCROW_RELEASE] true))` |
 
 ## Output Format
 
@@ -13223,6 +13225,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_ACQUISITION_TERM_ACCEPTANCE] true -> always([-UNAUTHORIZED_CHANGE_OF_CONTROL] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_merger_indemnity_governance_patterns() {
+        let prompt = generate_prompt("Merger closing and indemnity settlement controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_MERGER_CLOSING] true -> <+signed_by(/users/board_chair.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MERGER_CLOSING] true -> always([-UNAPPROVED_MERGER_CONSUMMATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_INDEMNITY_CLAIM_SETTLEMENT] true -> <+signed_by(/users/corporate_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_INDEMNITY_CLAIM_SETTLEMENT] true -> always([-IMPROPER_ESCROW_RELEASE] true))"
         ));
     }
 }
