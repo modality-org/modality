@@ -363,6 +363,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Autonomous agent tool budget increase approval requires agent operations owner signature and blocks unbounded tool spend" | `always([+APPROVE_AUTONOMOUS_AGENT_TOOL_BUDGET_INCREASE] true -> <+signed_by(/users/agent_operations_owner.id)> true)`; `always([+APPROVE_AUTONOMOUS_AGENT_TOOL_BUDGET_INCREASE] true -> always([-UNBOUNDED_TOOL_SPEND] true))` |
 | "AI agent capability grant approval requires agent security owner signature and blocks unauthorized privileged tool use" | `always([+APPROVE_AI_AGENT_CAPABILITY_GRANT] true -> <+signed_by(/users/agent_security_owner.id)> true)`; `always([+APPROVE_AI_AGENT_CAPABILITY_GRANT] true -> always([-UNAUTHORIZED_PRIVILEGED_TOOL_USE] true))` |
 | "AI memory export approval requires privacy operations owner signature and blocks unapproved conversational context disclosure" | `always([+APPROVE_AI_MEMORY_EXPORT] true -> <+signed_by(/users/privacy_operations_owner.id)> true)`; `always([+APPROVE_AI_MEMORY_EXPORT] true -> always([-UNAPPROVED_CONVERSATIONAL_CONTEXT_DISCLOSURE] true))` |
+| "AI agent identity binding approval requires identity governance owner signature and blocks agent impersonation" | `always([+APPROVE_AI_AGENT_IDENTITY_BINDING] true -> <+signed_by(/users/identity_governance_owner.id)> true)`; `always([+APPROVE_AI_AGENT_IDENTITY_BINDING] true -> always([-AGENT_IMPERSONATION] true))` |
+| "Autonomous contract execution approval requires contract controller signature and blocks unreviewed binding commitment" | `always([+APPROVE_AUTONOMOUS_CONTRACT_EXECUTION] true -> <+signed_by(/users/contract_controller.id)> true)`; `always([+APPROVE_AUTONOMOUS_CONTRACT_EXECUTION] true -> always([-UNREVIEWED_BINDING_COMMITMENT] true))` |
 
 ## Output Format
 
@@ -12822,6 +12824,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_AI_MEMORY_EXPORT] true -> always([-UNAPPROVED_CONVERSATIONAL_CONTEXT_DISCLOSURE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_agent_identity_contract_execution_governance_patterns() {
+        let prompt = generate_prompt("AI agent identity binding and contract execution controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_AGENT_IDENTITY_BINDING] true -> <+signed_by(/users/identity_governance_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_AGENT_IDENTITY_BINDING] true -> always([-AGENT_IMPERSONATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AUTONOMOUS_CONTRACT_EXECUTION] true -> <+signed_by(/users/contract_controller.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AUTONOMOUS_CONTRACT_EXECUTION] true -> always([-UNREVIEWED_BINDING_COMMITMENT] true))"
         ));
     }
 }
