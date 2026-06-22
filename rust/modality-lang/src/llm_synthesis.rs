@@ -383,6 +383,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Option pool increase approval requires board chair signature and blocks unapproved dilution" | `always([+APPROVE_OPTION_POOL_INCREASE] true -> <+signed_by(/users/board_chair.id)> true)`; `always([+APPROVE_OPTION_POOL_INCREASE] true -> always([-UNAPPROVED_DILUTION] true))` |
 | "Bylaws amendment approval requires corporate counsel signature and blocks invalid governance change" | `always([+APPROVE_BYLAWS_AMENDMENT] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_BYLAWS_AMENDMENT] true -> always([-INVALID_GOVERNANCE_CHANGE] true))` |
 | "Board minutes finalization approval requires corporate secretary signature and blocks inaccurate meeting record" | `always([+APPROVE_BOARD_MINUTES_FINALIZATION] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_BOARD_MINUTES_FINALIZATION] true -> always([-INACCURATE_MEETING_RECORD] true))` |
+| "Shareholder approval requires corporate secretary signature and blocks unauthorized shareholder action" | `always([+APPROVE_SHAREHOLDER_ACTION] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_SHAREHOLDER_ACTION] true -> always([-UNAUTHORIZED_SHAREHOLDER_ACTION] true))` |
+| "409A valuation approval requires finance lead signature and blocks stale valuation grant" | `always([+APPROVE_409A_VALUATION] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_409A_VALUATION] true -> always([-STALE_VALUATION_GRANT] true))` |
 
 ## Output Format
 
@@ -13023,6 +13025,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_BOARD_MINUTES_FINALIZATION] true -> always([-INACCURATE_MEETING_RECORD] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_shareholder_valuation_governance_patterns() {
+        let prompt = generate_prompt("Shareholder action and 409A valuation controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_SHAREHOLDER_ACTION] true -> <+signed_by(/users/corporate_secretary.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SHAREHOLDER_ACTION] true -> always([-UNAUTHORIZED_SHAREHOLDER_ACTION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_409A_VALUATION] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_409A_VALUATION] true -> always([-STALE_VALUATION_GRANT] true))"
         ));
     }
 }
