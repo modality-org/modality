@@ -395,6 +395,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Right of first refusal exercise approval requires corporate counsel signature and blocks missed transfer right" | `always([+APPROVE_RIGHT_OF_FIRST_REFUSAL_EXERCISE] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_RIGHT_OF_FIRST_REFUSAL_EXERCISE] true -> always([-MISSED_TRANSFER_RIGHT] true))` |
 | "Drag along notice approval requires corporate secretary signature and blocks invalid forced sale" | `always([+APPROVE_DRAG_ALONG_NOTICE] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_DRAG_ALONG_NOTICE] true -> always([-INVALID_FORCED_SALE] true))` |
 | "Preemptive rights allocation approval requires investor relations lead signature and blocks excluded eligible investor" | `always([+APPROVE_PREEMPTIVE_RIGHTS_ALLOCATION] true -> <+signed_by(/users/investor_relations_lead.id)> true)`; `always([+APPROVE_PREEMPTIVE_RIGHTS_ALLOCATION] true -> always([-EXCLUDED_ELIGIBLE_INVESTOR] true))` |
+| "Co-sale participation approval requires corporate counsel signature and blocks omitted eligible co-seller" | `always([+APPROVE_CO_SALE_PARTICIPATION] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_CO_SALE_PARTICIPATION] true -> always([-OMITTED_ELIGIBLE_CO_SELLER] true))` |
+| "Convertible note conversion approval requires finance lead signature and blocks incorrect conversion calculation" | `always([+APPROVE_CONVERTIBLE_NOTE_CONVERSION] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_CONVERTIBLE_NOTE_CONVERSION] true -> always([-INCORRECT_CONVERSION_CALCULATION] true))` |
 
 ## Output Format
 
@@ -13143,6 +13145,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_PREEMPTIVE_RIGHTS_ALLOCATION] true -> always([-EXCLUDED_ELIGIBLE_INVESTOR] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_co_sale_conversion_governance_patterns() {
+        let prompt = generate_prompt("Co-sale participation and convertible note controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CO_SALE_PARTICIPATION] true -> <+signed_by(/users/corporate_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CO_SALE_PARTICIPATION] true -> always([-OMITTED_ELIGIBLE_CO_SELLER] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CONVERTIBLE_NOTE_CONVERSION] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CONVERTIBLE_NOTE_CONVERSION] true -> always([-INCORRECT_CONVERSION_CALCULATION] true))"
         ));
     }
 }
