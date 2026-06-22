@@ -321,6 +321,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Embedding index rebuild approval requires AI platform owner signature and blocks stale sensitive vector exposure" | `always([+APPROVE_EMBEDDING_INDEX_REBUILD] true -> <+signed_by(/users/ai_platform_owner.id)> true)`; `always([+APPROVE_EMBEDDING_INDEX_REBUILD] true -> always([-STALE_SENSITIVE_VECTOR_EXPOSURE] true))` |
 | "Vector store access approval requires data access steward signature and blocks unauthorized semantic search" | `always([+APPROVE_VECTOR_STORE_ACCESS] true -> <+signed_by(/users/data_access_steward.id)> true)`; `always([+APPROVE_VECTOR_STORE_ACCESS] true -> always([-UNAUTHORIZED_SEMANTIC_SEARCH] true))` |
 | "AI memory retention policy approval requires privacy counsel signature and blocks undeclared long term context storage" | `always([+APPROVE_AI_MEMORY_RETENTION_POLICY] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_AI_MEMORY_RETENTION_POLICY] true -> always([-UNDECLARED_LONG_TERM_CONTEXT_STORAGE] true))` |
+| "AI guardrail policy change approval requires safety reviewer signature and blocks unreviewed safety bypass" | `always([+APPROVE_AI_GUARDRAIL_POLICY_CHANGE] true -> <+signed_by(/users/safety_reviewer.id)> true)`; `always([+APPROVE_AI_GUARDRAIL_POLICY_CHANGE] true -> always([-UNREVIEWED_SAFETY_BYPASS] true))` |
+| "AI red team finding closure requires model risk owner signature and blocks unresolved critical model weakness" | `always([+CLOSE_AI_RED_TEAM_FINDING] true -> <+signed_by(/users/model_risk_owner.id)> true)`; `always([+CLOSE_AI_RED_TEAM_FINDING] true -> always([-UNRESOLVED_CRITICAL_MODEL_WEAKNESS] true))` |
 
 ## Output Format
 
@@ -12401,6 +12403,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_AI_MEMORY_RETENTION_POLICY] true -> always([-UNDECLARED_LONG_TERM_CONTEXT_STORAGE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_guardrail_red_team_governance_patterns() {
+        let prompt = generate_prompt("AI guardrail and red team finding controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_GUARDRAIL_POLICY_CHANGE] true -> <+signed_by(/users/safety_reviewer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_GUARDRAIL_POLICY_CHANGE] true -> always([-UNREVIEWED_SAFETY_BYPASS] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+CLOSE_AI_RED_TEAM_FINDING] true -> <+signed_by(/users/model_risk_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+CLOSE_AI_RED_TEAM_FINDING] true -> always([-UNRESOLVED_CRITICAL_MODEL_WEAKNESS] true))"
         ));
     }
 }
