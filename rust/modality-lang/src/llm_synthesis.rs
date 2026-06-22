@@ -255,6 +255,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Chaos experiment authorization requires resilience engineer signature and blocks unsafe fault injection" | `always([+AUTHORIZE_CHAOS_EXPERIMENT] true -> <+signed_by(/users/resilience_engineer.id)> true)`; `always([+AUTHORIZE_CHAOS_EXPERIMENT] true -> always([-UNSAFE_FAULT_INJECTION] true))` |
 | "Canary analysis approval requires release analyst signature and blocks unanalyzed production promotion" | `always([+APPROVE_CANARY_ANALYSIS] true -> <+signed_by(/users/release_analyst.id)> true)`; `always([+APPROVE_CANARY_ANALYSIS] true -> always([-UNANALYZED_PRODUCTION_PROMOTION] true))` |
 | "Synthetic monitor change approval requires observability owner signature and blocks blind availability reporting" | `always([+APPROVE_SYNTHETIC_MONITOR_CHANGE] true -> <+signed_by(/users/observability_owner.id)> true)`; `always([+APPROVE_SYNTHETIC_MONITOR_CHANGE] true -> always([-BLIND_AVAILABILITY_REPORTING] true))` |
+| "On-call rotation change approval requires reliability manager signature and blocks unowned incident coverage" | `always([+APPROVE_ON_CALL_ROTATION_CHANGE] true -> <+signed_by(/users/reliability_manager.id)> true)`; `always([+APPROVE_ON_CALL_ROTATION_CHANGE] true -> always([-UNOWNED_INCIDENT_COVERAGE] true))` |
+| "Pager escalation policy change approval requires incident response lead signature and blocks missed critical page" | `always([+APPROVE_PAGER_ESCALATION_POLICY_CHANGE] true -> <+signed_by(/users/incident_response_lead.id)> true)`; `always([+APPROVE_PAGER_ESCALATION_POLICY_CHANGE] true -> always([-MISSED_CRITICAL_PAGE] true))` |
 
 ## Output Format
 
@@ -11740,6 +11742,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_SYNTHETIC_MONITOR_CHANGE] true -> always([-BLIND_AVAILABILITY_REPORTING] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_on_call_pager_governance_patterns() {
+        let prompt = generate_prompt("On-call rotation and pager escalation policy controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_ON_CALL_ROTATION_CHANGE] true -> <+signed_by(/users/reliability_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_ON_CALL_ROTATION_CHANGE] true -> always([-UNOWNED_INCIDENT_COVERAGE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PAGER_ESCALATION_POLICY_CHANGE] true -> <+signed_by(/users/incident_response_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PAGER_ESCALATION_POLICY_CHANGE] true -> always([-MISSED_CRITICAL_PAGE] true))"
         ));
     }
 }
