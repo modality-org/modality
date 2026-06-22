@@ -345,6 +345,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Model registry promotion approval requires model registry owner signature and blocks unapproved production candidate" | `always([+APPROVE_MODEL_REGISTRY_PROMOTION] true -> <+signed_by(/users/model_registry_owner.id)> true)`; `always([+APPROVE_MODEL_REGISTRY_PROMOTION] true -> always([-UNAPPROVED_PRODUCTION_CANDIDATE] true))` |
 | "AI incident disclosure approval requires AI incident commander signature and blocks undisclosed material model incident" | `always([+APPROVE_AI_INCIDENT_DISCLOSURE] true -> <+signed_by(/users/ai_incident_commander.id)> true)`; `always([+APPROVE_AI_INCIDENT_DISCLOSURE] true -> always([-UNDISCLOSED_MATERIAL_MODEL_INCIDENT] true))` |
 | "Model evaluation benchmark update approval requires evaluation lead signature and blocks unvalidated benchmark substitution" | `always([+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE] true -> <+signed_by(/users/evaluation_lead.id)> true)`; `always([+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE] true -> always([-UNVALIDATED_BENCHMARK_SUBSTITUTION] true))` |
+| "AI audit trail amendment approval requires AI compliance lead signature and blocks tampered decision history" | `always([+APPROVE_AI_AUDIT_TRAIL_AMENDMENT] true -> <+signed_by(/users/ai_compliance_lead.id)> true)`; `always([+APPROVE_AI_AUDIT_TRAIL_AMENDMENT] true -> always([-TAMPERED_DECISION_HISTORY] true))` |
+| "Training consent withdrawal approval requires data protection officer signature and blocks retained revoked subject data" | `always([+APPROVE_TRAINING_CONSENT_WITHDRAWAL] true -> <+signed_by(/users/data_protection_officer.id)> true)`; `always([+APPROVE_TRAINING_CONSENT_WITHDRAWAL] true -> always([-RETAINED_REVOKED_SUBJECT_DATA] true))` |
 
 ## Output Format
 
@@ -12642,6 +12644,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_MODEL_EVALUATION_BENCHMARK_UPDATE] true -> always([-UNVALIDATED_BENCHMARK_SUBSTITUTION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_audit_trail_consent_governance_patterns() {
+        let prompt = generate_prompt("AI audit trail and training consent controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_AUDIT_TRAIL_AMENDMENT] true -> <+signed_by(/users/ai_compliance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_AUDIT_TRAIL_AMENDMENT] true -> always([-TAMPERED_DECISION_HISTORY] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TRAINING_CONSENT_WITHDRAWAL] true -> <+signed_by(/users/data_protection_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TRAINING_CONSENT_WITHDRAWAL] true -> always([-RETAINED_REVOKED_SUBJECT_DATA] true))"
         ));
     }
 }
