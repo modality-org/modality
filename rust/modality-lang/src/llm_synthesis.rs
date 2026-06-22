@@ -283,6 +283,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "DLP exception approval requires data security officer signature and blocks unsanctioned sensitive data egress" | `always([+APPROVE_DLP_EXCEPTION] true -> <+signed_by(/users/data_security_officer.id)> true)`; `always([+APPROVE_DLP_EXCEPTION] true -> always([-UNSANCTIONED_SENSITIVE_DATA_EGRESS] true))` |
 | "CASB policy exception approval requires cloud security owner signature and blocks shadow SaaS usage" | `always([+APPROVE_CASB_POLICY_EXCEPTION] true -> <+signed_by(/users/cloud_security_owner.id)> true)`; `always([+APPROVE_CASB_POLICY_EXCEPTION] true -> always([-SHADOW_SAAS_USAGE] true))` |
 | "Data classification label change approval requires information governance lead signature and blocks misclassified regulated data" | `always([+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE] true -> <+signed_by(/users/information_governance_lead.id)> true)`; `always([+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE] true -> always([-MISCLASSIFIED_REGULATED_DATA] true))` |
+| "Retention schedule change approval requires records manager signature and blocks premature record deletion" | `always([+APPROVE_RETENTION_SCHEDULE_CHANGE] true -> <+signed_by(/users/records_manager.id)> true)`; `always([+APPROVE_RETENTION_SCHEDULE_CHANGE] true -> always([-PREMATURE_RECORD_DELETION] true))` |
+| "Legal hold release approval requires counsel signature and blocks spoliation risk" | `always([+APPROVE_LEGAL_HOLD_RELEASE] true -> <+signed_by(/users/counsel.id)> true)`; `always([+APPROVE_LEGAL_HOLD_RELEASE] true -> always([-SPOLIATION_RISK] true))` |
 
 ## Output Format
 
@@ -12021,6 +12023,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_DATA_CLASSIFICATION_LABEL_CHANGE] true -> always([-MISCLASSIFIED_REGULATED_DATA] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_retention_legal_hold_governance_patterns() {
+        let prompt = generate_prompt("Retention and legal hold controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_RETENTION_SCHEDULE_CHANGE] true -> <+signed_by(/users/records_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_RETENTION_SCHEDULE_CHANGE] true -> always([-PREMATURE_RECORD_DELETION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_LEGAL_HOLD_RELEASE] true -> <+signed_by(/users/counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_LEGAL_HOLD_RELEASE] true -> always([-SPOLIATION_RISK] true))"
         ));
     }
 }
