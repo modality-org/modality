@@ -375,6 +375,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Investor update publication approval requires finance lead signature and blocks inaccurate runway statement" | `always([+APPROVE_INVESTOR_UPDATE_PUBLICATION] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_INVESTOR_UPDATE_PUBLICATION] true -> always([-INACCURATE_RUNWAY_STATEMENT] true))` |
 | "Cap table update approval requires corporate secretary signature and blocks incorrect ownership record" | `always([+APPROVE_CAP_TABLE_UPDATE] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_CAP_TABLE_UPDATE] true -> always([-INCORRECT_OWNERSHIP_RECORD] true))` |
 | "SAFE note issuance approval requires board designee signature and blocks unauthorized financing instrument" | `always([+APPROVE_SAFE_NOTE_ISSUANCE] true -> <+signed_by(/users/board_designee.id)> true)`; `always([+APPROVE_SAFE_NOTE_ISSUANCE] true -> always([-UNAUTHORIZED_FINANCING_INSTRUMENT] true))` |
+| "Equity grant approval requires board administrator signature and blocks unauthorized equity award" | `always([+APPROVE_EQUITY_GRANT] true -> <+signed_by(/users/board_administrator.id)> true)`; `always([+APPROVE_EQUITY_GRANT] true -> always([-UNAUTHORIZED_EQUITY_AWARD] true))` |
+| "Option exercise processing approval requires stock plan administrator signature and blocks invalid exercise record" | `always([+APPROVE_OPTION_EXERCISE_PROCESSING] true -> <+signed_by(/users/stock_plan_administrator.id)> true)`; `always([+APPROVE_OPTION_EXERCISE_PROCESSING] true -> always([-INVALID_EXERCISE_RECORD] true))` |
 
 ## Output Format
 
@@ -12943,6 +12945,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_SAFE_NOTE_ISSUANCE] true -> always([-UNAUTHORIZED_FINANCING_INSTRUMENT] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_equity_grant_option_exercise_governance_patterns() {
+        let prompt = generate_prompt("Equity grant and option exercise controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_EQUITY_GRANT] true -> <+signed_by(/users/board_administrator.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_EQUITY_GRANT] true -> always([-UNAUTHORIZED_EQUITY_AWARD] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_OPTION_EXERCISE_PROCESSING] true -> <+signed_by(/users/stock_plan_administrator.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_OPTION_EXERCISE_PROCESSING] true -> always([-INVALID_EXERCISE_RECORD] true))"
         ));
     }
 }
