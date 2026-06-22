@@ -359,6 +359,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Reward model update approval requires alignment reviewer signature and blocks reward hacking regression" | `always([+APPROVE_REWARD_MODEL_UPDATE] true -> <+signed_by(/users/alignment_reviewer.id)> true)`; `always([+APPROVE_REWARD_MODEL_UPDATE] true -> always([-REWARD_HACKING_REGRESSION] true))` |
 | "AI safety case approval requires safety case owner signature and blocks unverified hazardous capability claim" | `always([+APPROVE_AI_SAFETY_CASE] true -> <+signed_by(/users/safety_case_owner.id)> true)`; `always([+APPROVE_AI_SAFETY_CASE] true -> always([-UNVERIFIED_HAZARDOUS_CAPABILITY_CLAIM] true))` |
 | "Frontier model capability release approval requires frontier review board signature and blocks uncontrolled capability escalation" | `always([+APPROVE_FRONTIER_MODEL_CAPABILITY_RELEASE] true -> <+signed_by(/users/frontier_review_board.id)> true)`; `always([+APPROVE_FRONTIER_MODEL_CAPABILITY_RELEASE] true -> always([-UNCONTROLLED_CAPABILITY_ESCALATION] true))` |
+| "AI training run launch approval requires training governance owner signature and blocks unsanctioned compute intensive training" | `always([+APPROVE_AI_TRAINING_RUN_LAUNCH] true -> <+signed_by(/users/training_governance_owner.id)> true)`; `always([+APPROVE_AI_TRAINING_RUN_LAUNCH] true -> always([-UNSANCTIONED_COMPUTE_INTENSIVE_TRAINING] true))` |
+| "Autonomous agent tool budget increase approval requires agent operations owner signature and blocks unbounded tool spend" | `always([+APPROVE_AUTONOMOUS_AGENT_TOOL_BUDGET_INCREASE] true -> <+signed_by(/users/agent_operations_owner.id)> true)`; `always([+APPROVE_AUTONOMOUS_AGENT_TOOL_BUDGET_INCREASE] true -> always([-UNBOUNDED_TOOL_SPEND] true))` |
 
 ## Output Format
 
@@ -12782,6 +12784,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_FRONTIER_MODEL_CAPABILITY_RELEASE] true -> always([-UNCONTROLLED_CAPABILITY_ESCALATION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_training_run_tool_budget_governance_patterns() {
+        let prompt = generate_prompt("AI training run launch and autonomous tool budget controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_TRAINING_RUN_LAUNCH] true -> <+signed_by(/users/training_governance_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_TRAINING_RUN_LAUNCH] true -> always([-UNSANCTIONED_COMPUTE_INTENSIVE_TRAINING] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AUTONOMOUS_AGENT_TOOL_BUDGET_INCREASE] true -> <+signed_by(/users/agent_operations_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AUTONOMOUS_AGENT_TOOL_BUDGET_INCREASE] true -> always([-UNBOUNDED_TOOL_SPEND] true))"
         ));
     }
 }
