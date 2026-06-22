@@ -357,6 +357,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Model calibration update approval requires model validation owner signature and blocks uncalibrated confidence scores" | `always([+APPROVE_MODEL_CALIBRATION_UPDATE] true -> <+signed_by(/users/model_validation_owner.id)> true)`; `always([+APPROVE_MODEL_CALIBRATION_UPDATE] true -> always([-UNCALIBRATED_CONFIDENCE_SCORES] true))` |
 | "Human feedback dataset approval requires feedback curator signature and blocks unconsented preference data use" | `always([+APPROVE_HUMAN_FEEDBACK_DATASET] true -> <+signed_by(/users/feedback_curator.id)> true)`; `always([+APPROVE_HUMAN_FEEDBACK_DATASET] true -> always([-UNCONSENTED_PREFERENCE_DATA_USE] true))` |
 | "Reward model update approval requires alignment reviewer signature and blocks reward hacking regression" | `always([+APPROVE_REWARD_MODEL_UPDATE] true -> <+signed_by(/users/alignment_reviewer.id)> true)`; `always([+APPROVE_REWARD_MODEL_UPDATE] true -> always([-REWARD_HACKING_REGRESSION] true))` |
+| "AI safety case approval requires safety case owner signature and blocks unverified hazardous capability claim" | `always([+APPROVE_AI_SAFETY_CASE] true -> <+signed_by(/users/safety_case_owner.id)> true)`; `always([+APPROVE_AI_SAFETY_CASE] true -> always([-UNVERIFIED_HAZARDOUS_CAPABILITY_CLAIM] true))` |
+| "Frontier model capability release approval requires frontier review board signature and blocks uncontrolled capability escalation" | `always([+APPROVE_FRONTIER_MODEL_CAPABILITY_RELEASE] true -> <+signed_by(/users/frontier_review_board.id)> true)`; `always([+APPROVE_FRONTIER_MODEL_CAPABILITY_RELEASE] true -> always([-UNCONTROLLED_CAPABILITY_ESCALATION] true))` |
 
 ## Output Format
 
@@ -12762,6 +12764,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_REWARD_MODEL_UPDATE] true -> always([-REWARD_HACKING_REGRESSION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_safety_case_capability_governance_patterns() {
+        let prompt = generate_prompt("AI safety case and frontier capability release controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_SAFETY_CASE] true -> <+signed_by(/users/safety_case_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_SAFETY_CASE] true -> always([-UNVERIFIED_HAZARDOUS_CAPABILITY_CLAIM] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_FRONTIER_MODEL_CAPABILITY_RELEASE] true -> <+signed_by(/users/frontier_review_board.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_FRONTIER_MODEL_CAPABILITY_RELEASE] true -> always([-UNCONTROLLED_CAPABILITY_ESCALATION] true))"
         ));
     }
 }
