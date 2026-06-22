@@ -273,6 +273,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "MFA recovery exception approval requires account security lead signature and blocks unverified factor reset" | `always([+APPROVE_MFA_RECOVERY_EXCEPTION] true -> <+signed_by(/users/account_security_lead.id)> true)`; `always([+APPROVE_MFA_RECOVERY_EXCEPTION] true -> always([-UNVERIFIED_FACTOR_RESET] true))` |
 | "Passkey attestation policy approval requires identity assurance lead signature and blocks untrusted authenticator enrollment" | `always([+APPROVE_PASSKEY_ATTESTATION_POLICY] true -> <+signed_by(/users/identity_assurance_lead.id)> true)`; `always([+APPROVE_PASSKEY_ATTESTATION_POLICY] true -> always([-UNTRUSTED_AUTHENTICATOR_ENROLLMENT] true))` |
 | "Privileged access exception approval requires access governance owner signature and blocks standing admin access" | `always([+APPROVE_PRIVILEGED_ACCESS_EXCEPTION] true -> <+signed_by(/users/access_governance_owner.id)> true)`; `always([+APPROVE_PRIVILEGED_ACCESS_EXCEPTION] true -> always([-STANDING_ADMIN_ACCESS] true))` |
+| "Phishing-resistant login policy approval requires authentication architect signature and blocks password-only fallback" | `always([+APPROVE_PHISHING_RESISTANT_LOGIN_POLICY] true -> <+signed_by(/users/authentication_architect.id)> true)`; `always([+APPROVE_PHISHING_RESISTANT_LOGIN_POLICY] true -> always([-PASSWORD_ONLY_FALLBACK] true))` |
+| "Device compliance exception approval requires endpoint security owner signature and blocks unmanaged device access" | `always([+APPROVE_DEVICE_COMPLIANCE_EXCEPTION] true -> <+signed_by(/users/endpoint_security_owner.id)> true)`; `always([+APPROVE_DEVICE_COMPLIANCE_EXCEPTION] true -> always([-UNMANAGED_DEVICE_ACCESS] true))` |
 
 ## Output Format
 
@@ -11920,6 +11922,25 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_PRIVILEGED_ACCESS_EXCEPTION] true -> always([-STANDING_ADMIN_ACCESS] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_phishing_device_governance_patterns() {
+        let prompt =
+            generate_prompt("Phishing-resistant login and device compliance exception controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_PHISHING_RESISTANT_LOGIN_POLICY] true -> <+signed_by(/users/authentication_architect.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PHISHING_RESISTANT_LOGIN_POLICY] true -> always([-PASSWORD_ONLY_FALLBACK] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DEVICE_COMPLIANCE_EXCEPTION] true -> <+signed_by(/users/endpoint_security_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DEVICE_COMPLIANCE_EXCEPTION] true -> always([-UNMANAGED_DEVICE_ACCESS] true))"
         ));
     }
 }
