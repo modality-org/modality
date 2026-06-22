@@ -353,6 +353,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Model use limitation update approval requires responsible AI owner signature and blocks out of scope model use" | `always([+APPROVE_MODEL_USE_LIMITATION_UPDATE] true -> <+signed_by(/users/responsible_ai_owner.id)> true)`; `always([+APPROVE_MODEL_USE_LIMITATION_UPDATE] true -> always([-OUT_OF_SCOPE_MODEL_USE] true))` |
 | "AI evaluation dataset approval requires evaluation steward signature and blocks contaminated test data use" | `always([+APPROVE_AI_EVALUATION_DATASET] true -> <+signed_by(/users/evaluation_steward.id)> true)`; `always([+APPROVE_AI_EVALUATION_DATASET] true -> always([-CONTAMINATED_TEST_DATA_USE] true))` |
 | "AI provenance watermark policy approval requires content authenticity lead signature and blocks unverifiable synthetic media distribution" | `always([+APPROVE_AI_PROVENANCE_WATERMARK_POLICY] true -> <+signed_by(/users/content_authenticity_lead.id)> true)`; `always([+APPROVE_AI_PROVENANCE_WATERMARK_POLICY] true -> always([-UNVERIFIABLE_SYNTHETIC_MEDIA_DISTRIBUTION] true))` |
+| "AI annotation quality review approval requires labeling lead signature and blocks low confidence training labels" | `always([+APPROVE_AI_ANNOTATION_QUALITY_REVIEW] true -> <+signed_by(/users/labeling_lead.id)> true)`; `always([+APPROVE_AI_ANNOTATION_QUALITY_REVIEW] true -> always([-LOW_CONFIDENCE_TRAINING_LABELS] true))` |
+| "Model calibration update approval requires model validation owner signature and blocks uncalibrated confidence scores" | `always([+APPROVE_MODEL_CALIBRATION_UPDATE] true -> <+signed_by(/users/model_validation_owner.id)> true)`; `always([+APPROVE_MODEL_CALIBRATION_UPDATE] true -> always([-UNCALIBRATED_CONFIDENCE_SCORES] true))` |
 
 ## Output Format
 
@@ -12722,6 +12724,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_AI_PROVENANCE_WATERMARK_POLICY] true -> always([-UNVERIFIABLE_SYNTHETIC_MEDIA_DISTRIBUTION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_annotation_calibration_governance_patterns() {
+        let prompt = generate_prompt("AI annotation quality and model calibration controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_ANNOTATION_QUALITY_REVIEW] true -> <+signed_by(/users/labeling_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_ANNOTATION_QUALITY_REVIEW] true -> always([-LOW_CONFIDENCE_TRAINING_LABELS] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_CALIBRATION_UPDATE] true -> <+signed_by(/users/model_validation_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_CALIBRATION_UPDATE] true -> always([-UNCALIBRATED_CONFIDENCE_SCORES] true))"
         ));
     }
 }
