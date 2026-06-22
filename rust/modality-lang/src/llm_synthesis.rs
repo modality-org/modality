@@ -341,6 +341,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Model explanation release approval requires explainability lead signature and blocks misleading explanation publication" | `always([+APPROVE_MODEL_EXPLANATION_RELEASE] true -> <+signed_by(/users/explainability_lead.id)> true)`; `always([+APPROVE_MODEL_EXPLANATION_RELEASE] true -> always([-MISLEADING_EXPLANATION_PUBLICATION] true))` |
 | "AI policy attestation approval requires governance officer signature and blocks stale policy evidence" | `always([+APPROVE_AI_POLICY_ATTESTATION] true -> <+signed_by(/users/governance_officer.id)> true)`; `always([+APPROVE_AI_POLICY_ATTESTATION] true -> always([-STALE_POLICY_EVIDENCE] true))` |
 | "Model risk register update approval requires model risk committee signature and blocks untracked material model risk" | `always([+APPROVE_MODEL_RISK_REGISTER_UPDATE] true -> <+signed_by(/users/model_risk_committee.id)> true)`; `always([+APPROVE_MODEL_RISK_REGISTER_UPDATE] true -> always([-UNTRACKED_MATERIAL_MODEL_RISK] true))` |
+| "AI assurance report approval requires assurance lead signature and blocks unaudited control claim" | `always([+APPROVE_AI_ASSURANCE_REPORT] true -> <+signed_by(/users/assurance_lead.id)> true)`; `always([+APPROVE_AI_ASSURANCE_REPORT] true -> always([-UNAUDITED_CONTROL_CLAIM] true))` |
+| "Model registry promotion approval requires model registry owner signature and blocks unapproved production candidate" | `always([+APPROVE_MODEL_REGISTRY_PROMOTION] true -> <+signed_by(/users/model_registry_owner.id)> true)`; `always([+APPROVE_MODEL_REGISTRY_PROMOTION] true -> always([-UNAPPROVED_PRODUCTION_CANDIDATE] true))` |
 
 ## Output Format
 
@@ -12601,6 +12603,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_MODEL_RISK_REGISTER_UPDATE] true -> always([-UNTRACKED_MATERIAL_MODEL_RISK] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_assurance_registry_governance_patterns() {
+        let prompt = generate_prompt("AI assurance report and model registry promotion controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_ASSURANCE_REPORT] true -> <+signed_by(/users/assurance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_ASSURANCE_REPORT] true -> always([-UNAUDITED_CONTROL_CLAIM] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_REGISTRY_PROMOTION] true -> <+signed_by(/users/model_registry_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_REGISTRY_PROMOTION] true -> always([-UNAPPROVED_PRODUCTION_CANDIDATE] true))"
         ));
     }
 }
