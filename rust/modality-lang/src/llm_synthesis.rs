@@ -355,6 +355,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "AI provenance watermark policy approval requires content authenticity lead signature and blocks unverifiable synthetic media distribution" | `always([+APPROVE_AI_PROVENANCE_WATERMARK_POLICY] true -> <+signed_by(/users/content_authenticity_lead.id)> true)`; `always([+APPROVE_AI_PROVENANCE_WATERMARK_POLICY] true -> always([-UNVERIFIABLE_SYNTHETIC_MEDIA_DISTRIBUTION] true))` |
 | "AI annotation quality review approval requires labeling lead signature and blocks low confidence training labels" | `always([+APPROVE_AI_ANNOTATION_QUALITY_REVIEW] true -> <+signed_by(/users/labeling_lead.id)> true)`; `always([+APPROVE_AI_ANNOTATION_QUALITY_REVIEW] true -> always([-LOW_CONFIDENCE_TRAINING_LABELS] true))` |
 | "Model calibration update approval requires model validation owner signature and blocks uncalibrated confidence scores" | `always([+APPROVE_MODEL_CALIBRATION_UPDATE] true -> <+signed_by(/users/model_validation_owner.id)> true)`; `always([+APPROVE_MODEL_CALIBRATION_UPDATE] true -> always([-UNCALIBRATED_CONFIDENCE_SCORES] true))` |
+| "Human feedback dataset approval requires feedback curator signature and blocks unconsented preference data use" | `always([+APPROVE_HUMAN_FEEDBACK_DATASET] true -> <+signed_by(/users/feedback_curator.id)> true)`; `always([+APPROVE_HUMAN_FEEDBACK_DATASET] true -> always([-UNCONSENTED_PREFERENCE_DATA_USE] true))` |
+| "Reward model update approval requires alignment reviewer signature and blocks reward hacking regression" | `always([+APPROVE_REWARD_MODEL_UPDATE] true -> <+signed_by(/users/alignment_reviewer.id)> true)`; `always([+APPROVE_REWARD_MODEL_UPDATE] true -> always([-REWARD_HACKING_REGRESSION] true))` |
 
 ## Output Format
 
@@ -12742,6 +12744,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_MODEL_CALIBRATION_UPDATE] true -> always([-UNCALIBRATED_CONFIDENCE_SCORES] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_feedback_reward_governance_patterns() {
+        let prompt = generate_prompt("Human feedback dataset and reward model controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_HUMAN_FEEDBACK_DATASET] true -> <+signed_by(/users/feedback_curator.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_HUMAN_FEEDBACK_DATASET] true -> always([-UNCONSENTED_PREFERENCE_DATA_USE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_REWARD_MODEL_UPDATE] true -> <+signed_by(/users/alignment_reviewer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_REWARD_MODEL_UPDATE] true -> always([-REWARD_HACKING_REGRESSION] true))"
         ));
     }
 }
