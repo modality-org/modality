@@ -339,6 +339,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "AI agent delegation approval requires agent governance lead signature and blocks unsupervised autonomous delegation" | `always([+APPROVE_AI_AGENT_DELEGATION] true -> <+signed_by(/users/agent_governance_lead.id)> true)`; `always([+APPROVE_AI_AGENT_DELEGATION] true -> always([-UNSUPERVISED_AUTONOMOUS_DELEGATION] true))` |
 | "AI audit log retention approval requires compliance auditor signature and blocks missing decision trace" | `always([+APPROVE_AI_AUDIT_LOG_RETENTION] true -> <+signed_by(/users/compliance_auditor.id)> true)`; `always([+APPROVE_AI_AUDIT_LOG_RETENTION] true -> always([-MISSING_DECISION_TRACE] true))` |
 | "Model explanation release approval requires explainability lead signature and blocks misleading explanation publication" | `always([+APPROVE_MODEL_EXPLANATION_RELEASE] true -> <+signed_by(/users/explainability_lead.id)> true)`; `always([+APPROVE_MODEL_EXPLANATION_RELEASE] true -> always([-MISLEADING_EXPLANATION_PUBLICATION] true))` |
+| "AI policy attestation approval requires governance officer signature and blocks stale policy evidence" | `always([+APPROVE_AI_POLICY_ATTESTATION] true -> <+signed_by(/users/governance_officer.id)> true)`; `always([+APPROVE_AI_POLICY_ATTESTATION] true -> always([-STALE_POLICY_EVIDENCE] true))` |
+| "Model risk register update approval requires model risk committee signature and blocks untracked material model risk" | `always([+APPROVE_MODEL_RISK_REGISTER_UPDATE] true -> <+signed_by(/users/model_risk_committee.id)> true)`; `always([+APPROVE_MODEL_RISK_REGISTER_UPDATE] true -> always([-UNTRACKED_MATERIAL_MODEL_RISK] true))` |
 
 ## Output Format
 
@@ -12581,6 +12583,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_MODEL_EXPLANATION_RELEASE] true -> always([-MISLEADING_EXPLANATION_PUBLICATION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_policy_risk_register_governance_patterns() {
+        let prompt = generate_prompt("AI policy attestation and model risk register controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_POLICY_ATTESTATION] true -> <+signed_by(/users/governance_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_POLICY_ATTESTATION] true -> always([-STALE_POLICY_EVIDENCE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_RISK_REGISTER_UPDATE] true -> <+signed_by(/users/model_risk_committee.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_RISK_REGISTER_UPDATE] true -> always([-UNTRACKED_MATERIAL_MODEL_RISK] true))"
         ));
     }
 }
