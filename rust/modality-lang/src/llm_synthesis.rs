@@ -299,6 +299,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Data portability export approval requires data rights coordinator signature and blocks incomplete subject export" | `always([+APPROVE_DATA_PORTABILITY_EXPORT] true -> <+signed_by(/users/data_rights_coordinator.id)> true)`; `always([+APPROVE_DATA_PORTABILITY_EXPORT] true -> always([-INCOMPLETE_SUBJECT_EXPORT] true))` |
 | "Data rectification request approval requires data quality owner signature and blocks inaccurate personal data retention" | `always([+APPROVE_DATA_RECTIFICATION_REQUEST] true -> <+signed_by(/users/data_quality_owner.id)> true)`; `always([+APPROVE_DATA_RECTIFICATION_REQUEST] true -> always([-INACCURATE_PERSONAL_DATA_RETENTION] true))` |
 | "Processing restriction approval requires privacy operations manager signature and blocks unrestricted contested processing" | `always([+APPROVE_PROCESSING_RESTRICTION] true -> <+signed_by(/users/privacy_operations_manager.id)> true)`; `always([+APPROVE_PROCESSING_RESTRICTION] true -> always([-UNRESTRICTED_CONTESTED_PROCESSING] true))` |
+| "Data retention exception approval requires records counsel signature and blocks indefinite personal data retention" | `always([+APPROVE_DATA_RETENTION_EXCEPTION] true -> <+signed_by(/users/records_counsel.id)> true)`; `always([+APPROVE_DATA_RETENTION_EXCEPTION] true -> always([-INDEFINITE_PERSONAL_DATA_RETENTION] true))` |
+| "Sensitive data processing approval requires privacy review board signature and blocks unapproved special category processing" | `always([+APPROVE_SENSITIVE_DATA_PROCESSING] true -> <+signed_by(/users/privacy_review_board.id)> true)`; `always([+APPROVE_SENSITIVE_DATA_PROCESSING] true -> always([-UNAPPROVED_SPECIAL_CATEGORY_PROCESSING] true))` |
 
 ## Output Format
 
@@ -12181,6 +12183,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_PROCESSING_RESTRICTION] true -> always([-UNRESTRICTED_CONTESTED_PROCESSING] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_retention_sensitive_governance_patterns() {
+        let prompt = generate_prompt("Data retention and sensitive data controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_RETENTION_EXCEPTION] true -> <+signed_by(/users/records_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_RETENTION_EXCEPTION] true -> always([-INDEFINITE_PERSONAL_DATA_RETENTION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SENSITIVE_DATA_PROCESSING] true -> <+signed_by(/users/privacy_review_board.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SENSITIVE_DATA_PROCESSING] true -> always([-UNAPPROVED_SPECIAL_CATEGORY_PROCESSING] true))"
         ));
     }
 }
