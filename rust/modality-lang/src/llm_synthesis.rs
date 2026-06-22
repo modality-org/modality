@@ -267,6 +267,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Session lifetime exception approval requires security operations lead signature and blocks stale session persistence" | `always([+APPROVE_SESSION_LIFETIME_EXCEPTION] true -> <+signed_by(/users/security_operations_lead.id)> true)`; `always([+APPROVE_SESSION_LIFETIME_EXCEPTION] true -> always([-STALE_SESSION_PERSISTENCE] true))` |
 | "OAuth client registration approval requires identity security reviewer signature and blocks unreviewed redirect target" | `always([+APPROVE_OAUTH_CLIENT_REGISTRATION] true -> <+signed_by(/users/identity_security_reviewer.id)> true)`; `always([+APPROVE_OAUTH_CLIENT_REGISTRATION] true -> always([-UNREVIEWED_REDIRECT_TARGET] true))` |
 | "API key rotation approval requires service owner signature and blocks stale credential exposure" | `always([+APPROVE_API_KEY_ROTATION] true -> <+signed_by(/users/service_owner.id)> true)`; `always([+APPROVE_API_KEY_ROTATION] true -> always([-STALE_CREDENTIAL_EXPOSURE] true))` |
+| "SAML identity provider configuration approval requires identity architect signature and blocks unsigned assertion acceptance" | `always([+APPROVE_SAML_IDENTITY_PROVIDER_CONFIGURATION] true -> <+signed_by(/users/identity_architect.id)> true)`; `always([+APPROVE_SAML_IDENTITY_PROVIDER_CONFIGURATION] true -> always([-UNSIGNED_ASSERTION_ACCEPTANCE] true))` |
+| "SCIM provisioning rule approval requires directory administrator signature and blocks orphaned account activation" | `always([+APPROVE_SCIM_PROVISIONING_RULE] true -> <+signed_by(/users/directory_administrator.id)> true)`; `always([+APPROVE_SCIM_PROVISIONING_RULE] true -> always([-ORPHANED_ACCOUNT_ACTIVATION] true))` |
 
 ## Output Format
 
@@ -11860,6 +11862,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_API_KEY_ROTATION] true -> always([-STALE_CREDENTIAL_EXPOSURE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_saml_scim_governance_patterns() {
+        let prompt = generate_prompt("SAML identity provider and SCIM provisioning controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_SAML_IDENTITY_PROVIDER_CONFIGURATION] true -> <+signed_by(/users/identity_architect.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SAML_IDENTITY_PROVIDER_CONFIGURATION] true -> always([-UNSIGNED_ASSERTION_ACCEPTANCE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SCIM_PROVISIONING_RULE] true -> <+signed_by(/users/directory_administrator.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SCIM_PROVISIONING_RULE] true -> always([-ORPHANED_ACCOUNT_ACTIVATION] true))"
         ));
     }
 }
