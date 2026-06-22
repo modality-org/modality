@@ -295,6 +295,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Privacy breach notification approval requires privacy incident lead signature and blocks unreported breach" | `always([+APPROVE_PRIVACY_BREACH_NOTIFICATION] true -> <+signed_by(/users/privacy_incident_lead.id)> true)`; `always([+APPROVE_PRIVACY_BREACH_NOTIFICATION] true -> always([-UNREPORTED_BREACH] true))` |
 | "Data deletion request approval requires retention counsel signature and blocks unlawful erasure" | `always([+APPROVE_DATA_DELETION_REQUEST] true -> <+signed_by(/users/retention_counsel.id)> true)`; `always([+APPROVE_DATA_DELETION_REQUEST] true -> always([-UNLAWFUL_ERASURE] true))` |
 | "Automated decisioning policy approval requires algorithmic accountability lead signature and blocks unreviewed profiling" | `always([+APPROVE_AUTOMATED_DECISIONING_POLICY] true -> <+signed_by(/users/algorithmic_accountability_lead.id)> true)`; `always([+APPROVE_AUTOMATED_DECISIONING_POLICY] true -> always([-UNREVIEWED_PROFILING] true))` |
+| "Privacy notice update approval requires privacy counsel signature and blocks undisclosed processing change" | `always([+APPROVE_PRIVACY_NOTICE_UPDATE] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_PRIVACY_NOTICE_UPDATE] true -> always([-UNDISCLOSED_PROCESSING_CHANGE] true))` |
+| "Data portability export approval requires data rights coordinator signature and blocks incomplete subject export" | `always([+APPROVE_DATA_PORTABILITY_EXPORT] true -> <+signed_by(/users/data_rights_coordinator.id)> true)`; `always([+APPROVE_DATA_PORTABILITY_EXPORT] true -> always([-INCOMPLETE_SUBJECT_EXPORT] true))` |
 
 ## Output Format
 
@@ -12141,6 +12143,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_AUTOMATED_DECISIONING_POLICY] true -> always([-UNREVIEWED_PROFILING] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_notice_portability_governance_patterns() {
+        let prompt = generate_prompt("Privacy notice and data portability controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_PRIVACY_NOTICE_UPDATE] true -> <+signed_by(/users/privacy_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PRIVACY_NOTICE_UPDATE] true -> always([-UNDISCLOSED_PROCESSING_CHANGE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_PORTABILITY_EXPORT] true -> <+signed_by(/users/data_rights_coordinator.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_PORTABILITY_EXPORT] true -> always([-INCOMPLETE_SUBJECT_EXPORT] true))"
         ));
     }
 }
