@@ -263,6 +263,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Vulnerability exception approval requires security risk owner signature and blocks unbounded exposure acceptance" | `always([+APPROVE_VULNERABILITY_EXCEPTION] true -> <+signed_by(/users/security_risk_owner.id)> true)`; `always([+APPROVE_VULNERABILITY_EXCEPTION] true -> always([-UNBOUNDED_EXPOSURE_ACCEPTANCE] true))` |
 | "API rate limit change approval requires platform operations lead signature and blocks abusive traffic exposure" | `always([+APPROVE_API_RATE_LIMIT_CHANGE] true -> <+signed_by(/users/platform_operations_lead.id)> true)`; `always([+APPROVE_API_RATE_LIMIT_CHANGE] true -> always([-ABUSIVE_TRAFFIC_EXPOSURE] true))` |
 | "Webhook endpoint registration approval requires integration owner signature and blocks unsigned callback delivery" | `always([+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION] true -> <+signed_by(/users/integration_owner.id)> true)`; `always([+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION] true -> always([-UNSIGNED_CALLBACK_DELIVERY] true))` |
+| "Authentication policy change approval requires identity platform owner signature and blocks weakened login assurance" | `always([+APPROVE_AUTHENTICATION_POLICY_CHANGE] true -> <+signed_by(/users/identity_platform_owner.id)> true)`; `always([+APPROVE_AUTHENTICATION_POLICY_CHANGE] true -> always([-WEAKENED_LOGIN_ASSURANCE] true))` |
+| "Session lifetime exception approval requires security operations lead signature and blocks stale session persistence" | `always([+APPROVE_SESSION_LIFETIME_EXCEPTION] true -> <+signed_by(/users/security_operations_lead.id)> true)`; `always([+APPROVE_SESSION_LIFETIME_EXCEPTION] true -> always([-STALE_SESSION_PERSISTENCE] true))` |
 
 ## Output Format
 
@@ -11820,6 +11822,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_WEBHOOK_ENDPOINT_REGISTRATION] true -> always([-UNSIGNED_CALLBACK_DELIVERY] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_auth_session_governance_patterns() {
+        let prompt = generate_prompt("Authentication policy and session lifetime controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AUTHENTICATION_POLICY_CHANGE] true -> <+signed_by(/users/identity_platform_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AUTHENTICATION_POLICY_CHANGE] true -> always([-WEAKENED_LOGIN_ASSURANCE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SESSION_LIFETIME_EXCEPTION] true -> <+signed_by(/users/security_operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SESSION_LIFETIME_EXCEPTION] true -> always([-STALE_SESSION_PERSISTENCE] true))"
         ));
     }
 }
