@@ -303,6 +303,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Sensitive data processing approval requires privacy review board signature and blocks unapproved special category processing" | `always([+APPROVE_SENSITIVE_DATA_PROCESSING] true -> <+signed_by(/users/privacy_review_board.id)> true)`; `always([+APPROVE_SENSITIVE_DATA_PROCESSING] true -> always([-UNAPPROVED_SPECIAL_CATEGORY_PROCESSING] true))` |
 | "DPIA approval requires privacy risk officer signature and blocks high-risk processing without assessment" | `always([+APPROVE_DPIA] true -> <+signed_by(/users/privacy_risk_officer.id)> true)`; `always([+APPROVE_DPIA] true -> always([-HIGH_RISK_PROCESSING_WITHOUT_ASSESSMENT] true))` |
 | "Privacy remediation closure approval requires data protection officer signature and blocks unresolved privacy risk" | `always([+APPROVE_PRIVACY_REMEDIATION_CLOSURE] true -> <+signed_by(/users/data_protection_officer.id)> true)`; `always([+APPROVE_PRIVACY_REMEDIATION_CLOSURE] true -> always([-UNRESOLVED_PRIVACY_RISK] true))` |
+| "Data localization exception approval requires jurisdiction counsel signature and blocks unlawful data residency breach" | `always([+APPROVE_DATA_LOCALIZATION_EXCEPTION] true -> <+signed_by(/users/jurisdiction_counsel.id)> true)`; `always([+APPROVE_DATA_LOCALIZATION_EXCEPTION] true -> always([-UNLAWFUL_DATA_RESIDENCY_BREACH] true))` |
+| "Data anonymization release approval requires privacy engineer signature and blocks reidentifiable dataset publication" | `always([+APPROVE_DATA_ANONYMIZATION_RELEASE] true -> <+signed_by(/users/privacy_engineer.id)> true)`; `always([+APPROVE_DATA_ANONYMIZATION_RELEASE] true -> always([-REIDENTIFIABLE_DATASET_PUBLICATION] true))` |
 
 ## Output Format
 
@@ -12221,6 +12223,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_PRIVACY_REMEDIATION_CLOSURE] true -> always([-UNRESOLVED_PRIVACY_RISK] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_localization_anonymization_governance_patterns() {
+        let prompt = generate_prompt("Data localization and anonymization controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_LOCALIZATION_EXCEPTION] true -> <+signed_by(/users/jurisdiction_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_LOCALIZATION_EXCEPTION] true -> always([-UNLAWFUL_DATA_RESIDENCY_BREACH] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_ANONYMIZATION_RELEASE] true -> <+signed_by(/users/privacy_engineer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DATA_ANONYMIZATION_RELEASE] true -> always([-REIDENTIFIABLE_DATASET_PUBLICATION] true))"
         ));
     }
 }
