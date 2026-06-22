@@ -333,6 +333,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Model output quarantine release approval requires trust and safety reviewer signature and blocks harmful content release" | `always([+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE] true -> <+signed_by(/users/trust_and_safety_reviewer.id)> true)`; `always([+APPROVE_MODEL_OUTPUT_QUARANTINE_RELEASE] true -> always([-HARMFUL_CONTENT_RELEASE] true))` |
 | "AI vendor model onboarding approval requires third party risk owner signature and blocks unvetted external model dependency" | `always([+APPROVE_AI_VENDOR_MODEL_ONBOARDING] true -> <+signed_by(/users/third_party_risk_owner.id)> true)`; `always([+APPROVE_AI_VENDOR_MODEL_ONBOARDING] true -> always([-UNVETTED_EXTERNAL_MODEL_DEPENDENCY] true))` |
 | "Prompt injection finding closure requires security reviewer signature and blocks unresolved prompt injection exploit" | `always([+CLOSE_PROMPT_INJECTION_FINDING] true -> <+signed_by(/users/security_reviewer.id)> true)`; `always([+CLOSE_PROMPT_INJECTION_FINDING] true -> always([-UNRESOLVED_PROMPT_INJECTION_EXPLOIT] true))` |
+| "AI impact assessment approval requires responsible AI assessor signature and blocks unassessed high impact deployment" | `always([+APPROVE_AI_IMPACT_ASSESSMENT] true -> <+signed_by(/users/responsible_ai_assessor.id)> true)`; `always([+APPROVE_AI_IMPACT_ASSESSMENT] true -> always([-UNASSESSED_HIGH_IMPACT_DEPLOYMENT] true))` |
+| "Model access tier change approval requires AI security owner signature and blocks unauthorized sensitive model access" | `always([+APPROVE_MODEL_ACCESS_TIER_CHANGE] true -> <+signed_by(/users/ai_security_owner.id)> true)`; `always([+APPROVE_MODEL_ACCESS_TIER_CHANGE] true -> always([-UNAUTHORIZED_SENSITIVE_MODEL_ACCESS] true))` |
 
 ## Output Format
 
@@ -12521,6 +12523,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+CLOSE_PROMPT_INJECTION_FINDING] true -> always([-UNRESOLVED_PROMPT_INJECTION_EXPLOIT] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_impact_assessment_access_governance_patterns() {
+        let prompt = generate_prompt("AI impact assessment and model access controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_IMPACT_ASSESSMENT] true -> <+signed_by(/users/responsible_ai_assessor.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AI_IMPACT_ASSESSMENT] true -> always([-UNASSESSED_HIGH_IMPACT_DEPLOYMENT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_ACCESS_TIER_CHANGE] true -> <+signed_by(/users/ai_security_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MODEL_ACCESS_TIER_CHANGE] true -> always([-UNAUTHORIZED_SENSITIVE_MODEL_ACCESS] true))"
         ));
     }
 }
