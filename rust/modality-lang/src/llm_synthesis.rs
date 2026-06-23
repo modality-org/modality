@@ -485,6 +485,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer uptime report approval requires reliability lead signature and blocks inaccurate SLA reporting" | `always([+APPROVE_CUSTOMER_UPTIME_REPORT] true -> <+signed_by(/users/reliability_lead.id)> true)`; `always([+APPROVE_CUSTOMER_UPTIME_REPORT] true -> always([-INACCURATE_SLA_REPORTING] true))` |
 | "Customer incident root cause report approval requires reliability lead signature and blocks incomplete corrective action disclosure" | `always([+APPROVE_CUSTOMER_INCIDENT_ROOT_CAUSE_REPORT] true -> <+signed_by(/users/reliability_lead.id)> true)`; `always([+APPROVE_CUSTOMER_INCIDENT_ROOT_CAUSE_REPORT] true -> always([-INCOMPLETE_CORRECTIVE_ACTION_DISCLOSURE] true))` |
 | "Customer service restoration confirmation approval requires operations lead signature and blocks premature all-clear notice" | `always([+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION] true -> always([-PREMATURE_ALL_CLEAR_NOTICE] true))` |
+| "Customer incident communication approval requires communications lead signature and blocks inconsistent customer messaging" | `always([+APPROVE_CUSTOMER_INCIDENT_COMMUNICATION] true -> <+signed_by(/users/communications_lead.id)> true)`; `always([+APPROVE_CUSTOMER_INCIDENT_COMMUNICATION] true -> always([-INCONSISTENT_CUSTOMER_MESSAGING] true))` |
+| "Customer remediation milestone closure approval requires reliability lead signature and blocks unresolved customer impacting follow-up" | `always([+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE] true -> <+signed_by(/users/reliability_lead.id)> true)`; `always([+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE] true -> always([-UNRESOLVED_CUSTOMER_IMPACTING_FOLLOW_UP] true))` |
 
 ## Output Format
 
@@ -14050,6 +14052,26 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION] true -> always([-PREMATURE_ALL_CLEAR_NOTICE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_incident_communication_remediation_governance_patterns() {
+        let prompt = generate_prompt(
+            "Customer incident communication and remediation milestone closure controls",
+        );
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_INCIDENT_COMMUNICATION] true -> <+signed_by(/users/communications_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_INCIDENT_COMMUNICATION] true -> always([-INCONSISTENT_CUSTOMER_MESSAGING] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE] true -> <+signed_by(/users/reliability_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE] true -> always([-UNRESOLVED_CUSTOMER_IMPACTING_FOLLOW_UP] true))"
         ));
     }
 }
