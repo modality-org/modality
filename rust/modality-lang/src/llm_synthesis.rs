@@ -451,6 +451,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Account credit limit approval requires finance lead signature and blocks excessive receivables exposure" | `always([+APPROVE_ACCOUNT_CREDIT_LIMIT] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_ACCOUNT_CREDIT_LIMIT] true -> always([-EXCESSIVE_RECEIVABLES_EXPOSURE] true))` |
 | "Customer balance write off approval requires finance lead signature and blocks unauthorized receivable forgiveness" | `always([+APPROVE_CUSTOMER_BALANCE_WRITE_OFF] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_CUSTOMER_BALANCE_WRITE_OFF] true -> always([-UNAUTHORIZED_RECEIVABLE_FORGIVENESS] true))` |
 | "Revenue recognition policy approval requires controller signature and blocks premature revenue booking" | `always([+APPROVE_REVENUE_RECOGNITION_POLICY] true -> <+signed_by(/users/controller.id)> true)`; `always([+APPROVE_REVENUE_RECOGNITION_POLICY] true -> always([-PREMATURE_REVENUE_BOOKING] true))` |
+| "Tax exemption certificate approval requires finance lead signature and blocks invalid tax exempt billing" | `always([+APPROVE_TAX_EXEMPTION_CERTIFICATE] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_TAX_EXEMPTION_CERTIFICATE] true -> always([-INVALID_TAX_EXEMPT_BILLING] true))` |
+| "Customer contract amendment approval requires corporate counsel signature and blocks unapproved commercial term change" | `always([+APPROVE_CUSTOMER_CONTRACT_AMENDMENT] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_CONTRACT_AMENDMENT] true -> always([-UNAPPROVED_COMMERCIAL_TERM_CHANGE] true))` |
 
 ## Output Format
 
@@ -13704,6 +13706,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_REVENUE_RECOGNITION_POLICY] true -> always([-PREMATURE_REVENUE_BOOKING] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_tax_exemption_contract_amendment_governance_patterns() {
+        let prompt = generate_prompt("Tax exemption and customer contract amendment controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_TAX_EXEMPTION_CERTIFICATE] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TAX_EXEMPTION_CERTIFICATE] true -> always([-INVALID_TAX_EXEMPT_BILLING] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_CONTRACT_AMENDMENT] true -> <+signed_by(/users/corporate_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_CONTRACT_AMENDMENT] true -> always([-UNAPPROVED_COMMERCIAL_TERM_CHANGE] true))"
         ));
     }
 }
