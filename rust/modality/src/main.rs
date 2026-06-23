@@ -99,7 +99,7 @@ enum ModelCommands {
     Create(cmds::model_create::Opts),
 
     #[command(about = "Synthesize a model from a template")]
-    Synthesize(cmds::synthesize::Opts),
+    Synthesize(Box<cmds::synthesize::Opts>),
 
     #[command(about = "Validate a contract model (predicates only, no raw propositions)")]
     Validate(cmds::validate::Opts),
