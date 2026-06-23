@@ -487,6 +487,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer service restoration confirmation approval requires operations lead signature and blocks premature all-clear notice" | `always([+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION] true -> always([-PREMATURE_ALL_CLEAR_NOTICE] true))` |
 | "Customer incident communication approval requires communications lead signature and blocks inconsistent customer messaging" | `always([+APPROVE_CUSTOMER_INCIDENT_COMMUNICATION] true -> <+signed_by(/users/communications_lead.id)> true)`; `always([+APPROVE_CUSTOMER_INCIDENT_COMMUNICATION] true -> always([-INCONSISTENT_CUSTOMER_MESSAGING] true))` |
 | "Customer remediation milestone closure approval requires reliability lead signature and blocks unresolved customer impacting follow-up" | `always([+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE] true -> <+signed_by(/users/reliability_lead.id)> true)`; `always([+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE] true -> always([-UNRESOLVED_CUSTOMER_IMPACTING_FOLLOW_UP] true))` |
+| "Customer incident service credit approval requires finance lead signature and blocks unsupported SLA credit commitment" | `always([+APPROVE_CUSTOMER_INCIDENT_SERVICE_CREDIT] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_CUSTOMER_INCIDENT_SERVICE_CREDIT] true -> always([-UNSUPPORTED_SLA_CREDIT_COMMITMENT] true))` |
+| "Customer incident follow-up extension approval requires customer success lead signature and blocks open reliability risk extension" | `always([+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION] true -> <+signed_by(/users/customer_success_lead.id)> true)`; `always([+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION] true -> always([-OPEN_RELIABILITY_RISK_EXTENSION] true))` |
 
 ## Output Format
 
@@ -14072,6 +14074,25 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE] true -> always([-UNRESOLVED_CUSTOMER_IMPACTING_FOLLOW_UP] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_incident_service_credit_follow_up_governance_patterns() {
+        let prompt =
+            generate_prompt("Customer incident service credit and follow-up extension controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_INCIDENT_SERVICE_CREDIT] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_INCIDENT_SERVICE_CREDIT] true -> always([-UNSUPPORTED_SLA_CREDIT_COMMITMENT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION] true -> <+signed_by(/users/customer_success_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION] true -> always([-OPEN_RELIABILITY_RISK_EXTENSION] true))"
         ));
     }
 }
