@@ -439,6 +439,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Service credit issuance approval requires finance lead signature and blocks unauthorized customer concession" | `always([+APPROVE_SERVICE_CREDIT_ISSUANCE] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_SERVICE_CREDIT_ISSUANCE] true -> always([-UNAUTHORIZED_CUSTOMER_CONCESSION] true))` |
 | "Customer onboarding approval requires operations lead signature and blocks incomplete identity verification" | `always([+APPROVE_CUSTOMER_ONBOARDING] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_ONBOARDING] true -> always([-INCOMPLETE_IDENTITY_VERIFICATION] true))` |
 | "Customer data import approval requires privacy counsel signature and blocks unconsented personal data ingestion" | `always([+APPROVE_CUSTOMER_DATA_IMPORT] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_DATA_IMPORT] true -> always([-UNCONSENTED_PERSONAL_DATA_INGESTION] true))` |
+| "Trial account activation approval requires operations lead signature and blocks abuse prone signup" | `always([+APPROVE_TRIAL_ACCOUNT_ACTIVATION] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_TRIAL_ACCOUNT_ACTIVATION] true -> always([-ABUSE_PRONE_SIGNUP] true))` |
+| "Customer data export approval requires privacy counsel signature and blocks unauthorized account data disclosure" | `always([+APPROVE_CUSTOMER_DATA_EXPORT] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_DATA_EXPORT] true -> always([-UNAUTHORIZED_ACCOUNT_DATA_DISCLOSURE] true))` |
 
 ## Output Format
 
@@ -13584,6 +13586,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_DATA_IMPORT] true -> always([-UNCONSENTED_PERSONAL_DATA_INGESTION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_trial_account_data_export_governance_patterns() {
+        let prompt = generate_prompt("Trial account activation and customer data export controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_TRIAL_ACCOUNT_ACTIVATION] true -> <+signed_by(/users/operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TRIAL_ACCOUNT_ACTIVATION] true -> always([-ABUSE_PRONE_SIGNUP] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_DATA_EXPORT] true -> <+signed_by(/users/privacy_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_DATA_EXPORT] true -> always([-UNAUTHORIZED_ACCOUNT_DATA_DISCLOSURE] true))"
         ));
     }
 }
