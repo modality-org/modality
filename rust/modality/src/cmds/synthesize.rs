@@ -1007,7 +1007,7 @@ fn load_proposed_formula_inputs(opts: &Opts) -> Result<(ParsedFormulaInputs, Vec
     if let Some(formula) = &opts.proposed_formula {
         Ok((
             parse_formula_inputs(std::slice::from_ref(formula)),
-            formula_declarations_for_input("proposed_rule", formula),
+            formula_declarations_for_input("proposed_formula", formula),
         ))
     } else if let Some(path) = &opts.proposed_rule {
         let content = std::fs::read_to_string(path)?;
@@ -1907,7 +1907,7 @@ F2: formula generated_2 {
         assert!(output.contains("model Contract"));
         assert!(output.contains("+APPROVE"));
         assert!(output.contains("formula previous_rule"));
-        assert!(output.contains("formula proposed_rule"));
+        assert!(output.contains("formula proposed_formula"));
         assert!(output.contains("signed_by(/users/reviewer.id)"));
         assert_eq!(
             modality_lang::parse_all_formulas_content_lalrpop(&output)
@@ -1962,7 +1962,7 @@ F2: formula generated_2 {
         assert!(parsed["formula_declarations"][1]
             .as_str()
             .unwrap()
-            .contains("formula proposed_rule"));
+            .contains("formula proposed_formula"));
     }
 
     #[test]
