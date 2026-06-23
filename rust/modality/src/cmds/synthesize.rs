@@ -1705,6 +1705,44 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn existing_model_mode_writes_satisfied_existing_model_output() {
+        let model_formulas = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &model_formulas);
+        let existing_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-replacement-{}.modality",
+            std::process::id()
+        ));
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-output-{}.modality",
+            std::process::id()
+        ));
+        std::fs::write(
+            &existing_path,
+            format!(
+                "{}\n\nformula previous_rule {{\nalways([<+APPROVE>] true)\n}}\n",
+                modality_lang::print_model(&model)
+            ),
+        )
+        .unwrap();
+
+        let mut opts = default_test_opts();
+        opts.existing_model = Some(existing_path.clone());
+        opts.proposed_formula =
+            Some("[+APPROVE] true -> <+signed_by(/users/reviewer.id)> true".to_string());
+        opts.output = Some(output_path.clone());
+
+        run_existing_model_synthesis(&opts).unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(existing_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        assert!(output.contains("model Contract"));
+        assert!(output.contains("+APPROVE"));
+    }
+
+    #[test]
     fn llm_response_loader_rejects_inline_and_file_together() {
         let response = "formula generated { true }".to_string();
         let path = PathBuf::from("response.md");
