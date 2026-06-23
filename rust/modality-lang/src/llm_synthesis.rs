@@ -423,6 +423,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Creditor notice approval requires corporate secretary signature and blocks omitted creditor notice" | `always([+APPROVE_CREDITOR_NOTICE] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_CREDITOR_NOTICE] true -> always([-OMITTED_CREDITOR_NOTICE] true))` |
 | "Records retention approval requires corporate secretary signature and blocks premature record destruction" | `always([+APPROVE_RECORDS_RETENTION] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_RECORDS_RETENTION] true -> always([-PREMATURE_RECORD_DESTRUCTION] true))` |
 | "Final tax clearance approval requires finance lead signature and blocks unresolved tax liability" | `always([+APPROVE_FINAL_TAX_CLEARANCE] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_FINAL_TAX_CLEARANCE] true -> always([-UNRESOLVED_TAX_LIABILITY] true))` |
+| "Payroll tax registration approval requires finance lead signature and blocks unregistered payroll operation" | `always([+APPROVE_PAYROLL_TAX_REGISTRATION] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_PAYROLL_TAX_REGISTRATION] true -> always([-UNREGISTERED_PAYROLL_OPERATION] true))` |
+| "Insurance coverage approval requires operations lead signature and blocks uninsured business activity" | `always([+APPROVE_INSURANCE_COVERAGE] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_INSURANCE_COVERAGE] true -> always([-UNINSURED_BUSINESS_ACTIVITY] true))` |
 
 ## Output Format
 
@@ -13423,6 +13425,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_FINAL_TAX_CLEARANCE] true -> always([-UNRESOLVED_TAX_LIABILITY] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_payroll_insurance_governance_patterns() {
+        let prompt = generate_prompt("Payroll tax registration and insurance coverage controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_PAYROLL_TAX_REGISTRATION] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PAYROLL_TAX_REGISTRATION] true -> always([-UNREGISTERED_PAYROLL_OPERATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_INSURANCE_COVERAGE] true -> <+signed_by(/users/operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_INSURANCE_COVERAGE] true -> always([-UNINSURED_BUSINESS_ACTIVITY] true))"
         ));
     }
 }
