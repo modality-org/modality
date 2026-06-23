@@ -455,6 +455,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer contract amendment approval requires corporate counsel signature and blocks unapproved commercial term change" | `always([+APPROVE_CUSTOMER_CONTRACT_AMENDMENT] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_CONTRACT_AMENDMENT] true -> always([-UNAPPROVED_COMMERCIAL_TERM_CHANGE] true))` |
 | "Customer SLA exception approval requires operations lead signature and blocks unauthorized service level downgrade" | `always([+APPROVE_CUSTOMER_SLA_EXCEPTION] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_SLA_EXCEPTION] true -> always([-UNAUTHORIZED_SERVICE_LEVEL_DOWNGRADE] true))` |
 | "Custom pricing discount approval requires finance lead signature and blocks margin negative deal" | `always([+APPROVE_CUSTOM_PRICING_DISCOUNT] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_CUSTOM_PRICING_DISCOUNT] true -> always([-MARGIN_NEGATIVE_DEAL] true))` |
+| "Customer contract renewal approval requires corporate counsel signature and blocks lapsed service obligation" | `always([+APPROVE_CUSTOMER_CONTRACT_RENEWAL] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_CONTRACT_RENEWAL] true -> always([-LAPSED_SERVICE_OBLIGATION] true))` |
+| "Usage overage billing approval requires finance lead signature and blocks unapproved excess charge" | `always([+APPROVE_USAGE_OVERAGE_BILLING] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_USAGE_OVERAGE_BILLING] true -> always([-UNAPPROVED_EXCESS_CHARGE] true))` |
 
 ## Output Format
 
@@ -13744,6 +13746,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOM_PRICING_DISCOUNT] true -> always([-MARGIN_NEGATIVE_DEAL] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_renewal_overage_billing_governance_patterns() {
+        let prompt = generate_prompt("Customer renewal and overage billing controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_CONTRACT_RENEWAL] true -> <+signed_by(/users/corporate_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_CONTRACT_RENEWAL] true -> always([-LAPSED_SERVICE_OBLIGATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_USAGE_OVERAGE_BILLING] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_USAGE_OVERAGE_BILLING] true -> always([-UNAPPROVED_EXCESS_CHARGE] true))"
         ));
     }
 }
