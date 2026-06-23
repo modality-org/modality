@@ -695,6 +695,12 @@ pub fn synthesize_from_constraints(name: &str, constraints: &SynthesisConstraint
         let mut part = Part::new("flow".to_string());
         part.add_transition(build_action_transition("q0", "q1", &first, constraints));
         part.add_transition(build_action_transition("q1", "q0", &second, constraints));
+        add_authorization_witness_self_loops(
+            &mut part.transitions,
+            &["q0".to_string(), "q1".to_string()],
+            &constraints.self_loops,
+            constraints,
+        );
         model.add_part(part);
 
         return model;
@@ -725,6 +731,8 @@ pub fn synthesize_from_constraints(name: &str, constraints: &SynthesisConstraint
     // that availability group; unrelated action authorizations stay on their
     // guarded transitions.
     let self_loop_groups = constraints.self_loops.clone();
+
+    add_authorization_witness_self_loops(&mut transitions, &nodes, &self_loop_groups, constraints);
 
     for node in &nodes {
         for props in &self_loop_groups {
@@ -828,6 +836,54 @@ fn build_action_transition(
     }
 
     trans
+}
+
+fn add_authorization_witness_self_loops(
+    transitions: &mut Vec<Transition>,
+    nodes: &[String],
+    self_loop_groups: &[Vec<Property>],
+    constraints: &SynthesisConstraints,
+) {
+    let mut authorization_groups: Vec<_> = constraints.authorization.iter().collect();
+    authorization_groups.sort_by_key(|(action, _)| *action);
+    let mut signer_groups = Vec::new();
+    for (_, signers) in authorization_groups {
+        if signers.is_empty() {
+            continue;
+        }
+        let mut props = Vec::new();
+        for signer in signers {
+            props.push(Property::new_predicate_from_call(
+                "signed_by".to_string(),
+                signer.clone(),
+            ));
+        }
+        push_unique_props(&mut signer_groups, props);
+    }
+    if signer_groups.is_empty() {
+        return;
+    }
+    let witness_groups = if self_loop_groups.is_empty() {
+        signer_groups
+    } else {
+        combine_prop_groups(signer_groups, self_loop_groups.to_vec())
+    };
+
+    for node in nodes {
+        for props in &witness_groups {
+            let mut transition = Transition::new(node.clone(), node.clone());
+            for prop in props {
+                transition.add_property(prop.clone());
+            }
+            if !transitions.iter().any(|existing| {
+                existing.from == transition.from
+                    && existing.to == transition.to
+                    && existing.properties == transition.properties
+            }) {
+                transitions.push(transition);
+            }
+        }
+    }
 }
 
 /// Topological sort of actions based on ordering constraints
@@ -1016,7 +1072,7 @@ mod tests {
         let transitions = &model.parts[0].transitions;
 
         assert_eq!(model.initial.as_deref(), Some("q0"));
-        assert_eq!(transitions.len(), 2);
+        assert_eq!(transitions.len(), 6);
         assert_eq!(transitions[0].from, "q0");
         assert_eq!(transitions[0].to, "q1");
         assert!(transitions[0]
@@ -1039,6 +1095,26 @@ mod tests {
                 "signed_by".to_string(),
                 "/users/bob.id".to_string(),
             )));
+        assert!(transitions.iter().any(|transition| {
+            transition.from == "q0"
+                && transition.to == "q0"
+                && transition
+                    .properties
+                    .contains(&Property::new_predicate_from_call(
+                        "signed_by".to_string(),
+                        "/users/bob.id".to_string(),
+                    ))
+        }));
+        assert!(transitions.iter().any(|transition| {
+            transition.from == "q1"
+                && transition.to == "q1"
+                && transition
+                    .properties
+                    .contains(&Property::new_predicate_from_call(
+                        "signed_by".to_string(),
+                        "/users/alice.id".to_string(),
+                    ))
+        }));
     }
 
     #[test]
@@ -2425,9 +2501,64 @@ mod tests {
         }));
         assert!(transitions.iter().all(|transition| {
             !(transition.from == transition.to
-                && transition.properties.contains(&deliver)
-                && transition.properties.contains(&alice))
+                && transition.properties.contains(&alice)
+                && !transition.properties.contains(&deliver))
         }));
+    }
+
+    #[test]
+    fn test_authorization_adds_global_signer_witnesses() {
+        let formula = FormulaExpr::Always(Box::new(FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "ASSIGN_TASK".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Diamond(
+                vec![
+                    Property::new_predicate_from_call(
+                        "signed_by".to_string(),
+                        "/users/task_requester.id".to_string(),
+                    ),
+                    Property::new_predicate_from_call(
+                        "signed_by".to_string(),
+                        "/users/worker_agent.id".to_string(),
+                    ),
+                ],
+                Box::new(FormulaExpr::True),
+            )),
+        )));
+
+        let model = synthesize_from_formulas("Assignment", &[formula]);
+        let assign = Property::new(PropertySign::Plus, "ASSIGN_TASK".to_string());
+        let requester = Property::new_predicate_from_call(
+            "signed_by".to_string(),
+            "/users/task_requester.id".to_string(),
+        );
+        let worker = Property::new_predicate_from_call(
+            "signed_by".to_string(),
+            "/users/worker_agent.id".to_string(),
+        );
+        let transitions = &model.parts[0].transitions;
+
+        let assign_transition = transitions
+            .iter()
+            .find(|transition| transition.properties.contains(&assign))
+            .expect("expected synthesized assignment transition");
+        assert!(assign_transition.properties.contains(&requester));
+        assert!(assign_transition.properties.contains(&worker));
+
+        let nodes: BTreeSet<_> = transitions
+            .iter()
+            .flat_map(|transition| [&transition.from, &transition.to])
+            .collect();
+        for node in nodes {
+            assert!(transitions.iter().any(|transition| {
+                transition.from == *node
+                    && transition.to == *node
+                    && transition.properties.contains(&requester)
+                    && transition.properties.contains(&worker)
+            }));
+        }
     }
 
     #[test]
@@ -2619,7 +2750,7 @@ mod tests {
         let model = synthesize_from_constraints("Approval", &constraints);
         let transitions = &model.parts[0].transitions;
 
-        assert_eq!(transitions.len(), 2);
+        assert_eq!(transitions.len(), 4);
         assert!(transitions[0]
             .properties
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
@@ -2629,6 +2760,26 @@ mod tests {
                 "signed_by".to_string(),
                 "/users/alice.id".to_string(),
             )));
+        assert!(transitions.iter().any(|transition| {
+            transition.from == "q0"
+                && transition.to == "q0"
+                && transition
+                    .properties
+                    .contains(&Property::new_predicate_from_call(
+                        "signed_by".to_string(),
+                        "/users/alice.id".to_string(),
+                    ))
+        }));
+        assert!(transitions.iter().any(|transition| {
+            transition.from == "q1"
+                && transition.to == "q1"
+                && transition
+                    .properties
+                    .contains(&Property::new_predicate_from_call(
+                        "signed_by".to_string(),
+                        "/users/alice.id".to_string(),
+                    ))
+        }));
         assert!(!transitions.iter().any(|transition| transition
             .properties
             .contains(&Property::new(PropertySign::Plus, "signed_by".to_string()))));
