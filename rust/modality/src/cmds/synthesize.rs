@@ -1918,6 +1918,54 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn existing_model_mode_writes_json_with_formula_declarations() {
+        let model_formulas = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &model_formulas);
+        let existing_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-json-{}.modality",
+            std::process::id()
+        ));
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-json-output-{}.json",
+            std::process::id()
+        ));
+        std::fs::write(
+            &existing_path,
+            format!(
+                "{}\n\nformula previous_rule {{\nalways([<+APPROVE>] true)\n}}\n",
+                modality_lang::print_model(&model)
+            ),
+        )
+        .unwrap();
+
+        let mut opts = default_test_opts();
+        opts.existing_model = Some(existing_path.clone());
+        opts.proposed_formula =
+            Some("[+APPROVE] true -> <+signed_by(/users/reviewer.id)> true".to_string());
+        opts.output = Some(output_path.clone());
+        opts.format = "json".to_string();
+
+        run_existing_model_synthesis(&opts).unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(existing_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+
+        assert_eq!(parsed["model"]["name"], "Contract");
+        assert_eq!(parsed["formula_declarations"].as_array().unwrap().len(), 2);
+        assert!(parsed["formula_declarations"][0]
+            .as_str()
+            .unwrap()
+            .contains("formula previous_rule"));
+        assert!(parsed["formula_declarations"][1]
+            .as_str()
+            .unwrap()
+            .contains("formula proposed_rule"));
+    }
+
+    #[test]
     fn existing_model_mode_writes_replacement_candidate_output() {
         let model_formulas = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
         let model =
