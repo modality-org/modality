@@ -88,6 +88,7 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
                 for props in self_loop_props {
                     push_unique_props(&mut constraints.self_loops, props);
                 }
+                extract_non_direct_availability_branches(inner, constraints);
                 return;
             }
             extract_from_expr(inner, constraints);
@@ -1519,6 +1520,56 @@ mod tests {
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
         assert!(constraints.self_loops[0]
             .contains(&Property::new(PropertySign::Plus, "RENEW".to_string())));
+    }
+
+    #[test]
+    fn test_always_committed_availability_preserves_other_constraints() {
+        let formula = FormulaExpr::Always(Box::new(FormulaExpr::And(
+            Box::new(FormulaExpr::DiamondBox(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Implies(
+                Box::new(FormulaExpr::Box(
+                    vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::Eventually(Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "DELIVER".to_string())],
+                    Box::new(FormulaExpr::True),
+                )))),
+            )),
+        )));
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(constraints.self_loops.len(), 1);
+        assert!(constraints.self_loops[0]
+            .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
+        assert!(constraints
+            .ordering
+            .contains(&("RELEASE".to_string(), "DELIVER".to_string())));
+
+        let model = synthesize_from_formulas("Approval", &[formula]);
+        let transitions = &model.parts[0].transitions;
+
+        assert!(transitions.iter().any(|transition| {
+            transition.from == "q0"
+                && transition.to == "q0"
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
+        }));
+        assert!(transitions.iter().any(|transition| {
+            transition
+                .properties
+                .contains(&Property::new(PropertySign::Plus, "DELIVER".to_string()))
+        }));
+        assert!(transitions.iter().any(|transition| {
+            transition
+                .properties
+                .contains(&Property::new(PropertySign::Plus, "RELEASE".to_string()))
+        }));
     }
 
     #[test]
