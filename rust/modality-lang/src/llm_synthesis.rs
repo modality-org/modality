@@ -511,6 +511,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer instance archival approval requires retention counsel signature and blocks premature account archive" | `always([+APPROVE_CUSTOMER_INSTANCE_ARCHIVAL] true -> <+signed_by(/users/retention_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_INSTANCE_ARCHIVAL] true -> always([-PREMATURE_ACCOUNT_ARCHIVE] true))` |
 | "Customer data retention exception approval requires retention counsel signature and blocks unbounded customer record retention" | `always([+APPROVE_CUSTOMER_DATA_RETENTION_EXCEPTION] true -> <+signed_by(/users/retention_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_DATA_RETENTION_EXCEPTION] true -> always([-UNBOUNDED_CUSTOMER_RECORD_RETENTION] true))` |
 | "Customer anonymization waiver approval requires privacy counsel signature and blocks identifiable analytics reuse" | `always([+APPROVE_CUSTOMER_ANONYMIZATION_WAIVER] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_ANONYMIZATION_WAIVER] true -> always([-IDENTIFIABLE_ANALYTICS_REUSE] true))` |
+| "Customer data warehouse sync approval requires data governance lead signature and blocks unscoped customer data replication" | `always([+APPROVE_CUSTOMER_DATA_WAREHOUSE_SYNC] true -> <+signed_by(/users/data_governance_lead.id)> true)`; `always([+APPROVE_CUSTOMER_DATA_WAREHOUSE_SYNC] true -> always([-UNSCOPED_CUSTOMER_DATA_REPLICATION] true))` |
+| "Customer analytics training approval requires privacy counsel signature and blocks unauthorized customer behavior modeling" | `always([+APPROVE_CUSTOMER_ANALYTICS_TRAINING] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_ANALYTICS_TRAINING] true -> always([-UNAUTHORIZED_CUSTOMER_BEHAVIOR_MODELING] true))` |
 
 ## Output Format
 
@@ -14315,6 +14317,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_ANONYMIZATION_WAIVER] true -> always([-IDENTIFIABLE_ANALYTICS_REUSE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_warehouse_analytics_governance_patterns() {
+        let prompt = generate_prompt("Customer data warehouse and analytics training controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_DATA_WAREHOUSE_SYNC] true -> <+signed_by(/users/data_governance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_DATA_WAREHOUSE_SYNC] true -> always([-UNSCOPED_CUSTOMER_DATA_REPLICATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_ANALYTICS_TRAINING] true -> <+signed_by(/users/privacy_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_ANALYTICS_TRAINING] true -> always([-UNAUTHORIZED_CUSTOMER_BEHAVIOR_MODELING] true))"
         ));
     }
 }
