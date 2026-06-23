@@ -244,7 +244,10 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
         // Least fixed points often come from eventuality desugaring. Preserve
         // joint availability goals without treating a single eventual action as
         // a permanent self-loop.
-        FormulaExpr::Lfp(_, inner) => {
+        FormulaExpr::Lfp(var, inner) => {
+            for props in extract_until_lfp_goal_availability_prop_groups(var, inner) {
+                push_unique_props(&mut constraints.self_loops, props);
+            }
             for props in extract_conjunctive_availability_prop_groups(inner) {
                 if props.len() > 1 {
                     push_unique_props(&mut constraints.self_loops, props);
@@ -358,6 +361,42 @@ fn extract_conjunctive_availability_prop_groups(expr: &FormulaExpr) -> Vec<Vec<P
         }
         FormulaExpr::Paren(inner) => extract_conjunctive_availability_prop_groups(inner),
         _ => Vec::new(),
+    }
+}
+
+fn extract_until_lfp_goal_availability_prop_groups(
+    var: &str,
+    expr: &FormulaExpr,
+) -> Vec<Vec<Property>> {
+    match expr {
+        FormulaExpr::Or(lhs, rhs) if is_guarded_recursive_branch(var, rhs) => {
+            extract_conjunctive_availability_prop_groups(lhs)
+        }
+        FormulaExpr::Or(lhs, rhs) if is_guarded_recursive_branch(var, lhs) => {
+            extract_conjunctive_availability_prop_groups(rhs)
+        }
+        FormulaExpr::Paren(inner) => extract_until_lfp_goal_availability_prop_groups(var, inner),
+        _ => Vec::new(),
+    }
+}
+
+fn is_guarded_recursive_branch(var: &str, expr: &FormulaExpr) -> bool {
+    match expr {
+        FormulaExpr::And(lhs, rhs) => {
+            is_recursive_diamond(var, lhs) || is_recursive_diamond(var, rhs)
+        }
+        FormulaExpr::Paren(inner) => is_guarded_recursive_branch(var, inner),
+        _ => false,
+    }
+}
+
+fn is_recursive_diamond(var: &str, expr: &FormulaExpr) -> bool {
+    match expr {
+        FormulaExpr::Diamond(props, inner) if props.is_empty() => {
+            matches!(inner.as_ref(), FormulaExpr::Var(name) if name == var)
+        }
+        FormulaExpr::Paren(inner) => is_recursive_diamond(var, inner),
+        _ => false,
     }
 }
 
@@ -3013,6 +3052,72 @@ mod tests {
         assert!(constraints.self_loops.iter().any(|props| {
             props.contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
                 && props.contains(&Property::new(PropertySign::Plus, "REVIEW".to_string()))
+        }));
+    }
+
+    #[test]
+    fn test_lfp_eventual_single_goal_does_not_become_self_loop() {
+        let formula = FormulaExpr::Lfp(
+            "X".to_string(),
+            Box::new(FormulaExpr::Or(
+                Box::new(FormulaExpr::Diamond(
+                    Vec::new(),
+                    Box::new(FormulaExpr::Var("X".to_string())),
+                )),
+                Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("APPROVE"));
+        assert!(constraints.self_loops.is_empty());
+    }
+
+    #[test]
+    fn test_lfp_until_shape_preserves_single_goal_availability() {
+        let formula = FormulaExpr::Lfp(
+            "X".to_string(),
+            Box::new(FormulaExpr::Or(
+                Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::And(
+                    Box::new(FormulaExpr::Diamond(
+                        vec![Property::new(PropertySign::Plus, "WAIT".to_string())],
+                        Box::new(FormulaExpr::True),
+                    )),
+                    Box::new(FormulaExpr::Diamond(
+                        Vec::new(),
+                        Box::new(FormulaExpr::Var("X".to_string())),
+                    )),
+                )),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("WAIT"));
+        assert!(constraints.actions.contains("APPROVE"));
+        assert_eq!(
+            constraints.self_loops,
+            vec![vec![Property::new(
+                PropertySign::Plus,
+                "APPROVE".to_string()
+            )]]
+        );
+
+        let model = synthesize_from_formulas("UntilFixedPointAvailability", &[formula]);
+
+        assert!(model.parts[0].transitions.iter().any(|transition| {
+            transition.from == transition.to
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
         }));
     }
 }
