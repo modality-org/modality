@@ -827,7 +827,7 @@ fn run_existing_model_synthesis(opts: &Opts) -> Result<()> {
         ));
     }
 
-    let existing_model = load_first_model(existing_model_path)?;
+    let existing_input = load_existing_model_input(existing_model_path)?;
     let parsed_input = load_proposed_formula_inputs(opts)?;
     parsed_input.ensure_all_parsed()?;
 
@@ -835,38 +835,44 @@ fn run_existing_model_synthesis(opts: &Opts) -> Result<()> {
         return Err(anyhow::anyhow!("No proposed formulas found"));
     }
 
+    let mut candidate_formulas = existing_input.formulas.clone();
+    candidate_formulas.extend(parsed_input.formulas.clone());
+    let mut candidate_labels = existing_input.labels.clone();
+    candidate_labels.extend(parsed_input.labels.clone());
+
     println!(
-        "🔎 Checking existing model '{}' against {} proposed formula(s)\n",
-        existing_model.name,
+        "🔎 Checking existing model '{}' against {} existing and {} proposed formula(s)\n",
+        existing_input.model.name,
+        existing_input.formulas.len(),
         parsed_input.formulas.len()
     );
 
     let failed = existing_model_unsatisfied_formula_labels(
-        &existing_model,
-        &parsed_input.formulas,
-        &parsed_input.labels,
+        &existing_input.model,
+        &candidate_formulas,
+        &candidate_labels,
     );
 
     let output_model = if failed.is_empty() {
-        println!("✅ Existing model satisfies every proposed formula\n");
-        existing_model
+        println!("✅ Existing model satisfies every existing and proposed formula\n");
+        existing_input.model
     } else {
         println!(
-            "⚠️  Existing model does not satisfy {} proposed formula(s): {}",
+            "⚠️  Existing model does not satisfy {} formula(s): {}",
             failed.len(),
             failed.join(", ")
         );
-        println!("🔧 Synthesizing a local replacement candidate from the proposed formulas\n");
+        println!("🔧 Synthesizing a local replacement candidate from existing plus proposed formulas\n");
 
-        let candidate_name = replacement_candidate_name(&existing_model);
+        let candidate_name = replacement_candidate_name(&existing_input.model);
         let candidate = modality_lang::formula_synthesis::synthesize_from_formulas(
             &candidate_name,
-            &parsed_input.formulas,
+            &candidate_formulas,
         );
         verify_synthesized_model_with_labels(
             &candidate,
-            &parsed_input.formulas,
-            &parsed_input.labels,
+            &candidate_formulas,
+            &candidate_labels,
         )?;
         println!();
         candidate
@@ -878,15 +884,45 @@ fn run_existing_model_synthesis(opts: &Opts) -> Result<()> {
     Ok(())
 }
 
-fn load_first_model(path: &PathBuf) -> Result<modality_lang::Model> {
+struct ExistingModelInput {
+    model: modality_lang::Model,
+    formulas: Vec<modality_lang::FormulaExpr>,
+    labels: Vec<String>,
+}
+
+fn load_existing_model_input(path: &PathBuf) -> Result<ExistingModelInput> {
     let content = std::fs::read_to_string(path)?;
     let models = modality_lang::parse_all_models_content_lalrpop(&content)
         .map_err(|err| anyhow::anyhow!("Failed to parse existing model: {}", err))?;
+    let formulas = modality_lang::parse_all_formulas_content_lalrpop(&content).map_err(|err| {
+        anyhow::anyhow!(
+            "Failed to parse formula declarations in existing model file: {}",
+            err
+        )
+    })?;
 
-    models
+    let model = models
         .into_iter()
         .next()
-        .ok_or_else(|| anyhow::anyhow!("No models found in {}", path.display()))
+        .ok_or_else(|| anyhow::anyhow!("No models found in {}", path.display()))?;
+
+    let mut expressions = Vec::new();
+    let mut labels = Vec::new();
+    for (index, formula) in formulas.into_iter().enumerate() {
+        let label = if formula.name.is_empty() {
+            format!("existing F{}", index + 1)
+        } else {
+            format!("existing `{}`", formula.name)
+        };
+        expressions.push(formula.expression);
+        labels.push(label);
+    }
+
+    Ok(ExistingModelInput {
+        model,
+        formulas: expressions,
+        labels,
+    })
 }
 
 fn load_proposed_formula_inputs(opts: &Opts) -> Result<ParsedFormulaInputs> {
@@ -1559,6 +1595,29 @@ F2: formula generated_2 {
         let failed = existing_model_unsatisfied_formula_labels(&model, &proposed, &labels);
 
         assert_eq!(failed, vec!["false_rule".to_string()]);
+    }
+
+    #[test]
+    fn existing_model_loader_preserves_formula_declarations() {
+        let model_formulas = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &model_formulas);
+        let content = format!(
+            "{}\n\nformula previous_rule {{\nalways([<+APPROVE>] true)\n}}\n",
+            modality_lang::print_model(&model)
+        );
+        let path = std::env::temp_dir().join(format!(
+            "modality-existing-model-{}.modality",
+            std::process::id()
+        ));
+        std::fs::write(&path, content).unwrap();
+
+        let loaded = load_existing_model_input(&path).unwrap();
+        std::fs::remove_file(&path).unwrap();
+
+        assert_eq!(loaded.model.name, "Contract");
+        assert_eq!(loaded.formulas.len(), 1);
+        assert_eq!(loaded.labels, vec!["existing `previous_rule`".to_string()]);
     }
 
     #[test]
