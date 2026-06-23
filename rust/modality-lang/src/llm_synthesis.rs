@@ -417,6 +417,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Business license renewal approval requires operations lead signature and blocks unlicensed operations" | `always([+APPROVE_BUSINESS_LICENSE_RENEWAL] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_BUSINESS_LICENSE_RENEWAL] true -> always([-UNLICENSED_OPERATIONS] true))` |
 | "Franchise tax payment approval requires finance lead signature and blocks tax delinquency" | `always([+APPROVE_FRANCHISE_TAX_PAYMENT] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_FRANCHISE_TAX_PAYMENT] true -> always([-TAX_DELINQUENCY] true))` |
 | "Good standing certificate approval requires corporate secretary signature and blocks stale entity evidence" | `always([+APPROVE_GOOD_STANDING_CERTIFICATE] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_GOOD_STANDING_CERTIFICATE] true -> always([-STALE_ENTITY_EVIDENCE] true))` |
+| "Entity conversion approval requires corporate counsel signature and blocks unapproved entity restructuring" | `always([+APPROVE_ENTITY_CONVERSION] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_ENTITY_CONVERSION] true -> always([-UNAPPROVED_ENTITY_RESTRUCTURING] true))` |
+| "Assumed name filing approval requires corporate secretary signature and blocks unauthorized public name use" | `always([+APPROVE_ASSUMED_NAME_FILING] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_ASSUMED_NAME_FILING] true -> always([-UNAUTHORIZED_PUBLIC_NAME_USE] true))` |
 
 ## Output Format
 
@@ -13363,6 +13365,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_GOOD_STANDING_CERTIFICATE] true -> always([-STALE_ENTITY_EVIDENCE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_entity_conversion_assumed_name_governance_patterns() {
+        let prompt = generate_prompt("Entity conversion and assumed name filing controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_ENTITY_CONVERSION] true -> <+signed_by(/users/corporate_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_ENTITY_CONVERSION] true -> always([-UNAPPROVED_ENTITY_RESTRUCTURING] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_ASSUMED_NAME_FILING] true -> <+signed_by(/users/corporate_secretary.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_ASSUMED_NAME_FILING] true -> always([-UNAUTHORIZED_PUBLIC_NAME_USE] true))"
         ));
     }
 }
