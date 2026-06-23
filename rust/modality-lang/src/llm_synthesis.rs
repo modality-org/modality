@@ -473,6 +473,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer migration plan approval requires customer success lead signature and blocks unsupported account transition" | `always([+APPROVE_CUSTOMER_MIGRATION_PLAN] true -> <+signed_by(/users/customer_success_lead.id)> true)`; `always([+APPROVE_CUSTOMER_MIGRATION_PLAN] true -> always([-UNSUPPORTED_ACCOUNT_TRANSITION] true))` |
 | "Customer tenant consolidation approval requires operations lead signature and blocks data comingling risk" | `always([+APPROVE_CUSTOMER_TENANT_CONSOLIDATION] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_TENANT_CONSOLIDATION] true -> always([-DATA_COMINGLING_RISK] true))` |
 | "Account ownership transfer approval requires corporate counsel signature and blocks unauthorized admin transfer" | `always([+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER] true -> always([-UNAUTHORIZED_ADMIN_TRANSFER] true))` |
+| "Customer security questionnaire approval requires security lead signature and blocks unsupported control representation" | `always([+APPROVE_CUSTOMER_SECURITY_QUESTIONNAIRE] true -> <+signed_by(/users/security_lead.id)> true)`; `always([+APPROVE_CUSTOMER_SECURITY_QUESTIONNAIRE] true -> always([-UNSUPPORTED_CONTROL_REPRESENTATION] true))` |
+| "Customer compliance evidence release approval requires compliance officer signature and blocks confidential audit disclosure" | `always([+APPROVE_CUSTOMER_COMPLIANCE_EVIDENCE_RELEASE] true -> <+signed_by(/users/compliance_officer.id)> true)`; `always([+APPROVE_CUSTOMER_COMPLIANCE_EVIDENCE_RELEASE] true -> always([-CONFIDENTIAL_AUDIT_DISCLOSURE] true))` |
 
 ## Output Format
 
@@ -13925,6 +13927,25 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER] true -> always([-UNAUTHORIZED_ADMIN_TRANSFER] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_security_compliance_evidence_governance_patterns() {
+        let prompt =
+            generate_prompt("Customer security questionnaire and compliance evidence controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_SECURITY_QUESTIONNAIRE] true -> <+signed_by(/users/security_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_SECURITY_QUESTIONNAIRE] true -> always([-UNSUPPORTED_CONTROL_REPRESENTATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_COMPLIANCE_EVIDENCE_RELEASE] true -> <+signed_by(/users/compliance_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_COMPLIANCE_EVIDENCE_RELEASE] true -> always([-CONFIDENTIAL_AUDIT_DISCLOSURE] true))"
         ));
     }
 }
