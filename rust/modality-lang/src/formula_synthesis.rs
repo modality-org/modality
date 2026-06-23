@@ -165,7 +165,7 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
                     }
                 } else {
                     for props in extract_eventually_diamond_box_prop_groups(rhs) {
-                        if props.len() > 1 {
+                        if props.len() > 1 && props.iter().any(is_positive_action_property) {
                             push_unique_props(&mut constraints.self_loops, props);
                         }
                     }
@@ -2420,6 +2420,40 @@ mod tests {
             Property::new(PropertySign::Plus, "DEPOSIT".to_string()),
             Property::new(PropertySign::Plus, "DELIVER".to_string())
         ]));
+    }
+
+    #[test]
+    fn test_committed_predicate_rhs_stays_guarded_requirement() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::DiamondBox(
+                vec![Property::new(
+                    PropertySign::Plus,
+                    "SETTLE_ESCROW".to_string(),
+                )],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::DiamondBox(
+                vec![
+                    Property::new_predicate_from_call(
+                        "modifies".to_string(),
+                        "/escrow".to_string(),
+                    ),
+                    Property::new_predicate_from_call(
+                        "oracle_attests".to_string(),
+                        "/oracles/delivery.id, delivered, true".to_string(),
+                    ),
+                ],
+                Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.self_loops.is_empty());
+        assert!(constraints
+            .predicate_requirements
+            .get("SETTLE_ESCROW")
+            .is_some_and(|props| props.len() == 2));
     }
 
     #[test]
