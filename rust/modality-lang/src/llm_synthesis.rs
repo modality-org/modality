@@ -469,6 +469,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Case study publication approval requires customer success lead signature and blocks unapproved customer disclosure" | `always([+APPROVE_CASE_STUDY_PUBLICATION] true -> <+signed_by(/users/customer_success_lead.id)> true)`; `always([+APPROVE_CASE_STUDY_PUBLICATION] true -> always([-UNAPPROVED_CUSTOMER_DISCLOSURE] true))` |
 | "Beta customer program approval requires product lead signature and blocks unsupported preview obligation" | `always([+APPROVE_BETA_CUSTOMER_PROGRAM] true -> <+signed_by(/users/product_lead.id)> true)`; `always([+APPROVE_BETA_CUSTOMER_PROGRAM] true -> always([-UNSUPPORTED_PREVIEW_OBLIGATION] true))` |
 | "Early access feature enablement approval requires product owner signature and blocks uncontracted beta entitlement" | `always([+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT] true -> <+signed_by(/users/product_owner.id)> true)`; `always([+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT] true -> always([-UNCONTRACTED_BETA_ENTITLEMENT] true))` |
+| "Product deprecation notice approval requires product lead signature and blocks unannounced customer impact" | `always([+APPROVE_PRODUCT_DEPRECATION_NOTICE] true -> <+signed_by(/users/product_lead.id)> true)`; `always([+APPROVE_PRODUCT_DEPRECATION_NOTICE] true -> always([-UNANNOUNCED_CUSTOMER_IMPACT] true))` |
+| "Customer migration plan approval requires customer success lead signature and blocks unsupported account transition" | `always([+APPROVE_CUSTOMER_MIGRATION_PLAN] true -> <+signed_by(/users/customer_success_lead.id)> true)`; `always([+APPROVE_CUSTOMER_MIGRATION_PLAN] true -> always([-UNSUPPORTED_ACCOUNT_TRANSITION] true))` |
 
 ## Output Format
 
@@ -13885,6 +13887,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT] true -> always([-UNCONTRACTED_BETA_ENTITLEMENT] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_deprecation_migration_governance_patterns() {
+        let prompt = generate_prompt("Product deprecation and customer migration controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_PRODUCT_DEPRECATION_NOTICE] true -> <+signed_by(/users/product_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PRODUCT_DEPRECATION_NOTICE] true -> always([-UNANNOUNCED_CUSTOMER_IMPACT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_MIGRATION_PLAN] true -> <+signed_by(/users/customer_success_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_MIGRATION_PLAN] true -> always([-UNSUPPORTED_ACCOUNT_TRANSITION] true))"
         ));
     }
 }
