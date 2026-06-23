@@ -847,7 +847,7 @@ fn run_existing_model_synthesis(opts: &Opts) -> Result<()> {
     ensure_existing_model_mode_is_exclusive(opts)?;
 
     let existing_input = load_existing_model_input(existing_model_path)?;
-    let parsed_input = load_proposed_formula_inputs(opts)?;
+    let (parsed_input, proposed_declarations) = load_proposed_formula_inputs(opts)?;
     parsed_input.ensure_all_parsed()?;
 
     if parsed_input.formulas.is_empty() {
@@ -874,7 +874,7 @@ fn run_existing_model_synthesis(opts: &Opts) -> Result<()> {
 
     let output_model = if failed.is_empty() {
         println!("✅ Existing model satisfies every existing and proposed formula\n");
-        existing_input.model
+        existing_input.model.clone()
     } else {
         println!(
             "⚠️  Existing model does not satisfy {} formula(s): {}",
@@ -897,7 +897,10 @@ fn run_existing_model_synthesis(opts: &Opts) -> Result<()> {
         candidate
     };
 
-    let output = format_synthesized_model(&output_model, &opts.format)?;
+    let mut output_declarations = existing_input.formula_declarations;
+    output_declarations.extend(proposed_declarations);
+    let output =
+        format_synthesized_model_with_formulas(&output_model, &opts.format, &output_declarations)?;
     write_or_print_model(&output, opts.output.as_ref())?;
 
     Ok(())
@@ -953,6 +956,7 @@ struct ExistingModelInput {
     model: modality_lang::Model,
     formulas: Vec<modality_lang::FormulaExpr>,
     labels: Vec<String>,
+    formula_declarations: Vec<String>,
 }
 
 fn load_existing_model_input(path: &PathBuf) -> Result<ExistingModelInput> {
@@ -995,20 +999,74 @@ fn load_existing_model_input(path: &PathBuf) -> Result<ExistingModelInput> {
         model,
         formulas: expressions,
         labels,
+        formula_declarations: formula_declaration_blocks(&content),
     })
 }
 
-fn load_proposed_formula_inputs(opts: &Opts) -> Result<ParsedFormulaInputs> {
+fn load_proposed_formula_inputs(opts: &Opts) -> Result<(ParsedFormulaInputs, Vec<String>)> {
     if let Some(formula) = &opts.proposed_formula {
-        Ok(parse_formula_inputs(std::slice::from_ref(formula)))
+        Ok((
+            parse_formula_inputs(std::slice::from_ref(formula)),
+            formula_declarations_for_input("proposed_rule", formula),
+        ))
     } else if let Some(path) = &opts.proposed_rule {
         let content = std::fs::read_to_string(path)?;
-        Ok(parse_formula_inputs(std::slice::from_ref(&content)))
+        Ok((
+            parse_formula_inputs(std::slice::from_ref(&content)),
+            formula_declarations_for_input("proposed_rule", &content),
+        ))
     } else {
         Err(anyhow::anyhow!(
             "Use --proposed-formula or --proposed-rule with --existing-model"
         ))
     }
+}
+
+fn formula_declarations_for_input(default_name: &str, content: &str) -> Vec<String> {
+    let declarations = formula_declaration_blocks(content);
+    if declarations.is_empty() && !content.trim().is_empty() {
+        vec![format!(
+            "formula {} {{\n{}\n}}",
+            default_name,
+            content.trim()
+        )]
+    } else {
+        declarations
+    }
+}
+
+fn formula_declaration_blocks(content: &str) -> Vec<String> {
+    let lines: Vec<&str> = content
+        .lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty() && !line.starts_with("//"))
+        .collect();
+
+    let mut declarations = Vec::new();
+    let mut index = 0;
+
+    while index < lines.len() {
+        let line = lines[index];
+        if line.starts_with("formula ") {
+            let mut formula_lines = vec![line];
+            index += 1;
+
+            while index < lines.len() {
+                let line = lines[index];
+                if line.starts_with("formula ") || line.starts_with("model ") {
+                    break;
+                }
+                formula_lines.push(line);
+                index += 1;
+            }
+
+            declarations.push(formula_lines.join("\n"));
+        } else {
+            index += 1;
+        }
+    }
+
+    declarations
 }
 
 fn existing_model_unsatisfied_formula_labels(
@@ -1354,6 +1412,25 @@ fn format_synthesized_model(model: &modality_lang::Model, format: &str) -> Resul
             other
         )),
     }
+}
+
+fn format_synthesized_model_with_formulas(
+    model: &modality_lang::Model,
+    format: &str,
+    formula_declarations: &[String],
+) -> Result<String> {
+    let mut output = format_synthesized_model(model, format)?;
+
+    if format == "modality" && !formula_declarations.is_empty() {
+        output = output.trim_end().to_string();
+        for declaration in formula_declarations {
+            output.push_str("\n\n");
+            output.push_str(declaration.trim());
+        }
+        output.push('\n');
+    }
+
+    Ok(output)
 }
 
 #[cfg(test)]
@@ -1805,6 +1882,15 @@ F2: formula generated_2 {
 
         assert!(output.contains("model Contract"));
         assert!(output.contains("+APPROVE"));
+        assert!(output.contains("formula previous_rule"));
+        assert!(output.contains("formula proposed_rule"));
+        assert!(output.contains("signed_by(/users/reviewer.id)"));
+        assert_eq!(
+            modality_lang::parse_all_formulas_content_lalrpop(&output)
+                .unwrap()
+                .len(),
+            2
+        );
     }
 
     #[test]
@@ -1853,6 +1939,37 @@ F2: formula generated_2 {
         assert!(output.contains("model ContractCandidate"));
         assert!(output.contains("+APPROVE"));
         assert!(output.contains("+DELIVER"));
+        assert!(output.contains("formula previous_rule"));
+        assert!(output.contains("formula delivery_required"));
+        assert_eq!(
+            modality_lang::parse_all_formulas_content_lalrpop(&output)
+                .unwrap()
+                .len(),
+            2
+        );
+    }
+
+    #[test]
+    fn formula_declaration_blocks_preserve_multiple_formula_sources() {
+        let content = r#"
+model Contract {
+  part flow {
+    idle --> idle: +APPROVE
+  }
+}
+
+formula first_rule {
+always([<+APPROVE>] true)
+}
+
+formula second_rule { eventually(<+DELIVER> true) }
+"#;
+
+        let declarations = formula_declaration_blocks(content);
+
+        assert_eq!(declarations.len(), 2);
+        assert!(declarations[0].contains("formula first_rule"));
+        assert!(declarations[1].contains("formula second_rule"));
     }
 
     #[test]
