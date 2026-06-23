@@ -948,6 +948,14 @@ fn load_existing_model_input(path: &PathBuf) -> Result<ExistingModelInput> {
         )
     })?;
 
+    let model_count = models.len();
+    if model_count > 1 {
+        return Err(anyhow::anyhow!(
+            "Expected exactly one model in {}, found {}",
+            path.display(),
+            model_count
+        ));
+    }
     let model = models
         .into_iter()
         .next()
@@ -1687,6 +1695,37 @@ F2: formula generated_2 {
         assert_eq!(loaded.model.name, "Contract");
         assert_eq!(loaded.formulas.len(), 1);
         assert_eq!(loaded.labels, vec!["existing `previous_rule`".to_string()]);
+    }
+
+    #[test]
+    fn existing_model_loader_rejects_ambiguous_model_files() {
+        let first_formulas = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
+        let second_formulas = parse_formula_strings(&["always([<+DELIVER>] true)".to_string()]);
+        let first =
+            modality_lang::formula_synthesis::synthesize_from_formulas("First", &first_formulas);
+        let second =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Second", &second_formulas);
+        let path = std::env::temp_dir().join(format!(
+            "modality-existing-model-ambiguous-{}.modality",
+            std::process::id()
+        ));
+        std::fs::write(
+            &path,
+            format!(
+                "{}\n\n{}",
+                modality_lang::print_model(&first),
+                modality_lang::print_model(&second)
+            ),
+        )
+        .unwrap();
+
+        let err = match load_existing_model_input(&path) {
+            Ok(_) => panic!("ambiguous existing model file should be rejected"),
+            Err(err) => err,
+        };
+        std::fs::remove_file(path).unwrap();
+
+        assert!(err.to_string().contains("Expected exactly one model"));
     }
 
     #[test]
