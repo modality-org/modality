@@ -489,6 +489,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer remediation milestone closure approval requires reliability lead signature and blocks unresolved customer impacting follow-up" | `always([+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE] true -> <+signed_by(/users/reliability_lead.id)> true)`; `always([+APPROVE_CUSTOMER_REMEDIATION_MILESTONE_CLOSURE] true -> always([-UNRESOLVED_CUSTOMER_IMPACTING_FOLLOW_UP] true))` |
 | "Customer incident service credit approval requires finance lead signature and blocks unsupported SLA credit commitment" | `always([+APPROVE_CUSTOMER_INCIDENT_SERVICE_CREDIT] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_CUSTOMER_INCIDENT_SERVICE_CREDIT] true -> always([-UNSUPPORTED_SLA_CREDIT_COMMITMENT] true))` |
 | "Customer incident follow-up extension approval requires customer success lead signature and blocks open reliability risk extension" | `always([+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION] true -> <+signed_by(/users/customer_success_lead.id)> true)`; `always([+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION] true -> always([-OPEN_RELIABILITY_RISK_EXTENSION] true))` |
+| "Customer trust center update approval requires compliance officer signature and blocks stale assurance claim" | `always([+APPROVE_CUSTOMER_TRUST_CENTER_UPDATE] true -> <+signed_by(/users/compliance_officer.id)> true)`; `always([+APPROVE_CUSTOMER_TRUST_CENTER_UPDATE] true -> always([-STALE_ASSURANCE_CLAIM] true))` |
+| "Customer regulatory disclosure approval requires corporate counsel signature and blocks inconsistent regulator notice" | `always([+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE] true -> always([-INCONSISTENT_REGULATOR_NOTICE] true))` |
 
 ## Output Format
 
@@ -14093,6 +14095,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION] true -> always([-OPEN_RELIABILITY_RISK_EXTENSION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_trust_center_regulatory_disclosure_governance_patterns() {
+        let prompt = generate_prompt("Customer trust center and regulatory disclosure controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_TRUST_CENTER_UPDATE] true -> <+signed_by(/users/compliance_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_TRUST_CENTER_UPDATE] true -> always([-STALE_ASSURANCE_CLAIM] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE] true -> <+signed_by(/users/corporate_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE] true -> always([-INCONSISTENT_REGULATOR_NOTICE] true))"
         ));
     }
 }
