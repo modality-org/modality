@@ -509,6 +509,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer account reactivation approval requires support lead signature and blocks unauthorized service restoration" | `always([+APPROVE_CUSTOMER_ACCOUNT_REACTIVATION] true -> <+signed_by(/users/support_lead.id)> true)`; `always([+APPROVE_CUSTOMER_ACCOUNT_REACTIVATION] true -> always([-UNAUTHORIZED_SERVICE_RESTORATION] true))` |
 | "Customer sandbox refresh approval requires privacy operations lead signature and blocks production data leakage" | `always([+APPROVE_CUSTOMER_SANDBOX_REFRESH] true -> <+signed_by(/users/privacy_operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_SANDBOX_REFRESH] true -> always([-PRODUCTION_DATA_LEAKAGE] true))` |
 | "Customer instance archival approval requires retention counsel signature and blocks premature account archive" | `always([+APPROVE_CUSTOMER_INSTANCE_ARCHIVAL] true -> <+signed_by(/users/retention_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_INSTANCE_ARCHIVAL] true -> always([-PREMATURE_ACCOUNT_ARCHIVE] true))` |
+| "Customer data retention exception approval requires retention counsel signature and blocks unbounded customer record retention" | `always([+APPROVE_CUSTOMER_DATA_RETENTION_EXCEPTION] true -> <+signed_by(/users/retention_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_DATA_RETENTION_EXCEPTION] true -> always([-UNBOUNDED_CUSTOMER_RECORD_RETENTION] true))` |
+| "Customer anonymization waiver approval requires privacy counsel signature and blocks identifiable analytics reuse" | `always([+APPROVE_CUSTOMER_ANONYMIZATION_WAIVER] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_ANONYMIZATION_WAIVER] true -> always([-IDENTIFIABLE_ANALYTICS_REUSE] true))` |
 
 ## Output Format
 
@@ -14294,6 +14296,25 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_INSTANCE_ARCHIVAL] true -> always([-PREMATURE_ACCOUNT_ARCHIVE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_retention_anonymization_governance_patterns() {
+        let prompt =
+            generate_prompt("Customer data retention exception and anonymization waiver controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_DATA_RETENTION_EXCEPTION] true -> <+signed_by(/users/retention_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_DATA_RETENTION_EXCEPTION] true -> always([-UNBOUNDED_CUSTOMER_RECORD_RETENTION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_ANONYMIZATION_WAIVER] true -> <+signed_by(/users/privacy_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_ANONYMIZATION_WAIVER] true -> always([-IDENTIFIABLE_ANALYTICS_REUSE] true))"
         ));
     }
 }
