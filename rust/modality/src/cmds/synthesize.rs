@@ -757,39 +757,57 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
 ];
 
 fn print_synthesis_list() {
-    println!("Available templates:\n");
-    println!("  escrow              Two-party escrow with deposit/deliver/release");
-    println!("  handshake           Mutual agreement requiring both signatures");
-    println!("  mutual_cooperation  Cooperation game - both must cooperate, defection blocked");
-    println!("  atomic_swap         Both parties commit before either can claim");
-    println!("  multisig            N-of-M signature approval pattern");
-    println!("  turn_taking         Alternating two-party turn cycle");
-    println!("  service_agreement   Offer -> Accept -> Deliver -> Confirm -> Pay");
-    println!("  delegation          Principal grants agent authority to act");
-    println!("  auction             Seller lists, bidders bid, highest wins");
-    println!("  subscription        Recurring payment for service access");
-    println!("  milestone           Multi-phase project with payments");
-    println!("\nUsage:");
-    println!("  modality model synthesize --template escrow --party-a Buyer --party-b Seller");
-    println!("\nOr describe in natural language:");
-    println!("  modality model synthesize --describe \"escrow where buyer deposits funds\"");
-    println!("  modality model synthesize --describe \"Alice and Bob take turns signing\"");
-    println!("\nOr synthesize and verify from formulas:");
+    print!("{}", synthesis_list_text());
+}
+
+fn synthesis_list_text() -> String {
+    let mut output = String::new();
+
+    output.push_str("Available templates:\n\n");
+    output.push_str("  escrow              Two-party escrow with deposit/deliver/release\n");
+    output.push_str("  handshake           Mutual agreement requiring both signatures\n");
+    output.push_str("  mutual_cooperation  Cooperation game - both must cooperate, defection blocked\n");
+    output.push_str("  atomic_swap         Both parties commit before either can claim\n");
+    output.push_str("  multisig            N-of-M signature approval pattern\n");
+    output.push_str("  turn_taking         Alternating two-party turn cycle\n");
+    output.push_str("  service_agreement   Offer -> Accept -> Deliver -> Confirm -> Pay\n");
+    output.push_str("  delegation          Principal grants agent authority to act\n");
+    output.push_str("  auction             Seller lists, bidders bid, highest wins\n");
+    output.push_str("  subscription        Recurring payment for service access\n");
+    output.push_str("  milestone           Multi-phase project with payments\n");
+    output.push_str("\nUsage:\n");
+    output.push_str("  modality model synthesize --template escrow --party-a Buyer --party-b Seller\n");
+    output.push_str("\nOr describe in natural language:\n");
+    output.push_str(
+        "  modality model synthesize --describe \"escrow where buyer deposits funds\"\n",
+    );
+    output.push_str("  modality model synthesize --describe \"Alice and Bob take turns signing\"\n");
+    output.push_str("\nOr evolve an existing model with a proposed rule:\n");
+    output.push_str(
+        "  modality model synthesize --existing-model contract.modality --proposed-rule amendment.modality --output candidate.modality\n",
+    );
+    output.push_str(
+        "  modality model synthesize --existing-model contract.modality --proposed-formula \"always([<+APPROVE>] true)\"\n",
+    );
+    output.push_str("\nOr synthesize and verify from formulas:\n");
     for group in FORMULA_EXAMPLE_GROUPS {
-        println!("\n  {}:", group.title);
-        println!("    {}", group.description);
+        output.push_str(&format!("\n  {}:\n", group.title));
+        output.push_str(&format!("    {}\n", group.description));
         for formula in group.formulas {
-            println!(
+            output.push_str(&format!(
                 "    modality model synthesize --formulas \"{}\" --verify",
                 escape_formula_for_command(formula)
-            );
+            ));
+            output.push('\n');
         }
     }
-    println!("\nOr generate a prompt and synthesize an LLM response file:");
-    println!(
-        "  modality model synthesize --describe \"escrow where buyer deposits funds\" --generate-prompt"
+    output.push_str("\nOr generate a prompt and synthesize an LLM response file:\n");
+    output.push_str(
+        "  modality model synthesize --describe \"escrow where buyer deposits funds\" --generate-prompt\n",
     );
-    println!("  modality model synthesize --llm-response-file response.md --verify");
+    output.push_str("  modality model synthesize --llm-response-file response.md --verify\n");
+
+    output
 }
 
 fn escape_formula_for_command(formula: &str) -> String {
@@ -1648,6 +1666,14 @@ F2: formula generated_2 {
         let json = format_synthesized_model(&model, "json").unwrap();
 
         assert!(json.contains("\"name\": \"Contract\""));
+    }
+
+    #[test]
+    fn synthesis_list_includes_existing_model_evolution_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("--existing-model contract.modality --proposed-rule"));
+        assert!(output.contains("--existing-model contract.modality --proposed-formula"));
     }
 
     #[test]
