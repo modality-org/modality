@@ -36,48 +36,33 @@ pub struct SynthesisConstraints {
 pub fn extract_constraints(formula: &FormulaExpr) -> SynthesisConstraints {
     let mut constraints = SynthesisConstraints::default();
     let direct_diamond_props = extract_direct_diamond_prop_groups(formula);
-    if !direct_diamond_props.is_empty() {
+    let direct_diamond_box_props = extract_direct_diamond_box_prop_groups(formula);
+    if !direct_diamond_props.is_empty() || !direct_diamond_box_props.is_empty() {
         for props in direct_diamond_props {
             push_unique_props(&mut constraints.self_loops, props);
         }
-        extract_non_direct_diamond_branches(formula, &mut constraints);
-        return constraints;
-    }
-    let direct_diamond_box_props = extract_direct_diamond_box_prop_groups(formula);
-    if !direct_diamond_box_props.is_empty() {
         for props in direct_diamond_box_props {
             push_unique_props(&mut constraints.self_loops, props);
         }
-        extract_non_direct_diamond_box_branches(formula, &mut constraints);
+        extract_non_direct_availability_branches(formula, &mut constraints);
         return constraints;
     }
     extract_from_expr(formula, &mut constraints);
     constraints
 }
 
-fn extract_non_direct_diamond_branches(expr: &FormulaExpr, constraints: &mut SynthesisConstraints) {
-    match expr {
-        FormulaExpr::Diamond(props, inner) if is_true_expr(inner) && !props.is_empty() => {}
-        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
-            extract_non_direct_diamond_branches(lhs, constraints);
-            extract_non_direct_diamond_branches(rhs, constraints);
-        }
-        FormulaExpr::Paren(inner) => extract_non_direct_diamond_branches(inner, constraints),
-        _ => extract_from_expr(expr, constraints),
-    }
-}
-
-fn extract_non_direct_diamond_box_branches(
+fn extract_non_direct_availability_branches(
     expr: &FormulaExpr,
     constraints: &mut SynthesisConstraints,
 ) {
     match expr {
+        FormulaExpr::Diamond(props, inner) if is_true_expr(inner) && !props.is_empty() => {}
         FormulaExpr::DiamondBox(props, inner) if is_true_expr(inner) && !props.is_empty() => {}
         FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
-            extract_non_direct_diamond_box_branches(lhs, constraints);
-            extract_non_direct_diamond_box_branches(rhs, constraints);
+            extract_non_direct_availability_branches(lhs, constraints);
+            extract_non_direct_availability_branches(rhs, constraints);
         }
-        FormulaExpr::Paren(inner) => extract_non_direct_diamond_box_branches(inner, constraints),
+        FormulaExpr::Paren(inner) => extract_non_direct_availability_branches(inner, constraints),
         _ => extract_from_expr(expr, constraints),
     }
 }
@@ -1067,6 +1052,50 @@ mod tests {
         assert!(transitions[1]
             .properties
             .contains(&Property::new(PropertySign::Plus, "REJECT".to_string())));
+    }
+
+    #[test]
+    fn test_mixed_direct_availability_preserves_permissive_and_committed_self_loops() {
+        let formula = FormulaExpr::And(
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "CANCEL".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::DiamondBox(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+        assert_eq!(constraints.self_loops.len(), 2);
+        assert!(constraints.self_loops.contains(&vec![Property::new(
+            PropertySign::Plus,
+            "CANCEL".to_string()
+        )]));
+        assert!(constraints.self_loops.contains(&vec![Property::new(
+            PropertySign::Plus,
+            "APPROVE".to_string()
+        )]));
+
+        let model = synthesize_from_formulas("Availability", &[formula]);
+        let transitions = &model.parts[0].transitions;
+
+        assert_eq!(transitions.len(), 2);
+        assert!(transitions.iter().any(|transition| {
+            transition.from == "q0"
+                && transition.to == "q0"
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "CANCEL".to_string()))
+        }));
+        assert!(transitions.iter().any(|transition| {
+            transition.from == "q0"
+                && transition.to == "q0"
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
+        }));
     }
 
     #[test]
