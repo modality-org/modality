@@ -720,28 +720,11 @@ pub fn synthesize_from_constraints(name: &str, constraints: &SynthesisConstraint
         transitions.push(build_action_transition(&from, &to, action, constraints));
     }
 
-    // Add required self-loop patterns, such as always [<+A>] true. When
-    // obligations introduce self-loops, keep authorization witnesses available
-    // across the same nodes so implication RHS diamonds do not disappear after
-    // unrelated actions.
-    let mut self_loop_groups = constraints.self_loops.clone();
-    if !self_loop_groups.is_empty() {
-        let mut signer_groups: Vec<_> = constraints.authorization.values().collect();
-        signer_groups.sort();
-        let mut signer_props = Vec::new();
-        for signers in signer_groups {
-            for signer in signers {
-                let prop =
-                    Property::new_predicate_from_call("signed_by".to_string(), signer.clone());
-                if !signer_props.contains(&prop) {
-                    signer_props.push(prop);
-                }
-            }
-        }
-        for props in &mut self_loop_groups {
-            extend_unique_props(props, &signer_props);
-        }
-    }
+    // Add required self-loop patterns, such as always [<+A>] true. Signer
+    // witnesses belong in a self-loop only when the extractor attached them to
+    // that availability group; unrelated action authorizations stay on their
+    // guarded transitions.
+    let self_loop_groups = constraints.self_loops.clone();
 
     for node in &nodes {
         for props in &self_loop_groups {
@@ -2397,6 +2380,54 @@ mod tests {
             Property::new(PropertySign::Plus, "DELIVER".to_string()),
             Property::new_predicate_from_call("modifies".to_string(), "/delivery".to_string())
         ]));
+    }
+
+    #[test]
+    fn test_unrelated_authorization_does_not_pollute_committed_self_loops() {
+        let deliver_available = FormulaExpr::Always(Box::new(FormulaExpr::DiamondBox(
+            vec![Property::new(PropertySign::Plus, "DELIVER".to_string())],
+            Box::new(FormulaExpr::True),
+        )));
+        let approve_requires_alice = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new_predicate_from_call(
+                    "signed_by".to_string(),
+                    "/users/alice.id".to_string(),
+                )],
+                Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let model = synthesize_from_formulas(
+            "SeparatedAuthorization",
+            &[deliver_available, approve_requires_alice],
+        );
+        let deliver = Property::new(PropertySign::Plus, "DELIVER".to_string());
+        let approve = Property::new(PropertySign::Plus, "APPROVE".to_string());
+        let alice = Property::new_predicate_from_call(
+            "signed_by".to_string(),
+            "/users/alice.id".to_string(),
+        );
+        let transitions = &model.parts[0].transitions;
+
+        assert!(transitions
+            .iter()
+            .any(|transition| transition.properties.contains(&approve)
+                && transition.properties.contains(&alice)));
+        assert!(transitions.iter().any(|transition| {
+            transition.from == transition.to
+                && transition.properties.contains(&deliver)
+                && !transition.properties.contains(&alice)
+        }));
+        assert!(transitions.iter().all(|transition| {
+            !(transition.from == transition.to
+                && transition.properties.contains(&deliver)
+                && transition.properties.contains(&alice))
+        }));
     }
 
     #[test]
