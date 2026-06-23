@@ -467,6 +467,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Renewal forecast adjustment approval requires revenue operations lead signature and blocks unreviewed forecast slippage" | `always([+APPROVE_RENEWAL_FORECAST_ADJUSTMENT] true -> <+signed_by(/users/revenue_operations_lead.id)> true)`; `always([+APPROVE_RENEWAL_FORECAST_ADJUSTMENT] true -> always([-UNREVIEWED_FORECAST_SLIPPAGE] true))` |
 | "Customer reference approval requires marketing lead signature and blocks unauthorized public endorsement" | `always([+APPROVE_CUSTOMER_REFERENCE] true -> <+signed_by(/users/marketing_lead.id)> true)`; `always([+APPROVE_CUSTOMER_REFERENCE] true -> always([-UNAUTHORIZED_PUBLIC_ENDORSEMENT] true))` |
 | "Case study publication approval requires customer success lead signature and blocks unapproved customer disclosure" | `always([+APPROVE_CASE_STUDY_PUBLICATION] true -> <+signed_by(/users/customer_success_lead.id)> true)`; `always([+APPROVE_CASE_STUDY_PUBLICATION] true -> always([-UNAPPROVED_CUSTOMER_DISCLOSURE] true))` |
+| "Beta customer program approval requires product lead signature and blocks unsupported preview obligation" | `always([+APPROVE_BETA_CUSTOMER_PROGRAM] true -> <+signed_by(/users/product_lead.id)> true)`; `always([+APPROVE_BETA_CUSTOMER_PROGRAM] true -> always([-UNSUPPORTED_PREVIEW_OBLIGATION] true))` |
+| "Early access feature enablement approval requires product owner signature and blocks uncontracted beta entitlement" | `always([+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT] true -> <+signed_by(/users/product_owner.id)> true)`; `always([+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT] true -> always([-UNCONTRACTED_BETA_ENTITLEMENT] true))` |
 
 ## Output Format
 
@@ -13865,6 +13867,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CASE_STUDY_PUBLICATION] true -> always([-UNAPPROVED_CUSTOMER_DISCLOSURE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_beta_early_access_governance_patterns() {
+        let prompt = generate_prompt("Beta customer and early access feature controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_BETA_CUSTOMER_PROGRAM] true -> <+signed_by(/users/product_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_BETA_CUSTOMER_PROGRAM] true -> always([-UNSUPPORTED_PREVIEW_OBLIGATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT] true -> <+signed_by(/users/product_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT] true -> always([-UNCONTRACTED_BETA_ENTITLEMENT] true))"
         ));
     }
 }
