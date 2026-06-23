@@ -226,6 +226,9 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
 
         // next(φ) delays evaluation but should still expose mentioned actions.
         FormulaExpr::Next(inner) => {
+            for props in extract_conjunctive_availability_prop_groups(inner) {
+                push_unique_props(&mut constraints.self_loops, props);
+            }
             extract_from_expr(inner, constraints);
         }
 
@@ -2709,6 +2712,71 @@ mod tests {
         let constraints = extract_constraints(&formula);
 
         assert!(constraints.actions.contains("APPROVE"));
+    }
+
+    #[test]
+    fn test_next_diamond_preserves_successor_availability() {
+        let formula = FormulaExpr::Next(Box::new(FormulaExpr::Diamond(
+            vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+            Box::new(FormulaExpr::True),
+        )));
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("APPROVE"));
+        assert_eq!(
+            constraints.self_loops,
+            vec![vec![Property::new(
+                PropertySign::Plus,
+                "APPROVE".to_string()
+            )]]
+        );
+
+        let model = synthesize_from_formulas("NextAvailability", &[formula]);
+
+        assert!(model.parts[0].transitions.iter().any(|transition| {
+            transition.from == "q1"
+                && transition.to == "q1"
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
+        }));
+    }
+
+    #[test]
+    fn test_next_compound_diamond_preserves_joint_successor_availability() {
+        let formula = FormulaExpr::Next(Box::new(FormulaExpr::And(
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "REVIEW".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+        )));
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("APPROVE"));
+        assert!(constraints.actions.contains("REVIEW"));
+        assert!(constraints.self_loops.iter().any(|props| {
+            props.contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
+                && props.contains(&Property::new(PropertySign::Plus, "REVIEW".to_string()))
+        }));
+
+        let model = synthesize_from_formulas("NextJointAvailability", &[formula]);
+
+        assert!(model.parts[0].transitions.iter().any(|transition| {
+            transition.from == "q2"
+                && transition.to == "q2"
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "REVIEW".to_string()))
+        }));
     }
 
     #[test]
