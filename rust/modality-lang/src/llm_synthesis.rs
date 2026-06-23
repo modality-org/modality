@@ -429,6 +429,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Payment processor onboarding approval requires operations lead signature and blocks unapproved payment collection" | `always([+APPROVE_PAYMENT_PROCESSOR_ONBOARDING] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_PAYMENT_PROCESSOR_ONBOARDING] true -> always([-UNAPPROVED_PAYMENT_COLLECTION] true))` |
 | "Sales tax nexus review approval requires finance lead signature and blocks uncollected sales tax exposure" | `always([+APPROVE_SALES_TAX_NEXUS_REVIEW] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_SALES_TAX_NEXUS_REVIEW] true -> always([-UNCOLLECTED_SALES_TAX_EXPOSURE] true))` |
 | "Chargeback reserve approval requires operations lead signature and blocks unfunded dispute liability" | `always([+APPROVE_CHARGEBACK_RESERVE] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CHARGEBACK_RESERVE] true -> always([-UNFUNDED_DISPUTE_LIABILITY] true))` |
+| "Customer refund policy approval requires finance lead signature and blocks unauthorized refund obligation" | `always([+APPROVE_CUSTOMER_REFUND_POLICY] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_CUSTOMER_REFUND_POLICY] true -> always([-UNAUTHORIZED_REFUND_OBLIGATION] true))` |
+| "Subscription cancellation flow approval requires operations lead signature and blocks noncompliant renewal billing" | `always([+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW] true -> always([-NONCOMPLIANT_RENEWAL_BILLING] true))` |
 
 ## Output Format
 
@@ -13483,6 +13485,25 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CHARGEBACK_RESERVE] true -> always([-UNFUNDED_DISPUTE_LIABILITY] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_refund_subscription_governance_patterns() {
+        let prompt =
+            generate_prompt("Customer refund policy and subscription cancellation controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_REFUND_POLICY] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_REFUND_POLICY] true -> always([-UNAUTHORIZED_REFUND_OBLIGATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW] true -> <+signed_by(/users/operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW] true -> always([-NONCOMPLIANT_RENEWAL_BILLING] true))"
         ));
     }
 }
