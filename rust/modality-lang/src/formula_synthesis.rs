@@ -113,6 +113,11 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
                     }
                     constraints.actions.extend(required_actions);
                 }
+                for props in extract_eventually_availability_prop_groups(rhs) {
+                    if props.len() > 1 {
+                        push_unique_props(&mut constraints.self_loops, props);
+                    }
+                }
                 // Check for <+signed_by(path)> true pattern
                 let signers = extract_diamond_signers(rhs);
                 if !signers.is_empty() {
@@ -211,6 +216,11 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
 
         // Reachability formulas can still mention actions the candidate needs.
         FormulaExpr::Eventually(inner) => {
+            for props in extract_conjunctive_availability_prop_groups(inner) {
+                if props.len() > 1 {
+                    push_unique_props(&mut constraints.self_loops, props);
+                }
+            }
             extract_from_expr(inner, constraints);
         }
 
@@ -286,6 +296,45 @@ fn extract_diamond_box_props(expr: &FormulaExpr) -> Vec<Vec<Property>> {
             props
         }
         FormulaExpr::Paren(inner) => extract_diamond_box_props(inner),
+        _ => Vec::new(),
+    }
+}
+
+/// Extract availability groups that must hold in the same eventual state.
+fn extract_eventually_availability_prop_groups(expr: &FormulaExpr) -> Vec<Vec<Property>> {
+    match expr {
+        FormulaExpr::Eventually(inner) => extract_conjunctive_availability_prop_groups(inner),
+        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
+            let mut props = extract_eventually_availability_prop_groups(lhs);
+            for rhs_props in extract_eventually_availability_prop_groups(rhs) {
+                push_unique_props(&mut props, rhs_props);
+            }
+            props
+        }
+        FormulaExpr::Paren(inner) => extract_eventually_availability_prop_groups(inner),
+        _ => Vec::new(),
+    }
+}
+
+fn extract_conjunctive_availability_prop_groups(expr: &FormulaExpr) -> Vec<Vec<Property>> {
+    match expr {
+        FormulaExpr::Diamond(props, inner) | FormulaExpr::DiamondBox(props, inner)
+            if is_true_expr(inner) && !props.is_empty() =>
+        {
+            vec![props.clone()]
+        }
+        FormulaExpr::And(lhs, rhs) => combine_prop_groups(
+            extract_conjunctive_availability_prop_groups(lhs),
+            extract_conjunctive_availability_prop_groups(rhs),
+        ),
+        FormulaExpr::Or(lhs, rhs) => {
+            let mut props = extract_conjunctive_availability_prop_groups(lhs);
+            for rhs_props in extract_conjunctive_availability_prop_groups(rhs) {
+                push_unique_props(&mut props, rhs_props);
+            }
+            props
+        }
+        FormulaExpr::Paren(inner) => extract_conjunctive_availability_prop_groups(inner),
         _ => Vec::new(),
     }
 }
@@ -1940,6 +1989,39 @@ mod tests {
     }
 
     #[test]
+    fn test_compound_permissive_eventual_body_adds_combined_self_loop() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Eventually(Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "DELIVER".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "INSPECT".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+            )))),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .ordering
+            .contains(&("RELEASE".to_string(), "DELIVER".to_string())));
+        assert!(constraints
+            .ordering
+            .contains(&("RELEASE".to_string(), "INSPECT".to_string())));
+        assert!(constraints.self_loops.iter().any(|props| {
+            props.contains(&Property::new(PropertySign::Plus, "DELIVER".to_string()))
+                && props.contains(&Property::new(PropertySign::Plus, "INSPECT".to_string()))
+        }));
+    }
+
+    #[test]
     fn test_compound_committed_eventual_body_adds_combined_self_loop() {
         let formula = FormulaExpr::Implies(
             Box::new(FormulaExpr::Box(
@@ -2579,6 +2661,42 @@ mod tests {
 
         assert!(constraints.actions.contains("APPROVE"));
         assert!(constraints.actions.contains("REJECT"));
+    }
+
+    #[test]
+    fn test_standalone_compound_eventual_body_adds_joint_availability() {
+        let formula = FormulaExpr::Eventually(Box::new(FormulaExpr::And(
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "REVIEW".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+        )));
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("APPROVE"));
+        assert!(constraints.actions.contains("REVIEW"));
+        assert!(constraints.self_loops.iter().any(|props| {
+            props.contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
+                && props.contains(&Property::new(PropertySign::Plus, "REVIEW".to_string()))
+        }));
+
+        let model = synthesize_from_formulas("JointAvailability", &[formula]);
+
+        assert!(model.parts[0].transitions.iter().any(|transition| {
+            transition.from == "q0"
+                && transition.to == "q0"
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "REVIEW".to_string()))
+        }));
     }
 
     #[test]
