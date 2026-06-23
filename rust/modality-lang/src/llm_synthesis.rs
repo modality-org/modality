@@ -475,6 +475,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Account ownership transfer approval requires corporate counsel signature and blocks unauthorized admin transfer" | `always([+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER] true -> always([-UNAUTHORIZED_ADMIN_TRANSFER] true))` |
 | "Customer security questionnaire approval requires security lead signature and blocks unsupported control representation" | `always([+APPROVE_CUSTOMER_SECURITY_QUESTIONNAIRE] true -> <+signed_by(/users/security_lead.id)> true)`; `always([+APPROVE_CUSTOMER_SECURITY_QUESTIONNAIRE] true -> always([-UNSUPPORTED_CONTROL_REPRESENTATION] true))` |
 | "Customer compliance evidence release approval requires compliance officer signature and blocks confidential audit disclosure" | `always([+APPROVE_CUSTOMER_COMPLIANCE_EVIDENCE_RELEASE] true -> <+signed_by(/users/compliance_officer.id)> true)`; `always([+APPROVE_CUSTOMER_COMPLIANCE_EVIDENCE_RELEASE] true -> always([-CONFIDENTIAL_AUDIT_DISCLOSURE] true))` |
+| "Penetration test report release approval requires security lead signature and blocks unresolved critical finding disclosure" | `always([+APPROVE_PENETRATION_TEST_REPORT_RELEASE] true -> <+signed_by(/users/security_lead.id)> true)`; `always([+APPROVE_PENETRATION_TEST_REPORT_RELEASE] true -> always([-UNRESOLVED_CRITICAL_FINDING_DISCLOSURE] true))` |
+| "Customer security exception approval requires risk owner signature and blocks untracked compensating control gap" | `always([+APPROVE_CUSTOMER_SECURITY_EXCEPTION] true -> <+signed_by(/users/risk_owner.id)> true)`; `always([+APPROVE_CUSTOMER_SECURITY_EXCEPTION] true -> always([-UNTRACKED_COMPENSATING_CONTROL_GAP] true))` |
 
 ## Output Format
 
@@ -13946,6 +13948,25 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_COMPLIANCE_EVIDENCE_RELEASE] true -> always([-CONFIDENTIAL_AUDIT_DISCLOSURE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_pentest_exception_governance_patterns() {
+        let prompt =
+            generate_prompt("Penetration test report and customer security exception controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_PENETRATION_TEST_REPORT_RELEASE] true -> <+signed_by(/users/security_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PENETRATION_TEST_REPORT_RELEASE] true -> always([-UNRESOLVED_CRITICAL_FINDING_DISCLOSURE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_SECURITY_EXCEPTION] true -> <+signed_by(/users/risk_owner.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_SECURITY_EXCEPTION] true -> always([-UNTRACKED_COMPENSATING_CONTROL_GAP] true))"
         ));
     }
 }
