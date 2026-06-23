@@ -481,6 +481,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer subprocessor notice approval requires vendor risk owner signature and blocks unapproved processor disclosure" | `always([+APPROVE_CUSTOMER_SUBPROCESSOR_NOTICE] true -> <+signed_by(/users/vendor_risk_owner.id)> true)`; `always([+APPROVE_CUSTOMER_SUBPROCESSOR_NOTICE] true -> always([-UNAPPROVED_PROCESSOR_DISCLOSURE] true))` |
 | "Customer audit right approval requires compliance officer signature and blocks unsupported audit scope" | `always([+APPROVE_CUSTOMER_AUDIT_RIGHT] true -> <+signed_by(/users/compliance_officer.id)> true)`; `always([+APPROVE_CUSTOMER_AUDIT_RIGHT] true -> always([-UNSUPPORTED_AUDIT_SCOPE] true))` |
 | "Customer data residency commitment approval requires privacy counsel signature and blocks unlawful region commitment" | `always([+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT] true -> always([-UNLAWFUL_REGION_COMMITMENT] true))` |
+| "Customer maintenance notice approval requires operations lead signature and blocks unannounced service interruption" | `always([+APPROVE_CUSTOMER_MAINTENANCE_NOTICE] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_MAINTENANCE_NOTICE] true -> always([-UNANNOUNCED_SERVICE_INTERRUPTION] true))` |
+| "Customer uptime report approval requires reliability lead signature and blocks inaccurate SLA reporting" | `always([+APPROVE_CUSTOMER_UPTIME_REPORT] true -> <+signed_by(/users/reliability_lead.id)> true)`; `always([+APPROVE_CUSTOMER_UPTIME_REPORT] true -> always([-INACCURATE_SLA_REPORTING] true))` |
 
 ## Output Format
 
@@ -14008,6 +14010,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT] true -> always([-UNLAWFUL_REGION_COMMITMENT] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_maintenance_uptime_governance_patterns() {
+        let prompt = generate_prompt("Customer maintenance notice and uptime report controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_MAINTENANCE_NOTICE] true -> <+signed_by(/users/operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_MAINTENANCE_NOTICE] true -> always([-UNANNOUNCED_SERVICE_INTERRUPTION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_UPTIME_REPORT] true -> <+signed_by(/users/reliability_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_UPTIME_REPORT] true -> always([-INACCURATE_SLA_REPORTING] true))"
         ));
     }
 }
