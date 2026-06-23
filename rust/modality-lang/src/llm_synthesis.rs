@@ -463,6 +463,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Implementation milestone acceptance approval requires delivery manager signature and blocks premature services billing" | `always([+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE] true -> <+signed_by(/users/delivery_manager.id)> true)`; `always([+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE] true -> always([-PREMATURE_SERVICES_BILLING] true))` |
 | "Customer executive business review approval requires customer success lead signature and blocks unapproved renewal commitment" | `always([+APPROVE_CUSTOMER_EXECUTIVE_BUSINESS_REVIEW] true -> <+signed_by(/users/customer_success_lead.id)> true)`; `always([+APPROVE_CUSTOMER_EXECUTIVE_BUSINESS_REVIEW] true -> always([-UNAPPROVED_RENEWAL_COMMITMENT] true))` |
 | "Implementation change order approval requires delivery manager signature and blocks unpriced services scope expansion" | `always([+APPROVE_IMPLEMENTATION_CHANGE_ORDER] true -> <+signed_by(/users/delivery_manager.id)> true)`; `always([+APPROVE_IMPLEMENTATION_CHANGE_ORDER] true -> always([-UNPRICED_SERVICES_SCOPE_EXPANSION] true))` |
+| "Customer escalation response approval requires support lead signature and blocks unmanaged executive escalation" | `always([+APPROVE_CUSTOMER_ESCALATION_RESPONSE] true -> <+signed_by(/users/support_lead.id)> true)`; `always([+APPROVE_CUSTOMER_ESCALATION_RESPONSE] true -> always([-UNMANAGED_EXECUTIVE_ESCALATION] true))` |
+| "Renewal forecast adjustment approval requires revenue operations lead signature and blocks unreviewed forecast slippage" | `always([+APPROVE_RENEWAL_FORECAST_ADJUSTMENT] true -> <+signed_by(/users/revenue_operations_lead.id)> true)`; `always([+APPROVE_RENEWAL_FORECAST_ADJUSTMENT] true -> always([-UNREVIEWED_FORECAST_SLIPPAGE] true))` |
 
 ## Output Format
 
@@ -13825,6 +13827,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_IMPLEMENTATION_CHANGE_ORDER] true -> always([-UNPRICED_SERVICES_SCOPE_EXPANSION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_escalation_forecast_governance_patterns() {
+        let prompt = generate_prompt("Customer escalation and renewal forecast controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_ESCALATION_RESPONSE] true -> <+signed_by(/users/support_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_ESCALATION_RESPONSE] true -> always([-UNMANAGED_EXECUTIVE_ESCALATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_RENEWAL_FORECAST_ADJUSTMENT] true -> <+signed_by(/users/revenue_operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_RENEWAL_FORECAST_ADJUSTMENT] true -> always([-UNREVIEWED_FORECAST_SLIPPAGE] true))"
         ));
     }
 }
