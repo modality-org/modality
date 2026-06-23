@@ -17,6 +17,18 @@ pub struct Opts {
     #[arg(short, long)]
     pub rule: Option<PathBuf>,
 
+    /// Existing model file to test before synthesizing a replacement candidate
+    #[arg(long)]
+    pub existing_model: Option<PathBuf>,
+
+    /// Proposed formula text to check against an existing model
+    #[arg(long)]
+    pub proposed_formula: Option<String>,
+
+    /// File containing proposed formula(s) to check against an existing model
+    #[arg(long)]
+    pub proposed_rule: Option<PathBuf>,
+
     /// Inline formulas (semicolon-separated)
     #[arg(long)]
     pub formulas: Option<String>,
@@ -65,6 +77,10 @@ pub struct Opts {
 pub async fn run(opts: &Opts) -> Result<()> {
     let llm_response =
         load_llm_response(opts.llm_response.as_ref(), opts.llm_response_file.as_ref())?;
+
+    if has_existing_model_inputs(opts) {
+        return run_existing_model_synthesis(opts);
+    }
 
     // Step 1a: Generate LLM prompt for NL → Formulas
     if opts.generate_prompt {
@@ -794,6 +810,135 @@ fn load_llm_response(
     }
 }
 
+fn has_existing_model_inputs(opts: &Opts) -> bool {
+    opts.existing_model.is_some() || opts.proposed_formula.is_some() || opts.proposed_rule.is_some()
+}
+
+fn run_existing_model_synthesis(opts: &Opts) -> Result<()> {
+    let existing_model_path = opts.existing_model.as_ref().ok_or_else(|| {
+        anyhow::anyhow!("--existing-model is required with --proposed-formula or --proposed-rule")
+    })?;
+
+    let proposed_source_count =
+        (opts.proposed_formula.is_some() as usize) + (opts.proposed_rule.is_some() as usize);
+    if proposed_source_count != 1 {
+        return Err(anyhow::anyhow!(
+            "Use exactly one of --proposed-formula or --proposed-rule with --existing-model"
+        ));
+    }
+
+    let existing_model = load_first_model(existing_model_path)?;
+    let parsed_input = load_proposed_formula_inputs(opts)?;
+    parsed_input.ensure_all_parsed()?;
+
+    if parsed_input.formulas.is_empty() {
+        return Err(anyhow::anyhow!("No proposed formulas found"));
+    }
+
+    println!(
+        "🔎 Checking existing model '{}' against {} proposed formula(s)\n",
+        existing_model.name,
+        parsed_input.formulas.len()
+    );
+
+    let failed = existing_model_unsatisfied_formula_labels(
+        &existing_model,
+        &parsed_input.formulas,
+        &parsed_input.labels,
+    );
+
+    let output_model = if failed.is_empty() {
+        println!("✅ Existing model satisfies every proposed formula\n");
+        existing_model
+    } else {
+        println!(
+            "⚠️  Existing model does not satisfy {} proposed formula(s): {}",
+            failed.len(),
+            failed.join(", ")
+        );
+        println!("🔧 Synthesizing a local replacement candidate from the proposed formulas\n");
+
+        let candidate_name = replacement_candidate_name(&existing_model);
+        let candidate = modality_lang::formula_synthesis::synthesize_from_formulas(
+            &candidate_name,
+            &parsed_input.formulas,
+        );
+        verify_synthesized_model_with_labels(
+            &candidate,
+            &parsed_input.formulas,
+            &parsed_input.labels,
+        )?;
+        println!();
+        candidate
+    };
+
+    let output = format_synthesized_model(&output_model, &opts.format)?;
+    write_or_print_model(&output, opts.output.as_ref())?;
+
+    Ok(())
+}
+
+fn load_first_model(path: &PathBuf) -> Result<modality_lang::Model> {
+    let content = std::fs::read_to_string(path)?;
+    let models = modality_lang::parse_all_models_content_lalrpop(&content)
+        .map_err(|err| anyhow::anyhow!("Failed to parse existing model: {}", err))?;
+
+    models
+        .into_iter()
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("No models found in {}", path.display()))
+}
+
+fn load_proposed_formula_inputs(opts: &Opts) -> Result<ParsedFormulaInputs> {
+    if let Some(formula) = &opts.proposed_formula {
+        Ok(parse_formula_inputs(std::slice::from_ref(formula)))
+    } else if let Some(path) = &opts.proposed_rule {
+        let content = std::fs::read_to_string(path)?;
+        Ok(parse_formula_inputs(std::slice::from_ref(&content)))
+    } else {
+        Err(anyhow::anyhow!(
+            "Use --proposed-formula or --proposed-rule with --existing-model"
+        ))
+    }
+}
+
+fn existing_model_unsatisfied_formula_labels(
+    model: &modality_lang::Model,
+    formulas: &[modality_lang::FormulaExpr],
+    labels: &[String],
+) -> Vec<String> {
+    let checker = modality_lang::ModelChecker::new(model.clone());
+
+    formulas
+        .iter()
+        .enumerate()
+        .filter_map(|(index, expression)| {
+            let checker_name = format!("F{}", index + 1);
+            let formula = modality_lang::Formula::new(checker_name, expression.clone());
+            let result = checker.check_formula(&formula);
+
+            if result.is_satisfied {
+                None
+            } else {
+                Some(
+                    labels
+                        .get(index)
+                        .cloned()
+                        .unwrap_or_else(|| format!("F{}", index + 1)),
+                )
+            }
+        })
+        .collect()
+}
+
+fn replacement_candidate_name(existing_model: &modality_lang::Model) -> String {
+    if existing_model.name.is_empty() {
+        "ContractCandidate".to_string()
+    } else {
+        format!("{}Candidate", existing_model.name)
+    }
+}
+
 struct ParsedFormulaInputs {
     formulas: Vec<modality_lang::FormulaExpr>,
     labels: Vec<String>,
@@ -1390,6 +1535,30 @@ F2: formula generated_2 {
         let json = format_synthesized_model(&model, "json").unwrap();
 
         assert!(json.contains("\"name\": \"Contract\""));
+    }
+
+    #[test]
+    fn existing_model_check_accepts_satisfied_proposed_formula() {
+        let parsed = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &parsed);
+        let labels = vec!["approval_required".to_string()];
+
+        let failed = existing_model_unsatisfied_formula_labels(&model, &parsed, &labels);
+
+        assert!(failed.is_empty());
+    }
+
+    #[test]
+    fn existing_model_check_reports_unsatisfied_proposed_formula() {
+        let model_formulas = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &model_formulas);
+        let proposed = parse_formula_strings(&["false".to_string()]);
+        let labels = vec!["false_rule".to_string()];
+
+        let failed = existing_model_unsatisfied_formula_labels(&model, &proposed, &labels);
+
+        assert_eq!(failed, vec!["false_rule".to_string()]);
     }
 
     #[test]
