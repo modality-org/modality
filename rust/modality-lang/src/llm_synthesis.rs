@@ -465,6 +465,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Implementation change order approval requires delivery manager signature and blocks unpriced services scope expansion" | `always([+APPROVE_IMPLEMENTATION_CHANGE_ORDER] true -> <+signed_by(/users/delivery_manager.id)> true)`; `always([+APPROVE_IMPLEMENTATION_CHANGE_ORDER] true -> always([-UNPRICED_SERVICES_SCOPE_EXPANSION] true))` |
 | "Customer escalation response approval requires support lead signature and blocks unmanaged executive escalation" | `always([+APPROVE_CUSTOMER_ESCALATION_RESPONSE] true -> <+signed_by(/users/support_lead.id)> true)`; `always([+APPROVE_CUSTOMER_ESCALATION_RESPONSE] true -> always([-UNMANAGED_EXECUTIVE_ESCALATION] true))` |
 | "Renewal forecast adjustment approval requires revenue operations lead signature and blocks unreviewed forecast slippage" | `always([+APPROVE_RENEWAL_FORECAST_ADJUSTMENT] true -> <+signed_by(/users/revenue_operations_lead.id)> true)`; `always([+APPROVE_RENEWAL_FORECAST_ADJUSTMENT] true -> always([-UNREVIEWED_FORECAST_SLIPPAGE] true))` |
+| "Customer reference approval requires marketing lead signature and blocks unauthorized public endorsement" | `always([+APPROVE_CUSTOMER_REFERENCE] true -> <+signed_by(/users/marketing_lead.id)> true)`; `always([+APPROVE_CUSTOMER_REFERENCE] true -> always([-UNAUTHORIZED_PUBLIC_ENDORSEMENT] true))` |
+| "Case study publication approval requires customer success lead signature and blocks unapproved customer disclosure" | `always([+APPROVE_CASE_STUDY_PUBLICATION] true -> <+signed_by(/users/customer_success_lead.id)> true)`; `always([+APPROVE_CASE_STUDY_PUBLICATION] true -> always([-UNAPPROVED_CUSTOMER_DISCLOSURE] true))` |
 
 ## Output Format
 
@@ -13845,6 +13847,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_RENEWAL_FORECAST_ADJUSTMENT] true -> always([-UNREVIEWED_FORECAST_SLIPPAGE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_reference_case_study_governance_patterns() {
+        let prompt = generate_prompt("Customer reference and case study publication controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_REFERENCE] true -> <+signed_by(/users/marketing_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_REFERENCE] true -> always([-UNAUTHORIZED_PUBLIC_ENDORSEMENT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CASE_STUDY_PUBLICATION] true -> <+signed_by(/users/customer_success_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CASE_STUDY_PUBLICATION] true -> always([-UNAPPROVED_CUSTOMER_DISCLOSURE] true))"
         ));
     }
 }
