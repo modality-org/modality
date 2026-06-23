@@ -435,6 +435,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Cookie consent banner approval requires privacy counsel signature and blocks noncompliant tracking consent" | `always([+APPROVE_COOKIE_CONSENT_BANNER] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_COOKIE_CONSENT_BANNER] true -> always([-NONCOMPLIANT_TRACKING_CONSENT] true))` |
 | "Marketing email campaign approval requires privacy counsel signature and blocks unsolicited commercial email" | `always([+APPROVE_MARKETING_EMAIL_CAMPAIGN] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_MARKETING_EMAIL_CAMPAIGN] true -> always([-UNSOLICITED_COMMERCIAL_EMAIL] true))` |
 | "Affiliate referral program approval requires finance lead signature and blocks untracked referral liability" | `always([+APPROVE_AFFILIATE_REFERRAL_PROGRAM] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_AFFILIATE_REFERRAL_PROGRAM] true -> always([-UNTRACKED_REFERRAL_LIABILITY] true))` |
+| "Customer support escalation approval requires operations lead signature and blocks unresolved high severity complaint" | `always([+APPROVE_CUSTOMER_SUPPORT_ESCALATION] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_SUPPORT_ESCALATION] true -> always([-UNRESOLVED_HIGH_SEVERITY_COMPLAINT] true))` |
+| "Service credit issuance approval requires finance lead signature and blocks unauthorized customer concession" | `always([+APPROVE_SERVICE_CREDIT_ISSUANCE] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_SERVICE_CREDIT_ISSUANCE] true -> always([-UNAUTHORIZED_CUSTOMER_CONCESSION] true))` |
 
 ## Output Format
 
@@ -13544,6 +13546,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_AFFILIATE_REFERRAL_PROGRAM] true -> always([-UNTRACKED_REFERRAL_LIABILITY] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_support_service_credit_governance_patterns() {
+        let prompt = generate_prompt("Customer support escalation and service credit controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_SUPPORT_ESCALATION] true -> <+signed_by(/users/operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_SUPPORT_ESCALATION] true -> always([-UNRESOLVED_HIGH_SEVERITY_COMPLAINT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SERVICE_CREDIT_ISSUANCE] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_SERVICE_CREDIT_ISSUANCE] true -> always([-UNAUTHORIZED_CUSTOMER_CONCESSION] true))"
         ));
     }
 }
