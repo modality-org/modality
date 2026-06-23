@@ -1419,6 +1419,13 @@ fn format_synthesized_model_with_formulas(
     format: &str,
     formula_declarations: &[String],
 ) -> Result<String> {
+    if format == "json" && !formula_declarations.is_empty() {
+        return Ok(serde_json::to_string_pretty(&serde_json::json!({
+            "model": model,
+            "formula_declarations": formula_declarations,
+        }))?);
+    }
+
     let mut output = format_synthesized_model(model, format)?;
 
     if format == "modality" && !formula_declarations.is_empty() {
@@ -1743,6 +1750,23 @@ F2: formula generated_2 {
         let json = format_synthesized_model(&model, "json").unwrap();
 
         assert!(json.contains("\"name\": \"Contract\""));
+    }
+
+    #[test]
+    fn format_synthesized_model_with_formulas_preserves_json_declarations() {
+        let model = modality_lang::Model::new("Contract".to_string());
+        let declarations = vec![
+            "formula proposed_rule {\nalways([<+APPROVE>] true)\n}".to_string(),
+        ];
+
+        let json = format_synthesized_model_with_formulas(&model, "json", &declarations).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed["model"]["name"], "Contract");
+        assert_eq!(
+            parsed["formula_declarations"][0],
+            "formula proposed_rule {\nalways([<+APPROVE>] true)\n}"
+        );
     }
 
     #[test]
