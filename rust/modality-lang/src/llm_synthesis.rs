@@ -459,6 +459,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Usage overage billing approval requires finance lead signature and blocks unapproved excess charge" | `always([+APPROVE_USAGE_OVERAGE_BILLING] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_USAGE_OVERAGE_BILLING] true -> always([-UNAPPROVED_EXCESS_CHARGE] true))` |
 | "Customer success plan approval requires operations lead signature and blocks unsupported adoption commitment" | `always([+APPROVE_CUSTOMER_SUCCESS_PLAN] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_SUCCESS_PLAN] true -> always([-UNSUPPORTED_ADOPTION_COMMITMENT] true))` |
 | "Professional services statement of work approval requires delivery manager signature and blocks unfunded implementation obligation" | `always([+APPROVE_PROFESSIONAL_SERVICES_SOW] true -> <+signed_by(/users/delivery_manager.id)> true)`; `always([+APPROVE_PROFESSIONAL_SERVICES_SOW] true -> always([-UNFUNDED_IMPLEMENTATION_OBLIGATION] true))` |
+| "Customer health score downgrade approval requires customer success manager signature and blocks unreviewed churn risk classification" | `always([+APPROVE_CUSTOMER_HEALTH_SCORE_DOWNGRADE] true -> <+signed_by(/users/customer_success_manager.id)> true)`; `always([+APPROVE_CUSTOMER_HEALTH_SCORE_DOWNGRADE] true -> always([-UNREVIEWED_CHURN_RISK_CLASSIFICATION] true))` |
+| "Implementation milestone acceptance approval requires delivery manager signature and blocks premature services billing" | `always([+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE] true -> <+signed_by(/users/delivery_manager.id)> true)`; `always([+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE] true -> always([-PREMATURE_SERVICES_BILLING] true))` |
 
 ## Output Format
 
@@ -13784,6 +13786,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_PROFESSIONAL_SERVICES_SOW] true -> always([-UNFUNDED_IMPLEMENTATION_OBLIGATION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_health_score_milestone_governance_patterns() {
+        let prompt = generate_prompt("Customer health score and implementation milestone controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_HEALTH_SCORE_DOWNGRADE] true -> <+signed_by(/users/customer_success_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_HEALTH_SCORE_DOWNGRADE] true -> always([-UNREVIEWED_CHURN_RISK_CLASSIFICATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE] true -> <+signed_by(/users/delivery_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE] true -> always([-PREMATURE_SERVICES_BILLING] true))"
         ));
     }
 }
