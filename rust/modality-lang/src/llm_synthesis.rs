@@ -449,6 +449,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Dunning workflow approval requires operations lead signature and blocks noncompliant collection notice" | `always([+APPROVE_DUNNING_WORKFLOW] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_DUNNING_WORKFLOW] true -> always([-NONCOMPLIANT_COLLECTION_NOTICE] true))` |
 | "Customer invoice dispute approval requires finance lead signature and blocks unsupported billing dispute closure" | `always([+APPROVE_CUSTOMER_INVOICE_DISPUTE] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_CUSTOMER_INVOICE_DISPUTE] true -> always([-UNSUPPORTED_BILLING_DISPUTE_CLOSURE] true))` |
 | "Account credit limit approval requires finance lead signature and blocks excessive receivables exposure" | `always([+APPROVE_ACCOUNT_CREDIT_LIMIT] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_ACCOUNT_CREDIT_LIMIT] true -> always([-EXCESSIVE_RECEIVABLES_EXPOSURE] true))` |
+| "Customer balance write off approval requires finance lead signature and blocks unauthorized receivable forgiveness" | `always([+APPROVE_CUSTOMER_BALANCE_WRITE_OFF] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_CUSTOMER_BALANCE_WRITE_OFF] true -> always([-UNAUTHORIZED_RECEIVABLE_FORGIVENESS] true))` |
+| "Revenue recognition policy approval requires controller signature and blocks premature revenue booking" | `always([+APPROVE_REVENUE_RECOGNITION_POLICY] true -> <+signed_by(/users/controller.id)> true)`; `always([+APPROVE_REVENUE_RECOGNITION_POLICY] true -> always([-PREMATURE_REVENUE_BOOKING] true))` |
 
 ## Output Format
 
@@ -13684,6 +13686,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_ACCOUNT_CREDIT_LIMIT] true -> always([-EXCESSIVE_RECEIVABLES_EXPOSURE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_write_off_revenue_recognition_governance_patterns() {
+        let prompt = generate_prompt("Customer write off and revenue recognition controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_BALANCE_WRITE_OFF] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_BALANCE_WRITE_OFF] true -> always([-UNAUTHORIZED_RECEIVABLE_FORGIVENESS] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_REVENUE_RECOGNITION_POLICY] true -> <+signed_by(/users/controller.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_REVENUE_RECOGNITION_POLICY] true -> always([-PREMATURE_REVENUE_BOOKING] true))"
         ));
     }
 }
