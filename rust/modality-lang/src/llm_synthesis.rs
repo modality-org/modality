@@ -461,6 +461,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Professional services statement of work approval requires delivery manager signature and blocks unfunded implementation obligation" | `always([+APPROVE_PROFESSIONAL_SERVICES_SOW] true -> <+signed_by(/users/delivery_manager.id)> true)`; `always([+APPROVE_PROFESSIONAL_SERVICES_SOW] true -> always([-UNFUNDED_IMPLEMENTATION_OBLIGATION] true))` |
 | "Customer health score downgrade approval requires customer success manager signature and blocks unreviewed churn risk classification" | `always([+APPROVE_CUSTOMER_HEALTH_SCORE_DOWNGRADE] true -> <+signed_by(/users/customer_success_manager.id)> true)`; `always([+APPROVE_CUSTOMER_HEALTH_SCORE_DOWNGRADE] true -> always([-UNREVIEWED_CHURN_RISK_CLASSIFICATION] true))` |
 | "Implementation milestone acceptance approval requires delivery manager signature and blocks premature services billing" | `always([+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE] true -> <+signed_by(/users/delivery_manager.id)> true)`; `always([+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE] true -> always([-PREMATURE_SERVICES_BILLING] true))` |
+| "Customer executive business review approval requires customer success lead signature and blocks unapproved renewal commitment" | `always([+APPROVE_CUSTOMER_EXECUTIVE_BUSINESS_REVIEW] true -> <+signed_by(/users/customer_success_lead.id)> true)`; `always([+APPROVE_CUSTOMER_EXECUTIVE_BUSINESS_REVIEW] true -> always([-UNAPPROVED_RENEWAL_COMMITMENT] true))` |
+| "Implementation change order approval requires delivery manager signature and blocks unpriced services scope expansion" | `always([+APPROVE_IMPLEMENTATION_CHANGE_ORDER] true -> <+signed_by(/users/delivery_manager.id)> true)`; `always([+APPROVE_IMPLEMENTATION_CHANGE_ORDER] true -> always([-UNPRICED_SERVICES_SCOPE_EXPANSION] true))` |
 
 ## Output Format
 
@@ -13804,6 +13806,25 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_IMPLEMENTATION_MILESTONE_ACCEPTANCE] true -> always([-PREMATURE_SERVICES_BILLING] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_executive_review_change_order_governance_patterns() {
+        let prompt =
+            generate_prompt("Customer executive review and implementation change controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_EXECUTIVE_BUSINESS_REVIEW] true -> <+signed_by(/users/customer_success_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_EXECUTIVE_BUSINESS_REVIEW] true -> always([-UNAPPROVED_RENEWAL_COMMITMENT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_IMPLEMENTATION_CHANGE_ORDER] true -> <+signed_by(/users/delivery_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_IMPLEMENTATION_CHANGE_ORDER] true -> always([-UNPRICED_SERVICES_SCOPE_EXPANSION] true))"
         ));
     }
 }
