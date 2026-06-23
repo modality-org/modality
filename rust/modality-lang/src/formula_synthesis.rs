@@ -241,8 +241,24 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
             extract_from_expr(rhs, constraints);
         }
 
-        // Fixed-point wrappers are often produced by temporal desugaring.
-        FormulaExpr::Lfp(_, inner) | FormulaExpr::Gfp(_, inner) => {
+        // Least fixed points often come from eventuality desugaring. Preserve
+        // joint availability goals without treating a single eventual action as
+        // a permanent self-loop.
+        FormulaExpr::Lfp(_, inner) => {
+            for props in extract_conjunctive_availability_prop_groups(inner) {
+                if props.len() > 1 {
+                    push_unique_props(&mut constraints.self_loops, props);
+                }
+            }
+            extract_from_expr(inner, constraints);
+        }
+
+        // Greatest fixed points often come from invariance desugaring, so inner
+        // availability requirements need to remain available in every state.
+        FormulaExpr::Gfp(_, inner) => {
+            for props in extract_conjunctive_availability_prop_groups(inner) {
+                push_unique_props(&mut constraints.self_loops, props);
+            }
             extract_from_expr(inner, constraints);
         }
 
@@ -2932,5 +2948,71 @@ mod tests {
 
         assert!(constraints.actions.contains("WAIT"));
         assert!(constraints.actions.contains("APPROVE"));
+    }
+
+    #[test]
+    fn test_gfp_preserves_inner_availability() {
+        let formula = FormulaExpr::Gfp(
+            "X".to_string(),
+            Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::DiamondBox(
+                    vec![Property::new(PropertySign::Plus, "RENEW".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::Box(
+                    Vec::new(),
+                    Box::new(FormulaExpr::Var("X".to_string())),
+                )),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("RENEW"));
+        assert_eq!(
+            constraints.self_loops,
+            vec![vec![Property::new(PropertySign::Plus, "RENEW".to_string())]]
+        );
+
+        let model = synthesize_from_formulas("FixedPointAvailability", &[formula]);
+
+        assert!(model.parts[0].transitions.iter().any(|transition| {
+            transition.from == transition.to
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "RENEW".to_string()))
+        }));
+    }
+
+    #[test]
+    fn test_lfp_preserves_joint_availability_without_promoting_single_goal() {
+        let formula = FormulaExpr::Lfp(
+            "X".to_string(),
+            Box::new(FormulaExpr::Or(
+                Box::new(FormulaExpr::And(
+                    Box::new(FormulaExpr::Diamond(
+                        vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                        Box::new(FormulaExpr::True),
+                    )),
+                    Box::new(FormulaExpr::Diamond(
+                        vec![Property::new(PropertySign::Plus, "REVIEW".to_string())],
+                        Box::new(FormulaExpr::True),
+                    )),
+                )),
+                Box::new(FormulaExpr::Diamond(
+                    Vec::new(),
+                    Box::new(FormulaExpr::Var("X".to_string())),
+                )),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("APPROVE"));
+        assert!(constraints.actions.contains("REVIEW"));
+        assert!(constraints.self_loops.iter().any(|props| {
+            props.contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
+                && props.contains(&Property::new(PropertySign::Plus, "REVIEW".to_string()))
+        }));
     }
 }
