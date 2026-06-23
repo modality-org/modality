@@ -413,6 +413,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Tax election approval requires finance lead signature and blocks missed election deadline" | `always([+APPROVE_TAX_ELECTION] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_TAX_ELECTION] true -> always([-MISSED_ELECTION_DEADLINE] true))` |
 | "Foreign qualification approval requires corporate counsel signature and blocks unauthorized state business" | `always([+APPROVE_FOREIGN_QUALIFICATION] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_FOREIGN_QUALIFICATION] true -> always([-UNAUTHORIZED_STATE_BUSINESS] true))` |
 | "Annual report filing approval requires corporate secretary signature and blocks delinquent entity status" | `always([+APPROVE_ANNUAL_REPORT_FILING] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_ANNUAL_REPORT_FILING] true -> always([-DELINQUENT_ENTITY_STATUS] true))` |
+| "Registered agent change approval requires corporate secretary signature and blocks missed service of process" | `always([+APPROVE_REGISTERED_AGENT_CHANGE] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_REGISTERED_AGENT_CHANGE] true -> always([-MISSED_SERVICE_OF_PROCESS] true))` |
+| "Business license renewal approval requires operations lead signature and blocks unlicensed operations" | `always([+APPROVE_BUSINESS_LICENSE_RENEWAL] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_BUSINESS_LICENSE_RENEWAL] true -> always([-UNLICENSED_OPERATIONS] true))` |
 
 ## Output Format
 
@@ -13323,6 +13325,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_ANNUAL_REPORT_FILING] true -> always([-DELINQUENT_ENTITY_STATUS] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_registered_agent_license_governance_patterns() {
+        let prompt = generate_prompt("Registered agent and business license controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_REGISTERED_AGENT_CHANGE] true -> <+signed_by(/users/corporate_secretary.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_REGISTERED_AGENT_CHANGE] true -> always([-MISSED_SERVICE_OF_PROCESS] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_BUSINESS_LICENSE_RENEWAL] true -> <+signed_by(/users/operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_BUSINESS_LICENSE_RENEWAL] true -> always([-UNLICENSED_OPERATIONS] true))"
         ));
     }
 }
