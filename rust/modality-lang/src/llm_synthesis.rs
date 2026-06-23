@@ -493,6 +493,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer regulatory disclosure approval requires corporate counsel signature and blocks inconsistent regulator notice" | `always([+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE] true -> always([-INCONSISTENT_REGULATOR_NOTICE] true))` |
 | "Customer litigation hold approval requires corporate counsel signature and blocks premature evidence deletion" | `always([+APPROVE_CUSTOMER_LITIGATION_HOLD] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_LITIGATION_HOLD] true -> always([-PREMATURE_EVIDENCE_DELETION] true))` |
 | "Customer eDiscovery export approval requires legal operations lead signature and blocks overbroad evidence disclosure" | `always([+APPROVE_CUSTOMER_EDISCOVERY_EXPORT] true -> <+signed_by(/users/legal_operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_EDISCOVERY_EXPORT] true -> always([-OVERBROAD_EVIDENCE_DISCLOSURE] true))` |
+| "Customer audit remediation plan approval requires compliance officer signature and blocks untracked customer audit finding" | `always([+APPROVE_CUSTOMER_AUDIT_REMEDIATION_PLAN] true -> <+signed_by(/users/compliance_officer.id)> true)`; `always([+APPROVE_CUSTOMER_AUDIT_REMEDIATION_PLAN] true -> always([-UNTRACKED_CUSTOMER_AUDIT_FINDING] true))` |
+| "Customer access review exception approval requires security lead signature and blocks lingering unauthorized account access" | `always([+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION] true -> <+signed_by(/users/security_lead.id)> true)`; `always([+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION] true -> always([-LINGERING_UNAUTHORIZED_ACCOUNT_ACCESS] true))` |
 
 ## Output Format
 
@@ -14133,6 +14135,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_EDISCOVERY_EXPORT] true -> always([-OVERBROAD_EVIDENCE_DISCLOSURE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_audit_remediation_access_review_governance_patterns() {
+        let prompt = generate_prompt("Customer audit remediation and access review controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_AUDIT_REMEDIATION_PLAN] true -> <+signed_by(/users/compliance_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_AUDIT_REMEDIATION_PLAN] true -> always([-UNTRACKED_CUSTOMER_AUDIT_FINDING] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION] true -> <+signed_by(/users/security_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION] true -> always([-LINGERING_UNAUTHORIZED_ACCOUNT_ACCESS] true))"
         ));
     }
 }
