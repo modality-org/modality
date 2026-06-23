@@ -598,6 +598,7 @@ fn extract_diamond_signer_props(expr: &FormulaExpr) -> Vec<Property> {
 fn extract_eventually_committed_actions(expr: &FormulaExpr) -> Vec<String> {
     match expr {
         FormulaExpr::Eventually(inner) => extract_diamond_box_actions(inner),
+        FormulaExpr::DiamondBox(_, _) => extract_diamond_box_actions(expr),
         FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
             let mut actions = extract_eventually_committed_actions(lhs);
             extend_unique(&mut actions, &extract_eventually_committed_actions(rhs));
@@ -2343,6 +2344,42 @@ mod tests {
                 "/users/buyer.id".to_string()
             ),
             Property::new(PropertySign::Plus, "DEPOSIT".to_string()),
+            Property::new(PropertySign::Plus, "DELIVER".to_string())
+        ]));
+    }
+
+    #[test]
+    fn test_committed_signer_with_direct_committed_goal_keeps_goal_available() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::DiamondBox(
+                    vec![Property::new_predicate_from_call(
+                        "signed_by".to_string(),
+                        "/users/buyer.id".to_string(),
+                    )],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::DiamondBox(
+                    vec![Property::new(PropertySign::Plus, "DELIVER".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints
+            .ordering
+            .contains(&("RELEASE".to_string(), "DELIVER".to_string())));
+        assert!(constraints.self_loops.contains(&vec![
+            Property::new_predicate_from_call(
+                "signed_by".to_string(),
+                "/users/buyer.id".to_string()
+            ),
             Property::new(PropertySign::Plus, "DELIVER".to_string())
         ]));
     }
