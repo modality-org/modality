@@ -433,6 +433,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Subscription cancellation flow approval requires operations lead signature and blocks noncompliant renewal billing" | `always([+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW] true -> always([-NONCOMPLIANT_RENEWAL_BILLING] true))` |
 | "Terms of service update approval requires corporate counsel signature and blocks unenforceable customer terms" | `always([+APPROVE_TERMS_OF_SERVICE_UPDATE] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_TERMS_OF_SERVICE_UPDATE] true -> always([-UNENFORCEABLE_CUSTOMER_TERMS] true))` |
 | "Cookie consent banner approval requires privacy counsel signature and blocks noncompliant tracking consent" | `always([+APPROVE_COOKIE_CONSENT_BANNER] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_COOKIE_CONSENT_BANNER] true -> always([-NONCOMPLIANT_TRACKING_CONSENT] true))` |
+| "Marketing email campaign approval requires privacy counsel signature and blocks unsolicited commercial email" | `always([+APPROVE_MARKETING_EMAIL_CAMPAIGN] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_MARKETING_EMAIL_CAMPAIGN] true -> always([-UNSOLICITED_COMMERCIAL_EMAIL] true))` |
+| "Affiliate referral program approval requires finance lead signature and blocks untracked referral liability" | `always([+APPROVE_AFFILIATE_REFERRAL_PROGRAM] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_AFFILIATE_REFERRAL_PROGRAM] true -> always([-UNTRACKED_REFERRAL_LIABILITY] true))` |
 
 ## Output Format
 
@@ -13524,6 +13526,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_COOKIE_CONSENT_BANNER] true -> always([-NONCOMPLIANT_TRACKING_CONSENT] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_marketing_affiliate_governance_patterns() {
+        let prompt = generate_prompt("Marketing email and affiliate referral controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_MARKETING_EMAIL_CAMPAIGN] true -> <+signed_by(/users/privacy_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_MARKETING_EMAIL_CAMPAIGN] true -> always([-UNSOLICITED_COMMERCIAL_EMAIL] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AFFILIATE_REFERRAL_PROGRAM] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_AFFILIATE_REFERRAL_PROGRAM] true -> always([-UNTRACKED_REFERRAL_LIABILITY] true))"
         ));
     }
 }
