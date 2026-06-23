@@ -443,6 +443,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer data export approval requires privacy counsel signature and blocks unauthorized account data disclosure" | `always([+APPROVE_CUSTOMER_DATA_EXPORT] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_DATA_EXPORT] true -> always([-UNAUTHORIZED_ACCOUNT_DATA_DISCLOSURE] true))` |
 | "Customer account suspension approval requires operations lead signature and blocks unsupported service cutoff" | `always([+APPROVE_CUSTOMER_ACCOUNT_SUSPENSION] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_ACCOUNT_SUSPENSION] true -> always([-UNSUPPORTED_SERVICE_CUTOFF] true))` |
 | "Customer workspace deletion approval requires retention counsel signature and blocks deletion under active retention duty" | `always([+APPROVE_CUSTOMER_WORKSPACE_DELETION] true -> <+signed_by(/users/retention_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_WORKSPACE_DELETION] true -> always([-ACTIVE_RETENTION_DUTY] true))` |
+| "Billing plan change approval requires finance lead signature and blocks unauthorized recurring charge" | `always([+APPROVE_BILLING_PLAN_CHANGE] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_BILLING_PLAN_CHANGE] true -> always([-UNAUTHORIZED_RECURRING_CHARGE] true))` |
+| "Customer entitlement provisioning approval requires operations lead signature and blocks uncontracted feature access" | `always([+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING] true -> always([-UNCONTRACTED_FEATURE_ACCESS] true))` |
 
 ## Output Format
 
@@ -13624,6 +13626,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_WORKSPACE_DELETION] true -> always([-ACTIVE_RETENTION_DUTY] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_billing_entitlement_governance_patterns() {
+        let prompt = generate_prompt("Billing plan change and entitlement provisioning controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_BILLING_PLAN_CHANGE] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_BILLING_PLAN_CHANGE] true -> always([-UNAUTHORIZED_RECURRING_CHARGE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING] true -> <+signed_by(/users/operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING] true -> always([-UNCONTRACTED_FEATURE_ACCESS] true))"
         ));
     }
 }
