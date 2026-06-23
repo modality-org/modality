@@ -234,6 +234,9 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
 
         // until(p, q) can mention actions in either the condition or goal.
         FormulaExpr::Until(lhs, rhs) => {
+            for props in extract_conjunctive_availability_prop_groups(rhs) {
+                push_unique_props(&mut constraints.self_loops, props);
+            }
             extract_from_expr(lhs, constraints);
             extract_from_expr(rhs, constraints);
         }
@@ -2827,6 +2830,83 @@ mod tests {
 
         assert!(constraints.actions.contains("WAIT"));
         assert!(constraints.actions.contains("APPROVE"));
+    }
+
+    #[test]
+    fn test_until_goal_preserves_availability() {
+        let formula = FormulaExpr::Until(
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "WAIT".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("WAIT"));
+        assert!(constraints.actions.contains("APPROVE"));
+        assert_eq!(
+            constraints.self_loops,
+            vec![vec![Property::new(
+                PropertySign::Plus,
+                "APPROVE".to_string()
+            )]]
+        );
+
+        let model = synthesize_from_formulas("UntilAvailability", &[formula]);
+
+        assert!(model.parts[0].transitions.iter().any(|transition| {
+            transition
+                .properties
+                .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
+                && transition.from == transition.to
+        }));
+    }
+
+    #[test]
+    fn test_until_compound_goal_preserves_joint_availability() {
+        let formula = FormulaExpr::Until(
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "WAIT".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "REVIEW".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("WAIT"));
+        assert!(constraints.actions.contains("APPROVE"));
+        assert!(constraints.actions.contains("REVIEW"));
+        assert!(constraints.self_loops.iter().any(|props| {
+            props.contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
+                && props.contains(&Property::new(PropertySign::Plus, "REVIEW".to_string()))
+        }));
+
+        let model = synthesize_from_formulas("UntilJointAvailability", &[formula]);
+
+        assert!(model.parts[0].transitions.iter().any(|transition| {
+            transition.from == transition.to
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "REVIEW".to_string()))
+        }));
     }
 
     #[test]
