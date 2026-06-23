@@ -483,6 +483,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer data residency commitment approval requires privacy counsel signature and blocks unlawful region commitment" | `always([+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT] true -> always([-UNLAWFUL_REGION_COMMITMENT] true))` |
 | "Customer maintenance notice approval requires operations lead signature and blocks unannounced service interruption" | `always([+APPROVE_CUSTOMER_MAINTENANCE_NOTICE] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_MAINTENANCE_NOTICE] true -> always([-UNANNOUNCED_SERVICE_INTERRUPTION] true))` |
 | "Customer uptime report approval requires reliability lead signature and blocks inaccurate SLA reporting" | `always([+APPROVE_CUSTOMER_UPTIME_REPORT] true -> <+signed_by(/users/reliability_lead.id)> true)`; `always([+APPROVE_CUSTOMER_UPTIME_REPORT] true -> always([-INACCURATE_SLA_REPORTING] true))` |
+| "Customer incident root cause report approval requires reliability lead signature and blocks incomplete corrective action disclosure" | `always([+APPROVE_CUSTOMER_INCIDENT_ROOT_CAUSE_REPORT] true -> <+signed_by(/users/reliability_lead.id)> true)`; `always([+APPROVE_CUSTOMER_INCIDENT_ROOT_CAUSE_REPORT] true -> always([-INCOMPLETE_CORRECTIVE_ACTION_DISCLOSURE] true))` |
+| "Customer service restoration confirmation approval requires operations lead signature and blocks premature all-clear notice" | `always([+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION] true -> always([-PREMATURE_ALL_CLEAR_NOTICE] true))` |
 
 ## Output Format
 
@@ -14028,6 +14030,26 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_UPTIME_REPORT] true -> always([-INACCURATE_SLA_REPORTING] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_incident_root_cause_restoration_governance_patterns() {
+        let prompt = generate_prompt(
+            "Customer incident root cause report and restoration confirmation controls",
+        );
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_INCIDENT_ROOT_CAUSE_REPORT] true -> <+signed_by(/users/reliability_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_INCIDENT_ROOT_CAUSE_REPORT] true -> always([-INCOMPLETE_CORRECTIVE_ACTION_DISCLOSURE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION] true -> <+signed_by(/users/operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_SERVICE_RESTORATION_CONFIRMATION] true -> always([-PREMATURE_ALL_CLEAR_NOTICE] true))"
         ));
     }
 }
