@@ -425,6 +425,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Final tax clearance approval requires finance lead signature and blocks unresolved tax liability" | `always([+APPROVE_FINAL_TAX_CLEARANCE] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_FINAL_TAX_CLEARANCE] true -> always([-UNRESOLVED_TAX_LIABILITY] true))` |
 | "Payroll tax registration approval requires finance lead signature and blocks unregistered payroll operation" | `always([+APPROVE_PAYROLL_TAX_REGISTRATION] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_PAYROLL_TAX_REGISTRATION] true -> always([-UNREGISTERED_PAYROLL_OPERATION] true))` |
 | "Insurance coverage approval requires operations lead signature and blocks uninsured business activity" | `always([+APPROVE_INSURANCE_COVERAGE] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_INSURANCE_COVERAGE] true -> always([-UNINSURED_BUSINESS_ACTIVITY] true))` |
+| "Bank account opening approval requires finance lead signature and blocks unauthorized treasury account" | `always([+APPROVE_BANK_ACCOUNT_OPENING] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_BANK_ACCOUNT_OPENING] true -> always([-UNAUTHORIZED_TREASURY_ACCOUNT] true))` |
+| "Payment processor onboarding approval requires operations lead signature and blocks unapproved payment collection" | `always([+APPROVE_PAYMENT_PROCESSOR_ONBOARDING] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_PAYMENT_PROCESSOR_ONBOARDING] true -> always([-UNAPPROVED_PAYMENT_COLLECTION] true))` |
 
 ## Output Format
 
@@ -13443,6 +13445,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_INSURANCE_COVERAGE] true -> always([-UNINSURED_BUSINESS_ACTIVITY] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_bank_payment_processor_governance_patterns() {
+        let prompt = generate_prompt("Bank account opening and payment processor controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_BANK_ACCOUNT_OPENING] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_BANK_ACCOUNT_OPENING] true -> always([-UNAUTHORIZED_TREASURY_ACCOUNT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PAYMENT_PROCESSOR_ONBOARDING] true -> <+signed_by(/users/operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PAYMENT_PROCESSOR_ONBOARDING] true -> always([-UNAPPROVED_PAYMENT_COLLECTION] true))"
         ));
     }
 }
