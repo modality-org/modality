@@ -447,6 +447,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer entitlement provisioning approval requires operations lead signature and blocks uncontracted feature access" | `always([+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING] true -> always([-UNCONTRACTED_FEATURE_ACCESS] true))` |
 | "Customer payment method update approval requires finance lead signature and blocks unauthorized payment method change" | `always([+APPROVE_CUSTOMER_PAYMENT_METHOD_UPDATE] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_CUSTOMER_PAYMENT_METHOD_UPDATE] true -> always([-UNAUTHORIZED_PAYMENT_METHOD_CHANGE] true))` |
 | "Dunning workflow approval requires operations lead signature and blocks noncompliant collection notice" | `always([+APPROVE_DUNNING_WORKFLOW] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_DUNNING_WORKFLOW] true -> always([-NONCOMPLIANT_COLLECTION_NOTICE] true))` |
+| "Customer invoice dispute approval requires finance lead signature and blocks unsupported billing dispute closure" | `always([+APPROVE_CUSTOMER_INVOICE_DISPUTE] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_CUSTOMER_INVOICE_DISPUTE] true -> always([-UNSUPPORTED_BILLING_DISPUTE_CLOSURE] true))` |
+| "Account credit limit approval requires finance lead signature and blocks excessive receivables exposure" | `always([+APPROVE_ACCOUNT_CREDIT_LIMIT] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_ACCOUNT_CREDIT_LIMIT] true -> always([-EXCESSIVE_RECEIVABLES_EXPOSURE] true))` |
 
 ## Output Format
 
@@ -13664,6 +13666,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_DUNNING_WORKFLOW] true -> always([-NONCOMPLIANT_COLLECTION_NOTICE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_invoice_dispute_credit_limit_governance_patterns() {
+        let prompt = generate_prompt("Invoice dispute and account credit limit controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_INVOICE_DISPUTE] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_INVOICE_DISPUTE] true -> always([-UNSUPPORTED_BILLING_DISPUTE_CLOSURE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_ACCOUNT_CREDIT_LIMIT] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_ACCOUNT_CREDIT_LIMIT] true -> always([-EXCESSIVE_RECEIVABLES_EXPOSURE] true))"
         ));
     }
 }
