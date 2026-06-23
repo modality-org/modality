@@ -471,6 +471,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Early access feature enablement approval requires product owner signature and blocks uncontracted beta entitlement" | `always([+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT] true -> <+signed_by(/users/product_owner.id)> true)`; `always([+APPROVE_EARLY_ACCESS_FEATURE_ENABLEMENT] true -> always([-UNCONTRACTED_BETA_ENTITLEMENT] true))` |
 | "Product deprecation notice approval requires product lead signature and blocks unannounced customer impact" | `always([+APPROVE_PRODUCT_DEPRECATION_NOTICE] true -> <+signed_by(/users/product_lead.id)> true)`; `always([+APPROVE_PRODUCT_DEPRECATION_NOTICE] true -> always([-UNANNOUNCED_CUSTOMER_IMPACT] true))` |
 | "Customer migration plan approval requires customer success lead signature and blocks unsupported account transition" | `always([+APPROVE_CUSTOMER_MIGRATION_PLAN] true -> <+signed_by(/users/customer_success_lead.id)> true)`; `always([+APPROVE_CUSTOMER_MIGRATION_PLAN] true -> always([-UNSUPPORTED_ACCOUNT_TRANSITION] true))` |
+| "Customer tenant consolidation approval requires operations lead signature and blocks data comingling risk" | `always([+APPROVE_CUSTOMER_TENANT_CONSOLIDATION] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_TENANT_CONSOLIDATION] true -> always([-DATA_COMINGLING_RISK] true))` |
+| "Account ownership transfer approval requires corporate counsel signature and blocks unauthorized admin transfer" | `always([+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER] true -> always([-UNAUTHORIZED_ADMIN_TRANSFER] true))` |
 
 ## Output Format
 
@@ -13905,6 +13907,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_MIGRATION_PLAN] true -> always([-UNSUPPORTED_ACCOUNT_TRANSITION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_tenant_account_transfer_governance_patterns() {
+        let prompt = generate_prompt("Customer tenant consolidation and account transfer controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_TENANT_CONSOLIDATION] true -> <+signed_by(/users/operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_TENANT_CONSOLIDATION] true -> always([-DATA_COMINGLING_RISK] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER] true -> <+signed_by(/users/corporate_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_ACCOUNT_OWNERSHIP_TRANSFER] true -> always([-UNAUTHORIZED_ADMIN_TRANSFER] true))"
         ));
     }
 }
