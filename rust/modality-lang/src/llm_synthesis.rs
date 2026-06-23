@@ -415,6 +415,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Annual report filing approval requires corporate secretary signature and blocks delinquent entity status" | `always([+APPROVE_ANNUAL_REPORT_FILING] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_ANNUAL_REPORT_FILING] true -> always([-DELINQUENT_ENTITY_STATUS] true))` |
 | "Registered agent change approval requires corporate secretary signature and blocks missed service of process" | `always([+APPROVE_REGISTERED_AGENT_CHANGE] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_REGISTERED_AGENT_CHANGE] true -> always([-MISSED_SERVICE_OF_PROCESS] true))` |
 | "Business license renewal approval requires operations lead signature and blocks unlicensed operations" | `always([+APPROVE_BUSINESS_LICENSE_RENEWAL] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_BUSINESS_LICENSE_RENEWAL] true -> always([-UNLICENSED_OPERATIONS] true))` |
+| "Franchise tax payment approval requires finance lead signature and blocks tax delinquency" | `always([+APPROVE_FRANCHISE_TAX_PAYMENT] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_FRANCHISE_TAX_PAYMENT] true -> always([-TAX_DELINQUENCY] true))` |
+| "Good standing certificate approval requires corporate secretary signature and blocks stale entity evidence" | `always([+APPROVE_GOOD_STANDING_CERTIFICATE] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_GOOD_STANDING_CERTIFICATE] true -> always([-STALE_ENTITY_EVIDENCE] true))` |
 
 ## Output Format
 
@@ -13343,6 +13345,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_BUSINESS_LICENSE_RENEWAL] true -> always([-UNLICENSED_OPERATIONS] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_franchise_tax_good_standing_governance_patterns() {
+        let prompt = generate_prompt("Franchise tax and good standing certificate controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_FRANCHISE_TAX_PAYMENT] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_FRANCHISE_TAX_PAYMENT] true -> always([-TAX_DELINQUENCY] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_GOOD_STANDING_CERTIFICATE] true -> <+signed_by(/users/corporate_secretary.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_GOOD_STANDING_CERTIFICATE] true -> always([-STALE_ENTITY_EVIDENCE] true))"
         ));
     }
 }
