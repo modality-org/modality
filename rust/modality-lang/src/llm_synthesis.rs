@@ -437,6 +437,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Affiliate referral program approval requires finance lead signature and blocks untracked referral liability" | `always([+APPROVE_AFFILIATE_REFERRAL_PROGRAM] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_AFFILIATE_REFERRAL_PROGRAM] true -> always([-UNTRACKED_REFERRAL_LIABILITY] true))` |
 | "Customer support escalation approval requires operations lead signature and blocks unresolved high severity complaint" | `always([+APPROVE_CUSTOMER_SUPPORT_ESCALATION] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_SUPPORT_ESCALATION] true -> always([-UNRESOLVED_HIGH_SEVERITY_COMPLAINT] true))` |
 | "Service credit issuance approval requires finance lead signature and blocks unauthorized customer concession" | `always([+APPROVE_SERVICE_CREDIT_ISSUANCE] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_SERVICE_CREDIT_ISSUANCE] true -> always([-UNAUTHORIZED_CUSTOMER_CONCESSION] true))` |
+| "Customer onboarding approval requires operations lead signature and blocks incomplete identity verification" | `always([+APPROVE_CUSTOMER_ONBOARDING] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_ONBOARDING] true -> always([-INCOMPLETE_IDENTITY_VERIFICATION] true))` |
+| "Customer data import approval requires privacy counsel signature and blocks unconsented personal data ingestion" | `always([+APPROVE_CUSTOMER_DATA_IMPORT] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_DATA_IMPORT] true -> always([-UNCONSENTED_PERSONAL_DATA_INGESTION] true))` |
 
 ## Output Format
 
@@ -13564,6 +13566,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_SERVICE_CREDIT_ISSUANCE] true -> always([-UNAUTHORIZED_CUSTOMER_CONCESSION] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_customer_onboarding_data_import_governance_patterns() {
+        let prompt = generate_prompt("Customer onboarding and data import controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_ONBOARDING] true -> <+signed_by(/users/operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_ONBOARDING] true -> always([-INCOMPLETE_IDENTITY_VERIFICATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_DATA_IMPORT] true -> <+signed_by(/users/privacy_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_DATA_IMPORT] true -> always([-UNCONSENTED_PERSONAL_DATA_INGESTION] true))"
         ));
     }
 }
