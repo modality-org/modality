@@ -495,6 +495,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer eDiscovery export approval requires legal operations lead signature and blocks overbroad evidence disclosure" | `always([+APPROVE_CUSTOMER_EDISCOVERY_EXPORT] true -> <+signed_by(/users/legal_operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_EDISCOVERY_EXPORT] true -> always([-OVERBROAD_EVIDENCE_DISCLOSURE] true))` |
 | "Customer audit remediation plan approval requires compliance officer signature and blocks untracked customer audit finding" | `always([+APPROVE_CUSTOMER_AUDIT_REMEDIATION_PLAN] true -> <+signed_by(/users/compliance_officer.id)> true)`; `always([+APPROVE_CUSTOMER_AUDIT_REMEDIATION_PLAN] true -> always([-UNTRACKED_CUSTOMER_AUDIT_FINDING] true))` |
 | "Customer access review exception approval requires security lead signature and blocks lingering unauthorized account access" | `always([+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION] true -> <+signed_by(/users/security_lead.id)> true)`; `always([+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION] true -> always([-LINGERING_UNAUTHORIZED_ACCOUNT_ACCESS] true))` |
+| "Customer encryption key rotation exception approval requires security lead signature and blocks stale customer encryption key" | `always([+APPROVE_CUSTOMER_KEY_ROTATION_EXCEPTION] true -> <+signed_by(/users/security_lead.id)> true)`; `always([+APPROVE_CUSTOMER_KEY_ROTATION_EXCEPTION] true -> always([-STALE_CUSTOMER_ENCRYPTION_KEY] true))` |
+| "Customer backup retention exception approval requires retention counsel signature and blocks recoverability gap" | `always([+APPROVE_CUSTOMER_BACKUP_RETENTION_EXCEPTION] true -> <+signed_by(/users/retention_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_BACKUP_RETENTION_EXCEPTION] true -> always([-RECOVERABILITY_GAP] true))` |
 
 ## Output Format
 
@@ -14153,6 +14155,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION] true -> always([-LINGERING_UNAUTHORIZED_ACCOUNT_ACCESS] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_key_rotation_backup_retention_governance_patterns() {
+        let prompt = generate_prompt("Customer key rotation and backup retention controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_KEY_ROTATION_EXCEPTION] true -> <+signed_by(/users/security_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_KEY_ROTATION_EXCEPTION] true -> always([-STALE_CUSTOMER_ENCRYPTION_KEY] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_BACKUP_RETENTION_EXCEPTION] true -> <+signed_by(/users/retention_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_BACKUP_RETENTION_EXCEPTION] true -> always([-RECOVERABILITY_GAP] true))"
         ));
     }
 }
