@@ -313,7 +313,11 @@ fn extract_direct_diamond_box_prop_groups(expr: &FormulaExpr) -> Vec<Vec<Propert
         FormulaExpr::DiamondBox(props, inner) if is_true_expr(inner) && !props.is_empty() => {
             vec![props.clone()]
         }
-        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
+        FormulaExpr::And(lhs, rhs) => combine_prop_groups(
+            extract_direct_diamond_box_prop_groups(lhs),
+            extract_direct_diamond_box_prop_groups(rhs),
+        ),
+        FormulaExpr::Or(lhs, rhs) => {
             let mut props = extract_direct_diamond_box_prop_groups(lhs);
             for rhs_props in extract_direct_diamond_box_prop_groups(rhs) {
                 push_unique_props(&mut props, rhs_props);
@@ -1129,6 +1133,60 @@ mod tests {
                 && transition
                     .properties
                     .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
+        }));
+    }
+
+    #[test]
+    fn test_mixed_direct_availability_preserves_compound_committed_self_loop() {
+        let formula = FormulaExpr::And(
+            Box::new(FormulaExpr::Diamond(
+                vec![Property::new(PropertySign::Plus, "CANCEL".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::DiamondBox(
+                    vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::DiamondBox(
+                    vec![Property::new(PropertySign::Plus, "REVIEW".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert_eq!(constraints.self_loops.len(), 2);
+        assert!(constraints.self_loops.contains(&vec![Property::new(
+            PropertySign::Plus,
+            "CANCEL".to_string()
+        )]));
+        assert!(constraints.self_loops.contains(&vec![
+            Property::new(PropertySign::Plus, "APPROVE".to_string()),
+            Property::new(PropertySign::Plus, "REVIEW".to_string()),
+        ]));
+
+        let model = synthesize_from_formulas("Availability", &[formula]);
+        let transitions = &model.parts[0].transitions;
+
+        assert_eq!(transitions.len(), 2);
+        assert!(transitions.iter().any(|transition| {
+            transition.from == "q0"
+                && transition.to == "q0"
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "CANCEL".to_string()))
+        }));
+        assert!(transitions.iter().any(|transition| {
+            transition.from == "q0"
+                && transition.to == "q0"
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "REVIEW".to_string()))
         }));
     }
 
