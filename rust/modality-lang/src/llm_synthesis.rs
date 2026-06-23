@@ -431,6 +431,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Chargeback reserve approval requires operations lead signature and blocks unfunded dispute liability" | `always([+APPROVE_CHARGEBACK_RESERVE] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CHARGEBACK_RESERVE] true -> always([-UNFUNDED_DISPUTE_LIABILITY] true))` |
 | "Customer refund policy approval requires finance lead signature and blocks unauthorized refund obligation" | `always([+APPROVE_CUSTOMER_REFUND_POLICY] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_CUSTOMER_REFUND_POLICY] true -> always([-UNAUTHORIZED_REFUND_OBLIGATION] true))` |
 | "Subscription cancellation flow approval requires operations lead signature and blocks noncompliant renewal billing" | `always([+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW] true -> always([-NONCOMPLIANT_RENEWAL_BILLING] true))` |
+| "Terms of service update approval requires corporate counsel signature and blocks unenforceable customer terms" | `always([+APPROVE_TERMS_OF_SERVICE_UPDATE] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_TERMS_OF_SERVICE_UPDATE] true -> always([-UNENFORCEABLE_CUSTOMER_TERMS] true))` |
+| "Cookie consent banner approval requires privacy counsel signature and blocks noncompliant tracking consent" | `always([+APPROVE_COOKIE_CONSENT_BANNER] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_COOKIE_CONSENT_BANNER] true -> always([-NONCOMPLIANT_TRACKING_CONSENT] true))` |
 
 ## Output Format
 
@@ -13504,6 +13506,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_SUBSCRIPTION_CANCELLATION_FLOW] true -> always([-NONCOMPLIANT_RENEWAL_BILLING] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_terms_cookie_consent_governance_patterns() {
+        let prompt = generate_prompt("Terms of service and cookie consent controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_TERMS_OF_SERVICE_UPDATE] true -> <+signed_by(/users/corporate_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TERMS_OF_SERVICE_UPDATE] true -> always([-UNENFORCEABLE_CUSTOMER_TERMS] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_COOKIE_CONSENT_BANNER] true -> <+signed_by(/users/privacy_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_COOKIE_CONSENT_BANNER] true -> always([-NONCOMPLIANT_TRACKING_CONSENT] true))"
         ));
     }
 }
