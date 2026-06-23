@@ -152,11 +152,12 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
                 // pre-state, not only in the linear prefix.
                 let signer_props = extract_diamond_signer_props(rhs);
                 if !signer_props.is_empty() {
-                    let committed_actions = extract_eventually_committed_actions(rhs);
-                    if !committed_actions.is_empty() {
+                    for committed_props in extract_eventually_diamond_box_prop_groups(rhs)
+                        .into_iter()
+                        .filter(|props| props.iter().any(is_positive_action_property))
+                    {
                         let mut props = signer_props.clone();
-                        for action in committed_actions {
-                            let prop = Property::new(PropertySign::Plus, action);
+                        for prop in committed_props {
                             if !props.contains(&prop) {
                                 props.push(prop);
                             }
@@ -595,20 +596,6 @@ fn extract_diamond_signer_props(expr: &FormulaExpr) -> Vec<Property> {
     }
 }
 
-fn extract_eventually_committed_actions(expr: &FormulaExpr) -> Vec<String> {
-    match expr {
-        FormulaExpr::Eventually(inner) => extract_diamond_box_actions(inner),
-        FormulaExpr::DiamondBox(_, _) => extract_diamond_box_actions(expr),
-        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
-            let mut actions = extract_eventually_committed_actions(lhs);
-            extend_unique(&mut actions, &extract_eventually_committed_actions(rhs));
-            actions
-        }
-        FormulaExpr::Paren(inner) => extract_eventually_committed_actions(inner),
-        _ => Vec::new(),
-    }
-}
-
 fn extract_eventually_diamond_box_prop_groups(expr: &FormulaExpr) -> Vec<Vec<Property>> {
     match expr {
         FormulaExpr::Eventually(inner) => extract_diamond_box_props(inner),
@@ -625,23 +612,6 @@ fn extract_eventually_diamond_box_prop_groups(expr: &FormulaExpr) -> Vec<Vec<Pro
             props
         }
         FormulaExpr::Paren(inner) => extract_eventually_diamond_box_prop_groups(inner),
-        _ => Vec::new(),
-    }
-}
-
-fn extract_diamond_box_actions(expr: &FormulaExpr) -> Vec<String> {
-    match expr {
-        FormulaExpr::DiamondBox(props, inner) if is_true_expr(inner) => props
-            .iter()
-            .filter(|prop| is_positive_action_property(prop))
-            .map(|prop| prop.name.clone())
-            .collect(),
-        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
-            let mut actions = extract_diamond_box_actions(lhs);
-            extend_unique(&mut actions, &extract_diamond_box_actions(rhs));
-            actions
-        }
-        FormulaExpr::Paren(inner) => extract_diamond_box_actions(inner),
         _ => Vec::new(),
     }
 }
@@ -2386,6 +2356,46 @@ mod tests {
                 "/users/buyer.id".to_string()
             ),
             Property::new(PropertySign::Plus, "DELIVER".to_string())
+        ]));
+    }
+
+    #[test]
+    fn test_committed_signer_with_predicated_goal_keeps_full_goal_available() {
+        let formula = FormulaExpr::Implies(
+            Box::new(FormulaExpr::Box(
+                vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],
+                Box::new(FormulaExpr::True),
+            )),
+            Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::DiamondBox(
+                    vec![Property::new_predicate_from_call(
+                        "signed_by".to_string(),
+                        "/users/buyer.id".to_string(),
+                    )],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::DiamondBox(
+                    vec![
+                        Property::new(PropertySign::Plus, "DELIVER".to_string()),
+                        Property::new_predicate_from_call(
+                            "modifies".to_string(),
+                            "/delivery".to_string(),
+                        ),
+                    ],
+                    Box::new(FormulaExpr::True),
+                )),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.self_loops.contains(&vec![
+            Property::new_predicate_from_call(
+                "signed_by".to_string(),
+                "/users/buyer.id".to_string()
+            ),
+            Property::new(PropertySign::Plus, "DELIVER".to_string()),
+            Property::new_predicate_from_call("modifies".to_string(), "/delivery".to_string())
         ]));
     }
 
