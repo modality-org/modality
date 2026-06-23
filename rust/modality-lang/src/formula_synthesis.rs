@@ -71,6 +71,18 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
     match expr {
         // always(φ) - recurse into inner
         FormulaExpr::Always(inner) => {
+            let direct_diamond_props = extract_direct_diamond_prop_groups(inner);
+            if !direct_diamond_props.is_empty() {
+                let direct_diamond_box_props = extract_direct_diamond_box_prop_groups(inner);
+                for props in direct_diamond_props {
+                    push_unique_props(&mut constraints.self_loops, props);
+                }
+                for props in direct_diamond_box_props {
+                    push_unique_props(&mut constraints.self_loops, props);
+                }
+                extract_non_direct_availability_branches(inner, constraints);
+                return;
+            }
             let self_loop_props = extract_diamond_box_props(inner);
             if !self_loop_props.is_empty() {
                 for props in self_loop_props {
@@ -975,6 +987,28 @@ mod tests {
         assert!(transitions[0]
             .properties
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string(),)));
+    }
+
+    #[test]
+    fn test_always_diamond_synthesizes_permissive_self_loop() {
+        let formula = FormulaExpr::Always(Box::new(FormulaExpr::Diamond(
+            vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+            Box::new(FormulaExpr::True),
+        )));
+
+        let constraints = extract_constraints(&formula);
+        assert!(constraints.actions.is_empty());
+        assert_eq!(constraints.self_loops.len(), 1);
+
+        let model = synthesize_from_constraints("Approval", &constraints);
+        let transitions = &model.parts[0].transitions;
+
+        assert_eq!(transitions.len(), 1);
+        assert_eq!(transitions[0].from, "q0");
+        assert_eq!(transitions[0].to, "q0");
+        assert!(transitions[0]
+            .properties
+            .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
     }
 
     #[test]
