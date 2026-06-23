@@ -453,6 +453,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Revenue recognition policy approval requires controller signature and blocks premature revenue booking" | `always([+APPROVE_REVENUE_RECOGNITION_POLICY] true -> <+signed_by(/users/controller.id)> true)`; `always([+APPROVE_REVENUE_RECOGNITION_POLICY] true -> always([-PREMATURE_REVENUE_BOOKING] true))` |
 | "Tax exemption certificate approval requires finance lead signature and blocks invalid tax exempt billing" | `always([+APPROVE_TAX_EXEMPTION_CERTIFICATE] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_TAX_EXEMPTION_CERTIFICATE] true -> always([-INVALID_TAX_EXEMPT_BILLING] true))` |
 | "Customer contract amendment approval requires corporate counsel signature and blocks unapproved commercial term change" | `always([+APPROVE_CUSTOMER_CONTRACT_AMENDMENT] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_CONTRACT_AMENDMENT] true -> always([-UNAPPROVED_COMMERCIAL_TERM_CHANGE] true))` |
+| "Customer SLA exception approval requires operations lead signature and blocks unauthorized service level downgrade" | `always([+APPROVE_CUSTOMER_SLA_EXCEPTION] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_SLA_EXCEPTION] true -> always([-UNAUTHORIZED_SERVICE_LEVEL_DOWNGRADE] true))` |
+| "Custom pricing discount approval requires finance lead signature and blocks margin negative deal" | `always([+APPROVE_CUSTOM_PRICING_DISCOUNT] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_CUSTOM_PRICING_DISCOUNT] true -> always([-MARGIN_NEGATIVE_DEAL] true))` |
 
 ## Output Format
 
@@ -13724,6 +13726,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_CONTRACT_AMENDMENT] true -> always([-UNAPPROVED_COMMERCIAL_TERM_CHANGE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_sla_pricing_governance_patterns() {
+        let prompt = generate_prompt("Customer SLA exception and custom pricing controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_SLA_EXCEPTION] true -> <+signed_by(/users/operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_SLA_EXCEPTION] true -> always([-UNAUTHORIZED_SERVICE_LEVEL_DOWNGRADE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOM_PRICING_DISCOUNT] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOM_PRICING_DISCOUNT] true -> always([-MARGIN_NEGATIVE_DEAL] true))"
         ));
     }
 }
