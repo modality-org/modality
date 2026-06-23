@@ -411,6 +411,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Regulatory filing approval requires corporate counsel signature and blocks late required notice" | `always([+APPROVE_REGULATORY_FILING] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_REGULATORY_FILING] true -> always([-LATE_REQUIRED_NOTICE] true))` |
 | "Post-closing integration approval requires operations lead signature and blocks unauthorized system migration" | `always([+APPROVE_POST_CLOSING_INTEGRATION] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_POST_CLOSING_INTEGRATION] true -> always([-UNAUTHORIZED_SYSTEM_MIGRATION] true))` |
 | "Tax election approval requires finance lead signature and blocks missed election deadline" | `always([+APPROVE_TAX_ELECTION] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_TAX_ELECTION] true -> always([-MISSED_ELECTION_DEADLINE] true))` |
+| "Foreign qualification approval requires corporate counsel signature and blocks unauthorized state business" | `always([+APPROVE_FOREIGN_QUALIFICATION] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_FOREIGN_QUALIFICATION] true -> always([-UNAUTHORIZED_STATE_BUSINESS] true))` |
+| "Annual report filing approval requires corporate secretary signature and blocks delinquent entity status" | `always([+APPROVE_ANNUAL_REPORT_FILING] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_ANNUAL_REPORT_FILING] true -> always([-DELINQUENT_ENTITY_STATUS] true))` |
 
 ## Output Format
 
@@ -13303,6 +13305,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_TAX_ELECTION] true -> always([-MISSED_ELECTION_DEADLINE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_qualification_annual_report_governance_patterns() {
+        let prompt = generate_prompt("Foreign qualification and annual report filing controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_FOREIGN_QUALIFICATION] true -> <+signed_by(/users/corporate_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_FOREIGN_QUALIFICATION] true -> always([-UNAUTHORIZED_STATE_BUSINESS] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_ANNUAL_REPORT_FILING] true -> <+signed_by(/users/corporate_secretary.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_ANNUAL_REPORT_FILING] true -> always([-DELINQUENT_ENTITY_STATUS] true))"
         ));
     }
 }
