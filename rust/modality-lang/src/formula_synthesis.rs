@@ -804,8 +804,10 @@ pub fn synthesize_from_formulas(name: &str, formulas: &[FormulaExpr]) -> Model {
             push_unique_pair(&mut constraints.forbidden_after, action, forbidden);
         }
         constraints.actions.extend(fc.actions);
-        for props in fc.self_loops {
-            push_unique_props(&mut constraints.self_loops, props);
+        if constraints.self_loops.is_empty() {
+            constraints.self_loops = fc.self_loops;
+        } else if !fc.self_loops.is_empty() {
+            constraints.self_loops = combine_prop_groups(constraints.self_loops, fc.self_loops);
         }
     }
 
@@ -1416,6 +1418,30 @@ mod tests {
         assert!(model.parts[0].transitions[0]
             .properties
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
+    }
+
+    #[test]
+    fn test_independent_self_loop_constraints_merge_across_formulas() {
+        let approve = FormulaExpr::Always(Box::new(FormulaExpr::DiamondBox(
+            vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+            Box::new(FormulaExpr::True),
+        )));
+        let deliver = FormulaExpr::Always(Box::new(FormulaExpr::DiamondBox(
+            vec![Property::new(PropertySign::Plus, "DELIVER".to_string())],
+            Box::new(FormulaExpr::True),
+        )));
+
+        let model = synthesize_from_formulas("Approval", &[approve, deliver]);
+
+        assert_eq!(model.parts[0].transitions.len(), 1);
+        assert_eq!(model.parts[0].transitions[0].from, "q0");
+        assert_eq!(model.parts[0].transitions[0].to, "q0");
+        assert!(model.parts[0].transitions[0]
+            .properties
+            .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
+        assert!(model.parts[0].transitions[0]
+            .properties
+            .contains(&Property::new(PropertySign::Plus, "DELIVER".to_string())));
     }
 
     #[test]

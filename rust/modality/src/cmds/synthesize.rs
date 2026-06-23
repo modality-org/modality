@@ -1743,6 +1743,54 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn existing_model_mode_writes_replacement_candidate_output() {
+        let model_formulas = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &model_formulas);
+        let existing_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-candidate-{}.modality",
+            std::process::id()
+        ));
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-candidate-output-{}.modality",
+            std::process::id()
+        ));
+        let proposed_rule_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-proposed-{}.modality",
+            std::process::id()
+        ));
+        std::fs::write(
+            &existing_path,
+            format!(
+                "{}\n\nformula previous_rule {{\nalways([<+APPROVE>] true)\n}}\n",
+                modality_lang::print_model(&model)
+            ),
+        )
+        .unwrap();
+        std::fs::write(
+            &proposed_rule_path,
+            "formula delivery_required {\nalways([<+DELIVER>] true)\n}\n",
+        )
+        .unwrap();
+
+        let mut opts = default_test_opts();
+        opts.existing_model = Some(existing_path.clone());
+        opts.proposed_rule = Some(proposed_rule_path.clone());
+        opts.output = Some(output_path.clone());
+
+        run_existing_model_synthesis(&opts).unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(existing_path).unwrap();
+        std::fs::remove_file(proposed_rule_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        assert!(output.contains("model ContractCandidate"));
+        assert!(output.contains("+APPROVE"));
+        assert!(output.contains("+DELIVER"));
+    }
+
+    #[test]
     fn llm_response_loader_rejects_inline_and_file_together() {
         let response = "formula generated { true }".to_string();
         let path = PathBuf::from("response.md");
