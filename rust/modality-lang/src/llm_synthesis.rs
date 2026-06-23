@@ -419,6 +419,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Good standing certificate approval requires corporate secretary signature and blocks stale entity evidence" | `always([+APPROVE_GOOD_STANDING_CERTIFICATE] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_GOOD_STANDING_CERTIFICATE] true -> always([-STALE_ENTITY_EVIDENCE] true))` |
 | "Entity conversion approval requires corporate counsel signature and blocks unapproved entity restructuring" | `always([+APPROVE_ENTITY_CONVERSION] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_ENTITY_CONVERSION] true -> always([-UNAPPROVED_ENTITY_RESTRUCTURING] true))` |
 | "Assumed name filing approval requires corporate secretary signature and blocks unauthorized public name use" | `always([+APPROVE_ASSUMED_NAME_FILING] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_ASSUMED_NAME_FILING] true -> always([-UNAUTHORIZED_PUBLIC_NAME_USE] true))` |
+| "Dissolution plan approval requires corporate counsel signature and blocks unauthorized wind down" | `always([+APPROVE_DISSOLUTION_PLAN] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_DISSOLUTION_PLAN] true -> always([-UNAUTHORIZED_WIND_DOWN] true))` |
+| "Creditor notice approval requires corporate secretary signature and blocks omitted creditor notice" | `always([+APPROVE_CREDITOR_NOTICE] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_CREDITOR_NOTICE] true -> always([-OMITTED_CREDITOR_NOTICE] true))` |
 
 ## Output Format
 
@@ -13383,6 +13385,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_ASSUMED_NAME_FILING] true -> always([-UNAUTHORIZED_PUBLIC_NAME_USE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_dissolution_creditor_notice_governance_patterns() {
+        let prompt = generate_prompt("Dissolution plan and creditor notice controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_DISSOLUTION_PLAN] true -> <+signed_by(/users/corporate_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DISSOLUTION_PLAN] true -> always([-UNAUTHORIZED_WIND_DOWN] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CREDITOR_NOTICE] true -> <+signed_by(/users/corporate_secretary.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CREDITOR_NOTICE] true -> always([-OMITTED_CREDITOR_NOTICE] true))"
         ));
     }
 }
