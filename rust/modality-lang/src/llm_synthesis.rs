@@ -457,6 +457,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Custom pricing discount approval requires finance lead signature and blocks margin negative deal" | `always([+APPROVE_CUSTOM_PRICING_DISCOUNT] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_CUSTOM_PRICING_DISCOUNT] true -> always([-MARGIN_NEGATIVE_DEAL] true))` |
 | "Customer contract renewal approval requires corporate counsel signature and blocks lapsed service obligation" | `always([+APPROVE_CUSTOMER_CONTRACT_RENEWAL] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_CONTRACT_RENEWAL] true -> always([-LAPSED_SERVICE_OBLIGATION] true))` |
 | "Usage overage billing approval requires finance lead signature and blocks unapproved excess charge" | `always([+APPROVE_USAGE_OVERAGE_BILLING] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_USAGE_OVERAGE_BILLING] true -> always([-UNAPPROVED_EXCESS_CHARGE] true))` |
+| "Customer success plan approval requires operations lead signature and blocks unsupported adoption commitment" | `always([+APPROVE_CUSTOMER_SUCCESS_PLAN] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_SUCCESS_PLAN] true -> always([-UNSUPPORTED_ADOPTION_COMMITMENT] true))` |
+| "Professional services statement of work approval requires delivery manager signature and blocks unfunded implementation obligation" | `always([+APPROVE_PROFESSIONAL_SERVICES_SOW] true -> <+signed_by(/users/delivery_manager.id)> true)`; `always([+APPROVE_PROFESSIONAL_SERVICES_SOW] true -> always([-UNFUNDED_IMPLEMENTATION_OBLIGATION] true))` |
 
 ## Output Format
 
@@ -13764,6 +13766,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_USAGE_OVERAGE_BILLING] true -> always([-UNAPPROVED_EXCESS_CHARGE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_customer_success_services_governance_patterns() {
+        let prompt = generate_prompt("Customer success and professional services controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_SUCCESS_PLAN] true -> <+signed_by(/users/operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_SUCCESS_PLAN] true -> always([-UNSUPPORTED_ADOPTION_COMMITMENT] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PROFESSIONAL_SERVICES_SOW] true -> <+signed_by(/users/delivery_manager.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_PROFESSIONAL_SERVICES_SOW] true -> always([-UNFUNDED_IMPLEMENTATION_OBLIGATION] true))"
         ));
     }
 }
