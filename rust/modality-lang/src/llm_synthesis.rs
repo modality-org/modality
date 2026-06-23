@@ -409,6 +409,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Representations and warranties disclosure approval requires corporate counsel signature and blocks undisclosed material exception" | `always([+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_REPRESENTATIONS_WARRANTIES_DISCLOSURE] true -> always([-UNDISCLOSED_MATERIAL_EXCEPTION] true))` |
 | "Closing deliverables approval requires corporate secretary signature and blocks missing officer certificate" | `always([+APPROVE_CLOSING_DELIVERABLES] true -> <+signed_by(/users/corporate_secretary.id)> true)`; `always([+APPROVE_CLOSING_DELIVERABLES] true -> always([-MISSING_OFFICER_CERTIFICATE] true))` |
 | "Regulatory filing approval requires corporate counsel signature and blocks late required notice" | `always([+APPROVE_REGULATORY_FILING] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_REGULATORY_FILING] true -> always([-LATE_REQUIRED_NOTICE] true))` |
+| "Post-closing integration approval requires operations lead signature and blocks unauthorized system migration" | `always([+APPROVE_POST_CLOSING_INTEGRATION] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_POST_CLOSING_INTEGRATION] true -> always([-UNAUTHORIZED_SYSTEM_MIGRATION] true))` |
+| "Tax election approval requires finance lead signature and blocks missed election deadline" | `always([+APPROVE_TAX_ELECTION] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_TAX_ELECTION] true -> always([-MISSED_ELECTION_DEADLINE] true))` |
 
 ## Output Format
 
@@ -13283,6 +13285,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_REGULATORY_FILING] true -> always([-LATE_REQUIRED_NOTICE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_integration_tax_governance_patterns() {
+        let prompt = generate_prompt("Post-closing integration and tax election controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_POST_CLOSING_INTEGRATION] true -> <+signed_by(/users/operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_POST_CLOSING_INTEGRATION] true -> always([-UNAUTHORIZED_SYSTEM_MIGRATION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TAX_ELECTION] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_TAX_ELECTION] true -> always([-MISSED_ELECTION_DEADLINE] true))"
         ));
     }
 }
