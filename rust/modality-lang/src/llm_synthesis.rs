@@ -501,6 +501,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer data correction approval requires privacy counsel signature and blocks unreviewed customer record mutation" | `always([+APPROVE_CUSTOMER_DATA_CORRECTION] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_DATA_CORRECTION] true -> always([-UNREVIEWED_CUSTOMER_RECORD_MUTATION] true))` |
 | "Customer SSO configuration approval requires security lead signature and blocks misconfigured customer authentication" | `always([+APPROVE_CUSTOMER_SSO_CONFIGURATION] true -> <+signed_by(/users/security_lead.id)> true)`; `always([+APPROVE_CUSTOMER_SSO_CONFIGURATION] true -> always([-MISCONFIGURED_CUSTOMER_AUTHENTICATION] true))` |
 | "Customer SCIM deprovisioning exception approval requires identity governance lead signature and blocks orphaned customer account access" | `always([+APPROVE_CUSTOMER_SCIM_DEPROVISIONING_EXCEPTION] true -> <+signed_by(/users/identity_governance_lead.id)> true)`; `always([+APPROVE_CUSTOMER_SCIM_DEPROVISIONING_EXCEPTION] true -> always([-ORPHANED_CUSTOMER_ACCOUNT_ACCESS] true))` |
+| "Customer breach notification approval requires privacy incident lead signature and blocks delayed customer breach disclosure" | `always([+APPROVE_CUSTOMER_BREACH_NOTIFICATION] true -> <+signed_by(/users/privacy_incident_lead.id)> true)`; `always([+APPROVE_CUSTOMER_BREACH_NOTIFICATION] true -> always([-DELAYED_CUSTOMER_BREACH_DISCLOSURE] true))` |
+| "Customer data subject access response approval requires privacy operations lead signature and blocks incomplete customer rights response" | `always([+APPROVE_CUSTOMER_DATA_SUBJECT_ACCESS_RESPONSE] true -> <+signed_by(/users/privacy_operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_DATA_SUBJECT_ACCESS_RESPONSE] true -> always([-INCOMPLETE_CUSTOMER_RIGHTS_RESPONSE] true))` |
 
 ## Output Format
 
@@ -14213,6 +14215,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_SCIM_DEPROVISIONING_EXCEPTION] true -> always([-ORPHANED_CUSTOMER_ACCOUNT_ACCESS] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_breach_notification_rights_response_governance_patterns() {
+        let prompt = generate_prompt("Customer breach notification and rights response controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_BREACH_NOTIFICATION] true -> <+signed_by(/users/privacy_incident_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_BREACH_NOTIFICATION] true -> always([-DELAYED_CUSTOMER_BREACH_DISCLOSURE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_DATA_SUBJECT_ACCESS_RESPONSE] true -> <+signed_by(/users/privacy_operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_DATA_SUBJECT_ACCESS_RESPONSE] true -> always([-INCOMPLETE_CUSTOMER_RIGHTS_RESPONSE] true))"
         ));
     }
 }
