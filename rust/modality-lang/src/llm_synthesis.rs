@@ -491,6 +491,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer incident follow-up extension approval requires customer success lead signature and blocks open reliability risk extension" | `always([+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION] true -> <+signed_by(/users/customer_success_lead.id)> true)`; `always([+APPROVE_CUSTOMER_INCIDENT_FOLLOW_UP_EXTENSION] true -> always([-OPEN_RELIABILITY_RISK_EXTENSION] true))` |
 | "Customer trust center update approval requires compliance officer signature and blocks stale assurance claim" | `always([+APPROVE_CUSTOMER_TRUST_CENTER_UPDATE] true -> <+signed_by(/users/compliance_officer.id)> true)`; `always([+APPROVE_CUSTOMER_TRUST_CENTER_UPDATE] true -> always([-STALE_ASSURANCE_CLAIM] true))` |
 | "Customer regulatory disclosure approval requires corporate counsel signature and blocks inconsistent regulator notice" | `always([+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE] true -> always([-INCONSISTENT_REGULATOR_NOTICE] true))` |
+| "Customer litigation hold approval requires corporate counsel signature and blocks premature evidence deletion" | `always([+APPROVE_CUSTOMER_LITIGATION_HOLD] true -> <+signed_by(/users/corporate_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_LITIGATION_HOLD] true -> always([-PREMATURE_EVIDENCE_DELETION] true))` |
+| "Customer eDiscovery export approval requires legal operations lead signature and blocks overbroad evidence disclosure" | `always([+APPROVE_CUSTOMER_EDISCOVERY_EXPORT] true -> <+signed_by(/users/legal_operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_EDISCOVERY_EXPORT] true -> always([-OVERBROAD_EVIDENCE_DISCLOSURE] true))` |
 
 ## Output Format
 
@@ -14113,6 +14115,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_REGULATORY_DISCLOSURE] true -> always([-INCONSISTENT_REGULATOR_NOTICE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_litigation_hold_ediscovery_governance_patterns() {
+        let prompt = generate_prompt("Customer litigation hold and eDiscovery export controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_LITIGATION_HOLD] true -> <+signed_by(/users/corporate_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_LITIGATION_HOLD] true -> always([-PREMATURE_EVIDENCE_DELETION] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_EDISCOVERY_EXPORT] true -> <+signed_by(/users/legal_operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_EDISCOVERY_EXPORT] true -> always([-OVERBROAD_EVIDENCE_DISCLOSURE] true))"
         ));
     }
 }
