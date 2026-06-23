@@ -479,6 +479,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer security exception approval requires risk owner signature and blocks untracked compensating control gap" | `always([+APPROVE_CUSTOMER_SECURITY_EXCEPTION] true -> <+signed_by(/users/risk_owner.id)> true)`; `always([+APPROVE_CUSTOMER_SECURITY_EXCEPTION] true -> always([-UNTRACKED_COMPENSATING_CONTROL_GAP] true))` |
 | "Customer data processing addendum approval requires privacy counsel signature and blocks unsupported processing obligation" | `always([+APPROVE_CUSTOMER_DATA_PROCESSING_ADDENDUM] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_DATA_PROCESSING_ADDENDUM] true -> always([-UNSUPPORTED_PROCESSING_OBLIGATION] true))` |
 | "Customer subprocessor notice approval requires vendor risk owner signature and blocks unapproved processor disclosure" | `always([+APPROVE_CUSTOMER_SUBPROCESSOR_NOTICE] true -> <+signed_by(/users/vendor_risk_owner.id)> true)`; `always([+APPROVE_CUSTOMER_SUBPROCESSOR_NOTICE] true -> always([-UNAPPROVED_PROCESSOR_DISCLOSURE] true))` |
+| "Customer audit right approval requires compliance officer signature and blocks unsupported audit scope" | `always([+APPROVE_CUSTOMER_AUDIT_RIGHT] true -> <+signed_by(/users/compliance_officer.id)> true)`; `always([+APPROVE_CUSTOMER_AUDIT_RIGHT] true -> always([-UNSUPPORTED_AUDIT_SCOPE] true))` |
+| "Customer data residency commitment approval requires privacy counsel signature and blocks unlawful region commitment" | `always([+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT] true -> always([-UNLAWFUL_REGION_COMMITMENT] true))` |
 
 ## Output Format
 
@@ -13988,6 +13990,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_SUBPROCESSOR_NOTICE] true -> always([-UNAPPROVED_PROCESSOR_DISCLOSURE] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_audit_right_residency_governance_patterns() {
+        let prompt = generate_prompt("Customer audit right and data residency controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_AUDIT_RIGHT] true -> <+signed_by(/users/compliance_officer.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_AUDIT_RIGHT] true -> always([-UNSUPPORTED_AUDIT_SCOPE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT] true -> <+signed_by(/users/privacy_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_DATA_RESIDENCY_COMMITMENT] true -> always([-UNLAWFUL_REGION_COMMITMENT] true))"
         ));
     }
 }
