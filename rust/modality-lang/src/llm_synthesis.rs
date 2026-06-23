@@ -445,6 +445,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer workspace deletion approval requires retention counsel signature and blocks deletion under active retention duty" | `always([+APPROVE_CUSTOMER_WORKSPACE_DELETION] true -> <+signed_by(/users/retention_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_WORKSPACE_DELETION] true -> always([-ACTIVE_RETENTION_DUTY] true))` |
 | "Billing plan change approval requires finance lead signature and blocks unauthorized recurring charge" | `always([+APPROVE_BILLING_PLAN_CHANGE] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_BILLING_PLAN_CHANGE] true -> always([-UNAUTHORIZED_RECURRING_CHARGE] true))` |
 | "Customer entitlement provisioning approval requires operations lead signature and blocks uncontracted feature access" | `always([+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING] true -> always([-UNCONTRACTED_FEATURE_ACCESS] true))` |
+| "Customer payment method update approval requires finance lead signature and blocks unauthorized payment method change" | `always([+APPROVE_CUSTOMER_PAYMENT_METHOD_UPDATE] true -> <+signed_by(/users/finance_lead.id)> true)`; `always([+APPROVE_CUSTOMER_PAYMENT_METHOD_UPDATE] true -> always([-UNAUTHORIZED_PAYMENT_METHOD_CHANGE] true))` |
+| "Dunning workflow approval requires operations lead signature and blocks noncompliant collection notice" | `always([+APPROVE_DUNNING_WORKFLOW] true -> <+signed_by(/users/operations_lead.id)> true)`; `always([+APPROVE_DUNNING_WORKFLOW] true -> always([-NONCOMPLIANT_COLLECTION_NOTICE] true))` |
 
 ## Output Format
 
@@ -13644,6 +13646,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_ENTITLEMENT_PROVISIONING] true -> always([-UNCONTRACTED_FEATURE_ACCESS] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_payment_method_dunning_governance_patterns() {
+        let prompt = generate_prompt("Payment method update and dunning workflow controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_PAYMENT_METHOD_UPDATE] true -> <+signed_by(/users/finance_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_PAYMENT_METHOD_UPDATE] true -> always([-UNAUTHORIZED_PAYMENT_METHOD_CHANGE] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DUNNING_WORKFLOW] true -> <+signed_by(/users/operations_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_DUNNING_WORKFLOW] true -> always([-NONCOMPLIANT_COLLECTION_NOTICE] true))"
         ));
     }
 }
