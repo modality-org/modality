@@ -43,6 +43,14 @@ pub fn extract_constraints(formula: &FormulaExpr) -> SynthesisConstraints {
         extract_non_direct_diamond_branches(formula, &mut constraints);
         return constraints;
     }
+    let direct_diamond_box_props = extract_direct_diamond_box_prop_groups(formula);
+    if !direct_diamond_box_props.is_empty() {
+        for props in direct_diamond_box_props {
+            push_unique_props(&mut constraints.self_loops, props);
+        }
+        extract_non_direct_diamond_box_branches(formula, &mut constraints);
+        return constraints;
+    }
     extract_from_expr(formula, &mut constraints);
     constraints
 }
@@ -55,6 +63,21 @@ fn extract_non_direct_diamond_branches(expr: &FormulaExpr, constraints: &mut Syn
             extract_non_direct_diamond_branches(rhs, constraints);
         }
         FormulaExpr::Paren(inner) => extract_non_direct_diamond_branches(inner, constraints),
+        _ => extract_from_expr(expr, constraints),
+    }
+}
+
+fn extract_non_direct_diamond_box_branches(
+    expr: &FormulaExpr,
+    constraints: &mut SynthesisConstraints,
+) {
+    match expr {
+        FormulaExpr::DiamondBox(props, inner) if is_true_expr(inner) && !props.is_empty() => {}
+        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
+            extract_non_direct_diamond_box_branches(lhs, constraints);
+            extract_non_direct_diamond_box_branches(rhs, constraints);
+        }
+        FormulaExpr::Paren(inner) => extract_non_direct_diamond_box_branches(inner, constraints),
         _ => extract_from_expr(expr, constraints),
     }
 }
@@ -283,6 +306,24 @@ fn extract_direct_diamond_prop_groups(expr: &FormulaExpr) -> Vec<Vec<Property>> 
             props
         }
         FormulaExpr::Paren(inner) => extract_direct_diamond_prop_groups(inner),
+        _ => Vec::new(),
+    }
+}
+
+/// Extract committed action properties from top-level [<+ACTION>] true patterns.
+fn extract_direct_diamond_box_prop_groups(expr: &FormulaExpr) -> Vec<Vec<Property>> {
+    match expr {
+        FormulaExpr::DiamondBox(props, inner) if is_true_expr(inner) && !props.is_empty() => {
+            vec![props.clone()]
+        }
+        FormulaExpr::And(lhs, rhs) | FormulaExpr::Or(lhs, rhs) => {
+            let mut props = extract_direct_diamond_box_prop_groups(lhs);
+            for rhs_props in extract_direct_diamond_box_prop_groups(rhs) {
+                push_unique_props(&mut props, rhs_props);
+            }
+            props
+        }
+        FormulaExpr::Paren(inner) => extract_direct_diamond_box_prop_groups(inner),
         _ => Vec::new(),
     }
 }
@@ -952,24 +993,25 @@ mod tests {
     }
 
     #[test]
-    fn test_diamond_box_once_synthesizes_linear_transition() {
+    fn test_diamond_box_once_synthesizes_committed_self_loop() {
         let formula = FormulaExpr::DiamondBox(
             vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
             Box::new(FormulaExpr::True),
         );
 
+        let constraints = extract_constraints(&formula);
+        assert!(constraints.actions.is_empty());
+        assert_eq!(constraints.self_loops.len(), 1);
+
         let model = synthesize_from_formulas("Approval", &[formula]);
         let transitions = &model.parts[0].transitions;
 
-        assert_eq!(transitions.len(), 2);
+        assert_eq!(transitions.len(), 1);
         assert_eq!(transitions[0].from, "q0");
-        assert_eq!(transitions[0].to, "q1");
+        assert_eq!(transitions[0].to, "q0");
         assert!(transitions[0]
             .properties
             .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string())));
-        assert_eq!(transitions[1].from, "q1");
-        assert_eq!(transitions[1].to, "q1");
-        assert!(transitions[1].properties.is_empty());
     }
 
     #[test]
@@ -1153,13 +1195,16 @@ mod tests {
 
     #[test]
     fn test_implication_diamond_preserves_negative_predicate_guards() {
-        let modifies_members =
-            Property::new_predicate_from_call_args_negated("modifies".to_string(), vec![
-                "/members".to_string(),
-            ]);
+        let modifies_members = Property::new_predicate_from_call_args_negated(
+            "modifies".to_string(),
+            vec!["/members".to_string()],
+        );
         let formula = FormulaExpr::Implies(
             Box::new(FormulaExpr::Box(
-                vec![Property::new(PropertySign::Plus, "UPDATE_PROFILE".to_string())],
+                vec![Property::new(
+                    PropertySign::Plus,
+                    "UPDATE_PROFILE".to_string(),
+                )],
                 Box::new(FormulaExpr::True),
             )),
             Box::new(FormulaExpr::Diamond(
@@ -1182,10 +1227,7 @@ mod tests {
                 .get("UPDATE_PROFILE")
                 .unwrap(),
             &vec![
-                Property::new_predicate_from_call(
-                    "any_signed".to_string(),
-                    "/members".to_string(),
-                ),
+                Property::new_predicate_from_call("any_signed".to_string(), "/members".to_string(),),
                 modifies_members.clone(),
             ]
         );
@@ -1193,10 +1235,10 @@ mod tests {
         let model = synthesize_from_formulas("Members", &[formula]);
 
         assert!(model.parts[0].transitions.iter().any(|transition| {
-            transition
-                .properties
-                .contains(&Property::new(PropertySign::Plus, "UPDATE_PROFILE".to_string()))
-                && transition.properties.contains(&modifies_members)
+            transition.properties.contains(&Property::new(
+                PropertySign::Plus,
+                "UPDATE_PROFILE".to_string(),
+            )) && transition.properties.contains(&modifies_members)
         }));
     }
 
