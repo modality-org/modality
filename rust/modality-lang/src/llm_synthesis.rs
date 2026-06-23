@@ -497,6 +497,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 | "Customer access review exception approval requires security lead signature and blocks lingering unauthorized account access" | `always([+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION] true -> <+signed_by(/users/security_lead.id)> true)`; `always([+APPROVE_CUSTOMER_ACCESS_REVIEW_EXCEPTION] true -> always([-LINGERING_UNAUTHORIZED_ACCOUNT_ACCESS] true))` |
 | "Customer encryption key rotation exception approval requires security lead signature and blocks stale customer encryption key" | `always([+APPROVE_CUSTOMER_KEY_ROTATION_EXCEPTION] true -> <+signed_by(/users/security_lead.id)> true)`; `always([+APPROVE_CUSTOMER_KEY_ROTATION_EXCEPTION] true -> always([-STALE_CUSTOMER_ENCRYPTION_KEY] true))` |
 | "Customer backup retention exception approval requires retention counsel signature and blocks recoverability gap" | `always([+APPROVE_CUSTOMER_BACKUP_RETENTION_EXCEPTION] true -> <+signed_by(/users/retention_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_BACKUP_RETENTION_EXCEPTION] true -> always([-RECOVERABILITY_GAP] true))` |
+| "Customer production support access approval requires support lead signature and blocks unauthorized customer environment access" | `always([+APPROVE_CUSTOMER_PRODUCTION_SUPPORT_ACCESS] true -> <+signed_by(/users/support_lead.id)> true)`; `always([+APPROVE_CUSTOMER_PRODUCTION_SUPPORT_ACCESS] true -> always([-UNAUTHORIZED_CUSTOMER_ENVIRONMENT_ACCESS] true))` |
+| "Customer data correction approval requires privacy counsel signature and blocks unreviewed customer record mutation" | `always([+APPROVE_CUSTOMER_DATA_CORRECTION] true -> <+signed_by(/users/privacy_counsel.id)> true)`; `always([+APPROVE_CUSTOMER_DATA_CORRECTION] true -> always([-UNREVIEWED_CUSTOMER_RECORD_MUTATION] true))` |
 
 ## Output Format
 
@@ -14173,6 +14175,24 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         ));
         assert!(prompt.contains(
             "always([+APPROVE_CUSTOMER_BACKUP_RETENTION_EXCEPTION] true -> always([-RECOVERABILITY_GAP] true))"
+        ));
+    }
+
+    #[test]
+    fn test_prompt_includes_support_access_data_correction_governance_patterns() {
+        let prompt = generate_prompt("Customer support access and data correction controls");
+
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_PRODUCTION_SUPPORT_ACCESS] true -> <+signed_by(/users/support_lead.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_PRODUCTION_SUPPORT_ACCESS] true -> always([-UNAUTHORIZED_CUSTOMER_ENVIRONMENT_ACCESS] true))"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_DATA_CORRECTION] true -> <+signed_by(/users/privacy_counsel.id)> true)"
+        ));
+        assert!(prompt.contains(
+            "always([+APPROVE_CUSTOMER_DATA_CORRECTION] true -> always([-UNREVIEWED_CUSTOMER_RECORD_MUTATION] true))"
         ));
     }
 }
