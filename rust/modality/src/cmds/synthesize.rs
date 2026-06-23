@@ -826,6 +826,7 @@ fn run_existing_model_synthesis(opts: &Opts) -> Result<()> {
             "Use exactly one of --proposed-formula or --proposed-rule with --existing-model"
         ));
     }
+    ensure_existing_model_mode_is_exclusive(opts)?;
 
     let existing_input = load_existing_model_input(existing_model_path)?;
     let parsed_input = load_proposed_formula_inputs(opts)?;
@@ -882,6 +883,52 @@ fn run_existing_model_synthesis(opts: &Opts) -> Result<()> {
     write_or_print_model(&output, opts.output.as_ref())?;
 
     Ok(())
+}
+
+fn ensure_existing_model_mode_is_exclusive(opts: &Opts) -> Result<()> {
+    let conflicts = existing_model_mode_conflicts(opts);
+    if conflicts.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "--existing-model cannot be combined with other synthesis modes: {}",
+            conflicts.join(", ")
+        ))
+    }
+}
+
+fn existing_model_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
+    let mut conflicts = Vec::new();
+
+    if opts.template.is_some() {
+        conflicts.push("--template");
+    }
+    if opts.describe.is_some() {
+        conflicts.push("--describe");
+    }
+    if opts.rule.is_some() {
+        conflicts.push("--rule");
+    }
+    if opts.formulas.is_some() {
+        conflicts.push("--formulas");
+    }
+    if opts.generate_prompt {
+        conflicts.push("--generate-prompt");
+    }
+    if opts.llm_response.is_some() {
+        conflicts.push("--llm-response");
+    }
+    if opts.llm_response_file.is_some() {
+        conflicts.push("--llm-response-file");
+    }
+    if opts.milestones.is_some() {
+        conflicts.push("--milestones");
+    }
+    if opts.list {
+        conflicts.push("--list");
+    }
+
+    conflicts
 }
 
 struct ExistingModelInput {
@@ -1415,6 +1462,28 @@ fn format_model(model: &modality_lang::Model, format: &str) -> Result<String> {
 mod tests {
     use super::*;
 
+    fn default_test_opts() -> Opts {
+        Opts {
+            template: None,
+            describe: None,
+            rule: None,
+            existing_model: None,
+            proposed_formula: None,
+            proposed_rule: None,
+            formulas: None,
+            generate_prompt: false,
+            llm_response: None,
+            llm_response_file: None,
+            output: None,
+            verify: false,
+            party_a: "Alice".to_string(),
+            party_b: "Bob".to_string(),
+            milestones: None,
+            format: "modality".to_string(),
+            list: false,
+        }
+    }
+
     #[test]
     fn parse_formula_strings_uses_modality_parser() {
         let formulas = vec![
@@ -1618,6 +1687,21 @@ F2: formula generated_2 {
         assert_eq!(loaded.model.name, "Contract");
         assert_eq!(loaded.formulas.len(), 1);
         assert_eq!(loaded.labels, vec!["existing `previous_rule`".to_string()]);
+    }
+
+    #[test]
+    fn existing_model_mode_rejects_other_synthesis_modes() {
+        let mut opts = default_test_opts();
+        opts.existing_model = Some(PathBuf::from("existing.modality"));
+        opts.proposed_formula = Some("always([<+APPROVE>] true)".to_string());
+        opts.template = Some("escrow".to_string());
+        opts.describe = Some("ignored natural language request".to_string());
+
+        let err = ensure_existing_model_mode_is_exclusive(&opts).unwrap_err();
+
+        assert!(err.to_string().contains("--existing-model"));
+        assert!(err.to_string().contains("--template"));
+        assert!(err.to_string().contains("--describe"));
     }
 
     #[test]
