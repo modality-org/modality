@@ -417,12 +417,17 @@ fn is_guarded_recursive_branch(var: &str, expr: &FormulaExpr) -> bool {
 fn is_recursive_diamond(var: &str, expr: &FormulaExpr) -> bool {
     match expr {
         FormulaExpr::Diamond(props, inner) if props.is_empty() => {
-            matches!(
-                inner.as_ref(),
-                FormulaExpr::Var(name) | FormulaExpr::Prop(name) if name == var
-            )
+            is_fixed_point_var_reference(var, inner)
         }
         FormulaExpr::Paren(inner) => is_recursive_diamond(var, inner),
+        _ => false,
+    }
+}
+
+fn is_fixed_point_var_reference(var: &str, expr: &FormulaExpr) -> bool {
+    match expr {
+        FormulaExpr::Var(name) | FormulaExpr::Prop(name) => name == var,
+        FormulaExpr::Paren(inner) => is_fixed_point_var_reference(var, inner),
         _ => false,
     }
 }
@@ -3532,6 +3537,47 @@ mod tests {
         assert!(constraints.actions.contains("APPROVE"));
         assert!(constraints.actions.contains("REVIEW"));
         assert!(constraints.actions.contains("WAIT"));
+        assert_eq!(
+            constraints.self_loops,
+            vec![vec![Property::new(
+                PropertySign::Plus,
+                "APPROVE".to_string()
+            )]]
+        );
+    }
+
+    #[test]
+    fn test_lfp_nested_until_guard_with_parenthesized_prop_recursion_preserves_goal_availability() {
+        let formula = FormulaExpr::Lfp(
+            "X".to_string(),
+            Box::new(FormulaExpr::Or(
+                Box::new(FormulaExpr::DiamondBox(
+                    vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::And(
+                    Box::new(FormulaExpr::Diamond(
+                        vec![Property::new(PropertySign::Plus, "REVIEW".to_string())],
+                        Box::new(FormulaExpr::True),
+                    )),
+                    Box::new(FormulaExpr::And(
+                        Box::new(FormulaExpr::Diamond(
+                            vec![Property::new(PropertySign::Plus, "WAIT".to_string())],
+                            Box::new(FormulaExpr::True),
+                        )),
+                        Box::new(FormulaExpr::Diamond(
+                            Vec::new(),
+                            Box::new(FormulaExpr::Paren(Box::new(FormulaExpr::Prop(
+                                "X".to_string(),
+                            )))),
+                        )),
+                    )),
+                )),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
         assert_eq!(
             constraints.self_loops,
             vec![vec![Property::new(

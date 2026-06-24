@@ -4312,6 +4312,21 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_parenthesized_recursive_nested_committed_until_guard() {
+        let formulas = parse_formula_strings(&[
+            "lfp(X, ([<+APPROVE>] true) | ((<+REVIEW> true) & ((<+WAIT> true) & <>(X))))"
+                .to_string(),
+        ]);
+        assert_eq!(formulas.len(), 1);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ParenthesizedRecursiveNestedCommittedUntilGuard",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_rejects_unsatisfied_formula() {
         let mut model = modality_lang::Model::new("Contract".to_string());
         let mut part = modality_lang::Part::new("flow".to_string());
