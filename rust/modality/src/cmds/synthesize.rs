@@ -85,6 +85,24 @@ pub async fn run(opts: &Opts) -> Result<()> {
         return Ok(());
     }
 
+    if opts.generate_prompt {
+        let Some(description) = &opts.describe else {
+            return Err(anyhow::anyhow!("--generate-prompt requires --describe"));
+        };
+        ensure_prompt_generation_mode_is_exclusive(opts)?;
+        println!("📝 LLM Prompt for Rule Generation (Step 1)\n");
+        println!("{}", "=".repeat(60));
+        println!(
+            "{}",
+            modality_lang::llm_synthesis::generate_prompt(description)
+        );
+        println!("{}", "=".repeat(60));
+        println!(
+            "\n💡 Send this prompt to Claude/GPT, then use --llm-response or --llm-response-file with the output"
+        );
+        return Ok(());
+    }
+
     let llm_response =
         load_llm_response(opts.llm_response.as_ref(), opts.llm_response_file.as_ref())?;
 
@@ -92,25 +110,6 @@ pub async fn run(opts: &Opts) -> Result<()> {
         return Err(anyhow::anyhow!(
             "--verify requires --formulas, --rule, --llm-response, or --llm-response-file"
         ));
-    }
-
-    // Step 1a: Generate LLM prompt for NL → Formulas
-    if opts.generate_prompt {
-        if let Some(description) = &opts.describe {
-            println!("📝 LLM Prompt for Rule Generation (Step 1)\n");
-            println!("{}", "=".repeat(60));
-            println!(
-                "{}",
-                modality_lang::llm_synthesis::generate_prompt(description)
-            );
-            println!("{}", "=".repeat(60));
-            println!(
-                "\n💡 Send this prompt to Claude/GPT, then use --llm-response or --llm-response-file with the output"
-            );
-            return Ok(());
-        } else {
-            return Err(anyhow::anyhow!("--generate-prompt requires --describe"));
-        }
     }
 
     // Step 1b + 2: Parse LLM response and synthesize
@@ -848,6 +847,49 @@ fn list_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     }
     if opts.generate_prompt {
         conflicts.push("--generate-prompt");
+    }
+    if opts.llm_response.is_some() {
+        conflicts.push("--llm-response");
+    }
+    if opts.llm_response_file.is_some() {
+        conflicts.push("--llm-response-file");
+    }
+    if opts.output.is_some() {
+        conflicts.push("--output");
+    }
+    if opts.verify {
+        conflicts.push("--verify");
+    }
+    if opts.milestones.is_some() {
+        conflicts.push("--milestones");
+    }
+
+    conflicts
+}
+
+fn ensure_prompt_generation_mode_is_exclusive(opts: &Opts) -> Result<()> {
+    let conflicts = prompt_generation_mode_conflicts(opts);
+    if conflicts.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "--generate-prompt cannot be combined with other synthesis modes: {}",
+            conflicts.join(", ")
+        ))
+    }
+}
+
+fn prompt_generation_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
+    let mut conflicts = Vec::new();
+
+    if opts.template.is_some() {
+        conflicts.push("--template");
+    }
+    if opts.rule.is_some() {
+        conflicts.push("--rule");
+    }
+    if opts.formulas.is_some() {
+        conflicts.push("--formulas");
     }
     if opts.llm_response.is_some() {
         conflicts.push("--llm-response");
@@ -1948,9 +1990,30 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
         let err = run(&opts).await.unwrap_err();
 
-        assert!(err
-            .to_string()
-            .contains("--verify requires --formulas, --rule, --llm-response, or --llm-response-file"));
+        assert!(err.to_string().contains(
+            "--generate-prompt cannot be combined with other synthesis modes: --verify"
+        ));
+    }
+
+    #[tokio::test]
+    async fn prompt_generation_mode_rejects_llm_response_file_before_reading_path() {
+        let missing_response_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-prompt-llm-response-{}.md",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.describe = Some("Generate approval rules".to_string());
+        opts.generate_prompt = true;
+        opts.llm_response_file = Some(missing_response_path.clone());
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains(
+            "--generate-prompt cannot be combined with other synthesis modes: --llm-response-file"
+        ));
+        assert!(!message.contains(&missing_response_path.display().to_string()));
     }
 
     #[tokio::test]
