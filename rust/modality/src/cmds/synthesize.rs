@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -1010,7 +1010,8 @@ fn load_proposed_formula_inputs(opts: &Opts) -> Result<(ParsedFormulaInputs, Vec
             formula_declarations_for_input("proposed_formula", formula),
         ))
     } else if let Some(path) = &opts.proposed_rule {
-        let content = std::fs::read_to_string(path)?;
+        let content = std::fs::read_to_string(path)
+            .with_context(|| format!("Failed to read proposed rule file {}", path.display()))?;
         Ok((
             parse_formula_inputs(std::slice::from_ref(&content)),
             formula_declarations_for_input("proposed_rule", &content),
@@ -2118,6 +2119,40 @@ F2: formula generated_2 {
             .to_string()
             .contains("--verify requires every input formula to parse"));
         assert!(err.to_string().contains("<empty>"));
+    }
+
+    #[test]
+    fn existing_model_mode_reports_missing_proposed_rule_path() {
+        let model_formulas = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &model_formulas);
+        let existing_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-missing-rule-{}.modality",
+            std::process::id()
+        ));
+        let proposed_rule_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-missing-proposed-rule-{}.modality",
+            std::process::id()
+        ));
+        std::fs::write(
+            &existing_path,
+            format!(
+                "{}\n\nformula previous_rule {{\nalways([<+APPROVE>] true)\n}}\n",
+                modality_lang::print_model(&model)
+            ),
+        )
+        .unwrap();
+
+        let mut opts = default_test_opts();
+        opts.existing_model = Some(existing_path.clone());
+        opts.proposed_rule = Some(proposed_rule_path.clone());
+
+        let err = run_existing_model_synthesis(&opts).unwrap_err();
+        std::fs::remove_file(existing_path).unwrap();
+
+        let message = err.to_string();
+        assert!(message.contains("Failed to read proposed rule file"));
+        assert!(message.contains(&proposed_rule_path.display().to_string()));
     }
 
     #[test]
