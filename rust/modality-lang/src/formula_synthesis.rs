@@ -249,7 +249,7 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
             for props in extract_until_lfp_goal_availability_prop_groups(var, inner) {
                 push_unique_props(&mut constraints.self_loops, props);
             }
-            for props in extract_conjunctive_availability_prop_groups(inner) {
+            for props in extract_lfp_non_recursive_availability_prop_groups(var, inner) {
                 if props.len() > 1 {
                     push_unique_props(&mut constraints.self_loops, props);
                 }
@@ -381,10 +381,33 @@ fn extract_until_lfp_goal_availability_prop_groups(
     }
 }
 
+fn extract_lfp_non_recursive_availability_prop_groups(
+    var: &str,
+    expr: &FormulaExpr,
+) -> Vec<Vec<Property>> {
+    match expr {
+        FormulaExpr::Or(lhs, rhs)
+            if is_recursive_diamond(var, rhs) || is_guarded_recursive_branch(var, rhs) =>
+        {
+            extract_conjunctive_availability_prop_groups(lhs)
+        }
+        FormulaExpr::Or(lhs, rhs)
+            if is_recursive_diamond(var, lhs) || is_guarded_recursive_branch(var, lhs) =>
+        {
+            extract_conjunctive_availability_prop_groups(rhs)
+        }
+        FormulaExpr::Paren(inner) => extract_lfp_non_recursive_availability_prop_groups(var, inner),
+        _ => extract_conjunctive_availability_prop_groups(expr),
+    }
+}
+
 fn is_guarded_recursive_branch(var: &str, expr: &FormulaExpr) -> bool {
     match expr {
         FormulaExpr::And(lhs, rhs) => {
-            is_recursive_diamond(var, lhs) || is_recursive_diamond(var, rhs)
+            is_recursive_diamond(var, lhs)
+                || is_recursive_diamond(var, rhs)
+                || is_guarded_recursive_branch(var, lhs)
+                || is_guarded_recursive_branch(var, rhs)
         }
         FormulaExpr::Paren(inner) => is_guarded_recursive_branch(var, inner),
         _ => false,
@@ -3413,6 +3436,57 @@ mod tests {
         );
 
         let model = synthesize_from_formulas("UntilFixedPointAvailability", &[formula]);
+
+        assert!(model.parts[0].transitions.iter().any(|transition| {
+            transition.from == transition.to
+                && transition
+                    .properties
+                    .contains(&Property::new(PropertySign::Plus, "APPROVE".to_string()))
+        }));
+    }
+
+    #[test]
+    fn test_lfp_nested_until_guard_preserves_goal_availability() {
+        let formula = FormulaExpr::Lfp(
+            "X".to_string(),
+            Box::new(FormulaExpr::Or(
+                Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::And(
+                    Box::new(FormulaExpr::Diamond(
+                        vec![Property::new(PropertySign::Plus, "REVIEW".to_string())],
+                        Box::new(FormulaExpr::True),
+                    )),
+                    Box::new(FormulaExpr::And(
+                        Box::new(FormulaExpr::Diamond(
+                            vec![Property::new(PropertySign::Plus, "WAIT".to_string())],
+                            Box::new(FormulaExpr::True),
+                        )),
+                        Box::new(FormulaExpr::Diamond(
+                            Vec::new(),
+                            Box::new(FormulaExpr::Var("X".to_string())),
+                        )),
+                    )),
+                )),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("APPROVE"));
+        assert!(constraints.actions.contains("REVIEW"));
+        assert!(constraints.actions.contains("WAIT"));
+        assert_eq!(
+            constraints.self_loops,
+            vec![vec![Property::new(
+                PropertySign::Plus,
+                "APPROVE".to_string()
+            )]]
+        );
+
+        let model = synthesize_from_formulas("NestedUntilFixedPointAvailability", &[formula]);
 
         assert!(model.parts[0].transitions.iter().any(|transition| {
             transition.from == transition.to
