@@ -4327,6 +4327,21 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_parenthesized_recursive_nested_until_guard() {
+        let formulas = parse_formula_strings(&[
+            "lfp(X, (<+APPROVE> true) | ((<+REVIEW> true) & ((<+WAIT> true) & <>(X))))"
+                .to_string(),
+        ]);
+        assert_eq!(formulas.len(), 1);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ParenthesizedRecursiveNestedUntilGuard",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_accepts_parenthesized_recursive_lfp_eventual_goal() {
         let formulas = parse_formula_strings(&["lfp(X, (<+APPROVE> true) | <>(X))".to_string()]);
         assert_eq!(formulas.len(), 1);
