@@ -3636,4 +3636,48 @@ mod tests {
             )]]
         );
     }
+
+    #[test]
+    fn test_lfp_nested_until_guard_with_parenthesized_prop_recursion_preserves_permissive_goal() {
+        let formula = FormulaExpr::Lfp(
+            "X".to_string(),
+            Box::new(FormulaExpr::Or(
+                Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+                Box::new(FormulaExpr::And(
+                    Box::new(FormulaExpr::Diamond(
+                        vec![Property::new(PropertySign::Plus, "REVIEW".to_string())],
+                        Box::new(FormulaExpr::True),
+                    )),
+                    Box::new(FormulaExpr::And(
+                        Box::new(FormulaExpr::Diamond(
+                            vec![Property::new(PropertySign::Plus, "WAIT".to_string())],
+                            Box::new(FormulaExpr::True),
+                        )),
+                        Box::new(FormulaExpr::Diamond(
+                            Vec::new(),
+                            Box::new(FormulaExpr::Paren(Box::new(FormulaExpr::Prop(
+                                "X".to_string(),
+                            )))),
+                        )),
+                    )),
+                )),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("APPROVE"));
+        assert!(constraints.actions.contains("REVIEW"));
+        assert!(constraints.actions.contains("WAIT"));
+        assert_eq!(
+            constraints.self_loops,
+            vec![vec![Property::new(
+                PropertySign::Plus,
+                "APPROVE".to_string()
+            )]]
+        );
+    }
 }
