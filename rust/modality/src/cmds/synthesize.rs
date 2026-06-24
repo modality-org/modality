@@ -166,13 +166,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let output = format_synthesized_model(&model, &opts.format)?;
         println!("{}", output);
 
-        if let Some(output_path) = &opts.output {
-            if let Some(parent) = output_path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            std::fs::write(output_path, &output)?;
-            println!("\n📁 Written to {}", output_path.display());
-        }
+        write_output_file_if_requested(&output, opts.output.as_ref())?;
 
         return Ok(());
     }
@@ -231,13 +225,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let output = format_synthesized_model(&model, &opts.format)?;
         println!("{}", output);
 
-        if let Some(output_path) = &opts.output {
-            if let Some(parent) = output_path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            std::fs::write(output_path, &output)?;
-            println!("\n📁 Written to {}", output_path.display());
-        }
+        write_output_file_if_requested(&output, opts.output.as_ref())?;
 
         return Ok(());
     }
@@ -269,16 +257,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             }
 
             let output = format_synthesized_model(&model, &opts.format)?;
-
-            if let Some(output_path) = &opts.output {
-                if let Some(parent) = output_path.parent() {
-                    std::fs::create_dir_all(parent)?;
-                }
-                std::fs::write(output_path, &output)?;
-                println!("✅ Synthesized model written to {}", output_path.display());
-            } else {
-                println!("{}", output);
-            }
+            write_or_print_model(&output, opts.output.as_ref())?;
         } else {
             if opts.verify {
                 return Err(anyhow::anyhow!(
@@ -289,16 +268,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             // Fallback to old heuristic approach
             let model = synthesize_from_rule(&content, &opts.party_a, &opts.party_b)?;
             let output = format_model(&model, &opts.format)?;
-
-            if let Some(output_path) = &opts.output {
-                if let Some(parent) = output_path.parent() {
-                    std::fs::create_dir_all(parent)?;
-                }
-                std::fs::write(output_path, &output)?;
-                println!("✅ Synthesized model written to {}", output_path.display());
-            } else {
-                println!("{}", output);
-            }
+            write_or_print_model(&output, opts.output.as_ref())?;
         }
 
         return Ok(());
@@ -1497,21 +1467,35 @@ fn verify_synthesized_model_with_labels(
 
 fn write_or_print_model(output: &str, output_path: Option<&PathBuf>) -> Result<()> {
     if let Some(output_path) = output_path {
-        if let Some(parent) = output_path.parent() {
-            std::fs::create_dir_all(parent).with_context(|| {
-                format!("Failed to create output directory {}", parent.display())
-            })?;
-        }
-        std::fs::write(output_path, output).with_context(|| {
-            format!(
-                "Failed to write synthesized model to {}",
-                output_path.display()
-            )
-        })?;
+        write_output_file(output, output_path)?;
         println!("✅ Synthesized model written to {}", output_path.display());
     } else {
         println!("{}", output);
     }
+
+    Ok(())
+}
+
+fn write_output_file_if_requested(output: &str, output_path: Option<&PathBuf>) -> Result<()> {
+    if let Some(output_path) = output_path {
+        write_output_file(output, output_path)?;
+        println!("✅ Synthesized model written to {}", output_path.display());
+    }
+
+    Ok(())
+}
+
+fn write_output_file(output: &str, output_path: &PathBuf) -> Result<()> {
+    if let Some(parent) = output_path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("Failed to create output directory {}", parent.display()))?;
+    }
+    std::fs::write(output_path, output).with_context(|| {
+        format!(
+            "Failed to write synthesized model to {}",
+            output_path.display()
+        )
+    })?;
 
     Ok(())
 }
