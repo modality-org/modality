@@ -1694,6 +1694,38 @@ formula approval_signed {
         verify_synthesized_model(&model, &parsed_input.formulas).unwrap();
     }
 
+    #[tokio::test]
+    async fn formula_mode_verify_writes_checked_fixed_point_model() {
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-fixed-point-output-{}.modality",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.formulas = Some(
+            [
+                "lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>((X)))) | (<+APPROVE> true))",
+                "gfp(X, []((X)) & ([<+ARCHIVE>] true))",
+            ]
+            .join("; "),
+        );
+        opts.output = Some(output_path.clone());
+        opts.verify = true;
+
+        run(&opts).await.unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        let models = modality_lang::parse_all_models_content_lalrpop(&output).unwrap();
+        assert_eq!(models.len(), 1);
+        assert!(output.contains("model Contract"));
+        assert!(output.contains("+APPROVE"));
+        assert!(output.contains("+REVIEW"));
+        assert!(output.contains("+WAIT"));
+        assert!(output.contains("+ARCHIVE"));
+    }
+
     #[test]
     fn verify_synthesized_model_accepts_listed_formula_examples() {
         for group in FORMULA_EXAMPLE_GROUPS {
