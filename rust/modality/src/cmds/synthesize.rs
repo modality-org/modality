@@ -1498,9 +1498,16 @@ fn verify_synthesized_model_with_labels(
 fn write_or_print_model(output: &str, output_path: Option<&PathBuf>) -> Result<()> {
     if let Some(output_path) = output_path {
         if let Some(parent) = output_path.parent() {
-            std::fs::create_dir_all(parent)?;
+            std::fs::create_dir_all(parent).with_context(|| {
+                format!("Failed to create output directory {}", parent.display())
+            })?;
         }
-        std::fs::write(output_path, output)?;
+        std::fs::write(output_path, output).with_context(|| {
+            format!(
+                "Failed to write synthesized model to {}",
+                output_path.display()
+            )
+        })?;
         println!("✅ Synthesized model written to {}", output_path.display());
     } else {
         println!("{}", output);
@@ -2191,6 +2198,23 @@ F2: formula generated_2 {
         let message = err.to_string();
         assert!(message.contains("Failed to read existing model file"));
         assert!(message.contains(&existing_path.display().to_string()));
+    }
+
+    #[test]
+    fn output_write_errors_include_target_path() {
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-output-directory-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&output_path).unwrap();
+
+        let err = write_or_print_model("model Contract {\n  initial idle\n}\n", Some(&output_path))
+            .unwrap_err();
+        std::fs::remove_dir(&output_path).unwrap();
+
+        let message = err.to_string();
+        assert!(message.contains("Failed to write synthesized model"));
+        assert!(message.contains(&output_path.display().to_string()));
     }
 
     #[test]
