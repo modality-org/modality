@@ -141,6 +141,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
         ensure_formulas_mode_is_exclusive(opts)?;
     }
 
+    if opts.rule.is_some() {
+        ensure_rule_mode_is_exclusive(opts)?;
+    }
+
     if opts.llm_response.is_some() || opts.llm_response_file.is_some() {
         ensure_llm_response_mode_is_exclusive(opts)?;
     }
@@ -1022,6 +1026,49 @@ fn formulas_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     }
     if opts.rule.is_some() {
         conflicts.push("--rule");
+    }
+    if opts.generate_prompt {
+        conflicts.push("--generate-prompt");
+    }
+    if opts.llm_response.is_some() {
+        conflicts.push("--llm-response");
+    }
+    if opts.llm_response_file.is_some() {
+        conflicts.push("--llm-response-file");
+    }
+    if opts.list {
+        conflicts.push("--list");
+    }
+    if opts.milestones.is_some() {
+        conflicts.push("--milestones");
+    }
+
+    conflicts
+}
+
+fn ensure_rule_mode_is_exclusive(opts: &Opts) -> Result<()> {
+    let conflicts = rule_mode_conflicts(opts);
+    if conflicts.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "--rule cannot be combined with other synthesis modes: {}",
+            conflicts.join(", ")
+        ))
+    }
+}
+
+fn rule_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
+    let mut conflicts = Vec::new();
+
+    if opts.template.is_some() {
+        conflicts.push("--template");
+    }
+    if opts.describe.is_some() {
+        conflicts.push("--describe");
+    }
+    if opts.formulas.is_some() {
+        conflicts.push("--formulas");
     }
     if opts.generate_prompt {
         conflicts.push("--generate-prompt");
@@ -1986,6 +2033,45 @@ formula approval_signed {
     }
 
     #[tokio::test]
+    async fn rule_file_mode_rejects_milestones_mode() {
+        let mut opts = default_test_opts();
+        opts.rule = Some(PathBuf::from("rules.modality"));
+        opts.milestones = Some("Phase1,Phase2".to_string());
+
+        let err = run(&opts).await.unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("--rule cannot be combined with other synthesis modes: --milestones")
+        );
+    }
+
+    #[tokio::test]
+    async fn rule_file_mode_rejects_llm_response_file_before_reading_paths() {
+        let missing_rule_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-rule-conflict-{}.modality",
+            std::process::id()
+        ));
+        let missing_response_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-rule-response-conflict-{}.md",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.rule = Some(missing_rule_path.clone());
+        opts.llm_response_file = Some(missing_response_path.clone());
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains(
+            "--rule cannot be combined with other synthesis modes: --llm-response-file"
+        ));
+        assert!(!message.contains(&missing_rule_path.display().to_string()));
+        assert!(!message.contains(&missing_response_path.display().to_string()));
+    }
+
+    #[tokio::test]
     async fn rule_file_verify_writes_checked_model() {
         let rule_path = std::env::temp_dir().join(format!(
             "modality-synthesize-rules-run-{}.modality",
@@ -2350,9 +2436,9 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         let err = run(&opts).await.unwrap_err();
 
         let message = err.to_string();
-        assert!(
-            message.contains("--llm-response cannot be combined with other synthesis modes: --rule")
-        );
+        assert!(message.contains(
+            "--rule cannot be combined with other synthesis modes: --llm-response-file"
+        ));
         assert!(!message.contains(&missing_response_path.display().to_string()));
     }
 
