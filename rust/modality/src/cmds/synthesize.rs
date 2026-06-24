@@ -4386,6 +4386,21 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_nested_parenthesized_branch_before_committed_goal() {
+        let formulas = parse_formula_strings(&[
+            "lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>((X)))) | ([<+APPROVE>] true))"
+                .to_string(),
+        ]);
+        assert_eq!(formulas.len(), 1);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "NestedParenthesizedBranchBeforeCommittedGoal",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_accepts_raw_guarded_branch_before_committed_goal() {
         let formulas = parse_formula_strings(&[
             "lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>X)) | ([<+APPROVE>] true))".to_string(),
