@@ -3410,6 +3410,28 @@ mod tests {
     }
 
     #[test]
+    fn test_lfp_single_goal_with_prop_recursion_does_not_become_self_loop() {
+        let formula = FormulaExpr::Lfp(
+            "X".to_string(),
+            Box::new(FormulaExpr::Or(
+                Box::new(FormulaExpr::Diamond(
+                    Vec::new(),
+                    Box::new(FormulaExpr::Prop("X".to_string())),
+                )),
+                Box::new(FormulaExpr::Diamond(
+                    vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("APPROVE"));
+        assert!(constraints.self_loops.is_empty());
+    }
+
+    #[test]
     fn test_lfp_until_shape_preserves_single_goal_availability() {
         let formula = FormulaExpr::Lfp(
             "X".to_string(),
