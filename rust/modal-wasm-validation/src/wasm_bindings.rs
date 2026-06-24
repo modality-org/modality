@@ -1,12 +1,12 @@
-use wasm_bindgen::prelude::*;
 use crate::validators::*;
+use wasm_bindgen::prelude::*;
 
 /// WASM binding for transaction validation
 #[wasm_bindgen]
 pub fn validate_transaction_wasm(tx_data: &str, params: &str) -> Result<JsValue, JsValue> {
-    let result = validate_transaction_deterministic(tx_data, params)
-        .map_err(|e| JsValue::from_str(&e))?;
-    
+    let result =
+        validate_transaction_deterministic(tx_data, params).map_err(|e| JsValue::from_str(&e))?;
+
     serde_wasm_bindgen::to_value(&result)
         .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
 }
@@ -19,9 +19,9 @@ pub fn validate_post_action_wasm(
     value: &str,
     state: &str,
 ) -> Result<JsValue, JsValue> {
-    let result = validate_post_action(contract_id, path, value, state)
-        .map_err(|e| JsValue::from_str(&e))?;
-    
+    let result =
+        validate_post_action(contract_id, path, value, state).map_err(|e| JsValue::from_str(&e))?;
+
     serde_wasm_bindgen::to_value(&result)
         .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
 }
@@ -34,9 +34,9 @@ pub fn validate_asset_transfer_wasm(
     amount: u64,
     state: &str,
 ) -> Result<JsValue, JsValue> {
-    let result = validate_asset_transfer(from, to, amount, state)
-        .map_err(|e| JsValue::from_str(&e))?;
-    
+    let result =
+        validate_asset_transfer(from, to, amount, state).map_err(|e| JsValue::from_str(&e))?;
+
     serde_wasm_bindgen::to_value(&result)
         .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
 }
@@ -44,11 +44,10 @@ pub fn validate_asset_transfer_wasm(
 /// WASM binding for difficulty adjustment computation
 #[wasm_bindgen]
 pub fn compute_difficulty_adjustment_wasm(blocks_json: &str) -> Result<u64, JsValue> {
-    compute_difficulty_adjustment(blocks_json)
-        .map_err(|e| JsValue::from_str(&e))
+    compute_difficulty_adjustment(blocks_json).map_err(|e| JsValue::from_str(&e))
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_arch = "wasm32"))]
 mod tests {
     use super::*;
     use wasm_bindgen_test::*;
@@ -62,4 +61,3 @@ mod tests {
         assert!(result.is_ok());
     }
 }
-
