@@ -376,11 +376,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             modality_lang::synthesis::templates::subscription(&opts.party_a, &opts.party_b)
         }
         "milestone" => {
-            let milestones: Vec<&str> = opts
-                .milestones
-                .as_ref()
-                .map(|m| m.split(',').map(|s| s.trim()).collect())
-                .unwrap_or_else(|| vec!["Phase1", "Phase2", "Phase3"]);
+            let milestones = template_milestones(opts)?;
             modality_lang::synthesis::templates::milestone(
                 &opts.party_a,
                 &opts.party_b,
@@ -1258,6 +1254,21 @@ fn ensure_milestones_match_template(template: &str, opts: &Opts) -> Result<()> {
     } else {
         Ok(())
     }
+}
+
+fn template_milestones(opts: &Opts) -> Result<Vec<&str>> {
+    let Some(milestones) = opts.milestones.as_ref() else {
+        return Ok(vec!["Phase1", "Phase2", "Phase3"]);
+    };
+
+    let names: Vec<&str> = milestones.split(',').map(|name| name.trim()).collect();
+    if names.iter().any(|name| name.is_empty()) {
+        return Err(anyhow::anyhow!(
+            "--milestones requires non-empty comma-separated names"
+        ));
+    }
+
+    Ok(names)
 }
 
 struct ExistingModelInput {
@@ -2399,6 +2410,41 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         assert!(output.contains("+PAY_DESIGN"));
         assert!(output.contains("+COMPLETE_BUILD"));
         assert!(output.contains("+PAY_BUILD"));
+    }
+
+    #[tokio::test]
+    async fn milestone_template_rejects_empty_milestones() {
+        let mut opts = default_test_opts();
+        opts.template = Some("milestone".to_string());
+        opts.milestones = Some("Design,,Build".to_string());
+
+        let err = run(&opts).await.unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("--milestones requires non-empty comma-separated names")
+        );
+    }
+
+    #[tokio::test]
+    async fn milestone_template_trims_milestones() {
+        let mut opts = default_test_opts();
+        opts.template = Some("milestone".to_string());
+        opts.milestones = Some(" Design , Build ".to_string());
+        opts.output = Some(std::env::temp_dir().join(format!(
+            "modality-synthesize-trimmed-milestone-output-{}.modality",
+            std::process::id()
+        )));
+
+        run(&opts).await.unwrap();
+
+        let output_path = opts.output.as_ref().unwrap();
+        let output = std::fs::read_to_string(output_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        assert!(output.contains("+COMPLETE_DESIGN"));
+        assert!(output.contains("+COMPLETE_BUILD"));
+        assert!(!output.contains("+COMPLETE_ DESIGN "));
     }
 
     #[tokio::test]
