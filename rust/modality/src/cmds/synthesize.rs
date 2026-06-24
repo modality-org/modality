@@ -794,7 +794,9 @@ fn load_llm_response(
             "Use either --llm-response or --llm-response-file, not both"
         )),
         (Some(response), None) => Ok(Some(response.clone())),
-        (None, Some(path)) => Ok(Some(std::fs::read_to_string(path)?)),
+        (None, Some(path)) => Ok(Some(std::fs::read_to_string(path).with_context(|| {
+            format!("Failed to read LLM response file {}", path.display())
+        })?)),
         (None, None) => Ok(None),
     }
 }
@@ -3037,6 +3039,20 @@ formula second_rule { eventually(<+DELIVER> true) }
         let err = load_llm_response(Some(&response), Some(&path)).unwrap_err();
 
         assert!(err.to_string().contains("--llm-response-file"));
+    }
+
+    #[test]
+    fn llm_response_loader_reports_missing_file_path() {
+        let path = std::env::temp_dir().join(format!(
+            "modality-synthesize-missing-response-{}.md",
+            std::process::id()
+        ));
+
+        let err = load_llm_response(None, Some(&path)).unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains("Failed to read LLM response file"));
+        assert!(message.contains(&path.display().to_string()));
     }
 
     #[test]
