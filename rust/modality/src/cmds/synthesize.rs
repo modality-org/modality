@@ -103,6 +103,36 @@ pub async fn run(opts: &Opts) -> Result<()> {
         return Ok(());
     }
 
+    if let Some(description) = &opts.describe {
+        ensure_describe_mode_is_exclusive(opts)?;
+        let result = modality_lang::nl_mapper::map_nl_to_pattern(description);
+
+        println!(
+            "Detected pattern: {} (confidence: {:.0}%)",
+            result.pattern.name(),
+            result.confidence * 100.0
+        );
+        println!("Parties: {:?}\n", result.parties);
+
+        if !result.suggestions.is_empty() {
+            for suggestion in &result.suggestions {
+                println!("💡 {}", suggestion);
+            }
+            println!();
+        }
+
+        if let Some(model) = result.model {
+            let output = format_synthesized_model(&model, &opts.format)?;
+            write_or_print_model(&output, opts.output.as_ref())?;
+        } else {
+            println!(
+                "Could not generate model. Try using --template with one of the listed templates."
+            );
+        }
+
+        return Ok(());
+    }
+
     let llm_response =
         load_llm_response(opts.llm_response.as_ref(), opts.llm_response_file.as_ref())?;
 
@@ -275,42 +305,6 @@ pub async fn run(opts: &Opts) -> Result<()> {
             let model = synthesize_from_rule(&content, &opts.party_a, &opts.party_b)?;
             let output = format_model(&model, &opts.format)?;
             write_or_print_model(&output, opts.output.as_ref())?;
-        }
-
-        return Ok(());
-    }
-
-    // Handle natural language description
-    if let Some(description) = &opts.describe {
-        if opts.verify {
-            return Err(anyhow::anyhow!(
-                "--verify requires --formulas, --rule, --llm-response, or --llm-response-file"
-            ));
-        }
-
-        let result = modality_lang::nl_mapper::map_nl_to_pattern(description);
-
-        println!(
-            "Detected pattern: {} (confidence: {:.0}%)",
-            result.pattern.name(),
-            result.confidence * 100.0
-        );
-        println!("Parties: {:?}\n", result.parties);
-
-        if !result.suggestions.is_empty() {
-            for suggestion in &result.suggestions {
-                println!("💡 {}", suggestion);
-            }
-            println!();
-        }
-
-        if let Some(model) = result.model {
-            let output = format_synthesized_model(&model, &opts.format)?;
-            write_or_print_model(&output, opts.output.as_ref())?;
-        } else {
-            println!(
-                "Could not generate model. Try using --template with one of the listed templates."
-            );
         }
 
         return Ok(());
@@ -899,6 +893,46 @@ fn prompt_generation_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     }
     if opts.output.is_some() {
         conflicts.push("--output");
+    }
+    if opts.verify {
+        conflicts.push("--verify");
+    }
+    if opts.milestones.is_some() {
+        conflicts.push("--milestones");
+    }
+
+    conflicts
+}
+
+fn ensure_describe_mode_is_exclusive(opts: &Opts) -> Result<()> {
+    let conflicts = describe_mode_conflicts(opts);
+    if conflicts.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "--describe cannot be combined with other synthesis modes: {}",
+            conflicts.join(", ")
+        ))
+    }
+}
+
+fn describe_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
+    let mut conflicts = Vec::new();
+
+    if opts.template.is_some() {
+        conflicts.push("--template");
+    }
+    if opts.rule.is_some() {
+        conflicts.push("--rule");
+    }
+    if opts.formulas.is_some() {
+        conflicts.push("--formulas");
+    }
+    if opts.llm_response.is_some() {
+        conflicts.push("--llm-response");
+    }
+    if opts.llm_response_file.is_some() {
+        conflicts.push("--llm-response-file");
     }
     if opts.verify {
         conflicts.push("--verify");
@@ -2045,6 +2079,39 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         let message = err.to_string();
         assert!(message.contains(
             "--list cannot be combined with other synthesis modes: --llm-response-file"
+        ));
+        assert!(!message.contains(&missing_response_path.display().to_string()));
+    }
+
+    #[tokio::test]
+    async fn verify_rejects_describe_mode() {
+        let mut opts = default_test_opts();
+        opts.describe = Some("escrow where buyer deposits funds".to_string());
+        opts.verify = true;
+
+        let err = run(&opts).await.unwrap_err();
+
+        assert!(err
+            .to_string()
+            .contains("--describe cannot be combined with other synthesis modes: --verify"));
+    }
+
+    #[tokio::test]
+    async fn describe_mode_rejects_llm_response_file_before_reading_path() {
+        let missing_response_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-describe-llm-response-{}.md",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.describe = Some("escrow where buyer deposits funds".to_string());
+        opts.llm_response_file = Some(missing_response_path.clone());
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains(
+            "--describe cannot be combined with other synthesis modes: --llm-response-file"
         ));
         assert!(!message.contains(&missing_response_path.display().to_string()));
     }
