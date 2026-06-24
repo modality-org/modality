@@ -2207,6 +2207,53 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         assert!(output.contains("+ARCHIVE"));
     }
 
+    #[tokio::test]
+    async fn inline_llm_response_verify_writes_json_model() {
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-inline-response-output-{}.json",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.llm_response = Some(
+            r#"
+```modality
+formula generated_1 {
+lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>((X)))) | (<+APPROVE> true))
+}
+
+formula generated_2 {
+gfp(X, []((X)) & ([<+ARCHIVE>] true))
+}
+```
+"#
+            .to_string(),
+        );
+        opts.output = Some(output_path.clone());
+        opts.verify = true;
+        opts.format = "json".to_string();
+
+        run(&opts).await.unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(parsed["name"], "Contract");
+        let action_names = parsed["parts"][0]["transitions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|transition| transition["properties"].as_array().unwrap())
+            .map(|property| property["name"].as_str().unwrap())
+            .collect::<Vec<_>>();
+
+        assert!(action_names.contains(&"APPROVE"));
+        assert!(action_names.contains(&"REVIEW"));
+        assert!(action_names.contains(&"WAIT"));
+        assert!(action_names.contains(&"ARCHIVE"));
+    }
+
     #[test]
     fn verify_synthesized_model_accepts_generated_candidate() {
         let formulas = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
