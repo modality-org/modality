@@ -2326,6 +2326,64 @@ F2: formula generated_2 {
     }
 
     #[tokio::test]
+    async fn existing_model_mode_writes_candidate_for_bare_rule_file() {
+        let model_formulas = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &model_formulas);
+        let existing_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-bare-rule-candidate-{}.modality",
+            std::process::id()
+        ));
+        let proposed_rule_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-bare-rule-proposed-{}.modality",
+            std::process::id()
+        ));
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-bare-rule-output-{}.modality",
+            std::process::id()
+        ));
+        std::fs::write(
+            &existing_path,
+            format!(
+                "{}\n\nformula previous_rule {{\nalways([<+APPROVE>] true)\n}}\n",
+                modality_lang::print_model(&model)
+            ),
+        )
+        .unwrap();
+        std::fs::write(&proposed_rule_path, "always([<+DELIVER>] true)\n").unwrap();
+
+        let mut opts = default_test_opts();
+        opts.existing_model = Some(existing_path.clone());
+        opts.proposed_rule = Some(proposed_rule_path.clone());
+        opts.output = Some(output_path.clone());
+
+        run(&opts).await.unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(existing_path).unwrap();
+        std::fs::remove_file(proposed_rule_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        assert!(output.contains("model ContractCandidate"));
+        assert!(output.contains("+APPROVE"));
+        assert!(output.contains("+DELIVER"));
+        assert!(output.contains("formula previous_rule"));
+        assert!(output.contains("formula proposed_rule"));
+        assert_eq!(
+            modality_lang::parse_all_models_content_lalrpop(&output)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            modality_lang::parse_all_formulas_content_lalrpop(&output)
+                .unwrap()
+                .len(),
+            2
+        );
+    }
+
+    #[tokio::test]
     async fn existing_model_mode_writes_json_candidate_for_inline_formula() {
         let model_formulas = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
         let model =
