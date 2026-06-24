@@ -244,7 +244,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Handle rule file-based synthesis
     if let Some(rule_path) = &opts.rule {
-        let content = std::fs::read_to_string(rule_path)?;
+        let content = std::fs::read_to_string(rule_path)
+            .with_context(|| format!("Failed to read rule file {}", rule_path.display()))?;
 
         println!("🔧 Synthesizing from rule file: {}\n", rule_path.display());
 
@@ -1694,6 +1695,24 @@ formula approval_signed {
         );
 
         verify_synthesized_model(&model, &parsed_input.formulas).unwrap();
+    }
+
+    #[tokio::test]
+    async fn rule_file_mode_reports_missing_rule_path() {
+        let rule_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-missing-rule-{}.modality",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.rule = Some(rule_path.clone());
+        opts.verify = true;
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains("Failed to read rule file"));
+        assert!(message.contains(&rule_path.display().to_string()));
     }
 
     #[tokio::test]
