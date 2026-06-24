@@ -2443,6 +2443,80 @@ F2: formula generated_2 {
             .contains("formula approval_required"));
     }
 
+    #[tokio::test]
+    async fn existing_model_mode_writes_json_candidate_for_multiple_rule_formulas() {
+        let model_formulas = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &model_formulas);
+        let existing_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-json-multiple-rule-{}.modality",
+            std::process::id()
+        ));
+        let proposed_rule_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-json-multiple-proposed-rule-{}.modality",
+            std::process::id()
+        ));
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-json-multiple-rule-output-{}.json",
+            std::process::id()
+        ));
+        std::fs::write(
+            &existing_path,
+            format!(
+                "{}\n\nformula previous_rule {{\nalways([<+APPROVE>] true)\n}}\n",
+                modality_lang::print_model(&model)
+            ),
+        )
+        .unwrap();
+        std::fs::write(
+            &proposed_rule_path,
+            "formula delivery_required {\nalways([<+DELIVER>] true)\n}\n\nformula payment_required {\nalways([<+PAY>] true)\n}\n",
+        )
+        .unwrap();
+
+        let mut opts = default_test_opts();
+        opts.existing_model = Some(existing_path.clone());
+        opts.proposed_rule = Some(proposed_rule_path.clone());
+        opts.output = Some(output_path.clone());
+        opts.format = "json".to_string();
+
+        run(&opts).await.unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(existing_path).unwrap();
+        std::fs::remove_file(proposed_rule_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+
+        assert_eq!(parsed["model"]["name"], "ContractCandidate");
+        let declarations = parsed["formula_declarations"].as_array().unwrap();
+        assert_eq!(declarations.len(), 3);
+        assert!(declarations[0]
+            .as_str()
+            .unwrap()
+            .contains("formula previous_rule"));
+        assert!(declarations[1]
+            .as_str()
+            .unwrap()
+            .contains("formula delivery_required"));
+        assert!(declarations[2]
+            .as_str()
+            .unwrap()
+            .contains("formula payment_required"));
+
+        let action_names = parsed["model"]["parts"][0]["transitions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|transition| transition["properties"].as_array().unwrap())
+            .map(|property| property["name"].as_str().unwrap())
+            .collect::<Vec<_>>();
+
+        assert!(action_names.contains(&"APPROVE"));
+        assert!(action_names.contains(&"DELIVER"));
+        assert!(action_names.contains(&"PAY"));
+    }
+
     #[test]
     fn formula_declaration_blocks_preserve_multiple_formula_sources() {
         let content = r#"
