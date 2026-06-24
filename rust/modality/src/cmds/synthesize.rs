@@ -1267,8 +1267,27 @@ fn template_milestones(opts: &Opts) -> Result<Vec<&str>> {
             "--milestones requires non-empty comma-separated names"
         ));
     }
+    if names
+        .iter()
+        .any(|name| !is_valid_milestone_template_name(name))
+    {
+        return Err(anyhow::anyhow!(
+            "--milestones names may contain only letters, numbers, underscores, and spaces, and must start with a letter or underscore"
+        ));
+    }
 
     Ok(names)
+}
+
+fn is_valid_milestone_template_name(name: &str) -> bool {
+    let normalized = name.replace(' ', "_");
+    let mut chars = normalized.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+
+    (first.is_ascii_alphabetic() || first == '_')
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
 }
 
 struct ExistingModelInput {
@@ -2423,6 +2442,33 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         assert!(
             err.to_string()
                 .contains("--milestones requires non-empty comma-separated names")
+        );
+    }
+
+    #[tokio::test]
+    async fn milestone_template_rejects_invalid_milestone_names() {
+        let mut opts = default_test_opts();
+        opts.template = Some("milestone".to_string());
+        opts.milestones = Some("Design Review,Build-Phase".to_string());
+
+        let err = run(&opts).await.unwrap_err();
+
+        assert!(err.to_string().contains(
+            "--milestones names may contain only letters, numbers, underscores, and spaces"
+        ));
+    }
+
+    #[tokio::test]
+    async fn milestone_template_rejects_digit_started_milestone_names() {
+        let mut opts = default_test_opts();
+        opts.template = Some("milestone".to_string());
+        opts.milestones = Some("1Design,Build".to_string());
+
+        let err = run(&opts).await.unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("must start with a letter or underscore")
         );
     }
 
