@@ -2168,6 +2168,45 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         assert!(output.contains("+ARCHIVE"));
     }
 
+    #[tokio::test]
+    async fn inline_llm_response_verify_writes_checked_model() {
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-inline-response-output-{}.modality",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.llm_response = Some(
+            r#"
+```modality
+formula generated_1 {
+lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>((X)))) | (<+APPROVE> true))
+}
+
+formula generated_2 {
+gfp(X, []((X)) & ([<+ARCHIVE>] true))
+}
+```
+"#
+            .to_string(),
+        );
+        opts.output = Some(output_path.clone());
+        opts.verify = true;
+
+        run(&opts).await.unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        let models = modality_lang::parse_all_models_content_lalrpop(&output).unwrap();
+        assert_eq!(models.len(), 1);
+        assert!(output.contains("model Contract"));
+        assert!(output.contains("+APPROVE"));
+        assert!(output.contains("+REVIEW"));
+        assert!(output.contains("+WAIT"));
+        assert!(output.contains("+ARCHIVE"));
+    }
+
     #[test]
     fn verify_synthesized_model_accepts_generated_candidate() {
         let formulas = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
