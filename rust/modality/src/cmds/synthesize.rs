@@ -75,12 +75,12 @@ pub struct Opts {
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
-    let llm_response =
-        load_llm_response(opts.llm_response.as_ref(), opts.llm_response_file.as_ref())?;
-
     if has_existing_model_inputs(opts) {
         return run_existing_model_synthesis(opts);
     }
+
+    let llm_response =
+        load_llm_response(opts.llm_response.as_ref(), opts.llm_response_file.as_ref())?;
 
     if opts.verify && !has_verifiable_synthesis_inputs(opts) {
         return Err(anyhow::anyhow!(
@@ -2090,6 +2090,27 @@ F2: formula generated_2 {
         assert!(err.to_string().contains("--existing-model"));
         assert!(err.to_string().contains("--template"));
         assert!(err.to_string().contains("--describe"));
+    }
+
+    #[tokio::test]
+    async fn existing_model_mode_rejects_llm_response_file_before_reading_path() {
+        let missing_response_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-conflicting-llm-response-{}.md",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.existing_model = Some(PathBuf::from("existing.modality"));
+        opts.proposed_formula = Some("always([<+APPROVE>] true)".to_string());
+        opts.llm_response_file = Some(missing_response_path.clone());
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains(
+            "--existing-model cannot be combined with other synthesis modes: --llm-response-file"
+        ));
+        assert!(!message.contains(&missing_response_path.display().to_string()));
     }
 
     #[test]
