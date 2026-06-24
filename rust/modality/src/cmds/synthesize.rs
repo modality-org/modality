@@ -2418,7 +2418,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
         assert!(
             err.to_string()
-                .contains("--llm-response cannot be combined with other synthesis modes: --rule")
+                .contains("--rule cannot be combined with other synthesis modes: --llm-response")
         );
     }
 
