@@ -2517,6 +2517,64 @@ F2: formula generated_2 {
         assert!(action_names.contains(&"PAY"));
     }
 
+    #[tokio::test]
+    async fn existing_model_mode_writes_candidate_for_multiple_rule_formulas() {
+        let model_formulas = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &model_formulas);
+        let existing_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-multiple-rule-{}.modality",
+            std::process::id()
+        ));
+        let proposed_rule_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-multiple-proposed-rule-{}.modality",
+            std::process::id()
+        ));
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-multiple-rule-output-{}.modality",
+            std::process::id()
+        ));
+        std::fs::write(
+            &existing_path,
+            format!(
+                "{}\n\nformula previous_rule {{\nalways([<+APPROVE>] true)\n}}\n",
+                modality_lang::print_model(&model)
+            ),
+        )
+        .unwrap();
+        std::fs::write(
+            &proposed_rule_path,
+            "formula delivery_required {\nalways([<+DELIVER>] true)\n}\n\nformula payment_required {\nalways([<+PAY>] true)\n}\n",
+        )
+        .unwrap();
+
+        let mut opts = default_test_opts();
+        opts.existing_model = Some(existing_path.clone());
+        opts.proposed_rule = Some(proposed_rule_path.clone());
+        opts.output = Some(output_path.clone());
+
+        run(&opts).await.unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(existing_path).unwrap();
+        std::fs::remove_file(proposed_rule_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        assert!(output.contains("model ContractCandidate"));
+        assert!(output.contains("+APPROVE"));
+        assert!(output.contains("+DELIVER"));
+        assert!(output.contains("+PAY"));
+        assert!(output.contains("formula previous_rule"));
+        assert!(output.contains("formula delivery_required"));
+        assert!(output.contains("formula payment_required"));
+        assert_eq!(
+            modality_lang::parse_all_formulas_content_lalrpop(&output)
+                .unwrap()
+                .len(),
+            3
+        );
+    }
+
     #[test]
     fn formula_declaration_blocks_preserve_multiple_formula_sources() {
         let content = r#"
