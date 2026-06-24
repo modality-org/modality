@@ -1695,6 +1695,58 @@ formula approval_signed {
     }
 
     #[tokio::test]
+    async fn rule_file_verify_writes_json_model() {
+        let rule_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-rules-json-{}.modality",
+            std::process::id()
+        ));
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-rules-output-{}.json",
+            std::process::id()
+        ));
+        std::fs::write(
+            &rule_path,
+            r#"
+formula generated_1 {
+lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>((X)))) | (<+APPROVE> true))
+}
+
+formula generated_2 {
+gfp(X, []((X)) & ([<+ARCHIVE>] true))
+}
+"#,
+        )
+        .unwrap();
+
+        let mut opts = default_test_opts();
+        opts.rule = Some(rule_path.clone());
+        opts.output = Some(output_path.clone());
+        opts.verify = true;
+        opts.format = "json".to_string();
+
+        run(&opts).await.unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(rule_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(parsed["name"], "Contract");
+        let action_names = parsed["parts"][0]["transitions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|transition| transition["properties"].as_array().unwrap())
+            .map(|property| property["name"].as_str().unwrap())
+            .collect::<Vec<_>>();
+
+        assert!(action_names.contains(&"APPROVE"));
+        assert!(action_names.contains(&"REVIEW"));
+        assert!(action_names.contains(&"WAIT"));
+        assert!(action_names.contains(&"ARCHIVE"));
+    }
+
+    #[tokio::test]
     async fn formula_mode_verify_writes_checked_fixed_point_model() {
         let output_path = std::env::temp_dir().join(format!(
             "modality-synthesize-fixed-point-output-{}.modality",
