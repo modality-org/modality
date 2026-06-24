@@ -709,4 +709,31 @@ mod tests {
         assert!(result.is_satisfied);
         assert!(result.satisfying_states.iter().any(|s| s.node_name == "q0"));
     }
+
+    #[test]
+    fn test_lfp_substitutes_parsed_prop_variable_references() {
+        let model = create_test_model();
+        let checker = ModelChecker::new(model);
+
+        let formula = Formula::new(
+            "Reachable".to_string(),
+            FormulaExpr::Lfp(
+                "X".to_string(),
+                Box::new(FormulaExpr::Or(
+                    Box::new(FormulaExpr::Prop("n3".to_string())),
+                    Box::new(FormulaExpr::Diamond(
+                        Vec::new(),
+                        Box::new(FormulaExpr::Prop("X".to_string())),
+                    )),
+                )),
+            ),
+        );
+
+        let result = checker.check_formula(&formula);
+
+        assert!(result.is_satisfied);
+        assert!(result.satisfying_states.iter().any(|s| s.node_name == "n1"));
+        assert!(result.satisfying_states.iter().any(|s| s.node_name == "n2"));
+        assert!(result.satisfying_states.iter().any(|s| s.node_name == "n3"));
+    }
 }
