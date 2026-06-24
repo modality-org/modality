@@ -331,6 +331,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             "Please specify --template, --describe, --rule, or use --list to see options"
         )
     })?;
+    ensure_milestones_match_template(template, opts)?;
 
     if opts.verify {
         return Err(anyhow::anyhow!(
@@ -1247,6 +1248,16 @@ fn existing_model_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     }
 
     conflicts
+}
+
+fn ensure_milestones_match_template(template: &str, opts: &Opts) -> Result<()> {
+    if opts.milestones.is_some() && template != "milestone" {
+        Err(anyhow::anyhow!(
+            "--milestones can only be used with --template milestone"
+        ))
+    } else {
+        Ok(())
+    }
 }
 
 struct ExistingModelInput {
@@ -2352,6 +2363,42 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             err.to_string()
                 .contains("--template cannot be combined with other synthesis modes: --verify")
         );
+    }
+
+    #[tokio::test]
+    async fn template_mode_rejects_irrelevant_milestones() {
+        let mut opts = default_test_opts();
+        opts.template = Some("escrow".to_string());
+        opts.milestones = Some("Phase1,Phase2".to_string());
+
+        let err = run(&opts).await.unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("--milestones can only be used with --template milestone")
+        );
+    }
+
+    #[tokio::test]
+    async fn milestone_template_accepts_milestones() {
+        let mut opts = default_test_opts();
+        opts.template = Some("milestone".to_string());
+        opts.milestones = Some("Design,Build".to_string());
+        opts.output = Some(std::env::temp_dir().join(format!(
+            "modality-synthesize-milestone-output-{}.modality",
+            std::process::id()
+        )));
+
+        run(&opts).await.unwrap();
+
+        let output_path = opts.output.as_ref().unwrap();
+        let output = std::fs::read_to_string(output_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        assert!(output.contains("+COMPLETE_DESIGN"));
+        assert!(output.contains("+PAY_DESIGN"));
+        assert!(output.contains("+COMPLETE_BUILD"));
+        assert!(output.contains("+PAY_BUILD"));
     }
 
     #[tokio::test]
