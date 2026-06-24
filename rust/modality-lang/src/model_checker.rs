@@ -367,7 +367,7 @@ impl ModelChecker {
     /// Returns a formula where Var(name) is replaced with an Or of Prop(node_id)
     fn substitute_var(&self, expr: &FormulaExpr, var: &str, states: &[State]) -> FormulaExpr {
         match expr {
-            FormulaExpr::Var(name) if name == var => {
+            FormulaExpr::Var(name) | FormulaExpr::Prop(name) if name == var => {
                 // Replace variable with disjunction of state propositions
                 if states.is_empty() {
                     FormulaExpr::False
@@ -675,5 +675,38 @@ mod tests {
         assert!(result.is_satisfied);
         // n1 should satisfy <+blue> true because it has a transition to n2 with +blue
         assert!(result.satisfying_states.iter().any(|s| s.node_name == "n1"));
+    }
+
+    #[test]
+    fn test_gfp_substitutes_parsed_prop_variable_references() {
+        let mut model = Model::new("CommittedLoop".to_string());
+        let mut part = Part::new("flow".to_string());
+        let mut transition = Transition::new("q0".to_string(), "q0".to_string());
+        transition.add_property(Property::new(PropertySign::Plus, "APPROVE".to_string()));
+        part.add_transition(transition);
+        model.add_part(part);
+        let checker = ModelChecker::new(model);
+
+        let formula = Formula::new(
+            "Invariant".to_string(),
+            FormulaExpr::Gfp(
+                "X".to_string(),
+                Box::new(FormulaExpr::And(
+                    Box::new(FormulaExpr::DiamondBox(
+                        vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                        Box::new(FormulaExpr::True),
+                    )),
+                    Box::new(FormulaExpr::Box(
+                        Vec::new(),
+                        Box::new(FormulaExpr::Prop("X".to_string())),
+                    )),
+                )),
+            ),
+        );
+
+        let result = checker.check_formula(&formula);
+
+        assert!(result.is_satisfied);
+        assert!(result.satisfying_states.iter().any(|s| s.node_name == "q0"));
     }
 }
