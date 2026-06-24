@@ -79,6 +79,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
         return run_existing_model_synthesis(opts);
     }
 
+    if opts.list {
+        ensure_list_mode_is_exclusive(opts)?;
+        print_synthesis_list();
+        return Ok(());
+    }
+
     let llm_response =
         load_llm_response(opts.llm_response.as_ref(), opts.llm_response_file.as_ref())?;
 
@@ -174,11 +180,6 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
         write_output_file_if_requested(&output, opts.output.as_ref())?;
 
-        return Ok(());
-    }
-
-    if opts.list {
-        print_synthesis_list();
         return Ok(());
     }
 
@@ -816,6 +817,55 @@ fn has_verifiable_synthesis_inputs(opts: &Opts) -> bool {
         || opts.rule.is_some()
         || opts.llm_response.is_some()
         || opts.llm_response_file.is_some()
+}
+
+fn ensure_list_mode_is_exclusive(opts: &Opts) -> Result<()> {
+    let conflicts = list_mode_conflicts(opts);
+    if conflicts.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "--list cannot be combined with other synthesis modes: {}",
+            conflicts.join(", ")
+        ))
+    }
+}
+
+fn list_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
+    let mut conflicts = Vec::new();
+
+    if opts.template.is_some() {
+        conflicts.push("--template");
+    }
+    if opts.describe.is_some() {
+        conflicts.push("--describe");
+    }
+    if opts.rule.is_some() {
+        conflicts.push("--rule");
+    }
+    if opts.formulas.is_some() {
+        conflicts.push("--formulas");
+    }
+    if opts.generate_prompt {
+        conflicts.push("--generate-prompt");
+    }
+    if opts.llm_response.is_some() {
+        conflicts.push("--llm-response");
+    }
+    if opts.llm_response_file.is_some() {
+        conflicts.push("--llm-response-file");
+    }
+    if opts.output.is_some() {
+        conflicts.push("--output");
+    }
+    if opts.verify {
+        conflicts.push("--verify");
+    }
+    if opts.milestones.is_some() {
+        conflicts.push("--milestones");
+    }
+
+    conflicts
 }
 
 fn run_existing_model_synthesis(opts: &Opts) -> Result<()> {
@@ -1911,9 +1961,29 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
         let err = run(&opts).await.unwrap_err();
 
-        assert!(err
-            .to_string()
-            .contains("--verify requires --formulas, --rule, --llm-response, or --llm-response-file"));
+        assert!(err.to_string().contains(
+            "--list cannot be combined with other synthesis modes: --verify"
+        ));
+    }
+
+    #[tokio::test]
+    async fn list_mode_rejects_llm_response_file_before_reading_path() {
+        let missing_response_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-list-llm-response-{}.md",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.list = true;
+        opts.llm_response_file = Some(missing_response_path.clone());
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains(
+            "--list cannot be combined with other synthesis modes: --llm-response-file"
+        ));
+        assert!(!message.contains(&missing_response_path.display().to_string()));
     }
 
     #[test]
