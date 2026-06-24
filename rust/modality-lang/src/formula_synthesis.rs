@@ -3356,6 +3356,64 @@ mod tests {
     }
 
     #[test]
+    fn test_gfp_preserves_committed_availability_before_prop_recursion() {
+        let formula = FormulaExpr::Gfp(
+            "X".to_string(),
+            Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::Box(
+                    Vec::new(),
+                    Box::new(FormulaExpr::Prop("X".to_string())),
+                )),
+                Box::new(FormulaExpr::DiamondBox(
+                    vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("APPROVE"));
+        assert_eq!(
+            constraints.self_loops,
+            vec![vec![Property::new(
+                PropertySign::Plus,
+                "APPROVE".to_string()
+            )]]
+        );
+    }
+
+    #[test]
+    fn test_gfp_preserves_committed_availability_before_parenthesized_prop_recursion() {
+        let formula = FormulaExpr::Gfp(
+            "X".to_string(),
+            Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::Box(
+                    Vec::new(),
+                    Box::new(FormulaExpr::Paren(Box::new(FormulaExpr::Prop(
+                        "X".to_string(),
+                    )))),
+                )),
+                Box::new(FormulaExpr::DiamondBox(
+                    vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                    Box::new(FormulaExpr::True),
+                )),
+            )),
+        );
+
+        let constraints = extract_constraints(&formula);
+
+        assert!(constraints.actions.contains("APPROVE"));
+        assert_eq!(
+            constraints.self_loops,
+            vec![vec![Property::new(
+                PropertySign::Plus,
+                "APPROVE".to_string()
+            )]]
+        );
+    }
+
+    #[test]
     fn test_gfp_preserves_permissive_availability_with_prop_recursion() {
         let formula = FormulaExpr::Gfp(
             "X".to_string(),
