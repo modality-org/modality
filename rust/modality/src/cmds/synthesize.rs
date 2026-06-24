@@ -960,7 +960,8 @@ struct ExistingModelInput {
 }
 
 fn load_existing_model_input(path: &PathBuf) -> Result<ExistingModelInput> {
-    let content = std::fs::read_to_string(path)?;
+    let content = std::fs::read_to_string(path)
+        .with_context(|| format!("Failed to read existing model file {}", path.display()))?;
     let models = modality_lang::parse_all_models_content_lalrpop(&content)
         .map_err(|err| anyhow::anyhow!("Failed to parse existing model: {}", err))?;
     let formulas = modality_lang::parse_all_formulas_content_lalrpop(&content).map_err(|err| {
@@ -2153,6 +2154,24 @@ F2: formula generated_2 {
         let message = err.to_string();
         assert!(message.contains("Failed to read proposed rule file"));
         assert!(message.contains(&proposed_rule_path.display().to_string()));
+    }
+
+    #[test]
+    fn existing_model_mode_reports_missing_existing_model_path() {
+        let existing_path = std::env::temp_dir().join(format!(
+            "modality-existing-model-missing-existing-{}.modality",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.existing_model = Some(existing_path.clone());
+        opts.proposed_formula = Some("always([<+APPROVE>] true)".to_string());
+
+        let err = run_existing_model_synthesis(&opts).unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains("Failed to read existing model file"));
+        assert!(message.contains(&existing_path.display().to_string()));
     }
 
     #[test]
