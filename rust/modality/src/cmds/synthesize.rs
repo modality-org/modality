@@ -133,6 +133,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
         return Ok(());
     }
 
+    if opts.template.is_some() {
+        ensure_template_mode_is_exclusive(opts)?;
+    }
+
     let llm_response =
         load_llm_response(opts.llm_response.as_ref(), opts.llm_response_file.as_ref())?;
 
@@ -939,6 +943,49 @@ fn describe_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     }
     if opts.milestones.is_some() {
         conflicts.push("--milestones");
+    }
+
+    conflicts
+}
+
+fn ensure_template_mode_is_exclusive(opts: &Opts) -> Result<()> {
+    let conflicts = template_mode_conflicts(opts);
+    if conflicts.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "--template cannot be combined with other synthesis modes: {}",
+            conflicts.join(", ")
+        ))
+    }
+}
+
+fn template_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
+    let mut conflicts = Vec::new();
+
+    if opts.describe.is_some() {
+        conflicts.push("--describe");
+    }
+    if opts.rule.is_some() {
+        conflicts.push("--rule");
+    }
+    if opts.formulas.is_some() {
+        conflicts.push("--formulas");
+    }
+    if opts.generate_prompt {
+        conflicts.push("--generate-prompt");
+    }
+    if opts.llm_response.is_some() {
+        conflicts.push("--llm-response");
+    }
+    if opts.llm_response_file.is_some() {
+        conflicts.push("--llm-response-file");
+    }
+    if opts.verify {
+        conflicts.push("--verify");
+    }
+    if opts.list {
+        conflicts.push("--list");
     }
 
     conflicts
@@ -2112,6 +2159,40 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         let message = err.to_string();
         assert!(message.contains(
             "--describe cannot be combined with other synthesis modes: --llm-response-file"
+        ));
+        assert!(!message.contains(&missing_response_path.display().to_string()));
+    }
+
+    #[tokio::test]
+    async fn verify_rejects_template_mode() {
+        let mut opts = default_test_opts();
+        opts.template = Some("escrow".to_string());
+        opts.verify = true;
+
+        let err = run(&opts).await.unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("--template cannot be combined with other synthesis modes: --verify")
+        );
+    }
+
+    #[tokio::test]
+    async fn template_mode_rejects_llm_response_file_before_reading_path() {
+        let missing_response_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-template-llm-response-{}.md",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.template = Some("escrow".to_string());
+        opts.llm_response_file = Some(missing_response_path.clone());
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains(
+            "--template cannot be combined with other synthesis modes: --llm-response-file"
         ));
         assert!(!message.contains(&missing_response_path.display().to_string()));
     }
