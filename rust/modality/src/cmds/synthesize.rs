@@ -82,6 +82,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
         return run_existing_model_synthesis(opts);
     }
 
+    if opts.verify && !has_verifiable_synthesis_inputs(opts) {
+        return Err(anyhow::anyhow!(
+            "--verify requires --formulas, --rule, --llm-response, or --llm-response-file"
+        ));
+    }
+
     // Step 1a: Generate LLM prompt for NL → Formulas
     if opts.generate_prompt {
         if let Some(description) = &opts.describe {
@@ -803,6 +809,13 @@ fn load_llm_response(
 
 fn has_existing_model_inputs(opts: &Opts) -> bool {
     opts.existing_model.is_some() || opts.proposed_formula.is_some() || opts.proposed_rule.is_some()
+}
+
+fn has_verifiable_synthesis_inputs(opts: &Opts) -> bool {
+    opts.formulas.is_some()
+        || opts.rule.is_some()
+        || opts.llm_response.is_some()
+        || opts.llm_response_file.is_some()
 }
 
 fn run_existing_model_synthesis(opts: &Opts) -> Result<()> {
@@ -1874,6 +1887,33 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         assert!(action_names.contains(&"REVIEW"));
         assert!(action_names.contains(&"WAIT"));
         assert!(action_names.contains(&"ARCHIVE"));
+    }
+
+    #[tokio::test]
+    async fn verify_rejects_prompt_generation_mode() {
+        let mut opts = default_test_opts();
+        opts.describe = Some("Generate approval rules".to_string());
+        opts.generate_prompt = true;
+        opts.verify = true;
+
+        let err = run(&opts).await.unwrap_err();
+
+        assert!(err
+            .to_string()
+            .contains("--verify requires --formulas, --rule, --llm-response, or --llm-response-file"));
+    }
+
+    #[tokio::test]
+    async fn verify_rejects_list_mode() {
+        let mut opts = default_test_opts();
+        opts.list = true;
+        opts.verify = true;
+
+        let err = run(&opts).await.unwrap_err();
+
+        assert!(err
+            .to_string()
+            .contains("--verify requires --formulas, --rule, --llm-response, or --llm-response-file"));
     }
 
     #[test]
