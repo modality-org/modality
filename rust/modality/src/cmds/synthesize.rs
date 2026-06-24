@@ -2171,7 +2171,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     #[tokio::test]
     async fn llm_response_file_verify_writes_json_model() {
         let response_path = std::env::temp_dir().join(format!(
-            "modality-synthesize-response-run-{}.md",
+            "modality-synthesize-response-json-run-{}.md",
             std::process::id()
         ));
         let output_path = std::env::temp_dir().join(format!(
