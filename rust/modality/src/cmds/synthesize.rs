@@ -4523,6 +4523,19 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_parenthesized_committed_gfp_branch_order() {
+        let formulas =
+            parse_formula_strings(&["gfp(X, [](X) & ([<+APPROVE>] true))".to_string()]);
+        assert_eq!(formulas.len(), 1);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ParenthesizedCommittedGfpBranchOrder",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_accepts_parenthesized_committed_gfp_recursion_before_availability()
     {
         let formulas =
