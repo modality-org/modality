@@ -141,6 +141,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
         ensure_formulas_mode_is_exclusive(opts)?;
     }
 
+    if opts.llm_response.is_some() || opts.llm_response_file.is_some() {
+        ensure_llm_response_mode_is_exclusive(opts)?;
+    }
+
     let llm_response =
         load_llm_response(opts.llm_response.as_ref(), opts.llm_response_file.as_ref())?;
 
@@ -1027,6 +1031,46 @@ fn formulas_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     }
     if opts.llm_response_file.is_some() {
         conflicts.push("--llm-response-file");
+    }
+    if opts.list {
+        conflicts.push("--list");
+    }
+    if opts.milestones.is_some() {
+        conflicts.push("--milestones");
+    }
+
+    conflicts
+}
+
+fn ensure_llm_response_mode_is_exclusive(opts: &Opts) -> Result<()> {
+    let conflicts = llm_response_mode_conflicts(opts);
+    if conflicts.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "--llm-response cannot be combined with other synthesis modes: {}",
+            conflicts.join(", ")
+        ))
+    }
+}
+
+fn llm_response_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
+    let mut conflicts = Vec::new();
+
+    if opts.template.is_some() {
+        conflicts.push("--template");
+    }
+    if opts.describe.is_some() {
+        conflicts.push("--describe");
+    }
+    if opts.rule.is_some() {
+        conflicts.push("--rule");
+    }
+    if opts.formulas.is_some() {
+        conflicts.push("--formulas");
+    }
+    if opts.generate_prompt {
+        conflicts.push("--generate-prompt");
     }
     if opts.list {
         conflicts.push("--list");
@@ -2275,6 +2319,40 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         assert!(message.contains(
             "--formulas cannot be combined with other synthesis modes: --llm-response-file"
         ));
+        assert!(!message.contains(&missing_response_path.display().to_string()));
+    }
+
+    #[tokio::test]
+    async fn llm_response_mode_rejects_rule_mode() {
+        let mut opts = default_test_opts();
+        opts.llm_response = Some("formula generated { always([<+APPROVE>] true) }".to_string());
+        opts.rule = Some(PathBuf::from("rules.modality"));
+
+        let err = run(&opts).await.unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("--llm-response cannot be combined with other synthesis modes: --rule")
+        );
+    }
+
+    #[tokio::test]
+    async fn llm_response_file_mode_rejects_rule_before_reading_path() {
+        let missing_response_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-llm-rule-response-{}.md",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.llm_response_file = Some(missing_response_path.clone());
+        opts.rule = Some(PathBuf::from("rules.modality"));
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(
+            message.contains("--llm-response cannot be combined with other synthesis modes: --rule")
+        );
         assert!(!message.contains(&missing_response_path.display().to_string()));
     }
 
