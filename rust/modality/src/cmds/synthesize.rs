@@ -1695,6 +1695,50 @@ formula approval_signed {
     }
 
     #[tokio::test]
+    async fn rule_file_verify_writes_checked_model() {
+        let rule_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-rules-run-{}.modality",
+            std::process::id()
+        ));
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-rules-output-{}.modality",
+            std::process::id()
+        ));
+        std::fs::write(
+            &rule_path,
+            r#"
+formula generated_1 {
+lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>((X)))) | (<+APPROVE> true))
+}
+
+formula generated_2 {
+gfp(X, []((X)) & ([<+ARCHIVE>] true))
+}
+"#,
+        )
+        .unwrap();
+
+        let mut opts = default_test_opts();
+        opts.rule = Some(rule_path.clone());
+        opts.output = Some(output_path.clone());
+        opts.verify = true;
+
+        run(&opts).await.unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(rule_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        let models = modality_lang::parse_all_models_content_lalrpop(&output).unwrap();
+        assert_eq!(models.len(), 1);
+        assert!(output.contains("model Contract"));
+        assert!(output.contains("+APPROVE"));
+        assert!(output.contains("+REVIEW"));
+        assert!(output.contains("+WAIT"));
+        assert!(output.contains("+ARCHIVE"));
+    }
+
+    #[tokio::test]
     async fn rule_file_verify_writes_json_model() {
         let rule_path = std::env::temp_dir().join(format!(
             "modality-synthesize-rules-json-{}.modality",
