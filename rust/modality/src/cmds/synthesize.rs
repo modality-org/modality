@@ -3374,6 +3374,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_credential_access_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_ACCESS_REVIEW>] true -> [<+modifies(/access_reviews) +signed_by(/users/access_reviewer.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+ISSUE_CREDENTIAL>] true -> [<+modifies(/credentials) +signed_by(/users/credential_issuer.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+VERIFY_CREDENTIAL>] true -> [<+modifies(/credential_verifications) +signed_by(/users/credential_verifier.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+PRESENT_CREDENTIAL>] true -> [<+modifies(/credential_presentations) +signed_by(/users/credential_holder.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+SHARE_CREDENTIAL>] true -> [<+modifies(/credential_shares) +signed_by(/users/credential_holder.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_authorization_eventual_goal_examples() {
         let output = synthesis_list_text();
 
