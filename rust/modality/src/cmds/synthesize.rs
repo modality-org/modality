@@ -3363,6 +3363,15 @@ F2: formula generated_2 {
             "[<+DISPUTE>] true -> ([<+signed_by(/users/arbiter.id)>] true & always([-RELEASE] true))"
         ));
         assert!(output.contains(
+            "[<+DISPUTE>] true -> ([<+signed_by(/users/arbiter.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))"
+        ));
+        assert!(output.contains(
+            "[<+DISPUTE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & always([-RELEASE] true))"
+        ));
+        assert!(output.contains(
+            "[<+DISPUTE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (always([-RELEASE] true) & always([-REFUND] true)))"
+        ));
+        assert!(output.contains(
             r#"[<+DISPUTE>] true -> (<+oracle_attests(/oracles/dispute.id, \"opened\", \"true\")> true & always([-RELEASE] true))"#
         ));
         assert!(output.contains(
