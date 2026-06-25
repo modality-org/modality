@@ -271,7 +271,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
 
         if parsed_input.formulas.is_empty() {
-            return Err(anyhow::anyhow!("No valid formulas found"));
+            return Err(parsed_input.no_valid_formulas_error());
         }
 
         if !opts.verify {
@@ -1579,6 +1579,17 @@ impl ParsedFormulaInputs {
                 self.unparsed.join(", ")
             );
             println!("   Use --verify to fail instead of continuing with a partial parse.\n");
+        }
+    }
+
+    fn no_valid_formulas_error(&self) -> anyhow::Error {
+        if self.unparsed.is_empty() {
+            anyhow::anyhow!("No valid formulas found")
+        } else {
+            anyhow::anyhow!(
+                "No valid formulas found; parser details: {}",
+                self.unparsed.join(", ")
+            )
         }
     }
 }
@@ -2930,6 +2941,18 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "--formulas cannot be combined with other synthesis modes: --llm-response-file"
         ));
         assert!(!message.contains(&missing_response_path.display().to_string()));
+    }
+
+    #[tokio::test]
+    async fn formulas_mode_reports_parser_details_when_no_formulas_parse() {
+        let mut opts = default_test_opts();
+        opts.formulas = Some("not a formula".to_string());
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains("No valid formulas found; parser details:"));
+        assert!(message.contains("F1 `not a formula`"));
     }
 
     #[tokio::test]
