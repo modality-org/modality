@@ -3437,6 +3437,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_policy_approval_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_POLICY>] true -> [<+modifies(/policies) +signed_by(/users/policy_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_CERTIFICATION>] true -> [<+modifies(/certifications) +signed_by(/users/certification_manager.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_ACCREDITATION>] true -> [<+modifies(/accreditations) +signed_by(/users/accreditation_manager.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_WAIVER>] true -> [<+modifies(/waivers) +signed_by(/users/waiver_authority.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_EXCEPTION>] true -> [<+modifies(/exceptions) +signed_by(/users/exception_owner.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_risk_and_compliance_predicate_examples() {
         let output = synthesis_list_text();
 
