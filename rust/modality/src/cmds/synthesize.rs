@@ -3581,6 +3581,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_contract_package_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_ANNEX>] true -> [<+modifies(/annexes) +signed_by(/users/annex_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_ENCLOSURE>] true -> [<+modifies(/enclosures) +signed_by(/users/enclosure_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_PACKAGE>] true -> [<+modifies(/packages) +signed_by(/users/package_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_BUNDLE>] true -> [<+modifies(/bundles) +signed_by(/users/bundle_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_DOSSIER>] true -> [<+modifies(/dossiers) +signed_by(/users/dossier_owner.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_document_approval_predicate_examples() {
         let output = synthesis_list_text();
 
