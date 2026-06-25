@@ -76,6 +76,8 @@ pub struct Opts {
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
+    ensure_output_format_is_supported(&opts.format)?;
+
     if has_existing_model_inputs(opts) {
         return run_existing_model_synthesis(opts);
     }
@@ -825,6 +827,16 @@ fn has_verifiable_synthesis_inputs(opts: &Opts) -> bool {
         || opts.rule.is_some()
         || opts.llm_response.is_some()
         || opts.llm_response_file.is_some()
+}
+
+fn ensure_output_format_is_supported(format: &str) -> Result<()> {
+    match format {
+        "modality" | "json" => Ok(()),
+        other => Err(anyhow::anyhow!(
+            "Unknown format: '{}'. Use 'modality' or 'json'.",
+            other
+        )),
+    }
 }
 
 fn ensure_list_mode_is_exclusive(opts: &Opts) -> Result<()> {
@@ -2135,6 +2147,24 @@ formula approval_signed {
     }
 
     #[tokio::test]
+    async fn invalid_format_is_rejected_before_reading_rule_path() {
+        let rule_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-invalid-format-rule-{}.modality",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.rule = Some(rule_path.clone());
+        opts.format = "yaml".to_string();
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains("Unknown format: 'yaml'. Use 'modality' or 'json'."));
+        assert!(!message.contains(&rule_path.display().to_string()));
+    }
+
+    #[tokio::test]
     async fn rule_file_mode_rejects_milestones_mode() {
         let mut opts = default_test_opts();
         opts.rule = Some(PathBuf::from("rules.modality"));
@@ -2477,6 +2507,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         assert!(message.contains(
             "--list cannot be combined with other synthesis modes: --llm-response-file"
         ));
+        assert!(!message.contains(&missing_response_path.display().to_string()));
+    }
+
+    #[tokio::test]
+    async fn invalid_format_is_rejected_before_reading_llm_response_file() {
+        let missing_response_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-invalid-format-response-{}.md",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.llm_response_file = Some(missing_response_path.clone());
+        opts.format = "yaml".to_string();
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains("Unknown format: 'yaml'. Use 'modality' or 'json'."));
         assert!(!message.contains(&missing_response_path.display().to_string()));
     }
 
