@@ -3354,6 +3354,26 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_authorization_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("Authorization and predicates"));
+        assert!(output.contains("always([+UPDATE] true -> <+any_signed(/members)> true)"));
+        assert!(output.contains(
+            "always([+CHANGE_MEMBERS] true -> <+modifies(/members) +all_signed(/members)> true)"
+        ));
+        assert!(output.contains(
+            r#"[<+SETTLE_ESCROW>] true -> [<+modifies(/escrow) +oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+EXECUTE_TREASURY>] true -> [<+modifies(/treasury) +threshold(\"2\", /treasury/signers)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+PUBLISH_AUDIT>] true -> [<+modifies(/audit) +signed_by(/users/auditor.id) +oracle_attests(/oracles/audit.id, \"passed\", \"true\")>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_authorization_eventual_goal_examples() {
         let output = synthesis_list_text();
 
