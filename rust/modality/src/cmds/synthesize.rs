@@ -480,6 +480,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"gfp(X, []((X)) & (<+APPROVE> true))"#,
             r#"gfp(X, ([<+APPROVE>] true) & []X)"#,
             r#"gfp(X, []X & ([<+APPROVE>] true))"#,
+            r#"gfp(X, [](X) & ([<+APPROVE>] true))"#,
             r#"gfp(X, ([<+APPROVE>] true) & [<>]X)"#,
             r#"gfp(X, [<>]X & ([<+APPROVE>] true))"#,
             r#"gfp(X, [<>]((X)) & ([<+APPROVE>] true))"#,
@@ -3209,6 +3210,13 @@ F2: formula generated_2 {
         let output = synthesis_list_text();
 
         assert!(output.contains("gfp(X, []X & ([<+APPROVE>] true))"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_parenthesized_committed_gfp_order_example() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("gfp(X, [](X) & ([<+APPROVE>] true))"));
     }
 
     #[test]
