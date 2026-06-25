@@ -3605,6 +3605,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_production_operations_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_PRODUCTION>] true -> [<+modifies(/production) +signed_by(/users/production_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_OPERATIONS>] true -> [<+modifies(/operations) +signed_by(/users/operations_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_MAINTENANCE>] true -> [<+modifies(/maintenance) +signed_by(/users/maintenance_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_SUPPORT>] true -> [<+modifies(/support) +signed_by(/users/support_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_TRAINING>] true -> [<+modifies(/training) +signed_by(/users/training_owner.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_risk_and_compliance_predicate_examples() {
         let output = synthesis_list_text();
 
