@@ -3521,6 +3521,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_goal_metric_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_OBJECTIVE>] true -> [<+modifies(/objectives) +signed_by(/users/objective_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_TARGET>] true -> [<+modifies(/targets) +signed_by(/users/target_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_GOAL>] true -> [<+modifies(/goals) +signed_by(/users/goal_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_KPI>] true -> [<+modifies(/kpis) +signed_by(/users/kpi_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_METRIC>] true -> [<+modifies(/metrics) +signed_by(/users/metric_owner.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_risk_and_compliance_predicate_examples() {
         let output = synthesis_list_text();
 
