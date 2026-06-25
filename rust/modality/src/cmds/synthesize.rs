@@ -3479,6 +3479,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_feedback_approval_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_FEEDBACK>] true -> [<+modifies(/feedback) +signed_by(/users/feedback_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_RATING>] true -> [<+modifies(/ratings) +signed_by(/users/rating_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_REVIEW>] true -> [<+modifies(/reviews) +signed_by(/users/review_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_SURVEY>] true -> [<+modifies(/surveys) +signed_by(/users/survey_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_RESPONSE>] true -> [<+modifies(/responses) +signed_by(/users/response_owner.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_risk_and_compliance_predicate_examples() {
         let output = synthesis_list_text();
 
