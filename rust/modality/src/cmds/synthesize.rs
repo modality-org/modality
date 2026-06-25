@@ -469,6 +469,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+RELEASE>] true -> (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true))"#,
             r#"always([+AGENT_A_TURN] true -> eventually(<+AGENT_B_TURN> true))"#,
             r#"always([+AGENT_B_TURN] true -> eventually(<+AGENT_A_TURN> true))"#,
+            r#"lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>X)) | (<+APPROVE> true))"#,
             r#"lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>((X)))) | (<+APPROVE> true))"#,
             r#"lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>X)) | ([<+APPROVE>] true))"#,
             r#"lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>((X)))) | ([<+APPROVE>] true))"#,
@@ -3269,6 +3270,15 @@ F2: formula generated_2 {
 
         assert!(output.contains(
             "lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>X)) | ([<+APPROVE>] true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_raw_guarded_branch_before_goal_example() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>X)) | (<+APPROVE> true))"
         ));
     }
 
