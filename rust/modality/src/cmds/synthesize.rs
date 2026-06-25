@@ -1744,6 +1744,17 @@ fn synthesize_from_rule(
     }
 
     // Fallback: use party names if no signers found
+    if !is_valid_template_identifier_component(party_a) {
+        return Err(anyhow::anyhow!(
+            "--party-a must contain only letters, numbers, and underscores, and must start with a letter or underscore"
+        ));
+    }
+    if !is_valid_template_identifier_component(party_b) {
+        return Err(anyhow::anyhow!(
+            "--party-b must contain only letters, numbers, and underscores, and must start with a letter or underscore"
+        ));
+    }
+
     let mut model = modality_lang::Model::new("default".to_string());
     model.set_initial("idle".to_string());
 
@@ -2131,6 +2142,51 @@ formula approval_signed {
         ));
         assert!(!message.contains(&missing_rule_path.display().to_string()));
         assert!(!message.contains(&missing_response_path.display().to_string()));
+    }
+
+    #[tokio::test]
+    async fn rule_file_fallback_rejects_invalid_party_a() {
+        let rule_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-rule-fallback-party-{}.txt",
+            std::process::id()
+        ));
+        std::fs::write(&rule_path, "fallback rule text without parser formulas").unwrap();
+
+        let mut opts = default_test_opts();
+        opts.rule = Some(rule_path.clone());
+        opts.party_a = "Alice Smith".to_string();
+
+        let err = run(&opts).await.unwrap_err();
+        std::fs::remove_file(rule_path).unwrap();
+
+        assert!(err.to_string().contains("--party-a must contain only"));
+    }
+
+    #[tokio::test]
+    async fn rule_file_with_explicit_signer_ignores_unused_invalid_parties() {
+        let rule_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-rule-explicit-signer-{}.txt",
+            std::process::id()
+        ));
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-rule-explicit-signer-output-{}.modality",
+            std::process::id()
+        ));
+        std::fs::write(&rule_path, "signed_by(/users/reviewer.id)").unwrap();
+
+        let mut opts = default_test_opts();
+        opts.rule = Some(rule_path.clone());
+        opts.output = Some(output_path.clone());
+        opts.party_a = "Alice Smith".to_string();
+        opts.party_b = "2Bob".to_string();
+
+        run(&opts).await.unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(rule_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        assert!(output.contains("+signed_by(/users/reviewer.id)"));
     }
 
     #[tokio::test]
