@@ -3560,6 +3560,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_contract_attachment_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_RIDER>] true -> [<+modifies(/riders) +signed_by(/users/rider_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_ENDORSEMENT>] true -> [<+modifies(/endorsements) +signed_by(/users/endorsement_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_EXHIBIT>] true -> [<+modifies(/exhibits) +signed_by(/users/exhibit_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_SCHEDULE>] true -> [<+modifies(/schedules) +signed_by(/users/schedule_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_ATTACHMENT>] true -> [<+modifies(/attachments) +signed_by(/users/attachment_owner.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_document_approval_predicate_examples() {
         let output = synthesis_list_text();
 
