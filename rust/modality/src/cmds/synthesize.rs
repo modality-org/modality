@@ -334,6 +334,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             "Please specify --template, --describe, --rule, or use --list to see options"
         )
     })?;
+    ensure_template_name_is_known(template)?;
     ensure_milestones_match_template(template, opts)?;
     ensure_template_party_names_are_valid(template, opts)?;
 
@@ -1268,6 +1269,35 @@ fn ensure_milestones_match_template(template: &str, opts: &Opts) -> Result<()> {
     } else {
         Ok(())
     }
+}
+
+fn ensure_template_name_is_known(template: &str) -> Result<()> {
+    if is_known_template_name(template) {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "Unknown template: '{}'. Use --list to see available templates.",
+            template
+        ))
+    }
+}
+
+fn is_known_template_name(template: &str) -> bool {
+    matches!(
+        template,
+        "escrow"
+            | "handshake"
+            | "mutual_cooperation"
+            | "atomic_swap"
+            | "multisig"
+            | "turn_taking"
+            | "alternating"
+            | "service_agreement"
+            | "delegation"
+            | "auction"
+            | "subscription"
+            | "milestone"
+    )
 }
 
 fn ensure_template_party_names_are_valid(template: &str, opts: &Opts) -> Result<()> {
@@ -2597,6 +2627,32 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             err.to_string()
                 .contains("--milestones can only be used with --template milestone")
         );
+    }
+
+    #[tokio::test]
+    async fn template_mode_rejects_unknown_template_before_milestones() {
+        let mut opts = default_test_opts();
+        opts.template = Some("made_up_template".to_string());
+        opts.milestones = Some("Phase1,Phase2".to_string());
+
+        let err = run(&opts).await.unwrap_err();
+
+        assert!(err
+            .to_string()
+            .contains("Unknown template: 'made_up_template'"));
+    }
+
+    #[tokio::test]
+    async fn template_mode_rejects_unknown_template_before_party_names() {
+        let mut opts = default_test_opts();
+        opts.template = Some("made_up_template".to_string());
+        opts.party_a = "Alice Smith".to_string();
+
+        let err = run(&opts).await.unwrap_err();
+
+        assert!(err
+            .to_string()
+            .contains("Unknown template: 'made_up_template'"));
     }
 
     #[tokio::test]
