@@ -3500,6 +3500,24 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_records_lifecycle_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_DEPRECATION>] true -> [<+modifies(/deprecations) +signed_by(/users/product_manager.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_ARCHIVE>] true -> [<+modifies(/archives) +signed_by(/users/records_manager.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_RETENTION>] true -> [<+modifies(/retention) +signed_by(/users/records_counsel.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_POLICY>] true -> [<+modifies(/policies) +signed_by(/users/policy_owner.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_policy_approval_predicate_examples() {
         let output = synthesis_list_text();
 
