@@ -1124,9 +1124,18 @@ fn ensure_llm_response_mode_is_exclusive(opts: &Opts) -> Result<()> {
         Ok(())
     } else {
         Err(anyhow::anyhow!(
-            "--llm-response cannot be combined with other synthesis modes: {}",
+            "{} cannot be combined with other synthesis modes: {}",
+            llm_response_mode_flag(opts),
             conflicts.join(", ")
         ))
+    }
+}
+
+fn llm_response_mode_flag(opts: &Opts) -> &'static str {
+    if opts.llm_response.is_some() {
+        "--llm-response"
+    } else {
+        "--llm-response-file"
     }
 }
 
@@ -2973,6 +2982,26 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         let message = err.to_string();
         assert!(message.contains(
             "--llm-response cannot be combined with other synthesis modes: --llm-response-file"
+        ));
+        assert!(!message.contains(&missing_response_path.display().to_string()));
+    }
+
+    #[tokio::test]
+    async fn llm_response_file_mode_names_active_flag_in_conflicts() {
+        let missing_response_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-file-mode-conflict-{}.md",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.llm_response_file = Some(missing_response_path.clone());
+        opts.milestones = Some("Design,Build".to_string());
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains(
+            "--llm-response-file cannot be combined with other synthesis modes: --milestones"
         ));
         assert!(!message.contains(&missing_response_path.display().to_string()));
     }
