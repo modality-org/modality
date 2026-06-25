@@ -3917,6 +3917,20 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_basic_lifecycle_guard_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("always([+CANCEL] true -> always([-DELIVER] true))"));
+        assert!(output.contains("always([+REFUND] true -> always([-RELEASE] true))"));
+        assert!(output.contains("always([+TIMEOUT] true -> always([-COMPLETE] true))"));
+        assert!(output.contains("always([+ESCALATE] true -> always([-CLOSE] true))"));
+        assert!(output.contains("always([+WITHDRAW] true -> always([-CLAIM] true))"));
+        assert!(output.contains("always([+APPEAL] true -> always([-ENFORCE] true))"));
+        assert!(output.contains("always([+REVOKE] true -> always([-USE] true))"));
+        assert!(output.contains("always([+SUSPEND] true -> always([-ACCESS] true))"));
+    }
+
+    #[test]
     fn existing_model_check_accepts_satisfied_proposed_formula() {
         let parsed = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &parsed);
