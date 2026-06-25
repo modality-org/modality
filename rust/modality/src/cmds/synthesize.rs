@@ -3542,6 +3542,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_delivery_planning_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_OKR>] true -> [<+modifies(/okrs) +signed_by(/users/okr_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_INITIATIVE>] true -> [<+modifies(/initiatives) +signed_by(/users/initiative_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_EPIC>] true -> [<+modifies(/epics) +signed_by(/users/epic_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_STORY>] true -> [<+modifies(/stories) +signed_by(/users/story_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_TASK>] true -> [<+modifies(/tasks) +signed_by(/users/task_owner.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_risk_and_compliance_predicate_examples() {
         let output = synthesis_list_text();
 
