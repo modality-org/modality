@@ -3357,6 +3357,11 @@ F2: formula generated_2 {
 
         assert!(output.contains("Forbidden-after guards"));
         assert!(output.contains("[<+DISPUTE>] true -> always([-RELEASE] true)"));
+        assert!(output
+            .contains("[<+DISPUTE>] true -> (always([-RELEASE] true) & always([-REFUND] true))"));
+        assert!(output.contains(
+            "[<+DISPUTE>] true -> ([<+signed_by(/users/arbiter.id)>] true & always([-RELEASE] true))"
+        ));
     }
 
     #[test]
