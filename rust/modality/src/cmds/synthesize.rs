@@ -471,8 +471,10 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+AGENT_B_TURN] true -> eventually(<+AGENT_A_TURN> true))"#,
             r#"lfp(X, ([<+APPROVE>] true) | [<>]X)"#,
             r#"lfp(X, [<>]X | ([<+APPROVE>] true))"#,
+            r#"lfp(X, [<>](X) | ([<+APPROVE>] true))"#,
             r#"gfp(X, ([<+APPROVE>] true) & [<>]X)"#,
             r#"gfp(X, [<>]X & ([<+APPROVE>] true))"#,
+            r#"gfp(X, [<>]((X)) & ([<+APPROVE>] true))"#,
         ],
     },
     FormulaExampleGroup {
