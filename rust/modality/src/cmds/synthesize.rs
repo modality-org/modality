@@ -106,10 +106,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     if opts.generate_prompt {
+        ensure_prompt_generation_mode_is_exclusive(opts)?;
         let Some(description) = &opts.describe else {
             return Err(anyhow::anyhow!("--generate-prompt requires --describe"));
         };
-        ensure_prompt_generation_mode_is_exclusive(opts)?;
         println!("📝 LLM Prompt for Rule Generation (Step 1)\n");
         println!("{}", "=".repeat(60));
         println!(
@@ -2533,6 +2533,21 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[tokio::test]
+    async fn prompt_generation_mode_rejects_template_before_missing_description() {
+        let mut opts = default_test_opts();
+        opts.generate_prompt = true;
+        opts.template = Some("escrow".to_string());
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains(
+            "--generate-prompt cannot be combined with other synthesis modes: --template"
+        ));
+        assert!(!message.contains("--generate-prompt requires --describe"));
+    }
+
+    #[tokio::test]
     async fn prompt_generation_mode_rejects_llm_response_file_before_reading_path() {
         let missing_response_path = std::env::temp_dir().join(format!(
             "modality-synthesize-prompt-llm-response-{}.md",
@@ -2550,6 +2565,27 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         assert!(message.contains(
             "--generate-prompt cannot be combined with other synthesis modes: --llm-response-file"
         ));
+        assert!(!message.contains(&missing_response_path.display().to_string()));
+    }
+
+    #[tokio::test]
+    async fn prompt_generation_mode_rejects_llm_response_file_before_missing_description() {
+        let missing_response_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-prompt-missing-description-{}.md",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.generate_prompt = true;
+        opts.llm_response_file = Some(missing_response_path.clone());
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains(
+            "--generate-prompt cannot be combined with other synthesis modes: --llm-response-file"
+        ));
+        assert!(!message.contains("--generate-prompt requires --describe"));
         assert!(!message.contains(&missing_response_path.display().to_string()));
     }
 
