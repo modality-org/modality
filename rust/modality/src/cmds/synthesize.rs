@@ -186,7 +186,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let formulas = modality_lang::llm_synthesis::parse_llm_response(llm_response);
 
         if formulas.is_empty() {
-            return Err(anyhow::anyhow!("No formulas found in LLM response"));
+            return Err(anyhow::anyhow!(
+                "No formulas found in LLM response; expected Modality formula declarations or F1:/F2: formula lines"
+            ));
         }
 
         println!("📋 Extracted formulas:");
@@ -4341,6 +4343,20 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         assert!(output.contains("+REVIEW"));
         assert!(output.contains("+WAIT"));
         assert!(output.contains("+ARCHIVE"));
+    }
+
+    #[tokio::test]
+    async fn inline_llm_response_reports_expected_formula_shapes_when_empty() {
+        let mut opts = default_test_opts();
+        opts.llm_response =
+            Some("Here is a summary, but no concrete Modality formulas.".to_string());
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains("No formulas found in LLM response"));
+        assert!(message.contains("expected Modality formula declarations"));
+        assert!(message.contains("F1:/F2: formula lines"));
     }
 
     #[tokio::test]
