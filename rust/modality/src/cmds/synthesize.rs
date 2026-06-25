@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Parser;
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 /// Synthesize a model from a template, pattern, or rule
@@ -1292,13 +1293,25 @@ fn template_milestones(opts: &Opts) -> Result<Vec<&str>> {
             "--milestones names may contain only letters, numbers, underscores, and spaces, and must start with a letter or underscore"
         ));
     }
+    let mut normalized_names = HashSet::new();
+    if names
+        .iter()
+        .any(|name| !normalized_names.insert(normalized_milestone_template_name(name)))
+    {
+        return Err(anyhow::anyhow!(
+            "--milestones names must be unique after spaces are normalized to underscores"
+        ));
+    }
 
     Ok(names)
 }
 
 fn is_valid_milestone_template_name(name: &str) -> bool {
-    let normalized = name.replace(' ', "_");
-    is_valid_template_identifier_component(&normalized)
+    is_valid_template_identifier_component(&normalized_milestone_template_name(name))
+}
+
+fn normalized_milestone_template_name(name: &str) -> String {
+    name.replace(' ', "_")
 }
 
 fn is_valid_template_identifier_component(name: &str) -> bool {
@@ -2623,6 +2636,30 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             err.to_string()
                 .contains("must start with a letter or underscore")
         );
+    }
+
+    #[tokio::test]
+    async fn milestone_template_rejects_duplicate_milestones() {
+        let mut opts = default_test_opts();
+        opts.template = Some("milestone".to_string());
+        opts.milestones = Some("Design,Design".to_string());
+
+        let err = run(&opts).await.unwrap_err();
+
+        assert!(err.to_string().contains("--milestones names must be unique"));
+    }
+
+    #[tokio::test]
+    async fn milestone_template_rejects_normalized_duplicate_milestones() {
+        let mut opts = default_test_opts();
+        opts.template = Some("milestone".to_string());
+        opts.milestones = Some("Design Review,Design_Review".to_string());
+
+        let err = run(&opts).await.unwrap_err();
+
+        assert!(err.to_string().contains(
+            "--milestones names must be unique after spaces are normalized to underscores"
+        ));
     }
 
     #[tokio::test]
