@@ -3563,6 +3563,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_defect_remediation_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_BUG>] true -> [<+modifies(/bugs) +signed_by(/users/bug_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_ISSUE>] true -> [<+modifies(/issues) +signed_by(/users/issue_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_DEFECT>] true -> [<+modifies(/defects) +signed_by(/users/defect_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_PATCH>] true -> [<+modifies(/patches) +signed_by(/users/patch_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_HOTFIX>] true -> [<+modifies(/hotfixes) +signed_by(/users/hotfix_owner.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_risk_and_compliance_predicate_examples() {
         let output = synthesis_list_text();
 
