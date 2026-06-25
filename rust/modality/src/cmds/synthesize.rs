@@ -3931,6 +3931,25 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_extended_lifecycle_guard_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("always([+REINSTATE] true -> always([-SUSPEND] true))"));
+        assert!(output.contains("always([+RENEW] true -> always([-EXPIRE] true))"));
+        assert!(output.contains("always([+TERMINATE] true -> always([-RENEW] true))"));
+        assert!(output.contains("always([+EXTEND] true -> always([-TERMINATE] true))"));
+        assert!(output.contains("always([+ASSIGN] true -> always([-REASSIGN] true))"));
+        assert!(output.contains("always([+CERTIFY] true -> always([-DEPLOY] true))"));
+        assert!(output.contains("always([+PUBLISH] true -> always([-EMBARGO] true))"));
+        assert!(output.contains("always([+REGISTER] true -> always([-DELETE] true))"));
+        assert!(output.contains("always([+ACCEPT] true -> always([-REJECT] true))"));
+        assert!(output.contains("always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))"));
+        assert!(
+            output.contains("always([+CONFIRM_DELIVERY] true -> always([-REFUND] true))")
+        );
+    }
+
+    #[test]
     fn existing_model_check_accepts_satisfied_proposed_formula() {
         let parsed = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &parsed);
