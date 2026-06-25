@@ -1929,7 +1929,7 @@ fn format_model(model: &modality_lang::Model, format: &str) -> Result<String> {
                                         "{}{}({})",
                                         sign,
                                         p.name,
-                                        arg.as_str().unwrap_or("")
+                                        format_fallback_predicate_arg(arg.as_str().unwrap_or(""))
                                     );
                                 }
                             }
@@ -1941,7 +1941,7 @@ fn format_model(model: &modality_lang::Model, format: &str) -> Result<String> {
                 let props_str = if props.is_empty() {
                     String::new()
                 } else {
-                    format!(" [{}]", props.join(" "))
+                    format!(": {}", props.join(" "))
                 };
 
                 output.push_str(&format!(
@@ -1959,6 +1959,22 @@ fn format_model(model: &modality_lang::Model, format: &str) -> Result<String> {
         }
         other => Err(anyhow::anyhow!("Unknown format: '{}'", other)),
     }
+}
+
+fn format_fallback_predicate_arg(arg: &str) -> String {
+    if is_valid_template_identifier_component(arg) || is_path_literal(arg) {
+        arg.to_string()
+    } else {
+        format!("\"{}\"", arg.replace('\\', "\\\\").replace('"', "\\\""))
+    }
+}
+
+fn is_path_literal(value: &str) -> bool {
+    value.starts_with('/')
+        && value
+            .chars()
+            .skip(1)
+            .all(|ch| ch == '_' || ch == '.' || ch == '/' || ch.is_ascii_alphanumeric())
 }
 
 #[cfg(test)]
@@ -2187,6 +2203,32 @@ formula approval_signed {
         std::fs::remove_file(output_path).unwrap();
 
         assert!(output.contains("+signed_by(/users/reviewer.id)"));
+    }
+
+    #[tokio::test]
+    async fn rule_file_fallback_quotes_explicit_signer_args_when_needed() {
+        let rule_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-rule-quoted-signer-{}.txt",
+            std::process::id()
+        ));
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-rule-quoted-signer-output-{}.modality",
+            std::process::id()
+        ));
+        std::fs::write(&rule_path, "signed_by(reviewer key)").unwrap();
+
+        let mut opts = default_test_opts();
+        opts.rule = Some(rule_path.clone());
+        opts.output = Some(output_path.clone());
+
+        run(&opts).await.unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(rule_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        assert!(output.contains("+signed_by(\"reviewer key\")"));
+        modality_lang::parse_all_models_content_lalrpop(&output).unwrap();
     }
 
     #[tokio::test]
