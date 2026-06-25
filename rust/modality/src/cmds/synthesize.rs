@@ -476,6 +476,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"lfp(X, [<>]X | ([<+APPROVE>] true))"#,
             r#"lfp(X, [<>](X) | ([<+APPROVE>] true))"#,
             r#"gfp(X, ([<+APPROVE>] true) & []X)"#,
+            r#"gfp(X, []X & ([<+APPROVE>] true))"#,
             r#"gfp(X, ([<+APPROVE>] true) & [<>]X)"#,
             r#"gfp(X, [<>]X & ([<+APPROVE>] true))"#,
             r#"gfp(X, [<>]((X)) & ([<+APPROVE>] true))"#,
@@ -3198,6 +3199,13 @@ F2: formula generated_2 {
 
         assert!(output.contains("--existing-model contract.modality --proposed-rule"));
         assert!(output.contains("--existing-model contract.modality --proposed-formula"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_committed_gfp_branch_order_example() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("gfp(X, []X & ([<+APPROVE>] true))"));
     }
 
     #[test]
