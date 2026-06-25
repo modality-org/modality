@@ -666,6 +666,29 @@ formula committed {
     }
 
     #[test]
+    fn test_parse_unlabeled_diamond_box_formula() {
+        let content = r#"
+formula committed_step {
+    [<>] X
+}
+"#;
+
+        let formulas = parse_all_formulas_content_lalrpop(content).unwrap();
+        assert_eq!(formulas.len(), 1);
+
+        let formula = &formulas[0];
+        assert_eq!(formula.name, "committed_step");
+
+        match &formula.expression {
+            FormulaExpr::DiamondBox(props, inner) => {
+                assert!(props.is_empty());
+                assert!(matches!(**inner, FormulaExpr::Prop(ref name) if name == "X"));
+            }
+            _ => panic!("Expected unlabeled DiamondBox, got {:?}", formula.expression),
+        }
+    }
+
+    #[test]
     fn test_parse_multi_argument_predicate_formula() {
         let content = r#"
 formula oracleAttestation {

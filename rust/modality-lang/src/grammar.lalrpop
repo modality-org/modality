@@ -306,6 +306,10 @@ FormulaAtom: FormulaExpr = {
     "[" "<" <properties:PropertyList> ">" "]" <expr:FormulaAtom> => {
         FormulaExpr::DiamondBox(properties, Box::new(expr))
     },
+    // [<>] φ - unlabeled diamond-box (committed recursive step)
+    "[" "<" ">" "]" <expr:FormulaAtom> => {
+        FormulaExpr::DiamondBox(vec![], Box::new(expr))
+    },
     // Fixed point operators (modal mu-calculus)
     // lfp(X, φ) - least fixed point
     "lfp" "(" <var:Ident> "," <expr:FormulaExpr> ")" => {
