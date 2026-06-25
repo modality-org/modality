@@ -1872,6 +1872,48 @@ mod tests {
     }
 
     #[test]
+    fn test_self_loop_witnesses_include_source_action_props() {
+        let approve = Property::new(PropertySign::Plus, "APPROVE".to_string());
+        let archive = Property::new(PropertySign::Plus, "ARCHIVE".to_string());
+        let eventual_approve = FormulaExpr::Lfp(
+            "X".to_string(),
+            Box::new(FormulaExpr::Or(
+                Box::new(FormulaExpr::DiamondBox(
+                    Vec::new(),
+                    Box::new(FormulaExpr::Var("X".to_string())),
+                )),
+                Box::new(FormulaExpr::DiamondBox(
+                    vec![approve.clone()],
+                    Box::new(FormulaExpr::True),
+                )),
+            )),
+        );
+        let invariant_archive = FormulaExpr::Gfp(
+            "X".to_string(),
+            Box::new(FormulaExpr::And(
+                Box::new(FormulaExpr::DiamondBox(
+                    Vec::new(),
+                    Box::new(FormulaExpr::Var("X".to_string())),
+                )),
+                Box::new(FormulaExpr::DiamondBox(
+                    vec![archive.clone()],
+                    Box::new(FormulaExpr::True),
+                )),
+            )),
+        );
+
+        let model = synthesize_from_formulas("Combined", &[eventual_approve, invariant_archive]);
+        let transitions = &model.parts[0].transitions;
+
+        assert!(transitions.iter().any(|transition| {
+            transition.from == "q0"
+                && transition.to == "q0"
+                && transition.properties.contains(&approve)
+                && transition.properties.contains(&archive)
+        }));
+    }
+
+    #[test]
     fn test_parentheses_do_not_hide_implication_ordering_pattern() {
         let formula = FormulaExpr::Implies(
             Box::new(FormulaExpr::Paren(Box::new(FormulaExpr::Box(
