@@ -3895,6 +3895,28 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_forbidden_lifecycle_guard_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output
+            .contains("always([+APPROVE_INVOICE] true -> always([-CHARGEBACK] true))"));
+        assert!(output
+            .contains("always([+ACCEPT_MILESTONE] true -> always([-REWORK] true))"));
+        assert!(output
+            .contains("always([+APPROVE_INSPECTION] true -> always([-DEFECT_CLAIM] true))"));
+        assert!(output.contains(
+            "always([+ATTEST_COMPLIANCE] true -> always([-NONCOMPLIANCE_FINDING] true))"
+        ));
+        assert!(output
+            .contains("always([+APPROVE_SAFETY] true -> always([-UNSAFE_DEPLOYMENT] true))"));
+        assert!(output
+            .contains("always([+ACCEPT_RISK] true -> always([-UNMITIGATED_EXPOSURE] true))"));
+        assert!(output
+            .contains("always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))"));
+        assert!(output.contains("always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))"));
+    }
+
+    #[test]
     fn existing_model_check_accepts_satisfied_proposed_formula() {
         let parsed = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &parsed);
