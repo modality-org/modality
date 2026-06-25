@@ -189,6 +189,13 @@ impl FormulaExpr {
     pub fn expand_diamond_box(&self) -> FormulaExpr {
         match self {
             FormulaExpr::DiamondBox(props, phi) => {
+                if props.is_empty() {
+                    return FormulaExpr::Diamond(
+                        Vec::new(),
+                        Box::new(phi.expand_diamond_box()),
+                    );
+                }
+
                 // Negate the properties for the box part
                 let negated_props: Vec<Property> = props.iter().map(|p| {
                     Property::new(

@@ -711,6 +711,39 @@ mod tests {
     }
 
     #[test]
+    fn test_gfp_accepts_unlabeled_committed_recursive_step() {
+        let mut model = Model::new("CommittedUnlabeledLoop".to_string());
+        let mut part = Part::new("flow".to_string());
+        let mut transition = Transition::new("q0".to_string(), "q0".to_string());
+        transition.add_property(Property::new(PropertySign::Plus, "APPROVE".to_string()));
+        part.add_transition(transition);
+        model.add_part(part);
+        let checker = ModelChecker::new(model);
+
+        let formula = Formula::new(
+            "Invariant".to_string(),
+            FormulaExpr::Gfp(
+                "X".to_string(),
+                Box::new(FormulaExpr::And(
+                    Box::new(FormulaExpr::DiamondBox(
+                        vec![Property::new(PropertySign::Plus, "APPROVE".to_string())],
+                        Box::new(FormulaExpr::True),
+                    )),
+                    Box::new(FormulaExpr::DiamondBox(
+                        Vec::new(),
+                        Box::new(FormulaExpr::Prop("X".to_string())),
+                    )),
+                )),
+            ),
+        );
+
+        let result = checker.check_formula(&formula);
+
+        assert!(result.is_satisfied);
+        assert!(result.satisfying_states.iter().any(|s| s.node_name == "q0"));
+    }
+
+    #[test]
     fn test_lfp_substitutes_parsed_prop_variable_references() {
         let model = create_test_model();
         let checker = ModelChecker::new(model);
