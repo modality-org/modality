@@ -770,7 +770,9 @@ pub fn synthesize_from_constraints(name: &str, constraints: &SynthesisConstraint
     for node in &nodes {
         for props in &self_loop_groups {
             let mut transition = Transition::new(node.clone(), node.clone());
-            for prop in props {
+            let combined_props =
+                combine_with_outgoing_positive_action_props(props, node, &transitions);
+            for prop in &combined_props {
                 transition.add_property(prop.clone());
             }
             transitions.push(transition);
@@ -903,9 +905,16 @@ fn add_authorization_witness_self_loops(
     };
 
     for node in nodes {
+        let outgoing_action_props = positive_action_props_from_node(transitions, node);
         for props in &witness_groups {
             let mut transition = Transition::new(node.clone(), node.clone());
-            for prop in props {
+            let mut combined_props = props.clone();
+            for prop in &outgoing_action_props {
+                if !combined_props.contains(prop) {
+                    combined_props.push(prop.clone());
+                }
+            }
+            for prop in &combined_props {
                 transition.add_property(prop.clone());
             }
             if !transitions.iter().any(|existing| {
@@ -917,6 +926,32 @@ fn add_authorization_witness_self_loops(
             }
         }
     }
+}
+
+fn combine_with_outgoing_positive_action_props(
+    props: &[Property],
+    node: &str,
+    transitions: &[Transition],
+) -> Vec<Property> {
+    let mut combined = props.to_vec();
+    for prop in positive_action_props_from_node(transitions, node) {
+        if !combined.contains(&prop) {
+            combined.push(prop);
+        }
+    }
+    combined
+}
+
+fn positive_action_props_from_node(transitions: &[Transition], node: &str) -> Vec<Property> {
+    let mut props = Vec::new();
+    for transition in transitions.iter().filter(|transition| transition.from == node) {
+        for prop in &transition.properties {
+            if is_positive_action_property(prop) && !props.contains(prop) {
+                props.push(prop.clone());
+            }
+        }
+    }
+    props
 }
 
 /// Topological sort of actions based on ordering constraints

@@ -2521,6 +2521,36 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[tokio::test]
+    async fn formula_mode_verify_writes_checked_unlabeled_committed_fixed_point_model() {
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-unlabeled-committed-fixed-point-output-{}.modality",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.formulas = Some(
+            [
+                "lfp(X, [<>]X | ([<+APPROVE>] true))",
+                "gfp(X, [<>]X & ([<+ARCHIVE>] true))",
+            ]
+            .join("; "),
+        );
+        opts.output = Some(output_path.clone());
+        opts.verify = true;
+
+        run(&opts).await.unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        let models = modality_lang::parse_all_models_content_lalrpop(&output).unwrap();
+        assert_eq!(models.len(), 1);
+        assert!(output.contains("model Contract"));
+        assert!(output.contains("+APPROVE"));
+        assert!(output.contains("+ARCHIVE"));
+    }
+
+    #[tokio::test]
     async fn formula_mode_verify_writes_json_model() {
         let output_path = std::env::temp_dir().join(format!(
             "modality-synthesize-fixed-point-json-output-{}.json",
