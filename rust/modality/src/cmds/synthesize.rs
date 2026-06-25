@@ -473,6 +473,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>((X)))) | ([<+APPROVE>] true))"#,
             r#"gfp(X, []((X)) & ([<+ARCHIVE>] true))"#,
             r#"lfp(X, ([<+APPROVE>] true) | [<>]X)"#,
+            r#"lfp(X, (<+APPROVE> true) | <>X)"#,
             r#"lfp(X, (<+APPROVE> true) | <>(X))"#,
             r#"lfp(X, (<+APPROVE> true) | <>((X)))"#,
             r#"lfp(X, ([<+APPROVE>] true) | <>((X)))"#,
@@ -3272,6 +3273,13 @@ F2: formula generated_2 {
         let output = synthesis_list_text();
 
         assert!(output.contains("lfp(X, (<+APPROVE> true) | <>(X))"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_raw_lfp_goal_example() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("lfp(X, (<+APPROVE> true) | <>X)"));
     }
 
     #[test]
