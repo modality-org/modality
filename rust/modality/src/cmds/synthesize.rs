@@ -332,6 +332,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         )
     })?;
     ensure_milestones_match_template(template, opts)?;
+    ensure_template_party_names_are_valid(template, opts)?;
 
     if opts.verify {
         return Err(anyhow::anyhow!(
@@ -1256,6 +1257,22 @@ fn ensure_milestones_match_template(template: &str, opts: &Opts) -> Result<()> {
     }
 }
 
+fn ensure_template_party_names_are_valid(template: &str, opts: &Opts) -> Result<()> {
+    if !is_valid_template_identifier_component(&opts.party_a) {
+        return Err(anyhow::anyhow!(
+            "--party-a must contain only letters, numbers, and underscores, and must start with a letter or underscore"
+        ));
+    }
+
+    if template != "auction" && !is_valid_template_identifier_component(&opts.party_b) {
+        return Err(anyhow::anyhow!(
+            "--party-b must contain only letters, numbers, and underscores, and must start with a letter or underscore"
+        ));
+    }
+
+    Ok(())
+}
+
 fn template_milestones(opts: &Opts) -> Result<Vec<&str>> {
     let Some(milestones) = opts.milestones.as_ref() else {
         return Ok(vec!["Phase1", "Phase2", "Phase3"]);
@@ -1281,7 +1298,11 @@ fn template_milestones(opts: &Opts) -> Result<Vec<&str>> {
 
 fn is_valid_milestone_template_name(name: &str) -> bool {
     let normalized = name.replace(' ', "_");
-    let mut chars = normalized.chars();
+    is_valid_template_identifier_component(&normalized)
+}
+
+fn is_valid_template_identifier_component(name: &str) -> bool {
+    let mut chars = name.chars();
     let Some(first) = chars.next() else {
         return false;
     };
@@ -2407,6 +2428,40 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             err.to_string()
                 .contains("--milestones can only be used with --template milestone")
         );
+    }
+
+    #[tokio::test]
+    async fn template_mode_rejects_invalid_party_a() {
+        let mut opts = default_test_opts();
+        opts.template = Some("escrow".to_string());
+        opts.party_a = "Alice Smith".to_string();
+
+        let err = run(&opts).await.unwrap_err();
+
+        assert!(err.to_string().contains("--party-a must contain only"));
+    }
+
+    #[tokio::test]
+    async fn template_mode_rejects_digit_started_party_b() {
+        let mut opts = default_test_opts();
+        opts.template = Some("service_agreement".to_string());
+        opts.party_b = "2Consumer".to_string();
+
+        let err = run(&opts).await.unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("--party-b must contain only letters")
+        );
+    }
+
+    #[tokio::test]
+    async fn auction_template_does_not_validate_unused_party_b() {
+        let mut opts = default_test_opts();
+        opts.template = Some("auction".to_string());
+        opts.party_b = "Unused Party".to_string();
+
+        run(&opts).await.unwrap();
     }
 
     #[tokio::test]
