@@ -1162,6 +1162,8 @@ fn llm_response_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
 }
 
 fn run_existing_model_synthesis(opts: &Opts) -> Result<()> {
+    ensure_existing_model_mode_is_exclusive(opts)?;
+
     let existing_model_path = opts.existing_model.as_ref().ok_or_else(|| {
         anyhow::anyhow!("--existing-model is required with --proposed-formula or --proposed-rule")
     })?;
@@ -1173,7 +1175,6 @@ fn run_existing_model_synthesis(opts: &Opts) -> Result<()> {
             "Use exactly one of --proposed-formula or --proposed-rule with --existing-model"
         ));
     }
-    ensure_existing_model_mode_is_exclusive(opts)?;
 
     let existing_input = load_existing_model_input(existing_model_path)?;
     let (parsed_input, proposed_declarations) = load_proposed_formula_inputs(opts)?;
@@ -3135,6 +3136,38 @@ F2: formula generated_2 {
             "--existing-model cannot be combined with other synthesis modes: --llm-response-file"
         ));
         assert!(!message.contains(&missing_response_path.display().to_string()));
+    }
+
+    #[tokio::test]
+    async fn existing_model_mode_rejects_template_before_missing_existing_model() {
+        let mut opts = default_test_opts();
+        opts.template = Some("escrow".to_string());
+        opts.proposed_formula = Some("always([<+APPROVE>] true)".to_string());
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains(
+            "--existing-model cannot be combined with other synthesis modes: --template"
+        ));
+        assert!(!message.contains("--existing-model is required"));
+    }
+
+    #[tokio::test]
+    async fn existing_model_mode_rejects_template_before_proposed_source_count() {
+        let mut opts = default_test_opts();
+        opts.existing_model = Some(PathBuf::from("existing.modality"));
+        opts.proposed_formula = Some("always([<+APPROVE>] true)".to_string());
+        opts.proposed_rule = Some(PathBuf::from("proposed.modality"));
+        opts.template = Some("escrow".to_string());
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains(
+            "--existing-model cannot be combined with other synthesis modes: --template"
+        ));
+        assert!(!message.contains("Use exactly one"));
     }
 
     #[test]
