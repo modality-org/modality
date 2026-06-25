@@ -3416,6 +3416,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_financial_approval_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_REFUND>] true -> [<+modifies(/refunds) +signed_by(/users/refund_manager.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_CREDIT>] true -> [<+modifies(/credits) +signed_by(/users/credit_manager.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_PAYMENT>] true -> [<+modifies(/payments) +signed_by(/users/payment_approver.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_LOAN>] true -> [<+modifies(/loans) +signed_by(/users/loan_officer.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_CLAIM>] true -> [<+modifies(/claims) +signed_by(/users/claims_adjuster.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_risk_and_compliance_predicate_examples() {
         let output = synthesis_list_text();
 
