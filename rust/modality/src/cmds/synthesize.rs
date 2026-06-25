@@ -7,7 +7,24 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 pub struct Opts {
     /// Template name: escrow, handshake, mutual_cooperation, etc.
-    #[arg(short, long)]
+    #[arg(
+        short,
+        long,
+        value_parser = [
+            "escrow",
+            "handshake",
+            "mutual_cooperation",
+            "atomic_swap",
+            "multisig",
+            "turn_taking",
+            "alternating",
+            "service_agreement",
+            "delegation",
+            "auction",
+            "subscription",
+            "milestone"
+        ]
+    )]
     pub template: Option<String>,
 
     /// Natural language description of the contract
@@ -2065,6 +2082,21 @@ mod tests {
         assert_eq!(json_opts.format, "json");
 
         let err = Opts::try_parse_from(["synthesize", "--format", "yaml"]).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
+    }
+
+    #[test]
+    fn synthesize_opts_restricts_template_values() {
+        let milestone_opts = Opts::try_parse_from(["synthesize", "--template", "milestone"])
+            .expect("milestone template parses");
+        assert_eq!(milestone_opts.template.as_deref(), Some("milestone"));
+
+        let alias_opts = Opts::try_parse_from(["synthesize", "--template", "alternating"])
+            .expect("alternating alias parses");
+        assert_eq!(alias_opts.template.as_deref(), Some("alternating"));
+
+        let err =
+            Opts::try_parse_from(["synthesize", "--template", "made_up_template"]).unwrap_err();
         assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
     }
 
