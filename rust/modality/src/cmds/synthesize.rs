@@ -3434,6 +3434,30 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_access_governance_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_COMPLIANCE>] true -> [<+modifies(/compliance) +signed_by(/users/compliance_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_ONBOARDING>] true -> [<+modifies(/onboarding) +signed_by(/users/onboarding_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_OFFBOARDING>] true -> [<+modifies(/offboarding) +signed_by(/users/offboarding_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_DEPROVISIONING>] true -> [<+modifies(/deprovisioning) +signed_by(/users/access_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_ACCESS_REVIEW>] true -> [<+modifies(/access_reviews) +signed_by(/users/access_reviewer.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_IDENTITY_VERIFICATION>] true -> [<+modifies(/identity_verifications) +signed_by(/users/identity_reviewer.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_operational_approval_predicate_examples() {
         let output = synthesis_list_text();
 
