@@ -3602,6 +3602,30 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_case_intake_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_FILE>] true -> [<+modifies(/files) +signed_by(/users/file_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_RECORD>] true -> [<+modifies(/records) +signed_by(/users/record_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_CASE>] true -> [<+modifies(/cases) +signed_by(/users/case_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_TICKET>] true -> [<+modifies(/tickets) +signed_by(/users/ticket_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_PROPOSAL>] true -> [<+modifies(/proposals) +signed_by(/users/proposal_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_REQUEST>] true -> [<+modifies(/requests) +signed_by(/users/request_owner.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_document_approval_predicate_examples() {
         let output = synthesis_list_text();
 
