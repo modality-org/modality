@@ -3352,6 +3352,14 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_forbidden_after_guard_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("Forbidden-after guards"));
+        assert!(output.contains("[<+DISPUTE>] true -> always([-RELEASE] true)"));
+    }
+
+    #[test]
     fn existing_model_check_accepts_satisfied_proposed_formula() {
         let parsed = parse_formula_strings(&["always([<+APPROVE>] true)".to_string()]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &parsed);
