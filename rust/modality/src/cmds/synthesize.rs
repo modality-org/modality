@@ -3584,6 +3584,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_release_lifecycle_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_RELEASE_CANDIDATE>] true -> [<+modifies(/release_candidates) +signed_by(/users/release_manager.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_DEPLOYMENT>] true -> [<+modifies(/deployments) +signed_by(/users/deployment_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_ROLLOUT>] true -> [<+modifies(/rollouts) +signed_by(/users/rollout_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_LAUNCH>] true -> [<+modifies(/launches) +signed_by(/users/launch_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_GENERAL_AVAILABILITY>] true -> [<+modifies(/general_availability) +signed_by(/users/ga_owner.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_risk_and_compliance_predicate_examples() {
         let output = synthesis_list_text();
 
