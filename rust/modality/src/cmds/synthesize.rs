@@ -3416,6 +3416,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_risk_and_compliance_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+CLOSE_INCIDENT>] true -> [<+modifies(/incidents) +signed_by(/users/incident_commander.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+FREEZE_CHANGE>] true -> [<+modifies(/releases) +signed_by(/users/release_manager.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+ACCEPT_RISK>] true -> [<+modifies(/risk) +signed_by(/users/risk_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_SAFETY>] true -> [<+modifies(/safety) +signed_by(/users/safety_reviewer.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+ATTEST_COMPLIANCE>] true -> [<+modifies(/compliance) +signed_by(/users/compliance_officer.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_authorization_eventual_goal_examples() {
         let output = synthesis_list_text();
 
