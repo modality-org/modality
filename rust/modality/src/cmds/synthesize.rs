@@ -1148,6 +1148,9 @@ fn llm_response_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     if opts.generate_prompt {
         conflicts.push("--generate-prompt");
     }
+    if opts.llm_response.is_some() && opts.llm_response_file.is_some() {
+        conflicts.push("--llm-response-file");
+    }
     if opts.list {
         conflicts.push("--list");
     }
@@ -2913,6 +2916,26 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         let message = err.to_string();
         assert!(message.contains(
             "--rule cannot be combined with other synthesis modes: --llm-response-file"
+        ));
+        assert!(!message.contains(&missing_response_path.display().to_string()));
+    }
+
+    #[tokio::test]
+    async fn llm_response_mode_rejects_response_file_before_reading_path() {
+        let missing_response_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-conflicting-llm-response-{}.md",
+            std::process::id()
+        ));
+
+        let mut opts = default_test_opts();
+        opts.llm_response = Some("formula generated { always([<+APPROVE>] true) }".to_string());
+        opts.llm_response_file = Some(missing_response_path.clone());
+
+        let err = run(&opts).await.unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains(
+            "--llm-response cannot be combined with other synthesis modes: --llm-response-file"
         ));
         assert!(!message.contains(&missing_response_path.display().to_string()));
     }
