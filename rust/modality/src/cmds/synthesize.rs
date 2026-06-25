@@ -3395,6 +3395,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_credential_lifecycle_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+REVOKE_CREDENTIAL>] true -> [<+modifies(/credential_revocations) +signed_by(/users/credential_issuer.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+RENEW_CREDENTIAL>] true -> [<+modifies(/credential_renewals) +signed_by(/users/credential_issuer.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+EXPIRE_CREDENTIAL>] true -> [<+modifies(/credential_expirations) +signed_by(/users/credential_issuer.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+SUSPEND_CREDENTIAL>] true -> [<+modifies(/credential_suspensions) +signed_by(/users/credential_issuer.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+REINSTATE_CREDENTIAL>] true -> [<+modifies(/credential_reinstatements) +signed_by(/users/credential_issuer.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_operational_approval_predicate_examples() {
         let output = synthesis_list_text();
 
