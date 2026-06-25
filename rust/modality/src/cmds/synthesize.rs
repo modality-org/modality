@@ -3500,6 +3500,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_decision_planning_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_RESULT>] true -> [<+modifies(/results) +signed_by(/users/result_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_OUTCOME>] true -> [<+modifies(/outcomes) +signed_by(/users/outcome_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_DECISION>] true -> [<+modifies(/decisions) +signed_by(/users/decision_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_PLAN>] true -> [<+modifies(/plans) +signed_by(/users/plan_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_STRATEGY>] true -> [<+modifies(/strategies) +signed_by(/users/strategy_owner.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_risk_and_compliance_predicate_examples() {
         let output = synthesis_list_text();
 
