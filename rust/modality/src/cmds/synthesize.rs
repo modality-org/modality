@@ -3539,6 +3539,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_contract_change_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_EXTENSION>] true -> [<+modifies(/extensions) +signed_by(/users/extension_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_AMENDMENT>] true -> [<+modifies(/amendments) +signed_by(/users/amendment_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_ADDENDUM>] true -> [<+modifies(/addenda) +signed_by(/users/addendum_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_SUPPLEMENT>] true -> [<+modifies(/supplements) +signed_by(/users/supplement_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_APPENDIX>] true -> [<+modifies(/appendices) +signed_by(/users/appendix_owner.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_document_approval_predicate_examples() {
         let output = synthesis_list_text();
 
