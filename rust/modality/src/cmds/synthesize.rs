@@ -3458,6 +3458,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_document_approval_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_DOCUMENT>] true -> [<+modifies(/documents) +signed_by(/users/document_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_REPORT>] true -> [<+modifies(/reports) +signed_by(/users/report_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_MEMO>] true -> [<+modifies(/memos) +signed_by(/users/memo_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_NOTE>] true -> [<+modifies(/notes) +signed_by(/users/note_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_COMMENT>] true -> [<+modifies(/comments) +signed_by(/users/comment_owner.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_risk_and_compliance_predicate_examples() {
         let output = synthesis_list_text();
 
