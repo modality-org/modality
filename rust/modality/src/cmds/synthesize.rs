@@ -484,6 +484,7 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"gfp(X, []((X)) & ([<+APPROVE>] true))"#,
             r#"gfp(X, ([<+APPROVE>] true) & [<>]X)"#,
             r#"gfp(X, [<>]X & ([<+APPROVE>] true))"#,
+            r#"gfp(X, [<>](X) & ([<+APPROVE>] true))"#,
             r#"gfp(X, [<>]((X)) & ([<+APPROVE>] true))"#,
         ],
     },
@@ -3225,6 +3226,13 @@ F2: formula generated_2 {
         let output = synthesis_list_text();
 
         assert!(output.contains("gfp(X, []((X)) & ([<+APPROVE>] true))"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_parenthesized_unlabeled_committed_gfp_branch_order_example() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("gfp(X, [<>](X) & ([<+APPROVE>] true))"));
     }
 
     #[test]
@@ -7127,6 +7135,19 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         assert_eq!(formulas.len(), 1);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "UnlabeledCommittedGfpRecursionBeforeAvailability",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_parenthesized_unlabeled_committed_gfp_branch_order() {
+        let formulas =
+            parse_formula_strings(&["gfp(X, [<>](X) & ([<+APPROVE>] true))".to_string()]);
+        assert_eq!(formulas.len(), 1);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ParenthesizedUnlabeledCommittedGfpBranchOrder",
             &formulas,
         );
 
