@@ -3395,6 +3395,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_operational_approval_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_BUDGET>] true -> [<+modifies(/budgets) +signed_by(/users/budget_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_PURCHASE_ORDER>] true -> [<+modifies(/purchase_orders) +signed_by(/users/procurement_manager.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_CONTRACT>] true -> [<+modifies(/contracts) +signed_by(/users/legal_reviewer.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+ONBOARD_VENDOR>] true -> [<+modifies(/vendors) +signed_by(/users/vendor_manager.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_EXPENSE>] true -> [<+modifies(/expenses) +signed_by(/users/finance_manager.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_authorization_eventual_goal_examples() {
         let output = synthesis_list_text();
 
