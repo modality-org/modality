@@ -3843,6 +3843,24 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_authorized_followup_obligation_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"always([+USE_TOOL] true -> (<+signed_by(/users/tool_provider.id)> true & eventually([<+APPROVE_CAPABILITY>] true)))"#
+        ));
+        assert!(output.contains(
+            r#"[+RELEASE] true -> (<+oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true & eventually(<+DELIVER> true))"#
+        ));
+        assert!(output.contains(
+            r#"[+RELEASE] true -> (<+oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true & eventually([<+DELIVER>] true))"#
+        ));
+        assert!(output.contains(
+            r#"[<+RELEASE>] true -> ([<+signed_by(/users/buyer.id)>] true & eventually([<+DELIVER>] true))"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_forbidden_after_guard_examples() {
         let output = synthesis_list_text();
 
