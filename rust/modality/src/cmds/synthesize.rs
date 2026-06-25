@@ -350,7 +350,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     let template = opts.template.as_ref().ok_or_else(|| {
         anyhow::anyhow!(
-            "Please specify --template, --describe, --rule, or use --list to see options"
+            "Please specify --template, --describe, --rule, --formulas, --llm-response, --llm-response-file, or use --list/--generate-prompt to see options"
         )
     })?;
     ensure_template_name_is_known(template)?;
@@ -2124,6 +2124,22 @@ mod tests {
         let err =
             Opts::try_parse_from(["synthesize", "--template", "made_up_template"]).unwrap_err();
         assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
+    }
+
+    #[tokio::test]
+    async fn no_input_error_lists_current_synthesis_modes() {
+        let opts = default_test_opts();
+
+        let err = run(&opts).await.unwrap_err();
+        let message = err.to_string();
+
+        assert!(message.contains("--template"));
+        assert!(message.contains("--describe"));
+        assert!(message.contains("--rule"));
+        assert!(message.contains("--formulas"));
+        assert!(message.contains("--llm-response"));
+        assert!(message.contains("--llm-response-file"));
+        assert!(message.contains("--list/--generate-prompt"));
     }
 
     #[test]
