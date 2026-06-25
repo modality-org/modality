@@ -67,7 +67,7 @@ pub struct Opts {
     pub milestones: Option<String>,
 
     /// Output format: modality (default) or json
-    #[arg(short, long, default_value = "modality")]
+    #[arg(short, long, default_value = "modality", value_parser = ["modality", "json"])]
     pub format: String,
 
     /// List available templates
@@ -2026,6 +2026,16 @@ mod tests {
             format: "modality".to_string(),
             list: false,
         }
+    }
+
+    #[test]
+    fn synthesize_opts_restricts_output_format_values() {
+        let json_opts =
+            Opts::try_parse_from(["synthesize", "--format", "json"]).expect("json format parses");
+        assert_eq!(json_opts.format, "json");
+
+        let err = Opts::try_parse_from(["synthesize", "--format", "yaml"]).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
     }
 
     #[test]
