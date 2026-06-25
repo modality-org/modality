@@ -3626,6 +3626,18 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_application_submission_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+APPROVE_APPLICATION>] true -> [<+modifies(/applications) +signed_by(/users/application_owner.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_SUBMISSION>] true -> [<+modifies(/submissions) +signed_by(/users/submission_owner.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_document_approval_predicate_examples() {
         let output = synthesis_list_text();
 
