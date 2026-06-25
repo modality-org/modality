@@ -3416,6 +3416,24 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_credential_exchange_predicate_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[<+EXPORT_CREDENTIAL>] true -> [<+modifies(/credential_exports) +signed_by(/users/credential_holder.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+REQUEST_CREDENTIAL>] true -> [<+modifies(/credential_requests) +signed_by(/users/credential_holder.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+ACCEPT_CREDENTIAL>] true -> [<+modifies(/credential_acceptances) +signed_by(/users/credential_holder.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+REJECT_CREDENTIAL>] true -> [<+modifies(/credential_rejections) +signed_by(/users/credential_holder.id)>] true"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_operational_approval_predicate_examples() {
         let output = synthesis_list_text();
 
