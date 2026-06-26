@@ -572,6 +572,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+PROFILE_DATASET] true -> eventually(<+VALIDATE_DATA_QUALITY> true))"#,
             r#"always([+VALIDATE_DATA_QUALITY] true -> eventually(<+APPROVE_QUALITY_REPORT> true))"#,
             r#"always([+APPROVE_QUALITY_REPORT] true -> eventually(<+PUBLISH_QUALITY_REPORT> true))"#,
+            r#"always([+SUBMIT_DATASET] true -> eventually(<+CLASSIFY_DATASET> true))"#,
+            r#"always([+CLASSIFY_DATASET] true -> eventually(<+APPROVE_DATA_CLASSIFICATION> true))"#,
+            r#"always([+APPROVE_DATA_CLASSIFICATION] true -> eventually(<+RECORD_DATA_CLASSIFICATION> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3850,6 +3853,20 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_QUALITY_REPORT] true -> eventually(<+PUBLISH_QUALITY_REPORT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_data_classification_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output
+            .contains("always([+SUBMIT_DATASET] true -> eventually(<+CLASSIFY_DATASET> true))"));
+        assert!(output.contains(
+            "always([+CLASSIFY_DATASET] true -> eventually(<+APPROVE_DATA_CLASSIFICATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DATA_CLASSIFICATION] true -> eventually(<+RECORD_DATA_CLASSIFICATION> true))"
         ));
     }
 
@@ -8495,6 +8512,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("DataQuality", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_data_classification_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+SUBMIT_DATASET] true -> eventually(<+CLASSIFY_DATASET> true))"
+                .to_string(),
+            "always([+CLASSIFY_DATASET] true -> eventually(<+APPROVE_DATA_CLASSIFICATION> true))"
+                .to_string(),
+            "always([+APPROVE_DATA_CLASSIFICATION] true -> eventually(<+RECORD_DATA_CLASSIFICATION> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DataClassification",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
