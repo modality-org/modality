@@ -506,6 +506,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+NOTICE_RENEWAL] true -> eventually(<+REVIEW_TERMS> true))"#,
             r#"always([+REVIEW_TERMS] true -> eventually(<+APPROVE_RENEWAL> true))"#,
             r#"always([+APPROVE_RENEWAL] true -> eventually(<+EXECUTE_RENEWAL> true))"#,
+            r#"always([+REQUEST_CREDENTIAL] true -> eventually(<+VERIFY_IDENTITY> true))"#,
+            r#"always([+VERIFY_IDENTITY] true -> eventually(<+ISSUE_CREDENTIAL> true))"#,
+            r#"always([+ISSUE_CREDENTIAL] true -> eventually(<+ACCEPT_CREDENTIAL> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3461,6 +3464,21 @@ F2: formula generated_2 {
         );
         assert!(output.contains(
             "always([+APPROVE_RENEWAL] true -> eventually(<+EXECUTE_RENEWAL> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_credential_issuance_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_CREDENTIAL] true -> eventually(<+VERIFY_IDENTITY> true))"
+        ));
+        assert!(output.contains(
+            "always([+VERIFY_IDENTITY] true -> eventually(<+ISSUE_CREDENTIAL> true))"
+        ));
+        assert!(output.contains(
+            "always([+ISSUE_CREDENTIAL] true -> eventually(<+ACCEPT_CREDENTIAL> true))"
         ));
     }
 
@@ -7766,6 +7784,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ContractRenewal",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_credential_issuance_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_CREDENTIAL] true -> eventually(<+VERIFY_IDENTITY> true))"
+                .to_string(),
+            "always([+VERIFY_IDENTITY] true -> eventually(<+ISSUE_CREDENTIAL> true))"
+                .to_string(),
+            "always([+ISSUE_CREDENTIAL] true -> eventually(<+ACCEPT_CREDENTIAL> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "CredentialIssuance",
             &formulas,
         );
 
