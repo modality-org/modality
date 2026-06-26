@@ -9519,6 +9519,42 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_adverse_action_notice_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_ADVERSE_ACTION_NOTICE] true -> eventually(<+COMPILE_NOTICE_EVIDENCE> true))"
+                .to_string(),
+            "always([+COMPILE_NOTICE_EVIDENCE] true -> eventually(<+APPROVE_ADVERSE_ACTION_NOTICE> true))"
+                .to_string(),
+            "always([+APPROVE_ADVERSE_ACTION_NOTICE] true -> eventually(<+DELIVER_ADVERSE_ACTION_NOTICE> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AdverseActionNotice",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_automated_decision_contest_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+CONTEST_AUTOMATED_DECISION] true -> eventually(<+REVIEW_CONTEST_EVIDENCE> true))"
+                .to_string(),
+            "always([+REVIEW_CONTEST_EVIDENCE] true -> eventually(<+APPROVE_CONTEST_RESOLUTION> true))"
+                .to_string(),
+            "always([+APPROVE_CONTEST_RESOLUTION] true -> eventually(<+RECORD_CONTEST_RESOLUTION> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AutomatedDecisionContest",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_accepts_dispute_resolution_prompt_example() {
         let formulas = parse_formula_strings(&[
             "always([+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true)))"
