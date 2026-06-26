@@ -476,6 +476,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+INGEST_DATA] true -> eventually(<+VALIDATE_DATA> true))"#,
             r#"always([+VALIDATE_DATA] true -> eventually(<+TRANSFORM_DATA> true))"#,
             r#"always([+TRANSFORM_DATA] true -> eventually(<+PUBLISH_DATASET> true))"#,
+            r#"always([+INVITE_MEMBER] true -> eventually(<+ACCEPT_INVITE> true))"#,
+            r#"always([+ACCEPT_INVITE] true -> eventually(<+PROVISION_ACCESS> true))"#,
+            r#"always([+PROVISION_ACCESS] true -> eventually(<+COMPLETE_ONBOARDING> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3332,6 +3335,15 @@ F2: formula generated_2 {
         assert!(output.contains("always([+INGEST_DATA] true -> eventually(<+VALIDATE_DATA> true))"));
         assert!(output.contains("always([+VALIDATE_DATA] true -> eventually(<+TRANSFORM_DATA> true))"));
         assert!(output.contains("always([+TRANSFORM_DATA] true -> eventually(<+PUBLISH_DATASET> true))"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_member_onboarding_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("always([+INVITE_MEMBER] true -> eventually(<+ACCEPT_INVITE> true))"));
+        assert!(output.contains("always([+ACCEPT_INVITE] true -> eventually(<+PROVISION_ACCESS> true))"));
+        assert!(output.contains("always([+PROVISION_ACCESS] true -> eventually(<+COMPLETE_ONBOARDING> true))"));
     }
 
     #[test]
@@ -7496,6 +7508,19 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("DataPipeline", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_member_onboarding_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+INVITE_MEMBER] true -> eventually(<+ACCEPT_INVITE> true))".to_string(),
+            "always([+ACCEPT_INVITE] true -> eventually(<+PROVISION_ACCESS> true))".to_string(),
+            "always([+PROVISION_ACCESS] true -> eventually(<+COMPLETE_ONBOARDING> true))".to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("MemberOnboarding", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
