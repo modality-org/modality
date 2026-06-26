@@ -638,6 +638,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_MODEL_EXCEPTION] true -> eventually(<+ASSESS_MODEL_EXCEPTION> true))"#,
             r#"always([+ASSESS_MODEL_EXCEPTION] true -> eventually(<+APPROVE_MODEL_EXCEPTION> true))"#,
             r#"always([+APPROVE_MODEL_EXCEPTION] true -> eventually(<+RECORD_MODEL_EXCEPTION> true))"#,
+            r#"always([+REQUEST_MODEL_DEPRECATION] true -> eventually(<+ASSESS_DEPRECATION_IMPACT> true))"#,
+            r#"always([+ASSESS_DEPRECATION_IMPACT] true -> eventually(<+APPROVE_MODEL_DEPRECATION> true))"#,
+            r#"always([+APPROVE_MODEL_DEPRECATION] true -> eventually(<+RECORD_MODEL_DEPRECATION> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -4244,6 +4247,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_MODEL_EXCEPTION] true -> eventually(<+RECORD_MODEL_EXCEPTION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_model_deprecation_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_MODEL_DEPRECATION] true -> eventually(<+ASSESS_DEPRECATION_IMPACT> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_DEPRECATION_IMPACT] true -> eventually(<+APPROVE_MODEL_DEPRECATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_MODEL_DEPRECATION] true -> eventually(<+RECORD_MODEL_DEPRECATION> true))"
         ));
     }
 
@@ -9122,6 +9140,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ModelException",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_model_deprecation_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_MODEL_DEPRECATION] true -> eventually(<+ASSESS_DEPRECATION_IMPACT> true))"
+                .to_string(),
+            "always([+ASSESS_DEPRECATION_IMPACT] true -> eventually(<+APPROVE_MODEL_DEPRECATION> true))"
+                .to_string(),
+            "always([+APPROVE_MODEL_DEPRECATION] true -> eventually(<+RECORD_MODEL_DEPRECATION> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ModelDeprecation",
             &formulas,
         );
 
