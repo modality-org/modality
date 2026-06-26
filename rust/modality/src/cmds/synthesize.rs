@@ -497,6 +497,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+SCHEDULE_MAINTENANCE] true -> eventually(<+PERFORM_MAINTENANCE> true))"#,
             r#"always([+PERFORM_MAINTENANCE] true -> eventually(<+VERIFY_MAINTENANCE> true))"#,
             r#"always([+VERIFY_MAINTENANCE] true -> eventually(<+CLOSE_MAINTENANCE> true))"#,
+            r#"always([+SCHEDULE_BACKUP] true -> eventually(<+RUN_BACKUP> true))"#,
+            r#"always([+RUN_BACKUP] true -> eventually(<+VERIFY_BACKUP> true))"#,
+            r#"always([+VERIFY_BACKUP] true -> eventually(<+ARCHIVE_BACKUP> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3416,6 +3419,15 @@ F2: formula generated_2 {
         assert!(output.contains("always([+SCHEDULE_MAINTENANCE] true -> eventually(<+PERFORM_MAINTENANCE> true))"));
         assert!(output.contains("always([+PERFORM_MAINTENANCE] true -> eventually(<+VERIFY_MAINTENANCE> true))"));
         assert!(output.contains("always([+VERIFY_MAINTENANCE] true -> eventually(<+CLOSE_MAINTENANCE> true))"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_backup_retention_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("always([+SCHEDULE_BACKUP] true -> eventually(<+RUN_BACKUP> true))"));
+        assert!(output.contains("always([+RUN_BACKUP] true -> eventually(<+VERIFY_BACKUP> true))"));
+        assert!(output.contains("always([+VERIFY_BACKUP] true -> eventually(<+ARCHIVE_BACKUP> true))"));
     }
 
     #[test]
@@ -7675,6 +7687,21 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AssetMaintenance",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_backup_retention_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+SCHEDULE_BACKUP] true -> eventually(<+RUN_BACKUP> true))".to_string(),
+            "always([+RUN_BACKUP] true -> eventually(<+VERIFY_BACKUP> true))".to_string(),
+            "always([+VERIFY_BACKUP] true -> eventually(<+ARCHIVE_BACKUP> true))".to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "BackupRetention",
             &formulas,
         );
 
