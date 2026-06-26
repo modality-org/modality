@@ -545,6 +545,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DATA_EXPORT] true -> eventually(<+CLASSIFY_EXPORT_DATA> true))"#,
             r#"always([+CLASSIFY_EXPORT_DATA] true -> eventually(<+APPROVE_DATA_EXPORT> true))"#,
             r#"always([+APPROVE_DATA_EXPORT] true -> eventually(<+TRANSMIT_EXPORT_PACKAGE> true))"#,
+            r#"always([+REQUEST_DATA_SHARE] true -> eventually(<+VERIFY_RECIPIENT_AUTHORITY> true))"#,
+            r#"always([+VERIFY_RECIPIENT_AUTHORITY] true -> eventually(<+APPROVE_DATA_SHARE> true))"#,
+            r#"always([+APPROVE_DATA_SHARE] true -> eventually(<+RECORD_DATA_SHARE> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3692,6 +3695,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DATA_EXPORT] true -> eventually(<+TRANSMIT_EXPORT_PACKAGE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_data_sharing_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DATA_SHARE] true -> eventually(<+VERIFY_RECIPIENT_AUTHORITY> true))"
+        ));
+        assert!(output.contains(
+            "always([+VERIFY_RECIPIENT_AUTHORITY] true -> eventually(<+APPROVE_DATA_SHARE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DATA_SHARE] true -> eventually(<+RECORD_DATA_SHARE> true))"
         ));
     }
 
@@ -8183,6 +8201,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("DataExport", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_data_sharing_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DATA_SHARE] true -> eventually(<+VERIFY_RECIPIENT_AUTHORITY> true))"
+                .to_string(),
+            "always([+VERIFY_RECIPIENT_AUTHORITY] true -> eventually(<+APPROVE_DATA_SHARE> true))"
+                .to_string(),
+            "always([+APPROVE_DATA_SHARE] true -> eventually(<+RECORD_DATA_SHARE> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DataSharing", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
