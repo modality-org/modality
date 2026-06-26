@@ -524,6 +524,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_ACCOUNT_RECOVERY] true -> eventually(<+VERIFY_RECOVERY_FACTOR> true))"#,
             r#"always([+VERIFY_RECOVERY_FACTOR] true -> eventually(<+ROTATE_CREDENTIAL> true))"#,
             r#"always([+ROTATE_CREDENTIAL] true -> eventually(<+CONFIRM_ACCOUNT_RECOVERY> true))"#,
+            r#"always([+REQUEST_CONSENT_CHANGE] true -> eventually(<+REVIEW_CONSENT_SCOPE> true))"#,
+            r#"always([+REVIEW_CONSENT_SCOPE] true -> eventually(<+APPLY_CONSENT_CHANGE> true))"#,
+            r#"always([+APPLY_CONSENT_CHANGE] true -> eventually(<+CONFIRM_CONSENT_CHANGE> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3567,6 +3570,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+ROTATE_CREDENTIAL] true -> eventually(<+CONFIRM_ACCOUNT_RECOVERY> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_consent_change_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_CONSENT_CHANGE] true -> eventually(<+REVIEW_CONSENT_SCOPE> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_CONSENT_SCOPE] true -> eventually(<+APPLY_CONSENT_CHANGE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPLY_CONSENT_CHANGE] true -> eventually(<+CONFIRM_CONSENT_CHANGE> true))"
         ));
     }
 
@@ -7976,6 +7994,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "AccountRecovery",
             &formulas,
         );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_consent_change_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_CONSENT_CHANGE] true -> eventually(<+REVIEW_CONSENT_SCOPE> true))"
+                .to_string(),
+            "always([+REVIEW_CONSENT_SCOPE] true -> eventually(<+APPLY_CONSENT_CHANGE> true))"
+                .to_string(),
+            "always([+APPLY_CONSENT_CHANGE] true -> eventually(<+CONFIRM_CONSENT_CHANGE> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("ConsentChange", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
