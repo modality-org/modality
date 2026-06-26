@@ -461,6 +461,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[+RELEASE] true -> eventually([<+DELIVER>] true)"#,
             r#"always([+DELIVER] true -> eventually(<+DEPOSIT> true))"#,
             r#"always([+RELEASE] true -> eventually(<+DELIVER> true))"#,
+            r#"always([+SUBMIT] true -> eventually(<+REVIEW> true))"#,
+            r#"always([+APPROVE] true -> eventually(<+PUBLISH> true))"#,
+            r#"always([+MERGE] true -> eventually(<+DEPLOY> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3268,6 +3271,19 @@ F2: formula generated_2 {
 
         assert!(output.contains("--existing-model contract.modality --proposed-rule"));
         assert!(output.contains("--existing-model contract.modality --proposed-formula"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_review_publication_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(
+            output.contains("always([+SUBMIT] true -> eventually(<+REVIEW> true))")
+        );
+        assert!(
+            output.contains("always([+APPROVE] true -> eventually(<+PUBLISH> true))")
+        );
+        assert!(output.contains("always([+MERGE] true -> eventually(<+DEPLOY> true))"));
     }
 
     #[test]
