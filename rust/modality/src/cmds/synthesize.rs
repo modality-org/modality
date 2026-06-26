@@ -668,6 +668,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_RECOURSE] true -> eventually(<+REVIEW_RECOURSE_OPTIONS> true))"#,
             r#"always([+REVIEW_RECOURSE_OPTIONS] true -> eventually(<+APPROVE_RECOURSE_PLAN> true))"#,
             r#"always([+APPROVE_RECOURSE_PLAN] true -> eventually(<+RECORD_RECOURSE_OUTCOME> true))"#,
+            r#"always([+REQUEST_ADVERSE_ACTION_NOTICE] true -> eventually(<+COMPILE_NOTICE_EVIDENCE> true))"#,
+            r#"always([+COMPILE_NOTICE_EVIDENCE] true -> eventually(<+APPROVE_ADVERSE_ACTION_NOTICE> true))"#,
+            r#"always([+APPROVE_ADVERSE_ACTION_NOTICE] true -> eventually(<+DELIVER_ADVERSE_ACTION_NOTICE> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -4424,6 +4427,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_RECOURSE_PLAN] true -> eventually(<+RECORD_RECOURSE_OUTCOME> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_adverse_action_notice_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_ADVERSE_ACTION_NOTICE] true -> eventually(<+COMPILE_NOTICE_EVIDENCE> true))"
+        ));
+        assert!(output.contains(
+            "always([+COMPILE_NOTICE_EVIDENCE] true -> eventually(<+APPROVE_ADVERSE_ACTION_NOTICE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_ADVERSE_ACTION_NOTICE] true -> eventually(<+DELIVER_ADVERSE_ACTION_NOTICE> true))"
         ));
     }
 
