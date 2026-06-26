@@ -617,6 +617,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+CAPTURE_MODEL_LINEAGE] true -> eventually(<+REVIEW_LINEAGE_REPORT> true))"#,
             r#"always([+REVIEW_LINEAGE_REPORT] true -> eventually(<+APPROVE_LINEAGE_RECORD> true))"#,
             r#"always([+APPROVE_LINEAGE_RECORD] true -> eventually(<+ARCHIVE_LINEAGE_RECORD> true))"#,
+            r#"always([+SUBMIT_MODEL_ARTIFACT] true -> eventually(<+SCAN_MODEL_ARTIFACT> true))"#,
+            r#"always([+SCAN_MODEL_ARTIFACT] true -> eventually(<+APPROVE_MODEL_ARTIFACT> true))"#,
+            r#"always([+APPROVE_MODEL_ARTIFACT] true -> eventually(<+PUBLISH_MODEL_ARTIFACT> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -4118,6 +4121,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_LINEAGE_RECORD] true -> eventually(<+ARCHIVE_LINEAGE_RECORD> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_model_artifact_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+SUBMIT_MODEL_ARTIFACT] true -> eventually(<+SCAN_MODEL_ARTIFACT> true))"
+        ));
+        assert!(output.contains(
+            "always([+SCAN_MODEL_ARTIFACT] true -> eventually(<+APPROVE_MODEL_ARTIFACT> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_MODEL_ARTIFACT] true -> eventually(<+PUBLISH_MODEL_ARTIFACT> true))"
         ));
     }
 
@@ -8878,6 +8896,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("ModelLineage", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_model_artifact_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+SUBMIT_MODEL_ARTIFACT] true -> eventually(<+SCAN_MODEL_ARTIFACT> true))"
+                .to_string(),
+            "always([+SCAN_MODEL_ARTIFACT] true -> eventually(<+APPROVE_MODEL_ARTIFACT> true))"
+                .to_string(),
+            "always([+APPROVE_MODEL_ARTIFACT] true -> eventually(<+PUBLISH_MODEL_ARTIFACT> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("ModelArtifact", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
