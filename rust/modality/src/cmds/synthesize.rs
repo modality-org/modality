@@ -590,6 +590,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+SUBMIT_MODEL_CARD] true -> eventually(<+EVALUATE_MODEL_RISK> true))"#,
             r#"always([+EVALUATE_MODEL_RISK] true -> eventually(<+APPROVE_MODEL_DEPLOYMENT> true))"#,
             r#"always([+APPROVE_MODEL_DEPLOYMENT] true -> eventually(<+PUBLISH_MODEL_CARD> true))"#,
+            r#"always([+REGISTER_EVALUATION_DATASET] true -> eventually(<+RUN_BIAS_EVALUATION> true))"#,
+            r#"always([+RUN_BIAS_EVALUATION] true -> eventually(<+APPROVE_EVALUATION_REPORT> true))"#,
+            r#"always([+APPROVE_EVALUATION_REPORT] true -> eventually(<+ARCHIVE_EVALUATION_EVIDENCE> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3956,6 +3959,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_MODEL_DEPLOYMENT] true -> eventually(<+PUBLISH_MODEL_CARD> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_model_evaluation_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REGISTER_EVALUATION_DATASET] true -> eventually(<+RUN_BIAS_EVALUATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+RUN_BIAS_EVALUATION] true -> eventually(<+APPROVE_EVALUATION_REPORT> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_EVALUATION_REPORT] true -> eventually(<+ARCHIVE_EVALUATION_EVIDENCE> true))"
         ));
     }
 
