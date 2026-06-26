@@ -671,6 +671,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_ADVERSE_ACTION_NOTICE] true -> eventually(<+COMPILE_NOTICE_EVIDENCE> true))"#,
             r#"always([+COMPILE_NOTICE_EVIDENCE] true -> eventually(<+APPROVE_ADVERSE_ACTION_NOTICE> true))"#,
             r#"always([+APPROVE_ADVERSE_ACTION_NOTICE] true -> eventually(<+DELIVER_ADVERSE_ACTION_NOTICE> true))"#,
+            r#"always([+CONTEST_AUTOMATED_DECISION] true -> eventually(<+REVIEW_CONTEST_EVIDENCE> true))"#,
+            r#"always([+REVIEW_CONTEST_EVIDENCE] true -> eventually(<+APPROVE_CONTEST_RESOLUTION> true))"#,
+            r#"always([+APPROVE_CONTEST_RESOLUTION] true -> eventually(<+RECORD_CONTEST_RESOLUTION> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -4442,6 +4445,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_ADVERSE_ACTION_NOTICE] true -> eventually(<+DELIVER_ADVERSE_ACTION_NOTICE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_automated_decision_contest_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+CONTEST_AUTOMATED_DECISION] true -> eventually(<+REVIEW_CONTEST_EVIDENCE> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_CONTEST_EVIDENCE] true -> eventually(<+APPROVE_CONTEST_RESOLUTION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_CONTEST_RESOLUTION] true -> eventually(<+RECORD_CONTEST_RESOLUTION> true))"
         ));
     }
 
