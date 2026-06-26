@@ -557,6 +557,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+COLLECT_DATA] true -> eventually(<+MINIMIZE_DATASET> true))"#,
             r#"always([+MINIMIZE_DATASET] true -> eventually(<+APPROVE_MINIMIZED_DATA> true))"#,
             r#"always([+APPROVE_MINIMIZED_DATA] true -> eventually(<+RECORD_MINIMIZATION> true))"#,
+            r#"always([+PREPARE_ANALYTICS_DATA] true -> eventually(<+ANONYMIZE_DATASET> true))"#,
+            r#"always([+ANONYMIZE_DATASET] true -> eventually(<+VERIFY_ANONYMIZATION> true))"#,
+            r#"always([+VERIFY_ANONYMIZATION] true -> eventually(<+RELEASE_ANONYMIZED_DATA> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3760,6 +3763,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_MINIMIZED_DATA] true -> eventually(<+RECORD_MINIMIZATION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_data_anonymization_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+PREPARE_ANALYTICS_DATA] true -> eventually(<+ANONYMIZE_DATASET> true))"
+        ));
+        assert!(output.contains(
+            "always([+ANONYMIZE_DATASET] true -> eventually(<+VERIFY_ANONYMIZATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+VERIFY_ANONYMIZATION] true -> eventually(<+RELEASE_ANONYMIZED_DATA> true))"
         ));
     }
 
@@ -8315,6 +8333,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DataMinimization",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_data_anonymization_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+PREPARE_ANALYTICS_DATA] true -> eventually(<+ANONYMIZE_DATASET> true))"
+                .to_string(),
+            "always([+ANONYMIZE_DATASET] true -> eventually(<+VERIFY_ANONYMIZATION> true))"
+                .to_string(),
+            "always([+VERIFY_ANONYMIZATION] true -> eventually(<+RELEASE_ANONYMIZED_DATA> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DataAnonymization",
             &formulas,
         );
 
