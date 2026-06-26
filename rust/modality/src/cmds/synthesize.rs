@@ -467,6 +467,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+OPEN_ISSUE] true -> eventually(<+TRIAGE> true))"#,
             r#"always([+TRIAGE] true -> eventually(<+ASSIGN> true))"#,
             r#"always([+FIX] true -> eventually(<+VERIFY> true))"#,
+            r#"always([+ALERT] true -> eventually(<+ACKNOWLEDGE> true))"#,
+            r#"always([+ACKNOWLEDGE] true -> eventually(<+MITIGATE> true))"#,
+            r#"always([+MITIGATE] true -> eventually(<+RESOLVE> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3296,6 +3299,15 @@ F2: formula generated_2 {
         assert!(output.contains("always([+OPEN_ISSUE] true -> eventually(<+TRIAGE> true))"));
         assert!(output.contains("always([+TRIAGE] true -> eventually(<+ASSIGN> true))"));
         assert!(output.contains("always([+FIX] true -> eventually(<+VERIFY> true))"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_incident_response_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("always([+ALERT] true -> eventually(<+ACKNOWLEDGE> true))"));
+        assert!(output.contains("always([+ACKNOWLEDGE] true -> eventually(<+MITIGATE> true))"));
+        assert!(output.contains("always([+MITIGATE] true -> eventually(<+RESOLVE> true))"));
     }
 
     #[test]
