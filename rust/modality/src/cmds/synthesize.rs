@@ -554,6 +554,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+START_RETENTION_REVIEW] true -> eventually(<+CLASSIFY_RETENTION_RECORDS> true))"#,
             r#"always([+CLASSIFY_RETENTION_RECORDS] true -> eventually(<+APPROVE_RETENTION_PLAN> true))"#,
             r#"always([+APPROVE_RETENTION_PLAN] true -> eventually(<+ENFORCE_RETENTION_PLAN> true))"#,
+            r#"always([+COLLECT_DATA] true -> eventually(<+MINIMIZE_DATASET> true))"#,
+            r#"always([+MINIMIZE_DATASET] true -> eventually(<+APPROVE_MINIMIZED_DATA> true))"#,
+            r#"always([+APPROVE_MINIMIZED_DATA] true -> eventually(<+RECORD_MINIMIZATION> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3743,6 +3746,20 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_RETENTION_PLAN] true -> eventually(<+ENFORCE_RETENTION_PLAN> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_data_minimization_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output
+            .contains("always([+COLLECT_DATA] true -> eventually(<+MINIMIZE_DATASET> true))"));
+        assert!(output.contains(
+            "always([+MINIMIZE_DATASET] true -> eventually(<+APPROVE_MINIMIZED_DATA> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_MINIMIZED_DATA] true -> eventually(<+RECORD_MINIMIZATION> true))"
         ));
     }
 
@@ -8281,6 +8298,23 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "RetentionReview",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_data_minimization_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+COLLECT_DATA] true -> eventually(<+MINIMIZE_DATASET> true))".to_string(),
+            "always([+MINIMIZE_DATASET] true -> eventually(<+APPROVE_MINIMIZED_DATA> true))"
+                .to_string(),
+            "always([+APPROVE_MINIMIZED_DATA] true -> eventually(<+RECORD_MINIMIZATION> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DataMinimization",
             &formulas,
         );
 
