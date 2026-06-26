@@ -647,6 +647,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_MODEL_ATTESTATION] true -> eventually(<+COLLECT_ATTESTATION_EVIDENCE> true))"#,
             r#"always([+COLLECT_ATTESTATION_EVIDENCE] true -> eventually(<+APPROVE_MODEL_ATTESTATION> true))"#,
             r#"always([+APPROVE_MODEL_ATTESTATION] true -> eventually(<+PUBLISH_MODEL_ATTESTATION> true))"#,
+            r#"always([+REQUEST_MODEL_DISCLOSURE] true -> eventually(<+REVIEW_DISCLOSURE_SCOPE> true))"#,
+            r#"always([+REVIEW_DISCLOSURE_SCOPE] true -> eventually(<+APPROVE_MODEL_DISCLOSURE> true))"#,
+            r#"always([+APPROVE_MODEL_DISCLOSURE] true -> eventually(<+PUBLISH_MODEL_DISCLOSURE> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -4298,6 +4301,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_MODEL_ATTESTATION] true -> eventually(<+PUBLISH_MODEL_ATTESTATION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_model_disclosure_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_MODEL_DISCLOSURE] true -> eventually(<+REVIEW_DISCLOSURE_SCOPE> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_DISCLOSURE_SCOPE] true -> eventually(<+APPROVE_MODEL_DISCLOSURE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_MODEL_DISCLOSURE] true -> eventually(<+PUBLISH_MODEL_DISCLOSURE> true))"
         ));
     }
 
@@ -9230,6 +9248,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ModelAttestation",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_model_disclosure_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_MODEL_DISCLOSURE] true -> eventually(<+REVIEW_DISCLOSURE_SCOPE> true))"
+                .to_string(),
+            "always([+REVIEW_DISCLOSURE_SCOPE] true -> eventually(<+APPROVE_MODEL_DISCLOSURE> true))"
+                .to_string(),
+            "always([+APPROVE_MODEL_DISCLOSURE] true -> eventually(<+PUBLISH_MODEL_DISCLOSURE> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ModelDisclosure",
             &formulas,
         );
 
