@@ -464,6 +464,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+SUBMIT] true -> eventually(<+REVIEW> true))"#,
             r#"always([+APPROVE] true -> eventually(<+PUBLISH> true))"#,
             r#"always([+MERGE] true -> eventually(<+DEPLOY> true))"#,
+            r#"always([+OPEN_ISSUE] true -> eventually(<+TRIAGE> true))"#,
+            r#"always([+TRIAGE] true -> eventually(<+ASSIGN> true))"#,
+            r#"always([+FIX] true -> eventually(<+VERIFY> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3284,6 +3287,15 @@ F2: formula generated_2 {
             output.contains("always([+APPROVE] true -> eventually(<+PUBLISH> true))")
         );
         assert!(output.contains("always([+MERGE] true -> eventually(<+DEPLOY> true))"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_issue_remediation_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("always([+OPEN_ISSUE] true -> eventually(<+TRIAGE> true))"));
+        assert!(output.contains("always([+TRIAGE] true -> eventually(<+ASSIGN> true))"));
+        assert!(output.contains("always([+FIX] true -> eventually(<+VERIFY> true))"));
     }
 
     #[test]
