@@ -665,6 +665,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_CORRECTION] true -> eventually(<+REVIEW_DECISION_ERROR> true))"#,
             r#"always([+REVIEW_DECISION_ERROR] true -> eventually(<+APPROVE_DECISION_CORRECTION> true))"#,
             r#"always([+APPROVE_DECISION_CORRECTION] true -> eventually(<+RECORD_DECISION_CORRECTION> true))"#,
+            r#"always([+REQUEST_DECISION_RECOURSE] true -> eventually(<+REVIEW_RECOURSE_OPTIONS> true))"#,
+            r#"always([+REVIEW_RECOURSE_OPTIONS] true -> eventually(<+APPROVE_RECOURSE_PLAN> true))"#,
+            r#"always([+APPROVE_RECOURSE_PLAN] true -> eventually(<+RECORD_RECOURSE_OUTCOME> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -4406,6 +4409,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_CORRECTION] true -> eventually(<+RECORD_DECISION_CORRECTION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_recourse_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_RECOURSE] true -> eventually(<+REVIEW_RECOURSE_OPTIONS> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_RECOURSE_OPTIONS] true -> eventually(<+APPROVE_RECOURSE_PLAN> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_RECOURSE_PLAN] true -> eventually(<+RECORD_RECOURSE_OUTCOME> true))"
         ));
     }
 
@@ -9440,6 +9458,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionCorrection",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_recourse_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_RECOURSE] true -> eventually(<+REVIEW_RECOURSE_OPTIONS> true))"
+                .to_string(),
+            "always([+REVIEW_RECOURSE_OPTIONS] true -> eventually(<+APPROVE_RECOURSE_PLAN> true))"
+                .to_string(),
+            "always([+APPROVE_RECOURSE_PLAN] true -> eventually(<+RECORD_RECOURSE_OUTCOME> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionRecourse",
             &formulas,
         );
 
