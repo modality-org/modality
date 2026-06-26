@@ -518,6 +518,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+SUBMIT_PRIVACY_REQUEST] true -> eventually(<+VERIFY_SUBJECT> true))"#,
             r#"always([+VERIFY_SUBJECT] true -> eventually(<+FULFILL_PRIVACY_REQUEST> true))"#,
             r#"always([+FULFILL_PRIVACY_REQUEST] true -> eventually(<+CLOSE_PRIVACY_REQUEST> true))"#,
+            r#"always([+REQUEST_DELETION] true -> eventually(<+CHECK_RETENTION_POLICY> true))"#,
+            r#"always([+CHECK_RETENTION_POLICY] true -> eventually(<+DELETE_RECORDS> true))"#,
+            r#"always([+DELETE_RECORDS] true -> eventually(<+CONFIRM_DELETION> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3531,6 +3534,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+FULFILL_PRIVACY_REQUEST] true -> eventually(<+CLOSE_PRIVACY_REQUEST> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_data_deletion_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DELETION] true -> eventually(<+CHECK_RETENTION_POLICY> true))"
+        ));
+        assert!(output.contains(
+            "always([+CHECK_RETENTION_POLICY] true -> eventually(<+DELETE_RECORDS> true))"
+        ));
+        assert!(output.contains(
+            "always([+DELETE_RECORDS] true -> eventually(<+CONFIRM_DELETION> true))"
         ));
     }
 
@@ -7907,6 +7925,21 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "PrivacyRequest",
             &formulas,
         );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_data_deletion_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DELETION] true -> eventually(<+CHECK_RETENTION_POLICY> true))"
+                .to_string(),
+            "always([+CHECK_RETENTION_POLICY] true -> eventually(<+DELETE_RECORDS> true))"
+                .to_string(),
+            "always([+DELETE_RECORDS] true -> eventually(<+CONFIRM_DELETION> true))".to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DataDeletion", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
