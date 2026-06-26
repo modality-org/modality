@@ -500,6 +500,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+SCHEDULE_BACKUP] true -> eventually(<+RUN_BACKUP> true))"#,
             r#"always([+RUN_BACKUP] true -> eventually(<+VERIFY_BACKUP> true))"#,
             r#"always([+VERIFY_BACKUP] true -> eventually(<+ARCHIVE_BACKUP> true))"#,
+            r#"always([+REQUEST_OFFBOARDING] true -> eventually(<+REVOKE_ACCESS> true))"#,
+            r#"always([+REVOKE_ACCESS] true -> eventually(<+TRANSFER_OWNERSHIP> true))"#,
+            r#"always([+TRANSFER_OWNERSHIP] true -> eventually(<+CONFIRM_DEPROVISIONING> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3428,6 +3431,19 @@ F2: formula generated_2 {
         assert!(output.contains("always([+SCHEDULE_BACKUP] true -> eventually(<+RUN_BACKUP> true))"));
         assert!(output.contains("always([+RUN_BACKUP] true -> eventually(<+VERIFY_BACKUP> true))"));
         assert!(output.contains("always([+VERIFY_BACKUP] true -> eventually(<+ARCHIVE_BACKUP> true))"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_offboarding_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output
+            .contains("always([+REQUEST_OFFBOARDING] true -> eventually(<+REVOKE_ACCESS> true))"));
+        assert!(output
+            .contains("always([+REVOKE_ACCESS] true -> eventually(<+TRANSFER_OWNERSHIP> true))"));
+        assert!(output.contains(
+            "always([+TRANSFER_OWNERSHIP] true -> eventually(<+CONFIRM_DEPROVISIONING> true))"
+        ));
     }
 
     #[test]
@@ -7704,6 +7720,20 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "BackupRetention",
             &formulas,
         );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_offboarding_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_OFFBOARDING] true -> eventually(<+REVOKE_ACCESS> true))".to_string(),
+            "always([+REVOKE_ACCESS] true -> eventually(<+TRANSFER_OWNERSHIP> true))".to_string(),
+            "always([+TRANSFER_OWNERSHIP] true -> eventually(<+CONFIRM_DEPROVISIONING> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Offboarding", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
