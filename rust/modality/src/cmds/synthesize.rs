@@ -611,6 +611,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+START_MODEL_RED_TEAM] true -> eventually(<+REVIEW_RED_TEAM_FINDINGS> true))"#,
             r#"always([+REVIEW_RED_TEAM_FINDINGS] true -> eventually(<+APPROVE_SAFETY_MITIGATION> true))"#,
             r#"always([+APPROVE_SAFETY_MITIGATION] true -> eventually(<+RECORD_SAFETY_CASE> true))"#,
+            r#"always([+REGISTER_MODEL_VERSION] true -> eventually(<+RUN_MODEL_VALIDATION> true))"#,
+            r#"always([+RUN_MODEL_VALIDATION] true -> eventually(<+APPROVE_MODEL_VERSION> true))"#,
+            r#"always([+APPROVE_MODEL_VERSION] true -> eventually(<+PROMOTE_MODEL_VERSION> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -4082,6 +4085,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_SAFETY_MITIGATION] true -> eventually(<+RECORD_SAFETY_CASE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_model_version_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REGISTER_MODEL_VERSION] true -> eventually(<+RUN_MODEL_VALIDATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+RUN_MODEL_VALIDATION] true -> eventually(<+APPROVE_MODEL_VERSION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_MODEL_VERSION] true -> eventually(<+PROMOTE_MODEL_VERSION> true))"
         ));
     }
 
