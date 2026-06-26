@@ -560,6 +560,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+PREPARE_ANALYTICS_DATA] true -> eventually(<+ANONYMIZE_DATASET> true))"#,
             r#"always([+ANONYMIZE_DATASET] true -> eventually(<+VERIFY_ANONYMIZATION> true))"#,
             r#"always([+VERIFY_ANONYMIZATION] true -> eventually(<+RELEASE_ANONYMIZED_DATA> true))"#,
+            r#"always([+REQUEST_PURPOSE_CHANGE] true -> eventually(<+REVIEW_PURPOSE_COMPATIBILITY> true))"#,
+            r#"always([+REVIEW_PURPOSE_COMPATIBILITY] true -> eventually(<+APPROVE_PURPOSE_CHANGE> true))"#,
+            r#"always([+APPROVE_PURPOSE_CHANGE] true -> eventually(<+RECORD_PURPOSE_CHANGE> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3778,6 +3781,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+VERIFY_ANONYMIZATION] true -> eventually(<+RELEASE_ANONYMIZED_DATA> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_purpose_change_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_PURPOSE_CHANGE] true -> eventually(<+REVIEW_PURPOSE_COMPATIBILITY> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_PURPOSE_COMPATIBILITY] true -> eventually(<+APPROVE_PURPOSE_CHANGE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_PURPOSE_CHANGE] true -> eventually(<+RECORD_PURPOSE_CHANGE> true))"
         ));
     }
 
@@ -8351,6 +8369,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DataAnonymization",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_purpose_change_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_PURPOSE_CHANGE] true -> eventually(<+REVIEW_PURPOSE_COMPATIBILITY> true))"
+                .to_string(),
+            "always([+REVIEW_PURPOSE_COMPATIBILITY] true -> eventually(<+APPROVE_PURPOSE_CHANGE> true))"
+                .to_string(),
+            "always([+APPROVE_PURPOSE_CHANGE] true -> eventually(<+RECORD_PURPOSE_CHANGE> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "PurposeChange",
             &formulas,
         );
 
