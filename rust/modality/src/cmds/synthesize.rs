@@ -623,6 +623,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REGISTER_MODEL_ENDPOINT] true -> eventually(<+RUN_ENDPOINT_SMOKE_TEST> true))"#,
             r#"always([+RUN_ENDPOINT_SMOKE_TEST] true -> eventually(<+APPROVE_ENDPOINT_ACTIVATION> true))"#,
             r#"always([+APPROVE_ENDPOINT_ACTIVATION] true -> eventually(<+ACTIVATE_MODEL_ENDPOINT> true))"#,
+            r#"always([+PLAN_MODEL_CANARY] true -> eventually(<+MONITOR_CANARY_METRICS> true))"#,
+            r#"always([+MONITOR_CANARY_METRICS] true -> eventually(<+APPROVE_FULL_ROLLOUT> true))"#,
+            r#"always([+APPROVE_FULL_ROLLOUT] true -> eventually(<+EXPAND_MODEL_TRAFFIC> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -4154,6 +4157,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_ENDPOINT_ACTIVATION] true -> eventually(<+ACTIVATE_MODEL_ENDPOINT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_model_canary_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+PLAN_MODEL_CANARY] true -> eventually(<+MONITOR_CANARY_METRICS> true))"
+        ));
+        assert!(output.contains(
+            "always([+MONITOR_CANARY_METRICS] true -> eventually(<+APPROVE_FULL_ROLLOUT> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_FULL_ROLLOUT] true -> eventually(<+EXPAND_MODEL_TRAFFIC> true))"
         ));
     }
 
@@ -8946,6 +8964,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("ModelEndpoint", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_model_canary_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+PLAN_MODEL_CANARY] true -> eventually(<+MONITOR_CANARY_METRICS> true))"
+                .to_string(),
+            "always([+MONITOR_CANARY_METRICS] true -> eventually(<+APPROVE_FULL_ROLLOUT> true))"
+                .to_string(),
+            "always([+APPROVE_FULL_ROLLOUT] true -> eventually(<+EXPAND_MODEL_TRAFFIC> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("ModelCanary", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
