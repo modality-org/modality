@@ -569,6 +569,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REGISTER_DATASET] true -> eventually(<+CAPTURE_PROVENANCE> true))"#,
             r#"always([+CAPTURE_PROVENANCE] true -> eventually(<+VERIFY_PROVENANCE> true))"#,
             r#"always([+VERIFY_PROVENANCE] true -> eventually(<+APPROVE_PROVENANCE_RECORD> true))"#,
+            r#"always([+PROFILE_DATASET] true -> eventually(<+VALIDATE_DATA_QUALITY> true))"#,
+            r#"always([+VALIDATE_DATA_QUALITY] true -> eventually(<+APPROVE_QUALITY_REPORT> true))"#,
+            r#"always([+APPROVE_QUALITY_REPORT] true -> eventually(<+PUBLISH_QUALITY_REPORT> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3832,6 +3835,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+VERIFY_PROVENANCE] true -> eventually(<+APPROVE_PROVENANCE_RECORD> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_data_quality_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+PROFILE_DATASET] true -> eventually(<+VALIDATE_DATA_QUALITY> true))"
+        ));
+        assert!(output.contains(
+            "always([+VALIDATE_DATA_QUALITY] true -> eventually(<+APPROVE_QUALITY_REPORT> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_QUALITY_REPORT] true -> eventually(<+PUBLISH_QUALITY_REPORT> true))"
         ));
     }
 
@@ -8461,6 +8479,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "DataProvenance",
             &formulas,
         );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_data_quality_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+PROFILE_DATASET] true -> eventually(<+VALIDATE_DATA_QUALITY> true))"
+                .to_string(),
+            "always([+VALIDATE_DATA_QUALITY] true -> eventually(<+APPROVE_QUALITY_REPORT> true))"
+                .to_string(),
+            "always([+APPROVE_QUALITY_REPORT] true -> eventually(<+PUBLISH_QUALITY_REPORT> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DataQuality", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
