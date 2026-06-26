@@ -494,6 +494,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+ENROLL_TRAINING] true -> eventually(<+COMPLETE_TRAINING> true))"#,
             r#"always([+COMPLETE_TRAINING] true -> eventually(<+PASS_ASSESSMENT> true))"#,
             r#"always([+PASS_ASSESSMENT] true -> eventually(<+ISSUE_CERTIFICATE> true))"#,
+            r#"always([+SCHEDULE_MAINTENANCE] true -> eventually(<+PERFORM_MAINTENANCE> true))"#,
+            r#"always([+PERFORM_MAINTENANCE] true -> eventually(<+VERIFY_MAINTENANCE> true))"#,
+            r#"always([+VERIFY_MAINTENANCE] true -> eventually(<+CLOSE_MAINTENANCE> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3404,6 +3407,15 @@ F2: formula generated_2 {
         assert!(output.contains("always([+ENROLL_TRAINING] true -> eventually(<+COMPLETE_TRAINING> true))"));
         assert!(output.contains("always([+COMPLETE_TRAINING] true -> eventually(<+PASS_ASSESSMENT> true))"));
         assert!(output.contains("always([+PASS_ASSESSMENT] true -> eventually(<+ISSUE_CERTIFICATE> true))"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_asset_maintenance_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("always([+SCHEDULE_MAINTENANCE] true -> eventually(<+PERFORM_MAINTENANCE> true))"));
+        assert!(output.contains("always([+PERFORM_MAINTENANCE] true -> eventually(<+VERIFY_MAINTENANCE> true))"));
+        assert!(output.contains("always([+VERIFY_MAINTENANCE] true -> eventually(<+CLOSE_MAINTENANCE> true))"));
     }
 
     #[test]
@@ -7648,6 +7660,21 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "TrainingCertification",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_asset_maintenance_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+SCHEDULE_MAINTENANCE] true -> eventually(<+PERFORM_MAINTENANCE> true))".to_string(),
+            "always([+PERFORM_MAINTENANCE] true -> eventually(<+VERIFY_MAINTENANCE> true))".to_string(),
+            "always([+VERIFY_MAINTENANCE] true -> eventually(<+CLOSE_MAINTENANCE> true))".to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AssetMaintenance",
             &formulas,
         );
 
