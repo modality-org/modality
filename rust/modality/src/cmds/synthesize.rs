@@ -563,6 +563,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_PURPOSE_CHANGE] true -> eventually(<+REVIEW_PURPOSE_COMPATIBILITY> true))"#,
             r#"always([+REVIEW_PURPOSE_COMPATIBILITY] true -> eventually(<+APPROVE_PURPOSE_CHANGE> true))"#,
             r#"always([+APPROVE_PURPOSE_CHANGE] true -> eventually(<+RECORD_PURPOSE_CHANGE> true))"#,
+            r#"always([+REQUEST_LAWFUL_BASIS_REVIEW] true -> eventually(<+ASSESS_LAWFUL_BASIS> true))"#,
+            r#"always([+ASSESS_LAWFUL_BASIS] true -> eventually(<+APPROVE_PROCESSING_BASIS> true))"#,
+            r#"always([+APPROVE_PROCESSING_BASIS] true -> eventually(<+RECORD_PROCESSING_BASIS> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3796,6 +3799,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_PURPOSE_CHANGE] true -> eventually(<+RECORD_PURPOSE_CHANGE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_lawful_basis_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_LAWFUL_BASIS_REVIEW] true -> eventually(<+ASSESS_LAWFUL_BASIS> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_LAWFUL_BASIS] true -> eventually(<+APPROVE_PROCESSING_BASIS> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_PROCESSING_BASIS] true -> eventually(<+RECORD_PROCESSING_BASIS> true))"
         ));
     }
 
@@ -8387,6 +8405,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "PurposeChange",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_lawful_basis_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_LAWFUL_BASIS_REVIEW] true -> eventually(<+ASSESS_LAWFUL_BASIS> true))"
+                .to_string(),
+            "always([+ASSESS_LAWFUL_BASIS] true -> eventually(<+APPROVE_PROCESSING_BASIS> true))"
+                .to_string(),
+            "always([+APPROVE_PROCESSING_BASIS] true -> eventually(<+RECORD_PROCESSING_BASIS> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "LawfulBasis",
             &formulas,
         );
 
