@@ -614,6 +614,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REGISTER_MODEL_VERSION] true -> eventually(<+RUN_MODEL_VALIDATION> true))"#,
             r#"always([+RUN_MODEL_VALIDATION] true -> eventually(<+APPROVE_MODEL_VERSION> true))"#,
             r#"always([+APPROVE_MODEL_VERSION] true -> eventually(<+PROMOTE_MODEL_VERSION> true))"#,
+            r#"always([+CAPTURE_MODEL_LINEAGE] true -> eventually(<+REVIEW_LINEAGE_REPORT> true))"#,
+            r#"always([+REVIEW_LINEAGE_REPORT] true -> eventually(<+APPROVE_LINEAGE_RECORD> true))"#,
+            r#"always([+APPROVE_LINEAGE_RECORD] true -> eventually(<+ARCHIVE_LINEAGE_RECORD> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -4100,6 +4103,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_MODEL_VERSION] true -> eventually(<+PROMOTE_MODEL_VERSION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_model_lineage_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+CAPTURE_MODEL_LINEAGE] true -> eventually(<+REVIEW_LINEAGE_REPORT> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_LINEAGE_REPORT] true -> eventually(<+APPROVE_LINEAGE_RECORD> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_LINEAGE_RECORD] true -> eventually(<+ARCHIVE_LINEAGE_RECORD> true))"
         ));
     }
 
@@ -8844,6 +8862,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("ModelCard", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_model_lineage_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+CAPTURE_MODEL_LINEAGE] true -> eventually(<+REVIEW_LINEAGE_REPORT> true))"
+                .to_string(),
+            "always([+REVIEW_LINEAGE_REPORT] true -> eventually(<+APPROVE_LINEAGE_RECORD> true))"
+                .to_string(),
+            "always([+APPROVE_LINEAGE_RECORD] true -> eventually(<+ARCHIVE_LINEAGE_RECORD> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("ModelLineage", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
