@@ -593,6 +593,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REGISTER_EVALUATION_DATASET] true -> eventually(<+RUN_BIAS_EVALUATION> true))"#,
             r#"always([+RUN_BIAS_EVALUATION] true -> eventually(<+APPROVE_EVALUATION_REPORT> true))"#,
             r#"always([+APPROVE_EVALUATION_REPORT] true -> eventually(<+ARCHIVE_EVALUATION_EVIDENCE> true))"#,
+            r#"always([+SCHEDULE_MODEL_CALIBRATION] true -> eventually(<+RUN_CALIBRATION_CHECK> true))"#,
+            r#"always([+RUN_CALIBRATION_CHECK] true -> eventually(<+APPROVE_CALIBRATION_REPORT> true))"#,
+            r#"always([+APPROVE_CALIBRATION_REPORT] true -> eventually(<+RECORD_CALIBRATION_RESULT> true))"#,
             r#"always([+START_MODEL_MONITORING] true -> eventually(<+DETECT_MODEL_DRIFT> true))"#,
             r#"always([+DETECT_MODEL_DRIFT] true -> eventually(<+APPROVE_MODEL_UPDATE> true))"#,
             r#"always([+APPROVE_MODEL_UPDATE] true -> eventually(<+RECORD_MONITORING_REVIEW> true))"#,
@@ -4022,6 +4025,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_EVALUATION_REPORT] true -> eventually(<+ARCHIVE_EVALUATION_EVIDENCE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_model_calibration_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+SCHEDULE_MODEL_CALIBRATION] true -> eventually(<+RUN_CALIBRATION_CHECK> true))"
+        ));
+        assert!(output.contains(
+            "always([+RUN_CALIBRATION_CHECK] true -> eventually(<+APPROVE_CALIBRATION_REPORT> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_CALIBRATION_REPORT] true -> eventually(<+RECORD_CALIBRATION_RESULT> true))"
         ));
     }
 
@@ -9006,6 +9024,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("ModelCard", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_model_calibration_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+SCHEDULE_MODEL_CALIBRATION] true -> eventually(<+RUN_CALIBRATION_CHECK> true))"
+                .to_string(),
+            "always([+RUN_CALIBRATION_CHECK] true -> eventually(<+APPROVE_CALIBRATION_REPORT> true))"
+                .to_string(),
+            "always([+APPROVE_CALIBRATION_REPORT] true -> eventually(<+RECORD_CALIBRATION_RESULT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ModelCalibration",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
