@@ -470,6 +470,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+ALERT] true -> eventually(<+ACKNOWLEDGE> true))"#,
             r#"always([+ACKNOWLEDGE] true -> eventually(<+MITIGATE> true))"#,
             r#"always([+MITIGATE] true -> eventually(<+RESOLVE> true))"#,
+            r#"always([+CREATE_ORDER] true -> eventually(<+APPROVE_ORDER> true))"#,
+            r#"always([+APPROVE_ORDER] true -> eventually(<+FULFILL_ORDER> true))"#,
+            r#"always([+FULFILL_ORDER] true -> eventually(<+PAY_INVOICE> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3308,6 +3311,15 @@ F2: formula generated_2 {
         assert!(output.contains("always([+ALERT] true -> eventually(<+ACKNOWLEDGE> true))"));
         assert!(output.contains("always([+ACKNOWLEDGE] true -> eventually(<+MITIGATE> true))"));
         assert!(output.contains("always([+MITIGATE] true -> eventually(<+RESOLVE> true))"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_procurement_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("always([+CREATE_ORDER] true -> eventually(<+APPROVE_ORDER> true))"));
+        assert!(output.contains("always([+APPROVE_ORDER] true -> eventually(<+FULFILL_ORDER> true))"));
+        assert!(output.contains("always([+FULFILL_ORDER] true -> eventually(<+PAY_INVOICE> true))"));
     }
 
     #[test]
@@ -7446,6 +7458,19 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("Escrow", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_procurement_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+CREATE_ORDER] true -> eventually(<+APPROVE_ORDER> true))".to_string(),
+            "always([+APPROVE_ORDER] true -> eventually(<+FULFILL_ORDER> true))".to_string(),
+            "always([+FULFILL_ORDER] true -> eventually(<+PAY_INVOICE> true))".to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Procurement", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
