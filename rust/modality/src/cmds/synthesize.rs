@@ -536,6 +536,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+DETECT_BREACH] true -> eventually(<+ASSESS_BREACH_SCOPE> true))"#,
             r#"always([+ASSESS_BREACH_SCOPE] true -> eventually(<+NOTIFY_AFFECTED_PARTIES> true))"#,
             r#"always([+NOTIFY_AFFECTED_PARTIES] true -> eventually(<+COMPLETE_BREACH_REVIEW> true))"#,
+            r#"always([+START_VENDOR_REVIEW] true -> eventually(<+COLLECT_VENDOR_QUESTIONNAIRE> true))"#,
+            r#"always([+COLLECT_VENDOR_QUESTIONNAIRE] true -> eventually(<+ASSESS_VENDOR_RISK> true))"#,
+            r#"always([+ASSESS_VENDOR_RISK] true -> eventually(<+APPROVE_VENDOR> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3638,6 +3641,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+NOTIFY_AFFECTED_PARTIES] true -> eventually(<+COMPLETE_BREACH_REVIEW> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_vendor_risk_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+START_VENDOR_REVIEW] true -> eventually(<+COLLECT_VENDOR_QUESTIONNAIRE> true))"
+        ));
+        assert!(output.contains(
+            "always([+COLLECT_VENDOR_QUESTIONNAIRE] true -> eventually(<+ASSESS_VENDOR_RISK> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_VENDOR_RISK] true -> eventually(<+APPROVE_VENDOR> true))"
         ));
     }
 
@@ -8081,6 +8099,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "SecurityException",
             &formulas,
         );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_vendor_risk_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+START_VENDOR_REVIEW] true -> eventually(<+COLLECT_VENDOR_QUESTIONNAIRE> true))"
+                .to_string(),
+            "always([+COLLECT_VENDOR_QUESTIONNAIRE] true -> eventually(<+ASSESS_VENDOR_RISK> true))"
+                .to_string(),
+            "always([+ASSESS_VENDOR_RISK] true -> eventually(<+APPROVE_VENDOR> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("VendorRisk", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
