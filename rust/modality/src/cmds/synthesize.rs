@@ -533,6 +533,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REPORT_VULNERABILITY] true -> eventually(<+TRIAGE_VULNERABILITY> true))"#,
             r#"always([+TRIAGE_VULNERABILITY] true -> eventually(<+APPLY_PATCH> true))"#,
             r#"always([+APPLY_PATCH] true -> eventually(<+VERIFY_PATCH> true))"#,
+            r#"always([+DETECT_BREACH] true -> eventually(<+ASSESS_BREACH_SCOPE> true))"#,
+            r#"always([+ASSESS_BREACH_SCOPE] true -> eventually(<+NOTIFY_AFFECTED_PARTIES> true))"#,
+            r#"always([+NOTIFY_AFFECTED_PARTIES] true -> eventually(<+COMPLETE_BREACH_REVIEW> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3621,6 +3624,20 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPLY_PATCH] true -> eventually(<+VERIFY_PATCH> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_breach_notification_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output
+            .contains("always([+DETECT_BREACH] true -> eventually(<+ASSESS_BREACH_SCOPE> true))"));
+        assert!(output.contains(
+            "always([+ASSESS_BREACH_SCOPE] true -> eventually(<+NOTIFY_AFFECTED_PARTIES> true))"
+        ));
+        assert!(output.contains(
+            "always([+NOTIFY_AFFECTED_PARTIES] true -> eventually(<+COMPLETE_BREACH_REVIEW> true))"
         ));
     }
 
