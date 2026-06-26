@@ -578,6 +578,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+START_DPIA] true -> eventually(<+ASSESS_PRIVACY_RISK> true))"#,
             r#"always([+ASSESS_PRIVACY_RISK] true -> eventually(<+APPROVE_DPIA> true))"#,
             r#"always([+APPROVE_DPIA] true -> eventually(<+RECORD_DPIA> true))"#,
+            r#"always([+REQUEST_CROSS_BORDER_TRANSFER] true -> eventually(<+ASSESS_TRANSFER_MECHANISM> true))"#,
+            r#"always([+ASSESS_TRANSFER_MECHANISM] true -> eventually(<+APPROVE_CROSS_BORDER_TRANSFER> true))"#,
+            r#"always([+APPROVE_CROSS_BORDER_TRANSFER] true -> eventually(<+RECORD_TRANSFER_ASSESSMENT> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3885,6 +3888,21 @@ F2: formula generated_2 {
         ));
         assert!(output
             .contains("always([+APPROVE_DPIA] true -> eventually(<+RECORD_DPIA> true))"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_cross_border_transfer_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_CROSS_BORDER_TRANSFER] true -> eventually(<+ASSESS_TRANSFER_MECHANISM> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_TRANSFER_MECHANISM] true -> eventually(<+APPROVE_CROSS_BORDER_TRANSFER> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_CROSS_BORDER_TRANSFER] true -> eventually(<+RECORD_TRANSFER_ASSESSMENT> true))"
+        ));
     }
 
     #[test]
@@ -8560,6 +8578,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_DPIA] true -> eventually(<+RECORD_DPIA> true))".to_string(),
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas("Dpia", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_cross_border_transfer_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_CROSS_BORDER_TRANSFER] true -> eventually(<+ASSESS_TRANSFER_MECHANISM> true))"
+                .to_string(),
+            "always([+ASSESS_TRANSFER_MECHANISM] true -> eventually(<+APPROVE_CROSS_BORDER_TRANSFER> true))"
+                .to_string(),
+            "always([+APPROVE_CROSS_BORDER_TRANSFER] true -> eventually(<+RECORD_TRANSFER_ASSESSMENT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "CrossBorderTransfer",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
