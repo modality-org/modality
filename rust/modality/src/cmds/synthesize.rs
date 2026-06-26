@@ -629,6 +629,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+DETECT_MODEL_DRIFT] true -> eventually(<+ASSESS_DRIFT_IMPACT> true))"#,
             r#"always([+ASSESS_DRIFT_IMPACT] true -> eventually(<+APPROVE_DRIFT_RESPONSE> true))"#,
             r#"always([+APPROVE_DRIFT_RESPONSE] true -> eventually(<+RECORD_DRIFT_RESPONSE> true))"#,
+            r#"always([+START_SHADOW_EVALUATION] true -> eventually(<+COMPARE_SHADOW_OUTPUT> true))"#,
+            r#"always([+COMPARE_SHADOW_OUTPUT] true -> eventually(<+APPROVE_SHADOW_PROMOTION> true))"#,
+            r#"always([+APPROVE_SHADOW_PROMOTION] true -> eventually(<+PROMOTE_SHADOW_MODEL> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -4190,6 +4193,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DRIFT_RESPONSE] true -> eventually(<+RECORD_DRIFT_RESPONSE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_model_shadow_promotion_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+START_SHADOW_EVALUATION] true -> eventually(<+COMPARE_SHADOW_OUTPUT> true))"
+        ));
+        assert!(output.contains(
+            "always([+COMPARE_SHADOW_OUTPUT] true -> eventually(<+APPROVE_SHADOW_PROMOTION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_SHADOW_PROMOTION] true -> eventually(<+PROMOTE_SHADOW_MODEL> true))"
         ));
     }
 
@@ -9014,6 +9032,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ModelDriftResponse",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_model_shadow_promotion_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+START_SHADOW_EVALUATION] true -> eventually(<+COMPARE_SHADOW_OUTPUT> true))"
+                .to_string(),
+            "always([+COMPARE_SHADOW_OUTPUT] true -> eventually(<+APPROVE_SHADOW_PROMOTION> true))"
+                .to_string(),
+            "always([+APPROVE_SHADOW_PROMOTION] true -> eventually(<+PROMOTE_SHADOW_MODEL> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ModelShadowPromotion",
             &formulas,
         );
 
