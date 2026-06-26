@@ -566,6 +566,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_LAWFUL_BASIS_REVIEW] true -> eventually(<+ASSESS_LAWFUL_BASIS> true))"#,
             r#"always([+ASSESS_LAWFUL_BASIS] true -> eventually(<+APPROVE_PROCESSING_BASIS> true))"#,
             r#"always([+APPROVE_PROCESSING_BASIS] true -> eventually(<+RECORD_PROCESSING_BASIS> true))"#,
+            r#"always([+REGISTER_DATASET] true -> eventually(<+CAPTURE_PROVENANCE> true))"#,
+            r#"always([+CAPTURE_PROVENANCE] true -> eventually(<+VERIFY_PROVENANCE> true))"#,
+            r#"always([+VERIFY_PROVENANCE] true -> eventually(<+APPROVE_PROVENANCE_RECORD> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3814,6 +3817,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_PROCESSING_BASIS] true -> eventually(<+RECORD_PROCESSING_BASIS> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_data_provenance_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REGISTER_DATASET] true -> eventually(<+CAPTURE_PROVENANCE> true))"
+        ));
+        assert!(output.contains(
+            "always([+CAPTURE_PROVENANCE] true -> eventually(<+VERIFY_PROVENANCE> true))"
+        ));
+        assert!(output.contains(
+            "always([+VERIFY_PROVENANCE] true -> eventually(<+APPROVE_PROVENANCE_RECORD> true))"
         ));
     }
 
@@ -8423,6 +8441,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "LawfulBasis",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_data_provenance_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REGISTER_DATASET] true -> eventually(<+CAPTURE_PROVENANCE> true))"
+                .to_string(),
+            "always([+CAPTURE_PROVENANCE] true -> eventually(<+VERIFY_PROVENANCE> true))"
+                .to_string(),
+            "always([+VERIFY_PROVENANCE] true -> eventually(<+APPROVE_PROVENANCE_RECORD> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DataProvenance",
             &formulas,
         );
 
