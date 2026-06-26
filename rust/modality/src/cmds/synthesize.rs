@@ -551,6 +551,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DATA_USE] true -> eventually(<+REVIEW_USE_LIMITS> true))"#,
             r#"always([+REVIEW_USE_LIMITS] true -> eventually(<+APPROVE_DATA_USE> true))"#,
             r#"always([+APPROVE_DATA_USE] true -> eventually(<+LOG_DATA_USE> true))"#,
+            r#"always([+START_RETENTION_REVIEW] true -> eventually(<+CLASSIFY_RETENTION_RECORDS> true))"#,
+            r#"always([+CLASSIFY_RETENTION_RECORDS] true -> eventually(<+APPROVE_RETENTION_PLAN> true))"#,
+            r#"always([+APPROVE_RETENTION_PLAN] true -> eventually(<+ENFORCE_RETENTION_PLAN> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3726,6 +3729,21 @@ F2: formula generated_2 {
             .contains("always([+REVIEW_USE_LIMITS] true -> eventually(<+APPROVE_DATA_USE> true))"));
         assert!(output
             .contains("always([+APPROVE_DATA_USE] true -> eventually(<+LOG_DATA_USE> true))"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_retention_review_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+START_RETENTION_REVIEW] true -> eventually(<+CLASSIFY_RETENTION_RECORDS> true))"
+        ));
+        assert!(output.contains(
+            "always([+CLASSIFY_RETENTION_RECORDS] true -> eventually(<+APPROVE_RETENTION_PLAN> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_RETENTION_PLAN] true -> eventually(<+ENFORCE_RETENTION_PLAN> true))"
+        ));
     }
 
     #[test]
@@ -8247,6 +8265,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("DataUse", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_retention_review_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+START_RETENTION_REVIEW] true -> eventually(<+CLASSIFY_RETENTION_RECORDS> true))"
+                .to_string(),
+            "always([+CLASSIFY_RETENTION_RECORDS] true -> eventually(<+APPROVE_RETENTION_PLAN> true))"
+                .to_string(),
+            "always([+APPROVE_RETENTION_PLAN] true -> eventually(<+ENFORCE_RETENTION_PLAN> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "RetentionReview",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
