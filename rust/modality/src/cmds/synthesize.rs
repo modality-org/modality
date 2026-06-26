@@ -605,6 +605,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+COLLECT_RETRAINING_DATA] true -> eventually(<+APPROVE_RETRAINING_PLAN> true))"#,
             r#"always([+APPROVE_RETRAINING_PLAN] true -> eventually(<+TRAIN_CANDIDATE_MODEL> true))"#,
             r#"always([+TRAIN_CANDIDATE_MODEL] true -> eventually(<+VALIDATE_CANDIDATE_MODEL> true))"#,
+            r#"always([+LOG_MODEL_DECISION] true -> eventually(<+REVIEW_DECISION_TRACE> true))"#,
+            r#"always([+REVIEW_DECISION_TRACE] true -> eventually(<+APPROVE_MODEL_AUDIT> true))"#,
+            r#"always([+APPROVE_MODEL_AUDIT] true -> eventually(<+RECORD_AUDIT_EVIDENCE> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -4046,6 +4049,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+TRAIN_CANDIDATE_MODEL] true -> eventually(<+VALIDATE_CANDIDATE_MODEL> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_model_audit_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+LOG_MODEL_DECISION] true -> eventually(<+REVIEW_DECISION_TRACE> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_DECISION_TRACE] true -> eventually(<+APPROVE_MODEL_AUDIT> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_MODEL_AUDIT] true -> eventually(<+RECORD_AUDIT_EVIDENCE> true))"
         ));
     }
 
