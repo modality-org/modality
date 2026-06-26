@@ -581,6 +581,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_CROSS_BORDER_TRANSFER] true -> eventually(<+ASSESS_TRANSFER_MECHANISM> true))"#,
             r#"always([+ASSESS_TRANSFER_MECHANISM] true -> eventually(<+APPROVE_CROSS_BORDER_TRANSFER> true))"#,
             r#"always([+APPROVE_CROSS_BORDER_TRANSFER] true -> eventually(<+RECORD_TRANSFER_ASSESSMENT> true))"#,
+            r#"always([+REGISTER_SUBPROCESSOR] true -> eventually(<+ASSESS_SUBPROCESSOR_RISK> true))"#,
+            r#"always([+ASSESS_SUBPROCESSOR_RISK] true -> eventually(<+APPROVE_SUBPROCESSOR> true))"#,
+            r#"always([+APPROVE_SUBPROCESSOR] true -> eventually(<+RECORD_SUBPROCESSOR> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3902,6 +3905,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_CROSS_BORDER_TRANSFER] true -> eventually(<+RECORD_TRANSFER_ASSESSMENT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_subprocessor_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REGISTER_SUBPROCESSOR] true -> eventually(<+ASSESS_SUBPROCESSOR_RISK> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_SUBPROCESSOR_RISK] true -> eventually(<+APPROVE_SUBPROCESSOR> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_SUBPROCESSOR] true -> eventually(<+RECORD_SUBPROCESSOR> true))"
         ));
     }
 
@@ -8596,6 +8614,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "CrossBorderTransfer",
             &formulas,
         );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_subprocessor_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REGISTER_SUBPROCESSOR] true -> eventually(<+ASSESS_SUBPROCESSOR_RISK> true))"
+                .to_string(),
+            "always([+ASSESS_SUBPROCESSOR_RISK] true -> eventually(<+APPROVE_SUBPROCESSOR> true))"
+                .to_string(),
+            "always([+APPROVE_SUBPROCESSOR] true -> eventually(<+RECORD_SUBPROCESSOR> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Subprocessor", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
