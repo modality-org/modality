@@ -813,6 +813,14 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+ACCEPT_RISK>] true -> (<+signed_by(/users/risk_owner.id)> true & always([-UNMITIGATED_EXPOSURE] true))"#,
             r#"[<+CLOSE_INCIDENT>] true -> (<+signed_by(/users/incident_commander.id)> true & always([-REOPEN_INCIDENT] true))"#,
             r#"[<+FREEZE_CHANGE>] true -> (<+signed_by(/users/change_manager.id)> true & always([-DEPLOY] true))"#,
+            r#"[+APPROVE_SAFETY] true -> ([<+signed_by(/users/safety_officer.id)>] true & always([-UNSAFE_DEPLOYMENT] true))"#,
+            r#"[+ACCEPT_RISK] true -> ([<+signed_by(/users/risk_owner.id)>] true & always([-UNMITIGATED_EXPOSURE] true))"#,
+            r#"[+CLOSE_INCIDENT] true -> ([<+signed_by(/users/incident_commander.id)>] true & always([-REOPEN_INCIDENT] true))"#,
+            r#"[+FREEZE_CHANGE] true -> ([<+signed_by(/users/change_manager.id)>] true & always([-DEPLOY] true))"#,
+            r#"[<+APPROVE_SAFETY>] true -> ([<+signed_by(/users/safety_officer.id)>] true & always([-UNSAFE_DEPLOYMENT] true))"#,
+            r#"[<+ACCEPT_RISK>] true -> ([<+signed_by(/users/risk_owner.id)>] true & always([-UNMITIGATED_EXPOSURE] true))"#,
+            r#"[<+CLOSE_INCIDENT>] true -> ([<+signed_by(/users/incident_commander.id)>] true & always([-REOPEN_INCIDENT] true))"#,
+            r#"[<+FREEZE_CHANGE>] true -> ([<+signed_by(/users/change_manager.id)>] true & always([-DEPLOY] true))"#,
         ],
     },
 ];
@@ -4057,6 +4065,36 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "[<+FREEZE_CHANGE>] true -> (<+signed_by(/users/change_manager.id)> true & always([-DEPLOY] true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_committed_authorized_operational_guard_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "[+APPROVE_SAFETY] true -> ([<+signed_by(/users/safety_officer.id)>] true & always([-UNSAFE_DEPLOYMENT] true))"
+        ));
+        assert!(output.contains(
+            "[+ACCEPT_RISK] true -> ([<+signed_by(/users/risk_owner.id)>] true & always([-UNMITIGATED_EXPOSURE] true))"
+        ));
+        assert!(output.contains(
+            "[+CLOSE_INCIDENT] true -> ([<+signed_by(/users/incident_commander.id)>] true & always([-REOPEN_INCIDENT] true))"
+        ));
+        assert!(output.contains(
+            "[+FREEZE_CHANGE] true -> ([<+signed_by(/users/change_manager.id)>] true & always([-DEPLOY] true))"
+        ));
+        assert!(output.contains(
+            "[<+APPROVE_SAFETY>] true -> ([<+signed_by(/users/safety_officer.id)>] true & always([-UNSAFE_DEPLOYMENT] true))"
+        ));
+        assert!(output.contains(
+            "[<+ACCEPT_RISK>] true -> ([<+signed_by(/users/risk_owner.id)>] true & always([-UNMITIGATED_EXPOSURE] true))"
+        ));
+        assert!(output.contains(
+            "[<+CLOSE_INCIDENT>] true -> ([<+signed_by(/users/incident_commander.id)>] true & always([-REOPEN_INCIDENT] true))"
+        ));
+        assert!(output.contains(
+            "[<+FREEZE_CHANGE>] true -> ([<+signed_by(/users/change_manager.id)>] true & always([-DEPLOY] true))"
         ));
     }
 
