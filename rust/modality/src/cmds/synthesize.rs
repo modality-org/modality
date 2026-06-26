@@ -539,6 +539,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+START_VENDOR_REVIEW] true -> eventually(<+COLLECT_VENDOR_QUESTIONNAIRE> true))"#,
             r#"always([+COLLECT_VENDOR_QUESTIONNAIRE] true -> eventually(<+ASSESS_VENDOR_RISK> true))"#,
             r#"always([+ASSESS_VENDOR_RISK] true -> eventually(<+APPROVE_VENDOR> true))"#,
+            r#"always([+REQUEST_DATA_ACCESS] true -> eventually(<+VERIFY_ACCESS_PURPOSE> true))"#,
+            r#"always([+VERIFY_ACCESS_PURPOSE] true -> eventually(<+APPROVE_DATA_ACCESS> true))"#,
+            r#"always([+APPROVE_DATA_ACCESS] true -> eventually(<+LOG_ACCESS_GRANT> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3656,6 +3659,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+ASSESS_VENDOR_RISK] true -> eventually(<+APPROVE_VENDOR> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_data_access_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DATA_ACCESS] true -> eventually(<+VERIFY_ACCESS_PURPOSE> true))"
+        ));
+        assert!(output.contains(
+            "always([+VERIFY_ACCESS_PURPOSE] true -> eventually(<+APPROVE_DATA_ACCESS> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DATA_ACCESS] true -> eventually(<+LOG_ACCESS_GRANT> true))"
         ));
     }
 
@@ -8115,6 +8133,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("VendorRisk", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_data_access_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DATA_ACCESS] true -> eventually(<+VERIFY_ACCESS_PURPOSE> true))"
+                .to_string(),
+            "always([+VERIFY_ACCESS_PURPOSE] true -> eventually(<+APPROVE_DATA_ACCESS> true))"
+                .to_string(),
+            "always([+APPROVE_DATA_ACCESS] true -> eventually(<+LOG_ACCESS_GRANT> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DataAccess", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
