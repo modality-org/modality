@@ -488,6 +488,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+START_AUDIT] true -> eventually(<+COLLECT_EVIDENCE> true))"#,
             r#"always([+COLLECT_EVIDENCE] true -> eventually(<+REVIEW_EVIDENCE> true))"#,
             r#"always([+REVIEW_EVIDENCE] true -> eventually(<+CLOSE_AUDIT> true))"#,
+            r#"always([+SUBMIT_EXPENSE] true -> eventually(<+APPROVE_EXPENSE> true))"#,
+            r#"always([+APPROVE_EXPENSE] true -> eventually(<+REIMBURSE_EXPENSE> true))"#,
+            r#"always([+REIMBURSE_EXPENSE] true -> eventually(<+CLOSE_EXPENSE> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3380,6 +3383,15 @@ F2: formula generated_2 {
         assert!(output.contains("always([+START_AUDIT] true -> eventually(<+COLLECT_EVIDENCE> true))"));
         assert!(output.contains("always([+COLLECT_EVIDENCE] true -> eventually(<+REVIEW_EVIDENCE> true))"));
         assert!(output.contains("always([+REVIEW_EVIDENCE] true -> eventually(<+CLOSE_AUDIT> true))"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_expense_reimbursement_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("always([+SUBMIT_EXPENSE] true -> eventually(<+APPROVE_EXPENSE> true))"));
+        assert!(output.contains("always([+APPROVE_EXPENSE] true -> eventually(<+REIMBURSE_EXPENSE> true))"));
+        assert!(output.contains("always([+REIMBURSE_EXPENSE] true -> eventually(<+CLOSE_EXPENSE> true))"));
     }
 
     #[test]
@@ -7596,6 +7608,21 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("AuditWorkflow", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_expense_reimbursement_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+SUBMIT_EXPENSE] true -> eventually(<+APPROVE_EXPENSE> true))".to_string(),
+            "always([+APPROVE_EXPENSE] true -> eventually(<+REIMBURSE_EXPENSE> true))".to_string(),
+            "always([+REIMBURSE_EXPENSE] true -> eventually(<+CLOSE_EXPENSE> true))".to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ExpenseReimbursement",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
