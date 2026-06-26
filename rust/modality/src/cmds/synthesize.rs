@@ -599,6 +599,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+DETECT_MODEL_INCIDENT] true -> eventually(<+ASSESS_MODEL_IMPACT> true))"#,
             r#"always([+ASSESS_MODEL_IMPACT] true -> eventually(<+APPROVE_MODEL_ROLLBACK> true))"#,
             r#"always([+APPROVE_MODEL_ROLLBACK] true -> eventually(<+RECORD_MODEL_INCIDENT> true))"#,
+            r#"always([+REQUEST_MODEL_RETIREMENT] true -> eventually(<+ASSESS_RETIREMENT_IMPACT> true))"#,
+            r#"always([+ASSESS_RETIREMENT_IMPACT] true -> eventually(<+APPROVE_MODEL_RETIREMENT> true))"#,
+            r#"always([+APPROVE_MODEL_RETIREMENT] true -> eventually(<+ARCHIVE_MODEL_ARTIFACTS> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -4010,6 +4013,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_MODEL_ROLLBACK] true -> eventually(<+RECORD_MODEL_INCIDENT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_model_retirement_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_MODEL_RETIREMENT] true -> eventually(<+ASSESS_RETIREMENT_IMPACT> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_RETIREMENT_IMPACT] true -> eventually(<+APPROVE_MODEL_RETIREMENT> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_MODEL_RETIREMENT] true -> eventually(<+ARCHIVE_MODEL_ARTIFACTS> true))"
         ));
     }
 
