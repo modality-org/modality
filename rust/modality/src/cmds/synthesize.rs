@@ -575,6 +575,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+SUBMIT_DATASET] true -> eventually(<+CLASSIFY_DATASET> true))"#,
             r#"always([+CLASSIFY_DATASET] true -> eventually(<+APPROVE_DATA_CLASSIFICATION> true))"#,
             r#"always([+APPROVE_DATA_CLASSIFICATION] true -> eventually(<+RECORD_DATA_CLASSIFICATION> true))"#,
+            r#"always([+START_DPIA] true -> eventually(<+ASSESS_PRIVACY_RISK> true))"#,
+            r#"always([+ASSESS_PRIVACY_RISK] true -> eventually(<+APPROVE_DPIA> true))"#,
+            r#"always([+APPROVE_DPIA] true -> eventually(<+RECORD_DPIA> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3868,6 +3871,20 @@ F2: formula generated_2 {
         assert!(output.contains(
             "always([+APPROVE_DATA_CLASSIFICATION] true -> eventually(<+RECORD_DATA_CLASSIFICATION> true))"
         ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_dpia_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(
+            output.contains("always([+START_DPIA] true -> eventually(<+ASSESS_PRIVACY_RISK> true))")
+        );
+        assert!(output.contains(
+            "always([+ASSESS_PRIVACY_RISK] true -> eventually(<+APPROVE_DPIA> true))"
+        ));
+        assert!(output
+            .contains("always([+APPROVE_DPIA] true -> eventually(<+RECORD_DPIA> true))"));
     }
 
     #[test]
@@ -8530,6 +8547,19 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "DataClassification",
             &formulas,
         );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_dpia_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+START_DPIA] true -> eventually(<+ASSESS_PRIVACY_RISK> true))".to_string(),
+            "always([+ASSESS_PRIVACY_RISK] true -> eventually(<+APPROVE_DPIA> true))"
+                .to_string(),
+            "always([+APPROVE_DPIA] true -> eventually(<+RECORD_DPIA> true))".to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas("Dpia", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
