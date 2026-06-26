@@ -521,6 +521,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DELETION] true -> eventually(<+CHECK_RETENTION_POLICY> true))"#,
             r#"always([+CHECK_RETENTION_POLICY] true -> eventually(<+DELETE_RECORDS> true))"#,
             r#"always([+DELETE_RECORDS] true -> eventually(<+CONFIRM_DELETION> true))"#,
+            r#"always([+REQUEST_ACCOUNT_RECOVERY] true -> eventually(<+VERIFY_RECOVERY_FACTOR> true))"#,
+            r#"always([+VERIFY_RECOVERY_FACTOR] true -> eventually(<+ROTATE_CREDENTIAL> true))"#,
+            r#"always([+ROTATE_CREDENTIAL] true -> eventually(<+CONFIRM_ACCOUNT_RECOVERY> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3549,6 +3552,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+DELETE_RECORDS] true -> eventually(<+CONFIRM_DELETION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_account_recovery_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_ACCOUNT_RECOVERY] true -> eventually(<+VERIFY_RECOVERY_FACTOR> true))"
+        ));
+        assert!(output.contains(
+            "always([+VERIFY_RECOVERY_FACTOR] true -> eventually(<+ROTATE_CREDENTIAL> true))"
+        ));
+        assert!(output.contains(
+            "always([+ROTATE_CREDENTIAL] true -> eventually(<+CONFIRM_ACCOUNT_RECOVERY> true))"
         ));
     }
 
@@ -7940,6 +7958,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("DataDeletion", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_account_recovery_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_ACCOUNT_RECOVERY] true -> eventually(<+VERIFY_RECOVERY_FACTOR> true))"
+                .to_string(),
+            "always([+VERIFY_RECOVERY_FACTOR] true -> eventually(<+ROTATE_CREDENTIAL> true))"
+                .to_string(),
+            "always([+ROTATE_CREDENTIAL] true -> eventually(<+CONFIRM_ACCOUNT_RECOVERY> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AccountRecovery",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
