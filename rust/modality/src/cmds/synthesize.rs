@@ -527,6 +527,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_CONSENT_CHANGE] true -> eventually(<+REVIEW_CONSENT_SCOPE> true))"#,
             r#"always([+REVIEW_CONSENT_SCOPE] true -> eventually(<+APPLY_CONSENT_CHANGE> true))"#,
             r#"always([+APPLY_CONSENT_CHANGE] true -> eventually(<+CONFIRM_CONSENT_CHANGE> true))"#,
+            r#"always([+OPEN_SECURITY_EXCEPTION] true -> eventually(<+ASSESS_EXCEPTION_RISK> true))"#,
+            r#"always([+ASSESS_EXCEPTION_RISK] true -> eventually(<+APPROVE_EXCEPTION_MITIGATION> true))"#,
+            r#"always([+APPROVE_EXCEPTION_MITIGATION] true -> eventually(<+CLOSE_SECURITY_EXCEPTION> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3585,6 +3588,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPLY_CONSENT_CHANGE] true -> eventually(<+CONFIRM_CONSENT_CHANGE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_security_exception_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+OPEN_SECURITY_EXCEPTION] true -> eventually(<+ASSESS_EXCEPTION_RISK> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_EXCEPTION_RISK] true -> eventually(<+APPROVE_EXCEPTION_MITIGATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_EXCEPTION_MITIGATION] true -> eventually(<+CLOSE_SECURITY_EXCEPTION> true))"
         ));
     }
 
@@ -8010,6 +8028,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("ConsentChange", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_security_exception_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+OPEN_SECURITY_EXCEPTION] true -> eventually(<+ASSESS_EXCEPTION_RISK> true))"
+                .to_string(),
+            "always([+ASSESS_EXCEPTION_RISK] true -> eventually(<+APPROVE_EXCEPTION_MITIGATION> true))"
+                .to_string(),
+            "always([+APPROVE_EXCEPTION_MITIGATION] true -> eventually(<+CLOSE_SECURITY_EXCEPTION> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "SecurityException",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
