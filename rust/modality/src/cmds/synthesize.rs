@@ -530,6 +530,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+OPEN_SECURITY_EXCEPTION] true -> eventually(<+ASSESS_EXCEPTION_RISK> true))"#,
             r#"always([+ASSESS_EXCEPTION_RISK] true -> eventually(<+APPROVE_EXCEPTION_MITIGATION> true))"#,
             r#"always([+APPROVE_EXCEPTION_MITIGATION] true -> eventually(<+CLOSE_SECURITY_EXCEPTION> true))"#,
+            r#"always([+REPORT_VULNERABILITY] true -> eventually(<+TRIAGE_VULNERABILITY> true))"#,
+            r#"always([+TRIAGE_VULNERABILITY] true -> eventually(<+APPLY_PATCH> true))"#,
+            r#"always([+APPLY_PATCH] true -> eventually(<+VERIFY_PATCH> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3603,6 +3606,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_EXCEPTION_MITIGATION] true -> eventually(<+CLOSE_SECURITY_EXCEPTION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_vulnerability_remediation_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REPORT_VULNERABILITY] true -> eventually(<+TRIAGE_VULNERABILITY> true))"
+        ));
+        assert!(output.contains(
+            "always([+TRIAGE_VULNERABILITY] true -> eventually(<+APPLY_PATCH> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPLY_PATCH] true -> eventually(<+VERIFY_PATCH> true))"
         ));
     }
 
