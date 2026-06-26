@@ -479,6 +479,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+INVITE_MEMBER] true -> eventually(<+ACCEPT_INVITE> true))"#,
             r#"always([+ACCEPT_INVITE] true -> eventually(<+PROVISION_ACCESS> true))"#,
             r#"always([+PROVISION_ACCESS] true -> eventually(<+COMPLETE_ONBOARDING> true))"#,
+            r#"always([+PLAN_RELEASE] true -> eventually(<+APPROVE_QA> true))"#,
+            r#"always([+APPROVE_QA] true -> eventually(<+ROLLOUT_RELEASE> true))"#,
+            r#"always([+ROLLOUT_RELEASE] true -> eventually(<+MONITOR_RELEASE> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3344,6 +3347,15 @@ F2: formula generated_2 {
         assert!(output.contains("always([+INVITE_MEMBER] true -> eventually(<+ACCEPT_INVITE> true))"));
         assert!(output.contains("always([+ACCEPT_INVITE] true -> eventually(<+PROVISION_ACCESS> true))"));
         assert!(output.contains("always([+PROVISION_ACCESS] true -> eventually(<+COMPLETE_ONBOARDING> true))"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_release_rollout_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("always([+PLAN_RELEASE] true -> eventually(<+APPROVE_QA> true))"));
+        assert!(output.contains("always([+APPROVE_QA] true -> eventually(<+ROLLOUT_RELEASE> true))"));
+        assert!(output.contains("always([+ROLLOUT_RELEASE] true -> eventually(<+MONITOR_RELEASE> true))"));
     }
 
     #[test]
@@ -7521,6 +7533,19 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("MemberOnboarding", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_release_rollout_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+PLAN_RELEASE] true -> eventually(<+APPROVE_QA> true))".to_string(),
+            "always([+APPROVE_QA] true -> eventually(<+ROLLOUT_RELEASE> true))".to_string(),
+            "always([+ROLLOUT_RELEASE] true -> eventually(<+MONITOR_RELEASE> true))".to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("ReleaseRollout", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
