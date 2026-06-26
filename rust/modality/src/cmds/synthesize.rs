@@ -515,6 +515,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+SUBMIT_CLAIM] true -> eventually(<+REVIEW_CLAIM> true))"#,
             r#"always([+REVIEW_CLAIM] true -> eventually(<+APPROVE_CLAIM> true))"#,
             r#"always([+APPROVE_CLAIM] true -> eventually(<+PAY_CLAIM> true))"#,
+            r#"always([+SUBMIT_PRIVACY_REQUEST] true -> eventually(<+VERIFY_SUBJECT> true))"#,
+            r#"always([+VERIFY_SUBJECT] true -> eventually(<+FULFILL_PRIVACY_REQUEST> true))"#,
+            r#"always([+FULFILL_PRIVACY_REQUEST] true -> eventually(<+CLOSE_PRIVACY_REQUEST> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3514,6 +3517,21 @@ F2: formula generated_2 {
         assert!(
             output.contains("always([+APPROVE_CLAIM] true -> eventually(<+PAY_CLAIM> true))")
         );
+    }
+
+    #[test]
+    fn synthesis_list_includes_privacy_request_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+SUBMIT_PRIVACY_REQUEST] true -> eventually(<+VERIFY_SUBJECT> true))"
+        ));
+        assert!(output.contains(
+            "always([+VERIFY_SUBJECT] true -> eventually(<+FULFILL_PRIVACY_REQUEST> true))"
+        ));
+        assert!(output.contains(
+            "always([+FULFILL_PRIVACY_REQUEST] true -> eventually(<+CLOSE_PRIVACY_REQUEST> true))"
+        ));
     }
 
     #[test]
@@ -7869,6 +7887,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ClaimAdjudication",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_privacy_request_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+SUBMIT_PRIVACY_REQUEST] true -> eventually(<+VERIFY_SUBJECT> true))"
+                .to_string(),
+            "always([+VERIFY_SUBJECT] true -> eventually(<+FULFILL_PRIVACY_REQUEST> true))"
+                .to_string(),
+            "always([+FULFILL_PRIVACY_REQUEST] true -> eventually(<+CLOSE_PRIVACY_REQUEST> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "PrivacyRequest",
             &formulas,
         );
 
