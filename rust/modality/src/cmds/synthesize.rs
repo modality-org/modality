@@ -797,6 +797,14 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"[<+ACCEPT_MILESTONE>] true -> (<+signed_by(/users/client_reviewer.id)> true & always([-REWORK] true))"#,
             r#"[<+APPROVE_INSPECTION>] true -> (<+signed_by(/users/inspector.id)> true & always([-DEFECT_CLAIM] true))"#,
             r#"[<+ATTEST_COMPLIANCE>] true -> (<+oracle_attests(/oracles/compliance.id, "status", "clear")> true & always([-NONCOMPLIANCE_FINDING] true))"#,
+            r#"[+APPROVE_INVOICE] true -> ([<+signed_by(/users/finance_approver.id)>] true & always([-CHARGEBACK] true))"#,
+            r#"[+ACCEPT_MILESTONE] true -> ([<+signed_by(/users/client_reviewer.id)>] true & always([-REWORK] true))"#,
+            r#"[+APPROVE_INSPECTION] true -> ([<+signed_by(/users/inspector.id)>] true & always([-DEFECT_CLAIM] true))"#,
+            r#"[+ATTEST_COMPLIANCE] true -> ([<+oracle_attests(/oracles/compliance.id, "status", "clear")>] true & always([-NONCOMPLIANCE_FINDING] true))"#,
+            r#"[<+APPROVE_INVOICE>] true -> ([<+signed_by(/users/finance_approver.id)>] true & always([-CHARGEBACK] true))"#,
+            r#"[<+ACCEPT_MILESTONE>] true -> ([<+signed_by(/users/client_reviewer.id)>] true & always([-REWORK] true))"#,
+            r#"[<+APPROVE_INSPECTION>] true -> ([<+signed_by(/users/inspector.id)>] true & always([-DEFECT_CLAIM] true))"#,
+            r#"[<+ATTEST_COMPLIANCE>] true -> ([<+oracle_attests(/oracles/compliance.id, "status", "clear")>] true & always([-NONCOMPLIANCE_FINDING] true))"#,
         ],
     },
 ];
@@ -3981,6 +3989,36 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             r#"[<+ATTEST_COMPLIANCE>] true -> (<+oracle_attests(/oracles/compliance.id, \"status\", \"clear\")> true & always([-NONCOMPLIANCE_FINDING] true))"#
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_committed_authorized_lifecycle_guard_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "[+APPROVE_INVOICE] true -> ([<+signed_by(/users/finance_approver.id)>] true & always([-CHARGEBACK] true))"
+        ));
+        assert!(output.contains(
+            "[+ACCEPT_MILESTONE] true -> ([<+signed_by(/users/client_reviewer.id)>] true & always([-REWORK] true))"
+        ));
+        assert!(output.contains(
+            "[+APPROVE_INSPECTION] true -> ([<+signed_by(/users/inspector.id)>] true & always([-DEFECT_CLAIM] true))"
+        ));
+        assert!(output.contains(
+            r#"[+ATTEST_COMPLIANCE] true -> ([<+oracle_attests(/oracles/compliance.id, \"status\", \"clear\")>] true & always([-NONCOMPLIANCE_FINDING] true))"#
+        ));
+        assert!(output.contains(
+            "[<+APPROVE_INVOICE>] true -> ([<+signed_by(/users/finance_approver.id)>] true & always([-CHARGEBACK] true))"
+        ));
+        assert!(output.contains(
+            "[<+ACCEPT_MILESTONE>] true -> ([<+signed_by(/users/client_reviewer.id)>] true & always([-REWORK] true))"
+        ));
+        assert!(output.contains(
+            "[<+APPROVE_INSPECTION>] true -> ([<+signed_by(/users/inspector.id)>] true & always([-DEFECT_CLAIM] true))"
+        ));
+        assert!(output.contains(
+            r#"[<+ATTEST_COMPLIANCE>] true -> ([<+oracle_attests(/oracles/compliance.id, \"status\", \"clear\")>] true & always([-NONCOMPLIANCE_FINDING] true))"#
         ));
     }
 
