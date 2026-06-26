@@ -659,6 +659,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
+            r#"always([+REQUEST_DECISION_EXPLANATION] true -> eventually(<+COLLECT_DECISION_FACTORS> true))"#,
+            r#"always([+COLLECT_DECISION_FACTORS] true -> eventually(<+APPROVE_DECISION_EXPLANATION> true))"#,
+            r#"always([+APPROVE_DECISION_EXPLANATION] true -> eventually(<+DELIVER_DECISION_EXPLANATION> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -4370,6 +4373,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_explanation_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_EXPLANATION] true -> eventually(<+COLLECT_DECISION_FACTORS> true))"
+        ));
+        assert!(output.contains(
+            "always([+COLLECT_DECISION_FACTORS] true -> eventually(<+APPROVE_DECISION_EXPLANATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_EXPLANATION] true -> eventually(<+DELIVER_DECISION_EXPLANATION> true))"
         ));
     }
 
@@ -9370,6 +9388,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("HumanReview", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_explanation_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_EXPLANATION] true -> eventually(<+COLLECT_DECISION_FACTORS> true))"
+                .to_string(),
+            "always([+COLLECT_DECISION_FACTORS] true -> eventually(<+APPROVE_DECISION_EXPLANATION> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_EXPLANATION] true -> eventually(<+DELIVER_DECISION_EXPLANATION> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionExplanation",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
