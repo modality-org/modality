@@ -584,6 +584,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REGISTER_SUBPROCESSOR] true -> eventually(<+ASSESS_SUBPROCESSOR_RISK> true))"#,
             r#"always([+ASSESS_SUBPROCESSOR_RISK] true -> eventually(<+APPROVE_SUBPROCESSOR> true))"#,
             r#"always([+APPROVE_SUBPROCESSOR] true -> eventually(<+RECORD_SUBPROCESSOR> true))"#,
+            r#"always([+REQUEST_DATA_LOCALIZATION] true -> eventually(<+ASSESS_RESIDENCY_REQUIREMENT> true))"#,
+            r#"always([+ASSESS_RESIDENCY_REQUIREMENT] true -> eventually(<+APPROVE_LOCALIZATION_PLAN> true))"#,
+            r#"always([+APPROVE_LOCALIZATION_PLAN] true -> eventually(<+RECORD_LOCALIZATION_CONTROL> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3920,6 +3923,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_SUBPROCESSOR] true -> eventually(<+RECORD_SUBPROCESSOR> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_data_localization_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DATA_LOCALIZATION] true -> eventually(<+ASSESS_RESIDENCY_REQUIREMENT> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_RESIDENCY_REQUIREMENT] true -> eventually(<+APPROVE_LOCALIZATION_PLAN> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_LOCALIZATION_PLAN] true -> eventually(<+RECORD_LOCALIZATION_CONTROL> true))"
         ));
     }
 
@@ -8630,6 +8648,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("Subprocessor", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_data_localization_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DATA_LOCALIZATION] true -> eventually(<+ASSESS_RESIDENCY_REQUIREMENT> true))"
+                .to_string(),
+            "always([+ASSESS_RESIDENCY_REQUIREMENT] true -> eventually(<+APPROVE_LOCALIZATION_PLAN> true))"
+                .to_string(),
+            "always([+APPROVE_LOCALIZATION_PLAN] true -> eventually(<+RECORD_LOCALIZATION_CONTROL> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DataLocalization",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
