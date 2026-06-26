@@ -482,6 +482,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+PLAN_RELEASE] true -> eventually(<+APPROVE_QA> true))"#,
             r#"always([+APPROVE_QA] true -> eventually(<+ROLLOUT_RELEASE> true))"#,
             r#"always([+ROLLOUT_RELEASE] true -> eventually(<+MONITOR_RELEASE> true))"#,
+            r#"always([+OPEN_TICKET] true -> eventually(<+ASSIGN_AGENT> true))"#,
+            r#"always([+ASSIGN_AGENT] true -> eventually(<+RESPOND_TICKET> true))"#,
+            r#"always([+RESPOND_TICKET] true -> eventually(<+RESOLVE_TICKET> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3356,6 +3359,15 @@ F2: formula generated_2 {
         assert!(output.contains("always([+PLAN_RELEASE] true -> eventually(<+APPROVE_QA> true))"));
         assert!(output.contains("always([+APPROVE_QA] true -> eventually(<+ROLLOUT_RELEASE> true))"));
         assert!(output.contains("always([+ROLLOUT_RELEASE] true -> eventually(<+MONITOR_RELEASE> true))"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_support_ticket_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("always([+OPEN_TICKET] true -> eventually(<+ASSIGN_AGENT> true))"));
+        assert!(output.contains("always([+ASSIGN_AGENT] true -> eventually(<+RESPOND_TICKET> true))"));
+        assert!(output.contains("always([+RESPOND_TICKET] true -> eventually(<+RESOLVE_TICKET> true))"));
     }
 
     #[test]
@@ -7546,6 +7558,19 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("ReleaseRollout", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_support_ticket_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+OPEN_TICKET] true -> eventually(<+ASSIGN_AGENT> true))".to_string(),
+            "always([+ASSIGN_AGENT] true -> eventually(<+RESPOND_TICKET> true))".to_string(),
+            "always([+RESPOND_TICKET] true -> eventually(<+RESOLVE_TICKET> true))".to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("SupportTicket", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
