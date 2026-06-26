@@ -632,6 +632,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+START_SHADOW_EVALUATION] true -> eventually(<+COMPARE_SHADOW_OUTPUT> true))"#,
             r#"always([+COMPARE_SHADOW_OUTPUT] true -> eventually(<+APPROVE_SHADOW_PROMOTION> true))"#,
             r#"always([+APPROVE_SHADOW_PROMOTION] true -> eventually(<+PROMOTE_SHADOW_MODEL> true))"#,
+            r#"always([+DETECT_MODEL_REGRESSION] true -> eventually(<+ASSESS_ROLLBACK_RISK> true))"#,
+            r#"always([+ASSESS_ROLLBACK_RISK] true -> eventually(<+APPROVE_MODEL_ROLLBACK_PLAN> true))"#,
+            r#"always([+APPROVE_MODEL_ROLLBACK_PLAN] true -> eventually(<+EXECUTE_MODEL_ROLLBACK> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -4208,6 +4211,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_SHADOW_PROMOTION] true -> eventually(<+PROMOTE_SHADOW_MODEL> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_model_rollback_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+DETECT_MODEL_REGRESSION] true -> eventually(<+ASSESS_ROLLBACK_RISK> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_ROLLBACK_RISK] true -> eventually(<+APPROVE_MODEL_ROLLBACK_PLAN> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_MODEL_ROLLBACK_PLAN] true -> eventually(<+EXECUTE_MODEL_ROLLBACK> true))"
         ));
     }
 
@@ -9050,6 +9068,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ModelShadowPromotion",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_model_rollback_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+DETECT_MODEL_REGRESSION] true -> eventually(<+ASSESS_ROLLBACK_RISK> true))"
+                .to_string(),
+            "always([+ASSESS_ROLLBACK_RISK] true -> eventually(<+APPROVE_MODEL_ROLLBACK_PLAN> true))"
+                .to_string(),
+            "always([+APPROVE_MODEL_ROLLBACK_PLAN] true -> eventually(<+EXECUTE_MODEL_ROLLBACK> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ModelRollback",
             &formulas,
         );
 
