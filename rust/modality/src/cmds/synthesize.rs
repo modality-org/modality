@@ -620,6 +620,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+SUBMIT_MODEL_ARTIFACT] true -> eventually(<+SCAN_MODEL_ARTIFACT> true))"#,
             r#"always([+SCAN_MODEL_ARTIFACT] true -> eventually(<+APPROVE_MODEL_ARTIFACT> true))"#,
             r#"always([+APPROVE_MODEL_ARTIFACT] true -> eventually(<+PUBLISH_MODEL_ARTIFACT> true))"#,
+            r#"always([+REGISTER_MODEL_ENDPOINT] true -> eventually(<+RUN_ENDPOINT_SMOKE_TEST> true))"#,
+            r#"always([+RUN_ENDPOINT_SMOKE_TEST] true -> eventually(<+APPROVE_ENDPOINT_ACTIVATION> true))"#,
+            r#"always([+APPROVE_ENDPOINT_ACTIVATION] true -> eventually(<+ACTIVATE_MODEL_ENDPOINT> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -4136,6 +4139,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_MODEL_ARTIFACT] true -> eventually(<+PUBLISH_MODEL_ARTIFACT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_model_endpoint_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REGISTER_MODEL_ENDPOINT] true -> eventually(<+RUN_ENDPOINT_SMOKE_TEST> true))"
+        ));
+        assert!(output.contains(
+            "always([+RUN_ENDPOINT_SMOKE_TEST] true -> eventually(<+APPROVE_ENDPOINT_ACTIVATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_ENDPOINT_ACTIVATION] true -> eventually(<+ACTIVATE_MODEL_ENDPOINT> true))"
         ));
     }
 
@@ -8912,6 +8930,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("ModelArtifact", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_model_endpoint_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REGISTER_MODEL_ENDPOINT] true -> eventually(<+RUN_ENDPOINT_SMOKE_TEST> true))"
+                .to_string(),
+            "always([+RUN_ENDPOINT_SMOKE_TEST] true -> eventually(<+APPROVE_ENDPOINT_ACTIVATION> true))"
+                .to_string(),
+            "always([+APPROVE_ENDPOINT_ACTIVATION] true -> eventually(<+ACTIVATE_MODEL_ENDPOINT> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("ModelEndpoint", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
