@@ -763,6 +763,17 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+ACCEPT] true -> always([-REJECT] true))"#,
             r#"always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))"#,
             r#"always([+CONFIRM_DELIVERY] true -> always([-REFUND] true))"#,
+            r#"always([<+REINSTATE>] true -> always([-SUSPEND] true))"#,
+            r#"always([<+RENEW>] true -> always([-EXPIRE] true))"#,
+            r#"always([<+TERMINATE>] true -> always([-RENEW] true))"#,
+            r#"always([<+EXTEND>] true -> always([-TERMINATE] true))"#,
+            r#"always([<+ASSIGN>] true -> always([-REASSIGN] true))"#,
+            r#"always([<+CERTIFY>] true -> always([-DEPLOY] true))"#,
+            r#"always([<+PUBLISH>] true -> always([-EMBARGO] true))"#,
+            r#"always([<+REGISTER>] true -> always([-DELETE] true))"#,
+            r#"always([<+ACCEPT>] true -> always([-REJECT] true))"#,
+            r#"always([<+ACKNOWLEDGE>] true -> always([-DISPUTE] true))"#,
+            r#"always([<+CONFIRM_DELIVERY>] true -> always([-REFUND] true))"#,
             r#"always([+APPROVE_INVOICE] true -> always([-CHARGEBACK] true))"#,
             r#"always([+ACCEPT_MILESTONE] true -> always([-REWORK] true))"#,
             r#"always([+APPROVE_INSPECTION] true -> always([-DEFECT_CLAIM] true))"#,
@@ -4150,6 +4161,25 @@ F2: formula generated_2 {
         assert!(output.contains("always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))"));
         assert!(
             output.contains("always([+CONFIRM_DELIVERY] true -> always([-REFUND] true))")
+        );
+    }
+
+    #[test]
+    fn synthesis_list_includes_committed_extended_lifecycle_guard_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("always([<+REINSTATE>] true -> always([-SUSPEND] true))"));
+        assert!(output.contains("always([<+RENEW>] true -> always([-EXPIRE] true))"));
+        assert!(output.contains("always([<+TERMINATE>] true -> always([-RENEW] true))"));
+        assert!(output.contains("always([<+EXTEND>] true -> always([-TERMINATE] true))"));
+        assert!(output.contains("always([<+ASSIGN>] true -> always([-REASSIGN] true))"));
+        assert!(output.contains("always([<+CERTIFY>] true -> always([-DEPLOY] true))"));
+        assert!(output.contains("always([<+PUBLISH>] true -> always([-EMBARGO] true))"));
+        assert!(output.contains("always([<+REGISTER>] true -> always([-DELETE] true))"));
+        assert!(output.contains("always([<+ACCEPT>] true -> always([-REJECT] true))"));
+        assert!(output.contains("always([<+ACKNOWLEDGE>] true -> always([-DISPUTE] true))"));
+        assert!(
+            output.contains("always([<+CONFIRM_DELIVERY>] true -> always([-REFUND] true))")
         );
     }
 
