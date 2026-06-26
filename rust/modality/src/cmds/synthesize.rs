@@ -548,6 +548,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DATA_SHARE] true -> eventually(<+VERIFY_RECIPIENT_AUTHORITY> true))"#,
             r#"always([+VERIFY_RECIPIENT_AUTHORITY] true -> eventually(<+APPROVE_DATA_SHARE> true))"#,
             r#"always([+APPROVE_DATA_SHARE] true -> eventually(<+RECORD_DATA_SHARE> true))"#,
+            r#"always([+REQUEST_DATA_USE] true -> eventually(<+REVIEW_USE_LIMITS> true))"#,
+            r#"always([+REVIEW_USE_LIMITS] true -> eventually(<+APPROVE_DATA_USE> true))"#,
+            r#"always([+APPROVE_DATA_USE] true -> eventually(<+LOG_DATA_USE> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -3711,6 +3714,18 @@ F2: formula generated_2 {
         assert!(output.contains(
             "always([+APPROVE_DATA_SHARE] true -> eventually(<+RECORD_DATA_SHARE> true))"
         ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_data_use_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output
+            .contains("always([+REQUEST_DATA_USE] true -> eventually(<+REVIEW_USE_LIMITS> true))"));
+        assert!(output
+            .contains("always([+REVIEW_USE_LIMITS] true -> eventually(<+APPROVE_DATA_USE> true))"));
+        assert!(output
+            .contains("always([+APPROVE_DATA_USE] true -> eventually(<+LOG_DATA_USE> true))"));
     }
 
     #[test]
@@ -8217,6 +8232,21 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("DataSharing", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_data_use_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DATA_USE] true -> eventually(<+REVIEW_USE_LIMITS> true))"
+                .to_string(),
+            "always([+REVIEW_USE_LIMITS] true -> eventually(<+APPROVE_DATA_USE> true))"
+                .to_string(),
+            "always([+APPROVE_DATA_USE] true -> eventually(<+LOG_DATA_USE> true))".to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DataUse", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
