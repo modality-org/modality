@@ -806,6 +806,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_ESCALATION_POLICY_CHANGE] true -> eventually(<+REVIEW_AGENT_ESCALATION_POLICY> true))"#,
             r#"always([+REVIEW_AGENT_ESCALATION_POLICY] true -> eventually(<+APPROVE_AGENT_ESCALATION_POLICY_CHANGE> true))"#,
             r#"always([+APPROVE_AGENT_ESCALATION_POLICY_CHANGE] true -> eventually(<+APPLY_AGENT_ESCALATION_POLICY> true))"#,
+            r#"always([+REQUEST_AGENT_NOTIFICATION_POLICY_CHANGE] true -> eventually(<+REVIEW_AGENT_NOTIFICATION_POLICY> true))"#,
+            r#"always([+REVIEW_AGENT_NOTIFICATION_POLICY] true -> eventually(<+APPROVE_AGENT_NOTIFICATION_POLICY_CHANGE> true))"#,
+            r#"always([+APPROVE_AGENT_NOTIFICATION_POLICY_CHANGE] true -> eventually(<+APPLY_AGENT_NOTIFICATION_POLICY> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -5180,6 +5183,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_ESCALATION_POLICY_CHANGE] true -> eventually(<+APPLY_AGENT_ESCALATION_POLICY> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_notification_policy_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_NOTIFICATION_POLICY_CHANGE] true -> eventually(<+REVIEW_AGENT_NOTIFICATION_POLICY> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_AGENT_NOTIFICATION_POLICY] true -> eventually(<+APPROVE_AGENT_NOTIFICATION_POLICY_CHANGE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_NOTIFICATION_POLICY_CHANGE] true -> eventually(<+APPLY_AGENT_NOTIFICATION_POLICY> true))"
         ));
     }
 
@@ -11270,6 +11288,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentEscalationPolicy",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_notification_policy_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_NOTIFICATION_POLICY_CHANGE] true -> eventually(<+REVIEW_AGENT_NOTIFICATION_POLICY> true))"
+                .to_string(),
+            "always([+REVIEW_AGENT_NOTIFICATION_POLICY] true -> eventually(<+APPROVE_AGENT_NOTIFICATION_POLICY_CHANGE> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_NOTIFICATION_POLICY_CHANGE] true -> eventually(<+APPLY_AGENT_NOTIFICATION_POLICY> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentNotificationPolicy",
             &formulas,
         );
 
