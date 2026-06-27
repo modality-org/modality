@@ -899,6 +899,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_THRESHOLD_REVIEW] true -> eventually(<+ANALYZE_DECISION_THRESHOLDS> true))"#,
             r#"always([+ANALYZE_DECISION_THRESHOLDS] true -> eventually(<+APPROVE_DECISION_THRESHOLD_UPDATE> true))"#,
             r#"always([+APPROVE_DECISION_THRESHOLD_UPDATE] true -> eventually(<+RECORD_DECISION_THRESHOLD> true))"#,
+            r#"always([+REQUEST_DECISION_POLICY_EXCEPTION] true -> eventually(<+ASSESS_DECISION_POLICY_RISK> true))"#,
+            r#"always([+ASSESS_DECISION_POLICY_RISK] true -> eventually(<+APPROVE_DECISION_POLICY_EXCEPTION> true))"#,
+            r#"always([+APPROVE_DECISION_POLICY_EXCEPTION] true -> eventually(<+RECORD_DECISION_POLICY_EXCEPTION> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -5720,6 +5723,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_THRESHOLD_UPDATE] true -> eventually(<+RECORD_DECISION_THRESHOLD> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_policy_exception_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_POLICY_EXCEPTION] true -> eventually(<+ASSESS_DECISION_POLICY_RISK> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_DECISION_POLICY_RISK] true -> eventually(<+APPROVE_DECISION_POLICY_EXCEPTION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_POLICY_EXCEPTION] true -> eventually(<+RECORD_DECISION_POLICY_EXCEPTION> true))"
         ));
     }
 
@@ -12276,6 +12294,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionThreshold",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_policy_exception_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_POLICY_EXCEPTION] true -> eventually(<+ASSESS_DECISION_POLICY_RISK> true))"
+                .to_string(),
+            "always([+ASSESS_DECISION_POLICY_RISK] true -> eventually(<+APPROVE_DECISION_POLICY_EXCEPTION> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_POLICY_EXCEPTION] true -> eventually(<+RECORD_DECISION_POLICY_EXCEPTION> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionPolicyException",
             &formulas,
         );
 
