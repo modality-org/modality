@@ -779,6 +779,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_RATE_LIMIT_CHANGE] true -> eventually(<+ASSESS_AGENT_RATE_LIMIT_RISK> true))"#,
             r#"always([+ASSESS_AGENT_RATE_LIMIT_RISK] true -> eventually(<+APPROVE_AGENT_RATE_LIMIT_CHANGE> true))"#,
             r#"always([+APPROVE_AGENT_RATE_LIMIT_CHANGE] true -> eventually(<+APPLY_AGENT_RATE_LIMIT> true))"#,
+            r#"always([+REQUEST_AGENT_PROMPT_TEMPLATE_CHANGE] true -> eventually(<+REVIEW_PROMPT_TEMPLATE_DIFF> true))"#,
+            r#"always([+REVIEW_PROMPT_TEMPLATE_DIFF] true -> eventually(<+APPROVE_AGENT_PROMPT_TEMPLATE_CHANGE> true))"#,
+            r#"always([+APPROVE_AGENT_PROMPT_TEMPLATE_CHANGE] true -> eventually(<+APPLY_AGENT_PROMPT_TEMPLATE> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -5018,6 +5021,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_RATE_LIMIT_CHANGE] true -> eventually(<+APPLY_AGENT_RATE_LIMIT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_prompt_template_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_PROMPT_TEMPLATE_CHANGE] true -> eventually(<+REVIEW_PROMPT_TEMPLATE_DIFF> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_PROMPT_TEMPLATE_DIFF] true -> eventually(<+APPROVE_AGENT_PROMPT_TEMPLATE_CHANGE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_PROMPT_TEMPLATE_CHANGE] true -> eventually(<+APPLY_AGENT_PROMPT_TEMPLATE> true))"
         ));
     }
 
@@ -10948,6 +10966,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentRateLimit",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_prompt_template_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_PROMPT_TEMPLATE_CHANGE] true -> eventually(<+REVIEW_PROMPT_TEMPLATE_DIFF> true))"
+                .to_string(),
+            "always([+REVIEW_PROMPT_TEMPLATE_DIFF] true -> eventually(<+APPROVE_AGENT_PROMPT_TEMPLATE_CHANGE> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_PROMPT_TEMPLATE_CHANGE] true -> eventually(<+APPLY_AGENT_PROMPT_TEMPLATE> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentPromptTemplate",
             &formulas,
         );
 
