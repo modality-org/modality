@@ -872,6 +872,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_TRACEABILITY] true -> eventually(<+LINK_DECISION_EVIDENCE> true))"#,
             r#"always([+LINK_DECISION_EVIDENCE] true -> eventually(<+APPROVE_DECISION_TRACEABILITY> true))"#,
             r#"always([+APPROVE_DECISION_TRACEABILITY] true -> eventually(<+PUBLISH_DECISION_TRACEABILITY> true))"#,
+            r#"always([+REQUEST_DECISION_ACCOUNTABILITY_REVIEW] true -> eventually(<+ASSIGN_DECISION_OWNER> true))"#,
+            r#"always([+ASSIGN_DECISION_OWNER] true -> eventually(<+APPROVE_DECISION_ACCOUNTABILITY> true))"#,
+            r#"always([+APPROVE_DECISION_ACCOUNTABILITY] true -> eventually(<+PUBLISH_DECISION_ACCOUNTABILITY> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -5558,6 +5561,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_TRACEABILITY] true -> eventually(<+PUBLISH_DECISION_TRACEABILITY> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_accountability_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_ACCOUNTABILITY_REVIEW] true -> eventually(<+ASSIGN_DECISION_OWNER> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSIGN_DECISION_OWNER] true -> eventually(<+APPROVE_DECISION_ACCOUNTABILITY> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_ACCOUNTABILITY] true -> eventually(<+PUBLISH_DECISION_ACCOUNTABILITY> true))"
         ));
     }
 
@@ -11952,6 +11970,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionTraceability",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_accountability_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_ACCOUNTABILITY_REVIEW] true -> eventually(<+ASSIGN_DECISION_OWNER> true))"
+                .to_string(),
+            "always([+ASSIGN_DECISION_OWNER] true -> eventually(<+APPROVE_DECISION_ACCOUNTABILITY> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_ACCOUNTABILITY] true -> eventually(<+PUBLISH_DECISION_ACCOUNTABILITY> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionAccountability",
             &formulas,
         );
 
