@@ -665,6 +665,15 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+DELEGATE_AGENT_TASK] true -> eventually(<+REVIEW_AGENT_OUTPUT> true))"#,
             r#"always([+REVIEW_AGENT_OUTPUT] true -> eventually(<+APPROVE_AGENT_OUTPUT> true))"#,
             r#"always([+APPROVE_AGENT_OUTPUT] true -> eventually(<+ARCHIVE_AGENT_TRACE> true))"#,
+            r#"always([+REQUEST_AGENT_POLICY_EXCEPTION] true -> eventually(<+ASSESS_AGENT_POLICY_RISK> true))"#,
+            r#"always([+ASSESS_AGENT_POLICY_RISK] true -> eventually(<+APPROVE_AGENT_POLICY_EXCEPTION> true))"#,
+            r#"always([+APPROVE_AGENT_POLICY_EXCEPTION] true -> eventually(<+RECORD_AGENT_POLICY_EXCEPTION> true))"#,
+            r#"always([+REQUEST_SANDBOX_SESSION] true -> eventually(<+APPROVE_SANDBOX_BOUNDARY> true))"#,
+            r#"always([+APPROVE_SANDBOX_BOUNDARY] true -> eventually(<+GRANT_SANDBOX_SESSION> true))"#,
+            r#"always([+GRANT_SANDBOX_SESSION] true -> eventually(<+RECORD_SANDBOX_AUDIT> true))"#,
+            r#"always([+REQUEST_AGENT_CAPABILITY] true -> eventually(<+EVALUATE_CAPABILITY_SCOPE> true))"#,
+            r#"always([+EVALUATE_CAPABILITY_SCOPE] true -> eventually(<+APPROVE_AGENT_CAPABILITY> true))"#,
+            r#"always([+APPROVE_AGENT_CAPABILITY] true -> eventually(<+ENABLE_AGENT_CAPABILITY> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -9639,6 +9648,60 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("AgentTask", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_policy_exception_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_POLICY_EXCEPTION] true -> eventually(<+ASSESS_AGENT_POLICY_RISK> true))"
+                .to_string(),
+            "always([+ASSESS_AGENT_POLICY_RISK] true -> eventually(<+APPROVE_AGENT_POLICY_EXCEPTION> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_POLICY_EXCEPTION] true -> eventually(<+RECORD_AGENT_POLICY_EXCEPTION> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentPolicyException",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_sandbox_session_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_SANDBOX_SESSION] true -> eventually(<+APPROVE_SANDBOX_BOUNDARY> true))"
+                .to_string(),
+            "always([+APPROVE_SANDBOX_BOUNDARY] true -> eventually(<+GRANT_SANDBOX_SESSION> true))"
+                .to_string(),
+            "always([+GRANT_SANDBOX_SESSION] true -> eventually(<+RECORD_SANDBOX_AUDIT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "SandboxSession",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_capability_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_CAPABILITY] true -> eventually(<+EVALUATE_CAPABILITY_SCOPE> true))"
+                .to_string(),
+            "always([+EVALUATE_CAPABILITY_SCOPE] true -> eventually(<+APPROVE_AGENT_CAPABILITY> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_CAPABILITY] true -> eventually(<+ENABLE_AGENT_CAPABILITY> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentCapability",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
