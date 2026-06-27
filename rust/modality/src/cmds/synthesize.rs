@@ -764,6 +764,15 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_KNOWLEDGE_REFRESH] true -> eventually(<+REVIEW_KNOWLEDGE_SOURCES> true))"#,
             r#"always([+REVIEW_KNOWLEDGE_SOURCES] true -> eventually(<+APPROVE_AGENT_KNOWLEDGE_REFRESH> true))"#,
             r#"always([+APPROVE_AGENT_KNOWLEDGE_REFRESH] true -> eventually(<+REFRESH_AGENT_KNOWLEDGE> true))"#,
+            r#"always([+REQUEST_AGENT_DELEGATION_RENEWAL] true -> eventually(<+REVIEW_DELEGATION_SCOPE> true))"#,
+            r#"always([+REVIEW_DELEGATION_SCOPE] true -> eventually(<+APPROVE_AGENT_DELEGATION_RENEWAL> true))"#,
+            r#"always([+APPROVE_AGENT_DELEGATION_RENEWAL] true -> eventually(<+RENEW_AGENT_DELEGATION> true))"#,
+            r#"always([+DETECT_AGENT_POLICY_DRIFT] true -> eventually(<+ASSESS_POLICY_DRIFT> true))"#,
+            r#"always([+ASSESS_POLICY_DRIFT] true -> eventually(<+APPROVE_POLICY_DRIFT_REMEDIATION> true))"#,
+            r#"always([+APPROVE_POLICY_DRIFT_REMEDIATION] true -> eventually(<+REMEDIATE_AGENT_POLICY> true))"#,
+            r#"always([+REQUEST_AGENT_PERFORMANCE_REVIEW] true -> eventually(<+COLLECT_AGENT_METRICS> true))"#,
+            r#"always([+COLLECT_AGENT_METRICS] true -> eventually(<+APPROVE_AGENT_PERFORMANCE_REVIEW> true))"#,
+            r#"always([+APPROVE_AGENT_PERFORMANCE_REVIEW] true -> eventually(<+RECORD_AGENT_PERFORMANCE_REVIEW> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -4928,6 +4937,51 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_KNOWLEDGE_REFRESH] true -> eventually(<+REFRESH_AGENT_KNOWLEDGE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_delegation_renewal_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_DELEGATION_RENEWAL] true -> eventually(<+REVIEW_DELEGATION_SCOPE> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_DELEGATION_SCOPE] true -> eventually(<+APPROVE_AGENT_DELEGATION_RENEWAL> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_DELEGATION_RENEWAL] true -> eventually(<+RENEW_AGENT_DELEGATION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_policy_drift_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+DETECT_AGENT_POLICY_DRIFT] true -> eventually(<+ASSESS_POLICY_DRIFT> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_POLICY_DRIFT] true -> eventually(<+APPROVE_POLICY_DRIFT_REMEDIATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_POLICY_DRIFT_REMEDIATION] true -> eventually(<+REMEDIATE_AGENT_POLICY> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_performance_review_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_PERFORMANCE_REVIEW] true -> eventually(<+COLLECT_AGENT_METRICS> true))"
+        ));
+        assert!(output.contains(
+            "always([+COLLECT_AGENT_METRICS] true -> eventually(<+APPROVE_AGENT_PERFORMANCE_REVIEW> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_PERFORMANCE_REVIEW] true -> eventually(<+RECORD_AGENT_PERFORMANCE_REVIEW> true))"
         ));
     }
 
@@ -10768,6 +10822,60 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentKnowledgeRefresh",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_delegation_renewal_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_DELEGATION_RENEWAL] true -> eventually(<+REVIEW_DELEGATION_SCOPE> true))"
+                .to_string(),
+            "always([+REVIEW_DELEGATION_SCOPE] true -> eventually(<+APPROVE_AGENT_DELEGATION_RENEWAL> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_DELEGATION_RENEWAL] true -> eventually(<+RENEW_AGENT_DELEGATION> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentDelegationRenewal",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_policy_drift_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+DETECT_AGENT_POLICY_DRIFT] true -> eventually(<+ASSESS_POLICY_DRIFT> true))"
+                .to_string(),
+            "always([+ASSESS_POLICY_DRIFT] true -> eventually(<+APPROVE_POLICY_DRIFT_REMEDIATION> true))"
+                .to_string(),
+            "always([+APPROVE_POLICY_DRIFT_REMEDIATION] true -> eventually(<+REMEDIATE_AGENT_POLICY> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentPolicyDrift",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_performance_review_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_PERFORMANCE_REVIEW] true -> eventually(<+COLLECT_AGENT_METRICS> true))"
+                .to_string(),
+            "always([+COLLECT_AGENT_METRICS] true -> eventually(<+APPROVE_AGENT_PERFORMANCE_REVIEW> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_PERFORMANCE_REVIEW] true -> eventually(<+RECORD_AGENT_PERFORMANCE_REVIEW> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentPerformanceReview",
             &formulas,
         );
 
