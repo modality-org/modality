@@ -674,6 +674,15 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_CAPABILITY] true -> eventually(<+EVALUATE_CAPABILITY_SCOPE> true))"#,
             r#"always([+EVALUATE_CAPABILITY_SCOPE] true -> eventually(<+APPROVE_AGENT_CAPABILITY> true))"#,
             r#"always([+APPROVE_AGENT_CAPABILITY] true -> eventually(<+ENABLE_AGENT_CAPABILITY> true))"#,
+            r#"always([+PROPOSE_AGENT_MEMORY] true -> eventually(<+REVIEW_MEMORY_SCOPE> true))"#,
+            r#"always([+REVIEW_MEMORY_SCOPE] true -> eventually(<+APPROVE_MEMORY_WRITE> true))"#,
+            r#"always([+APPROVE_MEMORY_WRITE] true -> eventually(<+COMMIT_AGENT_MEMORY> true))"#,
+            r#"always([+REQUEST_AGENT_HANDOFF] true -> eventually(<+PACKAGE_AGENT_CONTEXT> true))"#,
+            r#"always([+PACKAGE_AGENT_CONTEXT] true -> eventually(<+APPROVE_AGENT_HANDOFF> true))"#,
+            r#"always([+APPROVE_AGENT_HANDOFF] true -> eventually(<+ACCEPT_AGENT_HANDOFF> true))"#,
+            r#"always([+REQUEST_EXTERNAL_TOOL_CALL] true -> eventually(<+ASSESS_TOOL_CALL_RISK> true))"#,
+            r#"always([+ASSESS_TOOL_CALL_RISK] true -> eventually(<+APPROVE_EXTERNAL_TOOL_CALL> true))"#,
+            r#"always([+APPROVE_EXTERNAL_TOOL_CALL] true -> eventually(<+EXECUTE_EXTERNAL_TOOL_CALL> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -4388,6 +4397,51 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_MODEL_OVERRIDE] true -> eventually(<+RECORD_OVERRIDE_AUDIT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_memory_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+PROPOSE_AGENT_MEMORY] true -> eventually(<+REVIEW_MEMORY_SCOPE> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_MEMORY_SCOPE] true -> eventually(<+APPROVE_MEMORY_WRITE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_MEMORY_WRITE] true -> eventually(<+COMMIT_AGENT_MEMORY> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_handoff_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_HANDOFF] true -> eventually(<+PACKAGE_AGENT_CONTEXT> true))"
+        ));
+        assert!(output.contains(
+            "always([+PACKAGE_AGENT_CONTEXT] true -> eventually(<+APPROVE_AGENT_HANDOFF> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_HANDOFF] true -> eventually(<+ACCEPT_AGENT_HANDOFF> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_external_tool_call_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_EXTERNAL_TOOL_CALL] true -> eventually(<+ASSESS_TOOL_CALL_RISK> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_TOOL_CALL_RISK] true -> eventually(<+APPROVE_EXTERNAL_TOOL_CALL> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_EXTERNAL_TOOL_CALL] true -> eventually(<+EXECUTE_EXTERNAL_TOOL_CALL> true))"
         ));
     }
 
@@ -9700,6 +9754,56 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentCapability",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_memory_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+PROPOSE_AGENT_MEMORY] true -> eventually(<+REVIEW_MEMORY_SCOPE> true))"
+                .to_string(),
+            "always([+REVIEW_MEMORY_SCOPE] true -> eventually(<+APPROVE_MEMORY_WRITE> true))"
+                .to_string(),
+            "always([+APPROVE_MEMORY_WRITE] true -> eventually(<+COMMIT_AGENT_MEMORY> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AgentMemory", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_handoff_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_HANDOFF] true -> eventually(<+PACKAGE_AGENT_CONTEXT> true))"
+                .to_string(),
+            "always([+PACKAGE_AGENT_CONTEXT] true -> eventually(<+APPROVE_AGENT_HANDOFF> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_HANDOFF] true -> eventually(<+ACCEPT_AGENT_HANDOFF> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AgentHandoff", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_external_tool_call_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_EXTERNAL_TOOL_CALL] true -> eventually(<+ASSESS_TOOL_CALL_RISK> true))"
+                .to_string(),
+            "always([+ASSESS_TOOL_CALL_RISK] true -> eventually(<+APPROVE_EXTERNAL_TOOL_CALL> true))"
+                .to_string(),
+            "always([+APPROVE_EXTERNAL_TOOL_CALL] true -> eventually(<+EXECUTE_EXTERNAL_TOOL_CALL> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ExternalToolCall",
             &formulas,
         );
 
