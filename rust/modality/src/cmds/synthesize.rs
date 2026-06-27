@@ -875,6 +875,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_ACCOUNTABILITY_REVIEW] true -> eventually(<+ASSIGN_DECISION_OWNER> true))"#,
             r#"always([+ASSIGN_DECISION_OWNER] true -> eventually(<+APPROVE_DECISION_ACCOUNTABILITY> true))"#,
             r#"always([+APPROVE_DECISION_ACCOUNTABILITY] true -> eventually(<+PUBLISH_DECISION_ACCOUNTABILITY> true))"#,
+            r#"always([+REQUEST_DECISION_FAIRNESS_REVIEW] true -> eventually(<+ASSESS_DECISION_FAIRNESS> true))"#,
+            r#"always([+ASSESS_DECISION_FAIRNESS] true -> eventually(<+APPROVE_DECISION_FAIRNESS_REMEDIATION> true))"#,
+            r#"always([+APPROVE_DECISION_FAIRNESS_REMEDIATION] true -> eventually(<+PUBLISH_DECISION_FAIRNESS_REPORT> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -5576,6 +5579,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_ACCOUNTABILITY] true -> eventually(<+PUBLISH_DECISION_ACCOUNTABILITY> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_fairness_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_FAIRNESS_REVIEW] true -> eventually(<+ASSESS_DECISION_FAIRNESS> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_DECISION_FAIRNESS] true -> eventually(<+APPROVE_DECISION_FAIRNESS_REMEDIATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_FAIRNESS_REMEDIATION] true -> eventually(<+PUBLISH_DECISION_FAIRNESS_REPORT> true))"
         ));
     }
 
@@ -11988,6 +12006,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionAccountability",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_fairness_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_FAIRNESS_REVIEW] true -> eventually(<+ASSESS_DECISION_FAIRNESS> true))"
+                .to_string(),
+            "always([+ASSESS_DECISION_FAIRNESS] true -> eventually(<+APPROVE_DECISION_FAIRNESS_REMEDIATION> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_FAIRNESS_REMEDIATION] true -> eventually(<+PUBLISH_DECISION_FAIRNESS_REPORT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionFairness",
             &formulas,
         );
 
