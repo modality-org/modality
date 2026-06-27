@@ -746,6 +746,15 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_STATE_PURGE] true -> eventually(<+REVIEW_PURGE_SCOPE> true))"#,
             r#"always([+REVIEW_PURGE_SCOPE] true -> eventually(<+APPROVE_AGENT_STATE_PURGE> true))"#,
             r#"always([+APPROVE_AGENT_STATE_PURGE] true -> eventually(<+PURGE_AGENT_STATE> true))"#,
+            r#"always([+REQUEST_AGENT_AUDIT_DISCLOSURE] true -> eventually(<+REDACT_AGENT_AUDIT_LOG> true))"#,
+            r#"always([+REDACT_AGENT_AUDIT_LOG] true -> eventually(<+APPROVE_AGENT_AUDIT_DISCLOSURE> true))"#,
+            r#"always([+APPROVE_AGENT_AUDIT_DISCLOSURE] true -> eventually(<+DISCLOSE_AGENT_AUDIT_LOG> true))"#,
+            r#"always([+REQUEST_AGENT_ENVIRONMENT_TEARDOWN] true -> eventually(<+SNAPSHOT_AGENT_ENVIRONMENT> true))"#,
+            r#"always([+SNAPSHOT_AGENT_ENVIRONMENT] true -> eventually(<+APPROVE_AGENT_ENVIRONMENT_TEARDOWN> true))"#,
+            r#"always([+APPROVE_AGENT_ENVIRONMENT_TEARDOWN] true -> eventually(<+TEARDOWN_AGENT_ENVIRONMENT> true))"#,
+            r#"always([+REQUEST_AGENT_CACHE_INVALIDATION] true -> eventually(<+ASSESS_CACHE_DEPENDENCIES> true))"#,
+            r#"always([+ASSESS_CACHE_DEPENDENCIES] true -> eventually(<+APPROVE_AGENT_CACHE_INVALIDATION> true))"#,
+            r#"always([+APPROVE_AGENT_CACHE_INVALIDATION] true -> eventually(<+INVALIDATE_AGENT_CACHE> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -4820,6 +4829,51 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_STATE_PURGE] true -> eventually(<+PURGE_AGENT_STATE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_audit_disclosure_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_AUDIT_DISCLOSURE] true -> eventually(<+REDACT_AGENT_AUDIT_LOG> true))"
+        ));
+        assert!(output.contains(
+            "always([+REDACT_AGENT_AUDIT_LOG] true -> eventually(<+APPROVE_AGENT_AUDIT_DISCLOSURE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_AUDIT_DISCLOSURE] true -> eventually(<+DISCLOSE_AGENT_AUDIT_LOG> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_environment_teardown_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_ENVIRONMENT_TEARDOWN] true -> eventually(<+SNAPSHOT_AGENT_ENVIRONMENT> true))"
+        ));
+        assert!(output.contains(
+            "always([+SNAPSHOT_AGENT_ENVIRONMENT] true -> eventually(<+APPROVE_AGENT_ENVIRONMENT_TEARDOWN> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_ENVIRONMENT_TEARDOWN] true -> eventually(<+TEARDOWN_AGENT_ENVIRONMENT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_cache_invalidation_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_CACHE_INVALIDATION] true -> eventually(<+ASSESS_CACHE_DEPENDENCIES> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_CACHE_DEPENDENCIES] true -> eventually(<+APPROVE_AGENT_CACHE_INVALIDATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_CACHE_INVALIDATION] true -> eventually(<+INVALIDATE_AGENT_CACHE> true))"
         ));
     }
 
@@ -10552,6 +10606,60 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentStatePurge",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_audit_disclosure_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_AUDIT_DISCLOSURE] true -> eventually(<+REDACT_AGENT_AUDIT_LOG> true))"
+                .to_string(),
+            "always([+REDACT_AGENT_AUDIT_LOG] true -> eventually(<+APPROVE_AGENT_AUDIT_DISCLOSURE> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_AUDIT_DISCLOSURE] true -> eventually(<+DISCLOSE_AGENT_AUDIT_LOG> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentAuditDisclosure",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_environment_teardown_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_ENVIRONMENT_TEARDOWN] true -> eventually(<+SNAPSHOT_AGENT_ENVIRONMENT> true))"
+                .to_string(),
+            "always([+SNAPSHOT_AGENT_ENVIRONMENT] true -> eventually(<+APPROVE_AGENT_ENVIRONMENT_TEARDOWN> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_ENVIRONMENT_TEARDOWN] true -> eventually(<+TEARDOWN_AGENT_ENVIRONMENT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentEnvironmentTeardown",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_cache_invalidation_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_CACHE_INVALIDATION] true -> eventually(<+ASSESS_CACHE_DEPENDENCIES> true))"
+                .to_string(),
+            "always([+ASSESS_CACHE_DEPENDENCIES] true -> eventually(<+APPROVE_AGENT_CACHE_INVALIDATION> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_CACHE_INVALIDATION] true -> eventually(<+INVALIDATE_AGENT_CACHE> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentCacheInvalidation",
             &formulas,
         );
 
