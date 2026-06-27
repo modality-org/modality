@@ -755,6 +755,15 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_CACHE_INVALIDATION] true -> eventually(<+ASSESS_CACHE_DEPENDENCIES> true))"#,
             r#"always([+ASSESS_CACHE_DEPENDENCIES] true -> eventually(<+APPROVE_AGENT_CACHE_INVALIDATION> true))"#,
             r#"always([+APPROVE_AGENT_CACHE_INVALIDATION] true -> eventually(<+INVALIDATE_AGENT_CACHE> true))"#,
+            r#"always([+REQUEST_AGENT_CONTEXT_COMPACTION] true -> eventually(<+SUMMARIZE_AGENT_CONTEXT> true))"#,
+            r#"always([+SUMMARIZE_AGENT_CONTEXT] true -> eventually(<+APPROVE_AGENT_CONTEXT_COMPACTION> true))"#,
+            r#"always([+APPROVE_AGENT_CONTEXT_COMPACTION] true -> eventually(<+COMPACT_AGENT_CONTEXT> true))"#,
+            r#"always([+REQUEST_AGENT_WORKSPACE_HANDOVER] true -> eventually(<+INVENTORY_WORKSPACE_STATE> true))"#,
+            r#"always([+INVENTORY_WORKSPACE_STATE] true -> eventually(<+APPROVE_AGENT_WORKSPACE_HANDOVER> true))"#,
+            r#"always([+APPROVE_AGENT_WORKSPACE_HANDOVER] true -> eventually(<+HANDOVER_AGENT_WORKSPACE> true))"#,
+            r#"always([+REQUEST_AGENT_KNOWLEDGE_REFRESH] true -> eventually(<+REVIEW_KNOWLEDGE_SOURCES> true))"#,
+            r#"always([+REVIEW_KNOWLEDGE_SOURCES] true -> eventually(<+APPROVE_AGENT_KNOWLEDGE_REFRESH> true))"#,
+            r#"always([+APPROVE_AGENT_KNOWLEDGE_REFRESH] true -> eventually(<+REFRESH_AGENT_KNOWLEDGE> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -4874,6 +4883,51 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_CACHE_INVALIDATION] true -> eventually(<+INVALIDATE_AGENT_CACHE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_context_compaction_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_CONTEXT_COMPACTION] true -> eventually(<+SUMMARIZE_AGENT_CONTEXT> true))"
+        ));
+        assert!(output.contains(
+            "always([+SUMMARIZE_AGENT_CONTEXT] true -> eventually(<+APPROVE_AGENT_CONTEXT_COMPACTION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_CONTEXT_COMPACTION] true -> eventually(<+COMPACT_AGENT_CONTEXT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_workspace_handover_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_WORKSPACE_HANDOVER] true -> eventually(<+INVENTORY_WORKSPACE_STATE> true))"
+        ));
+        assert!(output.contains(
+            "always([+INVENTORY_WORKSPACE_STATE] true -> eventually(<+APPROVE_AGENT_WORKSPACE_HANDOVER> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_WORKSPACE_HANDOVER] true -> eventually(<+HANDOVER_AGENT_WORKSPACE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_knowledge_refresh_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_KNOWLEDGE_REFRESH] true -> eventually(<+REVIEW_KNOWLEDGE_SOURCES> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_KNOWLEDGE_SOURCES] true -> eventually(<+APPROVE_AGENT_KNOWLEDGE_REFRESH> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_KNOWLEDGE_REFRESH] true -> eventually(<+REFRESH_AGENT_KNOWLEDGE> true))"
         ));
     }
 
@@ -10660,6 +10714,60 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentCacheInvalidation",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_context_compaction_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_CONTEXT_COMPACTION] true -> eventually(<+SUMMARIZE_AGENT_CONTEXT> true))"
+                .to_string(),
+            "always([+SUMMARIZE_AGENT_CONTEXT] true -> eventually(<+APPROVE_AGENT_CONTEXT_COMPACTION> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_CONTEXT_COMPACTION] true -> eventually(<+COMPACT_AGENT_CONTEXT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentContextCompaction",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_workspace_handover_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_WORKSPACE_HANDOVER] true -> eventually(<+INVENTORY_WORKSPACE_STATE> true))"
+                .to_string(),
+            "always([+INVENTORY_WORKSPACE_STATE] true -> eventually(<+APPROVE_AGENT_WORKSPACE_HANDOVER> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_WORKSPACE_HANDOVER] true -> eventually(<+HANDOVER_AGENT_WORKSPACE> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentWorkspaceHandover",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_knowledge_refresh_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_KNOWLEDGE_REFRESH] true -> eventually(<+REVIEW_KNOWLEDGE_SOURCES> true))"
+                .to_string(),
+            "always([+REVIEW_KNOWLEDGE_SOURCES] true -> eventually(<+APPROVE_AGENT_KNOWLEDGE_REFRESH> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_KNOWLEDGE_REFRESH] true -> eventually(<+REFRESH_AGENT_KNOWLEDGE> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentKnowledgeRefresh",
             &formulas,
         );
 
