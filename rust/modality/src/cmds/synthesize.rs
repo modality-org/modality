@@ -683,6 +683,15 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_EXTERNAL_TOOL_CALL] true -> eventually(<+ASSESS_TOOL_CALL_RISK> true))"#,
             r#"always([+ASSESS_TOOL_CALL_RISK] true -> eventually(<+APPROVE_EXTERNAL_TOOL_CALL> true))"#,
             r#"always([+APPROVE_EXTERNAL_TOOL_CALL] true -> eventually(<+EXECUTE_EXTERNAL_TOOL_CALL> true))"#,
+            r#"always([+REQUEST_AGENT_CREDENTIAL_ROTATION] true -> eventually(<+VERIFY_AGENT_IDENTITY> true))"#,
+            r#"always([+VERIFY_AGENT_IDENTITY] true -> eventually(<+APPROVE_AGENT_CREDENTIAL_ROTATION> true))"#,
+            r#"always([+APPROVE_AGENT_CREDENTIAL_ROTATION] true -> eventually(<+ROTATE_AGENT_CREDENTIAL> true))"#,
+            r#"always([+REPORT_AGENT_INCIDENT] true -> eventually(<+CONTAIN_AGENT_SESSION> true))"#,
+            r#"always([+CONTAIN_AGENT_SESSION] true -> eventually(<+APPROVE_AGENT_REMEDIATION> true))"#,
+            r#"always([+APPROVE_AGENT_REMEDIATION] true -> eventually(<+RECORD_AGENT_INCIDENT> true))"#,
+            r#"always([+REQUEST_AGENT_PERMISSION_REVOKE] true -> eventually(<+ASSESS_PERMISSION_DEPENDENCIES> true))"#,
+            r#"always([+ASSESS_PERMISSION_DEPENDENCIES] true -> eventually(<+APPROVE_AGENT_PERMISSION_REVOKE> true))"#,
+            r#"always([+APPROVE_AGENT_PERMISSION_REVOKE] true -> eventually(<+REVOKE_AGENT_PERMISSION> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -4442,6 +4451,51 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_EXTERNAL_TOOL_CALL] true -> eventually(<+EXECUTE_EXTERNAL_TOOL_CALL> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_credential_rotation_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_CREDENTIAL_ROTATION] true -> eventually(<+VERIFY_AGENT_IDENTITY> true))"
+        ));
+        assert!(output.contains(
+            "always([+VERIFY_AGENT_IDENTITY] true -> eventually(<+APPROVE_AGENT_CREDENTIAL_ROTATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_CREDENTIAL_ROTATION] true -> eventually(<+ROTATE_AGENT_CREDENTIAL> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_incident_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REPORT_AGENT_INCIDENT] true -> eventually(<+CONTAIN_AGENT_SESSION> true))"
+        ));
+        assert!(output.contains(
+            "always([+CONTAIN_AGENT_SESSION] true -> eventually(<+APPROVE_AGENT_REMEDIATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_REMEDIATION] true -> eventually(<+RECORD_AGENT_INCIDENT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_permission_revoke_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_PERMISSION_REVOKE] true -> eventually(<+ASSESS_PERMISSION_DEPENDENCIES> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_PERMISSION_DEPENDENCIES] true -> eventually(<+APPROVE_AGENT_PERMISSION_REVOKE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_PERMISSION_REVOKE] true -> eventually(<+REVOKE_AGENT_PERMISSION> true))"
         ));
     }
 
@@ -9804,6 +9858,58 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ExternalToolCall",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_credential_rotation_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_CREDENTIAL_ROTATION] true -> eventually(<+VERIFY_AGENT_IDENTITY> true))"
+                .to_string(),
+            "always([+VERIFY_AGENT_IDENTITY] true -> eventually(<+APPROVE_AGENT_CREDENTIAL_ROTATION> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_CREDENTIAL_ROTATION] true -> eventually(<+ROTATE_AGENT_CREDENTIAL> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentCredentialRotation",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_incident_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REPORT_AGENT_INCIDENT] true -> eventually(<+CONTAIN_AGENT_SESSION> true))"
+                .to_string(),
+            "always([+CONTAIN_AGENT_SESSION] true -> eventually(<+APPROVE_AGENT_REMEDIATION> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_REMEDIATION] true -> eventually(<+RECORD_AGENT_INCIDENT> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AgentIncident", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_permission_revoke_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_PERMISSION_REVOKE] true -> eventually(<+ASSESS_PERMISSION_DEPENDENCIES> true))"
+                .to_string(),
+            "always([+ASSESS_PERMISSION_DEPENDENCIES] true -> eventually(<+APPROVE_AGENT_PERMISSION_REVOKE> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_PERMISSION_REVOKE] true -> eventually(<+REVOKE_AGENT_PERMISSION> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentPermissionRevoke",
             &formulas,
         );
 
