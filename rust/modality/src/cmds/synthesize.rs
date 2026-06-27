@@ -728,6 +728,15 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_RUNTIME_MIGRATION] true -> eventually(<+SNAPSHOT_AGENT_RUNTIME> true))"#,
             r#"always([+SNAPSHOT_AGENT_RUNTIME] true -> eventually(<+APPROVE_AGENT_RUNTIME_MIGRATION> true))"#,
             r#"always([+APPROVE_AGENT_RUNTIME_MIGRATION] true -> eventually(<+MIGRATE_AGENT_RUNTIME> true))"#,
+            r#"always([+REQUEST_AGENT_ROLLBACK] true -> eventually(<+VERIFY_ROLLBACK_POINT> true))"#,
+            r#"always([+VERIFY_ROLLBACK_POINT] true -> eventually(<+APPROVE_AGENT_ROLLBACK> true))"#,
+            r#"always([+APPROVE_AGENT_ROLLBACK] true -> eventually(<+ROLLBACK_AGENT_STATE> true))"#,
+            r#"always([+REQUEST_AGENT_TELEMETRY_ACCESS] true -> eventually(<+REDACT_AGENT_TELEMETRY> true))"#,
+            r#"always([+REDACT_AGENT_TELEMETRY] true -> eventually(<+APPROVE_AGENT_TELEMETRY_ACCESS> true))"#,
+            r#"always([+APPROVE_AGENT_TELEMETRY_ACCESS] true -> eventually(<+EXPORT_AGENT_TELEMETRY> true))"#,
+            r#"always([+REQUEST_AGENT_SESSION_RESUME] true -> eventually(<+VALIDATE_SESSION_CHECKPOINT> true))"#,
+            r#"always([+VALIDATE_SESSION_CHECKPOINT] true -> eventually(<+APPROVE_AGENT_SESSION_RESUME> true))"#,
+            r#"always([+APPROVE_AGENT_SESSION_RESUME] true -> eventually(<+RESUME_AGENT_SESSION> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -4712,6 +4721,51 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_RUNTIME_MIGRATION] true -> eventually(<+MIGRATE_AGENT_RUNTIME> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_rollback_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_ROLLBACK] true -> eventually(<+VERIFY_ROLLBACK_POINT> true))"
+        ));
+        assert!(output.contains(
+            "always([+VERIFY_ROLLBACK_POINT] true -> eventually(<+APPROVE_AGENT_ROLLBACK> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_ROLLBACK] true -> eventually(<+ROLLBACK_AGENT_STATE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_telemetry_access_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_TELEMETRY_ACCESS] true -> eventually(<+REDACT_AGENT_TELEMETRY> true))"
+        ));
+        assert!(output.contains(
+            "always([+REDACT_AGENT_TELEMETRY] true -> eventually(<+APPROVE_AGENT_TELEMETRY_ACCESS> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_TELEMETRY_ACCESS] true -> eventually(<+EXPORT_AGENT_TELEMETRY> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_session_resume_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_SESSION_RESUME] true -> eventually(<+VALIDATE_SESSION_CHECKPOINT> true))"
+        ));
+        assert!(output.contains(
+            "always([+VALIDATE_SESSION_CHECKPOINT] true -> eventually(<+APPROVE_AGENT_SESSION_RESUME> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_SESSION_RESUME] true -> eventually(<+RESUME_AGENT_SESSION> true))"
         ));
     }
 
@@ -10338,6 +10392,60 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentRuntimeMigration",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_rollback_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_ROLLBACK] true -> eventually(<+VERIFY_ROLLBACK_POINT> true))"
+                .to_string(),
+            "always([+VERIFY_ROLLBACK_POINT] true -> eventually(<+APPROVE_AGENT_ROLLBACK> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_ROLLBACK] true -> eventually(<+ROLLBACK_AGENT_STATE> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentRollback",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_telemetry_access_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_TELEMETRY_ACCESS] true -> eventually(<+REDACT_AGENT_TELEMETRY> true))"
+                .to_string(),
+            "always([+REDACT_AGENT_TELEMETRY] true -> eventually(<+APPROVE_AGENT_TELEMETRY_ACCESS> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_TELEMETRY_ACCESS] true -> eventually(<+EXPORT_AGENT_TELEMETRY> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentTelemetryAccess",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_session_resume_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_SESSION_RESUME] true -> eventually(<+VALIDATE_SESSION_CHECKPOINT> true))"
+                .to_string(),
+            "always([+VALIDATE_SESSION_CHECKPOINT] true -> eventually(<+APPROVE_AGENT_SESSION_RESUME> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_SESSION_RESUME] true -> eventually(<+RESUME_AGENT_SESSION> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentSessionResume",
             &formulas,
         );
 
