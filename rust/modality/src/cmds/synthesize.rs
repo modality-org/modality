@@ -845,6 +845,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+CONTEST_AUTOMATED_DECISION] true -> eventually(<+REVIEW_CONTEST_EVIDENCE> true))"#,
             r#"always([+REVIEW_CONTEST_EVIDENCE] true -> eventually(<+APPROVE_CONTEST_RESOLUTION> true))"#,
             r#"always([+APPROVE_CONTEST_RESOLUTION] true -> eventually(<+RECORD_CONTEST_RESOLUTION> true))"#,
+            r#"always([+START_DECISION_IMPACT_ASSESSMENT] true -> eventually(<+EVALUATE_DECISION_IMPACT> true))"#,
+            r#"always([+EVALUATE_DECISION_IMPACT] true -> eventually(<+APPROVE_DECISION_IMPACT_ASSESSMENT> true))"#,
+            r#"always([+APPROVE_DECISION_IMPACT_ASSESSMENT] true -> eventually(<+RECORD_DECISION_IMPACT_ASSESSMENT> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -5396,6 +5399,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_CONTEST_RESOLUTION] true -> eventually(<+RECORD_CONTEST_RESOLUTION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_impact_assessment_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+START_DECISION_IMPACT_ASSESSMENT] true -> eventually(<+EVALUATE_DECISION_IMPACT> true))"
+        ));
+        assert!(output.contains(
+            "always([+EVALUATE_DECISION_IMPACT] true -> eventually(<+APPROVE_DECISION_IMPACT_ASSESSMENT> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_IMPACT_ASSESSMENT] true -> eventually(<+RECORD_DECISION_IMPACT_ASSESSMENT> true))"
         ));
     }
 
@@ -11628,6 +11646,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AutomatedDecisionContest",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_impact_assessment_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+START_DECISION_IMPACT_ASSESSMENT] true -> eventually(<+EVALUATE_DECISION_IMPACT> true))"
+                .to_string(),
+            "always([+EVALUATE_DECISION_IMPACT] true -> eventually(<+APPROVE_DECISION_IMPACT_ASSESSMENT> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_IMPACT_ASSESSMENT] true -> eventually(<+RECORD_DECISION_IMPACT_ASSESSMENT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionImpactAssessment",
             &formulas,
         );
 
