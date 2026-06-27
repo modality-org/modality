@@ -893,6 +893,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_UNCERTAINTY_REVIEW] true -> eventually(<+QUANTIFY_DECISION_UNCERTAINTY> true))"#,
             r#"always([+QUANTIFY_DECISION_UNCERTAINTY] true -> eventually(<+APPROVE_DECISION_UNCERTAINTY_DISCLOSURE> true))"#,
             r#"always([+APPROVE_DECISION_UNCERTAINTY_DISCLOSURE] true -> eventually(<+PUBLISH_DECISION_UNCERTAINTY> true))"#,
+            r#"always([+REQUEST_DECISION_CALIBRATION_REVIEW] true -> eventually(<+MEASURE_DECISION_CALIBRATION> true))"#,
+            r#"always([+MEASURE_DECISION_CALIBRATION] true -> eventually(<+APPROVE_DECISION_CALIBRATION_UPDATE> true))"#,
+            r#"always([+APPROVE_DECISION_CALIBRATION_UPDATE] true -> eventually(<+RECORD_DECISION_CALIBRATION> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -5684,6 +5687,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_UNCERTAINTY_DISCLOSURE] true -> eventually(<+PUBLISH_DECISION_UNCERTAINTY> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_calibration_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_CALIBRATION_REVIEW] true -> eventually(<+MEASURE_DECISION_CALIBRATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+MEASURE_DECISION_CALIBRATION] true -> eventually(<+APPROVE_DECISION_CALIBRATION_UPDATE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_CALIBRATION_UPDATE] true -> eventually(<+RECORD_DECISION_CALIBRATION> true))"
         ));
     }
 
@@ -12204,6 +12222,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionUncertainty",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_calibration_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_CALIBRATION_REVIEW] true -> eventually(<+MEASURE_DECISION_CALIBRATION> true))"
+                .to_string(),
+            "always([+MEASURE_DECISION_CALIBRATION] true -> eventually(<+APPROVE_DECISION_CALIBRATION_UPDATE> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_CALIBRATION_UPDATE] true -> eventually(<+RECORD_DECISION_CALIBRATION> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionCalibration",
             &formulas,
         );
 
