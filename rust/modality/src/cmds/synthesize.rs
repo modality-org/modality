@@ -824,6 +824,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_DIGEST_POLICY_CHANGE] true -> eventually(<+REVIEW_AGENT_DIGEST_POLICY> true))"#,
             r#"always([+REVIEW_AGENT_DIGEST_POLICY] true -> eventually(<+APPROVE_AGENT_DIGEST_POLICY_CHANGE> true))"#,
             r#"always([+APPROVE_AGENT_DIGEST_POLICY_CHANGE] true -> eventually(<+APPLY_AGENT_DIGEST_POLICY> true))"#,
+            r#"always([+REQUEST_AGENT_SUMMARY_POLICY_CHANGE] true -> eventually(<+REVIEW_AGENT_SUMMARY_POLICY> true))"#,
+            r#"always([+REVIEW_AGENT_SUMMARY_POLICY] true -> eventually(<+APPROVE_AGENT_SUMMARY_POLICY_CHANGE> true))"#,
+            r#"always([+APPROVE_AGENT_SUMMARY_POLICY_CHANGE] true -> eventually(<+APPLY_AGENT_SUMMARY_POLICY> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -5288,6 +5291,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_DIGEST_POLICY_CHANGE] true -> eventually(<+APPLY_AGENT_DIGEST_POLICY> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_summary_policy_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_SUMMARY_POLICY_CHANGE] true -> eventually(<+REVIEW_AGENT_SUMMARY_POLICY> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_AGENT_SUMMARY_POLICY] true -> eventually(<+APPROVE_AGENT_SUMMARY_POLICY_CHANGE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_SUMMARY_POLICY_CHANGE] true -> eventually(<+APPLY_AGENT_SUMMARY_POLICY> true))"
         ));
     }
 
@@ -11486,6 +11504,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentDigestPolicy",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_summary_policy_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_SUMMARY_POLICY_CHANGE] true -> eventually(<+REVIEW_AGENT_SUMMARY_POLICY> true))"
+                .to_string(),
+            "always([+REVIEW_AGENT_SUMMARY_POLICY] true -> eventually(<+APPROVE_AGENT_SUMMARY_POLICY_CHANGE> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_SUMMARY_POLICY_CHANGE] true -> eventually(<+APPLY_AGENT_SUMMARY_POLICY> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentSummaryPolicy",
             &formulas,
         );
 
