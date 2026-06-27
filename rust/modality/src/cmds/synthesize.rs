@@ -701,6 +701,15 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+PROPOSE_AGENT_PUBLICATION] true -> eventually(<+REVIEW_AGENT_CLAIMS> true))"#,
             r#"always([+REVIEW_AGENT_CLAIMS] true -> eventually(<+APPROVE_AGENT_PUBLICATION> true))"#,
             r#"always([+APPROVE_AGENT_PUBLICATION] true -> eventually(<+PUBLISH_AGENT_OUTPUT> true))"#,
+            r#"always([+REQUEST_AGENT_SECRET_ACCESS] true -> eventually(<+REVIEW_SECRET_SCOPE> true))"#,
+            r#"always([+REVIEW_SECRET_SCOPE] true -> eventually(<+APPROVE_AGENT_SECRET_ACCESS> true))"#,
+            r#"always([+APPROVE_AGENT_SECRET_ACCESS] true -> eventually(<+GRANT_AGENT_SECRET_ACCESS> true))"#,
+            r#"always([+REQUEST_AGENT_MODEL_ACCESS] true -> eventually(<+REVIEW_MODEL_ACCESS_SCOPE> true))"#,
+            r#"always([+REVIEW_MODEL_ACCESS_SCOPE] true -> eventually(<+APPROVE_AGENT_MODEL_ACCESS> true))"#,
+            r#"always([+APPROVE_AGENT_MODEL_ACCESS] true -> eventually(<+GRANT_AGENT_MODEL_ACCESS> true))"#,
+            r#"always([+REQUEST_AGENT_SPEND] true -> eventually(<+ESTIMATE_AGENT_SPEND_RISK> true))"#,
+            r#"always([+ESTIMATE_AGENT_SPEND_RISK] true -> eventually(<+APPROVE_AGENT_SPEND> true))"#,
+            r#"always([+APPROVE_AGENT_SPEND] true -> eventually(<+EXECUTE_AGENT_SPEND> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -4550,6 +4559,51 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_PUBLICATION] true -> eventually(<+PUBLISH_AGENT_OUTPUT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_secret_access_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_SECRET_ACCESS] true -> eventually(<+REVIEW_SECRET_SCOPE> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_SECRET_SCOPE] true -> eventually(<+APPROVE_AGENT_SECRET_ACCESS> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_SECRET_ACCESS] true -> eventually(<+GRANT_AGENT_SECRET_ACCESS> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_model_access_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_MODEL_ACCESS] true -> eventually(<+REVIEW_MODEL_ACCESS_SCOPE> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_MODEL_ACCESS_SCOPE] true -> eventually(<+APPROVE_AGENT_MODEL_ACCESS> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_MODEL_ACCESS] true -> eventually(<+GRANT_AGENT_MODEL_ACCESS> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_spend_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_SPEND] true -> eventually(<+ESTIMATE_AGENT_SPEND_RISK> true))"
+        ));
+        assert!(output.contains(
+            "always([+ESTIMATE_AGENT_SPEND_RISK] true -> eventually(<+APPROVE_AGENT_SPEND> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_SPEND] true -> eventually(<+EXECUTE_AGENT_SPEND> true))"
         ));
     }
 
@@ -10018,6 +10072,58 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "AgentPublication",
             &formulas,
         );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_secret_access_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_SECRET_ACCESS] true -> eventually(<+REVIEW_SECRET_SCOPE> true))"
+                .to_string(),
+            "always([+REVIEW_SECRET_SCOPE] true -> eventually(<+APPROVE_AGENT_SECRET_ACCESS> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_SECRET_ACCESS] true -> eventually(<+GRANT_AGENT_SECRET_ACCESS> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentSecretAccess",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_model_access_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_MODEL_ACCESS] true -> eventually(<+REVIEW_MODEL_ACCESS_SCOPE> true))"
+                .to_string(),
+            "always([+REVIEW_MODEL_ACCESS_SCOPE] true -> eventually(<+APPROVE_AGENT_MODEL_ACCESS> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_MODEL_ACCESS] true -> eventually(<+GRANT_AGENT_MODEL_ACCESS> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentModelAccess",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_spend_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_SPEND] true -> eventually(<+ESTIMATE_AGENT_SPEND_RISK> true))"
+                .to_string(),
+            "always([+ESTIMATE_AGENT_SPEND_RISK] true -> eventually(<+APPROVE_AGENT_SPEND> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_SPEND] true -> eventually(<+EXECUTE_AGENT_SPEND> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AgentSpend", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
