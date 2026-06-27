@@ -656,6 +656,15 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_MODEL_OVERRIDE] true -> eventually(<+REVIEW_OVERRIDE_RISK> true))"#,
             r#"always([+REVIEW_OVERRIDE_RISK] true -> eventually(<+APPROVE_MODEL_OVERRIDE> true))"#,
             r#"always([+APPROVE_MODEL_OVERRIDE] true -> eventually(<+RECORD_OVERRIDE_AUDIT> true))"#,
+            r#"always([+REQUEST_AGENT_ACTION] true -> eventually(<+SIMULATE_AGENT_ACTION> true))"#,
+            r#"always([+SIMULATE_AGENT_ACTION] true -> eventually(<+APPROVE_AGENT_ACTION> true))"#,
+            r#"always([+APPROVE_AGENT_ACTION] true -> eventually(<+EXECUTE_AGENT_ACTION> true))"#,
+            r#"always([+REQUEST_TOOL_PERMISSION] true -> eventually(<+ASSESS_TOOL_RISK> true))"#,
+            r#"always([+ASSESS_TOOL_RISK] true -> eventually(<+APPROVE_TOOL_PERMISSION> true))"#,
+            r#"always([+APPROVE_TOOL_PERMISSION] true -> eventually(<+GRANT_TOOL_PERMISSION> true))"#,
+            r#"always([+DELEGATE_AGENT_TASK] true -> eventually(<+REVIEW_AGENT_OUTPUT> true))"#,
+            r#"always([+REVIEW_AGENT_OUTPUT] true -> eventually(<+APPROVE_AGENT_OUTPUT> true))"#,
+            r#"always([+APPROVE_AGENT_OUTPUT] true -> eventually(<+ARCHIVE_AGENT_TRACE> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -9580,6 +9589,56 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("ModelOverride", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_action_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_ACTION] true -> eventually(<+SIMULATE_AGENT_ACTION> true))"
+                .to_string(),
+            "always([+SIMULATE_AGENT_ACTION] true -> eventually(<+APPROVE_AGENT_ACTION> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_ACTION] true -> eventually(<+EXECUTE_AGENT_ACTION> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AgentAction", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_tool_permission_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_TOOL_PERMISSION] true -> eventually(<+ASSESS_TOOL_RISK> true))"
+                .to_string(),
+            "always([+ASSESS_TOOL_RISK] true -> eventually(<+APPROVE_TOOL_PERMISSION> true))"
+                .to_string(),
+            "always([+APPROVE_TOOL_PERMISSION] true -> eventually(<+GRANT_TOOL_PERMISSION> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ToolPermission",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_task_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+DELEGATE_AGENT_TASK] true -> eventually(<+REVIEW_AGENT_OUTPUT> true))"
+                .to_string(),
+            "always([+REVIEW_AGENT_OUTPUT] true -> eventually(<+APPROVE_AGENT_OUTPUT> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_OUTPUT] true -> eventually(<+ARCHIVE_AGENT_TRACE> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AgentTask", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
