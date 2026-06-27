@@ -902,6 +902,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_POLICY_EXCEPTION] true -> eventually(<+ASSESS_DECISION_POLICY_RISK> true))"#,
             r#"always([+ASSESS_DECISION_POLICY_RISK] true -> eventually(<+APPROVE_DECISION_POLICY_EXCEPTION> true))"#,
             r#"always([+APPROVE_DECISION_POLICY_EXCEPTION] true -> eventually(<+RECORD_DECISION_POLICY_EXCEPTION> true))"#,
+            r#"always([+REQUEST_DECISION_OVERRIDE] true -> eventually(<+REVIEW_DECISION_OVERRIDE_RISK> true))"#,
+            r#"always([+REVIEW_DECISION_OVERRIDE_RISK] true -> eventually(<+APPROVE_DECISION_OVERRIDE> true))"#,
+            r#"always([+APPROVE_DECISION_OVERRIDE] true -> eventually(<+RECORD_DECISION_OVERRIDE> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -5738,6 +5741,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_POLICY_EXCEPTION] true -> eventually(<+RECORD_DECISION_POLICY_EXCEPTION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_override_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_OVERRIDE] true -> eventually(<+REVIEW_DECISION_OVERRIDE_RISK> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_DECISION_OVERRIDE_RISK] true -> eventually(<+APPROVE_DECISION_OVERRIDE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_OVERRIDE] true -> eventually(<+RECORD_DECISION_OVERRIDE> true))"
         ));
     }
 
@@ -12312,6 +12330,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionPolicyException",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_override_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_OVERRIDE] true -> eventually(<+REVIEW_DECISION_OVERRIDE_RISK> true))"
+                .to_string(),
+            "always([+REVIEW_DECISION_OVERRIDE_RISK] true -> eventually(<+APPROVE_DECISION_OVERRIDE> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_OVERRIDE] true -> eventually(<+RECORD_DECISION_OVERRIDE> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionOverride",
             &formulas,
         );
 
