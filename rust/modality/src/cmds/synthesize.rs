@@ -9315,6 +9315,54 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_model_audit_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+LOG_MODEL_DECISION] true -> eventually(<+REVIEW_DECISION_TRACE> true))"
+                .to_string(),
+            "always([+REVIEW_DECISION_TRACE] true -> eventually(<+APPROVE_MODEL_AUDIT> true))"
+                .to_string(),
+            "always([+APPROVE_MODEL_AUDIT] true -> eventually(<+RECORD_AUDIT_EVIDENCE> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("ModelAudit", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_model_safety_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+START_MODEL_RED_TEAM] true -> eventually(<+REVIEW_RED_TEAM_FINDINGS> true))"
+                .to_string(),
+            "always([+REVIEW_RED_TEAM_FINDINGS] true -> eventually(<+APPROVE_SAFETY_MITIGATION> true))"
+                .to_string(),
+            "always([+APPROVE_SAFETY_MITIGATION] true -> eventually(<+RECORD_SAFETY_CASE> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("ModelSafety", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_model_version_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REGISTER_MODEL_VERSION] true -> eventually(<+RUN_MODEL_VALIDATION> true))"
+                .to_string(),
+            "always([+RUN_MODEL_VALIDATION] true -> eventually(<+APPROVE_MODEL_VERSION> true))"
+                .to_string(),
+            "always([+APPROVE_MODEL_VERSION] true -> eventually(<+PROMOTE_MODEL_VERSION> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("ModelVersion", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_accepts_model_lineage_ordering_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+CAPTURE_MODEL_LINEAGE] true -> eventually(<+REVIEW_LINEAGE_REPORT> true))"
