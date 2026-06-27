@@ -890,6 +890,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_CONFIDENCE_REVIEW] true -> eventually(<+EVALUATE_DECISION_CONFIDENCE> true))"#,
             r#"always([+EVALUATE_DECISION_CONFIDENCE] true -> eventually(<+APPROVE_DECISION_CONFIDENCE_DISCLOSURE> true))"#,
             r#"always([+APPROVE_DECISION_CONFIDENCE_DISCLOSURE] true -> eventually(<+PUBLISH_DECISION_CONFIDENCE> true))"#,
+            r#"always([+REQUEST_DECISION_UNCERTAINTY_REVIEW] true -> eventually(<+QUANTIFY_DECISION_UNCERTAINTY> true))"#,
+            r#"always([+QUANTIFY_DECISION_UNCERTAINTY] true -> eventually(<+APPROVE_DECISION_UNCERTAINTY_DISCLOSURE> true))"#,
+            r#"always([+APPROVE_DECISION_UNCERTAINTY_DISCLOSURE] true -> eventually(<+PUBLISH_DECISION_UNCERTAINTY> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -5666,6 +5669,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_CONFIDENCE_DISCLOSURE] true -> eventually(<+PUBLISH_DECISION_CONFIDENCE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_uncertainty_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_UNCERTAINTY_REVIEW] true -> eventually(<+QUANTIFY_DECISION_UNCERTAINTY> true))"
+        ));
+        assert!(output.contains(
+            "always([+QUANTIFY_DECISION_UNCERTAINTY] true -> eventually(<+APPROVE_DECISION_UNCERTAINTY_DISCLOSURE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_UNCERTAINTY_DISCLOSURE] true -> eventually(<+PUBLISH_DECISION_UNCERTAINTY> true))"
         ));
     }
 
@@ -12168,6 +12186,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionConfidence",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_uncertainty_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_UNCERTAINTY_REVIEW] true -> eventually(<+QUANTIFY_DECISION_UNCERTAINTY> true))"
+                .to_string(),
+            "always([+QUANTIFY_DECISION_UNCERTAINTY] true -> eventually(<+APPROVE_DECISION_UNCERTAINTY_DISCLOSURE> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_UNCERTAINTY_DISCLOSURE] true -> eventually(<+PUBLISH_DECISION_UNCERTAINTY> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionUncertainty",
             &formulas,
         );
 
