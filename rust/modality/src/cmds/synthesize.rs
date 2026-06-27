@@ -773,6 +773,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_PERFORMANCE_REVIEW] true -> eventually(<+COLLECT_AGENT_METRICS> true))"#,
             r#"always([+COLLECT_AGENT_METRICS] true -> eventually(<+APPROVE_AGENT_PERFORMANCE_REVIEW> true))"#,
             r#"always([+APPROVE_AGENT_PERFORMANCE_REVIEW] true -> eventually(<+RECORD_AGENT_PERFORMANCE_REVIEW> true))"#,
+            r#"always([+REQUEST_AGENT_BUDGET_INCREASE] true -> eventually(<+ASSESS_AGENT_BUDGET_IMPACT> true))"#,
+            r#"always([+ASSESS_AGENT_BUDGET_IMPACT] true -> eventually(<+APPROVE_AGENT_BUDGET_INCREASE> true))"#,
+            r#"always([+APPROVE_AGENT_BUDGET_INCREASE] true -> eventually(<+APPLY_AGENT_BUDGET> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -4982,6 +4985,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_PERFORMANCE_REVIEW] true -> eventually(<+RECORD_AGENT_PERFORMANCE_REVIEW> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_budget_increase_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_BUDGET_INCREASE] true -> eventually(<+ASSESS_AGENT_BUDGET_IMPACT> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_AGENT_BUDGET_IMPACT] true -> eventually(<+APPROVE_AGENT_BUDGET_INCREASE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_BUDGET_INCREASE] true -> eventually(<+APPLY_AGENT_BUDGET> true))"
         ));
     }
 
@@ -10876,6 +10894,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentPerformanceReview",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_budget_increase_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_BUDGET_INCREASE] true -> eventually(<+ASSESS_AGENT_BUDGET_IMPACT> true))"
+                .to_string(),
+            "always([+ASSESS_AGENT_BUDGET_IMPACT] true -> eventually(<+APPROVE_AGENT_BUDGET_INCREASE> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_BUDGET_INCREASE] true -> eventually(<+APPLY_AGENT_BUDGET> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentBudgetIncrease",
             &formulas,
         );
 
