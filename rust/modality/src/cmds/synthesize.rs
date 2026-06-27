@@ -9263,6 +9263,58 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_model_incident_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+DETECT_MODEL_INCIDENT] true -> eventually(<+ASSESS_MODEL_IMPACT> true))"
+                .to_string(),
+            "always([+ASSESS_MODEL_IMPACT] true -> eventually(<+APPROVE_MODEL_ROLLBACK> true))"
+                .to_string(),
+            "always([+APPROVE_MODEL_ROLLBACK] true -> eventually(<+RECORD_MODEL_INCIDENT> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("ModelIncident", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_model_retirement_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_MODEL_RETIREMENT] true -> eventually(<+ASSESS_RETIREMENT_IMPACT> true))"
+                .to_string(),
+            "always([+ASSESS_RETIREMENT_IMPACT] true -> eventually(<+APPROVE_MODEL_RETIREMENT> true))"
+                .to_string(),
+            "always([+APPROVE_MODEL_RETIREMENT] true -> eventually(<+ARCHIVE_MODEL_ARTIFACTS> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ModelRetirement",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_model_retraining_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+COLLECT_RETRAINING_DATA] true -> eventually(<+APPROVE_RETRAINING_PLAN> true))"
+                .to_string(),
+            "always([+APPROVE_RETRAINING_PLAN] true -> eventually(<+TRAIN_CANDIDATE_MODEL> true))"
+                .to_string(),
+            "always([+TRAIN_CANDIDATE_MODEL] true -> eventually(<+VALIDATE_CANDIDATE_MODEL> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ModelRetraining",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_accepts_model_lineage_ordering_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+CAPTURE_MODEL_LINEAGE] true -> eventually(<+REVIEW_LINEAGE_REPORT> true))"
