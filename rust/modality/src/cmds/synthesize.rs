@@ -848,6 +848,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+START_DECISION_IMPACT_ASSESSMENT] true -> eventually(<+EVALUATE_DECISION_IMPACT> true))"#,
             r#"always([+EVALUATE_DECISION_IMPACT] true -> eventually(<+APPROVE_DECISION_IMPACT_ASSESSMENT> true))"#,
             r#"always([+APPROVE_DECISION_IMPACT_ASSESSMENT] true -> eventually(<+RECORD_DECISION_IMPACT_ASSESSMENT> true))"#,
+            r#"always([+START_DECISION_AUDIT] true -> eventually(<+COLLECT_DECISION_AUDIT_EVIDENCE> true))"#,
+            r#"always([+COLLECT_DECISION_AUDIT_EVIDENCE] true -> eventually(<+APPROVE_DECISION_AUDIT> true))"#,
+            r#"always([+APPROVE_DECISION_AUDIT] true -> eventually(<+RECORD_DECISION_AUDIT> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -5414,6 +5417,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_IMPACT_ASSESSMENT] true -> eventually(<+RECORD_DECISION_IMPACT_ASSESSMENT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_audit_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+START_DECISION_AUDIT] true -> eventually(<+COLLECT_DECISION_AUDIT_EVIDENCE> true))"
+        ));
+        assert!(output.contains(
+            "always([+COLLECT_DECISION_AUDIT_EVIDENCE] true -> eventually(<+APPROVE_DECISION_AUDIT> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_AUDIT] true -> eventually(<+RECORD_DECISION_AUDIT> true))"
         ));
     }
 
@@ -11664,6 +11682,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionImpactAssessment",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_audit_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+START_DECISION_AUDIT] true -> eventually(<+COLLECT_DECISION_AUDIT_EVIDENCE> true))"
+                .to_string(),
+            "always([+COLLECT_DECISION_AUDIT_EVIDENCE] true -> eventually(<+APPROVE_DECISION_AUDIT> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_AUDIT] true -> eventually(<+RECORD_DECISION_AUDIT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionAudit",
             &formulas,
         );
 
