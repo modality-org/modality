@@ -737,6 +737,15 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_SESSION_RESUME] true -> eventually(<+VALIDATE_SESSION_CHECKPOINT> true))"#,
             r#"always([+VALIDATE_SESSION_CHECKPOINT] true -> eventually(<+APPROVE_AGENT_SESSION_RESUME> true))"#,
             r#"always([+APPROVE_AGENT_SESSION_RESUME] true -> eventually(<+RESUME_AGENT_SESSION> true))"#,
+            r#"always([+REQUEST_AGENT_BACKUP] true -> eventually(<+VERIFY_BACKUP_SCOPE> true))"#,
+            r#"always([+VERIFY_BACKUP_SCOPE] true -> eventually(<+APPROVE_AGENT_BACKUP> true))"#,
+            r#"always([+APPROVE_AGENT_BACKUP] true -> eventually(<+CREATE_AGENT_BACKUP> true))"#,
+            r#"always([+REQUEST_AGENT_LOG_RETENTION] true -> eventually(<+CLASSIFY_AGENT_LOGS> true))"#,
+            r#"always([+CLASSIFY_AGENT_LOGS] true -> eventually(<+APPROVE_AGENT_LOG_RETENTION> true))"#,
+            r#"always([+APPROVE_AGENT_LOG_RETENTION] true -> eventually(<+ENFORCE_AGENT_LOG_RETENTION> true))"#,
+            r#"always([+REQUEST_AGENT_STATE_PURGE] true -> eventually(<+REVIEW_PURGE_SCOPE> true))"#,
+            r#"always([+REVIEW_PURGE_SCOPE] true -> eventually(<+APPROVE_AGENT_STATE_PURGE> true))"#,
+            r#"always([+APPROVE_AGENT_STATE_PURGE] true -> eventually(<+PURGE_AGENT_STATE> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -4766,6 +4775,51 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_SESSION_RESUME] true -> eventually(<+RESUME_AGENT_SESSION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_backup_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_BACKUP] true -> eventually(<+VERIFY_BACKUP_SCOPE> true))"
+        ));
+        assert!(output.contains(
+            "always([+VERIFY_BACKUP_SCOPE] true -> eventually(<+APPROVE_AGENT_BACKUP> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_BACKUP] true -> eventually(<+CREATE_AGENT_BACKUP> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_log_retention_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_LOG_RETENTION] true -> eventually(<+CLASSIFY_AGENT_LOGS> true))"
+        ));
+        assert!(output.contains(
+            "always([+CLASSIFY_AGENT_LOGS] true -> eventually(<+APPROVE_AGENT_LOG_RETENTION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_LOG_RETENTION] true -> eventually(<+ENFORCE_AGENT_LOG_RETENTION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_state_purge_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_STATE_PURGE] true -> eventually(<+REVIEW_PURGE_SCOPE> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_PURGE_SCOPE] true -> eventually(<+APPROVE_AGENT_STATE_PURGE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_STATE_PURGE] true -> eventually(<+PURGE_AGENT_STATE> true))"
         ));
     }
 
@@ -10446,6 +10500,58 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentSessionResume",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_backup_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_BACKUP] true -> eventually(<+VERIFY_BACKUP_SCOPE> true))"
+                .to_string(),
+            "always([+VERIFY_BACKUP_SCOPE] true -> eventually(<+APPROVE_AGENT_BACKUP> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_BACKUP] true -> eventually(<+CREATE_AGENT_BACKUP> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AgentBackup", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_log_retention_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_LOG_RETENTION] true -> eventually(<+CLASSIFY_AGENT_LOGS> true))"
+                .to_string(),
+            "always([+CLASSIFY_AGENT_LOGS] true -> eventually(<+APPROVE_AGENT_LOG_RETENTION> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_LOG_RETENTION] true -> eventually(<+ENFORCE_AGENT_LOG_RETENTION> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentLogRetention",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_state_purge_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_STATE_PURGE] true -> eventually(<+REVIEW_PURGE_SCOPE> true))"
+                .to_string(),
+            "always([+REVIEW_PURGE_SCOPE] true -> eventually(<+APPROVE_AGENT_STATE_PURGE> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_STATE_PURGE] true -> eventually(<+PURGE_AGENT_STATE> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentStatePurge",
             &formulas,
         );
 
