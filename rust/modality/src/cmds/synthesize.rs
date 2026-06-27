@@ -911,6 +911,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+START_DECISION_MONITORING] true -> eventually(<+COLLECT_DECISION_OUTCOMES> true))"#,
             r#"always([+COLLECT_DECISION_OUTCOMES] true -> eventually(<+APPROVE_DECISION_MONITORING> true))"#,
             r#"always([+APPROVE_DECISION_MONITORING] true -> eventually(<+RECORD_DECISION_MONITORING> true))"#,
+            r#"always([+DETECT_DECISION_DRIFT] true -> eventually(<+INVESTIGATE_DECISION_DRIFT> true))"#,
+            r#"always([+INVESTIGATE_DECISION_DRIFT] true -> eventually(<+APPROVE_DECISION_DRIFT_REMEDIATION> true))"#,
+            r#"always([+APPROVE_DECISION_DRIFT_REMEDIATION] true -> eventually(<+RECORD_DECISION_DRIFT_REVIEW> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -5792,6 +5795,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_MONITORING] true -> eventually(<+RECORD_DECISION_MONITORING> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_drift_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+DETECT_DECISION_DRIFT] true -> eventually(<+INVESTIGATE_DECISION_DRIFT> true))"
+        ));
+        assert!(output.contains(
+            "always([+INVESTIGATE_DECISION_DRIFT] true -> eventually(<+APPROVE_DECISION_DRIFT_REMEDIATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_DRIFT_REMEDIATION] true -> eventually(<+RECORD_DECISION_DRIFT_REVIEW> true))"
         ));
     }
 
@@ -12420,6 +12438,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionMonitoring",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_drift_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+DETECT_DECISION_DRIFT] true -> eventually(<+INVESTIGATE_DECISION_DRIFT> true))"
+                .to_string(),
+            "always([+INVESTIGATE_DECISION_DRIFT] true -> eventually(<+APPROVE_DECISION_DRIFT_REMEDIATION> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_DRIFT_REMEDIATION] true -> eventually(<+RECORD_DECISION_DRIFT_REVIEW> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionDrift",
             &formulas,
         );
 
