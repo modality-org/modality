@@ -9209,6 +9209,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_model_evaluation_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REGISTER_EVALUATION_DATASET] true -> eventually(<+RUN_BIAS_EVALUATION> true))"
+                .to_string(),
+            "always([+RUN_BIAS_EVALUATION] true -> eventually(<+APPROVE_EVALUATION_REPORT> true))"
+                .to_string(),
+            "always([+APPROVE_EVALUATION_REPORT] true -> eventually(<+ARCHIVE_EVALUATION_EVIDENCE> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ModelEvaluation",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_accepts_model_calibration_ordering_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+SCHEDULE_MODEL_CALIBRATION] true -> eventually(<+RUN_CALIBRATION_CHECK> true))"
@@ -9220,6 +9238,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ModelCalibration",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_model_monitoring_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+START_MODEL_MONITORING] true -> eventually(<+DETECT_MODEL_DRIFT> true))"
+                .to_string(),
+            "always([+DETECT_MODEL_DRIFT] true -> eventually(<+APPROVE_MODEL_UPDATE> true))"
+                .to_string(),
+            "always([+APPROVE_MODEL_UPDATE] true -> eventually(<+RECORD_MONITORING_REVIEW> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ModelMonitoring",
             &formulas,
         );
 
