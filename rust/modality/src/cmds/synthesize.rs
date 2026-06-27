@@ -908,6 +908,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+ESCALATE_DECISION_REVIEW] true -> eventually(<+ASSIGN_DECISION_ESCALATION> true))"#,
             r#"always([+ASSIGN_DECISION_ESCALATION] true -> eventually(<+APPROVE_ESCALATED_DECISION> true))"#,
             r#"always([+APPROVE_ESCALATED_DECISION] true -> eventually(<+RECORD_DECISION_ESCALATION> true))"#,
+            r#"always([+START_DECISION_MONITORING] true -> eventually(<+COLLECT_DECISION_OUTCOMES> true))"#,
+            r#"always([+COLLECT_DECISION_OUTCOMES] true -> eventually(<+APPROVE_DECISION_MONITORING> true))"#,
+            r#"always([+APPROVE_DECISION_MONITORING] true -> eventually(<+RECORD_DECISION_MONITORING> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -5774,6 +5777,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_ESCALATED_DECISION] true -> eventually(<+RECORD_DECISION_ESCALATION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_monitoring_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+START_DECISION_MONITORING] true -> eventually(<+COLLECT_DECISION_OUTCOMES> true))"
+        ));
+        assert!(output.contains(
+            "always([+COLLECT_DECISION_OUTCOMES] true -> eventually(<+APPROVE_DECISION_MONITORING> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_MONITORING] true -> eventually(<+RECORD_DECISION_MONITORING> true))"
         ));
     }
 
@@ -12384,6 +12402,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionEscalation",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_monitoring_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+START_DECISION_MONITORING] true -> eventually(<+COLLECT_DECISION_OUTCOMES> true))"
+                .to_string(),
+            "always([+COLLECT_DECISION_OUTCOMES] true -> eventually(<+APPROVE_DECISION_MONITORING> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_MONITORING] true -> eventually(<+RECORD_DECISION_MONITORING> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionMonitoring",
             &formulas,
         );
 
