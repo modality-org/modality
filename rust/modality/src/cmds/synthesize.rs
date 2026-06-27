@@ -791,6 +791,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_RUBRIC_CHANGE] true -> eventually(<+REVIEW_AGENT_RUBRIC_DIFF> true))"#,
             r#"always([+REVIEW_AGENT_RUBRIC_DIFF] true -> eventually(<+APPROVE_AGENT_RUBRIC_CHANGE> true))"#,
             r#"always([+APPROVE_AGENT_RUBRIC_CHANGE] true -> eventually(<+APPLY_AGENT_RUBRIC> true))"#,
+            r#"always([+REQUEST_AGENT_BENCHMARK_CHANGE] true -> eventually(<+RUN_AGENT_BENCHMARK> true))"#,
+            r#"always([+RUN_AGENT_BENCHMARK] true -> eventually(<+APPROVE_AGENT_BENCHMARK_CHANGE> true))"#,
+            r#"always([+APPROVE_AGENT_BENCHMARK_CHANGE] true -> eventually(<+APPLY_AGENT_BENCHMARK> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -5090,6 +5093,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_RUBRIC_CHANGE] true -> eventually(<+APPLY_AGENT_RUBRIC> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_benchmark_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_BENCHMARK_CHANGE] true -> eventually(<+RUN_AGENT_BENCHMARK> true))"
+        ));
+        assert!(output.contains(
+            "always([+RUN_AGENT_BENCHMARK] true -> eventually(<+APPROVE_AGENT_BENCHMARK_CHANGE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_BENCHMARK_CHANGE] true -> eventually(<+APPLY_AGENT_BENCHMARK> true))"
         ));
     }
 
@@ -11090,6 +11108,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentRubric",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_benchmark_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_BENCHMARK_CHANGE] true -> eventually(<+RUN_AGENT_BENCHMARK> true))"
+                .to_string(),
+            "always([+RUN_AGENT_BENCHMARK] true -> eventually(<+APPROVE_AGENT_BENCHMARK_CHANGE> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_BENCHMARK_CHANGE] true -> eventually(<+APPLY_AGENT_BENCHMARK> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentBenchmark",
             &formulas,
         );
 
