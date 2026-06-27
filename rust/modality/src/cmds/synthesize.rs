@@ -869,6 +869,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_PROVENANCE] true -> eventually(<+TRACE_DECISION_INPUTS> true))"#,
             r#"always([+TRACE_DECISION_INPUTS] true -> eventually(<+APPROVE_DECISION_PROVENANCE> true))"#,
             r#"always([+APPROVE_DECISION_PROVENANCE] true -> eventually(<+PUBLISH_DECISION_PROVENANCE> true))"#,
+            r#"always([+REQUEST_DECISION_TRACEABILITY] true -> eventually(<+LINK_DECISION_EVIDENCE> true))"#,
+            r#"always([+LINK_DECISION_EVIDENCE] true -> eventually(<+APPROVE_DECISION_TRACEABILITY> true))"#,
+            r#"always([+APPROVE_DECISION_TRACEABILITY] true -> eventually(<+PUBLISH_DECISION_TRACEABILITY> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -5540,6 +5543,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_PROVENANCE] true -> eventually(<+PUBLISH_DECISION_PROVENANCE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_traceability_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_TRACEABILITY] true -> eventually(<+LINK_DECISION_EVIDENCE> true))"
+        ));
+        assert!(output.contains(
+            "always([+LINK_DECISION_EVIDENCE] true -> eventually(<+APPROVE_DECISION_TRACEABILITY> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_TRACEABILITY] true -> eventually(<+PUBLISH_DECISION_TRACEABILITY> true))"
         ));
     }
 
@@ -11916,6 +11934,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionProvenance",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_traceability_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_TRACEABILITY] true -> eventually(<+LINK_DECISION_EVIDENCE> true))"
+                .to_string(),
+            "always([+LINK_DECISION_EVIDENCE] true -> eventually(<+APPROVE_DECISION_TRACEABILITY> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_TRACEABILITY] true -> eventually(<+PUBLISH_DECISION_TRACEABILITY> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionTraceability",
             &formulas,
         );
 
