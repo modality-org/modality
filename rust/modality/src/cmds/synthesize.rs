@@ -710,6 +710,15 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_SPEND] true -> eventually(<+ESTIMATE_AGENT_SPEND_RISK> true))"#,
             r#"always([+ESTIMATE_AGENT_SPEND_RISK] true -> eventually(<+APPROVE_AGENT_SPEND> true))"#,
             r#"always([+APPROVE_AGENT_SPEND] true -> eventually(<+EXECUTE_AGENT_SPEND> true))"#,
+            r#"always([+DETECT_PROMPT_INJECTION] true -> eventually(<+QUARANTINE_AGENT_CONTEXT> true))"#,
+            r#"always([+QUARANTINE_AGENT_CONTEXT] true -> eventually(<+APPROVE_CONTEXT_RESTORATION> true))"#,
+            r#"always([+APPROVE_CONTEXT_RESTORATION] true -> eventually(<+RESTORE_AGENT_CONTEXT> true))"#,
+            r#"always([+REQUEST_AGENT_NETWORK_ACCESS] true -> eventually(<+ASSESS_NETWORK_SCOPE> true))"#,
+            r#"always([+ASSESS_NETWORK_SCOPE] true -> eventually(<+APPROVE_AGENT_NETWORK_ACCESS> true))"#,
+            r#"always([+APPROVE_AGENT_NETWORK_ACCESS] true -> eventually(<+ENABLE_AGENT_NETWORK_ACCESS> true))"#,
+            r#"always([+REQUEST_AGENT_STATE_EXPORT] true -> eventually(<+REDACT_AGENT_STATE> true))"#,
+            r#"always([+REDACT_AGENT_STATE] true -> eventually(<+APPROVE_AGENT_STATE_EXPORT> true))"#,
+            r#"always([+APPROVE_AGENT_STATE_EXPORT] true -> eventually(<+EXPORT_AGENT_STATE> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -4604,6 +4613,51 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_SPEND] true -> eventually(<+EXECUTE_AGENT_SPEND> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_prompt_injection_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+DETECT_PROMPT_INJECTION] true -> eventually(<+QUARANTINE_AGENT_CONTEXT> true))"
+        ));
+        assert!(output.contains(
+            "always([+QUARANTINE_AGENT_CONTEXT] true -> eventually(<+APPROVE_CONTEXT_RESTORATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_CONTEXT_RESTORATION] true -> eventually(<+RESTORE_AGENT_CONTEXT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_network_access_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_NETWORK_ACCESS] true -> eventually(<+ASSESS_NETWORK_SCOPE> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_NETWORK_SCOPE] true -> eventually(<+APPROVE_AGENT_NETWORK_ACCESS> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_NETWORK_ACCESS] true -> eventually(<+ENABLE_AGENT_NETWORK_ACCESS> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_state_export_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_STATE_EXPORT] true -> eventually(<+REDACT_AGENT_STATE> true))"
+        ));
+        assert!(output.contains(
+            "always([+REDACT_AGENT_STATE] true -> eventually(<+APPROVE_AGENT_STATE_EXPORT> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_STATE_EXPORT] true -> eventually(<+EXPORT_AGENT_STATE> true))"
         ));
     }
 
@@ -10124,6 +10178,60 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("AgentSpend", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_prompt_injection_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+DETECT_PROMPT_INJECTION] true -> eventually(<+QUARANTINE_AGENT_CONTEXT> true))"
+                .to_string(),
+            "always([+QUARANTINE_AGENT_CONTEXT] true -> eventually(<+APPROVE_CONTEXT_RESTORATION> true))"
+                .to_string(),
+            "always([+APPROVE_CONTEXT_RESTORATION] true -> eventually(<+RESTORE_AGENT_CONTEXT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentPromptInjection",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_network_access_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_NETWORK_ACCESS] true -> eventually(<+ASSESS_NETWORK_SCOPE> true))"
+                .to_string(),
+            "always([+ASSESS_NETWORK_SCOPE] true -> eventually(<+APPROVE_AGENT_NETWORK_ACCESS> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_NETWORK_ACCESS] true -> eventually(<+ENABLE_AGENT_NETWORK_ACCESS> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentNetworkAccess",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_state_export_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_STATE_EXPORT] true -> eventually(<+REDACT_AGENT_STATE> true))"
+                .to_string(),
+            "always([+REDACT_AGENT_STATE] true -> eventually(<+APPROVE_AGENT_STATE_EXPORT> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_STATE_EXPORT] true -> eventually(<+EXPORT_AGENT_STATE> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentStateExport",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
