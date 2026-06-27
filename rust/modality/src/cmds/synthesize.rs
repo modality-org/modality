@@ -719,6 +719,15 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_STATE_EXPORT] true -> eventually(<+REDACT_AGENT_STATE> true))"#,
             r#"always([+REDACT_AGENT_STATE] true -> eventually(<+APPROVE_AGENT_STATE_EXPORT> true))"#,
             r#"always([+APPROVE_AGENT_STATE_EXPORT] true -> eventually(<+EXPORT_AGENT_STATE> true))"#,
+            r#"always([+PROPOSE_AGENT_DEPENDENCY_UPDATE] true -> eventually(<+SCAN_AGENT_DEPENDENCY> true))"#,
+            r#"always([+SCAN_AGENT_DEPENDENCY] true -> eventually(<+APPROVE_AGENT_DEPENDENCY_UPDATE> true))"#,
+            r#"always([+APPROVE_AGENT_DEPENDENCY_UPDATE] true -> eventually(<+APPLY_AGENT_DEPENDENCY_UPDATE> true))"#,
+            r#"always([+REQUEST_AGENT_IDENTITY_BINDING] true -> eventually(<+VERIFY_AGENT_ATTESTATION> true))"#,
+            r#"always([+VERIFY_AGENT_ATTESTATION] true -> eventually(<+APPROVE_AGENT_IDENTITY_BINDING> true))"#,
+            r#"always([+APPROVE_AGENT_IDENTITY_BINDING] true -> eventually(<+BIND_AGENT_IDENTITY> true))"#,
+            r#"always([+REQUEST_AGENT_RUNTIME_MIGRATION] true -> eventually(<+SNAPSHOT_AGENT_RUNTIME> true))"#,
+            r#"always([+SNAPSHOT_AGENT_RUNTIME] true -> eventually(<+APPROVE_AGENT_RUNTIME_MIGRATION> true))"#,
+            r#"always([+APPROVE_AGENT_RUNTIME_MIGRATION] true -> eventually(<+MIGRATE_AGENT_RUNTIME> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -4658,6 +4667,51 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_STATE_EXPORT] true -> eventually(<+EXPORT_AGENT_STATE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_dependency_update_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+PROPOSE_AGENT_DEPENDENCY_UPDATE] true -> eventually(<+SCAN_AGENT_DEPENDENCY> true))"
+        ));
+        assert!(output.contains(
+            "always([+SCAN_AGENT_DEPENDENCY] true -> eventually(<+APPROVE_AGENT_DEPENDENCY_UPDATE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_DEPENDENCY_UPDATE] true -> eventually(<+APPLY_AGENT_DEPENDENCY_UPDATE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_identity_binding_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_IDENTITY_BINDING] true -> eventually(<+VERIFY_AGENT_ATTESTATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+VERIFY_AGENT_ATTESTATION] true -> eventually(<+APPROVE_AGENT_IDENTITY_BINDING> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_IDENTITY_BINDING] true -> eventually(<+BIND_AGENT_IDENTITY> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_runtime_migration_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_RUNTIME_MIGRATION] true -> eventually(<+SNAPSHOT_AGENT_RUNTIME> true))"
+        ));
+        assert!(output.contains(
+            "always([+SNAPSHOT_AGENT_RUNTIME] true -> eventually(<+APPROVE_AGENT_RUNTIME_MIGRATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_RUNTIME_MIGRATION] true -> eventually(<+MIGRATE_AGENT_RUNTIME> true))"
         ));
     }
 
@@ -10230,6 +10284,60 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentStateExport",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_dependency_update_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+PROPOSE_AGENT_DEPENDENCY_UPDATE] true -> eventually(<+SCAN_AGENT_DEPENDENCY> true))"
+                .to_string(),
+            "always([+SCAN_AGENT_DEPENDENCY] true -> eventually(<+APPROVE_AGENT_DEPENDENCY_UPDATE> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_DEPENDENCY_UPDATE] true -> eventually(<+APPLY_AGENT_DEPENDENCY_UPDATE> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentDependencyUpdate",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_identity_binding_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_IDENTITY_BINDING] true -> eventually(<+VERIFY_AGENT_ATTESTATION> true))"
+                .to_string(),
+            "always([+VERIFY_AGENT_ATTESTATION] true -> eventually(<+APPROVE_AGENT_IDENTITY_BINDING> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_IDENTITY_BINDING] true -> eventually(<+BIND_AGENT_IDENTITY> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentIdentityBinding",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_runtime_migration_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_RUNTIME_MIGRATION] true -> eventually(<+SNAPSHOT_AGENT_RUNTIME> true))"
+                .to_string(),
+            "always([+SNAPSHOT_AGENT_RUNTIME] true -> eventually(<+APPROVE_AGENT_RUNTIME_MIGRATION> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_RUNTIME_MIGRATION] true -> eventually(<+MIGRATE_AGENT_RUNTIME> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentRuntimeMigration",
             &formulas,
         );
 
