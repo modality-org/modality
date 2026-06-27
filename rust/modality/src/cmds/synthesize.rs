@@ -785,6 +785,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_GUARDRAIL_CHANGE] true -> eventually(<+TEST_AGENT_GUARDRAIL> true))"#,
             r#"always([+TEST_AGENT_GUARDRAIL] true -> eventually(<+APPROVE_AGENT_GUARDRAIL_CHANGE> true))"#,
             r#"always([+APPROVE_AGENT_GUARDRAIL_CHANGE] true -> eventually(<+APPLY_AGENT_GUARDRAIL> true))"#,
+            r#"always([+REQUEST_AGENT_EVALUATOR_CHANGE] true -> eventually(<+VALIDATE_AGENT_EVALUATOR> true))"#,
+            r#"always([+VALIDATE_AGENT_EVALUATOR] true -> eventually(<+APPROVE_AGENT_EVALUATOR_CHANGE> true))"#,
+            r#"always([+APPROVE_AGENT_EVALUATOR_CHANGE] true -> eventually(<+APPLY_AGENT_EVALUATOR> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -5054,6 +5057,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_GUARDRAIL_CHANGE] true -> eventually(<+APPLY_AGENT_GUARDRAIL> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_evaluator_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_EVALUATOR_CHANGE] true -> eventually(<+VALIDATE_AGENT_EVALUATOR> true))"
+        ));
+        assert!(output.contains(
+            "always([+VALIDATE_AGENT_EVALUATOR] true -> eventually(<+APPROVE_AGENT_EVALUATOR_CHANGE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_EVALUATOR_CHANGE] true -> eventually(<+APPLY_AGENT_EVALUATOR> true))"
         ));
     }
 
@@ -11020,6 +11038,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("AgentGuardrail", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_evaluator_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_EVALUATOR_CHANGE] true -> eventually(<+VALIDATE_AGENT_EVALUATOR> true))"
+                .to_string(),
+            "always([+VALIDATE_AGENT_EVALUATOR] true -> eventually(<+APPROVE_AGENT_EVALUATOR_CHANGE> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_EVALUATOR_CHANGE] true -> eventually(<+APPLY_AGENT_EVALUATOR> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentEvaluator",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
