@@ -914,6 +914,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+DETECT_DECISION_DRIFT] true -> eventually(<+INVESTIGATE_DECISION_DRIFT> true))"#,
             r#"always([+INVESTIGATE_DECISION_DRIFT] true -> eventually(<+APPROVE_DECISION_DRIFT_REMEDIATION> true))"#,
             r#"always([+APPROVE_DECISION_DRIFT_REMEDIATION] true -> eventually(<+RECORD_DECISION_DRIFT_REVIEW> true))"#,
+            r#"always([+REQUEST_DECISION_QUALITY_REVIEW] true -> eventually(<+SCORE_DECISION_QUALITY> true))"#,
+            r#"always([+SCORE_DECISION_QUALITY] true -> eventually(<+APPROVE_DECISION_QUALITY_REPORT> true))"#,
+            r#"always([+APPROVE_DECISION_QUALITY_REPORT] true -> eventually(<+PUBLISH_DECISION_QUALITY_REPORT> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -5810,6 +5813,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_DRIFT_REMEDIATION] true -> eventually(<+RECORD_DECISION_DRIFT_REVIEW> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_quality_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_QUALITY_REVIEW] true -> eventually(<+SCORE_DECISION_QUALITY> true))"
+        ));
+        assert!(output.contains(
+            "always([+SCORE_DECISION_QUALITY] true -> eventually(<+APPROVE_DECISION_QUALITY_REPORT> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_QUALITY_REPORT] true -> eventually(<+PUBLISH_DECISION_QUALITY_REPORT> true))"
         ));
     }
 
@@ -12456,6 +12474,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionDrift",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_quality_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_QUALITY_REVIEW] true -> eventually(<+SCORE_DECISION_QUALITY> true))"
+                .to_string(),
+            "always([+SCORE_DECISION_QUALITY] true -> eventually(<+APPROVE_DECISION_QUALITY_REPORT> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_QUALITY_REPORT] true -> eventually(<+PUBLISH_DECISION_QUALITY_REPORT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionQuality",
             &formulas,
         );
 
