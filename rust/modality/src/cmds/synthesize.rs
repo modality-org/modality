@@ -782,6 +782,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_PROMPT_TEMPLATE_CHANGE] true -> eventually(<+REVIEW_PROMPT_TEMPLATE_DIFF> true))"#,
             r#"always([+REVIEW_PROMPT_TEMPLATE_DIFF] true -> eventually(<+APPROVE_AGENT_PROMPT_TEMPLATE_CHANGE> true))"#,
             r#"always([+APPROVE_AGENT_PROMPT_TEMPLATE_CHANGE] true -> eventually(<+APPLY_AGENT_PROMPT_TEMPLATE> true))"#,
+            r#"always([+REQUEST_AGENT_GUARDRAIL_CHANGE] true -> eventually(<+TEST_AGENT_GUARDRAIL> true))"#,
+            r#"always([+TEST_AGENT_GUARDRAIL] true -> eventually(<+APPROVE_AGENT_GUARDRAIL_CHANGE> true))"#,
+            r#"always([+APPROVE_AGENT_GUARDRAIL_CHANGE] true -> eventually(<+APPLY_AGENT_GUARDRAIL> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -5036,6 +5039,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_PROMPT_TEMPLATE_CHANGE] true -> eventually(<+APPLY_AGENT_PROMPT_TEMPLATE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_guardrail_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_GUARDRAIL_CHANGE] true -> eventually(<+TEST_AGENT_GUARDRAIL> true))"
+        ));
+        assert!(output.contains(
+            "always([+TEST_AGENT_GUARDRAIL] true -> eventually(<+APPROVE_AGENT_GUARDRAIL_CHANGE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_GUARDRAIL_CHANGE] true -> eventually(<+APPLY_AGENT_GUARDRAIL> true))"
         ));
     }
 
@@ -10986,6 +11004,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "AgentPromptTemplate",
             &formulas,
         );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_guardrail_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_GUARDRAIL_CHANGE] true -> eventually(<+TEST_AGENT_GUARDRAIL> true))"
+                .to_string(),
+            "always([+TEST_AGENT_GUARDRAIL] true -> eventually(<+APPROVE_AGENT_GUARDRAIL_CHANGE> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_GUARDRAIL_CHANGE] true -> eventually(<+APPLY_AGENT_GUARDRAIL> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AgentGuardrail", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
