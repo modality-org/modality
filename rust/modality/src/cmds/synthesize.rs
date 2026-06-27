@@ -692,6 +692,15 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_PERMISSION_REVOKE] true -> eventually(<+ASSESS_PERMISSION_DEPENDENCIES> true))"#,
             r#"always([+ASSESS_PERMISSION_DEPENDENCIES] true -> eventually(<+APPROVE_AGENT_PERMISSION_REVOKE> true))"#,
             r#"always([+APPROVE_AGENT_PERMISSION_REVOKE] true -> eventually(<+REVOKE_AGENT_PERMISSION> true))"#,
+            r#"always([+REQUEST_AGENT_DATA_EGRESS] true -> eventually(<+CLASSIFY_AGENT_OUTPUT> true))"#,
+            r#"always([+CLASSIFY_AGENT_OUTPUT] true -> eventually(<+APPROVE_AGENT_DATA_EGRESS> true))"#,
+            r#"always([+APPROVE_AGENT_DATA_EGRESS] true -> eventually(<+RELEASE_AGENT_OUTPUT> true))"#,
+            r#"always([+REQUEST_AGENT_AUTONOMY] true -> eventually(<+ASSESS_AUTONOMY_RISK> true))"#,
+            r#"always([+ASSESS_AUTONOMY_RISK] true -> eventually(<+APPROVE_AGENT_AUTONOMY> true))"#,
+            r#"always([+APPROVE_AGENT_AUTONOMY] true -> eventually(<+ENABLE_AGENT_AUTONOMY> true))"#,
+            r#"always([+PROPOSE_AGENT_PUBLICATION] true -> eventually(<+REVIEW_AGENT_CLAIMS> true))"#,
+            r#"always([+REVIEW_AGENT_CLAIMS] true -> eventually(<+APPROVE_AGENT_PUBLICATION> true))"#,
+            r#"always([+APPROVE_AGENT_PUBLICATION] true -> eventually(<+PUBLISH_AGENT_OUTPUT> true))"#,
             r#"always([+REQUEST_HUMAN_REVIEW] true -> eventually(<+TRIAGE_REVIEW_REQUEST> true))"#,
             r#"always([+TRIAGE_REVIEW_REQUEST] true -> eventually(<+APPROVE_HUMAN_REVIEW> true))"#,
             r#"always([+APPROVE_HUMAN_REVIEW] true -> eventually(<+RECORD_REVIEW_OUTCOME> true))"#,
@@ -4496,6 +4505,51 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_PERMISSION_REVOKE] true -> eventually(<+REVOKE_AGENT_PERMISSION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_data_egress_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_DATA_EGRESS] true -> eventually(<+CLASSIFY_AGENT_OUTPUT> true))"
+        ));
+        assert!(output.contains(
+            "always([+CLASSIFY_AGENT_OUTPUT] true -> eventually(<+APPROVE_AGENT_DATA_EGRESS> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_DATA_EGRESS] true -> eventually(<+RELEASE_AGENT_OUTPUT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_autonomy_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_AUTONOMY] true -> eventually(<+ASSESS_AUTONOMY_RISK> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_AUTONOMY_RISK] true -> eventually(<+APPROVE_AGENT_AUTONOMY> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_AUTONOMY] true -> eventually(<+ENABLE_AGENT_AUTONOMY> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_publication_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+PROPOSE_AGENT_PUBLICATION] true -> eventually(<+REVIEW_AGENT_CLAIMS> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_AGENT_CLAIMS] true -> eventually(<+APPROVE_AGENT_PUBLICATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_PUBLICATION] true -> eventually(<+PUBLISH_AGENT_OUTPUT> true))"
         ));
     }
 
@@ -9910,6 +9964,58 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentPermissionRevoke",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_data_egress_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_DATA_EGRESS] true -> eventually(<+CLASSIFY_AGENT_OUTPUT> true))"
+                .to_string(),
+            "always([+CLASSIFY_AGENT_OUTPUT] true -> eventually(<+APPROVE_AGENT_DATA_EGRESS> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_DATA_EGRESS] true -> eventually(<+RELEASE_AGENT_OUTPUT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentDataEgress",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_autonomy_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_AUTONOMY] true -> eventually(<+ASSESS_AUTONOMY_RISK> true))"
+                .to_string(),
+            "always([+ASSESS_AUTONOMY_RISK] true -> eventually(<+APPROVE_AGENT_AUTONOMY> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_AUTONOMY] true -> eventually(<+ENABLE_AGENT_AUTONOMY> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AgentAutonomy", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_publication_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+PROPOSE_AGENT_PUBLICATION] true -> eventually(<+REVIEW_AGENT_CLAIMS> true))"
+                .to_string(),
+            "always([+REVIEW_AGENT_CLAIMS] true -> eventually(<+APPROVE_AGENT_PUBLICATION> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_PUBLICATION] true -> eventually(<+PUBLISH_AGENT_OUTPUT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentPublication",
             &formulas,
         );
 
