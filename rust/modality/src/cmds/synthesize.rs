@@ -7812,6 +7812,28 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_authorization_signed_action_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+CANCEL] true -> <+signed_by(/users/requester.id)> true)"
+        ));
+        assert!(
+            output.contains("always([+REFUND] true -> <+signed_by(/users/seller.id)> true)")
+        );
+        assert!(
+            output.contains("always([+ESCALATE] true -> <+signed_by(/users/manager.id)> true)")
+        );
+        assert!(
+            output.contains("always([+WITHDRAW] true -> <+signed_by(/users/depositor.id)> true)")
+        );
+        assert!(
+            output.contains("always([+APPEAL] true -> <+signed_by(/users/appellant.id)> true)")
+        );
+        assert!(output.contains("always([+REVOKE] true -> <+signed_by(/users/issuer.id)> true)"));
+    }
+
+    #[test]
     fn synthesis_list_includes_committed_gfp_branch_order_example() {
         let output = synthesis_list_text();
 
