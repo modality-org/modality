@@ -7512,6 +7512,111 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_decision_implementation_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_IMPLEMENTATION_REVIEW] true -> eventually(<+MEASURE_DECISION_IMPLEMENTATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+MEASURE_DECISION_IMPLEMENTATION] true -> eventually(<+APPROVE_DECISION_IMPLEMENTATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_IMPLEMENTATION] true -> eventually(<+PUBLISH_DECISION_IMPLEMENTATION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_deployment_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_DEPLOYMENT_REVIEW] true -> eventually(<+MEASURE_DECISION_DEPLOYMENT> true))"
+        ));
+        assert!(output.contains(
+            "always([+MEASURE_DECISION_DEPLOYMENT] true -> eventually(<+APPROVE_DECISION_DEPLOYMENT> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_DEPLOYMENT] true -> eventually(<+PUBLISH_DECISION_DEPLOYMENT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_rollout_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_ROLLOUT_REVIEW] true -> eventually(<+MEASURE_DECISION_ROLLOUT> true))"
+        ));
+        assert!(output.contains(
+            "always([+MEASURE_DECISION_ROLLOUT] true -> eventually(<+APPROVE_DECISION_ROLLOUT> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_ROLLOUT] true -> eventually(<+PUBLISH_DECISION_ROLLOUT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_adoption_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_ADOPTION_REVIEW] true -> eventually(<+MEASURE_DECISION_ADOPTION> true))"
+        ));
+        assert!(output.contains(
+            "always([+MEASURE_DECISION_ADOPTION] true -> eventually(<+APPROVE_DECISION_ADOPTION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_ADOPTION] true -> eventually(<+PUBLISH_DECISION_ADOPTION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_acceptance_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_ACCEPTANCE_REVIEW] true -> eventually(<+MEASURE_DECISION_ACCEPTANCE> true))"
+        ));
+        assert!(output.contains(
+            "always([+MEASURE_DECISION_ACCEPTANCE] true -> eventually(<+APPROVE_DECISION_ACCEPTANCE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_ACCEPTANCE] true -> eventually(<+PUBLISH_DECISION_ACCEPTANCE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_launch_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_LAUNCH_REVIEW] true -> eventually(<+MEASURE_DECISION_LAUNCH> true))"
+        ));
+        assert!(output.contains(
+            "always([+MEASURE_DECISION_LAUNCH] true -> eventually(<+APPROVE_DECISION_LAUNCH> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_LAUNCH] true -> eventually(<+PUBLISH_DECISION_LAUNCH> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_general_availability_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_GENERAL_AVAILABILITY_REVIEW] true -> eventually(<+MEASURE_DECISION_GENERAL_AVAILABILITY> true))"
+        ));
+        assert!(output.contains(
+            "always([+MEASURE_DECISION_GENERAL_AVAILABILITY] true -> eventually(<+APPROVE_DECISION_GENERAL_AVAILABILITY> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_GENERAL_AVAILABILITY] true -> eventually(<+PUBLISH_DECISION_GENERAL_AVAILABILITY> true))"
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_decision_production_readiness_ordering_examples() {
         let output = synthesis_list_text();
 
