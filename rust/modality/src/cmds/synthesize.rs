@@ -1178,6 +1178,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_STRATEGY_REVIEW] true -> eventually(<+MEASURE_DECISION_STRATEGY> true))"#,
             r#"always([+MEASURE_DECISION_STRATEGY] true -> eventually(<+APPROVE_DECISION_STRATEGY> true))"#,
             r#"always([+APPROVE_DECISION_STRATEGY] true -> eventually(<+PUBLISH_DECISION_STRATEGY> true))"#,
+            r#"always([+REQUEST_DECISION_TACTIC_REVIEW] true -> eventually(<+MEASURE_DECISION_TACTIC> true))"#,
+            r#"always([+MEASURE_DECISION_TACTIC] true -> eventually(<+APPROVE_DECISION_TACTIC> true))"#,
+            r#"always([+APPROVE_DECISION_TACTIC] true -> eventually(<+PUBLISH_DECISION_TACTIC> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -7394,6 +7397,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_STRATEGY] true -> eventually(<+PUBLISH_DECISION_STRATEGY> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_tactic_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_TACTIC_REVIEW] true -> eventually(<+MEASURE_DECISION_TACTIC> true))"
+        ));
+        assert!(output.contains(
+            "always([+MEASURE_DECISION_TACTIC] true -> eventually(<+APPROVE_DECISION_TACTIC> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_TACTIC] true -> eventually(<+PUBLISH_DECISION_TACTIC> true))"
         ));
     }
 
@@ -15588,6 +15606,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionStrategy",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_tactic_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_TACTIC_REVIEW] true -> eventually(<+MEASURE_DECISION_TACTIC> true))"
+                .to_string(),
+            "always([+MEASURE_DECISION_TACTIC] true -> eventually(<+APPROVE_DECISION_TACTIC> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_TACTIC] true -> eventually(<+PUBLISH_DECISION_TACTIC> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionTactic",
             &formulas,
         );
 
