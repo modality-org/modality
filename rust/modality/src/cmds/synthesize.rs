@@ -7955,6 +7955,12 @@ F2: formula generated_2 {
             "always([+CHANGE_MEMBERS] true -> <+modifies(/members) +all_signed(/members)> true)"
         ));
         assert!(output.contains(
+            r#"always([+TIMEOUT] true -> <+oracle_attests(/oracles/clock.id, \"deadline_passed\", \"true\")> true)"#
+        ));
+        assert!(output.contains(
+            r#"always([+SETTLE_ESCROW] true -> <+modifies(/escrow) +oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true)"#
+        ));
+        assert!(output.contains(
             r#"[<+SETTLE_ESCROW>] true -> [<+modifies(/escrow) +oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")>] true"#
         ));
         assert!(output.contains(
