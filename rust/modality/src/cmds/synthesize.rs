@@ -1187,6 +1187,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_EXECUTION_REVIEW] true -> eventually(<+MEASURE_DECISION_EXECUTION> true))"#,
             r#"always([+MEASURE_DECISION_EXECUTION] true -> eventually(<+APPROVE_DECISION_EXECUTION> true))"#,
             r#"always([+APPROVE_DECISION_EXECUTION] true -> eventually(<+PUBLISH_DECISION_EXECUTION> true))"#,
+            r#"always([+REQUEST_DECISION_IMPLEMENTATION_REVIEW] true -> eventually(<+MEASURE_DECISION_IMPLEMENTATION> true))"#,
+            r#"always([+MEASURE_DECISION_IMPLEMENTATION] true -> eventually(<+APPROVE_DECISION_IMPLEMENTATION> true))"#,
+            r#"always([+APPROVE_DECISION_IMPLEMENTATION] true -> eventually(<+PUBLISH_DECISION_IMPLEMENTATION> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -15696,6 +15699,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionExecution",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_implementation_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_IMPLEMENTATION_REVIEW] true -> eventually(<+MEASURE_DECISION_IMPLEMENTATION> true))"
+                .to_string(),
+            "always([+MEASURE_DECISION_IMPLEMENTATION] true -> eventually(<+APPROVE_DECISION_IMPLEMENTATION> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_IMPLEMENTATION] true -> eventually(<+PUBLISH_DECISION_IMPLEMENTATION> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionImplementation",
             &formulas,
         );
 
