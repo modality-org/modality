@@ -1112,6 +1112,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_MEMO_REVIEW] true -> eventually(<+MEASURE_DECISION_MEMO> true))"#,
             r#"always([+MEASURE_DECISION_MEMO] true -> eventually(<+APPROVE_DECISION_MEMO> true))"#,
             r#"always([+APPROVE_DECISION_MEMO] true -> eventually(<+PUBLISH_DECISION_MEMO> true))"#,
+            r#"always([+REQUEST_DECISION_NOTE_REVIEW] true -> eventually(<+MEASURE_DECISION_NOTE> true))"#,
+            r#"always([+MEASURE_DECISION_NOTE] true -> eventually(<+APPROVE_DECISION_NOTE> true))"#,
+            r#"always([+APPROVE_DECISION_NOTE] true -> eventually(<+PUBLISH_DECISION_NOTE> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -6998,6 +7001,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_MEMO] true -> eventually(<+PUBLISH_DECISION_MEMO> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_note_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_NOTE_REVIEW] true -> eventually(<+MEASURE_DECISION_NOTE> true))"
+        ));
+        assert!(output.contains(
+            "always([+MEASURE_DECISION_NOTE] true -> eventually(<+APPROVE_DECISION_NOTE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_NOTE] true -> eventually(<+PUBLISH_DECISION_NOTE> true))"
         ));
     }
 
@@ -14802,6 +14820,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("DecisionMemo", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_note_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_NOTE_REVIEW] true -> eventually(<+MEASURE_DECISION_NOTE> true))"
+                .to_string(),
+            "always([+MEASURE_DECISION_NOTE] true -> eventually(<+APPROVE_DECISION_NOTE> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_NOTE] true -> eventually(<+PUBLISH_DECISION_NOTE> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DecisionNote", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
