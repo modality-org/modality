@@ -1076,6 +1076,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_SETTINGS_REVIEW] true -> eventually(<+MEASURE_DECISION_SETTINGS> true))"#,
             r#"always([+MEASURE_DECISION_SETTINGS] true -> eventually(<+APPROVE_DECISION_SETTINGS_REPORT> true))"#,
             r#"always([+APPROVE_DECISION_SETTINGS_REPORT] true -> eventually(<+PUBLISH_DECISION_SETTINGS_REPORT> true))"#,
+            r#"always([+REQUEST_DECISION_CONFIGURATION_REVIEW] true -> eventually(<+MEASURE_DECISION_CONFIGURATION> true))"#,
+            r#"always([+MEASURE_DECISION_CONFIGURATION] true -> eventually(<+APPROVE_DECISION_CONFIGURATION_REPORT> true))"#,
+            r#"always([+APPROVE_DECISION_CONFIGURATION_REPORT] true -> eventually(<+PUBLISH_DECISION_CONFIGURATION_REPORT> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -6782,6 +6785,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_SETTINGS_REPORT] true -> eventually(<+PUBLISH_DECISION_SETTINGS_REPORT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_configuration_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_CONFIGURATION_REVIEW] true -> eventually(<+MEASURE_DECISION_CONFIGURATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+MEASURE_DECISION_CONFIGURATION] true -> eventually(<+APPROVE_DECISION_CONFIGURATION_REPORT> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_CONFIGURATION_REPORT] true -> eventually(<+PUBLISH_DECISION_CONFIGURATION_REPORT> true))"
         ));
     }
 
@@ -14376,6 +14394,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionSettings",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_configuration_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_CONFIGURATION_REVIEW] true -> eventually(<+MEASURE_DECISION_CONFIGURATION> true))"
+                .to_string(),
+            "always([+MEASURE_DECISION_CONFIGURATION] true -> eventually(<+APPROVE_DECISION_CONFIGURATION_REPORT> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_CONFIGURATION_REPORT] true -> eventually(<+PUBLISH_DECISION_CONFIGURATION_REPORT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionConfiguration",
             &formulas,
         );
 
