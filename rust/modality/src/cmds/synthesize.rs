@@ -1142,6 +1142,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_LOG_REVIEW] true -> eventually(<+MEASURE_DECISION_LOG> true))"#,
             r#"always([+MEASURE_DECISION_LOG] true -> eventually(<+APPROVE_DECISION_LOG> true))"#,
             r#"always([+APPROVE_DECISION_LOG] true -> eventually(<+PUBLISH_DECISION_LOG> true))"#,
+            r#"always([+REQUEST_DECISION_JOURNAL_REVIEW] true -> eventually(<+MEASURE_DECISION_JOURNAL> true))"#,
+            r#"always([+MEASURE_DECISION_JOURNAL] true -> eventually(<+APPROVE_DECISION_JOURNAL> true))"#,
+            r#"always([+APPROVE_DECISION_JOURNAL] true -> eventually(<+PUBLISH_DECISION_JOURNAL> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -7178,6 +7181,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_LOG] true -> eventually(<+PUBLISH_DECISION_LOG> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_journal_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_JOURNAL_REVIEW] true -> eventually(<+MEASURE_DECISION_JOURNAL> true))"
+        ));
+        assert!(output.contains(
+            "always([+MEASURE_DECISION_JOURNAL] true -> eventually(<+APPROVE_DECISION_JOURNAL> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_JOURNAL] true -> eventually(<+PUBLISH_DECISION_JOURNAL> true))"
         ));
     }
 
@@ -15158,6 +15176,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("DecisionLog", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_journal_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_JOURNAL_REVIEW] true -> eventually(<+MEASURE_DECISION_JOURNAL> true))"
+                .to_string(),
+            "always([+MEASURE_DECISION_JOURNAL] true -> eventually(<+APPROVE_DECISION_JOURNAL> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_JOURNAL] true -> eventually(<+PUBLISH_DECISION_JOURNAL> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionJournal",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
