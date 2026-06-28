@@ -1124,6 +1124,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_RECORDING_REVIEW] true -> eventually(<+MEASURE_DECISION_RECORDING> true))"#,
             r#"always([+MEASURE_DECISION_RECORDING] true -> eventually(<+APPROVE_DECISION_RECORDING> true))"#,
             r#"always([+APPROVE_DECISION_RECORDING] true -> eventually(<+PUBLISH_DECISION_RECORDING> true))"#,
+            r#"always([+REQUEST_DECISION_ARCHIVE_REVIEW] true -> eventually(<+MEASURE_DECISION_ARCHIVE> true))"#,
+            r#"always([+MEASURE_DECISION_ARCHIVE] true -> eventually(<+APPROVE_DECISION_ARCHIVE> true))"#,
+            r#"always([+APPROVE_DECISION_ARCHIVE] true -> eventually(<+PUBLISH_DECISION_ARCHIVE> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -7070,6 +7073,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_RECORDING] true -> eventually(<+PUBLISH_DECISION_RECORDING> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_archive_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_ARCHIVE_REVIEW] true -> eventually(<+MEASURE_DECISION_ARCHIVE> true))"
+        ));
+        assert!(output.contains(
+            "always([+MEASURE_DECISION_ARCHIVE] true -> eventually(<+APPROVE_DECISION_ARCHIVE> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_ARCHIVE] true -> eventually(<+PUBLISH_DECISION_ARCHIVE> true))"
         ));
     }
 
@@ -14942,6 +14960,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionRecording",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_archive_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_ARCHIVE_REVIEW] true -> eventually(<+MEASURE_DECISION_ARCHIVE> true))"
+                .to_string(),
+            "always([+MEASURE_DECISION_ARCHIVE] true -> eventually(<+APPROVE_DECISION_ARCHIVE> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_ARCHIVE] true -> eventually(<+PUBLISH_DECISION_ARCHIVE> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionArchive",
             &formulas,
         );
 
