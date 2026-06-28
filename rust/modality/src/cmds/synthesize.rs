@@ -1205,6 +1205,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_LAUNCH_REVIEW] true -> eventually(<+MEASURE_DECISION_LAUNCH> true))"#,
             r#"always([+MEASURE_DECISION_LAUNCH] true -> eventually(<+APPROVE_DECISION_LAUNCH> true))"#,
             r#"always([+APPROVE_DECISION_LAUNCH] true -> eventually(<+PUBLISH_DECISION_LAUNCH> true))"#,
+            r#"always([+REQUEST_DECISION_GENERAL_AVAILABILITY_REVIEW] true -> eventually(<+MEASURE_DECISION_GENERAL_AVAILABILITY> true))"#,
+            r#"always([+MEASURE_DECISION_GENERAL_AVAILABILITY] true -> eventually(<+APPROVE_DECISION_GENERAL_AVAILABILITY> true))"#,
+            r#"always([+APPROVE_DECISION_GENERAL_AVAILABILITY] true -> eventually(<+PUBLISH_DECISION_GENERAL_AVAILABILITY> true))"#,
             r#"[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"#,
             r#"[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"#,
             r#"[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"#,
@@ -15822,6 +15825,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionLaunch",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_general_availability_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_GENERAL_AVAILABILITY_REVIEW] true -> eventually(<+MEASURE_DECISION_GENERAL_AVAILABILITY> true))"
+                .to_string(),
+            "always([+MEASURE_DECISION_GENERAL_AVAILABILITY] true -> eventually(<+APPROVE_DECISION_GENERAL_AVAILABILITY> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_GENERAL_AVAILABILITY] true -> eventually(<+PUBLISH_DECISION_GENERAL_AVAILABILITY> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionGeneralAvailability",
             &formulas,
         );
 
