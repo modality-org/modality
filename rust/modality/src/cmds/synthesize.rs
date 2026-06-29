@@ -5194,6 +5194,96 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_agent_action_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_ACTION] true -> eventually(<+SIMULATE_AGENT_ACTION> true))"
+        ));
+        assert!(output.contains(
+            "always([+SIMULATE_AGENT_ACTION] true -> eventually(<+APPROVE_AGENT_ACTION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_ACTION] true -> eventually(<+EXECUTE_AGENT_ACTION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_tool_permission_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_TOOL_PERMISSION] true -> eventually(<+ASSESS_TOOL_RISK> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_TOOL_RISK] true -> eventually(<+APPROVE_TOOL_PERMISSION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_TOOL_PERMISSION] true -> eventually(<+GRANT_TOOL_PERMISSION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_task_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+DELEGATE_AGENT_TASK] true -> eventually(<+REVIEW_AGENT_OUTPUT> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_AGENT_OUTPUT] true -> eventually(<+APPROVE_AGENT_OUTPUT> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_OUTPUT] true -> eventually(<+ARCHIVE_AGENT_TRACE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_policy_exception_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_POLICY_EXCEPTION] true -> eventually(<+ASSESS_AGENT_POLICY_RISK> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_AGENT_POLICY_RISK] true -> eventually(<+APPROVE_AGENT_POLICY_EXCEPTION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_POLICY_EXCEPTION] true -> eventually(<+RECORD_AGENT_POLICY_EXCEPTION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_sandbox_session_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_SANDBOX_SESSION] true -> eventually(<+APPROVE_SANDBOX_BOUNDARY> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_SANDBOX_BOUNDARY] true -> eventually(<+GRANT_SANDBOX_SESSION> true))"
+        ));
+        assert!(output.contains(
+            "always([+GRANT_SANDBOX_SESSION] true -> eventually(<+RECORD_SANDBOX_AUDIT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_capability_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_CAPABILITY] true -> eventually(<+EVALUATE_CAPABILITY_SCOPE> true))"
+        ));
+        assert!(output.contains(
+            "always([+EVALUATE_CAPABILITY_SCOPE] true -> eventually(<+APPROVE_AGENT_CAPABILITY> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_CAPABILITY] true -> eventually(<+ENABLE_AGENT_CAPABILITY> true))"
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_agent_memory_ordering_examples() {
         let output = synthesis_list_text();
 
