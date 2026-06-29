@@ -9940,6 +9940,24 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_oracle_escrow_goal_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            r#"[+RELEASE] true -> (<+oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))"#
+        ));
+        assert!(output.contains(
+            r#"[+RELEASE] true -> (<+oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true & eventually([<+DELIVER>] true))"#
+        ));
+        assert!(output.contains(
+            r#"[<+RELEASE>] true -> (<+oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true & eventually(<+DELIVER> true))"#
+        ));
+        assert!(output.contains(
+            r#"[<+RELEASE>] true -> (<+oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))"#
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_authorized_followup_obligation_examples() {
         let output = synthesis_list_text();
 
