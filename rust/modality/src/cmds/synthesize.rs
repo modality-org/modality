@@ -8181,7 +8181,19 @@ F2: formula generated_2 {
             r#"[<+APPROVE_CREDIT>] true -> [<+modifies(/credits) +signed_by(/users/credit_manager.id)>] true"#
         ));
         assert!(output.contains(
+            r#"[<+APPROVE_ADJUSTMENT>] true -> [<+modifies(/adjustments) +signed_by(/users/controller.id)>] true"#
+        ));
+        assert!(output.contains(
             r#"[<+APPROVE_PAYMENT>] true -> [<+modifies(/payments) +signed_by(/users/payment_approver.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_DISCOUNT>] true -> [<+modifies(/discounts) +signed_by(/users/sales_manager.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_COMMISSION>] true -> [<+modifies(/commissions) +signed_by(/users/revenue_lead.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_GRANT>] true -> [<+modifies(/grants) +signed_by(/users/grants_manager.id)>] true"#
         ));
         assert!(output.contains(
             r#"[<+APPROVE_LOAN>] true -> [<+modifies(/loans) +signed_by(/users/loan_officer.id)>] true"#
