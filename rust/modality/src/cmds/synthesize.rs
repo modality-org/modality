@@ -1340,6 +1340,14 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+ACCEPT_RECEIVING] true -> <+signed_by(/users/warehouse_manager.id)> true)"#,
             r#"always([+APPROVE_GRID_INTERCONNECTION] true -> <+signed_by(/users/system_operator.id)> true)"#,
             r#"always([+ISSUE_MAINTENANCE_CLEARANCE] true -> <+signed_by(/users/outage_coordinator.id)> true)"#,
+            r#"always([+RELEASE_STUDENT_RECORD] true -> <+signed_by(/users/registrar.id)> true)"#,
+            r#"always([+APPROVE_GRANT_AWARD] true -> <+signed_by(/users/program_officer.id)> true)"#,
+            r#"always([+ISSUE_PERMIT] true -> <+signed_by(/users/permitting_officer.id)> true)"#,
+            r#"always([+CLOSE_LEGAL_MATTER] true -> <+signed_by(/users/legal_counsel.id)> true)"#,
+            r#"always([+PROMOTE_RELEASE] true -> <+signed_by(/users/release_engineer.id)> true)"#,
+            r#"always([+APPROVE_MODEL_DEPLOYMENT] true -> <+signed_by(/users/model_risk_officer.id)> true)"#,
+            r#"always([+EXECUTE_DAO_PROPOSAL] true -> <+signed_by(/users/governance_council.id)> true)"#,
+            r#"always([+RELEASE_MARKETPLACE_PAYOUT] true -> <+signed_by(/users/platform_operator.id)> true)"#,
             r#"[+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true"#,
             r#"(<+APPROVE> true | [<+REJECT>] true) & ([+APPROVE] true -> <+oracle_attests(/oracles/review.id, "approved", "true")> true)"#,
             r#"[+APPROVE] true -> <+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"#,
@@ -1602,6 +1610,14 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+ACCEPT_RECEIVING] true -> always([-INVENTORY_DISCREPANCY] true))"#,
             r#"always([+APPROVE_GRID_INTERCONNECTION] true -> always([-UNSAFE_ENERGIZATION] true))"#,
             r#"always([+ISSUE_MAINTENANCE_CLEARANCE] true -> always([-LIVE_WORK] true))"#,
+            r#"always([+RELEASE_STUDENT_RECORD] true -> always([-UNAUTHORIZED_DISCLOSURE] true))"#,
+            r#"always([+APPROVE_GRANT_AWARD] true -> always([-CONFLICT_AWARD] true))"#,
+            r#"always([+ISSUE_PERMIT] true -> always([-UNPERMITTED_WORK] true))"#,
+            r#"always([+CLOSE_LEGAL_MATTER] true -> always([-UNRESOLVED_CLAIM] true))"#,
+            r#"always([+PROMOTE_RELEASE] true -> always([-UNREVIEWED_DEPLOYMENT] true))"#,
+            r#"always([+APPROVE_MODEL_DEPLOYMENT] true -> always([-UNVALIDATED_MODEL_USE] true))"#,
+            r#"always([+EXECUTE_DAO_PROPOSAL] true -> always([-FAILED_QUORUM_EXECUTION] true))"#,
+            r#"always([+RELEASE_MARKETPLACE_PAYOUT] true -> always([-DISPUTED_PAYOUT] true))"#,
             r#"always([+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true)))"#,
             r#"[+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true))"#,
             r#"[<+DISPUTE>] true -> always([-RELEASE] true)"#,
@@ -8006,6 +8022,36 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_authorization_public_sector_signed_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+RELEASE_STUDENT_RECORD] true -> <+signed_by(/users/registrar.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_GRANT_AWARD] true -> <+signed_by(/users/program_officer.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+ISSUE_PERMIT] true -> <+signed_by(/users/permitting_officer.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+CLOSE_LEGAL_MATTER] true -> <+signed_by(/users/legal_counsel.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+PROMOTE_RELEASE] true -> <+signed_by(/users/release_engineer.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_MODEL_DEPLOYMENT] true -> <+signed_by(/users/model_risk_officer.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+EXECUTE_DAO_PROPOSAL] true -> <+signed_by(/users/governance_council.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+RELEASE_MARKETPLACE_PAYOUT] true -> <+signed_by(/users/platform_operator.id)> true)"
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_committed_gfp_branch_order_example() {
         let output = synthesis_list_text();
 
@@ -8854,6 +8900,36 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+ISSUE_MAINTENANCE_CLEARANCE] true -> always([-LIVE_WORK] true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_public_sector_forbidden_guard_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+RELEASE_STUDENT_RECORD] true -> always([-UNAUTHORIZED_DISCLOSURE] true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_GRANT_AWARD] true -> always([-CONFLICT_AWARD] true))"
+        ));
+        assert!(
+            output.contains("always([+ISSUE_PERMIT] true -> always([-UNPERMITTED_WORK] true))")
+        );
+        assert!(output.contains(
+            "always([+CLOSE_LEGAL_MATTER] true -> always([-UNRESOLVED_CLAIM] true))"
+        ));
+        assert!(output.contains(
+            "always([+PROMOTE_RELEASE] true -> always([-UNREVIEWED_DEPLOYMENT] true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_MODEL_DEPLOYMENT] true -> always([-UNVALIDATED_MODEL_USE] true))"
+        ));
+        assert!(output.contains(
+            "always([+EXECUTE_DAO_PROPOSAL] true -> always([-FAILED_QUORUM_EXECUTION] true))"
+        ));
+        assert!(output.contains(
+            "always([+RELEASE_MARKETPLACE_PAYOUT] true -> always([-DISPUTED_PAYOUT] true))"
         ));
     }
 
