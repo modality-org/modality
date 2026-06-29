@@ -9279,6 +9279,59 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_lifecycle_action_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+CANCEL] true -> <+signed_by(/users/requester.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+CANCEL] true -> always([-DELIVER] true))"
+        ));
+        assert!(output
+            .contains("always([+REFUND] true -> <+signed_by(/users/seller.id)> true)"));
+        assert!(output.contains("always([+REFUND] true -> always([-RELEASE] true))"));
+        assert!(output
+            .contains("always([+APPEAL] true -> <+signed_by(/users/appellant.id)> true)"));
+        assert!(output.contains("always([+APPEAL] true -> always([-ENFORCE] true))"));
+        assert!(
+            output.contains("always([+RENEW] true -> <+signed_by(/users/holder.id)> true)")
+        );
+        assert!(output.contains("always([+RENEW] true -> always([-EXPIRE] true))"));
+        assert!(output.contains(
+            "always([+TERMINATE] true -> <+signed_by(/users/counterparty.id)> true)"
+        ));
+        assert!(output.contains("always([+TERMINATE] true -> always([-RENEW] true))"));
+        assert!(
+            output.contains("always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)")
+        );
+        assert!(output.contains("always([+EXTEND] true -> always([-TERMINATE] true))"));
+        assert!(
+            output.contains("always([+ASSIGN] true -> <+signed_by(/users/assigner.id)> true)")
+        );
+        assert!(output.contains("always([+ASSIGN] true -> always([-REASSIGN] true))"));
+        assert!(
+            output.contains("always([+CERTIFY] true -> <+signed_by(/users/auditor.id)> true)")
+        );
+        assert!(output.contains("always([+CERTIFY] true -> always([-DEPLOY] true))"));
+        assert!(
+            output.contains("always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)")
+        );
+        assert!(output.contains("always([+PUBLISH] true -> always([-EMBARGO] true))"));
+        assert!(output
+            .contains("always([+REGISTER] true -> <+signed_by(/users/registrar.id)> true)"));
+        assert!(output.contains("always([+REGISTER] true -> always([-DELETE] true))"));
+        assert!(
+            output.contains("always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)")
+        );
+        assert!(output.contains("always([+ACCEPT] true -> always([-REJECT] true))"));
+        assert!(output.contains(
+            "always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)"
+        ));
+        assert!(output.contains("always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))"));
+    }
+
+    #[test]
     fn synthesis_list_includes_credential_access_predicate_examples() {
         let output = synthesis_list_text();
 
