@@ -9958,6 +9958,24 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_multisig_escrow_goal_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "[+APPROVE] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))"
+        ));
+        assert!(output.contains(
+            "[<+APPROVE>] true -> (<+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))"
+        ));
+        assert!(output.contains(
+            "[+APPROVE] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true)))"
+        ));
+        assert!(output.contains(
+            "[<+APPROVE>] true -> ([<+signed_by(/users/alice.id) +signed_by(/users/bob.id)>] true & (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true)))"
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_authorized_followup_obligation_examples() {
         let output = synthesis_list_text();
 
