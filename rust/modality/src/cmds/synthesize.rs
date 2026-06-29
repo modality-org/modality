@@ -8348,6 +8348,9 @@ F2: formula generated_2 {
         assert!(output.contains(
             r#"[<+APPROVE_COMMENT>] true -> [<+modifies(/comments) +signed_by(/users/comment_owner.id)>] true"#
         ));
+        assert!(output.contains(
+            r#"[<+APPROVE_REPLY>] true -> [<+modifies(/replies) +signed_by(/users/reply_owner.id)>] true"#
+        ));
     }
 
     #[test]
@@ -11225,6 +11228,9 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         );
         assert!(
             output.contains("+APPROVE_TIME_OFF +signed_by(/users/manager.id) +modifies(/time_off)")
+        );
+        assert!(
+            output.contains("+APPROVE_REPLY +signed_by(/users/reply_owner.id) +modifies(/replies)")
         );
         assert!(output.contains(
             "+APPROVE_EXPENSE +signed_by(/users/finance_manager.id) +modifies(/expenses)"
