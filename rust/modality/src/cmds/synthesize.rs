@@ -4322,6 +4322,18 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_escrow_progression_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+DELIVER] true -> eventually(<+DEPOSIT> true))"
+        ));
+        assert!(output.contains(
+            "always([+RELEASE] true -> eventually(<+DELIVER> true))"
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_review_publication_ordering_examples() {
         let output = synthesis_list_text();
 
