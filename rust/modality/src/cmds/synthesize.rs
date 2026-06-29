@@ -1332,6 +1332,14 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+APPROVE_PURCHASE_ORDER] true -> <+signed_by(/users/budget_owner.id)> true)"#,
             r#"always([+APPROVE_TREASURY_DISBURSEMENT] true -> <+signed_by(/users/treasurer.id)> true)"#,
             r#"always([+RELEASE_BUDGET] true -> <+signed_by(/users/finance_controller.id)> true)"#,
+            r#"always([+ENROLL_TRIAL_PARTICIPANT] true -> <+signed_by(/users/principal_investigator.id)> true)"#,
+            r#"always([+APPROVE_TREATMENT_PROTOCOL] true -> <+signed_by(/users/medical_director.id)> true)"#,
+            r#"always([+SETTLE_CLAIM] true -> <+signed_by(/users/claims_adjuster.id)> true)"#,
+            r#"always([+APPROVE_UNDERWRITING_EXCEPTION] true -> <+signed_by(/users/underwriter.id)> true)"#,
+            r#"always([+RELEASE_SHIPMENT] true -> <+signed_by(/users/logistics_coordinator.id)> true)"#,
+            r#"always([+ACCEPT_RECEIVING] true -> <+signed_by(/users/warehouse_manager.id)> true)"#,
+            r#"always([+APPROVE_GRID_INTERCONNECTION] true -> <+signed_by(/users/system_operator.id)> true)"#,
+            r#"always([+ISSUE_MAINTENANCE_CLEARANCE] true -> <+signed_by(/users/outage_coordinator.id)> true)"#,
             r#"[+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true"#,
             r#"(<+APPROVE> true | [<+REJECT>] true) & ([+APPROVE] true -> <+oracle_attests(/oracles/review.id, "approved", "true")> true)"#,
             r#"[+APPROVE] true -> <+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"#,
@@ -1586,6 +1594,14 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+APPROVE_PURCHASE_ORDER] true -> always([-OFF_CONTRACT_SPEND] true))"#,
             r#"always([+APPROVE_TREASURY_DISBURSEMENT] true -> always([-UNAUTHORIZED_TRANSFER] true))"#,
             r#"always([+RELEASE_BUDGET] true -> always([-OVER_BUDGET_SPEND] true))"#,
+            r#"always([+ENROLL_TRIAL_PARTICIPANT] true -> always([-INELIGIBLE_ENROLLMENT] true))"#,
+            r#"always([+APPROVE_TREATMENT_PROTOCOL] true -> always([-OFF_PROTOCOL_TREATMENT] true))"#,
+            r#"always([+SETTLE_CLAIM] true -> always([-FRAUDULENT_PAYOUT] true))"#,
+            r#"always([+APPROVE_UNDERWRITING_EXCEPTION] true -> always([-UNPRICED_RISK_BINDING] true))"#,
+            r#"always([+RELEASE_SHIPMENT] true -> always([-UNAUTHORIZED_SHIPMENT] true))"#,
+            r#"always([+ACCEPT_RECEIVING] true -> always([-INVENTORY_DISCREPANCY] true))"#,
+            r#"always([+APPROVE_GRID_INTERCONNECTION] true -> always([-UNSAFE_ENERGIZATION] true))"#,
+            r#"always([+ISSUE_MAINTENANCE_CLEARANCE] true -> always([-LIVE_WORK] true))"#,
             r#"always([+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true)))"#,
             r#"[+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true))"#,
             r#"[<+DISPUTE>] true -> always([-RELEASE] true)"#,
@@ -7960,6 +7976,36 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_authorization_domain_signed_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+ENROLL_TRIAL_PARTICIPANT] true -> <+signed_by(/users/principal_investigator.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_TREATMENT_PROTOCOL] true -> <+signed_by(/users/medical_director.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+SETTLE_CLAIM] true -> <+signed_by(/users/claims_adjuster.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_UNDERWRITING_EXCEPTION] true -> <+signed_by(/users/underwriter.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+RELEASE_SHIPMENT] true -> <+signed_by(/users/logistics_coordinator.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+ACCEPT_RECEIVING] true -> <+signed_by(/users/warehouse_manager.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_GRID_INTERCONNECTION] true -> <+signed_by(/users/system_operator.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+ISSUE_MAINTENANCE_CLEARANCE] true -> <+signed_by(/users/outage_coordinator.id)> true)"
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_committed_gfp_branch_order_example() {
         let output = synthesis_list_text();
 
@@ -8779,6 +8825,36 @@ F2: formula generated_2 {
         assert!(
             output.contains("always([+RELEASE_BUDGET] true -> always([-OVER_BUDGET_SPEND] true))")
         );
+    }
+
+    #[test]
+    fn synthesis_list_includes_domain_forbidden_guard_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+ENROLL_TRIAL_PARTICIPANT] true -> always([-INELIGIBLE_ENROLLMENT] true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_TREATMENT_PROTOCOL] true -> always([-OFF_PROTOCOL_TREATMENT] true))"
+        ));
+        assert!(
+            output.contains("always([+SETTLE_CLAIM] true -> always([-FRAUDULENT_PAYOUT] true))")
+        );
+        assert!(output.contains(
+            "always([+APPROVE_UNDERWRITING_EXCEPTION] true -> always([-UNPRICED_RISK_BINDING] true))"
+        ));
+        assert!(output.contains(
+            "always([+RELEASE_SHIPMENT] true -> always([-UNAUTHORIZED_SHIPMENT] true))"
+        ));
+        assert!(output.contains(
+            "always([+ACCEPT_RECEIVING] true -> always([-INVENTORY_DISCREPANCY] true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_GRID_INTERCONNECTION] true -> always([-UNSAFE_ENERGIZATION] true))"
+        ));
+        assert!(output.contains(
+            "always([+ISSUE_MAINTENANCE_CLEARANCE] true -> always([-LIVE_WORK] true))"
+        ));
     }
 
     #[test]
