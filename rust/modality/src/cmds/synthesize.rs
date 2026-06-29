@@ -1348,6 +1348,14 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+APPROVE_MODEL_DEPLOYMENT] true -> <+signed_by(/users/model_risk_officer.id)> true)"#,
             r#"always([+EXECUTE_DAO_PROPOSAL] true -> <+signed_by(/users/governance_council.id)> true)"#,
             r#"always([+RELEASE_MARKETPLACE_PAYOUT] true -> <+signed_by(/users/platform_operator.id)> true)"#,
+            r#"always([+APPROVE_CONSTRUCTION_DRAW] true -> <+signed_by(/users/project_manager.id)> true)"#,
+            r#"always([+RELEASE_MANUFACTURING_BATCH] true -> <+signed_by(/users/quality_manager.id)> true)"#,
+            r#"always([+APPROVE_CONTENT_LICENSE] true -> <+signed_by(/users/rights_manager.id)> true)"#,
+            r#"always([+APPROVE_LEASE_AMENDMENT] true -> <+signed_by(/users/property_manager.id)> true)"#,
+            r#"always([+APPROVE_ENVIRONMENTAL_PERMIT] true -> <+signed_by(/users/environmental_officer.id)> true)"#,
+            r#"always([+CERTIFY_AGRICULTURAL_SHIPMENT] true -> <+signed_by(/users/quality_inspector.id)> true)"#,
+            r#"always([+APPROVE_TRAVEL_ITINERARY] true -> <+signed_by(/users/travel_manager.id)> true)"#,
+            r#"always([+RELEASE_ROOM_BLOCK] true -> <+signed_by(/users/event_coordinator.id)> true)"#,
             r#"[+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true"#,
             r#"(<+APPROVE> true | [<+REJECT>] true) & ([+APPROVE] true -> <+oracle_attests(/oracles/review.id, "approved", "true")> true)"#,
             r#"[+APPROVE] true -> <+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"#,
@@ -1618,6 +1626,14 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+APPROVE_MODEL_DEPLOYMENT] true -> always([-UNVALIDATED_MODEL_USE] true))"#,
             r#"always([+EXECUTE_DAO_PROPOSAL] true -> always([-FAILED_QUORUM_EXECUTION] true))"#,
             r#"always([+RELEASE_MARKETPLACE_PAYOUT] true -> always([-DISPUTED_PAYOUT] true))"#,
+            r#"always([+APPROVE_CONSTRUCTION_DRAW] true -> always([-LIEN_EXPOSURE] true))"#,
+            r#"always([+RELEASE_MANUFACTURING_BATCH] true -> always([-NONCONFORMING_SHIPMENT] true))"#,
+            r#"always([+APPROVE_CONTENT_LICENSE] true -> always([-UNLICENSED_PUBLICATION] true))"#,
+            r#"always([+APPROVE_LEASE_AMENDMENT] true -> always([-UNAUTHORIZED_OCCUPANCY] true))"#,
+            r#"always([+APPROVE_ENVIRONMENTAL_PERMIT] true -> always([-PROHIBITED_DISCHARGE] true))"#,
+            r#"always([+CERTIFY_AGRICULTURAL_SHIPMENT] true -> always([-CONTAMINATED_SHIPMENT] true))"#,
+            r#"always([+APPROVE_TRAVEL_ITINERARY] true -> always([-UNAUTHORIZED_BOOKING] true))"#,
+            r#"always([+RELEASE_ROOM_BLOCK] true -> always([-OVERBOOKED_ROOMS] true))"#,
             r#"always([+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true)))"#,
             r#"[+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true))"#,
             r#"[<+DISPUTE>] true -> always([-RELEASE] true)"#,
@@ -8052,6 +8068,36 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_authorization_industry_signed_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+APPROVE_CONSTRUCTION_DRAW] true -> <+signed_by(/users/project_manager.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+RELEASE_MANUFACTURING_BATCH] true -> <+signed_by(/users/quality_manager.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_CONTENT_LICENSE] true -> <+signed_by(/users/rights_manager.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_LEASE_AMENDMENT] true -> <+signed_by(/users/property_manager.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_ENVIRONMENTAL_PERMIT] true -> <+signed_by(/users/environmental_officer.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+CERTIFY_AGRICULTURAL_SHIPMENT] true -> <+signed_by(/users/quality_inspector.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_TRAVEL_ITINERARY] true -> <+signed_by(/users/travel_manager.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+RELEASE_ROOM_BLOCK] true -> <+signed_by(/users/event_coordinator.id)> true)"
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_committed_gfp_branch_order_example() {
         let output = synthesis_list_text();
 
@@ -8931,6 +8977,36 @@ F2: formula generated_2 {
         assert!(output.contains(
             "always([+RELEASE_MARKETPLACE_PAYOUT] true -> always([-DISPUTED_PAYOUT] true))"
         ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_industry_forbidden_guard_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+APPROVE_CONSTRUCTION_DRAW] true -> always([-LIEN_EXPOSURE] true))"
+        ));
+        assert!(output.contains(
+            "always([+RELEASE_MANUFACTURING_BATCH] true -> always([-NONCONFORMING_SHIPMENT] true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_CONTENT_LICENSE] true -> always([-UNLICENSED_PUBLICATION] true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_LEASE_AMENDMENT] true -> always([-UNAUTHORIZED_OCCUPANCY] true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_ENVIRONMENTAL_PERMIT] true -> always([-PROHIBITED_DISCHARGE] true))"
+        ));
+        assert!(output.contains(
+            "always([+CERTIFY_AGRICULTURAL_SHIPMENT] true -> always([-CONTAMINATED_SHIPMENT] true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_TRAVEL_ITINERARY] true -> always([-UNAUTHORIZED_BOOKING] true))"
+        ));
+        assert!(
+            output.contains("always([+RELEASE_ROOM_BLOCK] true -> always([-OVERBOOKED_ROOMS] true))")
+        );
     }
 
     #[test]
