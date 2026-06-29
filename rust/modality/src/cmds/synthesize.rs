@@ -4304,6 +4304,24 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_agent_coordination_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+AGENT_A_TURN] true -> eventually(<+AGENT_B_TURN> true))"
+        ));
+        assert!(output.contains(
+            "always([+AGENT_B_TURN] true -> eventually(<+AGENT_A_TURN> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSIGN_TASK] true -> <+signed_by(/users/task_requester.id) +signed_by(/users/worker_agent.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+USE_TOOL] true -> (<+signed_by(/users/tool_provider.id)> true & eventually([<+APPROVE_CAPABILITY>] true)))"
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_review_publication_ordering_examples() {
         let output = synthesis_list_text();
 
