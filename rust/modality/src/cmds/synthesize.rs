@@ -8575,6 +8575,9 @@ F2: formula generated_2 {
         assert!(output.contains(
             r#"[<+APPROVE_EXCEPTION>] true -> [<+modifies(/exceptions) +signed_by(/users/exception_owner.id)>] true"#
         ));
+        assert!(output.contains(
+            r#"[<+APPROVE_VARIANCE>] true -> [<+modifies(/variances) +signed_by(/users/variance_owner.id)>] true"#
+        ));
     }
 
     #[test]
