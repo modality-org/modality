@@ -8611,6 +8611,11 @@ F2: formula generated_2 {
         let output = synthesis_list_text();
 
         assert!(output.contains("Forbidden-after guards"));
+        assert!(output.contains("always([+APPROVE] true -> always([-REJECT] true))"));
+        assert!(output.contains("always([+REJECT] true -> always([-APPROVE] true))"));
+        assert!(output.contains("always([+CANCEL] true -> always([-DELIVER] true))"));
+        assert!(output.contains("always([+REFUND] true -> always([-RELEASE] true))"));
+        assert!(output.contains("always([+TIMEOUT] true -> always([-COMPLETE] true))"));
         assert!(output.contains("[<+DISPUTE>] true -> always([-RELEASE] true)"));
         assert!(output
             .contains("[<+DISPUTE>] true -> (always([-RELEASE] true) & always([-REFUND] true))"));
