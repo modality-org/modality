@@ -8201,6 +8201,30 @@ F2: formula generated_2 {
         assert!(output.contains(
             r#"[<+APPROVE_CLAIM>] true -> [<+modifies(/claims) +signed_by(/users/claims_adjuster.id)>] true"#
         ));
+        assert!(output.contains(
+            r#"[<+APPROVE_WITHDRAWAL>] true -> [<+modifies(/withdrawals) +signed_by(/users/treasury_officer.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_SETTLEMENT>] true -> [<+modifies(/settlements) +signed_by(/users/settlement_manager.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_DIVIDEND>] true -> [<+modifies(/dividends) +signed_by(/users/board_secretary.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_ROYALTY>] true -> [<+modifies(/royalties) +signed_by(/users/rights_manager.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_LICENSE>] true -> [<+modifies(/licenses) +signed_by(/users/licensing_manager.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_RENEWAL>] true -> [<+modifies(/renewals) +signed_by(/users/account_manager.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_SUBSCRIPTION>] true -> [<+modifies(/subscriptions) +signed_by(/users/customer_success_manager.id)>] true"#
+        ));
+        assert!(output.contains(
+            r#"[<+APPROVE_ENTITLEMENT>] true -> [<+modifies(/entitlements) +signed_by(/users/access_manager.id)>] true"#
+        ));
     }
 
     #[test]
