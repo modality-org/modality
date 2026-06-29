@@ -13360,6 +13360,51 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
+    fn verify_synthesized_model_accepts_review_publication_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+SUBMIT] true -> eventually(<+REVIEW> true))".to_string(),
+            "always([+APPROVE] true -> eventually(<+PUBLISH> true))".to_string(),
+            "always([+MERGE] true -> eventually(<+DEPLOY> true))".to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ReviewPublication",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_issue_remediation_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+OPEN_ISSUE] true -> eventually(<+TRIAGE> true))".to_string(),
+            "always([+TRIAGE] true -> eventually(<+ASSIGN> true))".to_string(),
+            "always([+FIX] true -> eventually(<+VERIFY> true))".to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "IssueRemediation",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_incident_response_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+ALERT] true -> eventually(<+ACKNOWLEDGE> true))".to_string(),
+            "always([+ACKNOWLEDGE] true -> eventually(<+MITIGATE> true))".to_string(),
+            "always([+MITIGATE] true -> eventually(<+RESOLVE> true))".to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "IncidentResponse",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn verify_synthesized_model_accepts_procurement_ordering_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+CREATE_ORDER] true -> eventually(<+APPROVE_ORDER> true))".to_string(),
@@ -13657,6 +13702,41 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "SecurityException",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_vulnerability_remediation_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REPORT_VULNERABILITY] true -> eventually(<+TRIAGE_VULNERABILITY> true))"
+                .to_string(),
+            "always([+TRIAGE_VULNERABILITY] true -> eventually(<+APPLY_PATCH> true))"
+                .to_string(),
+            "always([+APPLY_PATCH] true -> eventually(<+VERIFY_PATCH> true))".to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "VulnerabilityRemediation",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_breach_notification_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+DETECT_BREACH] true -> eventually(<+ASSESS_BREACH_SCOPE> true))"
+                .to_string(),
+            "always([+ASSESS_BREACH_SCOPE] true -> eventually(<+NOTIFY_AFFECTED_PARTIES> true))"
+                .to_string(),
+            "always([+NOTIFY_AFFECTED_PARTIES] true -> eventually(<+COMPLETE_BREACH_REVIEW> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "BreachNotification",
             &formulas,
         );
 
