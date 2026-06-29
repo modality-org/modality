@@ -4118,6 +4118,26 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_all_formula_group_examples() {
+        let output = synthesis_list_text();
+
+        for group in FORMULA_EXAMPLE_GROUPS {
+            for formula in group.formulas {
+                let command = format!(
+                    r#"modality model synthesize --formulas "{}" --verify"#,
+                    escape_formula_for_command(formula)
+                );
+                assert!(
+                    output.contains(&command),
+                    "missing list command for {} formula: {}",
+                    group.title,
+                    formula
+                );
+            }
+        }
+    }
+
+    #[test]
     fn format_synthesized_model_supports_json() {
         let model = modality_lang::Model::new("Contract".to_string());
 
