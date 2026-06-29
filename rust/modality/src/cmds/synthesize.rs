@@ -4334,6 +4334,24 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_compound_escrow_goal_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"
+        ));
+        assert!(output.contains(
+            "[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"
+        ));
+        assert!(output.contains(
+            "[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"
+        ));
+        assert!(output.contains(
+            "[<+RELEASE>] true -> (eventually([<+DEPOSIT>] true) & eventually([<+DELIVER>] true))"
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_review_publication_ordering_examples() {
         let output = synthesis_list_text();
 
