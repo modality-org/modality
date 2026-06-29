@@ -4089,6 +4089,17 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_core_formula_shape_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("Core formula shapes"));
+        assert!(output.contains("always([<+APPROVE>] true)"));
+        assert!(output.contains("always([<+APPROVE>] true & [<+REJECT>] true)"));
+        assert!(output.contains("[<+APPROVE>] true"));
+        assert!(output.contains("<+APPROVE> true"));
+    }
+
+    #[test]
     fn format_synthesized_model_supports_json() {
         let model = modality_lang::Model::new("Contract".to_string());
 
