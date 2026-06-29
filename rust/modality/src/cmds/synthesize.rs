@@ -1322,6 +1322,16 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)"#,
             r#"always([+CLOSE_INCIDENT] true -> <+signed_by(/users/incident_commander.id)> true)"#,
             r#"always([+FREEZE_CHANGE] true -> <+signed_by(/users/release_manager.id)> true)"#,
+            r#"always([+FILE_REGULATORY_REPORT] true -> <+signed_by(/users/applicant.id) +signed_by(/users/regulator.id)> true)"#,
+            r#"always([+FILE_TAX_RETURN] true -> <+signed_by(/users/tax_authority.id) +signed_by(/users/withholding_agent.id) +signed_by(/users/revenue_agency.id)> true)"#,
+            r#"always([+APPROVE_DATA_PROCESSING] true -> <+signed_by(/users/data_protection_officer.id)> true)"#,
+            r#"always([+ACCEPT_PRIVACY_IMPACT] true -> <+signed_by(/users/privacy_officer.id)> true)"#,
+            r#"always([+GRANT_ACCESS] true -> <+signed_by(/users/security_administrator.id)> true)"#,
+            r#"always([+CLOSE_AUDIT] true -> <+signed_by(/users/auditor.id)> true)"#,
+            r#"always([+ONBOARD_VENDOR] true -> <+signed_by(/users/procurement_officer.id)> true)"#,
+            r#"always([+APPROVE_PURCHASE_ORDER] true -> <+signed_by(/users/budget_owner.id)> true)"#,
+            r#"always([+APPROVE_TREASURY_DISBURSEMENT] true -> <+signed_by(/users/treasurer.id)> true)"#,
+            r#"always([+RELEASE_BUDGET] true -> <+signed_by(/users/finance_controller.id)> true)"#,
             r#"[+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true"#,
             r#"(<+APPROVE> true | [<+REJECT>] true) & ([+APPROVE] true -> <+oracle_attests(/oracles/review.id, "approved", "true")> true)"#,
             r#"[+APPROVE] true -> <+signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"#,
@@ -1568,6 +1578,14 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+ACCEPT_RISK] true -> always([-UNMITIGATED_EXPOSURE] true))"#,
             r#"always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))"#,
             r#"always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))"#,
+            r#"always([+APPROVE_DATA_PROCESSING] true -> always([-UNAUTHORIZED_EXPORT] true))"#,
+            r#"always([+ACCEPT_PRIVACY_IMPACT] true -> always([-HIGH_RISK_PROCESSING] true))"#,
+            r#"always([+GRANT_ACCESS] true -> always([-ESCALATE_PRIVILEGE] true))"#,
+            r#"always([+CLOSE_AUDIT] true -> always([-UNRESOLVED_FINDING] true))"#,
+            r#"always([+ONBOARD_VENDOR] true -> always([-UNAPPROVED_VENDOR_PAYMENT] true))"#,
+            r#"always([+APPROVE_PURCHASE_ORDER] true -> always([-OFF_CONTRACT_SPEND] true))"#,
+            r#"always([+APPROVE_TREASURY_DISBURSEMENT] true -> always([-UNAUTHORIZED_TRANSFER] true))"#,
+            r#"always([+RELEASE_BUDGET] true -> always([-OVER_BUDGET_SPEND] true))"#,
             r#"always([+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true)))"#,
             r#"[+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true))"#,
             r#"[<+DISPUTE>] true -> always([-RELEASE] true)"#,
@@ -7906,6 +7924,42 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_authorization_governance_signed_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+FILE_REGULATORY_REPORT] true -> <+signed_by(/users/applicant.id) +signed_by(/users/regulator.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+FILE_TAX_RETURN] true -> <+signed_by(/users/tax_authority.id) +signed_by(/users/withholding_agent.id) +signed_by(/users/revenue_agency.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DATA_PROCESSING] true -> <+signed_by(/users/data_protection_officer.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+ACCEPT_PRIVACY_IMPACT] true -> <+signed_by(/users/privacy_officer.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+GRANT_ACCESS] true -> <+signed_by(/users/security_administrator.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+CLOSE_AUDIT] true -> <+signed_by(/users/auditor.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+ONBOARD_VENDOR] true -> <+signed_by(/users/procurement_officer.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_PURCHASE_ORDER] true -> <+signed_by(/users/budget_owner.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_TREASURY_DISBURSEMENT] true -> <+signed_by(/users/treasurer.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+RELEASE_BUDGET] true -> <+signed_by(/users/finance_controller.id)> true)"
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_committed_gfp_branch_order_example() {
         let output = synthesis_list_text();
 
@@ -8695,6 +8749,36 @@ F2: formula generated_2 {
         assert!(output
             .contains("always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))"));
         assert!(output.contains("always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))"));
+    }
+
+    #[test]
+    fn synthesis_list_includes_governance_forbidden_guard_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+APPROVE_DATA_PROCESSING] true -> always([-UNAUTHORIZED_EXPORT] true))"
+        ));
+        assert!(output.contains(
+            "always([+ACCEPT_PRIVACY_IMPACT] true -> always([-HIGH_RISK_PROCESSING] true))"
+        ));
+        assert!(
+            output.contains("always([+GRANT_ACCESS] true -> always([-ESCALATE_PRIVILEGE] true))")
+        );
+        assert!(
+            output.contains("always([+CLOSE_AUDIT] true -> always([-UNRESOLVED_FINDING] true))")
+        );
+        assert!(output.contains(
+            "always([+ONBOARD_VENDOR] true -> always([-UNAPPROVED_VENDOR_PAYMENT] true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_PURCHASE_ORDER] true -> always([-OFF_CONTRACT_SPEND] true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_TREASURY_DISBURSEMENT] true -> always([-UNAUTHORIZED_TRANSFER] true))"
+        ));
+        assert!(
+            output.contains("always([+RELEASE_BUDGET] true -> always([-OVER_BUDGET_SPEND] true))")
+        );
     }
 
     #[test]
