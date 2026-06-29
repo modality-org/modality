@@ -7856,6 +7856,26 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_authorization_review_signed_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains("always([+CERTIFY] true -> <+signed_by(/users/auditor.id)> true)"));
+        assert!(output.contains("always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)"));
+        assert!(output.contains(
+            "always([+REGISTER] true -> <+signed_by(/users/registrar.id)> true)"
+        ));
+        assert!(
+            output.contains("always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)")
+        );
+        assert!(output.contains(
+            "always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+CONFIRM_DELIVERY] true -> <+signed_by(/users/recipient.id)> true)"
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_committed_gfp_branch_order_example() {
         let output = synthesis_list_text();
 
