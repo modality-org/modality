@@ -7876,6 +7876,36 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_authorization_business_signed_examples() {
+        let output = synthesis_list_text();
+
+        assert!(
+            output.contains("always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)")
+        );
+        assert!(output.contains(
+            "always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_INSPECTION] true -> <+signed_by(/users/inspector.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+ATTEST_COMPLIANCE] true -> <+signed_by(/users/compliance_officer.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_SAFETY] true -> <+signed_by(/users/safety_reviewer.id)> true)"
+        ));
+        assert!(
+            output.contains("always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)")
+        );
+        assert!(output.contains(
+            "always([+CLOSE_INCIDENT] true -> <+signed_by(/users/incident_commander.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+FREEZE_CHANGE] true -> <+signed_by(/users/release_manager.id)> true)"
+        ));
+    }
+
+    #[test]
     fn synthesis_list_includes_committed_gfp_branch_order_example() {
         let output = synthesis_list_text();
 
