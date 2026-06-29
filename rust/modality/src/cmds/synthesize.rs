@@ -7834,6 +7834,28 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn synthesis_list_includes_authorization_lifecycle_signed_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+SUSPEND] true -> <+signed_by(/users/administrator.id)> true)"
+        ));
+        assert!(output.contains(
+            "always([+REINSTATE] true -> <+signed_by(/users/administrator.id)> true)"
+        ));
+        assert!(
+            output.contains("always([+RENEW] true -> <+signed_by(/users/holder.id)> true)")
+        );
+        assert!(output.contains(
+            "always([+TERMINATE] true -> <+signed_by(/users/counterparty.id)> true)"
+        ));
+        assert!(output.contains("always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)"));
+        assert!(
+            output.contains("always([+ASSIGN] true -> <+signed_by(/users/assigner.id)> true)")
+        );
+    }
+
+    #[test]
     fn synthesis_list_includes_committed_gfp_branch_order_example() {
         let output = synthesis_list_text();
 
