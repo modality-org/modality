@@ -950,6 +950,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_SELECTIVITY_REVIEW] true -> eventually(<+MEASURE_DECISION_SELECTIVITY> true))"#,
             r#"always([+MEASURE_DECISION_SELECTIVITY] true -> eventually(<+APPROVE_DECISION_SELECTIVITY_REPORT> true))"#,
             r#"always([+APPROVE_DECISION_SELECTIVITY_REPORT] true -> eventually(<+PUBLISH_DECISION_SELECTIVITY_REPORT> true))"#,
+            r#"always([+REQUEST_DECISION_PREVALENCE_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_PREVALENCE_READINESS> true))"#,
+            r#"always([+MEASURE_DECISION_PREVALENCE_READINESS] true -> eventually(<+APPROVE_DECISION_PREVALENCE_READINESS> true))"#,
+            r#"always([+APPROVE_DECISION_PREVALENCE_READINESS] true -> eventually(<+PUBLISH_DECISION_PREVALENCE_READINESS> true))"#,
             r#"always([+REQUEST_DECISION_PREVALENCE_REVIEW] true -> eventually(<+MEASURE_DECISION_PREVALENCE> true))"#,
             r#"always([+MEASURE_DECISION_PREVALENCE] true -> eventually(<+APPROVE_DECISION_PREVALENCE_REPORT> true))"#,
             r#"always([+APPROVE_DECISION_PREVALENCE_REPORT] true -> eventually(<+PUBLISH_DECISION_PREVALENCE_REPORT> true))"#,
@@ -10131,6 +10134,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_SELECTIVITY_READINESS] true -> eventually(<+PUBLISH_DECISION_SELECTIVITY_READINESS> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_prevalence_readiness_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_PREVALENCE_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_PREVALENCE_READINESS> true))"
+        ));
+        assert!(output.contains(
+            "always([+MEASURE_DECISION_PREVALENCE_READINESS] true -> eventually(<+APPROVE_DECISION_PREVALENCE_READINESS> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_PREVALENCE_READINESS] true -> eventually(<+PUBLISH_DECISION_PREVALENCE_READINESS> true))"
         ));
     }
 
@@ -21476,6 +21494,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionSelectivityReadiness",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_prevalence_readiness_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_PREVALENCE_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_PREVALENCE_READINESS> true))"
+                .to_string(),
+            "always([+MEASURE_DECISION_PREVALENCE_READINESS] true -> eventually(<+APPROVE_DECISION_PREVALENCE_READINESS> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_PREVALENCE_READINESS] true -> eventually(<+PUBLISH_DECISION_PREVALENCE_READINESS> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionPrevalenceReadiness",
             &formulas,
         );
 
