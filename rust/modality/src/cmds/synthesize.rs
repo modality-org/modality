@@ -491,6 +491,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+ROTATE_DATABASE_PASSWORD] true -> eventually(<+NOTIFY_DATABASE_OWNER> true))"#,
             r#"always([+SERVICE_ACCOUNT_KEY_COMPROMISED] true -> (<+REVOKE_SERVICE_ACCOUNT_KEY> true | <+DISABLE_SERVICE_ACCOUNT> true))"#,
             r#"always([+REVOKE_SERVICE_ACCOUNT_KEY] true -> eventually(<+NOTIFY_SERVICE_OWNER> true))"#,
+            r#"always([+CONTAINER_REGISTRY_TOKEN_LEAKED] true -> (<+ROTATE_REGISTRY_TOKEN> true | <+DISABLE_REGISTRY_PUSH> true))"#,
+            r#"always([+ROTATE_REGISTRY_TOKEN] true -> eventually(<+NOTIFY_REGISTRY_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4988,6 +4990,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+REVOKE_SERVICE_ACCOUNT_KEY] true -> eventually(<+NOTIFY_SERVICE_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_container_registry_token_leak_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+CONTAINER_REGISTRY_TOKEN_LEAKED] true -> (<+ROTATE_REGISTRY_TOKEN> true | <+DISABLE_REGISTRY_PUSH> true))"
+        ));
+        assert!(output.contains(
+            "always([+ROTATE_REGISTRY_TOKEN] true -> eventually(<+NOTIFY_REGISTRY_OWNER> true))"
         ));
     }
 
@@ -14914,6 +14928,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ServiceAccountKeyCompromise",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_container_registry_token_leak_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+CONTAINER_REGISTRY_TOKEN_LEAKED] true -> (<+ROTATE_REGISTRY_TOKEN> true | <+DISABLE_REGISTRY_PUSH> true))"
+                .to_string(),
+            "always([+ROTATE_REGISTRY_TOKEN] true -> eventually(<+NOTIFY_REGISTRY_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ContainerRegistryTokenLeak",
             &formulas,
         );
 
