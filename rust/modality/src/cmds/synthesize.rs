@@ -557,6 +557,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+PURGE_SUPPORT_BROWSER_HISTORY] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"#,
             r#"always([+SUPPORT_KEYSTROKE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEYSTROKE_LOGS> true | <+REVOKE_KEYSTROKE_EXPOSED_CREDENTIALS> true))"#,
             r#"always([+PURGE_SUPPORT_KEYSTROKE_LOGS] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"#,
+            r#"always([+SUPPORT_POINTER_EVENT_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_POINTER_EVENT_LOGS> true | <+REVOKE_POINTER_EVENT_EXPOSED_CREDENTIALS> true))"#,
+            r#"always([+PURGE_SUPPORT_POINTER_EVENT_LOGS] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -5450,6 +5452,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+PURGE_SUPPORT_KEYSTROKE_LOGS] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_support_pointer_event_secret_leak_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+SUPPORT_POINTER_EVENT_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_POINTER_EVENT_LOGS> true | <+REVOKE_POINTER_EVENT_EXPOSED_CREDENTIALS> true))"
+        ));
+        assert!(output.contains(
+            "always([+PURGE_SUPPORT_POINTER_EVENT_LOGS] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"
         ));
     }
 
@@ -15902,6 +15916,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "SupportKeystrokeSecretLeak",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_support_pointer_event_secret_leak_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+SUPPORT_POINTER_EVENT_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_POINTER_EVENT_LOGS> true | <+REVOKE_POINTER_EVENT_EXPOSED_CREDENTIALS> true))"
+                .to_string(),
+            "always([+PURGE_SUPPORT_POINTER_EVENT_LOGS] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "SupportPointerEventSecretLeak",
             &formulas,
         );
 
