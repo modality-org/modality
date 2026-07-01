@@ -481,6 +481,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REVOKE_OAUTH_TOKEN] true -> eventually(<+NOTIFY_APP_OWNER> true))"#,
             r#"always([+SAML_CERT_COMPROMISED] true -> (<+ROTATE_SAML_CERT> true | <+DISABLE_SSO> true))"#,
             r#"always([+ROTATE_SAML_CERT] true -> eventually(<+NOTIFY_IDENTITY_ADMIN> true))"#,
+            r#"always([+JWT_SIGNING_KEY_COMPROMISED] true -> (<+ROTATE_JWT_SIGNING_KEY> true | <+INVALIDATE_TOKENS> true))"#,
+            r#"always([+ROTATE_JWT_SIGNING_KEY] true -> eventually(<+NOTIFY_AUTH_SERVICE_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4918,6 +4920,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+ROTATE_SAML_CERT] true -> eventually(<+NOTIFY_IDENTITY_ADMIN> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_jwt_signing_key_compromise_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+JWT_SIGNING_KEY_COMPROMISED] true -> (<+ROTATE_JWT_SIGNING_KEY> true | <+INVALIDATE_TOKENS> true))"
+        ));
+        assert!(output.contains(
+            "always([+ROTATE_JWT_SIGNING_KEY] true -> eventually(<+NOTIFY_AUTH_SERVICE_OWNER> true))"
         ));
     }
 
@@ -14764,6 +14778,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "SamlCertCompromise",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_jwt_signing_key_compromise_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+JWT_SIGNING_KEY_COMPROMISED] true -> (<+ROTATE_JWT_SIGNING_KEY> true | <+INVALIDATE_TOKENS> true))"
+                .to_string(),
+            "always([+ROTATE_JWT_SIGNING_KEY] true -> eventually(<+NOTIFY_AUTH_SERVICE_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "JwtSigningKeyCompromise",
             &formulas,
         );
 
