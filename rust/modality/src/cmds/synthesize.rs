@@ -451,6 +451,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+AUTO_REFUND] true -> <+oracle_attests(/oracles/clock.id, "deadline_passed", "true")> true)"#,
             r#"always([+REJECT] true -> (<+REVISE> true | <+CANCEL> true))"#,
             r#"always([+REVISE] true -> eventually(<+RESUBMIT> true))"#,
+            r#"always([+PAYMENT_FAILED] true -> (<+RETRY_PAYMENT> true | <+CANCEL_ORDER> true))"#,
+            r#"always([+RETRY_PAYMENT] true -> eventually(<+CAPTURE_PAYMENT> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4708,6 +4710,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+REVISE] true -> eventually(<+RESUBMIT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_payment_retry_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+PAYMENT_FAILED] true -> (<+RETRY_PAYMENT> true | <+CANCEL_ORDER> true))"
+        ));
+        assert!(output.contains(
+            "always([+RETRY_PAYMENT] true -> eventually(<+CAPTURE_PAYMENT> true))"
         ));
     }
 
@@ -14333,6 +14347,19 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("RevisionLoop", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_payment_retry_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+PAYMENT_FAILED] true -> (<+RETRY_PAYMENT> true | <+CANCEL_ORDER> true))"
+                .to_string(),
+            "always([+RETRY_PAYMENT] true -> eventually(<+CAPTURE_PAYMENT> true))".to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("PaymentRetry", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
