@@ -465,6 +465,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+CANCEL_SUBSCRIPTION] true -> eventually(<+ISSUE_FINAL_INVOICE> true))"#,
             r#"always([+ACCOUNT_FLAGGED] true -> (<+FREEZE_ACCOUNT> true | <+REQUEST_KYC_REVIEW> true))"#,
             r#"always([+FREEZE_ACCOUNT] true -> eventually(<+NOTIFY_CUSTOMER> true))"#,
+            r#"always([+OUTAGE_REPORTED] true -> (<+FAILOVER_SERVICE> true | <+ISSUE_STATUS_UPDATE> true))"#,
+            r#"always([+FAILOVER_SERVICE] true -> eventually(<+RESTORE_SERVICE> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4806,6 +4808,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+FREEZE_ACCOUNT] true -> eventually(<+NOTIFY_CUSTOMER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_service_outage_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+OUTAGE_REPORTED] true -> (<+FAILOVER_SERVICE> true | <+ISSUE_STATUS_UPDATE> true))"
+        ));
+        assert!(output.contains(
+            "always([+FAILOVER_SERVICE] true -> eventually(<+RESTORE_SERVICE> true))"
         ));
     }
 
@@ -14534,6 +14548,20 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("AccountRisk", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_service_outage_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+OUTAGE_REPORTED] true -> (<+FAILOVER_SERVICE> true | <+ISSUE_STATUS_UPDATE> true))"
+                .to_string(),
+            "always([+FAILOVER_SERVICE] true -> eventually(<+RESTORE_SERVICE> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("ServiceOutage", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
