@@ -469,6 +469,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+FAILOVER_SERVICE] true -> eventually(<+RESTORE_SERVICE> true))"#,
             r#"always([+CONTENT_REPORTED] true -> (<+QUARANTINE_CONTENT> true | <+ESCALATE_MODERATION> true))"#,
             r#"always([+QUARANTINE_CONTENT] true -> eventually(<+REVIEW_CONTENT> true))"#,
+            r#"always([+FRAUD_SUSPECTED] true -> (<+HOLD_TRANSACTION> true | <+REQUEST_VERIFICATION> true))"#,
+            r#"always([+HOLD_TRANSACTION] true -> eventually(<+REVIEW_TRANSACTION> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4834,6 +4836,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+QUARANTINE_CONTENT] true -> eventually(<+REVIEW_CONTENT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_fraud_review_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+FRAUD_SUSPECTED] true -> (<+HOLD_TRANSACTION> true | <+REQUEST_VERIFICATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+HOLD_TRANSACTION] true -> eventually(<+REVIEW_TRANSACTION> true))"
         ));
     }
 
@@ -14592,6 +14606,20 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "ContentModeration",
             &formulas,
         );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_fraud_review_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+FRAUD_SUSPECTED] true -> (<+HOLD_TRANSACTION> true | <+REQUEST_VERIFICATION> true))"
+                .to_string(),
+            "always([+HOLD_TRANSACTION] true -> eventually(<+REVIEW_TRANSACTION> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("FraudReview", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
