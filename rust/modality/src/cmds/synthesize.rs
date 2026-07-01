@@ -523,6 +523,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+PURGE_HEAP_SNAPSHOTS] true -> eventually(<+NOTIFY_RUNTIME_SECURITY_OWNER> true))"#,
             r#"always([+THREAD_DUMP_SECRET_LEAKED] true -> (<+PURGE_THREAD_DUMPS> true | <+REVOKE_THREAD_EXPOSED_CREDENTIALS> true))"#,
             r#"always([+PURGE_THREAD_DUMPS] true -> eventually(<+NOTIFY_CONCURRENCY_OWNER> true))"#,
+            r#"always([+DEBUG_BUNDLE_SECRET_LEAKED] true -> (<+PURGE_DEBUG_BUNDLES> true | <+REVOKE_DEBUG_EXPOSED_CREDENTIALS> true))"#,
+            r#"always([+PURGE_DEBUG_BUNDLES] true -> eventually(<+NOTIFY_SUPPORT_ENGINEERING_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -5212,6 +5214,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+PURGE_THREAD_DUMPS] true -> eventually(<+NOTIFY_CONCURRENCY_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_debug_bundle_secret_leak_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+DEBUG_BUNDLE_SECRET_LEAKED] true -> (<+PURGE_DEBUG_BUNDLES> true | <+REVOKE_DEBUG_EXPOSED_CREDENTIALS> true))"
+        ));
+        assert!(output.contains(
+            "always([+PURGE_DEBUG_BUNDLES] true -> eventually(<+NOTIFY_SUPPORT_ENGINEERING_OWNER> true))"
         ));
     }
 
@@ -15392,6 +15406,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ThreadDumpSecretLeak",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_debug_bundle_secret_leak_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+DEBUG_BUNDLE_SECRET_LEAKED] true -> (<+PURGE_DEBUG_BUNDLES> true | <+REVOKE_DEBUG_EXPOSED_CREDENTIALS> true))"
+                .to_string(),
+            "always([+PURGE_DEBUG_BUNDLES] true -> eventually(<+NOTIFY_SUPPORT_ENGINEERING_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DebugBundleSecretLeak",
             &formulas,
         );
 
