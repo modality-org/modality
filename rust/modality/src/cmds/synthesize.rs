@@ -483,6 +483,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+ROTATE_SAML_CERT] true -> eventually(<+NOTIFY_IDENTITY_ADMIN> true))"#,
             r#"always([+JWT_SIGNING_KEY_COMPROMISED] true -> (<+ROTATE_JWT_SIGNING_KEY> true | <+INVALIDATE_TOKENS> true))"#,
             r#"always([+ROTATE_JWT_SIGNING_KEY] true -> eventually(<+NOTIFY_AUTH_SERVICE_OWNER> true))"#,
+            r#"always([+TLS_PRIVATE_KEY_COMPROMISED] true -> (<+ROTATE_TLS_CERTIFICATE> true | <+REVOKE_CERTIFICATE> true))"#,
+            r#"always([+ROTATE_TLS_CERTIFICATE] true -> eventually(<+NOTIFY_CERTIFICATE_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4932,6 +4934,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+ROTATE_JWT_SIGNING_KEY] true -> eventually(<+NOTIFY_AUTH_SERVICE_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_tls_private_key_compromise_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+TLS_PRIVATE_KEY_COMPROMISED] true -> (<+ROTATE_TLS_CERTIFICATE> true | <+REVOKE_CERTIFICATE> true))"
+        ));
+        assert!(output.contains(
+            "always([+ROTATE_TLS_CERTIFICATE] true -> eventually(<+NOTIFY_CERTIFICATE_OWNER> true))"
         ));
     }
 
@@ -14794,6 +14808,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "JwtSigningKeyCompromise",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_tls_private_key_compromise_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+TLS_PRIVATE_KEY_COMPROMISED] true -> (<+ROTATE_TLS_CERTIFICATE> true | <+REVOKE_CERTIFICATE> true))"
+                .to_string(),
+            "always([+ROTATE_TLS_CERTIFICATE] true -> eventually(<+NOTIFY_CERTIFICATE_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "TlsPrivateKeyCompromise",
             &formulas,
         );
 
