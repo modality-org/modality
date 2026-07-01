@@ -475,6 +475,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REVOKE_SESSION] true -> eventually(<+ROTATE_CREDENTIALS> true))"#,
             r#"always([+API_KEY_LEAKED] true -> (<+REVOKE_API_KEY> true | <+SCOPE_DOWN_KEY> true))"#,
             r#"always([+REVOKE_API_KEY] true -> eventually(<+ISSUE_REPLACEMENT_KEY> true))"#,
+            r#"always([+WEBHOOK_SECRET_EXPOSED] true -> (<+ROTATE_WEBHOOK_SECRET> true | <+DISABLE_WEBHOOK> true))"#,
+            r#"always([+ROTATE_WEBHOOK_SECRET] true -> eventually(<+NOTIFY_INTEGRATION_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4876,6 +4878,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+REVOKE_API_KEY] true -> eventually(<+ISSUE_REPLACEMENT_KEY> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_webhook_secret_exposure_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+WEBHOOK_SECRET_EXPOSED] true -> (<+ROTATE_WEBHOOK_SECRET> true | <+DISABLE_WEBHOOK> true))"
+        ));
+        assert!(output.contains(
+            "always([+ROTATE_WEBHOOK_SECRET] true -> eventually(<+NOTIFY_INTEGRATION_OWNER> true))"
         ));
     }
 
@@ -14676,6 +14690,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("ApiKeyLeak", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_webhook_secret_exposure_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+WEBHOOK_SECRET_EXPOSED] true -> (<+ROTATE_WEBHOOK_SECRET> true | <+DISABLE_WEBHOOK> true))"
+                .to_string(),
+            "always([+ROTATE_WEBHOOK_SECRET] true -> eventually(<+NOTIFY_INTEGRATION_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "WebhookSecretExposure",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
