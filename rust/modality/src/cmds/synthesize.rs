@@ -527,6 +527,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+PURGE_DEBUG_BUNDLES] true -> eventually(<+NOTIFY_SUPPORT_ENGINEERING_OWNER> true))"#,
             r#"always([+DIAGNOSTIC_REPORT_SECRET_LEAKED] true -> (<+PURGE_DIAGNOSTIC_REPORTS> true | <+REVOKE_DIAGNOSTIC_EXPOSED_CREDENTIALS> true))"#,
             r#"always([+PURGE_DIAGNOSTIC_REPORTS] true -> eventually(<+NOTIFY_DIAGNOSTICS_OWNER> true))"#,
+            r#"always([+AUDIT_EXPORT_SECRET_LEAKED] true -> (<+PURGE_AUDIT_EXPORTS> true | <+REVOKE_AUDIT_EXPOSED_CREDENTIALS> true))"#,
+            r#"always([+PURGE_AUDIT_EXPORTS] true -> eventually(<+NOTIFY_COMPLIANCE_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -5240,6 +5242,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+PURGE_DIAGNOSTIC_REPORTS] true -> eventually(<+NOTIFY_DIAGNOSTICS_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_audit_export_secret_leak_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+AUDIT_EXPORT_SECRET_LEAKED] true -> (<+PURGE_AUDIT_EXPORTS> true | <+REVOKE_AUDIT_EXPOSED_CREDENTIALS> true))"
+        ));
+        assert!(output.contains(
+            "always([+PURGE_AUDIT_EXPORTS] true -> eventually(<+NOTIFY_COMPLIANCE_OWNER> true))"
         ));
     }
 
@@ -15452,6 +15466,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DiagnosticReportSecretLeak",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_audit_export_secret_leak_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+AUDIT_EXPORT_SECRET_LEAKED] true -> (<+PURGE_AUDIT_EXPORTS> true | <+REVOKE_AUDIT_EXPOSED_CREDENTIALS> true))"
+                .to_string(),
+            "always([+PURGE_AUDIT_EXPORTS] true -> eventually(<+NOTIFY_COMPLIANCE_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AuditExportSecretLeak",
             &formulas,
         );
 
