@@ -513,6 +513,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REDACT_ERROR_LOGS] true -> eventually(<+NOTIFY_OBSERVABILITY_OWNER> true))"#,
             r#"always([+CRASH_DUMP_SECRET_LEAKED] true -> (<+PURGE_CRASH_DUMPS> true | <+REVOKE_CRASH_EXPOSED_CREDENTIALS> true))"#,
             r#"always([+PURGE_CRASH_DUMPS] true -> eventually(<+NOTIFY_RUNTIME_OWNER> true))"#,
+            r#"always([+TRACE_EXPORT_SECRET_LEAKED] true -> (<+PURGE_TRACE_EXPORTS> true | <+REVOKE_TRACE_EXPOSED_CREDENTIALS> true))"#,
+            r#"always([+PURGE_TRACE_EXPORTS] true -> eventually(<+NOTIFY_TRACING_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -5142,6 +5144,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+PURGE_CRASH_DUMPS] true -> eventually(<+NOTIFY_RUNTIME_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_trace_export_secret_leak_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+TRACE_EXPORT_SECRET_LEAKED] true -> (<+PURGE_TRACE_EXPORTS> true | <+REVOKE_TRACE_EXPOSED_CREDENTIALS> true))"
+        ));
+        assert!(output.contains(
+            "always([+PURGE_TRACE_EXPORTS] true -> eventually(<+NOTIFY_TRACING_OWNER> true))"
         ));
     }
 
@@ -15242,6 +15256,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "CrashDumpSecretLeak",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_trace_export_secret_leak_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+TRACE_EXPORT_SECRET_LEAKED] true -> (<+PURGE_TRACE_EXPORTS> true | <+REVOKE_TRACE_EXPOSED_CREDENTIALS> true))"
+                .to_string(),
+            "always([+PURGE_TRACE_EXPORTS] true -> eventually(<+NOTIFY_TRACING_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "TraceExportSecretLeak",
             &formulas,
         );
 
