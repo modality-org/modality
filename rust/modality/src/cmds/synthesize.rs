@@ -493,6 +493,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REVOKE_SERVICE_ACCOUNT_KEY] true -> eventually(<+NOTIFY_SERVICE_OWNER> true))"#,
             r#"always([+CONTAINER_REGISTRY_TOKEN_LEAKED] true -> (<+ROTATE_REGISTRY_TOKEN> true | <+DISABLE_REGISTRY_PUSH> true))"#,
             r#"always([+ROTATE_REGISTRY_TOKEN] true -> eventually(<+NOTIFY_REGISTRY_OWNER> true))"#,
+            r#"always([+KUBECONFIG_LEAKED] true -> (<+ROTATE_CLUSTER_CREDENTIALS> true | <+DISABLE_CLUSTER_ACCESS> true))"#,
+            r#"always([+ROTATE_CLUSTER_CREDENTIALS] true -> eventually(<+NOTIFY_CLUSTER_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -5002,6 +5004,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+ROTATE_REGISTRY_TOKEN] true -> eventually(<+NOTIFY_REGISTRY_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_kubeconfig_leak_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+KUBECONFIG_LEAKED] true -> (<+ROTATE_CLUSTER_CREDENTIALS> true | <+DISABLE_CLUSTER_ACCESS> true))"
+        ));
+        assert!(output.contains(
+            "always([+ROTATE_CLUSTER_CREDENTIALS] true -> eventually(<+NOTIFY_CLUSTER_OWNER> true))"
         ));
     }
 
@@ -14946,6 +14960,20 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "ContainerRegistryTokenLeak",
             &formulas,
         );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_kubeconfig_leak_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+KUBECONFIG_LEAKED] true -> (<+ROTATE_CLUSTER_CREDENTIALS> true | <+DISABLE_CLUSTER_ACCESS> true))"
+                .to_string(),
+            "always([+ROTATE_CLUSTER_CREDENTIALS] true -> eventually(<+NOTIFY_CLUSTER_OWNER> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("KubeconfigLeak", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
