@@ -467,6 +467,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+FREEZE_ACCOUNT] true -> eventually(<+NOTIFY_CUSTOMER> true))"#,
             r#"always([+OUTAGE_REPORTED] true -> (<+FAILOVER_SERVICE> true | <+ISSUE_STATUS_UPDATE> true))"#,
             r#"always([+FAILOVER_SERVICE] true -> eventually(<+RESTORE_SERVICE> true))"#,
+            r#"always([+CONTENT_REPORTED] true -> (<+QUARANTINE_CONTENT> true | <+ESCALATE_MODERATION> true))"#,
+            r#"always([+QUARANTINE_CONTENT] true -> eventually(<+REVIEW_CONTENT> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4820,6 +4822,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+FAILOVER_SERVICE] true -> eventually(<+RESTORE_SERVICE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_content_moderation_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+CONTENT_REPORTED] true -> (<+QUARANTINE_CONTENT> true | <+ESCALATE_MODERATION> true))"
+        ));
+        assert!(output.contains(
+            "always([+QUARANTINE_CONTENT] true -> eventually(<+REVIEW_CONTENT> true))"
         ));
     }
 
@@ -14562,6 +14576,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("ServiceOutage", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_content_moderation_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+CONTENT_REPORTED] true -> (<+QUARANTINE_CONTENT> true | <+ESCALATE_MODERATION> true))"
+                .to_string(),
+            "always([+QUARANTINE_CONTENT] true -> eventually(<+REVIEW_CONTENT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ContentModeration",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
