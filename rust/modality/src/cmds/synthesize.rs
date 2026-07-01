@@ -459,6 +459,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+EXPEDITE_SHIPMENT] true -> eventually(<+CONFIRM_DELIVERY> true))"#,
             r#"always([+RETURN_REQUESTED] true -> (<+AUTHORIZE_RETURN> true | <+DENY_RETURN> true))"#,
             r#"always([+AUTHORIZE_RETURN] true -> eventually(<+RECEIVE_RETURN> true))"#,
+            r#"always([+WARRANTY_CLAIMED] true -> (<+REPLACE_ITEM> true | <+REPAIR_ITEM> true))"#,
+            r#"always([+REPLACE_ITEM] true -> eventually(<+SHIP_REPLACEMENT> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4764,6 +4766,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+AUTHORIZE_RETURN] true -> eventually(<+RECEIVE_RETURN> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_warranty_claim_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+WARRANTY_CLAIMED] true -> (<+REPLACE_ITEM> true | <+REPAIR_ITEM> true))"
+        ));
+        assert!(output.contains(
+            "always([+REPLACE_ITEM] true -> eventually(<+SHIP_REPLACEMENT> true))"
         ));
     }
 
@@ -14445,6 +14459,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ReturnAuthorization",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_warranty_claim_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+WARRANTY_CLAIMED] true -> (<+REPLACE_ITEM> true | <+REPAIR_ITEM> true))"
+                .to_string(),
+            "always([+REPLACE_ITEM] true -> eventually(<+SHIP_REPLACEMENT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "WarrantyClaim",
             &formulas,
         );
 
