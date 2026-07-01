@@ -489,6 +489,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REVOKE_SSH_KEY] true -> eventually(<+NOTIFY_SYSTEM_OWNER> true))"#,
             r#"always([+DATABASE_PASSWORD_LEAKED] true -> (<+ROTATE_DATABASE_PASSWORD> true | <+ISOLATE_DATABASE> true))"#,
             r#"always([+ROTATE_DATABASE_PASSWORD] true -> eventually(<+NOTIFY_DATABASE_OWNER> true))"#,
+            r#"always([+SERVICE_ACCOUNT_KEY_COMPROMISED] true -> (<+REVOKE_SERVICE_ACCOUNT_KEY> true | <+DISABLE_SERVICE_ACCOUNT> true))"#,
+            r#"always([+REVOKE_SERVICE_ACCOUNT_KEY] true -> eventually(<+NOTIFY_SERVICE_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4974,6 +4976,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+ROTATE_DATABASE_PASSWORD] true -> eventually(<+NOTIFY_DATABASE_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_service_account_key_compromise_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+SERVICE_ACCOUNT_KEY_COMPROMISED] true -> (<+REVOKE_SERVICE_ACCOUNT_KEY> true | <+DISABLE_SERVICE_ACCOUNT> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVOKE_SERVICE_ACCOUNT_KEY] true -> eventually(<+NOTIFY_SERVICE_OWNER> true))"
         ));
     }
 
@@ -14884,6 +14898,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DatabasePasswordLeak",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_service_account_key_compromise_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+SERVICE_ACCOUNT_KEY_COMPROMISED] true -> (<+REVOKE_SERVICE_ACCOUNT_KEY> true | <+DISABLE_SERVICE_ACCOUNT> true))"
+                .to_string(),
+            "always([+REVOKE_SERVICE_ACCOUNT_KEY] true -> eventually(<+NOTIFY_SERVICE_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ServiceAccountKeyCompromise",
             &formulas,
         );
 
