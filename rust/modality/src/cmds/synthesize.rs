@@ -507,6 +507,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+ROTATE_CI_VARIABLE_SECRET] true -> eventually(<+NOTIFY_PIPELINE_OWNER> true))"#,
             r#"always([+BACKUP_ENCRYPTION_KEY_LEAKED] true -> (<+ROTATE_BACKUP_ENCRYPTION_KEY> true | <+QUARANTINE_BACKUPS> true))"#,
             r#"always([+ROTATE_BACKUP_ENCRYPTION_KEY] true -> eventually(<+NOTIFY_BACKUP_OWNER> true))"#,
+            r#"always([+PASSWORD_VAULT_EXPORT_LEAKED] true -> (<+ROTATE_VAULTED_SECRETS> true | <+LOCK_PASSWORD_VAULT> true))"#,
+            r#"always([+ROTATE_VAULTED_SECRETS] true -> eventually(<+NOTIFY_SECURITY_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -5100,6 +5102,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+ROTATE_BACKUP_ENCRYPTION_KEY] true -> eventually(<+NOTIFY_BACKUP_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_password_vault_export_leak_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+PASSWORD_VAULT_EXPORT_LEAKED] true -> (<+ROTATE_VAULTED_SECRETS> true | <+LOCK_PASSWORD_VAULT> true))"
+        ));
+        assert!(output.contains(
+            "always([+ROTATE_VAULTED_SECRETS] true -> eventually(<+NOTIFY_SECURITY_OWNER> true))"
         ));
     }
 
@@ -15152,6 +15166,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "BackupEncryptionKeyLeak",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_password_vault_export_leak_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+PASSWORD_VAULT_EXPORT_LEAKED] true -> (<+ROTATE_VAULTED_SECRETS> true | <+LOCK_PASSWORD_VAULT> true))"
+                .to_string(),
+            "always([+ROTATE_VAULTED_SECRETS] true -> eventually(<+NOTIFY_SECURITY_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "PasswordVaultExportLeak",
             &formulas,
         );
 
