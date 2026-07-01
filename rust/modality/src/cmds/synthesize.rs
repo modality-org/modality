@@ -455,6 +455,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+RETRY_PAYMENT] true -> eventually(<+CAPTURE_PAYMENT> true))"#,
             r#"always([+OUT_OF_STOCK] true -> (<+BACKORDER> true | <+CANCEL_ORDER> true))"#,
             r#"always([+BACKORDER] true -> eventually(<+FULFILL_ORDER> true))"#,
+            r#"always([+SHIPMENT_DELAYED] true -> (<+EXPEDITE_SHIPMENT> true | <+OFFER_REFUND> true))"#,
+            r#"always([+EXPEDITE_SHIPMENT] true -> eventually(<+CONFIRM_DELIVERY> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4736,6 +4738,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+BACKORDER] true -> eventually(<+FULFILL_ORDER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_shipment_delay_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+SHIPMENT_DELAYED] true -> (<+EXPEDITE_SHIPMENT> true | <+OFFER_REFUND> true))"
+        ));
+        assert!(output.contains(
+            "always([+EXPEDITE_SHIPMENT] true -> eventually(<+CONFIRM_DELIVERY> true))"
         ));
     }
 
@@ -14387,6 +14401,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("Backorder", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_shipment_delay_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+SHIPMENT_DELAYED] true -> (<+EXPEDITE_SHIPMENT> true | <+OFFER_REFUND> true))"
+                .to_string(),
+            "always([+EXPEDITE_SHIPMENT] true -> eventually(<+CONFIRM_DELIVERY> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ShipmentDelay",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
