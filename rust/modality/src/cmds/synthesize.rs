@@ -463,6 +463,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REPLACE_ITEM] true -> eventually(<+SHIP_REPLACEMENT> true))"#,
             r#"always([+CANCELLATION_REQUESTED] true -> (<+RETENTION_OFFER> true | <+CANCEL_SUBSCRIPTION> true))"#,
             r#"always([+CANCEL_SUBSCRIPTION] true -> eventually(<+ISSUE_FINAL_INVOICE> true))"#,
+            r#"always([+ACCOUNT_FLAGGED] true -> (<+FREEZE_ACCOUNT> true | <+REQUEST_KYC_REVIEW> true))"#,
+            r#"always([+FREEZE_ACCOUNT] true -> eventually(<+NOTIFY_CUSTOMER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4792,6 +4794,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+CANCEL_SUBSCRIPTION] true -> eventually(<+ISSUE_FINAL_INVOICE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_account_risk_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+ACCOUNT_FLAGGED] true -> (<+FREEZE_ACCOUNT> true | <+REQUEST_KYC_REVIEW> true))"
+        ));
+        assert!(output.contains(
+            "always([+FREEZE_ACCOUNT] true -> eventually(<+NOTIFY_CUSTOMER> true))"
         ));
     }
 
@@ -14507,6 +14521,19 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "SubscriptionCancellation",
             &formulas,
         );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_account_risk_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+ACCOUNT_FLAGGED] true -> (<+FREEZE_ACCOUNT> true | <+REQUEST_KYC_REVIEW> true))"
+                .to_string(),
+            "always([+FREEZE_ACCOUNT] true -> eventually(<+NOTIFY_CUSTOMER> true))".to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AccountRisk", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
