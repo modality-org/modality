@@ -447,6 +447,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"(<+APPROVE> true | [<+REJECT>] true) & ([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"#,
             r#"always([+ASSESS] true -> (<+APPROVE> true | <+ESCALATE> true))"#,
             r#"always([+ESCALATE] true -> (<+ASSIGN_REVIEWER> true | <+REQUEST_MORE_EVIDENCE> true))"#,
+            r#"always([+DEADLINE_MISSED] true -> (<+ESCALATE> true | <+AUTO_REFUND> true))"#,
+            r#"always([+AUTO_REFUND] true -> <+oracle_attests(/oracles/clock.id, "deadline_passed", "true")> true)"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4680,6 +4682,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+ESCALATE] true -> (<+ASSIGN_REVIEWER> true | <+REQUEST_MORE_EVIDENCE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_deadline_fallback_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+DEADLINE_MISSED] true -> (<+ESCALATE> true | <+AUTO_REFUND> true))"
+        ));
+        assert!(output.contains(
+            r#"always([+AUTO_REFUND] true -> <+oracle_attests(/oracles/clock.id, \"deadline_passed\", \"true\")> true)"#
         ));
     }
 
@@ -14275,6 +14289,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ConditionalBranching",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_deadline_fallback_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+DEADLINE_MISSED] true -> (<+ESCALATE> true | <+AUTO_REFUND> true))"
+                .to_string(),
+            "always([+AUTO_REFUND] true -> <+oracle_attests(/oracles/clock.id, \"deadline_passed\", \"true\")> true)"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DeadlineFallback",
             &formulas,
         );
 
