@@ -509,6 +509,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+ROTATE_BACKUP_ENCRYPTION_KEY] true -> eventually(<+NOTIFY_BACKUP_OWNER> true))"#,
             r#"always([+PASSWORD_VAULT_EXPORT_LEAKED] true -> (<+ROTATE_VAULTED_SECRETS> true | <+LOCK_PASSWORD_VAULT> true))"#,
             r#"always([+ROTATE_VAULTED_SECRETS] true -> eventually(<+NOTIFY_SECURITY_OWNER> true))"#,
+            r#"always([+ERROR_LOG_SECRET_LEAKED] true -> (<+REDACT_ERROR_LOGS> true | <+REVOKE_LOG_EXPOSED_CREDENTIALS> true))"#,
+            r#"always([+REDACT_ERROR_LOGS] true -> eventually(<+NOTIFY_OBSERVABILITY_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -5114,6 +5116,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+ROTATE_VAULTED_SECRETS] true -> eventually(<+NOTIFY_SECURITY_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_error_log_secret_leak_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+ERROR_LOG_SECRET_LEAKED] true -> (<+REDACT_ERROR_LOGS> true | <+REVOKE_LOG_EXPOSED_CREDENTIALS> true))"
+        ));
+        assert!(output.contains(
+            "always([+REDACT_ERROR_LOGS] true -> eventually(<+NOTIFY_OBSERVABILITY_OWNER> true))"
         ));
     }
 
@@ -15182,6 +15196,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "PasswordVaultExportLeak",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_error_log_secret_leak_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+ERROR_LOG_SECRET_LEAKED] true -> (<+REDACT_ERROR_LOGS> true | <+REVOKE_LOG_EXPOSED_CREDENTIALS> true))"
+                .to_string(),
+            "always([+REDACT_ERROR_LOGS] true -> eventually(<+NOTIFY_OBSERVABILITY_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ErrorLogSecretLeak",
             &formulas,
         );
 
