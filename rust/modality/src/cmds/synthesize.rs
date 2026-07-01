@@ -533,6 +533,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+PURGE_FORENSIC_IMAGES] true -> eventually(<+NOTIFY_INCIDENT_RESPONSE_OWNER> true))"#,
             r#"always([+SUPPORT_ATTACHMENT_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_ATTACHMENTS> true | <+REVOKE_SUPPORT_ATTACHMENT_EXPOSED_CREDENTIALS> true))"#,
             r#"always([+PURGE_SUPPORT_ATTACHMENTS] true -> eventually(<+NOTIFY_SUPPORT_OWNER> true))"#,
+            r#"always([+CHAT_TRANSCRIPT_SECRET_LEAKED] true -> (<+PURGE_CHAT_TRANSCRIPTS> true | <+REVOKE_CHAT_EXPOSED_CREDENTIALS> true))"#,
+            r#"always([+PURGE_CHAT_TRANSCRIPTS] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -5282,6 +5284,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+PURGE_SUPPORT_ATTACHMENTS] true -> eventually(<+NOTIFY_SUPPORT_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_chat_transcript_secret_leak_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+CHAT_TRANSCRIPT_SECRET_LEAKED] true -> (<+PURGE_CHAT_TRANSCRIPTS> true | <+REVOKE_CHAT_EXPOSED_CREDENTIALS> true))"
+        ));
+        assert!(output.contains(
+            "always([+PURGE_CHAT_TRANSCRIPTS] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"
         ));
     }
 
@@ -15542,6 +15556,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "SupportAttachmentSecretLeak",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_chat_transcript_secret_leak_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+CHAT_TRANSCRIPT_SECRET_LEAKED] true -> (<+PURGE_CHAT_TRANSCRIPTS> true | <+REVOKE_CHAT_EXPOSED_CREDENTIALS> true))"
+                .to_string(),
+            "always([+PURGE_CHAT_TRANSCRIPTS] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ChatTranscriptSecretLeak",
             &formulas,
         );
 
