@@ -479,6 +479,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+ROTATE_WEBHOOK_SECRET] true -> eventually(<+NOTIFY_INTEGRATION_OWNER> true))"#,
             r#"always([+OAUTH_TOKEN_COMPROMISED] true -> (<+REVOKE_OAUTH_TOKEN> true | <+LIMIT_OAUTH_SCOPE> true))"#,
             r#"always([+REVOKE_OAUTH_TOKEN] true -> eventually(<+NOTIFY_APP_OWNER> true))"#,
+            r#"always([+SAML_CERT_COMPROMISED] true -> (<+ROTATE_SAML_CERT> true | <+DISABLE_SSO> true))"#,
+            r#"always([+ROTATE_SAML_CERT] true -> eventually(<+NOTIFY_IDENTITY_ADMIN> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4904,6 +4906,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+REVOKE_OAUTH_TOKEN] true -> eventually(<+NOTIFY_APP_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_saml_cert_compromise_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+SAML_CERT_COMPROMISED] true -> (<+ROTATE_SAML_CERT> true | <+DISABLE_SSO> true))"
+        ));
+        assert!(output.contains(
+            "always([+ROTATE_SAML_CERT] true -> eventually(<+NOTIFY_IDENTITY_ADMIN> true))"
         ));
     }
 
@@ -14734,6 +14748,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "OauthTokenCompromise",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_saml_cert_compromise_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+SAML_CERT_COMPROMISED] true -> (<+ROTATE_SAML_CERT> true | <+DISABLE_SSO> true))"
+                .to_string(),
+            "always([+ROTATE_SAML_CERT] true -> eventually(<+NOTIFY_IDENTITY_ADMIN> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "SamlCertCompromise",
             &formulas,
         );
 
