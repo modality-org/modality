@@ -461,6 +461,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+AUTHORIZE_RETURN] true -> eventually(<+RECEIVE_RETURN> true))"#,
             r#"always([+WARRANTY_CLAIMED] true -> (<+REPLACE_ITEM> true | <+REPAIR_ITEM> true))"#,
             r#"always([+REPLACE_ITEM] true -> eventually(<+SHIP_REPLACEMENT> true))"#,
+            r#"always([+CANCELLATION_REQUESTED] true -> (<+RETENTION_OFFER> true | <+CANCEL_SUBSCRIPTION> true))"#,
+            r#"always([+CANCEL_SUBSCRIPTION] true -> eventually(<+ISSUE_FINAL_INVOICE> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4778,6 +4780,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+REPLACE_ITEM] true -> eventually(<+SHIP_REPLACEMENT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_subscription_cancellation_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+CANCELLATION_REQUESTED] true -> (<+RETENTION_OFFER> true | <+CANCEL_SUBSCRIPTION> true))"
+        ));
+        assert!(output.contains(
+            "always([+CANCEL_SUBSCRIPTION] true -> eventually(<+ISSUE_FINAL_INVOICE> true))"
         ));
     }
 
@@ -14475,6 +14489,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "WarrantyClaim",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_subscription_cancellation_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+CANCELLATION_REQUESTED] true -> (<+RETENTION_OFFER> true | <+CANCEL_SUBSCRIPTION> true))"
+                .to_string(),
+            "always([+CANCEL_SUBSCRIPTION] true -> eventually(<+ISSUE_FINAL_INVOICE> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "SubscriptionCancellation",
             &formulas,
         );
 
