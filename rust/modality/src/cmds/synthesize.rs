@@ -501,6 +501,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+ROTATE_CLOUD_ACCESS_KEY] true -> eventually(<+NOTIFY_CLOUD_ACCOUNT_OWNER> true))"#,
             r#"always([+TERRAFORM_STATE_SECRET_EXPOSED] true -> (<+ROTATE_STATE_SECRETS> true | <+LOCK_TERRAFORM_BACKEND> true))"#,
             r#"always([+ROTATE_STATE_SECRETS] true -> eventually(<+NOTIFY_INFRA_OWNER> true))"#,
+            r#"always([+VAULT_TOKEN_LEAKED] true -> (<+REVOKE_VAULT_TOKEN> true | <+SEAL_VAULT_NAMESPACE> true))"#,
+            r#"always([+REVOKE_VAULT_TOKEN] true -> eventually(<+NOTIFY_SECRETS_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -5058,6 +5060,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+ROTATE_STATE_SECRETS] true -> eventually(<+NOTIFY_INFRA_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_vault_token_leak_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+VAULT_TOKEN_LEAKED] true -> (<+REVOKE_VAULT_TOKEN> true | <+SEAL_VAULT_NAMESPACE> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVOKE_VAULT_TOKEN] true -> eventually(<+NOTIFY_SECRETS_OWNER> true))"
         ));
     }
 
@@ -15062,6 +15076,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "TerraformStateSecretExposure",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_vault_token_leak_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+VAULT_TOKEN_LEAKED] true -> (<+REVOKE_VAULT_TOKEN> true | <+SEAL_VAULT_NAMESPACE> true))"
+                .to_string(),
+            "always([+REVOKE_VAULT_TOKEN] true -> eventually(<+NOTIFY_SECRETS_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "VaultTokenLeak",
             &formulas,
         );
 
