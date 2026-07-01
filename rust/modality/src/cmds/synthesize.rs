@@ -485,6 +485,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+ROTATE_JWT_SIGNING_KEY] true -> eventually(<+NOTIFY_AUTH_SERVICE_OWNER> true))"#,
             r#"always([+TLS_PRIVATE_KEY_COMPROMISED] true -> (<+ROTATE_TLS_CERTIFICATE> true | <+REVOKE_CERTIFICATE> true))"#,
             r#"always([+ROTATE_TLS_CERTIFICATE] true -> eventually(<+NOTIFY_CERTIFICATE_OWNER> true))"#,
+            r#"always([+SSH_PRIVATE_KEY_COMPROMISED] true -> (<+REVOKE_SSH_KEY> true | <+DISABLE_SSH_ACCESS> true))"#,
+            r#"always([+REVOKE_SSH_KEY] true -> eventually(<+NOTIFY_SYSTEM_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4946,6 +4948,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+ROTATE_TLS_CERTIFICATE] true -> eventually(<+NOTIFY_CERTIFICATE_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_ssh_private_key_compromise_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+SSH_PRIVATE_KEY_COMPROMISED] true -> (<+REVOKE_SSH_KEY> true | <+DISABLE_SSH_ACCESS> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVOKE_SSH_KEY] true -> eventually(<+NOTIFY_SYSTEM_OWNER> true))"
         ));
     }
 
@@ -14824,6 +14838,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "TlsPrivateKeyCompromise",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_ssh_private_key_compromise_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+SSH_PRIVATE_KEY_COMPROMISED] true -> (<+REVOKE_SSH_KEY> true | <+DISABLE_SSH_ACCESS> true))"
+                .to_string(),
+            "always([+REVOKE_SSH_KEY] true -> eventually(<+NOTIFY_SYSTEM_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "SshPrivateKeyCompromise",
             &formulas,
         );
 
