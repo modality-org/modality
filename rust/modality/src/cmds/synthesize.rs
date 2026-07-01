@@ -517,6 +517,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+PURGE_TRACE_EXPORTS] true -> eventually(<+NOTIFY_TRACING_OWNER> true))"#,
             r#"always([+METRICS_SNAPSHOT_SECRET_LEAKED] true -> (<+PURGE_METRICS_SNAPSHOTS> true | <+REVOKE_METRICS_EXPOSED_CREDENTIALS> true))"#,
             r#"always([+PURGE_METRICS_SNAPSHOTS] true -> eventually(<+NOTIFY_METRICS_OWNER> true))"#,
+            r#"always([+PROFILE_DUMP_SECRET_LEAKED] true -> (<+PURGE_PROFILE_DUMPS> true | <+REVOKE_PROFILE_EXPOSED_CREDENTIALS> true))"#,
+            r#"always([+PURGE_PROFILE_DUMPS] true -> eventually(<+NOTIFY_PROFILING_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -5170,6 +5172,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+PURGE_METRICS_SNAPSHOTS] true -> eventually(<+NOTIFY_METRICS_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_profile_dump_secret_leak_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+PROFILE_DUMP_SECRET_LEAKED] true -> (<+PURGE_PROFILE_DUMPS> true | <+REVOKE_PROFILE_EXPOSED_CREDENTIALS> true))"
+        ));
+        assert!(output.contains(
+            "always([+PURGE_PROFILE_DUMPS] true -> eventually(<+NOTIFY_PROFILING_OWNER> true))"
         ));
     }
 
@@ -15302,6 +15316,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "MetricsSnapshotSecretLeak",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_profile_dump_secret_leak_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+PROFILE_DUMP_SECRET_LEAKED] true -> (<+PURGE_PROFILE_DUMPS> true | <+REVOKE_PROFILE_EXPOSED_CREDENTIALS> true))"
+                .to_string(),
+            "always([+PURGE_PROFILE_DUMPS] true -> eventually(<+NOTIFY_PROFILING_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ProfileDumpSecretLeak",
             &formulas,
         );
 
