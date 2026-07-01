@@ -495,6 +495,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+ROTATE_REGISTRY_TOKEN] true -> eventually(<+NOTIFY_REGISTRY_OWNER> true))"#,
             r#"always([+KUBECONFIG_LEAKED] true -> (<+ROTATE_CLUSTER_CREDENTIALS> true | <+DISABLE_CLUSTER_ACCESS> true))"#,
             r#"always([+ROTATE_CLUSTER_CREDENTIALS] true -> eventually(<+NOTIFY_CLUSTER_OWNER> true))"#,
+            r#"always([+PACKAGE_SIGNING_KEY_COMPROMISED] true -> (<+ROTATE_PACKAGE_SIGNING_KEY> true | <+FREEZE_PACKAGE_PUBLISHING> true))"#,
+            r#"always([+ROTATE_PACKAGE_SIGNING_KEY] true -> eventually(<+NOTIFY_RELEASE_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -5016,6 +5018,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+ROTATE_CLUSTER_CREDENTIALS] true -> eventually(<+NOTIFY_CLUSTER_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_package_signing_key_compromise_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+PACKAGE_SIGNING_KEY_COMPROMISED] true -> (<+ROTATE_PACKAGE_SIGNING_KEY> true | <+FREEZE_PACKAGE_PUBLISHING> true))"
+        ));
+        assert!(output.contains(
+            "always([+ROTATE_PACKAGE_SIGNING_KEY] true -> eventually(<+NOTIFY_RELEASE_OWNER> true))"
         ));
     }
 
@@ -14974,6 +14988,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("KubeconfigLeak", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_package_signing_key_compromise_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+PACKAGE_SIGNING_KEY_COMPROMISED] true -> (<+ROTATE_PACKAGE_SIGNING_KEY> true | <+FREEZE_PACKAGE_PUBLISHING> true))"
+                .to_string(),
+            "always([+ROTATE_PACKAGE_SIGNING_KEY] true -> eventually(<+NOTIFY_RELEASE_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "PackageSigningKeyCompromise",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
