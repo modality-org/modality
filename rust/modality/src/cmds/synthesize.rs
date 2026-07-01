@@ -471,6 +471,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+QUARANTINE_CONTENT] true -> eventually(<+REVIEW_CONTENT> true))"#,
             r#"always([+FRAUD_SUSPECTED] true -> (<+HOLD_TRANSACTION> true | <+REQUEST_VERIFICATION> true))"#,
             r#"always([+HOLD_TRANSACTION] true -> eventually(<+REVIEW_TRANSACTION> true))"#,
+            r#"always([+DEVICE_LOST] true -> (<+REVOKE_SESSION> true | <+REQUIRE_MFA_RESET> true))"#,
+            r#"always([+REVOKE_SESSION] true -> eventually(<+ROTATE_CREDENTIALS> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4848,6 +4850,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+HOLD_TRANSACTION] true -> eventually(<+REVIEW_TRANSACTION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_lost_device_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+DEVICE_LOST] true -> (<+REVOKE_SESSION> true | <+REQUIRE_MFA_RESET> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVOKE_SESSION] true -> eventually(<+ROTATE_CREDENTIALS> true))"
         ));
     }
 
@@ -14620,6 +14634,20 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("FraudReview", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_lost_device_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+DEVICE_LOST] true -> (<+REVOKE_SESSION> true | <+REQUIRE_MFA_RESET> true))"
+                .to_string(),
+            "always([+REVOKE_SESSION] true -> eventually(<+ROTATE_CREDENTIALS> true))"
+                .to_string(),
+        ]);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("LostDevice", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
