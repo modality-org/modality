@@ -445,6 +445,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"<+APPROVE> true | <+REJECT> true"#,
             r#"<+APPROVE> true | [<+REJECT>] true"#,
             r#"(<+APPROVE> true | [<+REJECT>] true) & ([+APPROVE] true -> <+signed_by(/users/reviewer.id)> true)"#,
+            r#"always([+ASSESS] true -> (<+APPROVE> true | <+ESCALATE> true))"#,
+            r#"always([+ESCALATE] true -> (<+ASSIGN_REVIEWER> true | <+REQUEST_MORE_EVIDENCE> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -4666,6 +4668,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+USE_TOOL] true -> (<+signed_by(/users/tool_provider.id)> true & eventually([<+APPROVE_CAPABILITY>] true)))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_conditional_branching_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+ASSESS] true -> (<+APPROVE> true | <+ESCALATE> true))"
+        ));
+        assert!(output.contains(
+            "always([+ESCALATE] true -> (<+ASSIGN_REVIEWER> true | <+REQUEST_MORE_EVIDENCE> true))"
         ));
     }
 
@@ -14248,6 +14262,21 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_conditional_branching_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+ASSESS] true -> (<+APPROVE> true | <+ESCALATE> true))".to_string(),
+            "always([+ESCALATE] true -> (<+ASSIGN_REVIEWER> true | <+REQUEST_MORE_EVIDENCE> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ConditionalBranching",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
