@@ -625,6 +625,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+PURGE_SUPPORT_REGULATED_MESSAGES] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"#,
             r#"always([+SUPPORT_COMPLIANCE_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_COMPLIANCE_MESSAGES> true | <+REVOKE_COMPLIANCE_MESSAGE_EXPOSED_CREDENTIALS> true))"#,
             r#"always([+PURGE_SUPPORT_COMPLIANCE_MESSAGES] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"#,
+            r#"always([+SUPPORT_AUDIT_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_AUDIT_MESSAGES> true | <+REVOKE_AUDIT_MESSAGE_EXPOSED_CREDENTIALS> true))"#,
+            r#"always([+PURGE_SUPPORT_AUDIT_MESSAGES] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -5926,6 +5928,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+PURGE_SUPPORT_COMPLIANCE_MESSAGES] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_support_audit_message_secret_leak_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+SUPPORT_AUDIT_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_AUDIT_MESSAGES> true | <+REVOKE_AUDIT_MESSAGE_EXPOSED_CREDENTIALS> true))"
+        ));
+        assert!(output.contains(
+            "always([+PURGE_SUPPORT_AUDIT_MESSAGES] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"
         ));
     }
 
@@ -16924,6 +16938,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "SupportComplianceMessageSecretLeak",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_support_audit_message_secret_leak_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+SUPPORT_AUDIT_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_AUDIT_MESSAGES> true | <+REVOKE_AUDIT_MESSAGE_EXPOSED_CREDENTIALS> true))"
+                .to_string(),
+            "always([+PURGE_SUPPORT_AUDIT_MESSAGES] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "SupportAuditMessageSecretLeak",
             &formulas,
         );
 
