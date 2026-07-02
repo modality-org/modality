@@ -611,6 +611,8 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+PURGE_SUPPORT_AUTHORIZED_MESSAGES] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"#,
             r#"always([+SUPPORT_PERMISSIONED_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_PERMISSIONED_MESSAGES> true | <+REVOKE_PERMISSIONED_MESSAGE_EXPOSED_CREDENTIALS> true))"#,
             r#"always([+PURGE_SUPPORT_PERMISSIONED_MESSAGES] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"#,
+            r#"always([+SUPPORT_PRIVILEGED_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_PRIVILEGED_MESSAGES> true | <+REVOKE_PRIVILEGED_MESSAGE_EXPOSED_CREDENTIALS> true))"#,
+            r#"always([+PURGE_SUPPORT_PRIVILEGED_MESSAGES] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"#,
             r#"next(<+APPROVE> true)"#,
             r#"next((<+APPROVE> true | [<+REJECT>] true))"#,
             r#"<+WAIT> true until <+APPROVE> true"#,
@@ -5828,6 +5830,18 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+PURGE_SUPPORT_PERMISSIONED_MESSAGES] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_support_privileged_message_secret_leak_prompt_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+SUPPORT_PRIVILEGED_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_PRIVILEGED_MESSAGES> true | <+REVOKE_PRIVILEGED_MESSAGE_EXPOSED_CREDENTIALS> true))"
+        ));
+        assert!(output.contains(
+            "always([+PURGE_SUPPORT_PRIVILEGED_MESSAGES] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"
         ));
     }
 
@@ -16713,6 +16727,22 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "SupportPermissionedMessageSecretLeak",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_support_privileged_message_secret_leak_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+SUPPORT_PRIVILEGED_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_PRIVILEGED_MESSAGES> true | <+REVOKE_PRIVILEGED_MESSAGE_EXPOSED_CREDENTIALS> true))"
+                .to_string(),
+            "always([+PURGE_SUPPORT_PRIVILEGED_MESSAGES] true -> eventually(<+NOTIFY_SUPPORT_PRIVACY_OWNER> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "SupportPrivilegedMessageSecretLeak",
             &formulas,
         );
 
