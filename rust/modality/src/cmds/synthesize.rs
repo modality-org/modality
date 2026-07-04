@@ -1041,6 +1041,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_TASK] true -> eventually(<+VALIDATE_AGENT_CAPABILITY> true))"#,
             r#"always([+VALIDATE_AGENT_CAPABILITY] true -> eventually(<+ACCEPT_AGENT_TASK> true))"#,
             r#"always([+ACCEPT_AGENT_TASK] true -> eventually(<+REPORT_AGENT_TASK_RESULT> true))"#,
+            r#"always([+SUBMIT_AGENT_RESULT] true -> eventually(<+VERIFY_AGENT_RESULT> true))"#,
+            r#"always([+VERIFY_AGENT_RESULT] true -> eventually(<+ACCEPT_AGENT_RESULT> true))"#,
+            r#"always([+ACCEPT_AGENT_RESULT] true -> eventually(<+ARCHIVE_AGENT_RESULT> true))"#,
             r#"always([+REQUEST_CONSENT_CHANGE] true -> eventually(<+REVIEW_CONSENT_SCOPE> true))"#,
             r#"always([+REVIEW_CONSENT_SCOPE] true -> eventually(<+APPLY_CONSENT_CHANGE> true))"#,
             r#"always([+APPLY_CONSENT_CHANGE] true -> eventually(<+CONFIRM_CONSENT_CHANGE> true))"#,
@@ -8549,6 +8552,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+ACCEPT_AGENT_TASK] true -> eventually(<+REPORT_AGENT_TASK_RESULT> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_result_verification_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+SUBMIT_AGENT_RESULT] true -> eventually(<+VERIFY_AGENT_RESULT> true))"
+        ));
+        assert!(output.contains(
+            "always([+VERIFY_AGENT_RESULT] true -> eventually(<+ACCEPT_AGENT_RESULT> true))"
+        ));
+        assert!(output.contains(
+            "always([+ACCEPT_AGENT_RESULT] true -> eventually(<+ARCHIVE_AGENT_RESULT> true))"
         ));
     }
 
@@ -23864,6 +23882,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentTaskDelegation",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_result_verification_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+SUBMIT_AGENT_RESULT] true -> eventually(<+VERIFY_AGENT_RESULT> true))"
+                .to_string(),
+            "always([+VERIFY_AGENT_RESULT] true -> eventually(<+ACCEPT_AGENT_RESULT> true))"
+                .to_string(),
+            "always([+ACCEPT_AGENT_RESULT] true -> eventually(<+ARCHIVE_AGENT_RESULT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentResultVerification",
             &formulas,
         );
 
