@@ -1056,6 +1056,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+CAPTURE_AGENT_LEARNING] true -> eventually(<+REVIEW_AGENT_LEARNING> true))"#,
             r#"always([+REVIEW_AGENT_LEARNING] true -> eventually(<+INCORPORATE_AGENT_LEARNING> true))"#,
             r#"always([+INCORPORATE_AGENT_LEARNING] true -> eventually(<+PUBLISH_AGENT_LEARNING_NOTE> true))"#,
+            r#"always([+DETECT_AGENT_ANOMALY] true -> eventually(<+TRIAGE_AGENT_ANOMALY> true))"#,
+            r#"always([+TRIAGE_AGENT_ANOMALY] true -> eventually(<+ESCALATE_AGENT_ANOMALY> true))"#,
+            r#"always([+ESCALATE_AGENT_ANOMALY] true -> eventually(<+CONTAIN_AGENT_ANOMALY> true))"#,
             r#"always([+REQUEST_CONSENT_CHANGE] true -> eventually(<+REVIEW_CONSENT_SCOPE> true))"#,
             r#"always([+REVIEW_CONSENT_SCOPE] true -> eventually(<+APPLY_CONSENT_CHANGE> true))"#,
             r#"always([+APPLY_CONSENT_CHANGE] true -> eventually(<+CONFIRM_CONSENT_CHANGE> true))"#,
@@ -8639,6 +8642,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+INCORPORATE_AGENT_LEARNING] true -> eventually(<+PUBLISH_AGENT_LEARNING_NOTE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_incident_response_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+DETECT_AGENT_ANOMALY] true -> eventually(<+TRIAGE_AGENT_ANOMALY> true))"
+        ));
+        assert!(output.contains(
+            "always([+TRIAGE_AGENT_ANOMALY] true -> eventually(<+ESCALATE_AGENT_ANOMALY> true))"
+        ));
+        assert!(output.contains(
+            "always([+ESCALATE_AGENT_ANOMALY] true -> eventually(<+CONTAIN_AGENT_ANOMALY> true))"
         ));
     }
 
@@ -24044,6 +24062,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentLearning",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_incident_response_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+DETECT_AGENT_ANOMALY] true -> eventually(<+TRIAGE_AGENT_ANOMALY> true))"
+                .to_string(),
+            "always([+TRIAGE_AGENT_ANOMALY] true -> eventually(<+ESCALATE_AGENT_ANOMALY> true))"
+                .to_string(),
+            "always([+ESCALATE_AGENT_ANOMALY] true -> eventually(<+CONTAIN_AGENT_ANOMALY> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentIncidentResponse",
             &formulas,
         );
 
