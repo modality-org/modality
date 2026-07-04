@@ -1065,6 +1065,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_ACCOUNTABILITY_REVIEW] true -> eventually(<+COLLECT_AGENT_ACCOUNTABILITY_EVIDENCE> true))"#,
             r#"always([+COLLECT_AGENT_ACCOUNTABILITY_EVIDENCE] true -> eventually(<+ASSIGN_AGENT_ACCOUNTABILITY_OWNER> true))"#,
             r#"always([+ASSIGN_AGENT_ACCOUNTABILITY_OWNER] true -> eventually(<+RECORD_AGENT_ACCOUNTABILITY_DECISION> true))"#,
+            r#"always([+REQUEST_AGENT_TRANSPARENCY_REPORT] true -> eventually(<+COLLECT_AGENT_DECISION_TRACE> true))"#,
+            r#"always([+COLLECT_AGENT_DECISION_TRACE] true -> eventually(<+REVIEW_AGENT_DECISION_TRACE> true))"#,
+            r#"always([+REVIEW_AGENT_DECISION_TRACE] true -> eventually(<+PUBLISH_AGENT_TRANSPARENCY_REPORT> true))"#,
             r#"always([+REQUEST_CONSENT_CHANGE] true -> eventually(<+REVIEW_CONSENT_SCOPE> true))"#,
             r#"always([+REVIEW_CONSENT_SCOPE] true -> eventually(<+APPLY_CONSENT_CHANGE> true))"#,
             r#"always([+APPLY_CONSENT_CHANGE] true -> eventually(<+CONFIRM_CONSENT_CHANGE> true))"#,
@@ -8693,6 +8696,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+ASSIGN_AGENT_ACCOUNTABILITY_OWNER] true -> eventually(<+RECORD_AGENT_ACCOUNTABILITY_DECISION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_transparency_report_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_TRANSPARENCY_REPORT] true -> eventually(<+COLLECT_AGENT_DECISION_TRACE> true))"
+        ));
+        assert!(output.contains(
+            "always([+COLLECT_AGENT_DECISION_TRACE] true -> eventually(<+REVIEW_AGENT_DECISION_TRACE> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_AGENT_DECISION_TRACE] true -> eventually(<+PUBLISH_AGENT_TRANSPARENCY_REPORT> true))"
         ));
     }
 
@@ -24152,6 +24170,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentAccountabilityReview",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_transparency_report_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_TRANSPARENCY_REPORT] true -> eventually(<+COLLECT_AGENT_DECISION_TRACE> true))"
+                .to_string(),
+            "always([+COLLECT_AGENT_DECISION_TRACE] true -> eventually(<+REVIEW_AGENT_DECISION_TRACE> true))"
+                .to_string(),
+            "always([+REVIEW_AGENT_DECISION_TRACE] true -> eventually(<+PUBLISH_AGENT_TRANSPARENCY_REPORT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentTransparencyReport",
             &formulas,
         );
 
