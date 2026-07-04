@@ -1059,6 +1059,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+DETECT_AGENT_ANOMALY] true -> eventually(<+TRIAGE_AGENT_ANOMALY> true))"#,
             r#"always([+TRIAGE_AGENT_ANOMALY] true -> eventually(<+ESCALATE_AGENT_ANOMALY> true))"#,
             r#"always([+ESCALATE_AGENT_ANOMALY] true -> eventually(<+CONTAIN_AGENT_ANOMALY> true))"#,
+            r#"always([+OBSERVE_AGENT_BEHAVIOR] true -> eventually(<+SCORE_AGENT_TRUST> true))"#,
+            r#"always([+SCORE_AGENT_TRUST] true -> eventually(<+ADJUST_AGENT_TRUST_LEVEL> true))"#,
+            r#"always([+ADJUST_AGENT_TRUST_LEVEL] true -> eventually(<+RECORD_AGENT_TRUST_DECISION> true))"#,
             r#"always([+REQUEST_CONSENT_CHANGE] true -> eventually(<+REVIEW_CONSENT_SCOPE> true))"#,
             r#"always([+REVIEW_CONSENT_SCOPE] true -> eventually(<+APPLY_CONSENT_CHANGE> true))"#,
             r#"always([+APPLY_CONSENT_CHANGE] true -> eventually(<+CONFIRM_CONSENT_CHANGE> true))"#,
@@ -8657,6 +8660,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+ESCALATE_AGENT_ANOMALY] true -> eventually(<+CONTAIN_AGENT_ANOMALY> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_trust_calibration_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+OBSERVE_AGENT_BEHAVIOR] true -> eventually(<+SCORE_AGENT_TRUST> true))"
+        ));
+        assert!(output.contains(
+            "always([+SCORE_AGENT_TRUST] true -> eventually(<+ADJUST_AGENT_TRUST_LEVEL> true))"
+        ));
+        assert!(output.contains(
+            "always([+ADJUST_AGENT_TRUST_LEVEL] true -> eventually(<+RECORD_AGENT_TRUST_DECISION> true))"
         ));
     }
 
@@ -24080,6 +24098,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentIncidentResponse",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_trust_calibration_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+OBSERVE_AGENT_BEHAVIOR] true -> eventually(<+SCORE_AGENT_TRUST> true))"
+                .to_string(),
+            "always([+SCORE_AGENT_TRUST] true -> eventually(<+ADJUST_AGENT_TRUST_LEVEL> true))"
+                .to_string(),
+            "always([+ADJUST_AGENT_TRUST_LEVEL] true -> eventually(<+RECORD_AGENT_TRUST_DECISION> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentTrustCalibration",
             &formulas,
         );
 
