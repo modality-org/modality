@@ -1080,6 +1080,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_DECISION_OVERRIDE] true -> eventually(<+REVIEW_AGENT_DECISION_OVERRIDE> true))"#,
             r#"always([+REVIEW_AGENT_DECISION_OVERRIDE] true -> eventually(<+AUTHORIZE_AGENT_DECISION_OVERRIDE> true))"#,
             r#"always([+AUTHORIZE_AGENT_DECISION_OVERRIDE] true -> eventually(<+RECORD_AGENT_DECISION_OVERRIDE> true))"#,
+            r#"always([+REQUEST_AGENT_DECISION_ROLLBACK] true -> eventually(<+ASSESS_AGENT_DECISION_ROLLBACK> true))"#,
+            r#"always([+ASSESS_AGENT_DECISION_ROLLBACK] true -> eventually(<+AUTHORIZE_AGENT_DECISION_ROLLBACK> true))"#,
+            r#"always([+AUTHORIZE_AGENT_DECISION_ROLLBACK] true -> eventually(<+RECORD_AGENT_DECISION_ROLLBACK> true))"#,
             r#"always([+REQUEST_CONSENT_CHANGE] true -> eventually(<+REVIEW_CONSENT_SCOPE> true))"#,
             r#"always([+REVIEW_CONSENT_SCOPE] true -> eventually(<+APPLY_CONSENT_CHANGE> true))"#,
             r#"always([+APPLY_CONSENT_CHANGE] true -> eventually(<+CONFIRM_CONSENT_CHANGE> true))"#,
@@ -8783,6 +8786,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+AUTHORIZE_AGENT_DECISION_OVERRIDE] true -> eventually(<+RECORD_AGENT_DECISION_OVERRIDE> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_decision_rollback_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_DECISION_ROLLBACK] true -> eventually(<+ASSESS_AGENT_DECISION_ROLLBACK> true))"
+        ));
+        assert!(output.contains(
+            "always([+ASSESS_AGENT_DECISION_ROLLBACK] true -> eventually(<+AUTHORIZE_AGENT_DECISION_ROLLBACK> true))"
+        ));
+        assert!(output.contains(
+            "always([+AUTHORIZE_AGENT_DECISION_ROLLBACK] true -> eventually(<+RECORD_AGENT_DECISION_ROLLBACK> true))"
         ));
     }
 
@@ -24332,6 +24350,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentDecisionOverride",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_decision_rollback_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_DECISION_ROLLBACK] true -> eventually(<+ASSESS_AGENT_DECISION_ROLLBACK> true))"
+                .to_string(),
+            "always([+ASSESS_AGENT_DECISION_ROLLBACK] true -> eventually(<+AUTHORIZE_AGENT_DECISION_ROLLBACK> true))"
+                .to_string(),
+            "always([+AUTHORIZE_AGENT_DECISION_ROLLBACK] true -> eventually(<+RECORD_AGENT_DECISION_ROLLBACK> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentDecisionRollback",
             &formulas,
         );
 
