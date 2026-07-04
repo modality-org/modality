@@ -1101,6 +1101,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_DECISION_WITHDRAWAL] true -> eventually(<+REVIEW_AGENT_DECISION_WITHDRAWAL> true))"#,
             r#"always([+REVIEW_AGENT_DECISION_WITHDRAWAL] true -> eventually(<+APPROVE_AGENT_DECISION_WITHDRAWAL> true))"#,
             r#"always([+APPROVE_AGENT_DECISION_WITHDRAWAL] true -> eventually(<+RECORD_AGENT_DECISION_WITHDRAWAL> true))"#,
+            r#"always([+REQUEST_AGENT_DECISION_ANNULMENT] true -> eventually(<+REVIEW_AGENT_DECISION_ANNULMENT> true))"#,
+            r#"always([+REVIEW_AGENT_DECISION_ANNULMENT] true -> eventually(<+APPROVE_AGENT_DECISION_ANNULMENT> true))"#,
+            r#"always([+APPROVE_AGENT_DECISION_ANNULMENT] true -> eventually(<+RECORD_AGENT_DECISION_ANNULMENT> true))"#,
             r#"always([+REQUEST_CONSENT_CHANGE] true -> eventually(<+REVIEW_CONSENT_SCOPE> true))"#,
             r#"always([+REVIEW_CONSENT_SCOPE] true -> eventually(<+APPLY_CONSENT_CHANGE> true))"#,
             r#"always([+APPLY_CONSENT_CHANGE] true -> eventually(<+CONFIRM_CONSENT_CHANGE> true))"#,
@@ -8909,6 +8912,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_DECISION_WITHDRAWAL] true -> eventually(<+RECORD_AGENT_DECISION_WITHDRAWAL> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_decision_annulment_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_DECISION_ANNULMENT] true -> eventually(<+REVIEW_AGENT_DECISION_ANNULMENT> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_AGENT_DECISION_ANNULMENT] true -> eventually(<+APPROVE_AGENT_DECISION_ANNULMENT> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_DECISION_ANNULMENT] true -> eventually(<+RECORD_AGENT_DECISION_ANNULMENT> true))"
         ));
     }
 
@@ -24584,6 +24602,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentDecisionWithdrawal",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_decision_annulment_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_DECISION_ANNULMENT] true -> eventually(<+REVIEW_AGENT_DECISION_ANNULMENT> true))"
+                .to_string(),
+            "always([+REVIEW_AGENT_DECISION_ANNULMENT] true -> eventually(<+APPROVE_AGENT_DECISION_ANNULMENT> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_DECISION_ANNULMENT] true -> eventually(<+RECORD_AGENT_DECISION_ANNULMENT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentDecisionAnnulment",
             &formulas,
         );
 
