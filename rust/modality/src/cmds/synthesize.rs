@@ -1050,6 +1050,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+START_AGENT_EXECUTION] true -> eventually(<+MONITOR_AGENT_EXECUTION> true))"#,
             r#"always([+MONITOR_AGENT_EXECUTION] true -> eventually(<+COMPLETE_AGENT_EXECUTION> true))"#,
             r#"always([+COMPLETE_AGENT_EXECUTION] true -> eventually(<+REVIEW_AGENT_EXECUTION_LOG> true))"#,
+            r#"always([+REQUEST_AGENT_FEEDBACK] true -> eventually(<+REVIEW_AGENT_FEEDBACK> true))"#,
+            r#"always([+REVIEW_AGENT_FEEDBACK] true -> eventually(<+UPDATE_AGENT_POLICY> true))"#,
+            r#"always([+UPDATE_AGENT_POLICY] true -> eventually(<+ACKNOWLEDGE_AGENT_FEEDBACK> true))"#,
             r#"always([+REQUEST_CONSENT_CHANGE] true -> eventually(<+REVIEW_CONSENT_SCOPE> true))"#,
             r#"always([+REVIEW_CONSENT_SCOPE] true -> eventually(<+APPLY_CONSENT_CHANGE> true))"#,
             r#"always([+APPLY_CONSENT_CHANGE] true -> eventually(<+CONFIRM_CONSENT_CHANGE> true))"#,
@@ -8603,6 +8606,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+COMPLETE_AGENT_EXECUTION] true -> eventually(<+REVIEW_AGENT_EXECUTION_LOG> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_feedback_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_FEEDBACK] true -> eventually(<+REVIEW_AGENT_FEEDBACK> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_AGENT_FEEDBACK] true -> eventually(<+UPDATE_AGENT_POLICY> true))"
+        ));
+        assert!(output.contains(
+            "always([+UPDATE_AGENT_POLICY] true -> eventually(<+ACKNOWLEDGE_AGENT_FEEDBACK> true))"
         ));
     }
 
@@ -23972,6 +23990,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentExecutionMonitoring",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_feedback_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_FEEDBACK] true -> eventually(<+REVIEW_AGENT_FEEDBACK> true))"
+                .to_string(),
+            "always([+REVIEW_AGENT_FEEDBACK] true -> eventually(<+UPDATE_AGENT_POLICY> true))"
+                .to_string(),
+            "always([+UPDATE_AGENT_POLICY] true -> eventually(<+ACKNOWLEDGE_AGENT_FEEDBACK> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentFeedback",
             &formulas,
         );
 
