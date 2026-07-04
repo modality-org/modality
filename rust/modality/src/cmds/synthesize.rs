@@ -1071,6 +1071,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+SUBMIT_AGENT_DECISION_APPEAL] true -> eventually(<+REVIEW_AGENT_DECISION_APPEAL> true))"#,
             r#"always([+REVIEW_AGENT_DECISION_APPEAL] true -> eventually(<+DECIDE_AGENT_DECISION_APPEAL> true))"#,
             r#"always([+DECIDE_AGENT_DECISION_APPEAL] true -> eventually(<+RECORD_AGENT_APPEAL_OUTCOME> true))"#,
+            r#"always([+OPEN_AGENT_DECISION_AUDIT] true -> eventually(<+COLLECT_AGENT_DECISION_EVIDENCE> true))"#,
+            r#"always([+COLLECT_AGENT_DECISION_EVIDENCE] true -> eventually(<+REVIEW_AGENT_DECISION_EVIDENCE> true))"#,
+            r#"always([+REVIEW_AGENT_DECISION_EVIDENCE] true -> eventually(<+PUBLISH_AGENT_DECISION_AUDIT> true))"#,
             r#"always([+REQUEST_CONSENT_CHANGE] true -> eventually(<+REVIEW_CONSENT_SCOPE> true))"#,
             r#"always([+REVIEW_CONSENT_SCOPE] true -> eventually(<+APPLY_CONSENT_CHANGE> true))"#,
             r#"always([+APPLY_CONSENT_CHANGE] true -> eventually(<+CONFIRM_CONSENT_CHANGE> true))"#,
@@ -8729,6 +8732,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+DECIDE_AGENT_DECISION_APPEAL] true -> eventually(<+RECORD_AGENT_APPEAL_OUTCOME> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_decision_audit_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+OPEN_AGENT_DECISION_AUDIT] true -> eventually(<+COLLECT_AGENT_DECISION_EVIDENCE> true))"
+        ));
+        assert!(output.contains(
+            "always([+COLLECT_AGENT_DECISION_EVIDENCE] true -> eventually(<+REVIEW_AGENT_DECISION_EVIDENCE> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_AGENT_DECISION_EVIDENCE] true -> eventually(<+PUBLISH_AGENT_DECISION_AUDIT> true))"
         ));
     }
 
@@ -24224,6 +24242,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentDecisionAppeal",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_decision_audit_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+OPEN_AGENT_DECISION_AUDIT] true -> eventually(<+COLLECT_AGENT_DECISION_EVIDENCE> true))"
+                .to_string(),
+            "always([+COLLECT_AGENT_DECISION_EVIDENCE] true -> eventually(<+REVIEW_AGENT_DECISION_EVIDENCE> true))"
+                .to_string(),
+            "always([+REVIEW_AGENT_DECISION_EVIDENCE] true -> eventually(<+PUBLISH_AGENT_DECISION_AUDIT> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentDecisionAudit",
             &formulas,
         );
 
