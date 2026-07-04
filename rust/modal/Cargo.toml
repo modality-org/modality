@@ -9,51 +9,24 @@ repository = "https://github.com/modality-org/modality"
 homepage = "https://www.modality.org"
 readme = "../README.md"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 modality = { path = "../modality", version = "0.1.7", features = ["identity", "passfile", "upgrade"] }
-modality-lang = { path = "../modality-lang", version = "0.1.7" }
 modal-common = { path = "../modal-common", version = "0.1.7" }
-modal-node = { path = "../modal-node", version = "0.1.7" }
-modal-datastore = { path = "../modal-datastore", version = "0.1.0" }
-modal-observer = { path = "../modal-observer", version = "0.1.0" }
-modal-miner = { path = "../modal-miner", version = "0.1.0" }
-modal-networks = { path = "../modal-networks", version = "0.1.0" }
-modal-wasm-runtime = { path = "../modal-wasm-runtime", version = "0.1.0" }
-modal-rpc = { path = "../modal-rpc", version = "0.1.0" }
+modal-cli-node = { path = "../modal-cli-node", version = "0.1.0" }
+modal-cli-contract = { path = "../modal-cli-contract", version = "0.1.0" }
+modal-cli-hub = { path = "../modal-cli-hub", version = "0.1.0" }
+modal-cli-predicate = { path = "../modal-cli-predicate", version = "0.1.0" }
+modal-cli-program = { path = "../modal-cli-program", version = "0.1.0" }
+modal-cli-chain = { path = "../modal-cli-chain", version = "0.1.0" }
+modal-cli-net = { path = "../modal-cli-net", version = "0.1.0" }
 anyhow = "1.0"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4.1.11", features = ["cargo", "derive", "env"] }
 tokio = { version = "1.42.0", features = ["full"] }
-tokio-util = { version = "0.7", features = ["full"] }
-async-trait = "0.1.68"
-serde = "1.0.200"
-serde_json = "1.0.116"
-rand = "0.8"
-chrono = "0.4"
-log = "0.4.17"
-sha2 = "0.10"
-hex = "0.4"
-base64 = "0.22"
-colored = "2.1"
-dirs = "5.0"
-rpassword = "7.3"
-zip = "2.1"
-walkdir = "2.5"
-libp2p = { version = "0.54.1", features = ["macros", "tokio", "tcp", "noise", "yamux", "gossipsub", "request-response", "kad", "ping", "identify", "rendezvous", "relay", "dns", "websocket"] }
-ctrlc = "3.4"
-axum = "0.7"
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors"] }
-thiserror = "1.0"
-reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
-ed25519-dalek = { version = "2.1", features = ["rand_core"] }
-
-[target.'cfg(unix)'.dependencies]
-nix = { version = "0.29", features = ["signal"] }
 
 [dev-dependencies]
 tempfile = "3.10"
 ed25519-dalek = { version = "2.1", features = ["rand_core"] }
+rand = "0.8"
+sha2 = "0.10"
+hex = "0.4"
+serde_json = "1.0"

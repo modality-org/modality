@@ -134,14 +134,14 @@ build_packages() {
         if [[ "$target" == *"darwin"* ]] && [[ "$(uname -s)" == "Darwin" ]]; then
             # On macOS, use native cargo for macOS targets
             rustup target add "$target" 2>/dev/null || true
-            MODAL_GIT_BRANCH="$GIT_BRANCH" MODAL_GIT_COMMIT="$GIT_COMMIT" cargo build --release --target "$target"
+            MODAL_GIT_BRANCH="$GIT_BRANCH" MODAL_GIT_COMMIT="$GIT_COMMIT" cargo build --release -p modal --target "$target"
         else
             # Use cross for other platforms
             # Skip compiler bug check by using AWS_LC_SYS_NO_AUTODETECT or CMAKE builder
             MODAL_GIT_BRANCH="$GIT_BRANCH" \
             MODAL_GIT_COMMIT="$GIT_COMMIT" \
             AWS_LC_SYS_CMAKE_BUILDER="1" \
-            cross build --release --target "$target"
+            cross build --release -p modal --target "$target"
         fi
         
         # Determine platform name and binary extension

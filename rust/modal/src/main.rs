@@ -1,7 +1,3 @@
-use modal::cmds;
-#[allow(unused_imports)]
-use modal::utils;
-
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
@@ -76,28 +72,28 @@ enum Commands {
     },
 
     #[command(about = "Show status (contract status if in contract directory)")]
-    Status(cmds::contract::status::Opts),
+    Status(modal_cli_contract::status::Opts),
 
     #[command(about = "Pull commits (shortcut for modal contract pull)")]
-    Pull(cmds::contract::pull::Opts),
+    Pull(modal_cli_contract::pull::Opts),
 
     #[command(about = "Commit changes (shortcut for modal contract commit)")]
-    Commit(cmds::contract::commit::Opts),
+    Commit(modal_cli_contract::commit::Opts),
 
     #[command(about = "Show uncommitted changes (shortcut for modal contract diff)")]
-    Diff(cmds::contract::diff::Opts),
+    Diff(modal_cli_contract::diff::Opts),
 
     #[command(about = "Set a state file value (shortcut for modal contract set)")]
-    Set(cmds::contract::set::Opts),
+    Set(modal_cli_contract::set::Opts),
 
     #[command(about = "Repost state from another contract (shortcut for modal contract repost)")]
-    Repost(cmds::contract::repost::Opts),
+    Repost(modal_cli_contract::repost::Opts),
 
     #[command(name = "add-rule", about = "Add a rule to the contract")]
-    AddRule(cmds::contract::add_rule::Opts),
+    AddRule(modal_cli_contract::add_rule::Opts),
 
     #[command(about = "Download a packed contract file")]
-    Download(cmds::contract::download::Opts),
+    Download(modal_cli_contract::download::Opts),
 
     #[command(about = "Run node shortcuts")]
     Run {
@@ -124,7 +120,7 @@ enum Commands {
     },
 
     #[command(about = "Kill all running modal node processes (shortcut for 'modal local killall-nodes')")]
-    Killall(cmds::local::killall_nodes::Opts),
+    Killall(modal_cli_node::local::killall_nodes::Opts),
 
     #[command(about = "Upgrade modal to the latest version")]
     Upgrade(modality::cmds::upgrade::Opts),
@@ -147,10 +143,10 @@ enum PassfileCommands {
 #[derive(Subcommand)]
 enum NetworkCommands {
     #[command(about = "Display information about a Modality network")]
-    Info(cmds::net::info::Opts),
+    Info(modal_cli_net::info::Opts),
 
     #[command(about = "Inspect network datastore and show statistics")]
-    Storage(cmds::net::storage::Opts),
+    Storage(modal_cli_net::storage::Opts),
 
     #[command(about = "Mining related commands")]
     Mining {
@@ -162,339 +158,314 @@ enum NetworkCommands {
 #[derive(Subcommand)]
 enum LocalCommands {
     #[command(about = "Find all running modal node processes")]
-    Nodes(cmds::local::nodes::Opts),
+    Nodes(modal_cli_node::local::nodes::Opts),
 
     #[command(about = "Kill all running modal node processes")]
-    KillallNodes(cmds::local::killall_nodes::Opts),
+    KillallNodes(modal_cli_node::local::killall_nodes::Opts),
 }
 
 #[derive(Subcommand)]
 enum NodeCommands {
     #[command(about = "Display the listening addresses of a node")]
-    Address(cmds::node::address::Opts),
+    Address(modal_cli_node::address::Opts),
 
     #[command(about = "Create a new node directory with config.json and node.modal_passfile")]
-    Create(cmds::node::create::Opts),
+    Create(modal_cli_node::create::Opts),
 
     #[command(about = "Display information about a node")]
-    Info(cmds::node::info::Opts),
+    Info(modal_cli_node::info::Opts),
 
     #[command(about = "Inspect a node's state (running or offline)")]
-    Inspect(cmds::node::inspect::Opts),
+    Inspect(modal_cli_node::inspect::Opts),
 
     #[command(about = "Compare local chain with a remote peer")]
-    Compare(cmds::node::compare::Opts),
+    Compare(modal_cli_node::compare::Opts),
 
     #[command(about = "Modify node configuration")]
-    Config(cmds::node::config::Opts),
+    Config(modal_cli_node::config::Opts),
 
     #[command(about = "Start a node in the background")]
-    Start(cmds::node::start::Opts),
+    Start(modal_cli_node::start::Opts),
 
     #[command(about = "Stop a running node")]
-    Stop(cmds::node::stop::Opts),
+    Stop(modal_cli_node::stop::Opts),
 
     #[command(about = "Restart a running node")]
-    Restart(cmds::node::restart::Opts),
+    Restart(modal_cli_node::restart::Opts),
 
     #[command(about = "Kill a running node process")]
-    Kill(cmds::node::kill::Opts),
+    Kill(modal_cli_node::kill::Opts),
 
     #[command(about = "Display the PID of a running node")]
-    Pid(cmds::node::pid::Opts),
+    Pid(modal_cli_node::pid::Opts),
 
     #[command(about = "Tail the logs of a running node")]
-    Logs(cmds::node::logs::Opts),
+    Logs(modal_cli_node::logs::Opts),
 
     #[command(alias = "run_node", about = "Run a Modality Network node")]
-    Run(cmds::node::run::Opts),
+    Run(modal_cli_node::run::Opts),
 
     #[command(about = "Run a mining node")]
-    RunMiner(cmds::node::run_miner::Opts),
+    RunMiner(modal_cli_node::run_miner::Opts),
 
     #[command(about = "Run a validator node (observes mining, does not mine)")]
-    RunValidator(cmds::node::run_validator::Opts),
+    RunValidator(modal_cli_node::run_validator::Opts),
 
     #[command(about = "Run an observer node (observes mining, does not mine)")]
-    RunObserver(cmds::node::run_observer::Opts),
+    RunObserver(modal_cli_node::run_observer::Opts),
 
     #[command(about = "Run a noop node (only autoupgrade, no network operations)")]
-    RunNoop(cmds::node::run_noop::Opts),
+    RunNoop(modal_cli_node::run_noop::Opts),
 
     #[command(about = "Ping a Modality Network node")]
-    Ping(cmds::node::ping::Opts),
+    Ping(modal_cli_node::ping::Opts),
 
     #[command(about = "Sync blockchain from network peers")]
-    Sync(cmds::node::sync::Opts),
+    Sync(modal_cli_node::sync::Opts),
 
     #[command(about = "Clear both storage and logs from a node")]
-    Clear(cmds::node::clear::Opts),
+    Clear(modal_cli_node::clear::Opts),
 
     #[command(about = "Clear all values from node storage")]
-    ClearStorage(cmds::node::clear_storage::Opts),
+    ClearStorage(modal_cli_node::clear_storage::Opts),
 
     #[command(about = "Display summary statistics from recent blocks")]
-    Stats(cmds::node::stats::Opts),
+    Stats(modal_cli_node::stats::Opts),
 }
 
 #[derive(Subcommand)]
 enum MiningCommands {
     #[command(about = "Sync miner blocks from a specified node")]
-    Sync(cmds::net::mining::sync::Opts),
+    Sync(modal_cli_net::mining::sync::Opts),
 }
 
 #[derive(Subcommand)]
 enum ContractCommands {
     #[command(about = "Create a new contract")]
-    Create(cmds::contract::create::Opts),
-    
+    Create(modal_cli_contract::create::Opts),
+
     #[command(about = "Add a commit to a local contract")]
-    Commit(cmds::contract::commit::Opts),
-    
+    Commit(modal_cli_contract::commit::Opts),
+
     #[command(about = "Checkout state from commits to state/ directory")]
-    Checkout(cmds::contract::checkout::Opts),
-    
+    Checkout(modal_cli_contract::checkout::Opts),
+
     #[command(about = "Show changes between state/ and committed state")]
-    Diff(cmds::contract::diff::Opts),
-    
+    Diff(modal_cli_contract::diff::Opts),
+
     #[command(about = "Get the commit ID from the current directory")]
-    CommitId(cmds::contract::commit_id::Opts),
-    
+    CommitId(modal_cli_contract::commit_id::Opts),
+
     #[command(about = "Get the contract ID from the current directory")]
-    Id(cmds::contract::id::Opts),
-    
+    Id(modal_cli_contract::id::Opts),
+
     #[command(about = "Push commits to chain validators")]
-    Push(cmds::contract::push::Opts),
-    
+    Push(modal_cli_contract::push::Opts),
+
     #[command(about = "Pull commits from the chain")]
-    Pull(cmds::contract::pull::Opts),
-    
+    Pull(modal_cli_contract::pull::Opts),
+
     #[command(about = "Show contract status")]
-    Status(cmds::contract::status::Opts),
-    
+    Status(modal_cli_contract::status::Opts),
+
     #[command(about = "Set a state file value")]
-    Set(cmds::contract::set::Opts),
-    
+    Set(modal_cli_contract::set::Opts),
+
     #[command(about = "Set a state .id file from a named passfile")]
-    SetNamedId(cmds::contract::set_named_id::Opts),
-    
+    SetNamedId(modal_cli_contract::set_named_id::Opts),
+
     #[command(about = "Show commit history")]
-    Log(cmds::contract::log::Opts),
-    
+    Log(modal_cli_contract::log::Opts),
+
     #[command(about = "Get contract or commit information")]
-    Get(cmds::contract::get::Opts),
-    
+    Get(modal_cli_contract::get::Opts),
+
     #[command(about = "Manage contract assets")]
-    Assets(cmds::contract::assets::Opts),
-    
+    Assets(modal_cli_contract::assets::Opts),
+
     #[command(about = "Upload a WASM module to a contract")]
-    WasmUpload(cmds::contract::wasm_upload::Opts),
-    
+    WasmUpload(modal_cli_contract::wasm_upload::Opts),
+
     #[command(about = "Pack contract directory into a .contract file")]
-    Pack(cmds::contract::pack::Opts),
-    
+    Pack(modal_cli_contract::pack::Opts),
+
     #[command(about = "Unpack a .contract file into a directory")]
-    Unpack(cmds::contract::unpack::Opts),
-    
+    Unpack(modal_cli_contract::unpack::Opts),
+
     #[command(about = "Copy data from another contract into a local namespace")]
-    Repost(cmds::contract::repost::Opts),
-    
+    Repost(modal_cli_contract::repost::Opts),
+
     #[command(name = "add-rule", about = "Add a rule to the contract")]
-    AddRule(cmds::contract::add_rule::Opts),
-    
+    AddRule(modal_cli_contract::add_rule::Opts),
+
     #[command(about = "Download a packed contract file")]
-    Download(cmds::contract::download::Opts),
+    Download(modal_cli_contract::download::Opts),
 }
 
 #[derive(Subcommand)]
 enum HubCommands {
     #[command(about = "Start a contract hub server")]
-    Start(cmds::hub::start::Opts),
+    Start(modal_cli_hub::start::Opts),
 }
 
 #[derive(Subcommand)]
 enum RunCommands {
     #[command(about = "Run a mining node")]
-    Miner(cmds::node::run_miner::Opts),
+    Miner(modal_cli_node::run_miner::Opts),
 
     #[command(about = "Run a validator node (observes mining, does not mine)")]
-    Validator(cmds::node::run_validator::Opts),
+    Validator(modal_cli_node::run_validator::Opts),
 
     #[command(about = "Run an observer node (observes mining, does not mine)")]
-    Observer(cmds::node::run_observer::Opts),
+    Observer(modal_cli_node::run_observer::Opts),
 }
 
 #[derive(Subcommand)]
 enum PredicateCommands {
     #[command(about = "List available predicates")]
-    List(cmds::predicate::list::Opts),
+    List(modal_cli_predicate::list::Opts),
 
     #[command(about = "Get information about a specific predicate")]
-    Info(cmds::predicate::info::Opts),
+    Info(modal_cli_predicate::info::Opts),
 
     #[command(about = "Test a predicate with sample data")]
-    Test(cmds::predicate::test::Opts),
+    Test(modal_cli_predicate::test::Opts),
 
     #[command(about = "Create a new predicate project")]
-    Create(cmds::predicate::create::Opts),
+    Create(modal_cli_predicate::create::Opts),
 }
 
 #[derive(Subcommand)]
 enum ProgramCommands {
     #[command(about = "Create a new program project")]
-    Create(cmds::program::create::Opts),
+    Create(modal_cli_program::create::Opts),
 
     #[command(about = "List available programs")]
-    List(cmds::program::list::Opts),
+    List(modal_cli_program::list::Opts),
 
     #[command(about = "Get information about a program")]
-    Info(cmds::program::info::Opts),
+    Info(modal_cli_program::info::Opts),
 
     #[command(about = "Upload a program to a contract")]
-    Upload(cmds::program::upload::Opts),
+    Upload(modal_cli_program::upload::Opts),
 }
 
 #[derive(Subcommand)]
 enum ChainCommands {
     #[command(about = "Validate blockchain orphaning logic")]
-    Validate(cmds::chain::validate::Opts),
-    
+    Validate(modal_cli_chain::validate::Opts),
+
     #[command(about = "Detect and heal duplicate canonical blocks")]
-    Heal(cmds::chain::heal::Opts),
+    Heal(modal_cli_chain::heal::Opts),
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     match &cli.command {
-        Commands::Id { command } => {
-            match command {
-                IdCommands::Create(opts) => modality::cmds::id::create::run(opts).await?,
-                IdCommands::Derive(opts) => modality::cmds::id::derive::run(opts).await?,
-                IdCommands::Get(opts) => modality::cmds::id::get::run(opts).await?,
-            }
-        }
-        Commands::Passfile { command } => {
-            match command {
-                PassfileCommands::Decrypt(opts) => modality::cmds::passfile::decrypt::run(opts).await?,
-                PassfileCommands::Encrypt(opts) => modality::cmds::passfile::encrypt::run(opts).await?,
-            }
-        }
-        Commands::Node { command } => {
-            match command {
-                NodeCommands::Address(opts) => cmds::node::address::run(opts).await?,
-                NodeCommands::Create(opts) => cmds::node::create::run(opts).await?,
-                NodeCommands::Info(opts) => cmds::node::info::run(opts).await?,
-                NodeCommands::Inspect(opts) => cmds::node::inspect::run(opts).await?,
-                NodeCommands::Compare(opts) => cmds::node::compare::run(opts).await?,
-                NodeCommands::Config(opts) => cmds::node::config::run(opts).await?,
-                NodeCommands::Start(opts) => cmds::node::start::run(opts).await?,
-                NodeCommands::Stop(opts) => cmds::node::stop::run(opts).await?,
-                NodeCommands::Restart(opts) => cmds::node::restart::run(opts).await?,
-                NodeCommands::Kill(opts) => cmds::node::kill::run(opts).await?,
-                NodeCommands::Pid(opts) => cmds::node::pid::run(opts).await?,
-                NodeCommands::Logs(opts) => cmds::node::logs::run(opts).await?,
-                NodeCommands::Run(opts) => cmds::node::run::run(opts).await?,
-                NodeCommands::RunMiner(opts) => cmds::node::run_miner::run(opts).await?,
-                NodeCommands::RunValidator(opts) => cmds::node::run_validator::run(opts).await?,
-                NodeCommands::RunObserver(opts) => cmds::node::run_observer::run(opts).await?,
-                NodeCommands::RunNoop(opts) => cmds::node::run_noop::run(opts).await?,
-                NodeCommands::Ping(opts) => cmds::node::ping::run(opts).await?,
-                NodeCommands::Sync(opts) => cmds::node::sync::run(opts).await?,
-                NodeCommands::Clear(opts) => cmds::node::clear::run(opts).await?,
-                NodeCommands::ClearStorage(opts) => cmds::node::clear_storage::run(opts).await?,
-                NodeCommands::Stats(opts) => cmds::node::stats::run(opts).await?,
-            }
-        }
-        Commands::Local { command } => {
-            match command {
-                LocalCommands::Nodes(opts) => cmds::local::nodes::run(opts).await?,
-                LocalCommands::KillallNodes(opts) => cmds::local::killall_nodes::run(opts).await?,
-            }
-        }
-        Commands::Net { command } => {
-            match command {
-                NetworkCommands::Info(opts) => cmds::net::info::run(opts).await?,
-                NetworkCommands::Storage(opts) => cmds::net::storage::run(opts).await?,
-                NetworkCommands::Mining { command } => {
-                    match command {
-                        MiningCommands::Sync(opts) => cmds::net::mining::sync::run(opts).await?,
-                    }
-                }
-            }
-        }
-        Commands::Contract { command } => {
-            match command {
-                ContractCommands::Create(opts) => cmds::contract::create::run(opts).await?,
-                ContractCommands::Commit(opts) => cmds::contract::commit::run(opts).await?,
-                ContractCommands::Checkout(opts) => cmds::contract::checkout::run(opts).await?,
-                ContractCommands::Diff(opts) => cmds::contract::diff::run(opts).await?,
-                ContractCommands::CommitId(opts) => cmds::contract::commit_id::run(opts).await?,
-                ContractCommands::Id(opts) => cmds::contract::id::run(opts).await?,
-                ContractCommands::Push(opts) => cmds::contract::push::run(opts).await?,
-                ContractCommands::Pull(opts) => cmds::contract::pull::run(opts).await?,
-                ContractCommands::Status(opts) => cmds::contract::status::run(opts).await?,
-                ContractCommands::Set(opts) => cmds::contract::set::run(opts).await?,
-                ContractCommands::SetNamedId(opts) => cmds::contract::set_named_id::run(opts).await?,
-                ContractCommands::Log(opts) => cmds::contract::log::run(opts).await?,
-                ContractCommands::Get(opts) => cmds::contract::get::run(opts).await?,
-                ContractCommands::Assets(opts) => cmds::contract::assets::run(opts).await?,
-                ContractCommands::WasmUpload(opts) => cmds::contract::wasm_upload::run(opts).await?,
-                ContractCommands::Pack(opts) => cmds::contract::pack::run(opts).await?,
-                ContractCommands::Unpack(opts) => cmds::contract::unpack::run(opts).await?,
-                ContractCommands::Repost(opts) => cmds::contract::repost::run(opts).await?,
-                ContractCommands::AddRule(opts) => cmds::contract::add_rule::run(opts).await?,
-                ContractCommands::Download(opts) => cmds::contract::download::run(opts).await?,
-            }
-        }
-        Commands::Hub { command } => {
-            match command {
-                HubCommands::Start(opts) => cmds::hub::start::run(opts).await?,
-            }
-        }
-        Commands::Run { command } => {
-            match command {
-                RunCommands::Miner(opts) => cmds::node::run_miner::run(opts).await?,
-                RunCommands::Validator(opts) => cmds::node::run_validator::run(opts).await?,
-                RunCommands::Observer(opts) => cmds::node::run_observer::run(opts).await?,
-            }
-        }
-        Commands::Predicate { command } => {
-            match command {
-                PredicateCommands::List(opts) => cmds::predicate::list::run(opts).await?,
-                PredicateCommands::Info(opts) => cmds::predicate::info::run(opts).await?,
-                PredicateCommands::Test(opts) => cmds::predicate::test::run(opts).await?,
-                PredicateCommands::Create(opts) => cmds::predicate::create::run(opts).await?,
-            }
-        }
-        Commands::Program { command } => {
-            match command {
-                ProgramCommands::Create(opts) => cmds::program::create::run(opts).await?,
-                ProgramCommands::List(opts) => cmds::program::list::run(opts).await?,
-                ProgramCommands::Info(opts) => cmds::program::info::run(opts).await?,
-                ProgramCommands::Upload(opts) => cmds::program::upload::run(opts).await?,
-            }
-        }
-        Commands::Chain { command } => {
-            match command {
-                ChainCommands::Validate(opts) => cmds::chain::validate::run(opts).await?,
-                ChainCommands::Heal(opts) => cmds::chain::heal::run(opts).await?,
-            }
-        }
-        Commands::Pull(opts) => cmds::contract::pull::run(opts).await?,
-        Commands::Commit(opts) => cmds::contract::commit::run(opts).await?,
-        Commands::Diff(opts) => cmds::contract::diff::run(opts).await?,
-        Commands::Set(opts) => cmds::contract::set::run(opts).await?,
-        Commands::Repost(opts) => cmds::contract::repost::run(opts).await?,
-        Commands::AddRule(opts) => cmds::contract::add_rule::run(opts).await?,
-        Commands::Download(opts) => cmds::contract::download::run(opts).await?,
-        Commands::Killall(opts) => cmds::local::killall_nodes::run(opts).await?,
+        Commands::Id { command } => match command {
+            IdCommands::Create(opts) => modality::cmds::id::create::run(opts).await?,
+            IdCommands::Derive(opts) => modality::cmds::id::derive::run(opts).await?,
+            IdCommands::Get(opts) => modality::cmds::id::get::run(opts).await?,
+        },
+        Commands::Passfile { command } => match command {
+            PassfileCommands::Decrypt(opts) => modality::cmds::passfile::decrypt::run(opts).await?,
+            PassfileCommands::Encrypt(opts) => modality::cmds::passfile::encrypt::run(opts).await?,
+        },
+        Commands::Node { command } => match command {
+            NodeCommands::Address(opts) => modal_cli_node::address::run(opts).await?,
+            NodeCommands::Create(opts) => modal_cli_node::create::run(opts).await?,
+            NodeCommands::Info(opts) => modal_cli_node::info::run(opts).await?,
+            NodeCommands::Inspect(opts) => modal_cli_node::inspect::run(opts).await?,
+            NodeCommands::Compare(opts) => modal_cli_node::compare::run(opts).await?,
+            NodeCommands::Config(opts) => modal_cli_node::config::run(opts).await?,
+            NodeCommands::Start(opts) => modal_cli_node::start::run(opts).await?,
+            NodeCommands::Stop(opts) => modal_cli_node::stop::run(opts).await?,
+            NodeCommands::Restart(opts) => modal_cli_node::restart::run(opts).await?,
+            NodeCommands::Kill(opts) => modal_cli_node::kill::run(opts).await?,
+            NodeCommands::Pid(opts) => modal_cli_node::pid::run(opts).await?,
+            NodeCommands::Logs(opts) => modal_cli_node::logs::run(opts).await?,
+            NodeCommands::Run(opts) => modal_cli_node::run::run(opts).await?,
+            NodeCommands::RunMiner(opts) => modal_cli_node::run_miner::run(opts).await?,
+            NodeCommands::RunValidator(opts) => modal_cli_node::run_validator::run(opts).await?,
+            NodeCommands::RunObserver(opts) => modal_cli_node::run_observer::run(opts).await?,
+            NodeCommands::RunNoop(opts) => modal_cli_node::run_noop::run(opts).await?,
+            NodeCommands::Ping(opts) => modal_cli_node::ping::run(opts).await?,
+            NodeCommands::Sync(opts) => modal_cli_node::sync::run(opts).await?,
+            NodeCommands::Clear(opts) => modal_cli_node::clear::run(opts).await?,
+            NodeCommands::ClearStorage(opts) => modal_cli_node::clear_storage::run(opts).await?,
+            NodeCommands::Stats(opts) => modal_cli_node::stats::run(opts).await?,
+        },
+        Commands::Local { command } => match command {
+            LocalCommands::Nodes(opts) => modal_cli_node::local::nodes::run(opts).await?,
+            LocalCommands::KillallNodes(opts) => modal_cli_node::local::killall_nodes::run(opts).await?,
+        },
+        Commands::Net { command } => match command {
+            NetworkCommands::Info(opts) => modal_cli_net::info::run(opts).await?,
+            NetworkCommands::Storage(opts) => modal_cli_net::storage::run(opts).await?,
+            NetworkCommands::Mining { command } => match command {
+                MiningCommands::Sync(opts) => modal_cli_net::mining::sync::run(opts).await?,
+            },
+        },
+        Commands::Contract { command } => match command {
+            ContractCommands::Create(opts) => modal_cli_contract::create::run(opts).await?,
+            ContractCommands::Commit(opts) => modal_cli_contract::commit::run(opts).await?,
+            ContractCommands::Checkout(opts) => modal_cli_contract::checkout::run(opts).await?,
+            ContractCommands::Diff(opts) => modal_cli_contract::diff::run(opts).await?,
+            ContractCommands::CommitId(opts) => modal_cli_contract::commit_id::run(opts).await?,
+            ContractCommands::Id(opts) => modal_cli_contract::id::run(opts).await?,
+            ContractCommands::Push(opts) => modal_cli_contract::push::run(opts).await?,
+            ContractCommands::Pull(opts) => modal_cli_contract::pull::run(opts).await?,
+            ContractCommands::Status(opts) => modal_cli_contract::status::run(opts).await?,
+            ContractCommands::Set(opts) => modal_cli_contract::set::run(opts).await?,
+            ContractCommands::SetNamedId(opts) => modal_cli_contract::set_named_id::run(opts).await?,
+            ContractCommands::Log(opts) => modal_cli_contract::log::run(opts).await?,
+            ContractCommands::Get(opts) => modal_cli_contract::get::run(opts).await?,
+            ContractCommands::Assets(opts) => modal_cli_contract::assets::run(opts).await?,
+            ContractCommands::WasmUpload(opts) => modal_cli_contract::wasm_upload::run(opts).await?,
+            ContractCommands::Pack(opts) => modal_cli_contract::pack::run(opts).await?,
+            ContractCommands::Unpack(opts) => modal_cli_contract::unpack::run(opts).await?,
+            ContractCommands::Repost(opts) => modal_cli_contract::repost::run(opts).await?,
+            ContractCommands::AddRule(opts) => modal_cli_contract::add_rule::run(opts).await?,
+            ContractCommands::Download(opts) => modal_cli_contract::download::run(opts).await?,
+        },
+        Commands::Hub { command } => match command {
+            HubCommands::Start(opts) => modal_cli_hub::start::run(opts).await?,
+        },
+        Commands::Run { command } => match command {
+            RunCommands::Miner(opts) => modal_cli_node::run_miner::run(opts).await?,
+            RunCommands::Validator(opts) => modal_cli_node::run_validator::run(opts).await?,
+            RunCommands::Observer(opts) => modal_cli_node::run_observer::run(opts).await?,
+        },
+        Commands::Predicate { command } => match command {
+            PredicateCommands::List(opts) => modal_cli_predicate::list::run(opts).await?,
+            PredicateCommands::Info(opts) => modal_cli_predicate::info::run(opts).await?,
+            PredicateCommands::Test(opts) => modal_cli_predicate::test::run(opts).await?,
+            PredicateCommands::Create(opts) => modal_cli_predicate::create::run(opts).await?,
+        },
+        Commands::Program { command } => match command {
+            ProgramCommands::Create(opts) => modal_cli_program::create::run(opts).await?,
+            ProgramCommands::List(opts) => modal_cli_program::list::run(opts).await?,
+            ProgramCommands::Info(opts) => modal_cli_program::info::run(opts).await?,
+            ProgramCommands::Upload(opts) => modal_cli_program::upload::run(opts).await?,
+        },
+        Commands::Chain { command } => match command {
+            ChainCommands::Validate(opts) => modal_cli_chain::validate::run(opts).await?,
+            ChainCommands::Heal(opts) => modal_cli_chain::heal::run(opts).await?,
+        },
+        Commands::Pull(opts) => modal_cli_contract::pull::run(opts).await?,
+        Commands::Commit(opts) => modal_cli_contract::commit::run(opts).await?,
+        Commands::Diff(opts) => modal_cli_contract::diff::run(opts).await?,
+        Commands::Set(opts) => modal_cli_contract::set::run(opts).await?,
+        Commands::Repost(opts) => modal_cli_contract::repost::run(opts).await?,
+        Commands::AddRule(opts) => modal_cli_contract::add_rule::run(opts).await?,
+        Commands::Download(opts) => modal_cli_contract::download::run(opts).await?,
+        Commands::Killall(opts) => modal_cli_node::local::killall_nodes::run(opts).await?,
         Commands::Upgrade(opts) => modality::cmds::upgrade::run(opts).await?,
         Commands::Status(opts) => {
-            // Check if we're in (or nested inside) a contract directory
             let dir = std::env::current_dir()?;
             if modal_common::contract_store::ContractStore::open(&dir).is_ok() {
-                cmds::contract::status::run(opts).await?
+                modal_cli_contract::status::run(opts).await?
             } else {
                 println!("Not in a contract directory.");
                 println!("Run 'modal contract create' to create a new contract.");
@@ -504,4 +475,3 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
-

@@ -17,7 +17,15 @@ members = [
 , "modal"
 , "modal-networks"
 , "modal-wasm-runtime"
-, "modal-wasm-validation"]
+, "modal-wasm-validation"
+, "modal-cli-common"
+, "modal-cli-hub"
+, "modal-cli-node"
+, "modal-cli-contract"
+, "modal-cli-predicate"
+, "modal-cli-program"
+, "modal-cli-chain"
+, "modal-cli-net"]
 
 default-members = [
   "modality",

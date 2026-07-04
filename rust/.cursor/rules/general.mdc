@@ -6,3 +6,4 @@ alwaysApply: true
 - Keep code within the modality cli package as minimal as possible, refactoring code into other packages as needed.
 - During development and testing, only build and use the debug `modal` binary, not the release `modal` binary.
 - Use `modal killall` to killall running modal nodes during development and testing. Specify the --dir option to kill nodes in the current directory and its subdirectories.
+- The Modal CLI is partitioned into domain crates under `rust/modal-cli-*`. When working on a specific command area, build only the relevant crate for faster iteration (e.g. `cargo build -p modal-cli-hub`, `cargo build -p modal-cli-contract`, `cargo build -p modal-cli-node`). Build the full CLI with `cargo build -p modal` when integration testing.

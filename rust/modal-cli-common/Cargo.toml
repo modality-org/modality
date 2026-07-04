@@ -1,0 +1,13 @@
+[package]
+name = "modal-cli-common"
+version = "0.1.0"
+edition = "2021"
+description = "Shared utilities for Modal CLI domain crates"
+license = "MIT"
+repository = "https://github.com/modality-org/modality"
+homepage = "https://www.modality.org"
+
+[dependencies]
+anyhow = "1.0"
+serde = "1.0"
+serde_json = "1.0"
