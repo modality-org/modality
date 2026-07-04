@@ -146,7 +146,7 @@ enum NetworkCommands {
     Info(modal_cli_net::info::Opts),
 
     #[command(about = "Inspect network datastore and show statistics")]
-    Storage(modal_cli_net::storage::Opts),
+    Storage(modal_cli_node::net_storage::Opts),
 
     #[command(about = "Mining related commands")]
     Mining {
@@ -236,7 +236,7 @@ enum NodeCommands {
 #[derive(Subcommand)]
 enum MiningCommands {
     #[command(about = "Sync miner blocks from a specified node")]
-    Sync(modal_cli_net::mining::sync::Opts),
+    Sync(modal_cli_node::net_mining_sync::Opts),
 }
 
 #[derive(Subcommand)]
@@ -278,7 +278,7 @@ enum ContractCommands {
     Log(modal_cli_contract::log::Opts),
 
     #[command(about = "Get contract or commit information")]
-    Get(modal_cli_contract::get::Opts),
+    Get(modal_cli_node::contract_get::Opts),
 
     #[command(about = "Manage contract assets")]
     Assets(modal_cli_contract::assets::Opts),
@@ -402,9 +402,9 @@ async fn main() -> Result<()> {
         },
         Commands::Net { command } => match command {
             NetworkCommands::Info(opts) => modal_cli_net::info::run(opts).await?,
-            NetworkCommands::Storage(opts) => modal_cli_net::storage::run(opts).await?,
+            NetworkCommands::Storage(opts) => modal_cli_node::net_storage::run(opts).await?,
             NetworkCommands::Mining { command } => match command {
-                MiningCommands::Sync(opts) => modal_cli_net::mining::sync::run(opts).await?,
+                MiningCommands::Sync(opts) => modal_cli_node::net_mining_sync::run(opts).await?,
             },
         },
         Commands::Contract { command } => match command {
@@ -420,7 +420,7 @@ async fn main() -> Result<()> {
             ContractCommands::Set(opts) => modal_cli_contract::set::run(opts).await?,
             ContractCommands::SetNamedId(opts) => modal_cli_contract::set_named_id::run(opts).await?,
             ContractCommands::Log(opts) => modal_cli_contract::log::run(opts).await?,
-            ContractCommands::Get(opts) => modal_cli_contract::get::run(opts).await?,
+            ContractCommands::Get(opts) => modal_cli_node::contract_get::run(opts).await?,
             ContractCommands::Assets(opts) => modal_cli_contract::assets::run(opts).await?,
             ContractCommands::WasmUpload(opts) => modal_cli_contract::wasm_upload::run(opts).await?,
             ContractCommands::Pack(opts) => modal_cli_contract::pack::run(opts).await?,

@@ -7,7 +7,7 @@ use modal_node::config_resolution::load_config_with_node_dir;
 use modal_node::node::Node;
 #[allow(unused_imports)]
 use modal_datastore::{models::miner::MinerBlock, Model};
-use libp2p::{Multiaddr, PeerId};
+use modal_node::{Multiaddr, PeerId};
 
 #[derive(Debug, Parser)]
 #[command(about = "Sync blockchain from network peers")]
@@ -98,7 +98,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("🔄  Peer {}/{}: {}", peers_attempted, opts.max_peers, addr_str);
         
         // Extract peer ID from multiaddr
-        use libp2p::multiaddr::Protocol;
+        use modal_node::Protocol;
         let peer_id = bootstrapper.iter()
             .find_map(|proto| {
                 if let Protocol::P2p(id) = proto {

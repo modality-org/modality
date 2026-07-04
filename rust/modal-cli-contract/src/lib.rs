@@ -8,7 +8,6 @@ pub mod commit_id;
 pub mod create;
 pub mod diff;
 pub mod download;
-pub mod get;
 pub mod id;
 pub mod log;
 pub mod pack;

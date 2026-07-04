@@ -13,15 +13,15 @@ readme = "../README.md"
 modality = { path = "../modality", version = "0.1.7", features = ["identity", "passfile", "upgrade"] }
 modal-common = { path = "../modal-common", version = "0.1.7" }
 modal-cli-node = { path = "../modal-cli-node", version = "0.1.0" }
-modal-cli-contract = { path = "../modal-cli-contract", version = "0.1.0" }
+modal-cli-contract = { path = "../modal-cli-contract", version = "0.1.0", features = ["full"] }
 modal-cli-hub = { path = "../modal-cli-hub", version = "0.1.0" }
 modal-cli-predicate = { path = "../modal-cli-predicate", version = "0.1.0" }
-modal-cli-program = { path = "../modal-cli-program", version = "0.1.0" }
+modal-cli-program = { path = "../modal-cli-program", version = "0.1.0", features = ["full"] }
 modal-cli-chain = { path = "../modal-cli-chain", version = "0.1.0" }
 modal-cli-net = { path = "../modal-cli-net", version = "0.1.0" }
 anyhow = "1.0"
 clap = { version = "4.1.11", features = ["cargo", "derive", "env"] }
-tokio = { version = "1.42.0", features = ["full"] }
+tokio = { version = "1.42.0", features = ["rt-multi-thread", "macros"] }
 
 [dev-dependencies]
 tempfile = "3.10"

@@ -37,8 +37,17 @@ cd modality/rust
 # Hub server work
 cargo build -p modal-cli-hub
 
-# Contract commands
+# Contract commands (lean default: no libp2p, wasmtime, or modality-lang)
 cargo build -p modal-cli-contract
+
+# Contract commands with all optional deps (P2P push/pull, model status, WASM upload)
+cargo build -p modal-cli-contract --features full
+
+# Program commands with WASM validation
+cargo build -p modal-cli-program --features full
+
+# Network info only (very lean: modal-networks + clap)
+cargo build -p modal-cli-net
 
 # Node management
 cargo build -p modal-cli-node

@@ -12,6 +12,11 @@ const DEFAULT_CHECK_INTERVAL_SECS: u64 = 3600;
 const DEFAULT_BASE_URL: &str = "http://get.modal.money";
 const DEFAULT_BRANCH: &str = "testnet";
 
+/// Default autoupgrade base URL for node creation.
+pub const DEFAULT_AUTOUPGRADE_BASE_URL: &str = DEFAULT_BASE_URL;
+/// Default autoupgrade check interval in seconds for node creation.
+pub const DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS: u64 = DEFAULT_CHECK_INTERVAL_SECS;
+
 /// Configuration for autoupgrade
 #[derive(Debug, Clone)]
 pub struct AutoupgradeConfig {

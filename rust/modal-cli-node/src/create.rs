@@ -4,7 +4,8 @@ use serde_json::json;
 use std::path::PathBuf;
 
 use modal_common::keypair::Keypair;
-use modality::constants::{TESTNET_BOOTSTRAPPERS, DEFAULT_AUTOUPGRADE_BASE_URL, DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS};
+use modal_node::autoupgrade::{DEFAULT_AUTOUPGRADE_BASE_URL, DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS};
+use modal_networks::networks;
 
 #[derive(Debug, Parser)]
 #[command(about = "Create a new node directory with config.json and node.modal_passfile")]
@@ -292,15 +293,17 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Resolve network configuration
     let (network_bootstrappers, autoupgrade_config) = if opts.testnet {
-        // Testnet mode: use embedded testnet config and enable autoupgrade
-        let bootstrappers = TESTNET_BOOTSTRAPPERS.iter().map(|s| s.to_string()).collect();
-        
+        // Testnet mode: use testnet network config and enable autoupgrade
+        let testnet = networks::by_name("testnet")
+            .context("Testnet network configuration not found")?;
+        let bootstrappers = testnet.bootstrappers.clone();
+
         let autoupgrade = Some((
             DEFAULT_AUTOUPGRADE_BASE_URL.to_string(),
             "testnet".to_string(),
-            DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS
+            DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS,
         ));
-        
+
         (bootstrappers, autoupgrade)
     } else if let Some(network) = &opts.network {
         // Network preset mode: load bootstrappers from fixture files (development only)

@@ -5,7 +5,10 @@ use std::path::PathBuf;
 
 use modal_common::contract_store::{ContractStore, CommitFile};
 use modal_common::hub_client::{HubClient, HubCredentials, is_hub_url};
+
+#[cfg(feature = "p2p")]
 use modal_node::actions::request;
+#[cfg(feature = "p2p")]
 use modal_node::node::Node;
 
 #[derive(Debug, Parser)]
@@ -88,6 +91,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let (_head, commits) = hub.pull(&config.contract_id, since_commit.as_deref()).await?;
         commits
     } else {
+        #[cfg(feature = "p2p")]
+        {
         // P2P node pull
         let node_config = if let Some(node_dir) = &opts.node_dir {
             let config_path = node_dir.join("config.json");
@@ -131,6 +136,13 @@ pub async fn run(opts: &Opts) -> Result<()> {
             .and_then(|c| c.as_array())
             .cloned()
             .ok_or_else(|| anyhow::anyhow!("Invalid response format"))?
+        }
+        #[cfg(not(feature = "p2p"))]
+        {
+            anyhow::bail!(
+                "P2P remotes require the `p2p` feature. Use an HTTP hub remote or rebuild with full features."
+            );
+        }
     };
 
     if commits.is_empty() {

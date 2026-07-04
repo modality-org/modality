@@ -5,8 +5,7 @@ use modal_node::config_resolution::load_config_with_node_dir;
 use modal_node::node::Node;
 use modal_datastore::DatastoreManager;
 use modal_datastore::models::miner::MinerBlock;
-use libp2p::{PeerId, Multiaddr};
-use libp2p::multiaddr::Protocol;
+use modal_node::{PeerId, Multiaddr, Protocol};
 
 #[derive(Debug, Parser)]
 #[command(about = "Compare local chain with a remote peer's chain")]

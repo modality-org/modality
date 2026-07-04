@@ -5,7 +5,10 @@ use std::path::PathBuf;
 
 use modal_common::contract_store::ContractStore;
 use modal_common::hub_client::{HubClient, HubCredentials, is_hub_url};
+
+#[cfg(feature = "p2p")]
 use modal_node::actions::request;
+#[cfg(feature = "p2p")]
 use modal_node::node::Node;
 
 #[derive(Debug, Parser)]
@@ -167,6 +170,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
             }
         }
     } else {
+        #[cfg(feature = "p2p")]
+        {
         // P2P node push
         let node_config = if let Some(node_dir) = &opts.node_dir {
             let config_path = node_dir.join("config.json");
@@ -225,6 +230,13 @@ pub async fn run(opts: &Opts) -> Result<()> {
             }
         } else {
             anyhow::bail!("Failed to push commits: {:?}", response.errors);
+        }
+        }
+        #[cfg(not(feature = "p2p"))]
+        {
+            anyhow::bail!(
+                "P2P remotes require the `p2p` feature. Use an HTTP hub remote or rebuild with full features."
+            );
         }
     }
 

@@ -4,6 +4,8 @@ use serde_json::json;
 use std::path::PathBuf;
 
 use modal_common::contract_store::ContractStore;
+
+#[cfg(feature = "model-status")]
 use modality_lang::parse_content_lalrpop;
 
 #[derive(Debug, Parser)]
@@ -50,17 +52,22 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Load and parse the governing model to determine current state
     let model_path = contract_dir.join("model").join("default.modality");
-    let current_model_state = if model_path.exists() {
-        let model_content = std::fs::read_to_string(&model_path)?;
-        match parse_content_lalrpop(&model_content) {
-            Ok(model) => {
-                // Get initial state
-                let initial = model.initial.clone().unwrap_or_else(|| "init".to_string());
-                // For now, just show the initial state
-                // TODO: replay commits to determine actual current state
-                Some(initial)
+    let current_model_state: Option<String> = if model_path.exists() {
+        #[cfg(feature = "model-status")]
+        {
+            let model_content = std::fs::read_to_string(&model_path)?;
+            match parse_content_lalrpop(&model_content) {
+                Ok(model) => {
+                    let initial = model.initial.clone().unwrap_or_else(|| "init".to_string());
+                    Some(initial)
+                }
+                Err(_) => None,
             }
-            Err(_) => None
+        }
+        #[cfg(not(feature = "model-status"))]
+        {
+            let _ = model_path;
+            None
         }
     } else {
         None

@@ -14,7 +14,7 @@ modal-rpc = { path = "../modal-rpc", version = "0.1.0" }
 anyhow = "1.0"
 tracing = "0.1"
 clap = { version = "4.1.11", features = ["derive"] }
-tokio = { version = "1.42.0", features = ["full"] }
+tokio = { version = "1.42.0", features = ["rt-multi-thread", "macros", "time", "fs", "signal"] }
 async-trait = "0.1.68"
 serde = "1.0"
 serde_json = "1.0"

@@ -53,10 +53,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Read WASM file
     let wasm_bytes = fs::read(&opts.wasm_file)
         .context("Failed to read WASM file")?;
-
-    // Validate WASM module
-    modal_wasm_runtime::WasmExecutor::validate_module(&wasm_bytes)
-        .context("Invalid WASM module")?;
+    validate_wasm_module(&wasm_bytes)?;
 
     // Encode as base64
     use base64::{Engine as _, engine::general_purpose};
@@ -123,5 +120,21 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn validate_wasm_module(wasm_bytes: &[u8]) -> Result<()> {
+    #[cfg(feature = "wasm")]
+    {
+        modal_wasm_runtime::WasmExecutor::validate_module(wasm_bytes)
+            .context("Invalid WASM module")?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "wasm"))]
+    {
+        let _ = wasm_bytes;
+        anyhow::bail!(
+            "WASM validation requires the `wasm` feature. Rebuild with full features."
+        );
+    }
 }
 

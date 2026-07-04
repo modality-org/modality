@@ -7,10 +7,15 @@ license = "MIT"
 repository = "https://github.com/modality-org/modality"
 homepage = "https://www.modality.org"
 
+[features]
+default = []
+wasm = ["dep:modal-wasm-runtime"]
+full = ["wasm"]
+
 [dependencies]
 modal-cli-common = { path = "../modal-cli-common", version = "0.1.0" }
 modal-common = { path = "../modal-common", version = "0.1.7" }
-modal-wasm-runtime = { path = "../modal-wasm-runtime", version = "0.1.0" }
+modal-wasm-runtime = { path = "../modal-wasm-runtime", version = "0.1.0", optional = true }
 anyhow = "1.0"
 clap = { version = "4.1.11", features = ["derive"] }
 colored = "2.1"

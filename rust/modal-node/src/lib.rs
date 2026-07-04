@@ -23,3 +23,6 @@ pub mod constants;
 pub mod chain;
 pub mod sync;
 pub mod templates;
+
+pub use libp2p::{Multiaddr, PeerId};
+pub use libp2p::multiaddr::Protocol;

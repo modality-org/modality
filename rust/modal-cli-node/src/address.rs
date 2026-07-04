@@ -1,7 +1,7 @@
 use anyhow::{Result, Context};
 use clap::Parser;
 use std::path::PathBuf;
-use libp2p::Multiaddr;
+use modal_node::Multiaddr;
 
 use modal_node::config_resolution::load_config_with_node_dir;
 
@@ -52,7 +52,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
     
     // Parse peer ID once
-    let peer_id_parsed: libp2p::PeerId = peer_id.parse()
+    let peer_id_parsed: modal_node::PeerId = peer_id.parse()
         .context("Failed to parse peer ID")?;
     
     // Build addresses with /p2p/<peer_id> appended
@@ -61,7 +61,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     for listener in listeners {
         // Clone the listener multiaddr and append peer ID
         let mut addr = listener.clone();
-        addr.push(libp2p::multiaddr::Protocol::P2p(peer_id_parsed));
+        addr.push(modal_node::Protocol::P2p(peer_id_parsed));
         addresses.push(addr);
     }
     
@@ -96,7 +96,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
 /// Check if a multiaddr represents a public IP address
 fn is_public_address(addr: &Multiaddr) -> bool {
-    use libp2p::multiaddr::Protocol;
+    use modal_node::Protocol;
     
     for protocol in addr.iter() {
         match protocol {
@@ -118,7 +118,7 @@ fn is_public_address(addr: &Multiaddr) -> bool {
 
 /// Check if a multiaddr represents a local/loopback address
 fn is_local_address(addr: &Multiaddr) -> bool {
-    use libp2p::multiaddr::Protocol;
+    use modal_node::Protocol;
     
     for protocol in addr.iter() {
         match protocol {
