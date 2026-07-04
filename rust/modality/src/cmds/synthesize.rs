@@ -1047,6 +1047,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_PLAN] true -> eventually(<+REVIEW_AGENT_PLAN> true))"#,
             r#"always([+REVIEW_AGENT_PLAN] true -> eventually(<+APPROVE_AGENT_PLAN> true))"#,
             r#"always([+APPROVE_AGENT_PLAN] true -> eventually(<+START_AGENT_EXECUTION> true))"#,
+            r#"always([+START_AGENT_EXECUTION] true -> eventually(<+MONITOR_AGENT_EXECUTION> true))"#,
+            r#"always([+MONITOR_AGENT_EXECUTION] true -> eventually(<+COMPLETE_AGENT_EXECUTION> true))"#,
+            r#"always([+COMPLETE_AGENT_EXECUTION] true -> eventually(<+REVIEW_AGENT_EXECUTION_LOG> true))"#,
             r#"always([+REQUEST_CONSENT_CHANGE] true -> eventually(<+REVIEW_CONSENT_SCOPE> true))"#,
             r#"always([+REVIEW_CONSENT_SCOPE] true -> eventually(<+APPLY_CONSENT_CHANGE> true))"#,
             r#"always([+APPLY_CONSENT_CHANGE] true -> eventually(<+CONFIRM_CONSENT_CHANGE> true))"#,
@@ -8585,6 +8588,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_PLAN] true -> eventually(<+START_AGENT_EXECUTION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_execution_monitoring_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+START_AGENT_EXECUTION] true -> eventually(<+MONITOR_AGENT_EXECUTION> true))"
+        ));
+        assert!(output.contains(
+            "always([+MONITOR_AGENT_EXECUTION] true -> eventually(<+COMPLETE_AGENT_EXECUTION> true))"
+        ));
+        assert!(output.contains(
+            "always([+COMPLETE_AGENT_EXECUTION] true -> eventually(<+REVIEW_AGENT_EXECUTION_LOG> true))"
         ));
     }
 
@@ -23936,6 +23954,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentPlanApproval",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_execution_monitoring_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+START_AGENT_EXECUTION] true -> eventually(<+MONITOR_AGENT_EXECUTION> true))"
+                .to_string(),
+            "always([+MONITOR_AGENT_EXECUTION] true -> eventually(<+COMPLETE_AGENT_EXECUTION> true))"
+                .to_string(),
+            "always([+COMPLETE_AGENT_EXECUTION] true -> eventually(<+REVIEW_AGENT_EXECUTION_LOG> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentExecutionMonitoring",
             &formulas,
         );
 
