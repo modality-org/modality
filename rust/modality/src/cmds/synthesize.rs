@@ -5643,6 +5643,26 @@ data: [DONE]
     }
 
     #[test]
+    fn llm_xml_escaped_formulas_round_trip_to_verification() {
+        let response = r#"
+<formulas>
+  <formula>[+APPROVE_ACCESS_EXCEPTION] true -&gt; &lt;+signed_by(/users/security_lead.id)&gt; true</formula>
+  <formula_text>Formula 2: [+APPROVE_ACCESS_EXCEPTION] true -&gt; eventually(&lt;+PUBLISH_ACCESS_EXCEPTION&gt; true)</formula_text>
+</formulas>
+"#;
+
+        let formula_strings = modality_lang::llm_synthesis::parse_llm_response(response);
+        assert_eq!(formula_strings.len(), 2);
+
+        let formulas = parse_formula_strings(&formula_strings);
+        assert_eq!(formulas.len(), 2);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn llm_markdown_table_formulas_round_trip_to_verification() {
         let response = r#"
 | id | formula |
