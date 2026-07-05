@@ -5514,6 +5514,34 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn llm_fenced_json_formula_fields_round_trip_to_verification() {
+        let response = r#"
+```json
+[
+  {
+    "label": "F1",
+    "formula": "formula generated_1 { [+APPROVE_EMERGENCY_CHANGE] true -> <+signed_by(/users/change_manager.id)> true }"
+  },
+  {
+    "label": "F2",
+    "formula": "[+APPROVE_EMERGENCY_CHANGE] true -> eventually(<+PUBLISH_EMERGENCY_CHANGE> true)"
+  }
+]
+```
+"#;
+
+        let formula_strings = modality_lang::llm_synthesis::parse_llm_response(response);
+        assert_eq!(formula_strings.len(), 2);
+
+        let formulas = parse_formula_strings(&formula_strings);
+        assert_eq!(formulas.len(), 2);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn llm_chat_json_content_round_trip_to_verification() {
         let response = r#"
 {
