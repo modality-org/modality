@@ -1923,6 +1923,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_DECISION_VALIDATION_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_VALIDATION_READINESS> true))"#,
             r#"always([+MEASURE_DECISION_VALIDATION_READINESS] true -> eventually(<+APPROVE_DECISION_VALIDATION_READINESS> true))"#,
             r#"always([+APPROVE_DECISION_VALIDATION_READINESS] true -> eventually(<+PUBLISH_DECISION_VALIDATION_READINESS> true))"#,
+            r#"always([+REQUEST_DECISION_VERIFICATION_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_VERIFICATION_READINESS> true))"#,
+            r#"always([+MEASURE_DECISION_VERIFICATION_READINESS] true -> eventually(<+APPROVE_DECISION_VERIFICATION_READINESS> true))"#,
+            r#"always([+APPROVE_DECISION_VERIFICATION_READINESS] true -> eventually(<+PUBLISH_DECISION_VERIFICATION_READINESS> true))"#,
             r#"always([+REQUEST_DECISION_ODDS_REVIEW] true -> eventually(<+MEASURE_DECISION_ODDS> true))"#,
             r#"always([+MEASURE_DECISION_ODDS] true -> eventually(<+APPROVE_DECISION_ODDS_REPORT> true))"#,
             r#"always([+APPROVE_DECISION_ODDS_REPORT] true -> eventually(<+PUBLISH_DECISION_ODDS_REPORT> true))"#,
@@ -16699,6 +16702,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_DECISION_VALIDATION_READINESS] true -> eventually(<+PUBLISH_DECISION_VALIDATION_READINESS> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_decision_verification_readiness_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_DECISION_VERIFICATION_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_VERIFICATION_READINESS> true))"
+        ));
+        assert!(output.contains(
+            "always([+MEASURE_DECISION_VERIFICATION_READINESS] true -> eventually(<+APPROVE_DECISION_VERIFICATION_READINESS> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_DECISION_VERIFICATION_READINESS] true -> eventually(<+PUBLISH_DECISION_VERIFICATION_READINESS> true))"
         ));
     }
 
@@ -35213,6 +35231,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "DecisionValidationReadiness",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_decision_verification_readiness_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_DECISION_VERIFICATION_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_VERIFICATION_READINESS> true))"
+                .to_string(),
+            "always([+MEASURE_DECISION_VERIFICATION_READINESS] true -> eventually(<+APPROVE_DECISION_VERIFICATION_READINESS> true))"
+                .to_string(),
+            "always([+APPROVE_DECISION_VERIFICATION_READINESS] true -> eventually(<+PUBLISH_DECISION_VERIFICATION_READINESS> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "DecisionVerificationReadiness",
             &formulas,
         );
 
