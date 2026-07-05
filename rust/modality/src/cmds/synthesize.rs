@@ -5567,6 +5567,31 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn llm_encoded_json_message_content_round_trip_to_verification() {
+        let response = r#"
+{
+  "choices": [
+    {
+      "message": {
+        "content": "{\"formulas\":[\"[+APPROVE_POSTMORTEM] true -> <+signed_by(/users/incident_lead.id)> true\",\"[+APPROVE_POSTMORTEM] true -> eventually(<+PUBLISH_POSTMORTEM> true)\"]}"
+      }
+    }
+  ]
+}
+"#;
+
+        let formula_strings = modality_lang::llm_synthesis::parse_llm_response(response);
+        assert_eq!(formula_strings.len(), 2);
+
+        let formulas = parse_formula_strings(&formula_strings);
+        assert_eq!(formulas.len(), 2);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn llm_responses_output_text_round_trip_to_verification() {
         let response = r#"
 {
