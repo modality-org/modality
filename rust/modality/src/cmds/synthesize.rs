@@ -5623,6 +5623,26 @@ data: [DONE]
     }
 
     #[test]
+    fn llm_xml_tagged_formulas_round_trip_to_verification() {
+        let response = r#"
+<formulas>
+  <formula>[+APPROVE_INCIDENT_UPDATE] true -> <+signed_by(/users/communications_lead.id)> true</formula>
+  <formula_text>Formula 2: [+APPROVE_INCIDENT_UPDATE] true -> eventually(<+PUBLISH_INCIDENT_UPDATE> true)</formula_text>
+</formulas>
+"#;
+
+        let formula_strings = modality_lang::llm_synthesis::parse_llm_response(response);
+        assert_eq!(formula_strings.len(), 2);
+
+        let formulas = parse_formula_strings(&formula_strings);
+        assert_eq!(formulas.len(), 2);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn synthesis_list_includes_core_formula_shape_examples() {
         let output = synthesis_list_text();
 
