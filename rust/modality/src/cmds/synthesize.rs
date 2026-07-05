@@ -1254,6 +1254,9 @@ const FORMULA_EXAMPLE_GROUPS: &[FormulaExampleGroup] = &[
             r#"always([+REQUEST_AGENT_DECISION_AUTHORIZATION] true -> eventually(<+REVIEW_AGENT_DECISION_AUTHORIZATION> true))"#,
             r#"always([+REVIEW_AGENT_DECISION_AUTHORIZATION] true -> eventually(<+APPROVE_AGENT_DECISION_AUTHORIZATION> true))"#,
             r#"always([+APPROVE_AGENT_DECISION_AUTHORIZATION] true -> eventually(<+RECORD_AGENT_DECISION_AUTHORIZATION> true))"#,
+            r#"always([+REQUEST_AGENT_DECISION_SANCTION] true -> eventually(<+REVIEW_AGENT_DECISION_SANCTION> true))"#,
+            r#"always([+REVIEW_AGENT_DECISION_SANCTION] true -> eventually(<+APPROVE_AGENT_DECISION_SANCTION> true))"#,
+            r#"always([+APPROVE_AGENT_DECISION_SANCTION] true -> eventually(<+RECORD_AGENT_DECISION_SANCTION> true))"#,
             r#"always([+REQUEST_AGENT_DECISION_PERMISSION] true -> eventually(<+REVIEW_AGENT_DECISION_PERMISSION> true))"#,
             r#"always([+REVIEW_AGENT_DECISION_PERMISSION] true -> eventually(<+APPROVE_AGENT_DECISION_PERMISSION> true))"#,
             r#"always([+APPROVE_AGENT_DECISION_PERMISSION] true -> eventually(<+RECORD_AGENT_DECISION_PERMISSION> true))"#,
@@ -9836,6 +9839,21 @@ F2: formula generated_2 {
         ));
         assert!(output.contains(
             "always([+APPROVE_AGENT_DECISION_AUTHORIZATION] true -> eventually(<+RECORD_AGENT_DECISION_AUTHORIZATION> true))"
+        ));
+    }
+
+    #[test]
+    fn synthesis_list_includes_agent_decision_sanction_ordering_examples() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "always([+REQUEST_AGENT_DECISION_SANCTION] true -> eventually(<+REVIEW_AGENT_DECISION_SANCTION> true))"
+        ));
+        assert!(output.contains(
+            "always([+REVIEW_AGENT_DECISION_SANCTION] true -> eventually(<+APPROVE_AGENT_DECISION_SANCTION> true))"
+        ));
+        assert!(output.contains(
+            "always([+APPROVE_AGENT_DECISION_SANCTION] true -> eventually(<+RECORD_AGENT_DECISION_SANCTION> true))"
         ));
     }
 
@@ -26474,6 +26492,24 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AgentDecisionAuthorization",
+            &formulas,
+        );
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
+    fn verify_synthesized_model_accepts_agent_decision_sanction_ordering_prompt_examples() {
+        let formulas = parse_formula_strings(&[
+            "always([+REQUEST_AGENT_DECISION_SANCTION] true -> eventually(<+REVIEW_AGENT_DECISION_SANCTION> true))"
+                .to_string(),
+            "always([+REVIEW_AGENT_DECISION_SANCTION] true -> eventually(<+APPROVE_AGENT_DECISION_SANCTION> true))"
+                .to_string(),
+            "always([+APPROVE_AGENT_DECISION_SANCTION] true -> eventually(<+RECORD_AGENT_DECISION_SANCTION> true))"
+                .to_string(),
+        ]);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "AgentDecisionSanction",
             &formulas,
         );
 
