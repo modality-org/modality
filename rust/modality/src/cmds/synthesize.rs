@@ -5703,6 +5703,32 @@ formula_text: <![CDATA[Formula 2: [+APPROVE_POLICY_EXCEPTION] true -> eventually
     }
 
     #[test]
+    fn llm_multiline_xml_escaped_formulas_round_trip_to_verification() {
+        let response = r#"
+<formulas>
+  <formula>
+    [+APPROVE_DATA_RETENTION_EXCEPTION] true -&gt;
+      &lt;+signed_by(/users/data_governance_owner.id)&gt; true
+  </formula>
+  <formula_text>
+    Formula 2: [+APPROVE_DATA_RETENTION_EXCEPTION] true -&gt;
+      eventually(&lt;+PUBLISH_DATA_RETENTION_EXCEPTION&gt; true)
+  </formula_text>
+</formulas>
+"#;
+
+        let formula_strings = modality_lang::llm_synthesis::parse_llm_response(response);
+        assert_eq!(formula_strings.len(), 2);
+
+        let formulas = parse_formula_strings(&formula_strings);
+        assert_eq!(formulas.len(), 2);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn llm_markdown_table_formulas_round_trip_to_verification() {
         let response = r#"
 | id | formula |
