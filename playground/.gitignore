@@ -1,0 +1,6 @@
+**
+!.gitignore
+!.gitkeep
+!.envrc
+!.direnv
+!.direnv/*
