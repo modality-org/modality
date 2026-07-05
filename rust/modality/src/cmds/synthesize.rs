@@ -5452,6 +5452,46 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn llm_parsed_formula_declarations_preserve_predicate_constraints() {
+        let response = r#"
+```modality
+F1: formula generated_1 {
+[+RELEASE] true -> eventually(<+DELIVER> true)
+}
+F2: formula generated_2 {
+[+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true
+}
+```
+"#;
+
+        let formula_strings = modality_lang::llm_synthesis::parse_llm_response(response);
+        assert_eq!(formula_strings.len(), 2);
+
+        let formulas = parse_formula_strings(&formula_strings);
+        assert_eq!(formulas.len(), 2);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        let release_transition = model.parts[0]
+            .transitions
+            .iter()
+            .find(|transition| {
+                transition.properties.iter().any(|property| {
+                    property.sign == modality_lang::PropertySign::Plus
+                        && property.name == "RELEASE"
+                })
+            })
+            .expect("synthesized model should contain a RELEASE transition");
+
+        assert!(release_transition.properties.iter().any(|property| {
+            property.sign == modality_lang::PropertySign::Plus
+                && property.name == "oracle_attests"
+        }));
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn synthesis_list_includes_core_formula_shape_examples() {
         let output = synthesis_list_text();
 
