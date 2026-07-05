@@ -20058,6 +20058,67 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[tokio::test]
+    async fn llm_response_file_verify_accepts_tool_call_arguments() {
+        let response_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-tool-call-response-run-{}.json",
+            std::process::id()
+        ));
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-tool-call-output-{}.json",
+            std::process::id()
+        ));
+        std::fs::write(
+            &response_path,
+            r#"
+{
+  "choices": [
+    {
+      "message": {
+        "tool_calls": [
+          {
+            "type": "function",
+            "function": {
+              "name": "emit_formulas",
+              "arguments": "{\"formulas\":[\"[+APPROVE_AGENT_TOOL_USE] true -> <+signed_by(/users/agent_safety_lead.id)> true\",\"[+APPROVE_AGENT_TOOL_USE] true -> eventually(<+ENABLE_AGENT_TOOL_USE> true)\"]}"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
+"#,
+        )
+        .unwrap();
+
+        let mut opts = default_test_opts();
+        opts.llm_response_file = Some(response_path.clone());
+        opts.output = Some(output_path.clone());
+        opts.verify = true;
+        opts.format = "json".to_string();
+
+        run(&opts).await.unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(response_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(parsed["name"], "Contract");
+        let action_names = parsed["parts"][0]["transitions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|transition| transition["properties"].as_array().unwrap())
+            .map(|property| property["name"].as_str().unwrap())
+            .collect::<Vec<_>>();
+
+        assert!(action_names.contains(&"APPROVE_AGENT_TOOL_USE"));
+        assert!(action_names.contains(&"signed_by"));
+        assert!(action_names.contains(&"ENABLE_AGENT_TOOL_USE"));
+    }
+
+    #[tokio::test]
     async fn inline_llm_response_reports_expected_formula_shapes_when_empty() {
         let mut opts = default_test_opts();
         opts.llm_response =
