@@ -5977,6 +5977,21 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     }
 
     #[test]
+    fn llm_encoded_json_array_round_trip_to_verification() {
+        let response = r#""[\"[+APPROVE_BENCHMARK_REPORT] true -> <+signed_by(/users/benchmark_lead.id)> true\",\"[+APPROVE_BENCHMARK_REPORT] true -> eventually(<+PUBLISH_BENCHMARK_REPORT> true)\"]""#;
+
+        let formula_strings = modality_lang::llm_synthesis::parse_llm_response(response);
+        assert_eq!(formula_strings.len(), 2);
+
+        let formulas = parse_formula_strings(&formula_strings);
+        assert_eq!(formulas.len(), 2);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn synthesis_list_includes_core_formula_shape_examples() {
         let output = synthesis_list_text();
 
