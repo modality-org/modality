@@ -20119,6 +20119,47 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[tokio::test]
+    async fn llm_response_file_verify_accepts_stream_data_events() {
+        let response_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-stream-response-run-{}.txt",
+            std::process::id()
+        ));
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-stream-output-{}.modality",
+            std::process::id()
+        ));
+        std::fs::write(
+            &response_path,
+            r#"
+event: message.delta
+data: {"choices":[{"delta":{"content":"F1: [+AUTHORIZE_AGENT_HANDOFF] true -> <+signed_by(/users/agent_supervisor.id)> true"}}]}
+data: {"output":[{"content":[{"type":"output_text","text":"Formula 2: [+AUTHORIZE_AGENT_HANDOFF] true -> eventually(<+START_AGENT_HANDOFF> true)"}]}]}
+data: {"message":"Explanation only."}
+data: [DONE]
+"#,
+        )
+        .unwrap();
+
+        let mut opts = default_test_opts();
+        opts.llm_response_file = Some(response_path.clone());
+        opts.output = Some(output_path.clone());
+        opts.verify = true;
+
+        run(&opts).await.unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(response_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        let models = modality_lang::parse_all_models_content_lalrpop(&output).unwrap();
+        assert_eq!(models.len(), 1);
+        assert!(output.contains("model Contract"));
+        assert!(output.contains("+AUTHORIZE_AGENT_HANDOFF"));
+        assert!(output.contains("+signed_by"));
+        assert!(output.contains("+START_AGENT_HANDOFF"));
+    }
+
+    #[tokio::test]
     async fn inline_llm_response_reports_expected_formula_shapes_when_empty() {
         let mut opts = default_test_opts();
         opts.llm_response =
