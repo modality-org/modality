@@ -20200,6 +20200,46 @@ data: [DONE]
     }
 
     #[tokio::test]
+    async fn llm_response_file_verify_accepts_escaped_xml_formulas() {
+        let response_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-escaped-xml-response-run-{}.xml",
+            std::process::id()
+        ));
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-escaped-xml-output-{}.modality",
+            std::process::id()
+        ));
+        std::fs::write(
+            &response_path,
+            r#"
+<formulas>
+  <formula>[+APPROVE_AGENT_PROMPT_UPDATE] true | &lt;+signed_by(/users/prompt_reviewer.id)&gt; true</formula>
+  <formula_text>Formula 2: [+APPROVE_AGENT_PROMPT_UPDATE] true | eventually(&lt;+PUBLISH_AGENT_PROMPT_UPDATE&gt; true)</formula_text>
+</formulas>
+"#,
+        )
+        .unwrap();
+
+        let mut opts = default_test_opts();
+        opts.llm_response_file = Some(response_path.clone());
+        opts.output = Some(output_path.clone());
+        opts.verify = true;
+
+        run(&opts).await.unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(response_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        let models = modality_lang::parse_all_models_content_lalrpop(&output).unwrap();
+        assert_eq!(models.len(), 1);
+        assert!(output.contains("model Contract"));
+        assert!(output.contains("+APPROVE_AGENT_PROMPT_UPDATE"));
+        assert!(output.contains("+signed_by"));
+        assert!(output.contains("+PUBLISH_AGENT_PROMPT_UPDATE"));
+    }
+
+    #[tokio::test]
     async fn inline_llm_response_reports_expected_formula_shapes_when_empty() {
         let mut opts = default_test_opts();
         opts.llm_response =
