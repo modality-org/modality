@@ -5663,6 +5663,26 @@ data: [DONE]
     }
 
     #[test]
+    fn llm_xml_cdata_formulas_round_trip_to_verification() {
+        let response = r#"
+<formulas>
+  <formula><![CDATA[[+APPROVE_POLICY_EXCEPTION] true -> <+signed_by(/users/policy_owner.id)> true]]></formula>
+</formulas>
+formula_text: <![CDATA[Formula 2: [+APPROVE_POLICY_EXCEPTION] true -> eventually(<+PUBLISH_POLICY_EXCEPTION> true)]]>
+"#;
+
+        let formula_strings = modality_lang::llm_synthesis::parse_llm_response(response);
+        assert_eq!(formula_strings.len(), 2);
+
+        let formulas = parse_formula_strings(&formula_strings);
+        assert_eq!(formulas.len(), 2);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn llm_markdown_table_formulas_round_trip_to_verification() {
         let response = r#"
 | id | formula |
