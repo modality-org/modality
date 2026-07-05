@@ -5602,6 +5602,27 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn llm_stream_data_json_round_trip_to_verification() {
+        let response = r#"
+event: message.delta
+data: {"choices":[{"delta":{"content":"F1: [+AUTHORIZE_FAILOVER] true -> <+signed_by(/users/recovery_lead.id)> true"}}]}
+data: {"output":[{"content":[{"type":"output_text","text":"Formula 2: [+AUTHORIZE_FAILOVER] true -> eventually(<+RUN_FAILOVER> true)"}]}]}
+data: {"message":"Explanation only."}
+data: [DONE]
+"#;
+
+        let formula_strings = modality_lang::llm_synthesis::parse_llm_response(response);
+        assert_eq!(formula_strings.len(), 2);
+
+        let formulas = parse_formula_strings(&formula_strings);
+        assert_eq!(formulas.len(), 2);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn synthesis_list_includes_core_formula_shape_examples() {
         let output = synthesis_list_text();
 
