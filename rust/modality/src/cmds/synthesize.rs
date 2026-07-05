@@ -20009,6 +20009,55 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[tokio::test]
+    async fn llm_response_file_verify_accepts_responses_output_text() {
+        let response_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-response-output-text-run-{}.json",
+            std::process::id()
+        ));
+        let output_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-response-output-text-{}.modality",
+            std::process::id()
+        ));
+        std::fs::write(
+            &response_path,
+            r#"
+{
+  "output": [
+    {
+      "type": "message",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "F1: [+APPROVE_MODEL_DEPLOYMENT] true -> <+signed_by(/users/model_safety_reviewer.id)> true\nF2: [+APPROVE_MODEL_DEPLOYMENT] true -> eventually(<+PUBLISH_MODEL_DEPLOYMENT> true)"
+        }
+      ]
+    }
+  ]
+}
+"#,
+        )
+        .unwrap();
+
+        let mut opts = default_test_opts();
+        opts.llm_response_file = Some(response_path.clone());
+        opts.output = Some(output_path.clone());
+        opts.verify = true;
+
+        run(&opts).await.unwrap();
+
+        let output = std::fs::read_to_string(&output_path).unwrap();
+        std::fs::remove_file(response_path).unwrap();
+        std::fs::remove_file(output_path).unwrap();
+
+        let models = modality_lang::parse_all_models_content_lalrpop(&output).unwrap();
+        assert_eq!(models.len(), 1);
+        assert!(output.contains("model Contract"));
+        assert!(output.contains("+APPROVE_MODEL_DEPLOYMENT"));
+        assert!(output.contains("+signed_by"));
+        assert!(output.contains("+PUBLISH_MODEL_DEPLOYMENT"));
+    }
+
+    #[tokio::test]
     async fn inline_llm_response_reports_expected_formula_shapes_when_empty() {
         let mut opts = default_test_opts();
         opts.llm_response =
