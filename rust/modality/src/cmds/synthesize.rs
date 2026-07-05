@@ -5596,6 +5596,29 @@ F2: formula generated_2 {
     }
 
     #[test]
+    fn llm_json_delta_text_round_trip_to_verification() {
+        let response = r#"
+{
+  "delta": "F1: [+APPROVE_INCIDENT_FREEZE] true -> <+signed_by(/users/incident_commander.id)> true",
+  "deltas": [
+    "Reasoning only.",
+    "Formula 2: [+APPROVE_INCIDENT_FREEZE] true -> eventually(<+PUBLISH_INCIDENT_FREEZE> true)"
+  ]
+}
+"#;
+
+        let formula_strings = modality_lang::llm_synthesis::parse_llm_response(response);
+        assert_eq!(formula_strings.len(), 2);
+
+        let formulas = parse_formula_strings(&formula_strings);
+        assert_eq!(formulas.len(), 2);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
+
+        verify_synthesized_model(&model, &formulas).unwrap();
+    }
+
+    #[test]
     fn llm_tool_input_json_round_trip_to_verification() {
         let response = r#"
 {
