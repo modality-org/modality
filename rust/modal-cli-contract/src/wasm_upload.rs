@@ -142,7 +142,7 @@ fn validate_wasm_module(wasm_bytes: &[u8]) -> Result<()> {
     #[cfg(feature = "wasm")]
     {
         modal_wasm_runtime::WasmExecutor::validate_module(wasm_bytes)?;
-        return Ok(());
+        Ok(())
     }
     #[cfg(not(feature = "wasm"))]
     {
@@ -152,4 +152,3 @@ fn validate_wasm_module(wasm_bytes: &[u8]) -> Result<()> {
         );
     }
 }
-

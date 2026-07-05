@@ -16,7 +16,7 @@ pub struct Opts {
 
 pub async fn run(opts: &Opts) -> Result<()> {
     log::info!("Opening datastore at: {:?}", opts.datastore);
-    let mut ds = DatastoreManager::open(&opts.datastore)?;
+    let ds = DatastoreManager::open(&opts.datastore)?;
     
     log::info!("Checking for duplicate canonical blocks...");
     let duplicates = modal_datastore::models::miner::integrity::detect_duplicate_canonical_blocks_multi(&ds).await?;
@@ -56,4 +56,3 @@ pub async fn run(opts: &Opts) -> Result<()> {
     
     Ok(())
 }
-
