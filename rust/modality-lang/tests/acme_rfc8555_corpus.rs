@@ -78,7 +78,7 @@ fn acme_rfc8555_model_satisfies_governance_rules() {
 
     let mut failures = Vec::new();
     for rule in &rules {
-        let result = checker.check_formula_any_state(rule);
+        let result = checker.check_formula(rule);
         if !result.is_satisfied {
             failures.push(rule.name.clone());
         }
@@ -88,5 +88,32 @@ fn acme_rfc8555_model_satisfies_governance_rules() {
         failures.is_empty(),
         "model failed rules: {}",
         failures.join(", ")
+    );
+}
+
+#[test]
+fn acme_rfc8555_phase_gate_rejects_finalize_before_validate() {
+    let mut model = load_model();
+    model.parts[0].transitions.push(modality_lang::Transition::new(
+        "challenge_completed".to_string(),
+        "finalized".to_string(),
+    ));
+    model.parts[0].transitions.last_mut().unwrap().add_property(
+        modality_lang::Property::new(
+            modality_lang::PropertySign::Plus,
+            "FINALIZE_ORDER".to_string(),
+        ),
+    );
+
+    let rules = load_rules();
+    let checker = ModelChecker::new(model);
+    let rule = rules
+        .iter()
+        .find(|r| r.name == "finalize_requires_authorization")
+        .expect("rule present");
+
+    assert!(
+        !checker.check_formula_at_state(rule, "init").is_satisfied,
+        "phase gate should reject finalize while validate is still enabled"
     );
 }

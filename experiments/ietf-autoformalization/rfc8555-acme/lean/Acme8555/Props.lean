@@ -12,19 +12,19 @@ def beforeAction (trace : List Event) (earlier later : Action) : Prop :=
     trace[i]?.map (·.action) = some earlier ∧
     trace[j]?.map (·.action) = some later
 
-/-- Modality: `always([<+FINALIZE_ORDER>] true -> eventually(<+VALIDATE_AUTHORIZATION> true))` (trace: validate before finalize) -/
+/-- Modality: `always(<+FINALIZE_ORDER> true -> !<+VALIDATE_AUTHORIZATION> true)` (trace: validate before finalize) -/
 def finalizeRequiresAuthorization (trace : List Event) : Prop :=
   hasAction trace .finalizeOrder → beforeAction trace .validateAuthorization .finalizeOrder
 
-/-- Modality: `always([<+ISSUE_CERTIFICATE>] true -> eventually(<+FINALIZE_ORDER> true))` (trace: finalize before issue) -/
+/-- Modality: `always(<+ISSUE_CERTIFICATE> true -> !<+FINALIZE_ORDER> true)` (trace: finalize before issue) -/
 def issuanceRequiresFinalize (trace : List Event) : Prop :=
   hasAction trace .issueCertificate → beforeAction trace .finalizeOrder .issueCertificate
 
-/-- Modality: `always([<+VALIDATE_AUTHORIZATION>] true -> eventually(<+COMPLETE_CHALLENGE> true))` -/
+/-- Modality: `always(<+VALIDATE_AUTHORIZATION> true -> !<+COMPLETE_CHALLENGE> true)` -/
 def authorizationRequiresChallenge (trace : List Event) : Prop :=
   hasAction trace .validateAuthorization → beforeAction trace .completeChallenge .validateAuthorization
 
-/-- Modality: `always([<+FINALIZE_ORDER>] true -> eventually(<+CREATE_ORDER> true))` (trace: create before finalize) -/
+/-- Modality: `always(<+FINALIZE_ORDER> true -> !<+CREATE_ORDER> true)` (trace: create before finalize) -/
 def finalizeRequiresOrder (trace : List Event) : Prop :=
   hasAction trace .finalizeOrder → beforeAction trace .createOrder .finalizeOrder
 

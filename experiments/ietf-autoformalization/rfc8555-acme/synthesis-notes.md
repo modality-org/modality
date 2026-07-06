@@ -9,17 +9,17 @@ Nine obligations were adopted from [normative-core.md](./normative-core.md) and 
 
 | Rule | RFC basis | Formula pattern |
 |---|---|---|
-| `finalize_requires_authorization` | §7.4 | `[<+FINALIZE>] true -> eventually(<+VALIDATE> true)` |
-| `issuance_requires_finalize` | §8 | `[<+ISSUE>] true -> eventually(<+FINALIZE> true)` |
+| `finalize_requires_authorization` | §7.4 | `<+FINALIZE> true -> !<+VALIDATE> true` |
+| `issuance_requires_finalize` | §8 | `<+ISSUE> true -> !<+FINALIZE> true` |
 | `only_ca_issues_certificate` | §8 | `<+ISSUE> true -> <+signed_by(CA)>` |
-| `authorization_requires_challenge` | §7.5 | `[<+VALIDATE>] true -> eventually(<+COMPLETE_CHALLENGE> true)` |
+| `authorization_requires_challenge` | §7.5 | `<+VALIDATE> true -> !<+COMPLETE_CHALLENGE> true` |
 | `revocation_blocks_use` | §7.6 | `<+REVOKE> true -> always([-USE] true)` |
 | `only_holder_creates_order` | §7.1.4 | `<+CREATE> true -> <+signed_by(holder)>` |
 | `only_holder_finalizes` | §7.4 | `<+FINALIZE> true -> <+signed_by(holder)>` |
-| `finalize_requires_order` | §7.1.4 | `[<+FINALIZE>] true -> eventually(<+CREATE> true)` |
+| `finalize_requires_order` | §7.1.4 | `<+FINALIZE> true -> !<+CREATE> true` |
 | `only_ca_validates_authorization` | §7.1.5 | `<+VALIDATE> true -> <+signed_by(CA)>` |
 
-Ordering uses diamondbox guards (`[<+ACTION>]`) plus `eventually(<+PRIOR> true)` — action vocabulary only, no witness-node names. Terminal self-loops carry explicit `-ACTION` labels so unrelated diamonds stay false.
+Ordering uses **phase gates**: when `<+LATER>` is enabled, `<+EARLIER>` must not still be enabled. Do not use `eventually(<+EARLIER>)` (forward reachability ≠ prior occurrence).
 
 ## Model
 
@@ -46,7 +46,7 @@ cd rust/modality-lang && cargo test parse -- acme 2>/dev/null || \
 
 ## Results
 
-All nine governance rules were model-checked against `AcmeIssuance` via `ModelChecker::check_formula_any_state` (see corpus test).
+All nine governance rules were model-checked against `AcmeIssuance` via `ModelChecker::check_formula` (see corpus test). Skip-edge regressions use `check_formula_at_state(..., "init")`.
 
 ## Lean mirror
 

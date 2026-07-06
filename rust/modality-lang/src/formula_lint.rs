@@ -24,6 +24,8 @@ pub enum LintCode {
     BareWitnessProp,
     /// Bare identifier matches a node id from the witness model.
     WitnessNodeLeak,
+    /// `[<+LATER>] -> eventually(<+EARLIER>)` uses forward reachability, not prior occurrence.
+    BackwardEventuallyOrdering,
 }
 
 impl LintCode {
@@ -32,6 +34,7 @@ impl LintCode {
             LintCode::VacuousBoxGuard => "modality/vacuous-box-guard",
             LintCode::BareWitnessProp => "modality/bare-witness-prop",
             LintCode::WitnessNodeLeak => "modality/witness-node-leak",
+            LintCode::BackwardEventuallyOrdering => "modality/backward-eventually-ordering",
         }
     }
 }
@@ -165,9 +168,8 @@ fn walk_expr(expr: &FormulaExpr, ctx: &mut LintContext<'_>) {
                 )
             };
             let suggestion = Some(
-                "express constraints with modal operators over actions and predicates, e.g. \
-                 `[<+ACTION>] true -> eventually(<+PRIOR_ACTION> true)` or \
-                 `<+ACTION> true -> <+signed_by(/users/party.id)> true`"
+                "use a phase gate: `always(<+LATER> true -> !<+EARLIER> true)` — when LATER \
+                 is enabled, EARLIER must not still be enabled"
                     .to_string(),
             );
             ctx.diags.push(FormulaLintDiagnostic {
@@ -213,6 +215,22 @@ fn walk_expr(expr: &FormulaExpr, ctx: &mut LintContext<'_>) {
             walk_expr(inner, ctx);
         }
         FormulaExpr::Implies(l, r) => {
+            if let Some(highlight) = backward_eventually_ordering_highlight(l, r) {
+                ctx.diags.push(FormulaLintDiagnostic {
+                    code: LintCode::BackwardEventuallyOrdering,
+                    severity: LintSeverity::Warning,
+                    message: "`eventually(<+ACTION> true)` under a modal guard is forward \
+                              reachability on the LTS, not \"ACTION already occurred on the trace\""
+                        .to_string(),
+                    suggestion: Some(
+                        "use `always(<+LATER> true -> !<+EARLIER> true)` instead of \
+                         `eventually(<+EARLIER> true)` under a LATER guard"
+                            .to_string(),
+                    ),
+                    span: None,
+                    highlight: Some(highlight),
+                });
+            }
             walk_expr(l, ctx);
             walk_expr(r, ctx);
         }
@@ -250,6 +268,42 @@ fn is_true_expr(expr: &FormulaExpr) -> bool {
 
 fn is_action_property(prop: &Property) -> bool {
     !matches!(prop.source, Some(PropertySource::Predicate { .. }))
+}
+
+fn backward_eventually_ordering_highlight(
+    left: &FormulaExpr,
+    right: &FormulaExpr,
+) -> Option<String> {
+    let guard_has_action = matches!(
+        left,
+        FormulaExpr::DiamondBox(props, inner) | FormulaExpr::Diamond(props, inner)
+            | FormulaExpr::Box(props, inner)
+            if !props.is_empty()
+                && props.iter().any(|p| p.sign == PropertySign::Plus && is_action_property(p))
+                && is_true_expr(inner)
+    );
+    if !guard_has_action {
+        return None;
+    }
+    match right {
+        FormulaExpr::Eventually(inner) => extract_eventually_diamond_highlight(inner),
+        _ => None,
+    }
+}
+
+fn extract_eventually_diamond_highlight(expr: &FormulaExpr) -> Option<String> {
+    match expr {
+        FormulaExpr::Diamond(props, inner) if is_true_expr(inner) && !props.is_empty() => props
+            .iter()
+            .find(|p| p.sign == PropertySign::Plus && is_action_property(p))
+            .map(|p| format!("<+{}>", p.name)),
+        FormulaExpr::DiamondBox(props, inner) if is_true_expr(inner) && !props.is_empty() => props
+            .iter()
+            .find(|p| p.sign == PropertySign::Plus && is_action_property(p))
+            .map(|p| format!("[<+{}>]", p.name)),
+        FormulaExpr::Paren(inner) => extract_eventually_diamond_highlight(inner),
+        _ => None,
+    }
 }
 
 /// Find the first occurrence of `needle` in source (0-based line/col).
@@ -292,9 +346,26 @@ mod tests {
     }
 
     #[test]
-    fn accepts_diamondbox_ordering_guard() {
+    fn warns_backward_eventually_ordering() {
         let diags = lint_expr(
             "always([<+FINALIZE_ORDER>] true -> eventually(<+VALIDATE_AUTHORIZATION> true))",
+        );
+        assert!(has_code(&diags, LintCode::BackwardEventuallyOrdering));
+    }
+
+    #[test]
+    fn accepts_phase_gate_ordering() {
+        let diags = lint_expr(
+            "always(<+FINALIZE_ORDER> true -> !<+VALIDATE_AUTHORIZATION> true)",
+        );
+        assert!(!has_code(&diags, LintCode::BackwardEventuallyOrdering));
+        assert!(diags.is_empty());
+    }
+
+    #[test]
+    fn accepts_diamondbox_ordering_guard() {
+        let diags = lint_expr(
+            "always(<+FINALIZE_ORDER> true -> !<+VALIDATE_AUTHORIZATION> true)",
         );
         assert!(!has_code(&diags, LintCode::VacuousBoxGuard));
         assert!(!has_code(&diags, LintCode::BareWitnessProp));

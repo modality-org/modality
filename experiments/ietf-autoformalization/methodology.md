@@ -20,8 +20,8 @@ For each RFC, work through these steps before writing formulas:
 
 | RFC language (paraphrased) | Modality formula pattern |
 |---|---|
-| "X MUST NOT occur until Y has occurred" | `always([<+X>] true -> eventually(<+Y> true))` |
-| "X MUST NOT occur until Y has occurred (committed)" | `always([<+X>] true -> eventually([<+Y>] true))` |
+| "X MUST NOT occur until Y has occurred" | `always(<+X> true -> !<+Y> true)` (phase gate: Y not still enabled when X is) |
+| "X MUST NOT occur until Y has completed (no overlap)" | same; use `<+…>` diamonds, not `[<+…>]` committed forms |
 | "Only party P may perform X" | `always(<+X> true -> <+signed_by(/users/p.id)> true)` |
 | "Party P is committed to X" | `always([<+X>] true -> <+signed_by(/users/p.id)> true)` |
 | "X MUST NOT occur after Y" | `always([+Y] true -> always([-X] true))` |
@@ -86,7 +86,7 @@ Do not attempt to formalize:
 **Formula:**
 
 ```modality
-always([<+ISSUE_TOKEN>] true -> eventually(<+AUTHORIZE> true))
+always(<+ISSUE_TOKEN> true -> !<+AUTHORIZE> true)
 ```
 
 **Authorization variant:**
@@ -95,4 +95,4 @@ always([<+ISSUE_TOKEN>] true -> eventually(<+AUTHORIZE> true))
 always(<+ISSUE_TOKEN> true -> <+signed_by(/users/authorization_server.id)> true)
 ```
 
-**Avoid:** bare identifiers like `authorized` or `init` in formulas — those match opaque witness LTS node ids, not contract state. Also avoid `[+X] true` as a guard (vacuous box).
+**Avoid:** `eventually(<+Y> true)` for ordering (forward reachability, not prior occurrence). Avoid `[<+X>]` / `![<+Y>]` committed forms for phase gates (miss skip edges). Also avoid bare witness-node identifiers and `[+X] true` vacuous box guards.
