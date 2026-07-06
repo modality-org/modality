@@ -12,4 +12,5 @@ pub mod passfile;
 pub mod synthesize;
 #[cfg(feature = "upgrade")]
 pub mod upgrade;
+pub mod lint;
 pub mod validate;

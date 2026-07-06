@@ -4,7 +4,10 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
-use modality_lang::parse_content_lalrpop;
+use modality_lang::{
+    find_span_in_source, lint_formulas_in_content, parse_all_models_content_lalrpop,
+    parse_content_lalrpop, FormulaLintOptions, LintSeverity,
+};
 
 mod semantic_tokens;
 mod formatter;
@@ -50,11 +53,11 @@ impl ModalityLanguageServer {
     /// Parse document and return diagnostics
     async fn diagnose(&self, _uri: &Url, text: &str) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
-        
+
         // Try to parse using the lalrpop parser
         match parse_content_lalrpop(text) {
             Ok(_) => {
-                // Parsed successfully, no diagnostics
+                // Parsed successfully, no parse diagnostics
             }
             Err(e) => {
                 diagnostics.push(Diagnostic {
@@ -66,7 +69,70 @@ impl ModalityLanguageServer {
                 });
             }
         }
-        
+
+        let witness_model = parse_all_models_content_lalrpop(text)
+            .ok()
+            .and_then(|models| models.into_iter().next());
+
+        if let Ok(lint_results) = lint_formulas_in_content(
+            text,
+            &FormulaLintOptions { witness_model },
+        ) {
+            for (formula_name, diags) in lint_results {
+                for diag in diags {
+                    let range = diag
+                        .span
+                        .or_else(|| {
+                            diag.highlight
+                                .as_ref()
+                                .and_then(|h| find_span_in_source(text, h))
+                        })
+                        .map(|span| Range {
+                            start: Position {
+                                line: span.line,
+                                character: span.character,
+                            },
+                            end: Position {
+                                line: span.end_line,
+                                character: span.end_character,
+                            },
+                        })
+                        .unwrap_or_else(|| Range {
+                            start: Position {
+                                line: 0,
+                                character: 0,
+                            },
+                            end: Position {
+                                line: 0,
+                                character: 1,
+                            },
+                        });
+
+                    let severity = Some(match diag.severity {
+                        LintSeverity::Warning => DiagnosticSeverity::WARNING,
+                        LintSeverity::Hint => DiagnosticSeverity::HINT,
+                    });
+
+                    let mut message = diag.message.clone();
+                    if let Some(suggestion) = &diag.suggestion {
+                        message.push_str(&format!(". {suggestion}"));
+                    }
+                    if formula_name != "t" {
+                        message = format!("in `{formula_name}`: {message}");
+                    }
+
+                    diagnostics.push(Diagnostic {
+                        range,
+                        severity,
+                        code: Some(NumberOrString::String(diag.code.as_str().to_string())),
+                        source: Some("modality".to_string()),
+                        message,
+                        ..Default::default()
+                    });
+                }
+            }
+        }
+
         diagnostics
     }
 

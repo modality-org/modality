@@ -44,6 +44,33 @@ fn acme_rfc8555_rules_parse() {
 }
 
 #[test]
+fn acme_rfc8555_governance_passes_formula_lint() {
+    let model = load_model();
+    let path = corpus_dir().join("rules/governance.modality");
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+    let results = modality_lang::lint_formulas_in_content(
+        &content,
+        &modality_lang::FormulaLintOptions {
+            witness_model: Some(model),
+        },
+    )
+    .expect("lint formulas");
+
+    let mut failures = Vec::new();
+    for (name, diags) in results {
+        if !diags.is_empty() {
+            failures.push(format!("{name}: {} finding(s)", diags.len()));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "governance lint findings: {}",
+        failures.join(", ")
+    );
+}
+
+#[test]
 fn acme_rfc8555_model_satisfies_governance_rules() {
     let model = load_model();
     let rules = load_rules();

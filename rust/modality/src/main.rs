@@ -103,6 +103,9 @@ enum ModelCommands {
 
     #[command(about = "Validate a contract model (predicates only, no raw propositions)")]
     Validate(cmds::validate::Opts),
+
+    #[command(about = "Lint governance formulas for vacuous guards and witness-node references")]
+    Lint(cmds::lint::Opts),
 }
 
 #[cfg(feature = "node")]
@@ -134,6 +137,7 @@ async fn main() -> Result<()> {
             ModelCommands::Create(opts) => cmds::model_create::run(opts).await?,
             ModelCommands::Synthesize(opts) => cmds::synthesize::run(opts).await?,
             ModelCommands::Validate(opts) => cmds::validate::run(opts).await?,
+            ModelCommands::Lint(opts) => cmds::lint::run(opts).await?,
         },
         #[cfg(feature = "node")]
         Commands::Node { command } => match command {

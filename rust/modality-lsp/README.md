@@ -4,7 +4,7 @@ Language Server Protocol implementation for `.modality` files.
 
 ## Features
 
-- **Diagnostics**: Real-time parse error reporting
+- **Diagnostics**: Real-time parse error reporting and formula lint warnings
 - **Completions**: Context-aware snippets for models, rules, formulas, predicates, and states
 - **Hover**: Documentation for keywords, operators, predicates, and states
 - **Go to Definition**: Jump to state and action definitions
@@ -105,7 +105,7 @@ Add to settings:
 | textDocument/semanticTokens/full | ✅ |
 | textDocument/formatting | ✅ |
 | textDocument/codeAction | ✅ |
-| textDocument/publishDiagnostics | ✅ |
+| textDocument/publishDiagnostics | ✅ (parse errors + formula lint) |
 
 ## Semantic Token Types
 

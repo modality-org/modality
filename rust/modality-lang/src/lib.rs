@@ -23,6 +23,7 @@ pub mod contract_log;
 pub mod nl_mapper;
 pub mod formula_synthesis;
 pub mod llm_synthesis;
+pub mod formula_lint;
 pub mod validation;
 
 // Include the generated parser
@@ -40,6 +41,12 @@ pub use runtime::{ContractInstance, SignedAction, CommitRecord, ContractState, A
 pub use runtime::negotiation::{Proposal as NegotiationProposal, CounterProposal, ProposalStatus as NegotiationStatus};
 pub use crypto::{verify_ed25519, sign_ed25519, generate_keypair, sha256, VerifyResult};
 pub use contract_log::{ContractLog, Commit, Action as CommitAction, DerivedState};
+pub use formula_lint::{
+    find_span_in_source, lint_formula, lint_formula_with_source, lint_formulas_in_content,
+    witness_node_names, FormulaLintDiagnostic, FormulaLintOptions, LintCode, LintSeverity,
+    LintSpan,
+};
+pub use validation::{validate_no_raw_propositions, ValidationError, KNOWN_PREDICATES, suggest_predicate};
 
 // Re-export the generated parser
 pub use grammar::ModelParser;
