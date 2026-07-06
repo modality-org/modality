@@ -14,6 +14,7 @@ ACME automates certificate issuance between a certificate authority (CA) and an 
 |---|---|
 | [model/default.modality](./model/default.modality) | Witness LTS governing model |
 | [rules/governance.modality](./rules/governance.modality) | Nine temporal modal formulas |
+| [lean/](./lean/) | Lean 4 mirror of model + governance props |
 | [normative-core.md](./normative-core.md) | RFC → obligation mapping |
 | [synthesis-notes.md](./synthesis-notes.md) | Verification notes and test command |
 
@@ -50,9 +51,19 @@ ACME automates certificate issuance between a certificate authority (CA) and an 
 
 ## Verification
 
+Modality (model checker):
+
 ```bash
 cd rust/modality-lang && cargo test acme_rfc8555 -- --nocapture
 ```
+
+Lean (witness path + governance bundle):
+
+```bash
+cd experiments/ietf-autoformalization/rfc8555-acme/lean && lake build Acme8555
+```
+
+See [lean/README.md](./lean/README.md) for the Modality ↔ Lean mapping.
 
 ## Modality Mapping Notes
 

@@ -46,12 +46,25 @@ cd rust/modality-lang && cargo test parse -- acme 2>/dev/null || \
 
 All nine governance rules were model-checked against `AcmeIssuance` via `ModelChecker::check_formula_any_state` (see corpus test).
 
+## Lean mirror
+
+[lean/](./lean/) encodes the same witness LTS and `GovernanceProps` bundle in Lean 4:
+
+- `Acme8555.Machine.witnessRun_valid` — happy path accepted by the machine
+- `Acme8555.ValidPath.witnessRun_governance` — all nine governance fields hold on `witnessRun`
+- `Acme8555.ValidPath.no_useCertificate` — no valid trace uses `+USE_CERTIFICATE`
+
+Build: `cd lean && lake build Acme8555`
+
+A general “every valid path from `init` satisfies `GovernanceProps`” theorem remains future work; Modality already covers that via exhaustive model checking.
+
 ## Out of scope (unchanged)
 
 JWS signing, challenge wire formats (HTTP-01/DNS-01), X.509 encoding, rate limits, directory discovery.
 
 ## Next steps
 
+- Prove `governanceProps_of_valid` for all `ValidPath .init` traces in Lean (not only `witnessRun`)
 - Bind `+USE_CERTIFICATE` to a concrete predicate when integrating with a CA simulator
 - Compare hand-authored model against `synthesize_from_formulas` output for regression
 - Add hub push/pull demo similar to [trustless-escrow tutorial](../../../tutorials/trustless-escrow/)

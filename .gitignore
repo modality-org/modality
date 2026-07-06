@@ -2,4 +2,8 @@ tmp
 build
 sites/packages.modality.org/registry/
 
+# Lean 4 / Lake build artifacts
+**/.lake/
+**/lake-packages/
+
 .DS_Store
