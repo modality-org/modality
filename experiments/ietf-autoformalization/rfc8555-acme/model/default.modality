@@ -21,7 +21,14 @@ model AcmeIssuance {
     issued -> revoked [+REVOKE_CERTIFICATE +signed_by(/users/account_holder.id)]
     issued -> revoked [+REVOKE_CERTIFICATE +signed_by(/users/certificate_authority.id)]
 
-    issued -> issued
-    revoked -> revoked
+    // Stutter loops: explicit -ACTION so unrelated <+ACTION> diamonds stay false.
+    issued -> issued [
+      -CREATE_ORDER -FINALIZE_ORDER -ISSUE_CERTIFICATE -VALIDATE_AUTHORIZATION
+      -COMPLETE_CHALLENGE -ISSUE_CHALLENGE -REVOKE_CERTIFICATE -USE_CERTIFICATE
+    ]
+    revoked -> revoked [
+      -CREATE_ORDER -FINALIZE_ORDER -ISSUE_CERTIFICATE -VALIDATE_AUTHORIZATION
+      -COMPLETE_CHALLENGE -ISSUE_CHALLENGE -REVOKE_CERTIFICATE -USE_CERTIFICATE
+    ]
   }
 }

@@ -9,15 +9,17 @@ Nine obligations were adopted from [normative-core.md](./normative-core.md) and 
 
 | Rule | RFC basis | Formula pattern |
 |---|---|---|
-| `finalize_requires_authorization` | §7.4 | Ordering: finalize after validate |
-| `issuance_requires_finalize` | §8 | Ordering: issue after finalize |
-| `only_ca_issues_certificate` | §8 | Authorization: CA signature |
-| `authorization_requires_challenge` | §7.5 | Ordering: validate after challenge |
-| `revocation_blocks_use` | §7.6 | Forbidden-after: no use after revoke |
-| `only_holder_creates_order` | §7.1.4 | Authorization: account holder |
-| `only_holder_finalizes` | §7.4 | Authorization: account holder |
-| `finalize_requires_order` | §7.1.4 | Ordering: create before finalize |
-| `only_ca_validates_authorization` | §7.1.5 | Authorization: CA signature |
+| `finalize_requires_authorization` | §7.4 | `[<+FINALIZE>] true -> eventually(<+VALIDATE> true)` |
+| `issuance_requires_finalize` | §8 | `[<+ISSUE>] true -> eventually(<+FINALIZE> true)` |
+| `only_ca_issues_certificate` | §8 | `<+ISSUE> true -> <+signed_by(CA)>` |
+| `authorization_requires_challenge` | §7.5 | `[<+VALIDATE>] true -> eventually(<+COMPLETE_CHALLENGE> true)` |
+| `revocation_blocks_use` | §7.6 | `<+REVOKE> true -> always([-USE] true)` |
+| `only_holder_creates_order` | §7.1.4 | `<+CREATE> true -> <+signed_by(holder)>` |
+| `only_holder_finalizes` | §7.4 | `<+FINALIZE> true -> <+signed_by(holder)>` |
+| `finalize_requires_order` | §7.1.4 | `[<+FINALIZE>] true -> eventually(<+CREATE> true)` |
+| `only_ca_validates_authorization` | §7.1.5 | `<+VALIDATE> true -> <+signed_by(CA)>` |
+
+Ordering uses diamondbox guards (`[<+ACTION>]`) plus `eventually(<+PRIOR> true)` — action vocabulary only, no witness-node names. Terminal self-loops carry explicit `-ACTION` labels so unrelated diamonds stay false.
 
 ## Model
 

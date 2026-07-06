@@ -20,9 +20,9 @@ For each RFC, work through these steps before writing formulas:
 
 | RFC language (paraphrased) | Modality formula pattern |
 |---|---|
-| "X MUST NOT occur until Y has occurred" | `always([+X] true -> eventually(<+Y> true))` |
-| "X MUST NOT occur until Y has occurred (committed)" | `always([+X] true -> eventually([<+Y>] true))` |
-| "Only party P may perform X" | `always([+X] true -> <+signed_by(/users/p.id)> true)` |
+| "X MUST NOT occur until Y has occurred" | `always([<+X>] true -> eventually(<+Y> true))` |
+| "X MUST NOT occur until Y has occurred (committed)" | `always([<+X>] true -> eventually([<+Y>] true))` |
+| "Only party P may perform X" | `always(<+X> true -> <+signed_by(/users/p.id)> true)` |
 | "Party P is committed to X" | `always([<+X>] true -> <+signed_by(/users/p.id)> true)` |
 | "X MUST NOT occur after Y" | `always([+Y] true -> always([-X] true))` |
 | "X and Y are mutually exclusive after Z" | `always([+Z] true -> (always([-X] true) & always([-Y] true)))` |
@@ -61,10 +61,11 @@ After formulas are written, expect these model shapes (from synthesis heuristics
 ## Verification Workflow
 
 1. Parse formulas with modality-lang parser
-2. Run `synthesize_from_formulas` on the formula set
-3. Model-check synthesized model against each formula
-4. If fail: inspect counterexample → fix formula or add missing obligation
-5. Record result in `synthesis-notes.md`
+2. **Lint formulas:** `modal model lint rules/*.modality --model model/default.modality` (catches vacuous `[+X] true` guards and witness-node props)
+3. Run `synthesize_from_formulas` on the formula set
+4. Model-check synthesized model against each formula
+5. If fail: inspect counterexample → fix formula or add missing obligation
+6. Record result in `synthesis-notes.md`
 
 ## Out-of-Scope Reference List
 
@@ -85,11 +86,13 @@ Do not attempt to formalize:
 **Formula:**
 
 ```modality
-always([+ISSUE_TOKEN] true -> eventually(<+AUTHORIZE> true))
+always([<+ISSUE_TOKEN>] true -> eventually(<+AUTHORIZE> true))
 ```
 
 **Authorization variant:**
 
 ```modality
-always([+ISSUE_TOKEN] true -> <+signed_by(/users/authorization_server.id)> true)
+always(<+ISSUE_TOKEN> true -> <+signed_by(/users/authorization_server.id)> true)
 ```
+
+**Avoid:** bare identifiers like `authorized` or `init` in formulas — those match opaque witness LTS node ids, not contract state. Also avoid `[+X] true` as a guard (vacuous box).

@@ -12,19 +12,19 @@ def beforeAction (trace : List Event) (earlier later : Action) : Prop :=
     trace[i]?.map (·.action) = some earlier ∧
     trace[j]?.map (·.action) = some later
 
-/-- Modality: `always([+FINALIZE_ORDER] true -> eventually(<+VALIDATE_AUTHORIZATION> true))` -/
+/-- Modality: `always([<+FINALIZE_ORDER>] true -> eventually(<+VALIDATE_AUTHORIZATION> true))` (trace: validate before finalize) -/
 def finalizeRequiresAuthorization (trace : List Event) : Prop :=
   hasAction trace .finalizeOrder → beforeAction trace .validateAuthorization .finalizeOrder
 
-/-- Modality: `always([+ISSUE_CERTIFICATE] true -> eventually(<+FINALIZE_ORDER> true))` -/
+/-- Modality: `always([<+ISSUE_CERTIFICATE>] true -> eventually(<+FINALIZE_ORDER> true))` (trace: finalize before issue) -/
 def issuanceRequiresFinalize (trace : List Event) : Prop :=
   hasAction trace .issueCertificate → beforeAction trace .finalizeOrder .issueCertificate
 
-/-- Modality: `always([+VALIDATE_AUTHORIZATION] true -> eventually(<+COMPLETE_CHALLENGE> true))` -/
+/-- Modality: `always([<+VALIDATE_AUTHORIZATION>] true -> eventually(<+COMPLETE_CHALLENGE> true))` -/
 def authorizationRequiresChallenge (trace : List Event) : Prop :=
   hasAction trace .validateAuthorization → beforeAction trace .completeChallenge .validateAuthorization
 
-/-- Modality: `always([+FINALIZE_ORDER] true -> eventually(<+CREATE_ORDER> true))` -/
+/-- Modality: `always([<+FINALIZE_ORDER>] true -> eventually(<+CREATE_ORDER> true))` (trace: create before finalize) -/
 def finalizeRequiresOrder (trace : List Event) : Prop :=
   hasAction trace .finalizeOrder → beforeAction trace .createOrder .finalizeOrder
 
@@ -32,7 +32,7 @@ def finalizeRequiresOrder (trace : List Event) : Prop :=
 def onlyPartyPerforms (trace : List Event) (a : Action) (p : Party) : Prop :=
   ∀ e, e ∈ trace → e.action = a → e.actor = p
 
-/-- Modality: `always([+REVOKE] true -> always([-USE_CERTIFICATE] true))` on valid traces. -/
+/-- Modality: `always(<+REVOKE_CERTIFICATE> true -> always([-USE_CERTIFICATE] true))` on valid traces. -/
 def revocationBlocksUse (trace : List Event) : Prop :=
   ∀ i j,
     i < trace.length →
