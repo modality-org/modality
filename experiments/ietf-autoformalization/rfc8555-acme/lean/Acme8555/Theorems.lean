@@ -110,7 +110,7 @@ theorem witnessRun_governance : GovernanceProps witnessRun := {
     exact absurd huse (by simpa using hno witnessRun[j] mem)
 }
 
-theorem witness_governance (_s' : State) (_h : ValidPath .init witnessRun .issued) :
+theorem witness_governance (_s' : State) (_h : ValidPath .q0 witnessRun .q4) :
     GovernanceProps witnessRun :=
   witnessRun_governance
 

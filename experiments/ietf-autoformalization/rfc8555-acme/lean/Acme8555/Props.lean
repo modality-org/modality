@@ -12,15 +12,16 @@ def beforeAction (trace : List Event) (earlier later : Action) : Prop :=
     trace[i]?.map (·.action) = some earlier ∧
     trace[j]?.map (·.action) = some later
 
-/-- Modality: `always(<+FINALIZE_ORDER> true -> !<+VALIDATE_AUTHORIZATION> true)` (trace: validate before finalize) -/
+/-- Modality: `always(<+FINALIZE_ORDER> true -> !<+post_to(/order_status.text, "pending")> true)` (trace: validate before finalize) -/
 def finalizeRequiresAuthorization (trace : List Event) : Prop :=
   hasAction trace .finalizeOrder → beforeAction trace .validateAuthorization .finalizeOrder
 
-/-- Modality: `always(<+ISSUE_CERTIFICATE> true -> !<+FINALIZE_ORDER> true)` (trace: finalize before issue) -/
+/-- Modality: `always(<+ISSUE_CERTIFICATE> true -> !<+post_to(/order_status.text, "ready")> true)` (trace: finalize before issue) -/
 def issuanceRequiresFinalize (trace : List Event) : Prop :=
   hasAction trace .issueCertificate → beforeAction trace .finalizeOrder .issueCertificate
 
-/-- Modality: `always(<+VALIDATE_AUTHORIZATION> true -> !<+COMPLETE_CHALLENGE> true)` -/
+/-- Modality: `always(<+VALIDATE_AUTHORIZATION> true -> !<+COMPLETE_CHALLENGE> true)`;
+    RFC §7.1.6/§8.2 allow multiple validate attempts in challenge "processing". -/
 def authorizationRequiresChallenge (trace : List Event) : Prop :=
   hasAction trace .validateAuthorization → beforeAction trace .completeChallenge .validateAuthorization
 
@@ -32,7 +33,7 @@ def finalizeRequiresOrder (trace : List Event) : Prop :=
 def onlyPartyPerforms (trace : List Event) (a : Action) (p : Party) : Prop :=
   ∀ e, e ∈ trace → e.action = a → e.actor = p
 
-/-- Modality: `always(<+REVOKE_CERTIFICATE> true -> always([-USE_CERTIFICATE] true))` on valid traces. -/
+/-- Modality: `always(<+post_to(/order_status.text, "invalid")> true -> always([-USE_CERTIFICATE] true))` on valid traces. -/
 def revocationBlocksUse (trace : List Event) : Prop :=
   ∀ i j,
     i < trace.length →

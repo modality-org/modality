@@ -26,16 +26,20 @@ ACME automates certificate issuance between a certificate authority (CA) and an 
 | Certificate authority | `/users/certificate_authority.id` | Issues and revokes certificates |
 | Authoritative server | `/users/authoritative_server.id` | Proves domain control (out of scope for wire format) |
 
-## Expected States
+## Order status
 
-- `init` — no active order
-- `order_created` — certificate order submitted
-- `authorization_pending` — challenges issued
-- `challenge_completed` — domain challenge satisfied
-- `authorized` — CA validated authorization
-- `finalized` — order finalized with CSR
-- `issued` — certificate issued
-- `revoked` — certificate revoked (terminal)
+RFC §7.1.6 order lifecycle is stored at `/order_status.text` (not witness node names):
+
+| Value | Meaning |
+|---|---|
+| *(unset)* | No order |
+| `pending` | Order created; authorizations/challenges in progress |
+| `ready` | All authorizations valid; finalize allowed |
+| `processing` | Finalize submitted; CA issuing certificate |
+| `valid` | Certificate issued |
+| `invalid` | Revoked |
+
+The witness model uses opaque nodes `q0`…`q5` (one per order status). Each status change sets `/order_status.text` via `+post_to`; intermediate pending steps use self-loops without repeating `post_to`. While `pending` at `q1`, validation may retry (RFC §8.2).
 
 ## Expected Actions
 
@@ -44,7 +48,7 @@ ACME automates certificate issuance between a certificate authority (CA) and an 
 | `+CREATE_ORDER` | Account holder | Submit certificate order |
 | `+ISSUE_CHALLENGE` | CA | Provide domain validation challenge |
 | `+COMPLETE_CHALLENGE` | Account holder | Satisfy challenge |
-| `+VALIDATE_AUTHORIZATION` | CA | Confirm authorization valid |
+| `+VALIDATE_AUTHORIZATION` | CA | Attempt challenge validation (may repeat while order is `pending` at q1, §8.2) |
 | `+FINALIZE_ORDER` | Account holder | Submit CSR |
 | `+ISSUE_CERTIFICATE` | CA | Issue certificate |
 | `+REVOKE_CERTIFICATE` | Account holder or CA | Revoke certificate |
@@ -67,7 +71,8 @@ See [lean/README.md](./lean/README.md) for the Modality ↔ Lean mapping.
 
 ## Modality Mapping Notes
 
-- Linear ordering chain with revocation branch
+- Witness LTS uses opaque q0…q5 aligned to `/order_status.text`
+- Linear ordering with validation-retry self-loops at q1 and revocation branch
 - Authorization formulas use `signed_by` on transitions
 - `+USE_CERTIFICATE` is a governance placeholder blocked after revocation
 

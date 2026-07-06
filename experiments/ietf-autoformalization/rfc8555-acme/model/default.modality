@@ -1,32 +1,65 @@
 // RFC 8555 — ACME certificate issuance governing model
 //
-// Witness LTS for the normative ordering: order → challenge → authorize →
-// finalize → issue. Revocation is terminal.
+// Witness nodes (q0…q5) are opaque LTS ids — one per `/order_status.text`
+// value where set. Contract-visible lifecycle is on that path (RFC §7.1.6:
+// pending | ready | processing | valid | invalid).
 //
 // Parties (state paths):
 //   /users/account_holder.id
 //   /users/certificate_authority.id
+//
+// Witness map (do not reference in formulas):
+//   q0  (unset)
+//   q1  pending — challenge/authorization sub-steps are self-loops here
+//   q2  ready
+//   q3  processing
+//   q4  valid
+//   q5  invalid
 
 model AcmeIssuance {
-  initial init
+  initial q0
 
   part issuance {
-    init -> order_created [+CREATE_ORDER +signed_by(/users/account_holder.id)]
-    order_created -> authorization_pending [+ISSUE_CHALLENGE +signed_by(/users/certificate_authority.id)]
-    authorization_pending -> challenge_completed [+COMPLETE_CHALLENGE +signed_by(/users/account_holder.id)]
-    challenge_completed -> authorized [+VALIDATE_AUTHORIZATION +signed_by(/users/certificate_authority.id)]
-    authorized -> finalized [+FINALIZE_ORDER +signed_by(/users/account_holder.id)]
-    finalized -> issued [+ISSUE_CERTIFICATE +signed_by(/users/certificate_authority.id)]
+    q0 -> q1 [
+      +CREATE_ORDER +signed_by(/users/account_holder.id)
+      +post_to(/order_status.text, "pending")
+    ]
+    q1 -> q1 [+ISSUE_CHALLENGE +signed_by(/users/certificate_authority.id)]
+    q1 -> q1 [+COMPLETE_CHALLENGE +signed_by(/users/account_holder.id)]
+    // RFC §7.1.6 / §8.2: validation retries while order stays pending.
+    q1 -> q1 [
+      +VALIDATE_AUTHORIZATION +signed_by(/users/certificate_authority.id)
+      -COMPLETE_CHALLENGE
+    ]
+    q1 -> q2 [
+      +VALIDATE_AUTHORIZATION +signed_by(/users/certificate_authority.id)
+      +post_to(/order_status.text, "ready")
+      -COMPLETE_CHALLENGE
+    ]
+    q2 -> q3 [
+      +FINALIZE_ORDER +signed_by(/users/account_holder.id)
+      +post_to(/order_status.text, "processing")
+    ]
+    q3 -> q4 [
+      +ISSUE_CERTIFICATE +signed_by(/users/certificate_authority.id)
+      +post_to(/order_status.text, "valid")
+    ]
 
-    issued -> revoked [+REVOKE_CERTIFICATE +signed_by(/users/account_holder.id)]
-    issued -> revoked [+REVOKE_CERTIFICATE +signed_by(/users/certificate_authority.id)]
+    q4 -> q5 [
+      +REVOKE_CERTIFICATE +signed_by(/users/account_holder.id)
+      +post_to(/order_status.text, "invalid")
+    ]
+    q4 -> q5 [
+      +REVOKE_CERTIFICATE +signed_by(/users/certificate_authority.id)
+      +post_to(/order_status.text, "invalid")
+    ]
 
     // Stutter loops: explicit -ACTION so unrelated <+ACTION> diamonds stay false.
-    issued -> issued [
+    q4 -> q4 [
       -CREATE_ORDER -FINALIZE_ORDER -ISSUE_CERTIFICATE -VALIDATE_AUTHORIZATION
       -COMPLETE_CHALLENGE -ISSUE_CHALLENGE -REVOKE_CERTIFICATE -USE_CERTIFICATE
     ]
-    revoked -> revoked [
+    q5 -> q5 [
       -CREATE_ORDER -FINALIZE_ORDER -ISSUE_CERTIFICATE -VALIDATE_AUTHORIZATION
       -COMPLETE_CHALLENGE -ISSUE_CHALLENGE -REVOKE_CERTIFICATE -USE_CERTIFICATE
     ]

@@ -92,16 +92,22 @@ fn acme_rfc8555_model_satisfies_governance_rules() {
 }
 
 #[test]
-fn acme_rfc8555_phase_gate_rejects_finalize_before_validate() {
+fn acme_rfc8555_phase_gate_rejects_finalize_while_pending() {
     let mut model = load_model();
     model.parts[0].transitions.push(modality_lang::Transition::new(
-        "challenge_completed".to_string(),
-        "finalized".to_string(),
+        "q1".to_string(),
+        "q3".to_string(),
     ));
     model.parts[0].transitions.last_mut().unwrap().add_property(
         modality_lang::Property::new(
             modality_lang::PropertySign::Plus,
             "FINALIZE_ORDER".to_string(),
+        ),
+    );
+    model.parts[0].transitions.last_mut().unwrap().add_property(
+        modality_lang::Property::new_predicate_from_call_args(
+            "post_to".to_string(),
+            vec!["/order_status.text".to_string(), "processing".to_string()],
         ),
     );
 
@@ -113,7 +119,7 @@ fn acme_rfc8555_phase_gate_rejects_finalize_before_validate() {
         .expect("rule present");
 
     assert!(
-        !checker.check_formula_at_state(rule, "init").is_satisfied,
-        "phase gate should reject finalize while validate is still enabled"
+        !checker.check_formula_at_state(rule, "q0").is_satisfied,
+        "finalize must not be enabled while order is still pending"
     );
 }

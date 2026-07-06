@@ -18,10 +18,20 @@ Sections extracted from [RFC 8555](https://www.rfc-editor.org/rfc/rfc8555):
 | Certificate authority | `/users/certificate_authority.id` |
 | Authoritative server | `/users/authoritative_server.id` |
 
-## States
+## Order status (`/order_status.text`, RFC §7.1.6)
 
-`init` → `order_created` → `authorization_pending` → `challenge_completed` → `authorized` → `finalized` → `issued`  
-Terminal: `revoked`
+Contract-visible lifecycle (set via `+post_to` on transitions; witness nodes q0…q5 are opaque, one per status):
+
+| `/order_status.text` | Witness | When |
+|---|---|---|
+| *(unset)* | q0 | No order yet |
+| `pending` | q1 | Order created; challenge/authorization sub-steps (self-loops) |
+| `ready` | q2 | All authorizations valid; finalize allowed |
+| `processing` | q3 | Finalize submitted; CA issuing |
+| `valid` | q4 | Certificate issued |
+| `invalid` | q5 | Revoked |
+
+While status is `pending` at q1, the server may retry `+VALIDATE_AUTHORIZATION` without leaving q1 (RFC §7.1.6 challenge **processing**, §8.2).
 
 ## Actions
 

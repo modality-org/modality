@@ -5,26 +5,28 @@
 // Citations below point to normative sections; see normative-core.md for the
 // full extraction notes.
 //
-// Formulas use actions and predicates only (+ACTION, +signed_by, …). They
-// must not name witness LTS nodes (opaque q0/q1 ids from synthesis).
+// Formulas use actions and predicates only (+ACTION, +signed_by, +post_to, …).
+// They must not name witness LTS nodes (opaque q0…q5). Order lifecycle is on
+// `/order_status.text` (RFC §7.1.6: pending | ready | processing | valid |
+// invalid), set via +post_to on transitions in the model.
 //
-// Ordering (phase gates): when a later action is enabled `<+LATER>`, an earlier
-// one must not still be enabled `<+EARLIER>` — e.g. `!<+VALIDATE>` before
-// `<+FINALIZE>`. Do NOT use `[<+…>]` on either side: committed/overlap checks
-// miss skip edges; do NOT use `eventually(<+EARLIER>)` (forward reachability).
+// Order-state gates: when an action is enabled, the order must not still be
+// in an earlier RFC status (e.g. finalize requires !pending, not merely
+// !validate). Challenge ordering still uses action phase gates because
+// challenge status is not modeled on a separate path in this slice.
 
 // RFC 8555 §7.4, §7.1.6 — https://www.rfc-editor.org/rfc/rfc8555#section-7.4
 // §7.1.6: order is "ready" only when all authorizations are "valid".
 // §7.4: finalize while not "ready" MUST fail ("orderNotReady").
 formula finalize_requires_authorization {
-  always(<+FINALIZE_ORDER> true -> !<+VALIDATE_AUTHORIZATION> true)
+  always(<+FINALIZE_ORDER> true -> !<+post_to(/order_status.text, "pending")> true)
 }
 
 // RFC 8555 §7.4.2, §7.1.6 — https://www.rfc-editor.org/rfc/rfc8555#section-7.4.2
 // §7.1.6: order enters "processing" after finalize, then "valid" with a
-// "certificate" URL; §7.4.2: client downloads the cert from that URL.
+// "certificate" URL; issuance MUST NOT occur while order is still "ready".
 formula issuance_requires_finalize {
-  always(<+ISSUE_CERTIFICATE> true -> !<+FINALIZE_ORDER> true)
+  always(<+ISSUE_CERTIFICATE> true -> !<+post_to(/order_status.text, "ready")> true)
 }
 
 // RFC 8555 §7.4.2, §6.2 — https://www.rfc-editor.org/rfc/rfc8555#section-7.4.2
@@ -34,9 +36,10 @@ formula only_ca_issues_certificate {
   always(<+ISSUE_CERTIFICATE> true -> <+signed_by(/users/certificate_authority.id)> true)
 }
 
-// RFC 8555 §7.1.6, §7.5.1 — https://www.rfc-editor.org/rfc/rfc8555#section-7.5.1
-// §7.1.6: authorization becomes "valid" only after a challenge reaches "valid".
-// §7.5.1: server finalizes authorization after validating the challenge response.
+// RFC 8555 §7.1.6, §7.5.1, §8.2 — https://www.rfc-editor.org/rfc/rfc8555#section-7.1.6
+// §7.1.6: after the client responds, the challenge is "processing"; the server
+// may attempt validation multiple times (§8.2) before authorization is "valid".
+// §7.5.1: authorization requires a completed challenge response first.
 formula authorization_requires_challenge {
   always(<+VALIDATE_AUTHORIZATION> true -> !<+COMPLETE_CHALLENGE> true)
 }
@@ -45,10 +48,10 @@ formula authorization_requires_challenge {
 // When committing to a contract, wrap as `rule name { formula { ... } }`.
 
 // RFC 8555 §7.6 — https://www.rfc-editor.org/rfc/rfc8555#section-7.6
-// Governance placeholder: once revoked, certificate use is forbidden in this
-// slice (operational meaning of successful revokeCert; not wire-level OCSP).
+// Once order status is "invalid" (revoked), certificate use is forbidden in
+// this slice (operational meaning of revokeCert; not wire-level OCSP).
 formula revocation_blocks_use {
-  always(<+REVOKE_CERTIFICATE> true -> always([-USE_CERTIFICATE] true))
+  always(<+post_to(/order_status.text, "invalid")> true -> always([-USE_CERTIFICATE] true))
 }
 
 // RFC 8555 §7.4 — https://www.rfc-editor.org/rfc/rfc8555#section-7.4

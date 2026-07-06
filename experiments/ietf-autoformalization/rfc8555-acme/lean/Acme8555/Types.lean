@@ -6,6 +6,15 @@ inductive Party where
   | certificateAuthority
   deriving DecidableEq, Repr, Inhabited
 
+/-- RFC 8555 §7.1.6 order status values (mirrors `/order_status.text`). -/
+inductive OrderStatus where
+  | pending
+  | ready
+  | processing
+  | valid
+  | invalid
+  deriving DecidableEq, Repr, Inhabited
+
 /-- Protocol events abstracted from commit actions in `model/default.modality`. -/
 inductive Action where
   | createOrder
@@ -18,16 +27,9 @@ inductive Action where
   | useCertificate
   deriving DecidableEq, Repr, Inhabited
 
-/-- Witness LTS states (mirrors `model/default.modality`). -/
+/-- Opaque witness LTS nodes — one per order status (mirrors q0…q5). -/
 inductive State where
-  | init
-  | orderCreated
-  | authorizationPending
-  | challengeCompleted
-  | authorized
-  | finalized
-  | issued
-  | revoked
+  | q0 | q1 | q2 | q3 | q4 | q5
   deriving DecidableEq, Repr, Inhabited
 
 structure Event where

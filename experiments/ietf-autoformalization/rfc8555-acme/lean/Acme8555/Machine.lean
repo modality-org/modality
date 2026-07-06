@@ -5,23 +5,34 @@ namespace Acme8555
 /-- Single transition of the witness issuance machine. -/
 inductive IssuanceStep : State → Event → State → Prop where
   | createOrder :
-      IssuanceStep .init ⟨.createOrder, .accountHolder⟩ .orderCreated
+      IssuanceStep .q0 ⟨.createOrder, .accountHolder⟩ .q1
   | issueChallenge :
-      IssuanceStep .orderCreated ⟨.issueChallenge, .certificateAuthority⟩ .authorizationPending
+      IssuanceStep .q1 ⟨.issueChallenge, .certificateAuthority⟩ .q1
   | completeChallenge :
-      IssuanceStep .authorizationPending ⟨.completeChallenge, .accountHolder⟩ .challengeCompleted
+      IssuanceStep .q1 ⟨.completeChallenge, .accountHolder⟩ .q1
+  | retryValidateAuthorization :
+      IssuanceStep .q1 ⟨.validateAuthorization, .certificateAuthority⟩ .q1
   | validateAuthorization :
-      IssuanceStep .challengeCompleted ⟨.validateAuthorization, .certificateAuthority⟩ .authorized
+      IssuanceStep .q1 ⟨.validateAuthorization, .certificateAuthority⟩ .q2
   | finalizeOrder :
-      IssuanceStep .authorized ⟨.finalizeOrder, .accountHolder⟩ .finalized
+      IssuanceStep .q2 ⟨.finalizeOrder, .accountHolder⟩ .q3
   | issueCertificate :
-      IssuanceStep .finalized ⟨.issueCertificate, .certificateAuthority⟩ .issued
+      IssuanceStep .q3 ⟨.issueCertificate, .certificateAuthority⟩ .q4
   | revokeByHolder :
-      IssuanceStep .issued ⟨.revokeCertificate, .accountHolder⟩ .revoked
+      IssuanceStep .q4 ⟨.revokeCertificate, .accountHolder⟩ .q5
   | revokeByCa :
-      IssuanceStep .issued ⟨.revokeCertificate, .certificateAuthority⟩ .revoked
+      IssuanceStep .q4 ⟨.revokeCertificate, .certificateAuthority⟩ .q5
 
 def IssuanceStep.event {s e s'} (_ : IssuanceStep s e s') : Event := e
+
+/-- Order status at each witness node (mirrors `+post_to(/order_status.text, …)`). -/
+def orderStatusAt : State → Option OrderStatus
+  | .q0 => none
+  | .q1 => some .pending
+  | .q2 => some .ready
+  | .q3 => some .processing
+  | .q4 => some .valid
+  | .q5 => some .invalid
 
 /-- Chronological trace: `es` records prior events, then `e` is appended. -/
 inductive ValidPath : State → List Event → State → Prop where
@@ -39,8 +50,8 @@ def witnessRun : List Event := [
   ⟨.issueCertificate, .certificateAuthority⟩
 ]
 
-theorem witnessRun_valid : ValidPath .init witnessRun .issued := by
-  let h1 := ValidPath.cons (ValidPath.nil .init) IssuanceStep.createOrder
+theorem witnessRun_valid : ValidPath .q0 witnessRun .q4 := by
+  let h1 := ValidPath.cons (ValidPath.nil .q0) IssuanceStep.createOrder
   let h2 := ValidPath.cons h1 IssuanceStep.issueChallenge
   let h3 := ValidPath.cons h2 IssuanceStep.completeChallenge
   let h4 := ValidPath.cons h3 IssuanceStep.validateAuthorization
