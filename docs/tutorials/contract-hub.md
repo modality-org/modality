@@ -132,3 +132,8 @@ modal c push chain
 ```
 
 Chain commits are validated by consensus — no single party can censor or tamper.
+
+## See also
+
+- [RFC 8555 ACME autoformalization example](../../experiments/ietf-autoformalization/rfc8555-acme/) — IETF protocol governance as a Modality contract
+- [IETF autoformalization plan](../progress/IETF_AUTOFORMALIZATION_PLAN.md)

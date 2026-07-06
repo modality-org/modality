@@ -39,6 +39,8 @@ The Prisoner's Dilemma is solved when both prisoners can read each other's sourc
    - Model checker verifies satisfaction
    - Human/agent approves or requests refinement
 
+4. **IETF corpus as synthesis benchmark** — tier-1 RFC stubs in [experiments/ietf-autoformalization/](experiments/ietf-autoformalization/) ([plan](docs/progress/IETF_AUTOFORMALIZATION_PLAN.md))
+
 ### Synthesis Heuristics
 
 | Rule Pattern | Model Shape | States |

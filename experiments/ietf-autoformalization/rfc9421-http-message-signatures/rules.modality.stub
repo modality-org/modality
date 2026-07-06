@@ -1,0 +1,23 @@
+// RFC 9421 — HTTP Message Signatures
+// Status: STUB — replace with rules/*.modality in Phase 5
+//
+// Parties:
+//   /users/signer.id
+//   /users/verifier.id
+//   /users/policy_authority.id
+//   /users/resource_owner.id
+//
+// TODO F1: Accept requires prior verification
+//   always([+ACCEPT_REQUEST] true -> eventually(<+VERIFY_SIGNATURE> true))
+//
+// TODO F2: Protected requests require signature
+//   always([+ACCEPT_REQUEST] true -> eventually(<+SIGN_REQUEST> true))
+//
+// TODO F3: Only authorized signer may sign
+//   always([+SIGN_REQUEST] true -> <+signed_by(/users/signer.id)> true)
+//
+// TODO F4: Key rotation requires policy authority approval
+//   always([+ROTATE_SIGNING_KEY] true -> <+signed_by(/users/policy_authority.id)> true)
+//
+// TODO F5: Rejection blocks acceptance
+//   always([+REJECT_REQUEST] true -> always([-ACCEPT_REQUEST] true))

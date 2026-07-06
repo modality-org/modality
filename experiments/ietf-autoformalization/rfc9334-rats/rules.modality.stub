@@ -1,0 +1,22 @@
+// RFC 9334 — Remote Attestation Procedures (RATS)
+// Status: STUB — replace with rules/*.modality in Phase 4
+//
+// Parties:
+//   /users/attester.id
+//   /users/verifier.id
+//   /users/relying_party.id
+//
+// TODO F1: Appraisal requires prior evidence submission
+//   always([+APPRAISE] true -> eventually(<+SUBMIT_EVIDENCE> true))
+//
+// TODO F2: Access grant requires successful appraisal
+//   always([+GRANT_ACCESS] true -> eventually(<+ATTEST_PASS> true))
+//
+// TODO F3: Grant requires verifier attestation oracle
+//   always([+GRANT_ACCESS] true -> <+oracle_attests(/oracles/verifier.id, "appraisal", "pass")> true)
+//
+// TODO F4: Failed attestation blocks access
+//   always([+ATTEST_FAIL] true -> always([-GRANT_ACCESS] true))
+//
+// TODO F5: Only attester may submit evidence
+//   always([+SUBMIT_EVIDENCE] true -> <+signed_by(/users/attester.id)> true)

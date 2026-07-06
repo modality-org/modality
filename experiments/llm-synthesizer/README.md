@@ -34,3 +34,7 @@ This synthesizer takes natural language descriptions of agent cooperation scenar
 ## Examples
 
 See `examples/` for sample inputs and outputs.
+
+## IETF Corpus
+
+For autoformalizing IETF RFC normative cores into Modality contracts, see [../ietf-autoformalization/](../ietf-autoformalization/) and [docs/progress/IETF_AUTOFORMALIZATION_PLAN.md](../../docs/progress/IETF_AUTOFORMALIZATION_PLAN.md).

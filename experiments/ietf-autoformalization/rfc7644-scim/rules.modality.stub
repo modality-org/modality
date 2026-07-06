@@ -1,0 +1,22 @@
+// RFC 7644 — SCIM Provisioning Protocol
+// Status: STUB — replace with rules/*.modality in Phase 4
+//
+// Parties:
+//   /users/identity_provider.id
+//   /users/service_provider.id
+//   /users/provisioning_admin.id
+//
+// TODO F1: Update requires prior create
+//   always([+UPDATE_USER] true -> eventually(<+CREATE_USER> true))
+//
+// TODO F2: Only identity provider may create users
+//   always([+CREATE_USER] true -> <+signed_by(/users/identity_provider.id)> true)
+//
+// TODO F3: Delete requires deprovision when policy applies
+//   always([+DELETE_USER] true -> eventually(<+DEPROVISION_USER> true))
+//
+// TODO F4: Sensitive delete requires admin signature
+//   always([+DELETE_USER] true -> <+signed_by(/users/provisioning_admin.id)> true)
+//
+// TODO F5: Suspend blocks reactivation without admin
+//   always([+SUSPEND_USER] true -> always([-REACTIVATE_USER] true))

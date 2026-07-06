@@ -1,0 +1,65 @@
+//! Corpus regression test for RFC 8555 ACME autoformalization.
+
+use modality_lang::{
+    lalrpop_parser::{parse_all_formulas_content_lalrpop, parse_content_lalrpop},
+    ModelChecker,
+};
+use std::fs;
+use std::path::PathBuf;
+
+fn corpus_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../experiments/ietf-autoformalization/rfc8555-acme")
+}
+
+fn load_model() -> modality_lang::ast::Model {
+    let path = corpus_dir().join("model/default.modality");
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+    parse_content_lalrpop(&content)
+        .unwrap_or_else(|e| panic!("failed to parse ACME model: {e}"))
+}
+
+fn load_rules() -> Vec<modality_lang::ast::Formula> {
+    let path = corpus_dir().join("rules/governance.modality");
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+    parse_all_formulas_content_lalrpop(&content)
+        .unwrap_or_else(|e| panic!("failed to parse ACME rules: {e}"))
+}
+
+#[test]
+fn acme_rfc8555_model_parses() {
+    let model = load_model();
+    assert_eq!(model.name, "AcmeIssuance");
+    assert_eq!(model.parts.len(), 1);
+    assert_eq!(model.parts[0].name, "issuance");
+    assert!(model.parts[0].transitions.len() >= 8);
+}
+
+#[test]
+fn acme_rfc8555_rules_parse() {
+    let rules = load_rules();
+    assert_eq!(rules.len(), 9, "expected nine governance rules");
+}
+
+#[test]
+fn acme_rfc8555_model_satisfies_governance_rules() {
+    let model = load_model();
+    let rules = load_rules();
+    let checker = ModelChecker::new(model);
+
+    let mut failures = Vec::new();
+    for rule in &rules {
+        let result = checker.check_formula_any_state(rule);
+        if !result.is_satisfied {
+            failures.push(rule.name.clone());
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "model failed rules: {}",
+        failures.join(", ")
+    );
+}

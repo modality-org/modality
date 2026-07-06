@@ -1,0 +1,27 @@
+// RFC 8555 — ACME certificate issuance governing model
+//
+// Witness LTS for the normative ordering: order → challenge → authorize →
+// finalize → issue. Revocation is terminal.
+//
+// Parties (state paths):
+//   /users/account_holder.id
+//   /users/certificate_authority.id
+
+model AcmeIssuance {
+  initial init
+
+  part issuance {
+    init -> order_created [+CREATE_ORDER +signed_by(/users/account_holder.id)]
+    order_created -> authorization_pending [+ISSUE_CHALLENGE +signed_by(/users/certificate_authority.id)]
+    authorization_pending -> challenge_completed [+COMPLETE_CHALLENGE +signed_by(/users/account_holder.id)]
+    challenge_completed -> authorized [+VALIDATE_AUTHORIZATION +signed_by(/users/certificate_authority.id)]
+    authorized -> finalized [+FINALIZE_ORDER +signed_by(/users/account_holder.id)]
+    finalized -> issued [+ISSUE_CERTIFICATE +signed_by(/users/certificate_authority.id)]
+
+    issued -> revoked [+REVOKE_CERTIFICATE +signed_by(/users/account_holder.id)]
+    issued -> revoked [+REVOKE_CERTIFICATE +signed_by(/users/certificate_authority.id)]
+
+    issued -> issued
+    revoked -> revoked
+  }
+}

@@ -1,0 +1,23 @@
+// RFC 8693 — OAuth 2.0 Token Exchange
+// Status: STUB — replace with rules/*.modality in Phase 3
+//
+// Parties:
+//   /users/requesting_client.id
+//   /users/authorization_server.id
+//   /users/subject.id
+//   /users/actor.id
+//
+// TODO F1: Exchange requires valid subject authorization
+//   always([+ISSUE_EXCHANGED_TOKEN] true -> eventually(<+VALIDATE_EXCHANGE> true))
+//
+// TODO F2: Only authorization server may issue exchanged token
+//   always([+ISSUE_EXCHANGED_TOKEN] true -> <+signed_by(/users/authorization_server.id)> true)
+//
+// TODO F3: Delegation required when actor acts for subject
+//   always([+ISSUE_EXCHANGED_TOKEN] true -> eventually(<+DELEGATE> true))
+//
+// TODO F4: Denial blocks token issuance
+//   always([+DENY_EXCHANGE] true -> always([-ISSUE_EXCHANGED_TOKEN] true))
+//
+// TODO F5: Subject must authorize delegation
+//   always([+DELEGATE] true -> <+signed_by(/users/subject.id)> true)

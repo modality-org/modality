@@ -1,0 +1,42 @@
+// RFC 8555 — ACME issuance governance formulas
+//
+// The model in ../model/default.modality is one satisfying witness.
+
+formula finalize_requires_authorization {
+  always([+FINALIZE_ORDER] true -> eventually(<+VALIDATE_AUTHORIZATION> true))
+}
+
+formula issuance_requires_finalize {
+  always([+ISSUE_CERTIFICATE] true -> eventually(<+FINALIZE_ORDER> true))
+}
+
+formula only_ca_issues_certificate {
+  always([+ISSUE_CERTIFICATE] true -> <+signed_by(/users/certificate_authority.id)> true)
+}
+
+formula authorization_requires_challenge {
+  always([+VALIDATE_AUTHORIZATION] true -> eventually(<+COMPLETE_CHALLENGE> true))
+}
+
+// Governance formulas use `formula` blocks for model-checker corpus tests.
+// When committing to a contract, wrap as `rule name { formula { ... } }`.
+
+formula revocation_blocks_use {
+  always([+REVOKE_CERTIFICATE] true -> always([-USE_CERTIFICATE] true))
+}
+
+formula only_holder_creates_order {
+  always([+CREATE_ORDER] true -> <+signed_by(/users/account_holder.id)> true)
+}
+
+formula only_holder_finalizes {
+  always([+FINALIZE_ORDER] true -> <+signed_by(/users/account_holder.id)> true)
+}
+
+formula finalize_requires_order {
+  always([+FINALIZE_ORDER] true -> eventually(<+CREATE_ORDER> true))
+}
+
+formula only_ca_validates_authorization {
+  always([+VALIDATE_AUTHORIZATION] true -> <+signed_by(/users/certificate_authority.id)> true)
+}
