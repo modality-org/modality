@@ -7,7 +7,7 @@
 //!
 //! Actions can reference paths in predicates:
 //! - `+signed_by(/members/alice.pubkey)` - verify signature using key at path
-//! - `+post_to(/status/state.text)` - modify the value at path
+//! - `+sets(/path.text, value)` — set contract state at path (alias: `post_to`)
 //!
 //! # Types
 //!

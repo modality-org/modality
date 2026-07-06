@@ -970,4 +970,25 @@ rule_for_this_commit {
             _ => panic!("Expected And, got {:?}", rule.expression),
         }
     }
+
+    #[test]
+    fn test_sets_is_alias_for_post_to() {
+        let content = r#"model T { initial q0 part p {
+          q0 -> q1 [+sets(/order/status.text, "pending")]
+        } }"#;
+        let model = parse_content_lalrpop(content).unwrap();
+        let prop = &model.parts[0].transitions[0].properties[0];
+        assert_eq!(prop.name, "post_to");
+
+        let legacy = parse_content_lalrpop(
+            r#"model T { initial q0 part p {
+              q0 -> q1 [+post_to(/order/status.text, "pending")]
+            } }"#,
+        )
+        .unwrap();
+        assert_eq!(
+            legacy.parts[0].transitions[0].properties[0],
+            model.parts[0].transitions[0].properties[0]
+        );
+    }
 }

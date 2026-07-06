@@ -2,45 +2,41 @@ import Acme8555.Types
 
 namespace Acme8555
 
-def hasAction (trace : List Event) (a : Action) : Prop :=
-  ∃ i, i < trace.length ∧ trace[i]?.map (·.action) = some a
+/-- Every event with a matching order-status write is performed by the required party. -/
+def onlyPartySetsOrder (trace : List Event) (s : OrderStatus) (p : Party) : Prop :=
+  ∀ e, e ∈ trace → (.orderStatus s) ∈ e.writes → e.actor = p
 
-def beforeAction (trace : List Event) (earlier later : Action) : Prop :=
-  ∃ i j,
-    i < j ∧
-    j < trace.length ∧
-    trace[i]?.map (·.action) = some earlier ∧
-    trace[j]?.map (·.action) = some later
+/-- Every event with a matching challenge-status write is performed by the required party. -/
+def onlyPartySetsChallenge (trace : List Event) (s : ChallengeStatus) (p : Party) : Prop :=
+  ∀ e, e ∈ trace → (.challengeStatus s) ∈ e.writes → e.actor = p
 
-/-- Modality: `always(<+FINALIZE_ORDER> true -> !<+post_to(/order_status.text, "pending")> true)` (trace: validate before finalize) -/
+/-- Modality: `always(<+sets(/order/status.text, "processing")> true -> !<+sets(..., "pending")> true)` -/
 def finalizeRequiresAuthorization (trace : List Event) : Prop :=
-  hasAction trace .finalizeOrder → beforeAction trace .validateAuthorization .finalizeOrder
+  ¬∃ e, e ∈ trace ∧
+    (.orderStatus .pending) ∈ e.writes ∧
+    (.orderStatus .processing) ∈ e.writes
 
-/-- Modality: `always(<+ISSUE_CERTIFICATE> true -> !<+post_to(/order_status.text, "ready")> true)` (trace: finalize before issue) -/
+/-- Modality: `always(<+sets(/order/status.text, "valid")> true -> !<+sets(..., "ready")> true)` -/
 def issuanceRequiresFinalize (trace : List Event) : Prop :=
-  hasAction trace .issueCertificate → beforeAction trace .finalizeOrder .issueCertificate
+  ¬∃ e, e ∈ trace ∧
+    (.orderStatus .ready) ∈ e.writes ∧
+    (.orderStatus .valid) ∈ e.writes
 
-/-- Modality: `always(<+VALIDATE_AUTHORIZATION> true -> !<+COMPLETE_CHALLENGE> true)`;
-    RFC §7.1.6/§8.2 allow multiple validate attempts in challenge "processing". -/
+/-- Modality: `always(<+sets(/order/status.text, "ready")> true -> !<+sets(/challenge/status.text, "pending")> true)` -/
 def authorizationRequiresChallenge (trace : List Event) : Prop :=
-  hasAction trace .validateAuthorization → beforeAction trace .completeChallenge .validateAuthorization
+  ¬∃ e, e ∈ trace ∧
+    (.challengeStatus .pending) ∈ e.writes ∧
+    (.orderStatus .ready) ∈ e.writes
 
-/-- Modality: `always(<+FINALIZE_ORDER> true -> !<+CREATE_ORDER> true)` (trace: create before finalize) -/
+/-- Modality: `always(<+sets(/order/status.text, "processing")> true -> !<+sets(/challenge/status.text, "pending")> true)` -/
 def finalizeRequiresOrder (trace : List Event) : Prop :=
-  hasAction trace .finalizeOrder → beforeAction trace .createOrder .finalizeOrder
+  ¬∃ e, e ∈ trace ∧
+    (.challengeStatus .pending) ∈ e.writes ∧
+    (.orderStatus .processing) ∈ e.writes
 
-/-- Every event with the given action is performed by the required party. -/
-def onlyPartyPerforms (trace : List Event) (a : Action) (p : Party) : Prop :=
-  ∀ e, e ∈ trace → e.action = a → e.actor = p
-
-/-- Modality: `always(<+post_to(/order_status.text, "invalid")> true -> always([-USE_CERTIFICATE] true))` on valid traces. -/
+/-- Modality: `always(<+sets(/order/status.text, "invalid")> true -> always([-sets(/certificate/in_use.text, "true")])` -/
 def revocationBlocksUse (trace : List Event) : Prop :=
-  ∀ i j,
-    i < trace.length →
-    trace[i]?.map (·.action) = some .revokeCertificate →
-    j < trace.length →
-    i ≤ j →
-    trace[j]?.map (·.action) ≠ some .useCertificate
+  ∀ e, e ∈ trace → .certInUse ∉ e.writes
 
 /-- Bundle matching `rules/governance.modality`. -/
 structure GovernanceProps (trace : List Event) : Prop where
@@ -48,10 +44,10 @@ structure GovernanceProps (trace : List Event) : Prop where
   issuance_requires_finalize : issuanceRequiresFinalize trace
   authorization_requires_challenge : authorizationRequiresChallenge trace
   finalize_requires_order : finalizeRequiresOrder trace
-  only_holder_creates_order : onlyPartyPerforms trace .createOrder .accountHolder
-  only_holder_finalizes : onlyPartyPerforms trace .finalizeOrder .accountHolder
-  only_ca_issues_certificate : onlyPartyPerforms trace .issueCertificate .certificateAuthority
-  only_ca_validates_authorization : onlyPartyPerforms trace .validateAuthorization .certificateAuthority
+  only_holder_creates_order : onlyPartySetsOrder trace .pending .accountHolder
+  only_holder_finalizes : onlyPartySetsOrder trace .processing .accountHolder
+  only_ca_issues_certificate : onlyPartySetsOrder trace .valid .certificateAuthority
+  only_ca_validates_authorization : onlyPartySetsChallenge trace .valid .certificateAuthority
   revocation_blocks_use : revocationBlocksUse trace
 
 end Acme8555

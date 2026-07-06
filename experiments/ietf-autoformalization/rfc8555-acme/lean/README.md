@@ -6,7 +6,7 @@ Lean 4 formalization of the same **governance slice** as the Modality contract i
 
 | File | Modality counterpart |
 |---|---|
-| `Acme8555/Types.lean` | Parties, actions, opaque witness states (q0…q5), `OrderStatus` |
+| `Acme8555/Types.lean` | Parties, `PathWrite`, opaque witness states (q0…q5), `OrderStatus`, `ChallengeStatus` |
 | `Acme8555/Machine.lean` | `model/default.modality` witness LTS + `orderStatusAt` |
 | `Acme8555/Props.lean` | `rules/governance.modality` formula bundle |
 | `Acme8555/Theorems.lean` | Proofs (mirrors `acme_rfc8555_corpus.rs`) |
@@ -24,7 +24,7 @@ lake build Acme8555
 
 - `witnessRun_valid` — the happy-path trace is accepted by the witness machine.
 - `witnessRun_governance` — that trace satisfies all nine `GovernanceProps` fields (ordering + party rules + revocation blocks use).
-- `no_useCertificate` — no valid path introduces `+USE_CERTIFICATE`.
+- `no_certInUse` — no valid path sets `/certificate/in_use.text`.
 
 A fully general `governanceProps_of_valid` theorem (all paths from `q0`, not only `witnessRun`) is planned; the Modality side already model-checks this via `cargo test acme_rfc8555`.
 
@@ -34,7 +34,9 @@ A fully general `governanceProps_of_valid` theorem (all paths from `q0`, not onl
 |---|---|
 | `/users/account_holder.id` | `Party.accountHolder` |
 | `/users/certificate_authority.id` | `Party.certificateAuthority` |
-| `+CREATE_ORDER` | `Action.createOrder` |
+| `+sets(/order/status.text, "pending")` | `PathWrite.orderStatus .pending` |
+| `+sets(/challenge/status.text, "processing")` | `PathWrite.challengeStatus .processing` |
+| `+sets(/certificate/in_use.text, "true")` | `PathWrite.certInUse` |
 | `formula { ... }` in rules | `GovernanceProps` structure |
-| `/order_status.text` | `OrderStatus` + `orderStatusAt` |
+| `/order/status.text` | `OrderStatus` + `orderStatusAt` |
 | `q0`…`q5` witness nodes | `State.q0`…`State.q5` |

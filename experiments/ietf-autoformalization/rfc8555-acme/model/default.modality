@@ -1,8 +1,9 @@
 // RFC 8555 — ACME certificate issuance governing model
 //
-// Witness nodes (q0…q5) are opaque LTS ids — one per `/order_status.text`
-// value where set. Contract-visible lifecycle is on that path (RFC §7.1.6:
-// pending | ready | processing | valid | invalid).
+// Witness nodes (q0…q5) are opaque LTS ids — one per `/order/status.text`
+// value where set. Contract-visible lifecycle uses path writes only (no +ACTION):
+//   /order/status.text   — RFC §7.1.6 order status
+//   /challenge/status.text — RFC §7.1.6 challenge status (pending phase at q1)
 //
 // Parties (state paths):
 //   /users/account_holder.id
@@ -10,7 +11,7 @@
 //
 // Witness map (do not reference in formulas):
 //   q0  (unset)
-//   q1  pending — challenge/authorization sub-steps are self-loops here
+//   q1  pending — challenge sub-steps are self-loops here
 //   q2  ready
 //   q3  processing
 //   q4  valid
@@ -21,47 +22,69 @@ model AcmeIssuance {
 
   part issuance {
     q0 -> q1 [
-      +CREATE_ORDER +signed_by(/users/account_holder.id)
-      +post_to(/order_status.text, "pending")
+      +sets(/order/status.text, "pending")
+      +signed_by(/users/account_holder.id)
     ]
-    q1 -> q1 [+ISSUE_CHALLENGE +signed_by(/users/certificate_authority.id)]
-    q1 -> q1 [+COMPLETE_CHALLENGE +signed_by(/users/account_holder.id)]
+    q1 -> q1 [
+      +sets(/challenge/status.text, "pending")
+      +signed_by(/users/certificate_authority.id)
+    ]
+    q1 -> q1 [
+      +sets(/challenge/status.text, "processing")
+      +signed_by(/users/account_holder.id)
+    ]
     // RFC §7.1.6 / §8.2: validation retries while order stays pending.
     q1 -> q1 [
-      +VALIDATE_AUTHORIZATION +signed_by(/users/certificate_authority.id)
-      -COMPLETE_CHALLENGE
+      +sets(/challenge/status.text, "processing")
+      +signed_by(/users/certificate_authority.id)
+      -sets(/challenge/status.text, "pending")
     ]
     q1 -> q2 [
-      +VALIDATE_AUTHORIZATION +signed_by(/users/certificate_authority.id)
-      +post_to(/order_status.text, "ready")
-      -COMPLETE_CHALLENGE
+      +sets(/challenge/status.text, "valid")
+      +sets(/order/status.text, "ready")
+      +signed_by(/users/certificate_authority.id)
+      -sets(/challenge/status.text, "pending")
     ]
     q2 -> q3 [
-      +FINALIZE_ORDER +signed_by(/users/account_holder.id)
-      +post_to(/order_status.text, "processing")
+      +sets(/order/status.text, "processing")
+      +signed_by(/users/account_holder.id)
     ]
     q3 -> q4 [
-      +ISSUE_CERTIFICATE +signed_by(/users/certificate_authority.id)
-      +post_to(/order_status.text, "valid")
+      +sets(/order/status.text, "valid")
+      +signed_by(/users/certificate_authority.id)
     ]
 
     q4 -> q5 [
-      +REVOKE_CERTIFICATE +signed_by(/users/account_holder.id)
-      +post_to(/order_status.text, "invalid")
+      +sets(/order/status.text, "invalid")
+      +signed_by(/users/account_holder.id)
     ]
     q4 -> q5 [
-      +REVOKE_CERTIFICATE +signed_by(/users/certificate_authority.id)
-      +post_to(/order_status.text, "invalid")
+      +sets(/order/status.text, "invalid")
+      +signed_by(/users/certificate_authority.id)
     ]
 
-    // Stutter loops: explicit -ACTION so unrelated <+ACTION> diamonds stay false.
+    // Stutter loops: explicit -sets so unrelated <+sets(...)> diamonds stay false.
     q4 -> q4 [
-      -CREATE_ORDER -FINALIZE_ORDER -ISSUE_CERTIFICATE -VALIDATE_AUTHORIZATION
-      -COMPLETE_CHALLENGE -ISSUE_CHALLENGE -REVOKE_CERTIFICATE -USE_CERTIFICATE
+      -sets(/order/status.text, "pending")
+      -sets(/order/status.text, "ready")
+      -sets(/order/status.text, "processing")
+      -sets(/order/status.text, "valid")
+      -sets(/order/status.text, "invalid")
+      -sets(/challenge/status.text, "pending")
+      -sets(/challenge/status.text, "processing")
+      -sets(/challenge/status.text, "valid")
+      -sets(/certificate/in_use.text, "true")
     ]
     q5 -> q5 [
-      -CREATE_ORDER -FINALIZE_ORDER -ISSUE_CERTIFICATE -VALIDATE_AUTHORIZATION
-      -COMPLETE_CHALLENGE -ISSUE_CHALLENGE -REVOKE_CERTIFICATE -USE_CERTIFICATE
+      -sets(/order/status.text, "pending")
+      -sets(/order/status.text, "ready")
+      -sets(/order/status.text, "processing")
+      -sets(/order/status.text, "valid")
+      -sets(/order/status.text, "invalid")
+      -sets(/challenge/status.text, "pending")
+      -sets(/challenge/status.text, "processing")
+      -sets(/challenge/status.text, "valid")
+      -sets(/certificate/in_use.text, "true")
     ]
   }
 }

@@ -70,7 +70,12 @@ fn print_property(prop: &Property) -> String {
         if let crate::ast::PropertySource::Predicate { args, .. } = source {
             // Extract the arg from the JSON
             if let Some(arg) = args.get("arg").and_then(|v| v.as_str()) {
-                return format!("{}{}({})", sign, prop.name, print_predicate_arg(arg));
+                return format!(
+                    "{}{}({})",
+                    sign,
+                    crate::ast::predicate_display_name(&prop.name),
+                    print_predicate_arg(arg)
+                );
             }
             if let Some(args) = args.get("args").and_then(|v| v.as_array()) {
                 let rendered_args = args
@@ -80,7 +85,12 @@ fn print_property(prop: &Property) -> String {
                     .collect::<Vec<_>>()
                     .join(", ");
                 if !rendered_args.is_empty() {
-                    return format!("{}{}({})", sign, prop.name, rendered_args);
+                    return format!(
+                        "{}{}({})",
+                        sign,
+                        crate::ast::predicate_display_name(&prop.name),
+                        rendered_args
+                    );
                 }
             }
         }

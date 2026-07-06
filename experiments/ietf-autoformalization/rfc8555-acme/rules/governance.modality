@@ -5,43 +5,42 @@
 // Citations below point to normative sections; see normative-core.md for the
 // full extraction notes.
 //
-// Formulas use actions and predicates only (+ACTION, +signed_by, +post_to, …).
-// They must not name witness LTS nodes (opaque q0…q5). Order lifecycle is on
-// `/order_status.text` (RFC §7.1.6: pending | ready | processing | valid |
-// invalid), set via +post_to on transitions in the model.
+// Formulas use path-write predicates and authorization only (+sets, +signed_by).
+// `sets(path, value)` is sugar for `post_to` / `posts_to` (same predicate). They
+// must not name witness LTS nodes (opaque q0…q5).
 //
-// Order-state gates: when an action is enabled, the order must not still be
-// in an earlier RFC status (e.g. finalize requires !pending, not merely
-// !validate). Challenge ordering still uses action phase gates because
-// challenge status is not modeled on a separate path in this slice.
+// Order lifecycle: `/order/status.text` (RFC §7.1.6)
+// Challenge lifecycle: `/challenge/status.text` (RFC §7.1.6, pending phase at q1)
+//
+// Order-state gates: when a status write is enabled, an earlier RFC status write
+// must not still be enabled on the same step.
 
 // RFC 8555 §7.4, §7.1.6 — https://www.rfc-editor.org/rfc/rfc8555#section-7.4
 // §7.1.6: order is "ready" only when all authorizations are "valid".
 // §7.4: finalize while not "ready" MUST fail ("orderNotReady").
 formula finalize_requires_authorization {
-  always(<+FINALIZE_ORDER> true -> !<+post_to(/order_status.text, "pending")> true)
+  always(<+sets(/order/status.text, "processing")> true -> !<+sets(/order/status.text, "pending")> true)
 }
 
 // RFC 8555 §7.4.2, §7.1.6 — https://www.rfc-editor.org/rfc/rfc8555#section-7.4.2
 // §7.1.6: order enters "processing" after finalize, then "valid" with a
 // "certificate" URL; issuance MUST NOT occur while order is still "ready".
 formula issuance_requires_finalize {
-  always(<+ISSUE_CERTIFICATE> true -> !<+post_to(/order_status.text, "ready")> true)
+  always(<+sets(/order/status.text, "valid")> true -> !<+sets(/order/status.text, "ready")> true)
 }
 
 // RFC 8555 §7.4.2, §6.2 — https://www.rfc-editor.org/rfc/rfc8555#section-7.4.2
 // Server provisions the issued certificate URL on the order; issuance is a
 // CA action (authenticated per §6.2), not the account holder.
 formula only_ca_issues_certificate {
-  always(<+ISSUE_CERTIFICATE> true -> <+signed_by(/users/certificate_authority.id)> true)
+  always(<+sets(/order/status.text, "valid")> true -> <+signed_by(/users/certificate_authority.id)> true)
 }
 
 // RFC 8555 §7.1.6, §7.5.1, §8.2 — https://www.rfc-editor.org/rfc/rfc8555#section-7.1.6
-// §7.1.6: after the client responds, the challenge is "processing"; the server
-// may attempt validation multiple times (§8.2) before authorization is "valid".
 // §7.5.1: authorization requires a completed challenge response first.
+// Order may become "ready" only after challenge leaves "pending".
 formula authorization_requires_challenge {
-  always(<+VALIDATE_AUTHORIZATION> true -> !<+COMPLETE_CHALLENGE> true)
+  always(<+sets(/order/status.text, "ready")> true -> !<+sets(/challenge/status.text, "pending")> true)
 }
 
 // Governance formulas use `formula` blocks for model-checker corpus tests.
@@ -51,32 +50,33 @@ formula authorization_requires_challenge {
 // Once order status is "invalid" (revoked), certificate use is forbidden in
 // this slice (operational meaning of revokeCert; not wire-level OCSP).
 formula revocation_blocks_use {
-  always(<+post_to(/order_status.text, "invalid")> true -> always([-USE_CERTIFICATE] true))
+  always(<+sets(/order/status.text, "invalid")> true -> always([-sets(/certificate/in_use.text, "true")] true))
 }
 
-// RFC 8555 §7.4 — https://www.rfc-editor.org/rfc/rfc8555#section-7.4
+// RFC 8555 §7.1.4 — https://www.rfc-editor.org/rfc/rfc8555#section-7.1.4
 // "The client begins the certificate issuance process by sending a POST
 //  request to the server's newOrder resource" (signed by the account key, §6.2).
 formula only_holder_creates_order {
-  always(<+CREATE_ORDER> true -> <+signed_by(/users/account_holder.id)> true)
+  always(<+sets(/order/status.text, "pending")> true -> <+signed_by(/users/account_holder.id)> true)
 }
 
 // RFC 8555 §7.4 — https://www.rfc-editor.org/rfc/rfc8555#section-7.4
 // "Once the client believes it has fulfilled the server's requirements, it
 //  should send a POST request to the order resource's finalize URL" (account key).
 formula only_holder_finalizes {
-  always(<+FINALIZE_ORDER> true -> <+signed_by(/users/account_holder.id)> true)
+  always(<+sets(/order/status.text, "processing")> true -> <+signed_by(/users/account_holder.id)> true)
 }
 
-// RFC 8555 §7.4, §7.1.3 — https://www.rfc-editor.org/rfc/rfc8555#section-7.4
-// newOrder (§7.4) creates the order object (§7.1.3) before finalize is possible.
+// RFC 8555 §7.4, §7.1.4 — https://www.rfc-editor.org/rfc/rfc8555#section-7.4
+// newOrder (§7.4) creates the order object (§7.1.3) before finalize is possible;
+// challenge workflow must have started before order enters "processing".
 formula finalize_requires_order {
-  always(<+FINALIZE_ORDER> true -> !<+CREATE_ORDER> true)
+  always(<+sets(/order/status.text, "processing")> true -> !<+sets(/challenge/status.text, "pending")> true)
 }
 
 // RFC 8555 §7.5.1, §7.1.6 — https://www.rfc-editor.org/rfc/rfc8555#section-7.5.1
-// "The server is said to 'finalize' the authorization" and sets status to
-// "valid" or "invalid" — a CA/server action, not the account holder.
+// Setting challenge status to "valid" (authorization finalized) is a CA/server action.
+// Client completion sets "processing" (§7.1.6) and is covered by model `signed_by` on edges.
 formula only_ca_validates_authorization {
-  always(<+VALIDATE_AUTHORIZATION> true -> <+signed_by(/users/certificate_authority.id)> true)
+  always(<+sets(/challenge/status.text, "valid")> true -> <+signed_by(/users/certificate_authority.id)> true)
 }

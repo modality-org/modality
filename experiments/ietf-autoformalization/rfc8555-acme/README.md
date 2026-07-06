@@ -26,9 +26,11 @@ ACME automates certificate issuance between a certificate authority (CA) and an 
 | Certificate authority | `/users/certificate_authority.id` | Issues and revokes certificates |
 | Authoritative server | `/users/authoritative_server.id` | Proves domain control (out of scope for wire format) |
 
-## Order status
+## State paths
 
-RFC §7.1.6 order lifecycle is stored at `/order_status.text` (not witness node names):
+RFC §7.1.6 lifecycle is stored on durable paths (not witness node names):
+
+### `/order/status.text`
 
 | Value | Meaning |
 |---|---|
@@ -39,19 +41,28 @@ RFC §7.1.6 order lifecycle is stored at `/order_status.text` (not witness node 
 | `valid` | Certificate issued |
 | `invalid` | Revoked |
 
-The witness model uses opaque nodes `q0`…`q5` (one per order status). Each status change sets `/order_status.text` via `+post_to`; intermediate pending steps use self-loops without repeating `post_to`. While `pending` at `q1`, validation may retry (RFC §8.2).
+### `/challenge/status.text`
 
-## Expected Actions
+| Value | Meaning |
+|---|---|
+| `pending` | Challenge issued |
+| `processing` | Client responded; CA may validate (retries at q1, §8.2) |
+| `valid` | Authorization valid |
 
-| Action | Actor | Description |
+The witness model uses opaque nodes `q0`…`q5` (one per order status). Each order status change uses `+sets(/order/status.text, …)`; pending-phase challenge steps use `+sets(/challenge/status.text, …)` on self-loops at `q1`.
+
+## Path writes (contract vocabulary)
+
+| Path write | Actor | Description |
 |---|---|---|
-| `+CREATE_ORDER` | Account holder | Submit certificate order |
-| `+ISSUE_CHALLENGE` | CA | Provide domain validation challenge |
-| `+COMPLETE_CHALLENGE` | Account holder | Satisfy challenge |
-| `+VALIDATE_AUTHORIZATION` | CA | Attempt challenge validation (may repeat while order is `pending` at q1, §8.2) |
-| `+FINALIZE_ORDER` | Account holder | Submit CSR |
-| `+ISSUE_CERTIFICATE` | CA | Issue certificate |
-| `+REVOKE_CERTIFICATE` | Account holder or CA | Revoke certificate |
+| `+sets(/order/status.text, "pending")` | Account holder | Submit certificate order |
+| `+sets(/challenge/status.text, "pending")` | CA | Provide domain validation challenge |
+| `+sets(/challenge/status.text, "processing")` | Account holder / CA | Complete challenge / validation retry |
+| `+sets(/challenge/status.text, "valid")` | CA | Authorization valid |
+| `+sets(/order/status.text, "ready")` | CA | All authorizations valid |
+| `+sets(/order/status.text, "processing")` | Account holder | Submit CSR (finalize) |
+| `+sets(/order/status.text, "valid")` | CA | Issue certificate |
+| `+sets(/order/status.text, "invalid")` | Account holder or CA | Revoke certificate |
 
 ## Verification
 
@@ -71,10 +82,10 @@ See [lean/README.md](./lean/README.md) for the Modality ↔ Lean mapping.
 
 ## Modality Mapping Notes
 
-- Witness LTS uses opaque q0…q5 aligned to `/order_status.text`
-- Linear ordering with validation-retry self-loops at q1 and revocation branch
+- Witness LTS uses opaque q0…q5 aligned to `/order/status.text`
+- Linear ordering with challenge self-loops at q1 and revocation branch
 - Authorization formulas use `signed_by` on transitions
-- `+USE_CERTIFICATE` is a governance placeholder blocked after revocation
+- `+sets(/certificate/in_use.text, "true")` is a governance placeholder blocked after revocation
 
 ## Out of Scope
 

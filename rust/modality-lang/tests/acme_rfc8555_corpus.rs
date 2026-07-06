@@ -98,16 +98,17 @@ fn acme_rfc8555_phase_gate_rejects_finalize_while_pending() {
         "q1".to_string(),
         "q3".to_string(),
     ));
+    // Concurrent order status writes: processing while pending still enabled on same step.
     model.parts[0].transitions.last_mut().unwrap().add_property(
-        modality_lang::Property::new(
-            modality_lang::PropertySign::Plus,
-            "FINALIZE_ORDER".to_string(),
+        modality_lang::Property::new_predicate_from_call_args(
+            "sets".to_string(),
+            vec!["/order/status.text".to_string(), "pending".to_string()],
         ),
     );
     model.parts[0].transitions.last_mut().unwrap().add_property(
         modality_lang::Property::new_predicate_from_call_args(
-            "post_to".to_string(),
-            vec!["/order_status.text".to_string(), "processing".to_string()],
+            "sets".to_string(),
+            vec!["/order/status.text".to_string(), "processing".to_string()],
         ),
     );
 
@@ -120,6 +121,10 @@ fn acme_rfc8555_phase_gate_rejects_finalize_while_pending() {
 
     assert!(
         !checker.check_formula_at_state(rule, "q0").is_satisfied,
-        "finalize must not be enabled while order is still pending"
+        "finalize (processing) must not be enabled while pending is still enabled on the same step"
+    );
+    assert!(
+        !checker.check_formula_at_state(rule, "q1").is_satisfied,
+        "pending-phase witness must not satisfy finalize gate after bad edge injection"
     );
 }

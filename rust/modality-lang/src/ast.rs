@@ -440,6 +440,7 @@ impl Property {
 
     /// Create a predicate property from a function call with one or more arguments.
     pub fn new_predicate_from_call_args(name: String, args: Vec<String>) -> Self {
+        let name = canonical_predicate_name(name);
         let path = format!("/_code/modal/{}.wasm", name);
         let args = predicate_args_json(args);
         Self {
@@ -457,6 +458,7 @@ impl Property {
 
     /// Create a negated predicate property from a function call with one or more arguments.
     pub fn new_predicate_from_call_args_negated(name: String, args: Vec<String>) -> Self {
+        let name = canonical_predicate_name(name);
         let path = format!("/_code/modal/{}.wasm", name);
         let args = predicate_args_json(args);
         Self {
@@ -490,6 +492,22 @@ fn predicate_args_json(args: Vec<String>) -> serde_json::Value {
         serde_json::json!({ "arg": args.into_iter().next().unwrap() })
     } else {
         serde_json::json!({ "args": args })
+    }
+}
+
+/// Canonical predicate name for matching (`sets` is sugar for `post_to`).
+pub fn canonical_predicate_name(name: String) -> String {
+    match name.as_str() {
+        "sets" | "posts_to" => "post_to".to_string(),
+        _ => name,
+    }
+}
+
+/// Preferred surface spelling when printing predicates.
+pub fn predicate_display_name(name: &str) -> &str {
+    match name {
+        "post_to" => "sets",
+        _ => name,
     }
 }
 

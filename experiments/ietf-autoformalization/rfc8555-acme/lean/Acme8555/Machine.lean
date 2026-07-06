@@ -5,27 +5,28 @@ namespace Acme8555
 /-- Single transition of the witness issuance machine. -/
 inductive IssuanceStep : State → Event → State → Prop where
   | createOrder :
-      IssuanceStep .q0 ⟨.createOrder, .accountHolder⟩ .q1
+      IssuanceStep .q0 ⟨[.orderStatus .pending], .accountHolder⟩ .q1
   | issueChallenge :
-      IssuanceStep .q1 ⟨.issueChallenge, .certificateAuthority⟩ .q1
+      IssuanceStep .q1 ⟨[.challengeStatus .pending], .certificateAuthority⟩ .q1
   | completeChallenge :
-      IssuanceStep .q1 ⟨.completeChallenge, .accountHolder⟩ .q1
+      IssuanceStep .q1 ⟨[.challengeStatus .processing], .accountHolder⟩ .q1
   | retryValidateAuthorization :
-      IssuanceStep .q1 ⟨.validateAuthorization, .certificateAuthority⟩ .q1
+      IssuanceStep .q1 ⟨[.challengeStatus .processing], .certificateAuthority⟩ .q1
   | validateAuthorization :
-      IssuanceStep .q1 ⟨.validateAuthorization, .certificateAuthority⟩ .q2
+      IssuanceStep .q1
+        ⟨[.challengeStatus .valid, .orderStatus .ready], .certificateAuthority⟩ .q2
   | finalizeOrder :
-      IssuanceStep .q2 ⟨.finalizeOrder, .accountHolder⟩ .q3
+      IssuanceStep .q2 ⟨[.orderStatus .processing], .accountHolder⟩ .q3
   | issueCertificate :
-      IssuanceStep .q3 ⟨.issueCertificate, .certificateAuthority⟩ .q4
+      IssuanceStep .q3 ⟨[.orderStatus .valid], .certificateAuthority⟩ .q4
   | revokeByHolder :
-      IssuanceStep .q4 ⟨.revokeCertificate, .accountHolder⟩ .q5
+      IssuanceStep .q4 ⟨[.orderStatus .invalid], .accountHolder⟩ .q5
   | revokeByCa :
-      IssuanceStep .q4 ⟨.revokeCertificate, .certificateAuthority⟩ .q5
+      IssuanceStep .q4 ⟨[.orderStatus .invalid], .certificateAuthority⟩ .q5
 
 def IssuanceStep.event {s e s'} (_ : IssuanceStep s e s') : Event := e
 
-/-- Order status at each witness node (mirrors `+post_to(/order_status.text, …)`). -/
+/-- Order status at each witness node (mirrors `+sets(/order/status.text, …)`). -/
 def orderStatusAt : State → Option OrderStatus
   | .q0 => none
   | .q1 => some .pending
@@ -40,14 +41,36 @@ inductive ValidPath : State → List Event → State → Prop where
   | cons {s es s' e s''} :
       ValidPath s es s' → IssuanceStep s' e s'' → ValidPath s (es ++ [e]) s''
 
+/-- Canonical happy-path events (mirrors `model/default.modality`). -/
+def evCreateOrder : Event := ⟨[.orderStatus .pending], .accountHolder⟩
+def evIssueChallenge : Event := ⟨[.challengeStatus .pending], .certificateAuthority⟩
+def evCompleteChallenge : Event := ⟨[.challengeStatus .processing], .accountHolder⟩
+def evValidateAuthorization : Event :=
+  ⟨[.challengeStatus .valid, .orderStatus .ready], .certificateAuthority⟩
+def evFinalizeOrder : Event := ⟨[.orderStatus .processing], .accountHolder⟩
+def evIssueCertificate : Event := ⟨[.orderStatus .valid], .certificateAuthority⟩
+
+@[simp] theorem evCreateOrder_writes :
+    evCreateOrder.writes = [.orderStatus .pending] := rfl
+@[simp] theorem evIssueChallenge_writes :
+    evIssueChallenge.writes = [.challengeStatus .pending] := rfl
+@[simp] theorem evCompleteChallenge_writes :
+    evCompleteChallenge.writes = [.challengeStatus .processing] := rfl
+@[simp] theorem evValidateAuthorization_writes :
+    evValidateAuthorization.writes = [.challengeStatus .valid, .orderStatus .ready] := rfl
+@[simp] theorem evFinalizeOrder_writes :
+    evFinalizeOrder.writes = [.orderStatus .processing] := rfl
+@[simp] theorem evIssueCertificate_writes :
+    evIssueCertificate.writes = [.orderStatus .valid] := rfl
+
 /-- Canonical happy-path trace (mirrors `model/default.modality`). -/
 def witnessRun : List Event := [
-  ⟨.createOrder, .accountHolder⟩,
-  ⟨.issueChallenge, .certificateAuthority⟩,
-  ⟨.completeChallenge, .accountHolder⟩,
-  ⟨.validateAuthorization, .certificateAuthority⟩,
-  ⟨.finalizeOrder, .accountHolder⟩,
-  ⟨.issueCertificate, .certificateAuthority⟩
+  evCreateOrder,
+  evIssueChallenge,
+  evCompleteChallenge,
+  evValidateAuthorization,
+  evFinalizeOrder,
+  evIssueCertificate
 ]
 
 theorem witnessRun_valid : ValidPath .q0 witnessRun .q4 := by

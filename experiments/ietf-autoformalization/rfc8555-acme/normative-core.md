@@ -18,11 +18,11 @@ Sections extracted from [RFC 8555](https://www.rfc-editor.org/rfc/rfc8555):
 | Certificate authority | `/users/certificate_authority.id` |
 | Authoritative server | `/users/authoritative_server.id` |
 
-## Order status (`/order_status.text`, RFC §7.1.6)
+## Order status (`/order/status.text`, RFC §7.1.6)
 
-Contract-visible lifecycle (set via `+post_to` on transitions; witness nodes q0…q5 are opaque, one per status):
+Contract-visible lifecycle (set via `+sets` on transitions; witness nodes q0…q5 are opaque, one per status):
 
-| `/order_status.text` | Witness | When |
+| `/order/status.text` | Witness | When |
 |---|---|---|
 | *(unset)* | q0 | No order yet |
 | `pending` | q1 | Order created; challenge/authorization sub-steps (self-loops) |
@@ -31,11 +31,34 @@ Contract-visible lifecycle (set via `+post_to` on transitions; witness nodes q0�
 | `valid` | q4 | Certificate issued |
 | `invalid` | q5 | Revoked |
 
-While status is `pending` at q1, the server may retry `+VALIDATE_AUTHORIZATION` without leaving q1 (RFC §7.1.6 challenge **processing**, §8.2).
+## Challenge status (`/challenge/status.text`, RFC §7.1.6)
 
-## Actions
+Pending-phase sub-steps at witness q1 (order stays `pending`):
 
-`+CREATE_ORDER`, `+ISSUE_CHALLENGE`, `+COMPLETE_CHALLENGE`, `+VALIDATE_AUTHORIZATION`, `+FINALIZE_ORDER`, `+ISSUE_CERTIFICATE`, `+REVOKE_CERTIFICATE`
+| `/challenge/status.text` | When |
+|---|---|
+| `pending` | CA issues challenge |
+| `processing` | Client completed challenge; CA may validate (§8.2 retries) |
+| `valid` | Authorization valid; order may become `ready` |
+
+While order status is `pending` at q1, the server may retry validation (`+sets(..., "processing")`) without leaving q1 (RFC §7.1.6 challenge **processing**, §8.2).
+
+## Path writes (contract vocabulary)
+
+All transitions use `+sets(path, value)` and `+signed_by(...)` — no bare `+ACTION` labels.
+
+| Path write | Actor | RFC step |
+|---|---|---|
+| `+sets(/order/status.text, "pending")` | Account holder | newOrder (§7.1.4) |
+| `+sets(/challenge/status.text, "pending")` | CA | Issue challenge |
+| `+sets(/challenge/status.text, "processing")` | Account holder / CA | Complete challenge / validate retry |
+| `+sets(/challenge/status.text, "valid")` | CA | Authorization valid |
+| `+sets(/order/status.text, "ready")` | CA | All authorizations valid |
+| `+sets(/order/status.text, "processing")` | Account holder | Finalize (§7.4) |
+| `+sets(/order/status.text, "valid")` | CA | Issue certificate (§8) |
+| `+sets(/order/status.text, "invalid")` | Account holder or CA | Revoke (§7.6) |
+
+Governance placeholder (not on happy-path witness): `+sets(/certificate/in_use.text, "true")` blocked after revocation.
 
 ## Adopted MUST Rules
 

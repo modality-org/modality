@@ -11,7 +11,8 @@ For each RFC, work through these steps before writing formulas:
 - [ ] Collect all **MUST**, **MUST NOT**, **SHALL**, **SHALL NOT** sentences involving ordering or authorization
 - [ ] Skip **SHOULD**, **MAY**, and implementation recommendations unless they define safety properties
 - [ ] Map each role to a Modality identity path (`/users/<role>.id`)
-- [ ] Name actions as `+UPPER_SNAKE_CASE` aligned with RFC terminology
+- [ ] Express state-machine transitions as `+sets(/path.text, "value")` (alias: `post_to` / `posts_to`)
+- [ ] Add a second path when a parent status stays fixed during sub-steps (e.g. order `pending` while challenge progresses)
 - [ ] Mark wire format, crypto, encoding, and timer sections as **out of scope**
 - [ ] Write one NL obligation per candidate MUST rule
 - [ ] Review obligations with a domain expert before formula generation
@@ -20,9 +21,11 @@ For each RFC, work through these steps before writing formulas:
 
 | RFC language (paraphrased) | Modality formula pattern |
 |---|---|
-| "X MUST NOT occur until Y has occurred" | `always(<+X> true -> !<+Y> true)` (phase gate: Y not still enabled when X is) |
+| "State MUST become X" / status transition | `+sets(/path.text, "value")` on model transition |
+| "X MUST NOT occur until Y has occurred" | `always(<+sets(/path, "later")> true -> !<+sets(/path, "earlier")> true)` (phase gate) |
+| "Sub-step while parent status fixed" | Second path: `+sets(/sub/status.text, …)` with self-loops at witness node |
 | "X MUST NOT occur until Y has completed (no overlap)" | same; use `<+…>` diamonds, not `[<+…>]` committed forms |
-| "Only party P may perform X" | `always(<+X> true -> <+signed_by(/users/p.id)> true)` |
+| "Only party P may perform X" | `always(<+sets(/path, "value")> true -> <+signed_by(/users/p.id)> true)` |
 | "Party P is committed to X" | `always([<+X>] true -> <+signed_by(/users/p.id)> true)` |
 | "X MUST NOT occur after Y" | `always([+Y] true -> always([-X] true))` |
 | "X and Y are mutually exclusive after Z" | `always([+Z] true -> (always([-X] true) & always([-Y] true)))` |
@@ -41,8 +44,8 @@ Obligation N:
   RFC section: §X.Y
   Parties:     [role_a, role_b]
   Statement:   "<role_a> must not <action_x> until <role_b> has <action_y>"
-  Action X:    +ACTION_X
-  Action Y:    +ACTION_Y
+  Path write:  +sets(/path.text, "value")
+  Prior write: +sets(/path.text, "prior_value")
   Formula slot: F<N>
 ```
 
@@ -54,8 +57,7 @@ After formulas are written, expect these model shapes (from synthesis heuristics
 |---|---|
 | Single ordering chain | Linear: `init → … → terminal` |
 | Mutual exclusion after event | Branching with forbidden transitions |
-| "Always allowed" action | Self-loop with `+ACTION` |
-| Alternating parties | Two-state cycle |
+| "Always allowed" sub-step | Self-loop with `+sets(/sub/path.text, …)` while parent status unchanged |
 | Authorization only | Single state, predicate-guarded self-loops |
 
 ## Verification Workflow
@@ -86,13 +88,13 @@ Do not attempt to formalize:
 **Formula:**
 
 ```modality
-always(<+ISSUE_TOKEN> true -> !<+AUTHORIZE> true)
+always(<+sets(/token/status.text, "issued")> true -> !<+sets(/token/status.text, "requested")> true)
 ```
 
 **Authorization variant:**
 
 ```modality
-always(<+ISSUE_TOKEN> true -> <+signed_by(/users/authorization_server.id)> true)
+always(<+sets(/token/status.text, "issued")> true -> <+signed_by(/users/authorization_server.id)> true)
 ```
 
 **Avoid:** `eventually(<+Y> true)` for ordering (forward reachability, not prior occurrence). Avoid `[<+X>]` / `![<+Y>]` committed forms for phase gates (miss skip edges). Also avoid bare witness-node identifiers and `[+X] true` vacuous box guards.
