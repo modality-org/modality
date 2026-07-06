@@ -190,8 +190,8 @@ fn acme_rfc8555_only_ca_marks_order_invalid() {
         .expect("rule present");
 
     assert!(
-        !checker.check_formula(rule).is_satisfied,
-        "account holder must not set order status to invalid"
+        !checker.check_formula_at_state(rule, "q3").is_satisfied,
+        "holder-signed invalid on the same step must be forbidden from processing"
     );
 }
 

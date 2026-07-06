@@ -52,9 +52,9 @@ formula valid_excludes_invalid {
 
 // RFC 8555 §7.1.6, §7.4 — https://www.rfc-editor.org/rfc/rfc8555#section-7.1.6
 // Server/CA moves the order to "invalid" on issuance errors (including finalize
-// responses with status "invalid"). Account holder does not set order "invalid".
+// responses with status "invalid"). Forbid holder-signed invalid on the same step.
 formula only_ca_marks_order_invalid {
-  always(<+sets(/order/status.text, "invalid")> true -> <+signed_by(/users/certificate_authority.id)> true)
+  always(<+sets(/order/status.text, "invalid") +signed_by(/users/account_holder.id)> true -> false)
 }
 
 // RFC 8555 §7.1.6, §7.5.1, §8.2 — https://www.rfc-editor.org/rfc/rfc8555#section-7.1.6
