@@ -46,7 +46,10 @@ pub use formula_lint::{
     witness_node_names, FormulaLintDiagnostic, FormulaLintOptions, LintCode, LintSeverity,
     LintSpan,
 };
-pub use validation::{validate_no_raw_propositions, ValidationError, KNOWN_PREDICATES, suggest_predicate};
+pub use validation::{
+    validate_no_raw_propositions, validate_sets_one_of, plus_sets_path_value, sets_path_value,
+    ValidationError, KNOWN_PREDICATES, suggest_predicate,
+};
 
 // Re-export the generated parser
 pub use grammar::ModelParser;

@@ -80,3 +80,24 @@ formula finalize_requires_order {
 formula only_ca_validates_authorization {
   always(<+sets(/challenge/status.text, "valid")> true -> <+signed_by(/users/certificate_authority.id)> true)
 }
+
+// RFC 8555 §7.1.6 — https://www.rfc-editor.org/rfc/rfc8555#section-7.1.6
+// `[-sets(path, v)] false` means the path value must be `v`; OR adds allowed options.
+formula order_status_values {
+  always(
+    [-sets(/order/status.text, "pending")] false |
+    [-sets(/order/status.text, "ready")] false |
+    [-sets(/order/status.text, "processing")] false |
+    [-sets(/order/status.text, "valid")] false |
+    [-sets(/order/status.text, "invalid")] false
+  )
+}
+
+// RFC 8555 §7.1.6 — challenge status enum on `/challenge/status.text`.
+formula challenge_status_values {
+  always(
+    [-sets(/challenge/status.text, "pending")] false |
+    [-sets(/challenge/status.text, "processing")] false |
+    [-sets(/challenge/status.text, "valid")] false
+  )
+}

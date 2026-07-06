@@ -13,7 +13,7 @@ ACME automates certificate issuance between a certificate authority (CA) and an 
 | File | Purpose |
 |---|---|
 | [model/default.modality](./model/default.modality) | Witness LTS governing model |
-| [rules/governance.modality](./rules/governance.modality) | Nine temporal modal formulas |
+| [rules/governance.modality](./rules/governance.modality) | Eleven governance formulas (nine temporal + two closed enums) |
 | [lean/](./lean/) | Lean 4 mirror of model + governance props |
 | [normative-core.md](./normative-core.md) | RFC → obligation mapping |
 | [synthesis-notes.md](./synthesis-notes.md) | Verification notes and test command |
@@ -48,6 +48,8 @@ RFC §7.1.6 lifecycle is stored on durable paths (not witness node names):
 | `pending` | Challenge issued |
 | `processing` | Client responded; CA may validate (retries at q1, §8.2) |
 | `valid` | Authorization valid |
+
+Closed-enum rules use `always([-sets(path, A)] false | [-sets(path, B)] false | …)` — `[-sets(path, v)] false` means the value at `path` must be `v`; OR lists the allowed RFC literals.
 
 The witness model uses opaque nodes `q0`…`q5` (one per order status). Each order status change uses `+sets(/order/status.text, …)`; pending-phase challenge steps use `+sets(/challenge/status.text, …)` on self-loops at `q1`.
 

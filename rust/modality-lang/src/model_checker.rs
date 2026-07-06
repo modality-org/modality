@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize};
-use crate::ast::{Model, Part, Transition, Property, Formula, FormulaExpr};
+use std::collections::{HashMap, HashSet};
+use crate::ast::{Model, Part, Transition, Property, PropertySign, Formula, FormulaExpr};
 
 /// Represents an internal LTS witness node (part name and node id).
 ///
@@ -113,6 +114,9 @@ impl ModelChecker {
                 self.intersect_states(&left_states, &right_states)
             }
             FormulaExpr::Or(left, right) => {
+                if let Some((path, allowed)) = Self::minus_sets_false_disjunction(left, right) {
+                    return self.states_where_path_one_of(&path, &allowed);
+                }
                 let left_states = self.evaluate_formula(left);
                 let right_states = self.evaluate_formula(right);
                 self.union_states(&left_states, &right_states)
@@ -471,6 +475,13 @@ impl ModelChecker {
 
     /// Evaluate box operator: [properties] phi
     fn evaluate_box(&self, properties: &[Property], expr: &FormulaExpr) -> Vec<State> {
+        // `[-sets(path, v)] false` — path value must be exactly `v` at this witness node.
+        if properties.len() == 1 && matches!(expr, FormulaExpr::False) {
+            if let Some((path, value)) = Self::minus_sets_path_value(&properties[0]) {
+                return self.states_where_path_exactly(&path, &value);
+            }
+        }
+
         let target_states = self.evaluate_formula(expr);
         let mut result = Vec::new();
 
@@ -611,6 +622,145 @@ impl ModelChecker {
         states1.iter()
             .filter(|s| !states2.contains(s))
             .cloned()
+            .collect()
+    }
+
+    /// `[-sets(path, value)]` in a box — extract path and literal.
+    fn minus_sets_path_value(prop: &Property) -> Option<(String, String)> {
+        if prop.sign != PropertySign::Minus {
+            return None;
+        }
+        crate::validation::sets_path_value(prop)
+    }
+
+    /// Recognize `[-sets(path, a)] false | [-sets(path, b)] false | …`.
+    fn minus_sets_false_disjunction(left: &FormulaExpr, right: &FormulaExpr) -> Option<(String, Vec<String>)> {
+        fn from_box(expr: &FormulaExpr) -> Option<(String, String)> {
+            match expr {
+                FormulaExpr::Box(props, inner) if props.len() == 1 && matches!(**inner, FormulaExpr::False) => {
+                    ModelChecker::minus_sets_path_value(&props[0])
+                }
+                FormulaExpr::Paren(inner) => from_box(inner),
+                _ => None,
+            }
+        }
+
+        fn collect(expr: &FormulaExpr, path: &mut Option<String>, values: &mut Vec<String>) -> bool {
+            match expr {
+                FormulaExpr::Or(l, r) => collect(l, path, values) && collect(r, path, values),
+                FormulaExpr::Paren(inner) => collect(inner, path, values),
+                FormulaExpr::Box(_, _) => {
+                    let Some((p, v)) = from_box(expr) else { return false; };
+                    match path {
+                        Some(existing) if existing != &p => return false,
+                        None => *path = Some(p),
+                        _ => {}
+                    }
+                    values.push(v);
+                    true
+                }
+                _ => false,
+            }
+        }
+
+        let mut path = None;
+        let mut values = Vec::new();
+        let root = FormulaExpr::Or(Box::new(left.clone()), Box::new(right.clone()));
+        if !collect(&root, &mut path, &mut values) {
+            return None;
+        }
+        path.map(|p| (p, values))
+    }
+
+    /// Possible `+sets(path, …)` values accumulated at each witness node.
+    fn possible_path_values(&self) -> HashMap<State, HashMap<String, HashSet<String>>> {
+        let mut values: HashMap<State, HashMap<String, HashSet<String>>> = HashMap::new();
+        for part in &self.model.parts {
+            for node in self.get_nodes_in_part(part) {
+                values.insert(
+                    State {
+                        part_name: part.name.clone(),
+                        node_name: node,
+                    },
+                    HashMap::new(),
+                );
+            }
+        }
+
+        loop {
+            let mut changed = false;
+            for part in &self.model.parts {
+                for transition in &part.transitions {
+                    let from = State {
+                        part_name: part.name.clone(),
+                        node_name: transition.from.clone(),
+                    };
+                    let to = State {
+                        part_name: part.name.clone(),
+                        node_name: transition.to.clone(),
+                    };
+
+                    let mut after = values.get(&from).cloned().unwrap_or_default();
+                    for prop in &transition.properties {
+                        if let Some((path, value)) = crate::validation::plus_sets_path_value(prop) {
+                            after.entry(path).or_default().insert(value);
+                        }
+                    }
+
+                    let entry = values.entry(to).or_default();
+                    for (path, vals) in after {
+                        let slot = entry.entry(path).or_default();
+                        let before = slot.len();
+                        slot.extend(vals);
+                        if slot.len() != before {
+                            changed = true;
+                        }
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+
+        values
+    }
+
+    fn path_values_at<'a>(
+        maps: &'a HashMap<State, HashMap<String, HashSet<String>>>,
+        state: &State,
+        path: &str,
+    ) -> Option<&'a HashSet<String>> {
+        maps.get(state).and_then(|m| m.get(path))
+    }
+
+    /// `[-sets(path, v)] false` — accumulated path value is exactly `{v}`.
+    fn states_where_path_exactly(&self, path: &str, value: &str) -> Vec<State> {
+        let maps = self.possible_path_values();
+        self.all_states()
+            .into_iter()
+            .filter(|s| {
+                matches!(
+                    Self::path_values_at(&maps, s, path),
+                    Some(set) if set.len() == 1 && set.contains(value)
+                )
+            })
+            .collect()
+    }
+
+    /// `[-sets(path, a)] false | [-sets(path, b)] false | …` — value unset or in allow-list.
+    fn states_where_path_one_of(&self, path: &str, allowed: &[String]) -> Vec<State> {
+        let allowed: HashSet<&str> = allowed.iter().map(String::as_str).collect();
+        let maps = self.possible_path_values();
+        self.all_states()
+            .into_iter()
+            .filter(|s| {
+                match Self::path_values_at(&maps, s, path) {
+                    None => true,
+                    Some(set) if set.is_empty() => true,
+                    Some(set) => set.iter().all(|v| allowed.contains(v.as_str())),
+                }
+            })
             .collect()
     }
 }

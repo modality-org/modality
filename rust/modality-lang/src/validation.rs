@@ -3,7 +3,7 @@
 //! Ensures contracts only contain predicates, not raw propositions.
 //! Predicates are verifiable; propositions are just claims.
 
-use crate::ast::{Model, Property, PropertySource};
+use crate::ast::{Model, Property, PropertySign, PropertySource};
 
 /// Validation error types
 #[derive(Debug, Clone, PartialEq)]
@@ -14,6 +14,14 @@ pub enum ValidationError {
         transition_from: String,
         transition_to: String,
         hint: String,
+    },
+    /// +sets(path, value) uses a value not in the allowed list
+    InvalidEnumValue {
+        path: String,
+        value: String,
+        allowed: Vec<String>,
+        transition_from: String,
+        transition_to: String,
     },
     /// Other validation errors
     Other(String),
@@ -27,6 +35,23 @@ impl std::fmt::Display for ValidationError {
                     f,
                     "Raw proposition '+{}' in transition {} --> {} is not allowed in contracts. {}",
                     property_name, transition_from, transition_to, hint
+                )
+            }
+            ValidationError::InvalidEnumValue {
+                path,
+                value,
+                allowed,
+                transition_from,
+                transition_to,
+            } => {
+                write!(
+                    f,
+                    "Invalid value {:?} for {} in transition {} --> {} (allowed: {})",
+                    value,
+                    path,
+                    transition_from,
+                    transition_to,
+                    allowed.join(" | ")
                 )
             }
             ValidationError::Other(msg) => write!(f, "{}", msg),
@@ -81,6 +106,78 @@ pub fn validate_no_raw_propositions(model: &Model) -> ValidationResult {
         }
     }
     
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+/// Extract `(path, value)` from a `sets` / `post_to` property (any sign).
+pub fn sets_path_value(prop: &Property) -> Option<(String, String)> {
+    if prop.name != "post_to" {
+        return None;
+    }
+    let args = prop.get_predicate()?.1;
+    let values: Vec<String> = if let Some(arg) = args.get("arg").and_then(|v| v.as_str()) {
+        vec![arg.to_string()]
+    } else {
+        args.get("args")?
+            .as_array()?
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect()
+    };
+    if values.len() >= 2 {
+        Some((values[0].clone(), values[1].clone()))
+    } else {
+        None
+    }
+}
+
+/// Extract `(path, value)` from a positive `+sets` / `post_to` property.
+pub fn plus_sets_path_value(prop: &Property) -> Option<(String, String)> {
+    if prop.sign != PropertySign::Plus || prop.name != "post_to" {
+        return None;
+    }
+    sets_path_value(prop)
+}
+
+/// Verify every `+sets(path, …)` on transitions uses one of `allowed_values`.
+pub fn validate_sets_one_of(
+    model: &Model,
+    path: &str,
+    allowed_values: &[String],
+) -> ValidationResult {
+    let mut errors = Vec::new();
+    let check_transition =
+        |from: &str, to: &str, prop: &Property, errors: &mut Vec<ValidationError>| {
+            if let Some((write_path, value)) = plus_sets_path_value(prop) {
+                if write_path == path && !allowed_values.iter().any(|v| v == &value) {
+                    errors.push(ValidationError::InvalidEnumValue {
+                        path: write_path,
+                        value,
+                        allowed: allowed_values.to_vec(),
+                        transition_from: from.to_string(),
+                        transition_to: to.to_string(),
+                    });
+                }
+            }
+        };
+
+    for transition in &model.transitions {
+        for prop in &transition.properties {
+            check_transition(&transition.from, &transition.to, prop, &mut errors);
+        }
+    }
+    for part in &model.parts {
+        for transition in &part.transitions {
+            for prop in &transition.properties {
+                check_transition(&transition.from, &transition.to, prop, &mut errors);
+            }
+        }
+    }
+
     if errors.is_empty() {
         Ok(())
     } else {
@@ -200,5 +297,37 @@ mod tests {
         
         let errors = result.unwrap_err();
         assert_eq!(errors.len(), 1);
+    }
+
+    #[test]
+    fn test_validate_sets_one_of_rejects_unknown() {
+        let mut model = Model::new("Test".to_string());
+        let mut part = Part::new("flow".to_string());
+        let mut t = Transition::new("a".to_string(), "a".to_string());
+        t.add_property(Property::new_predicate_from_call_args(
+            "sets".to_string(),
+            vec!["/order/status.text".to_string(), "unknown".to_string()],
+        ));
+        part.add_transition(t);
+        model.add_part(part);
+
+        let allowed = vec!["pending".to_string(), "ready".to_string()];
+        assert!(validate_sets_one_of(&model, "/order/status.text", &allowed).is_err());
+    }
+
+    #[test]
+    fn test_validate_sets_one_of_accepts_allowed() {
+        let mut model = Model::new("Test".to_string());
+        let mut part = Part::new("flow".to_string());
+        let mut t = Transition::new("a".to_string(), "b".to_string());
+        t.add_property(Property::new_predicate_from_call_args(
+            "sets".to_string(),
+            vec!["/order/status.text".to_string(), "pending".to_string()],
+        ));
+        part.add_transition(t);
+        model.add_part(part);
+
+        let allowed = vec!["pending".to_string(), "ready".to_string()];
+        assert!(validate_sets_one_of(&model, "/order/status.text", &allowed).is_ok());
     }
 }

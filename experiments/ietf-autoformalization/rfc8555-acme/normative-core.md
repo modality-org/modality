@@ -75,6 +75,15 @@ Governance placeholder (not on happy-path witness): `+sets(/certificate/in_use.t
 
 Encoded in [rules/governance.modality](./rules/governance.modality). Witness model: [model/default.modality](./model/default.modality).
 
+## Allowed status values
+
+| Path | RFC §7.1.6 values |
+|---|---|
+| `/order/status.text` | `pending`, `ready`, `processing`, `valid`, `invalid` |
+| `/challenge/status.text` | `pending`, `processing`, `valid` |
+
+Governance rules `order_status_values` and `challenge_status_values` use `always([-sets(path, A)] false | …)` — each `[-sets(path, v)] false` requires value `v`; disjunction lists the closed enum.
+
 ## Out of Scope
 
 - JWS and HTTP POST-as-GET mechanics

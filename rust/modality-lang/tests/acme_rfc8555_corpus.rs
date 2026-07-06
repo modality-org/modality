@@ -40,7 +40,7 @@ fn acme_rfc8555_model_parses() {
 #[test]
 fn acme_rfc8555_rules_parse() {
     let rules = load_rules();
-    assert_eq!(rules.len(), 9, "expected nine governance rules");
+    assert_eq!(rules.len(), 11, "expected eleven governance rules");
 }
 
 #[test]
@@ -126,5 +126,32 @@ fn acme_rfc8555_phase_gate_rejects_finalize_while_pending() {
     assert!(
         !checker.check_formula_at_state(rule, "q1").is_satisfied,
         "pending-phase witness must not satisfy finalize gate after bad edge injection"
+    );
+}
+
+#[test]
+fn acme_rfc8555_status_enum_rejects_unknown_order_value() {
+    let mut model = load_model();
+    model.parts[0].transitions.push(modality_lang::Transition::new(
+        "q1".to_string(),
+        "q1".to_string(),
+    ));
+    model.parts[0].transitions.last_mut().unwrap().add_property(
+        modality_lang::Property::new_predicate_from_call_args(
+            "sets".to_string(),
+            vec!["/order/status.text".to_string(), "unknown".to_string()],
+        ),
+    );
+
+    let rules = load_rules();
+    let checker = ModelChecker::new(model);
+    let rule = rules
+        .iter()
+        .find(|r| r.name == "order_status_values")
+        .expect("rule present");
+
+    assert!(
+        !checker.check_formula(rule).is_satisfied,
+        "non-RFC order status value must be rejected by closed-enum rule"
     );
 }

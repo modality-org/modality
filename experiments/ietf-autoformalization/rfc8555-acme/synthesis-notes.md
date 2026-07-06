@@ -5,7 +5,7 @@
 
 ## Normative core → formulas
 
-Nine obligations were adopted from [normative-core.md](./normative-core.md) and encoded in [rules/governance.modality](./rules/governance.modality):
+Nine obligations were adopted from [normative-core.md](./normative-core.md) and encoded in [rules/governance.modality](./rules/governance.modality), plus two closed-enum rules (`order_status_values`, `challenge_status_values`):
 
 | Rule | RFC basis | Formula pattern |
 |---|---|---|
@@ -18,6 +18,8 @@ Nine obligations were adopted from [normative-core.md](./normative-core.md) and 
 | `only_holder_finalizes` | §7.4 | `<+sets(..., "processing")> true -> <+signed_by(holder)>` |
 | `finalize_requires_order` | §7.1.4 | `<+sets(..., "processing")> true -> !<+sets(/challenge/status.text, "pending")>` |
 | `only_ca_validates_authorization` | §7.1.5 | `<+sets(/challenge/..., "valid")> -> <+signed_by(CA)>` |
+| `order_status_values` | §7.1.6 | `always([-sets(/order/status.text, A)] false \| …)` |
+| `challenge_status_values` | §7.1.6 | `always([-sets(/challenge/status.text, A)] false \| …)` |
 
 Order-state and challenge-state ordering use **`+sets` phase gates** on `/order/status.text` and `/challenge/status.text`. Do not use `eventually(<+EARLIER>)` (forward reachability ≠ prior occurrence).
 
