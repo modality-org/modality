@@ -27,6 +27,7 @@ inductive PathWrite where
   | orderStatus (s : OrderStatus)
   | challengeStatus (s : ChallengeStatus)
   | certInUse
+  | certRevoked
   deriving DecidableEq, Repr, Inhabited
 
 /-- Opaque witness LTS nodes — one per order status (mirrors q0…q5). -/

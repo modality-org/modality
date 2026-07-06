@@ -1,0 +1,44 @@
+%% AcmeIssuance witness LTS — derived from model/default.modality
+%% Stutter loops at q4/q5 (negative -sets guards) omitted for clarity.
+%% Regenerate PNG: npx -y @mermaid-js/mermaid-cli -i acme-issuance.mmd -o acme-issuance.png
+
+stateDiagram-v2
+    direction TB
+
+    classDef unset fill:#f0f0f0,stroke:#666
+    classDef pending fill:#fff3cd,stroke:#856404
+    classDef ready fill:#d4edda,stroke:#155724
+    classDef processing fill:#cce5ff,stroke:#004085
+    classDef valid fill:#c3e6cb,stroke:#155724
+    classDef invalid fill:#f8d7da,stroke:#721c24
+
+    [*] --> q0
+
+    state "q0<br/>(no order)" as q0
+    state "q1<br/>order pending" as q1
+    state "q2<br/>order ready" as q2
+    state "q3<br/>order processing" as q3
+    state "q4<br/>order valid" as q4
+    state "q5<br/>order invalid" as q5
+
+    q0 --> q1: +sets order pending<br/>account holder
+
+    q1 --> q1: +sets challenge pending<br/>CA
+    q1 --> q1: +sets challenge processing<br/>account holder
+    q1 --> q1: +sets challenge processing<br/>CA retry
+
+    q1 --> q2: +sets challenge valid<br/>+sets order ready<br/>CA
+
+    q2 --> q3: +sets order processing<br/>account holder
+
+    q3 --> q4: +sets order valid<br/>CA issue success
+    q3 --> q5: +sets order invalid<br/>CA issuance failure
+
+    q4 --> q4: +sets cert revoked<br/>account holder or CA
+
+    class q0 unset
+    class q1 pending
+    class q2 ready
+    class q3 processing
+    class q4 valid
+    class q5 invalid

@@ -13,7 +13,8 @@ ACME automates certificate issuance between a certificate authority (CA) and an 
 | File | Purpose |
 |---|---|
 | [model/default.modality](./model/default.modality) | Witness LTS governing model |
-| [rules/governance.modality](./rules/governance.modality) | Eleven governance formulas (nine temporal + two closed enums) |
+| [diagrams/acme-issuance.png](./diagrams/acme-issuance.png) | Witness LTS diagram (source: [acme-issuance.mmd](./diagrams/acme-issuance.mmd)) |
+| [rules/governance.modality](./rules/governance.modality) | Fourteen governance formulas (nine temporal + five structural) |
 | [lean/](./lean/) | Lean 4 mirror of model + governance props |
 | [normative-core.md](./normative-core.md) | RFC → obligation mapping |
 | [synthesis-notes.md](./synthesis-notes.md) | Verification notes and test command |
@@ -53,6 +54,15 @@ Closed-enum rules use `always([-sets(path, A)] false | [-sets(path, B)] false | 
 
 The witness model uses opaque nodes `q0`…`q5` (one per order status). Each order status change uses `+sets(/order/status.text, …)`; pending-phase challenge steps use `+sets(/challenge/status.text, …)` on self-loops at `q1`.
 
+![AcmeIssuance witness LTS](./diagrams/acme-issuance.png)
+
+Regenerate from [diagrams/acme-issuance.mmd](./diagrams/acme-issuance.mmd):
+
+```bash
+cd experiments/ietf-autoformalization/rfc8555-acme/diagrams
+npx -y @mermaid-js/mermaid-cli -i acme-issuance.mmd -o acme-issuance.png -b white
+```
+
 ## Path writes (contract vocabulary)
 
 | Path write | Actor | Description |
@@ -64,7 +74,8 @@ The witness model uses opaque nodes `q0`…`q5` (one per order status). Each ord
 | `+sets(/order/status.text, "ready")` | CA | All authorizations valid |
 | `+sets(/order/status.text, "processing")` | Account holder | Submit CSR (finalize) |
 | `+sets(/order/status.text, "valid")` | CA | Issue certificate |
-| `+sets(/order/status.text, "invalid")` | Account holder or CA | Revoke certificate |
+| `+sets(/order/status.text, "invalid")` | CA | Issuance failure |
+| `+sets(/certificate/revoked.text, "true")` | Account holder or CA | revokeCert (§7.6) |
 
 ## Verification
 
@@ -87,7 +98,7 @@ See [lean/README.md](./lean/README.md) for the Modality ↔ Lean mapping.
 - Witness LTS uses opaque q0…q5 aligned to `/order/status.text`
 - Linear ordering with challenge self-loops at q1 and revocation branch
 - Authorization formulas use `signed_by` on transitions
-- `+sets(/certificate/in_use.text, "true")` is a governance placeholder blocked after revocation
+- `+sets(/certificate/in_use.text, "true")` is a governance placeholder blocked after order `invalid` or certificate revoke
 
 ## Out of Scope
 

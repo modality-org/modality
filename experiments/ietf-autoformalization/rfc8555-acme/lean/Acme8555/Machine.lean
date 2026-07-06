@@ -19,10 +19,12 @@ inductive IssuanceStep : State → Event → State → Prop where
       IssuanceStep .q2 ⟨[.orderStatus .processing], .accountHolder⟩ .q3
   | issueCertificate :
       IssuanceStep .q3 ⟨[.orderStatus .valid], .certificateAuthority⟩ .q4
+  | issuanceFailure :
+      IssuanceStep .q3 ⟨[.orderStatus .invalid], .certificateAuthority⟩ .q5
   | revokeByHolder :
-      IssuanceStep .q4 ⟨[.orderStatus .invalid], .accountHolder⟩ .q5
+      IssuanceStep .q4 ⟨[.certRevoked], .accountHolder⟩ .q4
   | revokeByCa :
-      IssuanceStep .q4 ⟨[.orderStatus .invalid], .certificateAuthority⟩ .q5
+      IssuanceStep .q4 ⟨[.certRevoked], .certificateAuthority⟩ .q4
 
 def IssuanceStep.event {s e s'} (_ : IssuanceStep s e s') : Event := e
 

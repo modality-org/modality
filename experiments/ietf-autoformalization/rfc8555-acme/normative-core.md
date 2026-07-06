@@ -29,7 +29,7 @@ Contract-visible lifecycle (set via `+sets` on transitions; witness nodes q0…q
 | `ready` | q2 | All authorizations valid; finalize allowed |
 | `processing` | q3 | Finalize submitted; CA issuing |
 | `valid` | q4 | Certificate issued |
-| `invalid` | q5 | Revoked |
+| `invalid` | q5 | Issuance failure or authorization error (§7.1.6) |
 
 ## Challenge status (`/challenge/status.text`, RFC §7.1.6)
 
@@ -56,9 +56,10 @@ All transitions use `+sets(path, value)` and `+signed_by(...)` — no bare `+ACT
 | `+sets(/order/status.text, "ready")` | CA | All authorizations valid |
 | `+sets(/order/status.text, "processing")` | Account holder | Finalize (§7.4) |
 | `+sets(/order/status.text, "valid")` | CA | Issue certificate (§8) |
-| `+sets(/order/status.text, "invalid")` | Account holder or CA | Revoke (§7.6) |
+| `+sets(/order/status.text, "invalid")` | CA | Issuance failure (§7.1.6, §7.4) |
+| `+sets(/certificate/revoked.text, "true")` | Account holder or CA | revokeCert (§7.6) |
 
-Governance placeholder (not on happy-path witness): `+sets(/certificate/in_use.text, "true")` blocked after revocation.
+Governance placeholder (not on happy-path witness): `+sets(/certificate/in_use.text, "true")` blocked after order `invalid` or certificate revoke.
 
 ## Adopted MUST Rules
 
@@ -72,6 +73,9 @@ Governance placeholder (not on happy-path witness): `+sets(/certificate/in_use.t
 - [x] §7.4 — Only account holder may finalize order (authorization) → `only_holder_finalizes`
 - [x] §7.1.5 — Only CA may validate authorization → `only_ca_validates_authorization`
 - [x] §7.1.4 — Only account holder may create order → `only_holder_creates_order`
+- [x] §7.4 — Finalize while not ready MUST fail (orderNotReady) → `finalize_requires_ready`
+- [x] §7.1.6 — Order `valid` and `invalid` mutually exclusive on a step → `valid_excludes_invalid`
+- [x] §7.1.6 / §7.4 — Only CA may set order `invalid` → `only_ca_marks_order_invalid`
 
 Encoded in [rules/governance.modality](./rules/governance.modality). Witness model: [model/default.modality](./model/default.modality).
 

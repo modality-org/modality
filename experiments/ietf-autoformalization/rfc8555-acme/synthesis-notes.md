@@ -5,15 +5,18 @@
 
 ## Normative core → formulas
 
-Nine obligations were adopted from [normative-core.md](./normative-core.md) and encoded in [rules/governance.modality](./rules/governance.modality), plus two closed-enum rules (`order_status_values`, `challenge_status_values`):
+Nine obligations were adopted from [normative-core.md](./normative-core.md) and encoded in [rules/governance.modality](./rules/governance.modality), plus five structural rules (two closed enums and three §7.1.6 / §7.4 phase/party gates):
 
 | Rule | RFC basis | Formula pattern |
 |---|---|---|
 | `finalize_requires_authorization` | §7.4 | `<+sets(/order/status.text, "processing")> true -> !<+sets(/order/status.text, "pending")>` |
+| `finalize_requires_ready` | §7.4 | `<+sets(..., "processing")> true -> !<+sets(..., "ready")>` |
 | `issuance_requires_finalize` | §8 | `<+sets(/order/status.text, "valid")> true -> !<+sets(/order/status.text, "ready")>` |
 | `only_ca_issues_certificate` | §8 | `<+sets(..., "valid")> true -> <+signed_by(CA)>` |
+| `valid_excludes_invalid` | §7.1.6 | `<+sets(..., "valid")> true -> !<+sets(..., "invalid")>` |
+| `only_ca_marks_order_invalid` | §7.1.6 / §7.4 | `<+sets(..., "invalid")> true -> <+signed_by(CA)>` |
 | `authorization_requires_challenge` | §7.5 | `<+sets(..., "ready")> true -> !<+sets(/challenge/status.text, "pending")>` |
-| `revocation_blocks_use` | §7.6 | `<+sets(..., "invalid")> true -> always([-sets(/certificate/in_use.text, "true")])` |
+| `revocation_blocks_use` | §7.6 / §7.1.6 | `(<+sets(..., "invalid")> \| <+sets(/certificate/revoked.text, "true")>) -> always([-sets(/certificate/in_use.text, "true")])` |
 | `only_holder_creates_order` | §7.1.4 | `<+sets(..., "pending")> true -> <+signed_by(holder)>` |
 | `only_holder_finalizes` | §7.4 | `<+sets(..., "processing")> true -> <+signed_by(holder)>` |
 | `finalize_requires_order` | §7.1.4 | `<+sets(..., "processing")> true -> !<+sets(/challenge/status.text, "pending")>` |
@@ -41,7 +44,7 @@ cd rust/modality-lang && cargo test acme_rfc8555 -- --nocapture
 
 ## Results
 
-All nine governance rules were model-checked against `AcmeIssuance` via `ModelChecker::check_formula`. Skip-edge regression injects a concurrent `+pending` / `+processing` write on `q1 -> q3` and expects `finalize_requires_authorization` to fail.
+All fourteen governance rules were model-checked against `AcmeIssuance` via `ModelChecker::check_formula`. Skip-edge regression injects a concurrent `+pending` / `+processing` write on `q1 -> q3` and expects `finalize_requires_authorization` to fail.
 
 ## Lean mirror
 

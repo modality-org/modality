@@ -53,13 +53,18 @@ model AcmeIssuance {
       +sets(/order/status.text, "valid")
       +signed_by(/users/certificate_authority.id)
     ]
-
-    q4 -> q5 [
+    q3 -> q5 [
       +sets(/order/status.text, "invalid")
+      +signed_by(/users/certificate_authority.id)
+    ]
+
+    // RFC §7.6 revokeCert — certificate revocation (order stays "valid" per §7.1.6).
+    q4 -> q4 [
+      +sets(/certificate/revoked.text, "true")
       +signed_by(/users/account_holder.id)
     ]
-    q4 -> q5 [
-      +sets(/order/status.text, "invalid")
+    q4 -> q4 [
+      +sets(/certificate/revoked.text, "true")
       +signed_by(/users/certificate_authority.id)
     ]
 
@@ -74,6 +79,7 @@ model AcmeIssuance {
       -sets(/challenge/status.text, "processing")
       -sets(/challenge/status.text, "valid")
       -sets(/certificate/in_use.text, "true")
+      -sets(/certificate/revoked.text, "true")
     ]
     q5 -> q5 [
       -sets(/order/status.text, "pending")
@@ -85,6 +91,7 @@ model AcmeIssuance {
       -sets(/challenge/status.text, "processing")
       -sets(/challenge/status.text, "valid")
       -sets(/certificate/in_use.text, "true")
+      -sets(/certificate/revoked.text, "true")
     ]
   }
 }

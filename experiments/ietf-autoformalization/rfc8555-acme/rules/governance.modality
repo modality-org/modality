@@ -22,6 +22,13 @@ formula finalize_requires_authorization {
   always(<+sets(/order/status.text, "processing")> true -> !<+sets(/order/status.text, "pending")> true)
 }
 
+// RFC 8555 §7.4 — https://www.rfc-editor.org/rfc/rfc8555#section-7.4
+// "A request to finalize an order will result in error if the order is not in
+//  the 'ready' state" (orderNotReady, 403 MUST).
+formula finalize_requires_ready {
+  always(<+sets(/order/status.text, "processing")> true -> !<+sets(/order/status.text, "ready")> true)
+}
+
 // RFC 8555 §7.4.2, §7.1.6 — https://www.rfc-editor.org/rfc/rfc8555#section-7.4.2
 // §7.1.6: order enters "processing" after finalize, then "valid" with a
 // "certificate" URL; issuance MUST NOT occur while order is still "ready".
@@ -36,6 +43,20 @@ formula only_ca_issues_certificate {
   always(<+sets(/order/status.text, "valid")> true -> <+signed_by(/users/certificate_authority.id)> true)
 }
 
+// RFC 8555 §7.1.6 — https://www.rfc-editor.org/rfc/rfc8555#section-7.1.6
+// Order status is one field; "valid" and "invalid" are mutually exclusive outcomes
+// (processing bifurcates to one or the other, not both on the same step).
+formula valid_excludes_invalid {
+  always(<+sets(/order/status.text, "valid")> true -> !<+sets(/order/status.text, "invalid")> true)
+}
+
+// RFC 8555 §7.1.6, §7.4 — https://www.rfc-editor.org/rfc/rfc8555#section-7.1.6
+// Server/CA moves the order to "invalid" on issuance errors (including finalize
+// responses with status "invalid"). Account holder does not set order "invalid".
+formula only_ca_marks_order_invalid {
+  always(<+sets(/order/status.text, "invalid")> true -> <+signed_by(/users/certificate_authority.id)> true)
+}
+
 // RFC 8555 §7.1.6, §7.5.1, §8.2 — https://www.rfc-editor.org/rfc/rfc8555#section-7.1.6
 // §7.5.1: authorization requires a completed challenge response first.
 // Order may become "ready" only after challenge leaves "pending".
@@ -46,11 +67,14 @@ formula authorization_requires_challenge {
 // Governance formulas use `formula` blocks for model-checker corpus tests.
 // When committing to a contract, wrap as `rule name { formula { ... } }`.
 
-// RFC 8555 §7.6 — https://www.rfc-editor.org/rfc/rfc8555#section-7.6
-// Once order status is "invalid" (revoked), certificate use is forbidden in
-// this slice (operational meaning of revokeCert; not wire-level OCSP).
+// RFC 8555 §7.6, §7.1.6 — https://www.rfc-editor.org/rfc/rfc8555#section-7.6
+// revokeCert (§7.6) revokes the certificate; issuance failure sets order
+// "invalid" (§7.1.6). Both forbid operational certificate use in this slice.
 formula revocation_blocks_use {
-  always(<+sets(/order/status.text, "invalid")> true -> always([-sets(/certificate/in_use.text, "true")] true))
+  always(
+    (<+sets(/order/status.text, "invalid")> true | <+sets(/certificate/revoked.text, "true")> true)
+    -> always([-sets(/certificate/in_use.text, "true")] true)
+  )
 }
 
 // RFC 8555 §7.1.4 — https://www.rfc-editor.org/rfc/rfc8555#section-7.1.4

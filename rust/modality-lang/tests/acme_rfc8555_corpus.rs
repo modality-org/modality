@@ -40,7 +40,7 @@ fn acme_rfc8555_model_parses() {
 #[test]
 fn acme_rfc8555_rules_parse() {
     let rules = load_rules();
-    assert_eq!(rules.len(), 11, "expected eleven governance rules");
+    assert_eq!(rules.len(), 14, "expected fourteen governance rules");
 }
 
 #[test]
@@ -126,6 +126,72 @@ fn acme_rfc8555_phase_gate_rejects_finalize_while_pending() {
     assert!(
         !checker.check_formula_at_state(rule, "q1").is_satisfied,
         "pending-phase witness must not satisfy finalize gate after bad edge injection"
+    );
+}
+
+#[test]
+fn acme_rfc8555_phase_gate_rejects_finalize_while_ready() {
+    let mut model = load_model();
+    model.parts[0].transitions.push(modality_lang::Transition::new(
+        "q2".to_string(),
+        "q3".to_string(),
+    ));
+    model.parts[0].transitions.last_mut().unwrap().add_property(
+        modality_lang::Property::new_predicate_from_call_args(
+            "sets".to_string(),
+            vec!["/order/status.text".to_string(), "ready".to_string()],
+        ),
+    );
+    model.parts[0].transitions.last_mut().unwrap().add_property(
+        modality_lang::Property::new_predicate_from_call_args(
+            "sets".to_string(),
+            vec!["/order/status.text".to_string(), "processing".to_string()],
+        ),
+    );
+
+    let rules = load_rules();
+    let checker = ModelChecker::new(model);
+    let rule = rules
+        .iter()
+        .find(|r| r.name == "finalize_requires_ready")
+        .expect("rule present");
+
+    assert!(
+        !checker.check_formula_at_state(rule, "q2").is_satisfied,
+        "finalize (processing) must not be enabled while ready is still enabled on the same step"
+    );
+}
+
+#[test]
+fn acme_rfc8555_only_ca_marks_order_invalid() {
+    let mut model = load_model();
+    model.parts[0].transitions.push(modality_lang::Transition::new(
+        "q3".to_string(),
+        "q5".to_string(),
+    ));
+    model.parts[0].transitions.last_mut().unwrap().add_property(
+        modality_lang::Property::new_predicate_from_call_args(
+            "sets".to_string(),
+            vec!["/order/status.text".to_string(), "invalid".to_string()],
+        ),
+    );
+    model.parts[0].transitions.last_mut().unwrap().add_property(
+        modality_lang::Property::new_predicate_from_call_args(
+            "signed_by".to_string(),
+            vec!["/users/account_holder.id".to_string()],
+        ),
+    );
+
+    let rules = load_rules();
+    let checker = ModelChecker::new(model);
+    let rule = rules
+        .iter()
+        .find(|r| r.name == "only_ca_marks_order_invalid")
+        .expect("rule present");
+
+    assert!(
+        !checker.check_formula(rule).is_satisfied,
+        "account holder must not set order status to invalid"
     );
 }
 
