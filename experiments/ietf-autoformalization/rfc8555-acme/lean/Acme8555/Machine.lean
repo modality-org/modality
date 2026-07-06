@@ -2,8 +2,8 @@ import Acme8555.Types
 
 namespace Acme8555
 
-/-- Single transition of the witness issuance machine. -/
-inductive IssuanceStep : State → Event → State → Prop where
+/-- Single transition of `part issuance` (mirrors `model/default.modality`). -/
+inductive IssuanceStep : IssuanceState → Event → IssuanceState → Prop where
   | createOrder :
       IssuanceStep .q0 ⟨[.orderStatus .pending], .accountHolder⟩ .q1
   | issueChallenge :
@@ -21,15 +21,13 @@ inductive IssuanceStep : State → Event → State → Prop where
       IssuanceStep .q3 ⟨[.orderStatus .valid], .certificateAuthority⟩ .q4
   | issuanceFailure :
       IssuanceStep .q3 ⟨[.orderStatus .invalid], .certificateAuthority⟩ .q5
-  | revokeByHolder :
+  | revokeCertByHolder :
       IssuanceStep .q4 ⟨[.certRevoked], .accountHolder⟩ .q4
-  | revokeByCa :
+  | revokeCertByCa :
       IssuanceStep .q4 ⟨[.certRevoked], .certificateAuthority⟩ .q4
 
-def IssuanceStep.event {s e s'} (_ : IssuanceStep s e s') : Event := e
-
-/-- Order status at each witness node (mirrors `+sets(/order/status.text, …)`). -/
-def orderStatusAt : State → Option OrderStatus
+/-- Order status accumulated at each issuance witness node. -/
+def orderStatusAt : IssuanceState → Option OrderStatus
   | .q0 => none
   | .q1 => some .pending
   | .q2 => some .ready
@@ -37,9 +35,9 @@ def orderStatusAt : State → Option OrderStatus
   | .q4 => some .valid
   | .q5 => some .invalid
 
-/-- Chronological trace: `es` records prior events, then `e` is appended. -/
-inductive ValidPath : State → List Event → State → Prop where
-  | nil (s : State) : ValidPath s [] s
+/-- Chronological trace accepted by the witness machine. -/
+inductive ValidPath : IssuanceState → List Event → IssuanceState → Prop where
+  | nil (s : IssuanceState) : ValidPath s [] s
   | cons {s es s' e s''} :
       ValidPath s es s' → IssuanceStep s' e s'' → ValidPath s (es ++ [e]) s''
 
@@ -65,7 +63,6 @@ def evIssueCertificate : Event := ⟨[.orderStatus .valid], .certificateAuthorit
 @[simp] theorem evIssueCertificate_writes :
     evIssueCertificate.writes = [.orderStatus .valid] := rfl
 
-/-- Canonical happy-path trace (mirrors `model/default.modality`). -/
 def witnessRun : List Event := [
   evCreateOrder,
   evIssueChallenge,
