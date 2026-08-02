@@ -13,3 +13,18 @@ if ! grep -q "Transitions: 4" <<<"$output"; then
   echo "expected first-contract fixture to validate with 4 transitions" >&2
   exit 1
 fi
+
+if ! grep -q "Parts: 1" <<<"$output"; then
+  echo "expected first-contract fixture to validate with 1 part" >&2
+  exit 1
+fi
+
+if ! grep -q "Contract is valid!" <<<"$output"; then
+  echo "expected first-contract fixture to pass validation" >&2
+  exit 1
+fi
+
+if ! grep -q "All properties are predicates (verifiable)." <<<"$output"; then
+  echo "expected first-contract fixture to pass predicate-only validation" >&2
+  exit 1
+fi
