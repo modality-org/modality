@@ -1,0 +1,10 @@
+model FirstContract {
+  initial q0
+
+  part flow {
+    q0 --> q1: +signed_by(/parties/alice.id)
+    q1 --> q2: +signed_by(/parties/bob.id)
+    q2 --> q2: +signed_by(/parties/alice.id)
+    q2 --> q2: +signed_by(/parties/bob.id)
+  }
+}
