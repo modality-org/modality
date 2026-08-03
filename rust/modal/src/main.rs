@@ -119,7 +119,9 @@ enum Commands {
         command: ChainCommands,
     },
 
-    #[command(about = "Kill all running modal node processes (shortcut for 'modal local killall-nodes')")]
+    #[command(
+        about = "Kill all running modal node processes (shortcut for 'modal local killall-nodes')"
+    )]
     Killall(modal_cli_node::local::killall_nodes::Opts),
 
     #[command(about = "Upgrade modal to the latest version")]
@@ -398,7 +400,9 @@ async fn main() -> Result<()> {
         },
         Commands::Local { command } => match command {
             LocalCommands::Nodes(opts) => modal_cli_node::local::nodes::run(opts).await?,
-            LocalCommands::KillallNodes(opts) => modal_cli_node::local::killall_nodes::run(opts).await?,
+            LocalCommands::KillallNodes(opts) => {
+                modal_cli_node::local::killall_nodes::run(opts).await?
+            }
         },
         Commands::Net { command } => match command {
             NetworkCommands::Info(opts) => modal_cli_net::info::run(opts).await?,
@@ -418,11 +422,15 @@ async fn main() -> Result<()> {
             ContractCommands::Pull(opts) => modal_cli_contract::pull::run(opts).await?,
             ContractCommands::Status(opts) => modal_cli_contract::status::run(opts).await?,
             ContractCommands::Set(opts) => modal_cli_contract::set::run(opts).await?,
-            ContractCommands::SetNamedId(opts) => modal_cli_contract::set_named_id::run(opts).await?,
+            ContractCommands::SetNamedId(opts) => {
+                modal_cli_contract::set_named_id::run(opts).await?
+            }
             ContractCommands::Log(opts) => modal_cli_contract::log::run(opts).await?,
             ContractCommands::Get(opts) => modal_cli_node::contract_get::run(opts).await?,
             ContractCommands::Assets(opts) => modal_cli_contract::assets::run(opts).await?,
-            ContractCommands::WasmUpload(opts) => modal_cli_contract::wasm_upload::run(opts).await?,
+            ContractCommands::WasmUpload(opts) => {
+                modal_cli_contract::wasm_upload::run(opts).await?
+            }
             ContractCommands::Pack(opts) => modal_cli_contract::pack::run(opts).await?,
             ContractCommands::Unpack(opts) => modal_cli_contract::unpack::run(opts).await?,
             ContractCommands::Repost(opts) => modal_cli_contract::repost::run(opts).await?,
@@ -480,6 +488,9 @@ async fn main() -> Result<()> {
 mod tests {
     use super::*;
     use clap::{error::ErrorKind, CommandFactory};
+    use modal_common::{contract_store::ContractStore, keypair::Keypair};
+    use serde_json::Value;
+    use tempfile::TempDir;
 
     #[test]
     fn help_surface_includes_contract_onboarding_commands() {
@@ -519,6 +530,7 @@ mod tests {
             &["modal", "c", "create", "--help"],
             &["modal", "c", "checkout", "--help"],
             &["modal", "c", "commit", "--help"],
+            &["modal", "c", "set-named-id", "--help"],
             &["modal", "c", "set", "--help"],
             &["modal", "c", "status", "--help"],
         ];
@@ -529,5 +541,128 @@ mod tests {
                 Err(err) => assert_eq!(err.kind(), ErrorKind::DisplayHelp, "{args:?}"),
             }
         }
+    }
+
+    #[tokio::test]
+    async fn source_built_identity_backed_contract_flow_smoke() -> anyhow::Result<()> {
+        let temp_dir = TempDir::new()?;
+        let contract_dir = temp_dir.path().join("first-contract");
+        let contract_dir_arg = contract_dir.to_string_lossy().to_string();
+        let alice_passfile = temp_dir.path().join("alice.mod_passfile");
+        let bob_passfile = temp_dir.path().join("bob.mod_passfile");
+        let alice_passfile_arg = alice_passfile.to_string_lossy().to_string();
+        let bob_passfile_arg = bob_passfile.to_string_lossy().to_string();
+
+        let create_opts = modal_cli_contract::create::Opts::parse_from([
+            "create",
+            "--dir",
+            contract_dir_arg.as_str(),
+            "--output",
+            "json",
+        ]);
+        modal_cli_contract::create::run(&create_opts).await?;
+
+        let alice_create_opts = modality::cmds::id::create::Opts::parse_from([
+            "id-create",
+            "--path",
+            alice_passfile_arg.as_str(),
+        ]);
+        modality::cmds::id::create::run(&alice_create_opts).await?;
+
+        let bob_create_opts = modality::cmds::id::create::Opts::parse_from([
+            "id-create",
+            "--path",
+            bob_passfile_arg.as_str(),
+        ]);
+        modality::cmds::id::create::run(&bob_create_opts).await?;
+
+        let alice_id = Keypair::from_json_file(alice_passfile_arg.as_str())?.as_public_address();
+        let bob_id = Keypair::from_json_file(bob_passfile_arg.as_str())?.as_public_address();
+
+        let checkout_opts = modal_cli_contract::checkout::Opts::parse_from([
+            "checkout",
+            "--dir",
+            contract_dir_arg.as_str(),
+        ]);
+        modal_cli_contract::checkout::run(&checkout_opts).await?;
+
+        let set_alice_opts = modal_cli_contract::set_named_id::Opts::parse_from([
+            "set-named-id",
+            "/parties/alice.id",
+            alice_passfile_arg.as_str(),
+            "--dir",
+            contract_dir_arg.as_str(),
+        ]);
+        modal_cli_contract::set_named_id::run(&set_alice_opts).await?;
+
+        let set_bob_opts = modal_cli_contract::set_named_id::Opts::parse_from([
+            "set-named-id",
+            "/parties/bob.id",
+            bob_passfile_arg.as_str(),
+            "--dir",
+            contract_dir_arg.as_str(),
+        ]);
+        modal_cli_contract::set_named_id::run(&set_bob_opts).await?;
+
+        let commit_opts = modal_cli_contract::commit::Opts::parse_from([
+            "commit",
+            "--all",
+            "--dir",
+            contract_dir_arg.as_str(),
+            "--sign",
+            alice_passfile_arg.as_str(),
+            "--output",
+            "json",
+            "--message",
+            "Initial contract setup",
+        ]);
+        modal_cli_contract::commit::run(&commit_opts).await?;
+
+        let store = ContractStore::open(&contract_dir)?;
+        assert_eq!(store.list_commits()?.len(), 2);
+        assert_eq!(
+            store.build_state_from_commits()?.get("/parties/alice.id"),
+            Some(&Value::String(alice_id.clone()))
+        );
+        assert_eq!(
+            store.build_state_from_commits()?.get("/parties/bob.id"),
+            Some(&Value::String(bob_id))
+        );
+
+        let head = store
+            .get_head()?
+            .expect("signed commit should become contract HEAD");
+        let signed_commit = store.load_commit(&head)?;
+        let alice_public_key =
+            Keypair::from_json_file(alice_passfile_arg.as_str())?.public_key_as_base58_identity();
+        assert!(
+            signed_commit
+                .head
+                .signatures
+                .as_ref()
+                .and_then(|signatures| signatures.get(&alice_public_key))
+                .is_some(),
+            "commit should include Alice's signature"
+        );
+
+        let status_opts = modal_cli_contract::status::Opts::parse_from([
+            "status",
+            "--dir",
+            contract_dir_arg.as_str(),
+            "--output",
+            "json",
+        ]);
+        modal_cli_contract::status::run(&status_opts).await?;
+
+        let log_opts = modal_cli_contract::log::Opts::parse_from([
+            "log",
+            "--dir",
+            contract_dir_arg.as_str(),
+            "--output",
+            "json",
+        ]);
+        modal_cli_contract::log::run(&log_opts).await?;
+
+        Ok(())
     }
 }

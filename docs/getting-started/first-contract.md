@@ -63,24 +63,29 @@ This is the source-built language/model CLI, not the installed contract CLI.
 ## Contract CLI Path
 
 The intended contract-log flow uses `modal` commands to create a contract,
-create identities, commit state, and verify the log. That path is still pending
-help-output verification and should not be treated as the canonical copy-paste
-onboarding path yet.
+create identities, commit state, and inspect the log. The source-built command
+modules now have regression coverage for this local identity-backed flow, but
+the installed `modal` wrapper path is still pending runtime help-output
+verification and should not be treated as the canonical copy-paste onboarding
+path yet.
 
 The target shape is:
 
 ```bash
 mkdir my-contract && cd my-contract
 modal contract create
-modal id create --path alice.passfile
-modal id create --path bob.passfile
+modal id create --path alice.mod_passfile
+modal id create --path bob.mod_passfile
 modal c checkout
-modal c commit --all --sign alice.passfile -m "Initial contract setup"
+modal c set-named-id /parties/alice.id alice.mod_passfile
+modal c set-named-id /parties/bob.id bob.mod_passfile
+modal c commit --all --sign alice.mod_passfile -m "Initial contract setup"
 modal c status
+modal c log
 ```
 
-Until this flow has a regression test, use the source-built validation command
-above as the verified first-contract check.
+Until the installed `modal` wrapper path has runtime verification, use the
+source-built validation command above as the verified first-contract check.
 
 ## What's Next?
 
