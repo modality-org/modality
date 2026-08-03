@@ -3,90 +3,84 @@ sidebar_position: 3
 title: Your First Contract
 ---
 
-# Your First Contract in 5 Minutes
+# Your First Contract
 
-## 1. Create a Contract
+This page tracks the canonical first-contract path. Today, the verified path is
+source-built and uses the language/model CLI against a parser-backed witness
+model. The full contract-log workflow below is still being brought into line
+with the installed `modal` CLI.
 
-```bash
-mkdir my-escrow && cd my-escrow
-modal contract create
-```
-
-This creates a `.contract/` directory to track commits.
-
-## 2. Create Identities
+## 1. Run the Verified Source Check
 
 ```bash
-modal id create --path alice.passfile
-modal id create --path bob.passfile
+git clone https://github.com/modality-org/modality.git
+cd modality/tests/language
+./run-onboarding-tests.sh
 ```
 
-## 3. Initialize State
+The smoke test builds the Rust language CLI from source and validates the
+first-contract fixture. Passing output includes:
 
-```bash
-modal c checkout
-mkdir -p state rules
-
-# Add party identities
-modal c set /parties/alice.id $(modal id get --path ./alice.passfile)
-modal c set /parties/bob.id $(modal id get --path ./bob.passfile)
+```text
+Parts: 1
+Transitions: 4
+Contract is valid!
+All properties are predicates (verifiable).
 ```
 
-## 4. Define the Witness Model
+## 2. Inspect the Witness Model
 
-Create `model/escrow.modality`:
+The smoke test validates `tests/language/03-first-contract/first-contract.modality`:
 
 ```modality
-model escrow {
+model FirstContract {
   initial q0
 
-  q0 -> q1 [+DEPOSIT +signed_by(/parties/alice.id)]
-  q1 -> q2 [+DELIVER +signed_by(/parties/bob.id)]
-  q2 -> q3 [+RELEASE +signed_by(/parties/alice.id)]
-  q1 -> q4 [+REFUND +signed_by(/parties/bob.id)]
-}
-```
-
-`q0`, `q1`, and the other node ids are opaque witness nodes. The contract
-meaning is carried by labels such as `+DEPOSIT` and predicates such as
-`+signed_by(...)`.
-
-## 5. Add Protection Rules
-
-Rules constrain which labeled transitions and commits remain acceptable. Create `rules/buyer-protection.modality`:
-
-```modality
-export default rule {
-  starting_at $PARENT
-  formula {
-    signed_by(/parties/alice.id) | signed_by(/parties/bob.id)
+  part flow {
+    q0 --> q1: +signed_by(/parties/alice.id)
+    q1 --> q2: +signed_by(/parties/bob.id)
+    q2 --> q2: +signed_by(/parties/alice.id)
+    q2 --> q2: +signed_by(/parties/bob.id)
   }
 }
 ```
 
-This says: "Every commit must be signed by Alice or Bob."
+`q0`, `q1`, and `q2` are opaque witness nodes. The contract meaning lives on
+the labelled transitions and predicates, here the required signatures for Alice
+and Bob.
 
-For authorization based on recorded contract data:
-
-```modality
-export default rule {
-  starting_at $PARENT
-  formula {
-    // Only buyer can commit while the delivered flag is false.
-    !bool_true(/status/delivered.bool) -> signed_by(/parties/buyer.id)
-  }
-}
-```
-
-## 6. Commit and Verify
+## 3. Run the Underlying CLI Command
 
 ```bash
-# Commit all changes
-modal c commit --all --sign alice.passfile -m "Initial escrow setup"
+cd modality/rust
+cargo run -q -p modality -- model validate \
+  ../tests/language/03-first-contract/first-contract.modality \
+  --verbose
+```
 
-# Check status
+This is the source-built language/model CLI, not the installed contract CLI.
+
+## Contract CLI Path
+
+The intended contract-log flow uses `modal` commands to create a contract,
+create identities, commit state, and verify the log. That path is still pending
+help-output verification and should not be treated as the canonical copy-paste
+onboarding path yet.
+
+The target shape is:
+
+```bash
+mkdir my-contract && cd my-contract
+modal contract create
+modal id create --path alice.passfile
+modal id create --path bob.passfile
+modal c checkout
+modal c commit --all --sign alice.passfile -m "Initial contract setup"
 modal c status
 ```
+
+Until this flow has a regression test, use the source-built validation command
+above as the verified first-contract check.
 
 ## What's Next?
 
