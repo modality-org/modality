@@ -71,7 +71,19 @@ actual `modal` executable after `cargo build -p modal` completes. The installed
 `modal` wrapper path is still pending cold-build/runtime timing verification and
 should not be treated as the canonical copy-paste onboarding path yet.
 
-To run the source-built wrapper smoke:
+To run the current onboarding smoke bundle:
+
+```bash
+cd modality
+tests/run-onboarding-smokes.sh
+```
+
+That bundle always runs the parser-backed first-contract language check. If a
+source-built `rust/target/debug/modal` exists, it also runs the contract-log
+wrapper smoke; otherwise it prints the exact build command for enabling that
+second check.
+
+To run only the source-built wrapper smoke:
 
 ```bash
 cd modality/rust
