@@ -475,3 +475,59 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::{error::ErrorKind, CommandFactory};
+
+    #[test]
+    fn help_surface_includes_contract_onboarding_commands() {
+        let command = Cli::command();
+        let names: Vec<_> = command
+            .get_subcommands()
+            .map(|subcommand| subcommand.get_name().to_string())
+            .collect();
+
+        for expected in ["contract", "id", "status", "commit", "set", "hub"] {
+            assert!(
+                names.iter().any(|name| name == expected),
+                "modal --help should include `{expected}`; saw {names:?}"
+            );
+        }
+
+        let contract = command
+            .find_subcommand("contract")
+            .expect("modal --help should expose `contract`");
+        let contract_names: Vec<_> = contract
+            .get_subcommands()
+            .map(|subcommand| subcommand.get_name().to_string())
+            .collect();
+
+        for expected in ["create", "checkout", "commit", "set", "status", "log"] {
+            assert!(
+                contract_names.iter().any(|name| name == expected),
+                "modal contract --help should include `{expected}`; saw {contract_names:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn documented_contract_aliases_parse() {
+        let cases: &[&[&str]] = &[
+            &["modal", "c", "--help"],
+            &["modal", "c", "create", "--help"],
+            &["modal", "c", "checkout", "--help"],
+            &["modal", "c", "commit", "--help"],
+            &["modal", "c", "set", "--help"],
+            &["modal", "c", "status", "--help"],
+        ];
+
+        for args in cases {
+            match Cli::try_parse_from(*args) {
+                Ok(_) => panic!("help invocation should stop parsing with display-help: {args:?}"),
+                Err(err) => assert_eq!(err.kind(), ErrorKind::DisplayHelp, "{args:?}"),
+            }
+        }
+    }
+}
