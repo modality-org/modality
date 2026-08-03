@@ -8,9 +8,11 @@ Run the current first-contract onboarding checks from the repository root:
 tests/run-onboarding-smokes.sh
 ```
 
-This always runs the parser-backed language smoke. It also runs the
-first-contract CLI wrapper smoke when `rust/target/debug/modal` exists, or when
-`MODAL_BIN=/path/to/modal` points at another built `modal` binary.
+This always runs the parser-backed language smoke and checks that the default
+contract CLI dependency tree avoids onboarding-heavy storage/compression deps.
+It also runs the first-contract CLI wrapper smoke when `rust/target/debug/modal`
+exists, or when `MODAL_BIN=/path/to/modal` points at another built `modal`
+binary.
 
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 
