@@ -64,10 +64,21 @@ This is the source-built language/model CLI, not the installed contract CLI.
 
 The intended contract-log flow uses `modal` commands to create a contract,
 create identities, commit state, and inspect the log. The source-built command
-modules now have regression coverage for this local identity-backed flow, but
-the installed `modal` wrapper path is still pending runtime help-output
-verification and should not be treated as the canonical copy-paste onboarding
-path yet.
+modules now have regression coverage for this local identity-backed flow. A
+source-built wrapper smoke also exists at
+`tests/cli/run-first-contract-cli-smoke.sh`; it runs the same flow against the
+actual `modal` executable after `cargo build -p modal` completes. The installed
+`modal` wrapper path is still pending cold-build/runtime timing verification and
+should not be treated as the canonical copy-paste onboarding path yet.
+
+To run the source-built wrapper smoke:
+
+```bash
+cd modality/rust
+cargo build -p modal
+cd ..
+tests/cli/run-first-contract-cli-smoke.sh
+```
 
 The target shape is:
 
