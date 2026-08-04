@@ -7,7 +7,7 @@ use hickory_resolver::{
 };
 use reqwest;
 use serde_json::Value;
-use libp2p::multiaddr::Multiaddr;
+use multiaddr::Multiaddr;
 
 async fn remove_quotes(s: &str) -> String {
     let re = Regex::new(r#""(.+)""#).unwrap();

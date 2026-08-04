@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-FORBIDDEN_DEPS_RE='^(rocksdb|librocksdb-sys|zstd-sys)$'
+FORBIDDEN_DEPS_RE='^(libp2p|rocksdb|librocksdb-sys|zstd-sys)$'
 
 matches="$(
   cd "$ROOT_DIR/rust"

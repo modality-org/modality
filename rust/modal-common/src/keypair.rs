@@ -1,8 +1,7 @@
 use anyhow::{anyhow, Result};
 use base58::ToBase58;
 use base64::prelude::*;
-use libp2p::identity::{ed25519, Keypair as Libp2pKeypair, PublicKey as Libp2pPublicKey};
-use libp2p_identity::PeerId;
+use libp2p_identity::{ed25519, Keypair as Libp2pKeypair, PeerId, PublicKey as Libp2pPublicKey};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -318,7 +317,7 @@ impl Keypair {
             .parse::<PeerId>()
             .map_err(|e| anyhow!("Failed to parse peer ID: {:?}", e))?;
 
-        let public_key = libp2p::identity::PublicKey::try_decode_protobuf(peer_id.as_ref().digest())
+        let public_key = Libp2pPublicKey::try_decode_protobuf(peer_id.as_ref().digest())
             .map_err(|e| anyhow!("Failed to decode public key from peer ID: {}", e))?;
 
         Ok(Self::new(KeypairOrPublicKey::PublicKey(public_key)))
