@@ -10,7 +10,7 @@ modal binary not found at: $MODAL_BIN
 
 Build it first:
   cd "$ROOT_DIR/rust"
-  cargo build -p modal
+  cargo build -p modal --no-default-features --features contract-onboarding
 
 Or pass an existing binary:
   MODAL_BIN=/path/to/modal $0

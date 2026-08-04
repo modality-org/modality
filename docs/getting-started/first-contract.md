@@ -7,8 +7,9 @@ title: Your First Contract
 
 This page tracks the canonical first-contract path. Today, the verified path is
 source-built and uses the language/model CLI against a parser-backed witness
-model. The full contract-log workflow below is still being brought into line
-with the installed `modal` CLI.
+model. The local contract-log workflow is verified through the source-built
+lean `modal` wrapper; the installed release wrapper path is still being brought
+into line with that checked flow.
 
 ## 1. Run the Verified Source Check
 
@@ -64,12 +65,10 @@ This is the source-built language/model CLI, not the installed contract CLI.
 
 The intended contract-log flow uses `modal` commands to create a contract,
 create identities, commit state, and inspect the log. The source-built command
-modules now have regression coverage for this local identity-backed flow. A
-source-built wrapper smoke also exists at
-`tests/cli/run-first-contract-cli-smoke.sh`; it runs the same flow against the
-actual `modal` executable after `cargo build -p modal` completes. The installed
-`modal` wrapper path is still pending cold-build/runtime timing verification and
-should not be treated as the canonical copy-paste onboarding path yet.
+modules and lean wrapper now have regression coverage for this local
+identity-backed flow. The installed release wrapper path is still pending
+runtime verification and should not be treated as the canonical copy-paste
+onboarding path yet.
 
 To run the current onboarding smoke bundle:
 
@@ -81,13 +80,17 @@ tests/run-onboarding-smokes.sh
 That bundle always runs the parser-backed first-contract language check. If a
 source-built `rust/target/debug/modal` exists, it also runs the contract-log
 wrapper smoke; otherwise it prints the exact build command for enabling that
-second check.
+second check. To build and run the lean wrapper path in one command:
+
+```bash
+MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh
+```
 
 To run only the source-built wrapper smoke:
 
 ```bash
 cd modality/rust
-cargo build -p modal
+cargo build -p modal --no-default-features --features contract-onboarding
 cd ..
 tests/cli/run-first-contract-cli-smoke.sh
 ```
@@ -108,7 +111,8 @@ modal c log
 ```
 
 Until the installed `modal` wrapper path has runtime verification, use the
-source-built validation command above as the verified first-contract check.
+source-built language check or lean wrapper smoke above as the verified
+first-contract checks.
 
 ## What's Next?
 

@@ -12,6 +12,29 @@ title: Installation
 
 ## Install from Source
 
+Build the lean onboarding wrapper first if your goal is the first-contract
+local flow:
+
+```bash
+# Clone the repo
+git clone https://github.com/modality-org/modality.git
+cd modality/rust
+
+# Build the first-contract onboarding CLI
+cargo build --release -p modal --no-default-features --features contract-onboarding
+
+# Add to path
+export PATH="$PATH:$(pwd)/target/release"
+
+# Verify installation
+modal --help
+```
+
+The lean wrapper includes `modal contract` and `modal id` commands without the
+network, hub, node, predicate, or program surfaces.
+
+Build the full wrapper when you need those broader command groups:
+
 ```bash
 # Clone the repo
 git clone https://github.com/modality-org/modality.git
@@ -57,6 +80,9 @@ cargo build -p modal-cli-predicate
 cargo build -p modal-cli-program
 cargo build -p modal-cli-chain
 cargo build -p modal-cli-net
+
+# Lean first-contract wrapper
+cargo build -p modal --no-default-features --features contract-onboarding
 
 # Full CLI (for integration testing)
 cargo build -p modal
