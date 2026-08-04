@@ -39,18 +39,21 @@ enum Commands {
         command: PassfileCommands,
     },
 
+    #[cfg(feature = "full")]
     #[command(about = "Node related commands")]
     Node {
         #[command(subcommand)]
         command: NodeCommands,
     },
 
+    #[cfg(feature = "full")]
     #[command(about = "Local development commands")]
     Local {
         #[command(subcommand)]
         command: LocalCommands,
     },
 
+    #[cfg(feature = "full")]
     #[command(alias = "network")]
     #[command(about = "Network related commands")]
     Net {
@@ -66,6 +69,7 @@ enum Commands {
     },
 
     #[command(about = "Contract hub server commands")]
+    #[cfg(feature = "full")]
     Hub {
         #[command(subcommand)]
         command: HubCommands,
@@ -95,35 +99,41 @@ enum Commands {
     #[command(about = "Download a packed contract file")]
     Download(modal_cli_contract::download::Opts),
 
+    #[cfg(feature = "full")]
     #[command(about = "Run node shortcuts")]
     Run {
         #[command(subcommand)]
         command: RunCommands,
     },
 
+    #[cfg(feature = "full")]
     #[command(about = "Predicate management and testing")]
     Predicate {
         #[command(subcommand)]
         command: PredicateCommands,
     },
 
+    #[cfg(feature = "full")]
     #[command(about = "Program management and creation")]
     Program {
         #[command(subcommand)]
         command: ProgramCommands,
     },
 
+    #[cfg(feature = "full")]
     #[command(about = "Chain validation and testing commands")]
     Chain {
         #[command(subcommand)]
         command: ChainCommands,
     },
 
+    #[cfg(feature = "full")]
     #[command(
         about = "Kill all running modal node processes (shortcut for 'modal local killall-nodes')"
     )]
     Killall(modal_cli_node::local::killall_nodes::Opts),
 
+    #[cfg(feature = "full")]
     #[command(about = "Upgrade modal to the latest version")]
     Upgrade(modality::cmds::upgrade::Opts),
 }
@@ -143,6 +153,7 @@ enum PassfileCommands {
 }
 
 #[derive(Subcommand)]
+#[cfg(feature = "full")]
 enum NetworkCommands {
     #[command(about = "Display information about a Modality network")]
     Info(modal_cli_net::info::Opts),
@@ -158,6 +169,7 @@ enum NetworkCommands {
 }
 
 #[derive(Subcommand)]
+#[cfg(feature = "full")]
 enum LocalCommands {
     #[command(about = "Find all running modal node processes")]
     Nodes(modal_cli_node::local::nodes::Opts),
@@ -167,6 +179,7 @@ enum LocalCommands {
 }
 
 #[derive(Subcommand)]
+#[cfg(feature = "full")]
 enum NodeCommands {
     #[command(about = "Display the listening addresses of a node")]
     Address(modal_cli_node::address::Opts),
@@ -236,6 +249,7 @@ enum NodeCommands {
 }
 
 #[derive(Subcommand)]
+#[cfg(feature = "full")]
 enum MiningCommands {
     #[command(about = "Sync miner blocks from a specified node")]
     Sync(modal_cli_node::net_mining_sync::Opts),
@@ -280,6 +294,7 @@ enum ContractCommands {
     Log(modal_cli_contract::log::Opts),
 
     #[command(about = "Get contract or commit information")]
+    #[cfg(feature = "full")]
     Get(modal_cli_node::contract_get::Opts),
 
     #[command(about = "Manage contract assets")]
@@ -305,12 +320,14 @@ enum ContractCommands {
 }
 
 #[derive(Subcommand)]
+#[cfg(feature = "full")]
 enum HubCommands {
     #[command(about = "Start a contract hub server")]
     Start(modal_cli_hub::start::Opts),
 }
 
 #[derive(Subcommand)]
+#[cfg(feature = "full")]
 enum RunCommands {
     #[command(about = "Run a mining node")]
     Miner(modal_cli_node::run_miner::Opts),
@@ -323,6 +340,7 @@ enum RunCommands {
 }
 
 #[derive(Subcommand)]
+#[cfg(feature = "full")]
 enum PredicateCommands {
     #[command(about = "List available predicates")]
     List(modal_cli_predicate::list::Opts),
@@ -338,6 +356,7 @@ enum PredicateCommands {
 }
 
 #[derive(Subcommand)]
+#[cfg(feature = "full")]
 enum ProgramCommands {
     #[command(about = "Create a new program project")]
     Create(modal_cli_program::create::Opts),
@@ -353,6 +372,7 @@ enum ProgramCommands {
 }
 
 #[derive(Subcommand)]
+#[cfg(feature = "full")]
 enum ChainCommands {
     #[command(about = "Validate blockchain orphaning logic")]
     Validate(modal_cli_chain::validate::Opts),
@@ -374,6 +394,7 @@ async fn main() -> Result<()> {
             PassfileCommands::Decrypt(opts) => modality::cmds::passfile::decrypt::run(opts).await?,
             PassfileCommands::Encrypt(opts) => modality::cmds::passfile::encrypt::run(opts).await?,
         },
+        #[cfg(feature = "full")]
         Commands::Node { command } => match command {
             NodeCommands::Address(opts) => modal_cli_node::address::run(opts).await?,
             NodeCommands::Create(opts) => modal_cli_node::create::run(opts).await?,
@@ -398,12 +419,14 @@ async fn main() -> Result<()> {
             NodeCommands::ClearStorage(opts) => modal_cli_node::clear_storage::run(opts).await?,
             NodeCommands::Stats(opts) => modal_cli_node::stats::run(opts).await?,
         },
+        #[cfg(feature = "full")]
         Commands::Local { command } => match command {
             LocalCommands::Nodes(opts) => modal_cli_node::local::nodes::run(opts).await?,
             LocalCommands::KillallNodes(opts) => {
                 modal_cli_node::local::killall_nodes::run(opts).await?
             }
         },
+        #[cfg(feature = "full")]
         Commands::Net { command } => match command {
             NetworkCommands::Info(opts) => modal_cli_net::info::run(opts).await?,
             NetworkCommands::Storage(opts) => modal_cli_node::net_storage::run(opts).await?,
@@ -426,6 +449,7 @@ async fn main() -> Result<()> {
                 modal_cli_contract::set_named_id::run(opts).await?
             }
             ContractCommands::Log(opts) => modal_cli_contract::log::run(opts).await?,
+            #[cfg(feature = "full")]
             ContractCommands::Get(opts) => modal_cli_node::contract_get::run(opts).await?,
             ContractCommands::Assets(opts) => modal_cli_contract::assets::run(opts).await?,
             ContractCommands::WasmUpload(opts) => {
@@ -437,26 +461,31 @@ async fn main() -> Result<()> {
             ContractCommands::AddRule(opts) => modal_cli_contract::add_rule::run(opts).await?,
             ContractCommands::Download(opts) => modal_cli_contract::download::run(opts).await?,
         },
+        #[cfg(feature = "full")]
         Commands::Hub { command } => match command {
             HubCommands::Start(opts) => modal_cli_hub::start::run(opts).await?,
         },
+        #[cfg(feature = "full")]
         Commands::Run { command } => match command {
             RunCommands::Miner(opts) => modal_cli_node::run_miner::run(opts).await?,
             RunCommands::Validator(opts) => modal_cli_node::run_validator::run(opts).await?,
             RunCommands::Observer(opts) => modal_cli_node::run_observer::run(opts).await?,
         },
+        #[cfg(feature = "full")]
         Commands::Predicate { command } => match command {
             PredicateCommands::List(opts) => modal_cli_predicate::list::run(opts).await?,
             PredicateCommands::Info(opts) => modal_cli_predicate::info::run(opts).await?,
             PredicateCommands::Test(opts) => modal_cli_predicate::test::run(opts).await?,
             PredicateCommands::Create(opts) => modal_cli_predicate::create::run(opts).await?,
         },
+        #[cfg(feature = "full")]
         Commands::Program { command } => match command {
             ProgramCommands::Create(opts) => modal_cli_program::create::run(opts).await?,
             ProgramCommands::List(opts) => modal_cli_program::list::run(opts).await?,
             ProgramCommands::Info(opts) => modal_cli_program::info::run(opts).await?,
             ProgramCommands::Upload(opts) => modal_cli_program::upload::run(opts).await?,
         },
+        #[cfg(feature = "full")]
         Commands::Chain { command } => match command {
             ChainCommands::Validate(opts) => modal_cli_chain::validate::run(opts).await?,
             ChainCommands::Heal(opts) => modal_cli_chain::heal::run(opts).await?,
@@ -468,7 +497,9 @@ async fn main() -> Result<()> {
         Commands::Repost(opts) => modal_cli_contract::repost::run(opts).await?,
         Commands::AddRule(opts) => modal_cli_contract::add_rule::run(opts).await?,
         Commands::Download(opts) => modal_cli_contract::download::run(opts).await?,
+        #[cfg(feature = "full")]
         Commands::Killall(opts) => modal_cli_node::local::killall_nodes::run(opts).await?,
+        #[cfg(feature = "full")]
         Commands::Upgrade(opts) => modality::cmds::upgrade::run(opts).await?,
         Commands::Status(opts) => {
             let dir = std::env::current_dir()?;
@@ -500,7 +531,16 @@ mod tests {
             .map(|subcommand| subcommand.get_name().to_string())
             .collect();
 
-        for expected in ["contract", "id", "status", "commit", "set", "hub"] {
+        let expected_top_level = [
+            "contract",
+            "id",
+            "status",
+            "commit",
+            "set",
+            #[cfg(feature = "full")]
+            "hub",
+        ];
+        for expected in expected_top_level {
             assert!(
                 names.iter().any(|name| name == expected),
                 "modal --help should include `{expected}`; saw {names:?}"

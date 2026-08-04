@@ -9,16 +9,38 @@ repository = "https://github.com/modality-org/modality"
 homepage = "https://www.modality.org"
 readme = "../README.md"
 
+[features]
+default = ["full"]
+contract-onboarding = [
+  "dep:modality",
+  "modality/identity",
+  "modality/passfile",
+  "dep:modal-common",
+  "dep:modal-cli-contract",
+]
+full = [
+  "contract-onboarding",
+  "modality/upgrade",
+  "modal-cli-contract/full",
+  "dep:modal-cli-chain",
+  "dep:modal-cli-hub",
+  "dep:modal-cli-net",
+  "dep:modal-cli-node",
+  "dep:modal-cli-predicate",
+  "dep:modal-cli-program",
+  "modal-cli-program/full",
+]
+
 [dependencies]
-modality = { path = "../modality", version = "0.1.7", features = ["identity", "passfile", "upgrade"] }
-modal-common = { path = "../modal-common", version = "0.1.7" }
-modal-cli-node = { path = "../modal-cli-node", version = "0.1.0" }
-modal-cli-contract = { path = "../modal-cli-contract", version = "0.1.0", features = ["full"] }
-modal-cli-hub = { path = "../modal-cli-hub", version = "0.1.0" }
-modal-cli-predicate = { path = "../modal-cli-predicate", version = "0.1.0" }
-modal-cli-program = { path = "../modal-cli-program", version = "0.1.0", features = ["full"] }
-modal-cli-chain = { path = "../modal-cli-chain", version = "0.1.0" }
-modal-cli-net = { path = "../modal-cli-net", version = "0.1.0" }
+modality = { path = "../modality", version = "0.1.7", optional = true }
+modal-common = { path = "../modal-common", version = "0.1.7", optional = true }
+modal-cli-node = { path = "../modal-cli-node", version = "0.1.0", optional = true }
+modal-cli-contract = { path = "../modal-cli-contract", version = "0.1.0", optional = true }
+modal-cli-hub = { path = "../modal-cli-hub", version = "0.1.0", optional = true }
+modal-cli-predicate = { path = "../modal-cli-predicate", version = "0.1.0", optional = true }
+modal-cli-program = { path = "../modal-cli-program", version = "0.1.0", optional = true }
+modal-cli-chain = { path = "../modal-cli-chain", version = "0.1.0", optional = true }
+modal-cli-net = { path = "../modal-cli-net", version = "0.1.0", optional = true }
 anyhow = "1.0"
 clap = { version = "4.1.11", features = ["cargo", "derive", "env"] }
 tokio = { version = "1.42.0", features = ["rt-multi-thread", "macros"] }

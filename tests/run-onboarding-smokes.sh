@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODAL_BIN="${MODAL_BIN:-$ROOT_DIR/rust/target/debug/modal}"
 MIN_FREE_KB="${MODAL_ONBOARDING_MIN_KB:-1048576}"
 BUILD_MODAL="${MODAL_ONBOARDING_BUILD:-0}"
+MODAL_ONBOARDING_FEATURES="${MODAL_ONBOARDING_FEATURES:-contract-onboarding}"
 
 available_kb="$(df -Pk "$ROOT_DIR" | awk 'NR == 2 { print $4 }')"
 if [[ "$available_kb" -lt "$MIN_FREE_KB" ]]; then
@@ -24,7 +25,7 @@ fi
 if [[ ! -x "$MODAL_BIN" && "$BUILD_MODAL" == "1" ]]; then
   (
     cd "$ROOT_DIR/rust"
-    cargo build -p modal
+    cargo build -p modal --no-default-features --features "$MODAL_ONBOARDING_FEATURES"
   )
 fi
 
@@ -39,7 +40,7 @@ Build it during the smoke:
 
 Or build it first:
   cd "$ROOT_DIR/rust"
-  cargo build -p modal
+  cargo build -p modal --no-default-features --features "$MODAL_ONBOARDING_FEATURES"
 
 Or pass an existing binary:
   MODAL_BIN=/path/to/modal $0

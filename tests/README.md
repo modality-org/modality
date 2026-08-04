@@ -8,11 +8,11 @@ Run the current first-contract onboarding checks from the repository root:
 tests/run-onboarding-smokes.sh
 ```
 
-This always runs the parser-backed language smoke and checks that the default
-contract CLI dependency tree avoids onboarding-heavy storage/compression deps.
-It also runs the first-contract CLI wrapper smoke when `rust/target/debug/modal`
-exists, or when `MODAL_BIN=/path/to/modal` points at another built `modal`
-binary.
+This always runs the parser-backed language smoke and checks that both the
+default contract CLI dependency tree and the lean `modal` onboarding wrapper
+avoid onboarding-heavy network/storage/compression deps. It also runs the
+first-contract CLI wrapper smoke when `rust/target/debug/modal` exists, or when
+`MODAL_BIN=/path/to/modal` points at another built `modal` binary.
 
 To measure the full source-built wrapper path from the same entry point, ask the
 smoke to build the binary when it is missing:
@@ -24,7 +24,9 @@ MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh
 The smoke checks for at least 1 GiB of free disk before invoking Cargo so local
 onboarding failures report the resource problem before incremental build output
 fills the filesystem. Override the guard with `MODAL_ONBOARDING_MIN_KB` only for
-known no-build diagnostic runs.
+known no-build diagnostic runs. Build mode uses `contract-onboarding` by
+default; set `MODAL_ONBOARDING_FEATURES=full` only when measuring the full
+network/hub wrapper.
 
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 
