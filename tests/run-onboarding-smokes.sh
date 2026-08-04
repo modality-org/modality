@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODAL_BIN="${MODAL_BIN:-$ROOT_DIR/rust/target/debug/modal}"
 MIN_FREE_KB="${MODAL_ONBOARDING_MIN_KB:-1048576}"
+BUILD_MODAL="${MODAL_ONBOARDING_BUILD:-0}"
 
 available_kb="$(df -Pk "$ROOT_DIR" | awk 'NR == 2 { print $4 }')"
 if [[ "$available_kb" -lt "$MIN_FREE_KB" ]]; then
@@ -20,13 +21,23 @@ fi
 "$ROOT_DIR/tests/language/run-onboarding-tests.sh"
 "$ROOT_DIR/tests/cli/check-contract-cli-deps.sh"
 
+if [[ ! -x "$MODAL_BIN" && "$BUILD_MODAL" == "1" ]]; then
+  (
+    cd "$ROOT_DIR/rust"
+    cargo build -p modal
+  )
+fi
+
 if [[ -x "$MODAL_BIN" ]]; then
   MODAL_BIN="$MODAL_BIN" "$ROOT_DIR/tests/cli/run-first-contract-cli-smoke.sh"
 else
   cat <<EOF
 first-contract CLI smoke skipped: modal binary not found at $MODAL_BIN
 
-Build it first:
+Build it during the smoke:
+  MODAL_ONBOARDING_BUILD=1 $0
+
+Or build it first:
   cd "$ROOT_DIR/rust"
   cargo build -p modal
 
