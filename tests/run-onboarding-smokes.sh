@@ -85,6 +85,9 @@ Build and smoke the release-profile onboarding wrapper:
 Install and smoke the lean onboarding wrapper in a temporary Cargo root:
   MODAL_ONBOARDING_INSTALL=1 $0
 
+Install and smoke the release-profile onboarding wrapper:
+  MODAL_ONBOARDING_INSTALL=1 MODAL_ONBOARDING_PROFILE=release $0
+
 Or build it first:
   cd "$ROOT_DIR/rust"
   cargo build ${CARGO_PROFILE_ARGS[*]} -p modal --no-default-features --features "$MODAL_ONBOARDING_FEATURES"

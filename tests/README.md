@@ -49,6 +49,10 @@ With the default `debug` profile this uses `cargo install --debug` so local
 iteration stays fast. Add `MODAL_ONBOARDING_PROFILE=release` when measuring the
 release-profile installed wrapper.
 
+```bash
+MODAL_ONBOARDING_INSTALL=1 MODAL_ONBOARDING_PROFILE=release tests/run-onboarding-smokes.sh
+```
+
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 
 Alternatively, you can also use `modality-js` for the javascript implementation of the cli.
