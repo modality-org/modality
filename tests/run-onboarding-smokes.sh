@@ -2,10 +2,28 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MODAL_BIN="${MODAL_BIN:-$ROOT_DIR/rust/target/debug/modal}"
 MIN_FREE_KB="${MODAL_ONBOARDING_MIN_KB:-1048576}"
 BUILD_MODAL="${MODAL_ONBOARDING_BUILD:-0}"
 MODAL_ONBOARDING_FEATURES="${MODAL_ONBOARDING_FEATURES:-contract-onboarding}"
+MODAL_ONBOARDING_PROFILE="${MODAL_ONBOARDING_PROFILE:-debug}"
+
+case "$MODAL_ONBOARDING_PROFILE" in
+  debug)
+    CARGO_PROFILE_ARGS=()
+    DEFAULT_MODAL_BIN="$ROOT_DIR/rust/target/debug/modal"
+    ;;
+  release)
+    CARGO_PROFILE_ARGS=(--release)
+    DEFAULT_MODAL_BIN="$ROOT_DIR/rust/target/release/modal"
+    ;;
+  *)
+    echo "unsupported MODAL_ONBOARDING_PROFILE: $MODAL_ONBOARDING_PROFILE" >&2
+    echo "expected: debug or release" >&2
+    exit 2
+    ;;
+esac
+
+MODAL_BIN="${MODAL_BIN:-$DEFAULT_MODAL_BIN}"
 
 available_kb="$(df -Pk "$ROOT_DIR" | awk 'NR == 2 { print $4 }')"
 if [[ "$available_kb" -lt "$MIN_FREE_KB" ]]; then
@@ -25,7 +43,7 @@ fi
 if [[ ! -x "$MODAL_BIN" && "$BUILD_MODAL" == "1" ]]; then
   (
     cd "$ROOT_DIR/rust"
-    cargo build -p modal --no-default-features --features "$MODAL_ONBOARDING_FEATURES"
+    cargo build "${CARGO_PROFILE_ARGS[@]}" -p modal --no-default-features --features "$MODAL_ONBOARDING_FEATURES"
   )
 fi
 
@@ -38,9 +56,12 @@ first-contract CLI smoke skipped: modal binary not found at $MODAL_BIN
 Build it during the smoke:
   MODAL_ONBOARDING_BUILD=1 $0
 
+Build and smoke the release-profile onboarding wrapper:
+  MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_PROFILE=release $0
+
 Or build it first:
   cd "$ROOT_DIR/rust"
-  cargo build -p modal --no-default-features --features "$MODAL_ONBOARDING_FEATURES"
+  cargo build ${CARGO_PROFILE_ARGS[*]} -p modal --no-default-features --features "$MODAL_ONBOARDING_FEATURES"
 
 Or pass an existing binary:
   MODAL_BIN=/path/to/modal $0

@@ -28,6 +28,16 @@ known no-build diagnostic runs. Build mode uses `contract-onboarding` by
 default; set `MODAL_ONBOARDING_FEATURES=full` only when measuring the full
 network/hub wrapper.
 
+To measure the lean release-profile wrapper, set `MODAL_ONBOARDING_PROFILE`:
+
+```bash
+MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_PROFILE=release tests/run-onboarding-smokes.sh
+```
+
+The default profile is `debug`, which builds and smokes
+`rust/target/debug/modal`. The `release` profile builds and smokes
+`rust/target/release/modal` with the same lean onboarding features.
+
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 
 Alternatively, you can also use `modality-js` for the javascript implementation of the cli.
