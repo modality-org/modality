@@ -4,16 +4,19 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MIN_FREE_KB="${MODAL_ONBOARDING_MIN_KB:-1048576}"
 BUILD_MODAL="${MODAL_ONBOARDING_BUILD:-0}"
+INSTALL_MODAL="${MODAL_ONBOARDING_INSTALL:-0}"
 MODAL_ONBOARDING_FEATURES="${MODAL_ONBOARDING_FEATURES:-contract-onboarding}"
 MODAL_ONBOARDING_PROFILE="${MODAL_ONBOARDING_PROFILE:-debug}"
 
 case "$MODAL_ONBOARDING_PROFILE" in
   debug)
     CARGO_PROFILE_ARGS=()
+    CARGO_INSTALL_PROFILE_ARGS=(--debug)
     DEFAULT_MODAL_BIN="$ROOT_DIR/rust/target/debug/modal"
     ;;
   release)
     CARGO_PROFILE_ARGS=(--release)
+    CARGO_INSTALL_PROFILE_ARGS=()
     DEFAULT_MODAL_BIN="$ROOT_DIR/rust/target/release/modal"
     ;;
   *)
@@ -40,6 +43,26 @@ fi
 "$ROOT_DIR/tests/language/run-onboarding-tests.sh"
 "$ROOT_DIR/tests/cli/check-contract-cli-deps.sh"
 
+if [[ "$INSTALL_MODAL" == "1" ]]; then
+  INSTALL_ROOT="$(mktemp -d)"
+  cleanup_install() {
+    rm -rf "$INSTALL_ROOT"
+  }
+  trap cleanup_install EXIT
+
+  (
+    cd "$ROOT_DIR/rust"
+    cargo install \
+      --path modal \
+      --no-default-features \
+      --features "$MODAL_ONBOARDING_FEATURES" \
+      --root "$INSTALL_ROOT" \
+      --locked \
+      "${CARGO_INSTALL_PROFILE_ARGS[@]}"
+  )
+  MODAL_BIN="$INSTALL_ROOT/bin/modal"
+fi
+
 if [[ ! -x "$MODAL_BIN" && "$BUILD_MODAL" == "1" ]]; then
   (
     cd "$ROOT_DIR/rust"
@@ -58,6 +81,9 @@ Build it during the smoke:
 
 Build and smoke the release-profile onboarding wrapper:
   MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_PROFILE=release $0
+
+Install and smoke the lean onboarding wrapper in a temporary Cargo root:
+  MODAL_ONBOARDING_INSTALL=1 $0
 
 Or build it first:
   cd "$ROOT_DIR/rust"

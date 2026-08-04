@@ -38,6 +38,17 @@ The default profile is `debug`, which builds and smokes
 `rust/target/debug/modal`. The `release` profile builds and smokes
 `rust/target/release/modal` with the same lean onboarding features.
 
+To measure the install shape rather than a direct target binary, install the
+lean wrapper into a temporary Cargo root and smoke that installed `modal`:
+
+```bash
+MODAL_ONBOARDING_INSTALL=1 tests/run-onboarding-smokes.sh
+```
+
+With the default `debug` profile this uses `cargo install --debug` so local
+iteration stays fast. Add `MODAL_ONBOARDING_PROFILE=release` when measuring the
+release-profile installed wrapper.
+
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 
 Alternatively, you can also use `modality-js` for the javascript implementation of the cli.
