@@ -10,6 +10,8 @@ pub mod diff;
 pub mod download;
 pub mod id;
 pub mod log;
+#[cfg(feature = "model-status")]
+mod model_governance;
 pub mod pack;
 pub mod pull;
 pub mod push;

@@ -214,6 +214,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Validate against contract rules (signature predicates, etc.)
     store.validate_commit_against_rules(&commit)?;
+    validate_commit_against_model(&dir, &store, &commit)?;
 
     // Compute commit ID
     let mut commit_id = commit.compute_id()?;
@@ -267,6 +268,30 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("  - modal contract push    (push to chain)");
     }
 
+    Ok(())
+}
+
+#[cfg(feature = "model-status")]
+fn validate_commit_against_model(
+    dir: &std::path::Path,
+    store: &ContractStore,
+    commit: &CommitFile,
+) -> Result<()> {
+    let model_path = dir.join("model").join("default.modality");
+    if model_path.exists() {
+        let model_content = std::fs::read_to_string(&model_path)?;
+        crate::model_governance::validate_pending_commit(&model_content, store, commit)?;
+    }
+
+    Ok(())
+}
+
+#[cfg(not(feature = "model-status"))]
+fn validate_commit_against_model(
+    _dir: &std::path::Path,
+    _store: &ContractStore,
+    _commit: &CommitFile,
+) -> Result<()> {
     Ok(())
 }
 

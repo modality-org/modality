@@ -17,6 +17,7 @@ contract-onboarding = [
   "modality/passfile",
   "dep:modal-common",
   "dep:modal-cli-contract",
+  "modal-cli-contract/model-status",
 ]
 full = [
   "contract-onboarding",
