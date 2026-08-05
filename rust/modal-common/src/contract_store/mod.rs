@@ -581,7 +581,9 @@ impl ContractStore {
         rule_content: &str, 
         ctx: &one_step_rule::EvalContext,
     ) -> Result<()> {
-        use crate::contract_store::one_step_rule::{parse_formula, evaluate_formula_full};
+        use crate::contract_store::one_step_rule::{
+            evaluate_formula_full, explain_formula_failures, parse_formula,
+        };
         
         // Extract the formula from rule syntax
         // Format: rule name { formula { <expression> } }
@@ -616,9 +618,11 @@ impl ContractStore {
         match parse_formula(&formula_normalized) {
             Ok(formula) => {
                 if !evaluate_formula_full(&formula, ctx) {
+                    let failures = explain_formula_failures(&formula, ctx);
                     anyhow::bail!(
-                        "Rule violation: {} (signers: {:?})",
+                        "Rule violation: {} (failed predicates: {}; signers: {:?})",
                         rule_content.chars().take(100).collect::<String>(),
+                        failures.join("; "),
                         ctx.signers
                     );
                 }
@@ -711,7 +715,9 @@ impl ContractStore {
         formula: &str,
         ctx: &one_step_rule::EvalContext,
     ) -> Result<()> {
-        use crate::contract_store::one_step_rule::{parse_formula, evaluate_formula_full};
+        use crate::contract_store::one_step_rule::{
+            evaluate_formula_full, explain_formula_failures, parse_formula,
+        };
         
         // Split on "implies"
         let parts: Vec<&str> = formula.split(" implies ").collect();
@@ -740,10 +746,12 @@ impl ContractStore {
         };
         
         if !evaluate_formula_full(&consequent_formula, ctx) {
+            let failures = explain_formula_failures(&consequent_formula, ctx);
             anyhow::bail!(
-                "Rule violation: {} implies {} (antecedent true but consequent false, signers: {:?})",
+                "Rule violation: {} implies {} (antecedent true; failed predicates: {}; signers: {:?})",
                 antecedent,
                 consequent,
+                failures.join("; "),
                 ctx.signers
             );
         }
@@ -781,4 +789,3 @@ impl ContractStore {
         Ok(unpushed)
     }
 }
-

@@ -72,6 +72,8 @@ pub enum CommitRuleFormula {
     And(Box<CommitRuleFormula>, Box<CommitRuleFormula>),
     /// Disjunction: formula1 | formula2  
     Or(Box<CommitRuleFormula>, Box<CommitRuleFormula>),
+    /// Negation: !formula
+    Not(Box<CommitRuleFormula>),
 }
 
 /// Parse a commit rule formula string
@@ -95,6 +97,11 @@ pub fn parse_formula(formula: &str) -> Result<CommitRuleFormula> {
     // Handle parentheses
     if formula.starts_with('(') && formula.ends_with(')') {
         return parse_formula(&formula[1..formula.len()-1]);
+    }
+
+    // Handle negation
+    if let Some(inner) = formula.strip_prefix('!') {
+        return Ok(CommitRuleFormula::Not(Box::new(parse_formula(inner.trim())?)));
     }
     
     // Handle signed_by_n(n, [...])
@@ -298,6 +305,114 @@ pub fn evaluate_formula_full(
         CommitRuleFormula::Or(left, right) => {
             evaluate_formula_full(left, ctx) || evaluate_formula_full(right, ctx)
         }
+        CommitRuleFormula::Not(inner) => {
+            !evaluate_formula_full(inner, ctx)
+        }
+    }
+}
+
+/// Explain which predicates made a formula evaluate to false.
+pub fn explain_formula_failures(formula: &CommitRuleFormula, ctx: &EvalContext) -> Vec<String> {
+    if evaluate_formula_full(formula, ctx) {
+        return Vec::new();
+    }
+
+    match formula {
+        CommitRuleFormula::SignedByN { required, signers } => {
+            let present = signers
+                .iter()
+                .filter(|s| ctx.signers.contains(s))
+                .count();
+            vec![format!(
+                "signed_by_n({}, [{}]) failed: {} of {} required signers present (commit signers: {:?})",
+                required,
+                signers.join(", "),
+                present,
+                required,
+                ctx.signers
+            )]
+        }
+        CommitRuleFormula::SignedBy(signer) => {
+            vec![format!(
+                "signed_by({}) failed: signer not present (commit signers: {:?})",
+                signer,
+                ctx.signers
+            )]
+        }
+        CommitRuleFormula::AllSigned(path) => {
+            let members = resolve_path_as_strings(ctx.state, path);
+            let missing: Vec<_> = members
+                .iter()
+                .filter(|m| !ctx.signers.contains(m))
+                .cloned()
+                .collect();
+            vec![format!(
+                "all_signed({}) failed: missing {} of {} required member signatures: {:?}",
+                path,
+                missing.len(),
+                members.len(),
+                missing
+            )]
+        }
+        CommitRuleFormula::AnySigned(path) => {
+            let members = resolve_path_as_strings(ctx.state, path);
+            vec![format!(
+                "any_signed({}) failed: no member signature present ({} known members, commit signers: {:?})",
+                path,
+                members.len(),
+                ctx.signers
+            )]
+        }
+        CommitRuleFormula::Modifies(prefix) => {
+            vec![format!(
+                "modifies({}) failed: modified paths were {:?}",
+                prefix,
+                ctx.modified_paths
+            )]
+        }
+        CommitRuleFormula::And(left, right) => {
+            let mut failures = explain_formula_failures(left, ctx);
+            failures.extend(explain_formula_failures(right, ctx));
+            failures
+        }
+        CommitRuleFormula::Or(left, right) => {
+            let left_failures = explain_formula_failures(left, ctx);
+            let right_failures = explain_formula_failures(right, ctx);
+            vec![format!(
+                "neither side of OR matched: left [{}]; right [{}]",
+                left_failures.join("; "),
+                right_failures.join("; ")
+            )]
+        }
+        CommitRuleFormula::Not(inner) => {
+            vec![format!(
+                "!predicate failed: inner predicate matched ({})",
+                format_formula_for_explanation(inner)
+            )]
+        }
+    }
+}
+
+fn format_formula_for_explanation(formula: &CommitRuleFormula) -> String {
+    match formula {
+        CommitRuleFormula::SignedByN { required, signers } => {
+            format!("signed_by_n({}, [{}])", required, signers.join(", "))
+        }
+        CommitRuleFormula::SignedBy(signer) => format!("signed_by({})", signer),
+        CommitRuleFormula::AllSigned(path) => format!("all_signed({})", path),
+        CommitRuleFormula::AnySigned(path) => format!("any_signed({})", path),
+        CommitRuleFormula::Modifies(path) => format!("modifies({})", path),
+        CommitRuleFormula::And(left, right) => format!(
+            "{} & {}",
+            format_formula_for_explanation(left),
+            format_formula_for_explanation(right)
+        ),
+        CommitRuleFormula::Or(left, right) => format!(
+            "{} | {}",
+            format_formula_for_explanation(left),
+            format_formula_for_explanation(right)
+        ),
+        CommitRuleFormula::Not(inner) => format!("!{}", format_formula_for_explanation(inner)),
     }
 }
 
@@ -770,5 +885,43 @@ mod tests {
         
         assert!(!evaluate_formula_full(&modifies_members, &ctx3));
         // all_signed still fails but doesn't matter since we're not modifying members
+    }
+
+    #[test]
+    fn test_explain_all_signed_failure_lists_missing_members() {
+        let formula = parse_formula("all_signed(/members)").unwrap();
+        let state = serde_json::json!({
+            "members/alice.id": "alice_key",
+            "members/bob.id": "bob_key",
+            "members/carol.id": "carol_key"
+        });
+        let body = serde_json::json!([
+            {"method": "post", "path": "/members/dave.id", "value": "dave_key"}
+        ]);
+        let signers = vec!["alice_key".to_string()];
+        let ctx = EvalContext::new(&signers, &state, &body);
+
+        let failures = explain_formula_failures(&formula, &ctx);
+
+        assert_eq!(failures.len(), 1);
+        assert!(failures[0].contains("all_signed(/members) failed"));
+        assert!(failures[0].contains("missing 2 of 3"));
+        assert!(failures[0].contains("bob_key"));
+        assert!(failures[0].contains("carol_key"));
+    }
+
+    #[test]
+    fn test_explain_negative_modifies_failure_lists_modified_paths() {
+        let formula = parse_formula("!modifies(/members)").unwrap();
+        let body = serde_json::json!([
+            {"method": "post", "path": "/members/bob.id", "value": "bob_key"}
+        ]);
+        let ctx = EvalContext::new(&[], &Value::Null, &body);
+
+        let failures = explain_formula_failures(&formula, &ctx);
+
+        assert_eq!(failures.len(), 1);
+        assert!(failures[0].contains("!predicate failed"));
+        assert!(failures[0].contains("modifies(/members)"));
     }
 }

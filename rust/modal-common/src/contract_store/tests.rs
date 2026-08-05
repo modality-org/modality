@@ -1,4 +1,4 @@
-use crate::contract_store::{CommitFile, parse_repost_path};
+use crate::contract_store::{CommitFile, ContractStore, parse_repost_path};
 use serde_json::json;
 
 #[test]
@@ -193,6 +193,59 @@ fn test_existing_methods_still_work() {
     
     // Should validate successfully (post doesn't require special validation)
     assert!(commit.validate().is_ok());
+}
+
+#[test]
+fn test_rule_rejection_explains_failed_consequent_predicate() {
+    let contract_dir = std::env::temp_dir().join(format!(
+        "modal-common-rule-explain-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&contract_dir);
+    std::fs::create_dir_all(&contract_dir).unwrap();
+
+    let store = ContractStore::init(&contract_dir, "contract_test".to_string()).unwrap();
+    let mut base = CommitFile::new();
+    base.add_action(
+        "post".to_string(),
+        Some("/members/alice.id".to_string()),
+        json!("alice_key"),
+    );
+    base.add_action(
+        "post".to_string(),
+        Some("/members/bob.id".to_string()),
+        json!("bob_key"),
+    );
+    base.add_action(
+        "rule".to_string(),
+        Some("/rules/protect-members.modality".to_string()),
+        json!("rule protect_members { formula { always (+modifies(/members) implies +all_signed(/members)) } }"),
+    );
+    let base_id = base.compute_id().unwrap();
+    store.save_commit(&base_id, &base).unwrap();
+    store.set_head(&base_id).unwrap();
+
+    let mut pending = CommitFile::with_parent(base_id);
+    pending.add_action(
+        "post".to_string(),
+        Some("/members/carol.id".to_string()),
+        json!("carol_key"),
+    );
+    pending.head.signatures = Some(json!({
+        "alice_key": "sig"
+    }));
+
+    let err = store
+        .validate_commit_against_rules(&pending)
+        .expect_err("partial member signature should reject protected member change");
+    let message = err.to_string();
+
+    assert!(message.contains("antecedent true"));
+    assert!(message.contains("all_signed(/members) failed"));
+    assert!(message.contains("missing 1 of 2"));
+    assert!(message.contains("bob_key"));
+
+    std::fs::remove_dir_all(&contract_dir).unwrap();
 }
 
 #[test]
@@ -395,4 +448,3 @@ fn test_parse_repost_path_fails_with_empty_contract_id() {
 fn test_parse_repost_path_fails_with_empty_remote_path() {
     assert!(parse_repost_path("$abc123:").is_err());
 }
-
