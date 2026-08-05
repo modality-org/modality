@@ -10,7 +10,9 @@
 //! - **Rule anchoring**: Each rule is anchored to the commit where it was added
 //! - **Replay**: New models must replay history to establish valid state mapping
 
-use modality_lang::{parse_content_lalrpop, Model, ModelChecker, Formula};
+use modality_lang::{
+    parse_content_lalrpop, Formula, Model, ModelChecker, Property, PropertySign, Transition,
+};
 use serde_json::Value;
 use std::collections::HashSet;
 
@@ -63,7 +65,7 @@ impl ModelValidator {
     pub fn new() -> Self {
         let mut initial_states = HashSet::new();
         initial_states.insert("*".to_string()); // Wildcard initial state
-        
+
         Self {
             current_model: None,
             rules: Vec::new(),
@@ -74,11 +76,11 @@ impl ModelValidator {
     /// Create validator from existing commits (replay history)
     pub fn from_commits(commits: &[ReplayCommit]) -> Result<Self, String> {
         let mut validator = Self::new();
-        
+
         for commit in commits {
             validator.apply_commit(commit)?;
         }
-        
+
         Ok(validator)
     }
 
@@ -108,8 +110,8 @@ impl ModelValidator {
     /// Apply a MODEL commit
     fn apply_model(&mut self, content: &str, _commit_index: usize) -> Result<(), String> {
         // Parse the new model
-        let new_model = parse_content_lalrpop(content)
-            .map_err(|e| format!("Invalid model syntax: {}", e))?;
+        let new_model =
+            parse_content_lalrpop(content).map_err(|e| format!("Invalid model syntax: {}", e))?;
 
         // If we have existing rules, validate the new model against them
         for rule in &self.rules {
@@ -126,7 +128,7 @@ impl ModelValidator {
 
         self.current_model = Some(new_model);
         self.current_states = new_states;
-        
+
         Ok(())
     }
 
@@ -151,7 +153,7 @@ impl ModelValidator {
             anchor_commit: commit_index,
             anchor_states: self.current_states.clone(),
         };
-        
+
         self.rules.push(anchored);
         Ok(())
     }
@@ -171,20 +173,24 @@ impl ModelValidator {
             for part in &model.parts {
                 for transition in &part.transitions {
                     if &transition.from == state || state == "*" {
-                        // Check if transition labels match action labels
                         if self.labels_match(&transition.properties, labels) {
                             next_states.insert(transition.to.clone());
                         }
                     }
                 }
             }
+
+            for transition in &model.transitions {
+                if &transition.from == state || state == "*" {
+                    if self.labels_match(&transition.properties, labels) {
+                        next_states.insert(transition.to.clone());
+                    }
+                }
+            }
         }
 
         if next_states.is_empty() && !self.current_states.contains("*") {
-            return Err(format!(
-                "No valid transition for action {:?} from states {:?}",
-                labels, self.current_states
-            ));
+            return Err(self.explain_no_valid_transition(labels, model));
         }
 
         if !next_states.is_empty() {
@@ -255,9 +261,7 @@ impl ModelValidator {
 
         for part in &model.parts {
             // Look for explicit initial marker or first 'from' node
-            let to_nodes: HashSet<_> = part.transitions.iter()
-                .map(|t| &t.to)
-                .collect();
+            let to_nodes: HashSet<_> = part.transitions.iter().map(|t| &t.to).collect();
 
             for transition in &part.transitions {
                 if !to_nodes.contains(&transition.from) {
@@ -281,30 +285,127 @@ impl ModelValidator {
         initial
     }
 
-    /// Check if transition labels match action labels
-    fn labels_match(&self, transition_props: &[modality_lang::Property], action_labels: &[String]) -> bool {
-        use modality_lang::PropertySign;
-
-        // Extract positive labels from transition
-        let transition_labels: HashSet<_> = transition_props.iter()
-            .filter(|p| p.sign == PropertySign::Plus)
-            .map(|p| p.name.clone())
-            .collect();
-
-        // Check if action labels are a subset
-        let action_set: HashSet<_> = action_labels.iter().cloned().collect();
-        
+    /// Check whether all predicates on a transition are satisfied by an action.
+    fn labels_match(&self, transition_props: &[Property], action_labels: &[String]) -> bool {
         // Empty transition = wildcard (matches anything)
-        if transition_labels.is_empty() {
+        if transition_props.is_empty() {
             return true;
         }
 
-        // All action labels must be in transition labels
-        action_set.is_subset(&transition_labels)
+        self.transition_predicate_failures(transition_props, action_labels)
+            .is_empty()
+    }
+
+    fn transition_predicate_failures(
+        &self,
+        transition_props: &[Property],
+        action_labels: &[String],
+    ) -> Vec<String> {
+        let action_set: HashSet<_> = action_labels.iter().cloned().collect();
+
+        transition_props
+            .iter()
+            .filter_map(|prop| match prop.sign {
+                PropertySign::Plus if !action_set.contains(&prop.name) => {
+                    Some(format!("missing +{}", prop.name))
+                }
+                PropertySign::Minus if action_set.contains(&prop.name) => {
+                    Some(format!("forbidden -{} matched", prop.name))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn explain_no_valid_transition(&self, labels: &[String], model: &Model) -> String {
+        let mut lines = vec![format!(
+            "No valid transition for action {:?} from current states {:?}",
+            labels, self.current_states
+        )];
+
+        let mut candidate_count = 0;
+        for state in &self.current_states {
+            for part in &model.parts {
+                for transition in &part.transitions {
+                    if &transition.from == state || state == "*" {
+                        candidate_count += 1;
+                        lines.push(self.explain_candidate_transition(
+                            Some(&part.name),
+                            state,
+                            transition,
+                            labels,
+                        ));
+                    }
+                }
+            }
+
+            for transition in &model.transitions {
+                if &transition.from == state || state == "*" {
+                    candidate_count += 1;
+                    lines.push(self.explain_candidate_transition(None, state, transition, labels));
+                }
+            }
+        }
+
+        if candidate_count == 0 {
+            lines.push("Candidate transitions: none from current states".to_string());
+        }
+
+        lines.join("; ")
+    }
+
+    fn explain_candidate_transition(
+        &self,
+        part_name: Option<&str>,
+        current_state: &str,
+        transition: &Transition,
+        labels: &[String],
+    ) -> String {
+        let failures = self.transition_predicate_failures(&transition.properties, labels);
+        let part_prefix = part_name
+            .map(|name| format!("part {} ", name))
+            .unwrap_or_default();
+
+        format!(
+            "{}candidate from current state {}: {} -> {} [{}]; failed predicates: {}",
+            part_prefix,
+            current_state,
+            transition.from,
+            transition.to,
+            Self::format_properties(&transition.properties),
+            if failures.is_empty() {
+                "none".to_string()
+            } else {
+                failures.join(", ")
+            }
+        )
+    }
+
+    fn format_properties(properties: &[Property]) -> String {
+        if properties.is_empty() {
+            return "no predicates".to_string();
+        }
+
+        properties
+            .iter()
+            .map(|prop| {
+                let sign = match prop.sign {
+                    PropertySign::Plus => "+",
+                    PropertySign::Minus => "-",
+                };
+                format!("{}{}", sign, prop.name)
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 
     /// Check if a rule is satisfied on a model from given states
-    fn check_rule_on_model(&self, formula: &Formula, model: &Model, states: &HashSet<String>) -> bool {
+    fn check_rule_on_model(
+        &self,
+        formula: &Formula,
+        model: &Model,
+        states: &HashSet<String>,
+    ) -> bool {
         let checker = ModelChecker::new(model.clone());
 
         // Check formula from each possible state
@@ -322,7 +423,7 @@ impl ModelValidator {
     fn parse_rule_formula(&self, content: &str) -> Result<Formula, String> {
         // Try to extract formula from rule syntax
         // Format: rule name { formula name { ... } }
-        
+
         // Find "formula" keyword and extract the full formula declaration
         if let Some(start) = content.find("formula") {
             // Find the opening brace after "formula <name>"
@@ -345,10 +446,10 @@ impl ModelValidator {
                         _ => {}
                     }
                 }
-                
+
                 // Extract the full formula declaration: "formula name { expr }"
                 let formula_content = &content[start..=end];
-                
+
                 // Parse as formula
                 return self.parse_formula_decl(formula_content);
             }
@@ -360,9 +461,10 @@ impl ModelValidator {
     /// Parse a formula declaration (formula name { expr })
     fn parse_formula_decl(&self, content: &str) -> Result<Formula, String> {
         use modality_lang::grammar::FormulaParser;
-        
+
         let parser = FormulaParser::new();
-        let formula = parser.parse(content)
+        let formula = parser
+            .parse(content)
             .map_err(|e| format!("Formula parse error: {:?}", e))?;
 
         Ok(formula)
@@ -400,7 +502,7 @@ mod tests {
     #[test]
     fn test_apply_model() {
         let mut validator = ModelValidator::new();
-        
+
         let model = r#"
 model TestModel {
     init --> active: +START
@@ -426,7 +528,7 @@ model TestModel {
     #[ignore] // FIXME: action label matching needs investigation
     fn test_apply_action_advances_state() {
         let mut validator = ModelValidator::new();
-        
+
         // First add a model
         let model = r#"
 model TestModel {
@@ -434,16 +536,65 @@ model TestModel {
     active --> done: +FINISH
 }
         "#;
-        
+
         validator.apply_model(model, 0).unwrap();
-        
+
         // State should be at init
         assert!(validator.current_states.contains("init"));
-        
+
         // Apply START action
         validator.apply_action(&["START".to_string()]).unwrap();
-        
+
         // State should now be active
+        assert!(validator.current_states.contains("active"));
+    }
+
+    #[test]
+    fn test_action_rejection_explains_candidate_transition_predicates() {
+        let mut validator = ModelValidator::new();
+
+        let model = r#"
+model TestModel {
+    init --> active: +START -LOCKED
+    init --> admin: +ADMIN
+}
+        "#;
+
+        validator.apply_model(model, 0).unwrap();
+
+        let err = validator
+            .apply_action(&["START".to_string(), "LOCKED".to_string()])
+            .expect_err("LOCKED should make both init candidates fail");
+
+        assert!(err.contains("No valid transition for action"));
+        assert!(err.contains("current states"));
+        assert!(err.contains("candidate from current state init: init -> active [+START -LOCKED]"));
+        assert!(err.contains("failed predicates: forbidden -LOCKED matched"));
+        assert!(err.contains("candidate from current state init: init -> admin [+ADMIN]"));
+        assert!(err.contains("failed predicates: missing +ADMIN"));
+    }
+
+    #[test]
+    fn test_action_requires_all_positive_transition_predicates() {
+        let mut validator = ModelValidator::new();
+
+        let model = r#"
+model TestModel {
+    init --> active: +START +APPROVED
+}
+        "#;
+
+        validator.apply_model(model, 0).unwrap();
+
+        let err = validator
+            .apply_action(&["START".to_string()])
+            .expect_err("transition should require every positive predicate");
+
+        assert!(err.contains("failed predicates: missing +APPROVED"));
+
+        validator
+            .apply_action(&["START".to_string(), "APPROVED".to_string()])
+            .expect("all positive predicates should match");
         assert!(validator.current_states.contains("active"));
     }
 }
