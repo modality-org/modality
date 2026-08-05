@@ -15,6 +15,7 @@ struct CandidateTransitionExplanation {
 
 struct AnchoredRule {
     formula: Formula,
+    formula_source: String,
     anchor_commit: usize,
     anchor_states: HashSet<String>,
 }
@@ -166,9 +167,10 @@ fn anchored_rules_from_commit(
             continue;
         };
 
-        if let Some(formula) = parse_rule_formula(rule_content)? {
+        if let Some((formula, formula_source)) = parse_rule_formula(rule_content)? {
             rules.push(AnchoredRule {
                 formula,
+                formula_source,
                 anchor_commit: commit_index,
                 anchor_states: current_states.clone(),
             });
@@ -185,10 +187,13 @@ fn validate_anchored_rule(model: &Model, rule: &AnchoredRule) -> Result<()> {
         let result = checker.check_formula_at_state(&rule.formula, state);
         if !result.is_satisfied {
             anyhow::bail!(
-                "Model violates rule '{}' anchored at accepted commit {} from states {:?}",
+                "Model violates rule '{}' anchored at accepted commit {} from states {:?}; failed anchor state: {}; satisfying states in replacement model: {}; formula: {}",
                 rule.formula.name,
                 rule.anchor_commit,
-                rule.anchor_states
+                rule.anchor_states,
+                state,
+                format_satisfying_states(&result.satisfying_states),
+                rule.formula_source
             );
         }
     }
@@ -196,17 +201,34 @@ fn validate_anchored_rule(model: &Model, rule: &AnchoredRule) -> Result<()> {
     Ok(())
 }
 
-fn parse_rule_formula(rule_content: &str) -> Result<Option<Formula>> {
+fn parse_rule_formula(rule_content: &str) -> Result<Option<(Formula, String)>> {
     let Some(formula_body) = extract_rule_formula_body(rule_content) else {
         return Ok(None);
     };
 
+    let formula_source = formula_body
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
     let formula_decl = format!("formula local_rule {{\n{}\n}}", formula_body);
     let parser = modality_lang::grammar::FormulaParser::new();
     parser
         .parse(&formula_decl)
-        .map(Some)
+        .map(|formula| Some((formula, formula_source)))
         .map_err(|err| anyhow::anyhow!("Invalid rule formula syntax: {:?}", err))
+}
+
+fn format_satisfying_states(states: &[modality_lang::State]) -> String {
+    if states.is_empty() {
+        return "none".to_string();
+    }
+
+    let mut labels = states
+        .iter()
+        .map(|state| format!("{}:{}", state.part_name, state.node_name))
+        .collect::<Vec<_>>();
+    labels.sort();
+    labels.join(", ")
 }
 
 fn extract_rule_formula_body(rule_content: &str) -> Option<&str> {
@@ -855,6 +877,13 @@ model BadReplacement {
             err.to_string().contains("anchored at accepted commit"),
             "{err}"
         );
+        assert!(err.to_string().contains("failed anchor state: q1"), "{err}");
+        assert!(
+            err.to_string()
+                .contains("satisfying states in replacement model: none"),
+            "{err}"
+        );
+        assert!(err.to_string().contains("formula: eventually(q2)"), "{err}");
 
         let good_replacement = r#"
 model GoodReplacement {
