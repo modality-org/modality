@@ -50,6 +50,12 @@ pub struct ReplayCommit {
     pub model_content: Option<String>,
 }
 
+struct CandidateTransitionExplanation {
+    failures: Vec<String>,
+    summary: String,
+    transition_key: String,
+}
+
 /// Model validator
 pub struct ModelValidator {
     /// Current model (if any)
@@ -323,13 +329,12 @@ impl ModelValidator {
             labels, self.current_states
         )];
 
-        let mut candidate_count = 0;
+        let mut candidates = Vec::new();
         for state in &self.current_states {
             for part in &model.parts {
                 for transition in &part.transitions {
                     if &transition.from == state || state == "*" {
-                        candidate_count += 1;
-                        lines.push(self.explain_candidate_transition(
+                        candidates.push(self.explain_candidate_transition(
                             Some(&part.name),
                             state,
                             transition,
@@ -341,14 +346,28 @@ impl ModelValidator {
 
             for transition in &model.transitions {
                 if &transition.from == state || state == "*" {
-                    candidate_count += 1;
-                    lines.push(self.explain_candidate_transition(None, state, transition, labels));
+                    candidates
+                        .push(self.explain_candidate_transition(None, state, transition, labels));
                 }
             }
         }
 
-        if candidate_count == 0 {
+        if candidates.is_empty() {
             lines.push("Candidate transitions: none from current states".to_string());
+        } else {
+            candidates.sort_by(|left, right| {
+                left.failures
+                    .len()
+                    .cmp(&right.failures.len())
+                    .then_with(|| left.transition_key.cmp(&right.transition_key))
+            });
+
+            lines.push(format!(
+                "Closest candidate transition: {}",
+                candidates[0].summary
+            ));
+            lines.push("Candidate transitions ranked by predicate distance:".to_string());
+            lines.extend(candidates.into_iter().map(|candidate| candidate.summary));
         }
 
         lines.join("; ")
@@ -360,13 +379,17 @@ impl ModelValidator {
         current_state: &str,
         transition: &Transition,
         labels: &[String],
-    ) -> String {
+    ) -> CandidateTransitionExplanation {
         let failures = self.transition_predicate_failures(&transition.properties, labels);
         let part_prefix = part_name
             .map(|name| format!("part {} ", name))
             .unwrap_or_default();
+        let transition_key = format!(
+            "{}{}:{}->{}",
+            part_prefix, current_state, transition.from, transition.to
+        );
 
-        format!(
+        let summary = format!(
             "{}candidate from current state {}: {} -> {} [{}]; failed predicates: {}",
             part_prefix,
             current_state,
@@ -378,7 +401,13 @@ impl ModelValidator {
             } else {
                 failures.join(", ")
             }
-        )
+        );
+
+        CandidateTransitionExplanation {
+            failures,
+            summary,
+            transition_key,
+        }
     }
 
     fn format_properties(properties: &[Property]) -> String {
@@ -568,10 +597,42 @@ model TestModel {
 
         assert!(err.contains("No valid transition for action"));
         assert!(err.contains("current states"));
+        assert!(err.contains(
+            "Closest candidate transition: candidate from current state init: init -> active [+START -LOCKED]; failed predicates: forbidden -LOCKED matched"
+        ));
+        assert!(err.contains("Candidate transitions ranked by predicate distance"));
         assert!(err.contains("candidate from current state init: init -> active [+START -LOCKED]"));
         assert!(err.contains("failed predicates: forbidden -LOCKED matched"));
         assert!(err.contains("candidate from current state init: init -> admin [+ADMIN]"));
         assert!(err.contains("failed predicates: missing +ADMIN"));
+    }
+
+    #[test]
+    fn test_action_rejection_ranks_closest_candidate_by_failed_predicates() {
+        let mut validator = ModelValidator::new();
+
+        let model = r#"
+model TestModel {
+    init --> approved: +START +APPROVED
+    init --> reviewed: +START +APPROVED +REVIEWED
+}
+        "#;
+
+        validator.apply_model(model, 0).unwrap();
+
+        let err = validator
+            .apply_action(&["START".to_string()])
+            .expect_err("both transitions should be missing required predicates");
+
+        let closest = "Closest candidate transition: candidate from current state init: init -> approved [+START +APPROVED]; failed predicates: missing +APPROVED";
+        let farther = "candidate from current state init: init -> reviewed [+START +APPROVED +REVIEWED]; failed predicates: missing +APPROVED, missing +REVIEWED";
+
+        assert!(err.contains(closest));
+        assert!(err.contains(farther));
+        assert!(
+            err.find(closest).unwrap() < err.find(farther).unwrap(),
+            "closest candidate should be reported before farther candidates: {err}"
+        );
     }
 
     #[test]
