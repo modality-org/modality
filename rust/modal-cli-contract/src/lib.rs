@@ -92,6 +92,14 @@ mod tests {
             .get_head()?
             .expect("committing state should advance HEAD");
         assert_ne!(committed_head, genesis_head);
+        let committed = store.load_commit(&committed_head)?;
+        assert!(
+            committed.body.iter().any(|action| {
+                action.method == "model"
+                    && action.path.as_deref() == Some("/model/default.modality")
+            }),
+            "first --all commit should persist the checked-out governing model"
+        );
         assert_eq!(store.list_commits()?.len(), 2);
         assert_eq!(
             store

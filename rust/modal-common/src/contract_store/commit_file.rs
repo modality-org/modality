@@ -123,6 +123,7 @@ impl CommitAction {
             "invoke" => self.validate_invoke(),
             "post" => self.validate_post(),
             "rule" => self.validate_rule(),
+            "model" => self.validate_model(),
             "repost" => self.validate_repost(),
             "genesis" => Ok(()), // genesis is special, no path validation
             _ => Err(anyhow::anyhow!("Unknown method: {}", self.method)),
@@ -217,6 +218,23 @@ impl CommitAction {
                 anyhow::bail!("Rule path '{}' must end with .modality", path);
             }
         }
+        Ok(())
+    }
+
+    fn validate_model(&self) -> Result<()> {
+        if let Some(path) = &self.path {
+            if path != "/model/default.modality" {
+                anyhow::bail!(
+                    "Model path must be /model/default.modality, got: {}",
+                    path
+                );
+            }
+        }
+
+        if !self.value.is_string() {
+            anyhow::bail!("MODEL value must be Modality source text");
+        }
+
         Ok(())
     }
 
@@ -416,4 +434,3 @@ fn is_valid_datetime(s: &str) -> bool {
     // Validate the date part
     is_valid_date(&s[..10])
 }
-

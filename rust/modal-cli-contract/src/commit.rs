@@ -102,6 +102,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let committed = store.build_state_from_commits()?;
         let state_files = store.list_state_files()?;
         let rules_files = store.list_rules_files()?;
+        let accepted_model = accepted_model_content(&store)?;
         
         let mut changes = 0;
         
@@ -128,6 +129,19 @@ pub async fn run(opts: &Opts) -> Result<()> {
                     commit.add_action("rule".to_string(), Some(path.clone()), current_value);
                     changes += 1;
                 }
+            }
+        }
+
+        let model_path = dir.join("model").join("default.modality");
+        if model_path.exists() {
+            let model_content = std::fs::read_to_string(&model_path)?;
+            if accepted_model.as_deref() != Some(model_content.as_str()) {
+                commit.add_action(
+                    "model".to_string(),
+                    Some("/model/default.modality".to_string()),
+                    Value::String(model_content),
+                );
+                changes += 1;
             }
         }
         
@@ -269,6 +283,26 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn accepted_model_content(store: &ContractStore) -> Result<Option<String>> {
+    let mut current = store.get_head()?;
+
+    while let Some(commit_id) = current {
+        let commit = store.load_commit(&commit_id)?;
+        if let Some(model_content) = commit.body.iter().rev().find_map(|action| {
+            if action.method.eq_ignore_ascii_case("model") {
+                action.value.as_str()
+            } else {
+                None
+            }
+        }) {
+            return Ok(Some(model_content.to_string()));
+        }
+        current = commit.head.parent.clone();
+    }
+
+    Ok(None)
 }
 
 #[cfg(feature = "model-status")]

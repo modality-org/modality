@@ -17,7 +17,15 @@ pub fn validate_pending_commit(
     store: &ContractStore,
     commit: &CommitFile,
 ) -> Result<()> {
-    let model = parse_content_lalrpop(model_content)
+    let governing_model = if let Some(pending) = pending_model_content(commit) {
+        pending.to_string()
+    } else if let Some(accepted) = latest_accepted_model_content(store)? {
+        accepted
+    } else {
+        model_content.to_string()
+    };
+
+    let model = parse_content_lalrpop(&governing_model)
         .map_err(|err| anyhow::anyhow!("Invalid governing model syntax: {}", err))?;
     let (current_states, state) = replay_history_to_current_state(&model, store)?;
     let facts = CommitFacts::from_commit(commit, &state);
@@ -30,6 +38,26 @@ pub fn validate_pending_commit(
         "{}",
         explain_no_valid_transition(&model, &current_states, &facts)
     );
+}
+
+pub fn latest_accepted_model_content(store: &ContractStore) -> Result<Option<String>> {
+    for commit in load_commits_oldest_first(store)?.into_iter().rev() {
+        if let Some(model_content) = pending_model_content(&commit) {
+            return Ok(Some(model_content.to_string()));
+        }
+    }
+
+    Ok(None)
+}
+
+fn pending_model_content(commit: &CommitFile) -> Option<&str> {
+    commit.body.iter().rev().find_map(|action| {
+        if action.method.eq_ignore_ascii_case("model") {
+            action.value.as_str()
+        } else {
+            None
+        }
+    })
 }
 
 fn replay_history_to_current_state(
@@ -537,6 +565,124 @@ model ReplayCurrent {
             "{err}"
         );
         assert!(!err.to_string().contains("q0 -> q1"), "{err}");
+
+        Ok(())
+    }
+
+    #[test]
+    fn finds_latest_accepted_model_content_from_commit_history() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let store = ContractStore::init(temp_dir.path(), "contract_id".to_string())?;
+
+        let first_model = r#"
+model First {
+  initial q0
+  q0 --> q0
+}
+        "#;
+        let mut first = CommitFile::new();
+        first.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(first_model.to_string()),
+        );
+        store.save_commit("first", &first)?;
+        store.set_head("first")?;
+
+        let second_model = r#"
+model Second {
+  initial q0
+  q0 --> q1: +POST
+}
+        "#;
+        let mut second = CommitFile::with_parent("first".to_string());
+        second.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(second_model.to_string()),
+        );
+        store.save_commit("second", &second)?;
+        store.set_head("second")?;
+
+        assert_eq!(
+            latest_accepted_model_content(&store)?.as_deref(),
+            Some(second_model)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_pending_model_replacement_that_cannot_replay_history() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let store = ContractStore::init(temp_dir.path(), "contract_id".to_string())?;
+
+        let accepted_model = r#"
+model Accepted {
+  initial q0
+  q0 --> q1: +MODEL
+  q1 --> q2: +POST
+  q2 --> q2: +MODEL
+}
+        "#;
+        let mut model_commit = CommitFile::new();
+        model_commit.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(accepted_model.to_string()),
+        );
+        store.save_commit("model", &model_commit)?;
+        store.set_head("model")?;
+
+        let mut post_commit = CommitFile::with_parent("model".to_string());
+        post_commit.add_action(
+            "post".to_string(),
+            Some("/data/message.text".to_string()),
+            Value::String("hello".to_string()),
+        );
+        store.save_commit("post", &post_commit)?;
+        store.set_head("post")?;
+
+        let bad_replacement = r#"
+model BadReplacement {
+  initial q0
+  q0 --> q1: +MODEL
+  q1 --> q1: +MODEL
+}
+        "#;
+        let mut pending = CommitFile::with_parent("post".to_string());
+        pending.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(bad_replacement.to_string()),
+        );
+
+        let err = validate_pending_commit(accepted_model, &store, &pending)
+            .expect_err("replacement must replay accepted commit history");
+
+        assert!(
+            err.to_string()
+                .contains("Existing commit cannot be replayed against governing model"),
+            "{err}"
+        );
+        assert!(err.to_string().contains("missing +MODEL"), "{err}");
+
+        let good_replacement = r#"
+model GoodReplacement {
+  initial q0
+  q0 --> q1: +MODEL
+  q1 --> q2: +POST
+  q2 --> q2: +MODEL
+}
+        "#;
+        let mut pending = CommitFile::with_parent("post".to_string());
+        pending.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(good_replacement.to_string()),
+        );
+
+        validate_pending_commit(accepted_model, &store, &pending)?;
 
         Ok(())
     }
