@@ -1,7 +1,8 @@
 use anyhow::Result;
 use modal_common::contract_store::{CommitFile, ContractStore};
 use modality_lang::{
-    parse_content_lalrpop, Model, Property, PropertySign, PropertySource, Transition,
+    parse_content_lalrpop, Formula, Model, ModelChecker, Property, PropertySign, PropertySource,
+    Transition,
 };
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -10,6 +11,12 @@ struct CandidateTransitionExplanation {
     failures: Vec<String>,
     summary: String,
     transition_key: String,
+}
+
+struct AnchoredRule {
+    formula: Formula,
+    anchor_commit: usize,
+    anchor_states: HashSet<String>,
 }
 
 pub fn validate_pending_commit(
@@ -27,7 +34,7 @@ pub fn validate_pending_commit(
 
     let model = parse_content_lalrpop(&governing_model)
         .map_err(|err| anyhow::anyhow!("Invalid governing model syntax: {}", err))?;
-    let (current_states, state) = replay_history_to_current_state(&model, store)?;
+    let (current_states, state, _anchored_rules) = replay_history_to_current_state(&model, store)?;
     let facts = CommitFacts::from_commit(commit, &state);
 
     if has_valid_transition(&model, &current_states, &facts) {
@@ -63,15 +70,22 @@ fn pending_model_content(commit: &CommitFile) -> Option<&str> {
 fn replay_history_to_current_state(
     model: &Model,
     store: &ContractStore,
-) -> Result<(HashSet<String>, HashMap<String, Value>)> {
+) -> Result<(HashSet<String>, HashMap<String, Value>, Vec<AnchoredRule>)> {
     let mut current_states = initial_states(model);
     let mut state = HashMap::new();
+    let mut anchored_rules = Vec::new();
 
-    for commit in load_commits_oldest_first(store)? {
+    for (commit_index, commit) in load_commits_oldest_first(store)?.into_iter().enumerate() {
         if commit.body.iter().all(|action| action.method == "genesis") {
             apply_commit_to_state(&commit, &mut state);
             continue;
         }
+
+        let new_rules = anchored_rules_from_commit(&commit, commit_index, &current_states)?;
+        for rule in &new_rules {
+            validate_anchored_rule(model, rule)?;
+        }
+        anchored_rules.extend(new_rules);
 
         let facts = CommitFacts::from_commit(&commit, &state);
         current_states =
@@ -84,7 +98,7 @@ fn replay_history_to_current_state(
         apply_commit_to_state(&commit, &mut state);
     }
 
-    Ok((current_states, state))
+    Ok((current_states, state, anchored_rules))
 }
 
 fn load_commits_oldest_first(store: &ContractStore) -> Result<Vec<CommitFile>> {
@@ -133,6 +147,94 @@ fn apply_commit_to_state(commit: &CommitFile, state: &mut HashMap<String, Value>
                 _ => {}
             }
         }
+    }
+}
+
+fn anchored_rules_from_commit(
+    commit: &CommitFile,
+    commit_index: usize,
+    current_states: &HashSet<String>,
+) -> Result<Vec<AnchoredRule>> {
+    let mut rules = Vec::new();
+
+    for action in &commit.body {
+        if !action.method.eq_ignore_ascii_case("rule") {
+            continue;
+        }
+
+        let Some(rule_content) = action.value.as_str() else {
+            continue;
+        };
+
+        if let Some(formula) = parse_rule_formula(rule_content)? {
+            rules.push(AnchoredRule {
+                formula,
+                anchor_commit: commit_index,
+                anchor_states: current_states.clone(),
+            });
+        }
+    }
+
+    Ok(rules)
+}
+
+fn validate_anchored_rule(model: &Model, rule: &AnchoredRule) -> Result<()> {
+    let checker = ModelChecker::new(model.clone());
+
+    for state in &rule.anchor_states {
+        let result = checker.check_formula_at_state(&rule.formula, state);
+        if !result.is_satisfied {
+            anyhow::bail!(
+                "Model violates rule '{}' anchored at accepted commit {} from states {:?}",
+                rule.formula.name,
+                rule.anchor_commit,
+                rule.anchor_states
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn parse_rule_formula(rule_content: &str) -> Result<Option<Formula>> {
+    let Some(formula_body) = extract_rule_formula_body(rule_content) else {
+        return Ok(None);
+    };
+
+    let formula_decl = format!("formula local_rule {{\n{}\n}}", formula_body);
+    let parser = modality_lang::grammar::FormulaParser::new();
+    parser
+        .parse(&formula_decl)
+        .map(Some)
+        .map_err(|err| anyhow::anyhow!("Invalid rule formula syntax: {:?}", err))
+}
+
+fn extract_rule_formula_body(rule_content: &str) -> Option<&str> {
+    let formula_start = rule_content.find("formula")?;
+    let after_formula = &rule_content[formula_start..];
+    let brace_start = after_formula.find('{')?;
+    let content_start = formula_start + brace_start + 1;
+
+    let mut depth = 1;
+    let mut end = content_start;
+    for (offset, ch) in rule_content[content_start..].char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = content_start + offset;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if depth == 0 {
+        Some(rule_content[content_start..end].trim())
+    } else {
+        None
     }
 }
 
@@ -676,6 +778,96 @@ model GoodReplacement {
 }
         "#;
         let mut pending = CommitFile::with_parent("post".to_string());
+        pending.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(good_replacement.to_string()),
+        );
+
+        validate_pending_commit(accepted_model, &store, &pending)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_pending_model_replacement_that_violates_anchored_rule() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let store = ContractStore::init(temp_dir.path(), "contract_id".to_string())?;
+
+        let accepted_model = r#"
+model Accepted {
+  initial q0
+  part flow {
+    q0 -> q1 [+MODEL]
+    q1 -> q1
+    q1 -> q2 [+POST]
+    q2 -> q2 [+MODEL]
+  }
+}
+        "#;
+        let mut model_commit = CommitFile::new();
+        model_commit.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(accepted_model.to_string()),
+        );
+        store.save_commit("model", &model_commit)?;
+        store.set_head("model")?;
+
+        let rule_content = r#"
+export default rule {
+  formula {
+    eventually(q2)
+  }
+}
+        "#;
+        let mut rule_commit = CommitFile::with_parent("model".to_string());
+        rule_commit.add_action(
+            "rule".to_string(),
+            Some("/rules/post_enabled.modality".to_string()),
+            Value::String(rule_content.to_string()),
+        );
+        store.save_commit("rule", &rule_commit)?;
+        store.set_head("rule")?;
+
+        let bad_replacement = r#"
+model BadReplacement {
+  initial q0
+  part flow {
+    q0 -> q1 [+MODEL]
+    q1 -> q1
+    q1 -> q1 [+MODEL]
+  }
+}
+        "#;
+        let mut pending = CommitFile::with_parent("rule".to_string());
+        pending.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(bad_replacement.to_string()),
+        );
+
+        let err = validate_pending_commit(accepted_model, &store, &pending)
+            .expect_err("replacement must preserve accepted rule satisfaction");
+
+        assert!(err.to_string().contains("Model violates rule"), "{err}");
+        assert!(
+            err.to_string().contains("anchored at accepted commit"),
+            "{err}"
+        );
+
+        let good_replacement = r#"
+model GoodReplacement {
+  initial q0
+  part flow {
+    q0 -> q1 [+MODEL]
+    q1 -> q1
+    q1 -> q2 [+POST]
+    q2 -> q2 [+MODEL]
+  }
+}
+        "#;
+        let mut pending = CommitFile::with_parent("rule".to_string());
         pending.add_action(
             "model".to_string(),
             Some("/model/default.modality".to_string()),
