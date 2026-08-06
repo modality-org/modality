@@ -11,10 +11,11 @@
 //! - **Replay**: New models must replay history to establish valid state mapping
 
 use modal_common::model_diagnostics::{
-    summarize_candidate_transition, CandidateTransitionExplanation,
+    summarize_candidate_transition, CandidateTransitionExplanation, FormulaFailureDiagnostic,
 };
 use modality_lang::{
-    parse_content_lalrpop, Formula, Model, ModelChecker, Property, PropertySign, Transition,
+    parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Property, PropertySign,
+    Transition,
 };
 use serde_json::Value;
 use std::collections::HashSet;
@@ -118,10 +119,12 @@ impl ModelValidator {
 
         // If we have existing rules, validate the new model against them
         for rule in &self.rules {
-            if !self.check_rule_on_model(&rule.formula, &new_model, &rule.anchor_states) {
+            if let Some(explanation) =
+                self.explain_rule_on_model_failure(&rule.formula, &new_model, &rule.anchor_states)
+            {
                 return Err(format!(
-                    "Model violates rule '{}' anchored at commit {}",
-                    rule.formula.name, rule.anchor_commit
+                    "Model violates rule '{}' anchored at commit {}: {}",
+                    rule.formula.name, rule.anchor_commit, explanation
                 ));
             }
         }
@@ -142,10 +145,12 @@ impl ModelValidator {
 
         // If we have a model, validate the rule is satisfiable from current states
         if let Some(model) = &self.current_model {
-            if !self.check_rule_on_model(&formula, model, &self.current_states) {
+            if let Some(explanation) =
+                self.explain_rule_on_model_failure(&formula, model, &self.current_states)
+            {
                 return Err(format!(
-                    "Rule '{}' is not satisfied by current model at states {:?}",
-                    formula.name, self.current_states
+                    "Rule '{}' is not satisfied by current model at states {:?}: {}",
+                    formula.name, self.current_states, explanation
                 ));
             }
         }
@@ -223,11 +228,13 @@ impl ModelValidator {
 
         // Check each rule
         for rule in &self.rules {
-            if !self.check_rule_on_model(&rule.formula, &new_model, &rule.anchor_states) {
+            if let Some(explanation) =
+                self.explain_rule_on_model_failure(&rule.formula, &new_model, &rule.anchor_states)
+            {
                 result.valid = false;
                 result.errors.push(format!(
-                    "Model violates rule '{}' anchored at commit {}",
-                    rule.formula.name, rule.anchor_commit
+                    "Model violates rule '{}' anchored at commit {}: {}",
+                    rule.formula.name, rule.anchor_commit, explanation
                 ));
             }
         }
@@ -407,6 +414,7 @@ impl ModelValidator {
     }
 
     /// Check if a rule is satisfied on a model from given states
+    #[allow(dead_code)]
     fn check_rule_on_model(
         &self,
         formula: &Formula,
@@ -424,6 +432,31 @@ impl ModelValidator {
         }
 
         true
+    }
+
+    fn explain_rule_on_model_failure(
+        &self,
+        formula: &Formula,
+        model: &Model,
+        states: &HashSet<String>,
+    ) -> Option<String> {
+        let checker = ModelChecker::new(model.clone());
+        let mut sorted_states = states.iter().cloned().collect::<Vec<_>>();
+        sorted_states.sort();
+
+        for state in sorted_states {
+            let result = checker.check_formula_at_state(formula, &state);
+            if !result.is_satisfied {
+                return Some(format!(
+                    "failed anchor state: {}; satisfying states in candidate model: {}; counterexample: {}",
+                    state,
+                    format_satisfying_states(&result.satisfying_states),
+                    explain_formula_failure(model, &formula.expression, &state)
+                ));
+            }
+        }
+
+        None
     }
 
     /// Parse a rule's formula from content
@@ -493,6 +526,324 @@ impl ModelValidator {
 impl Default for ModelValidator {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn explain_formula_failure(model: &Model, expr: &FormulaExpr, state: &str) -> String {
+    explain_formula_failure_diagnostic(model, expr, state).render_inline()
+}
+
+fn explain_formula_failure_diagnostic(
+    model: &Model,
+    expr: &FormulaExpr,
+    state: &str,
+) -> FormulaFailureDiagnostic {
+    match expr {
+        FormulaExpr::True => FormulaFailureDiagnostic::leaf(state, "true unexpectedly failed"),
+        FormulaExpr::False => {
+            FormulaFailureDiagnostic::leaf(state, format!("false is never satisfied at {}", state))
+        }
+        FormulaExpr::Prop(name) => FormulaFailureDiagnostic::leaf(
+            state,
+            format!("{} does not match required witness node {}", state, name),
+        ),
+        FormulaExpr::And(left, right) => {
+            let left_holds = formula_expr_holds_at(model, left, state);
+            let right_holds = formula_expr_holds_at(model, right, state);
+            match (left_holds, right_holds) {
+                (false, false) => FormulaFailureDiagnostic::with_children(
+                    state,
+                    "both conjuncts failed",
+                    vec![
+                        explain_formula_failure_diagnostic(model, left, state),
+                        explain_formula_failure_diagnostic(model, right, state),
+                    ],
+                ),
+                (false, true) => FormulaFailureDiagnostic::with_children(
+                    state,
+                    "left conjunct failed",
+                    vec![explain_formula_failure_diagnostic(model, left, state)],
+                ),
+                (true, false) => FormulaFailureDiagnostic::with_children(
+                    state,
+                    "right conjunct failed",
+                    vec![explain_formula_failure_diagnostic(model, right, state)],
+                ),
+                (true, true) => {
+                    FormulaFailureDiagnostic::leaf(state, "conjunction unexpectedly failed")
+                }
+            }
+        }
+        FormulaExpr::Or(left, right) => FormulaFailureDiagnostic::with_children(
+            state,
+            "both disjuncts failed",
+            vec![
+                explain_formula_failure_diagnostic(model, left, state),
+                explain_formula_failure_diagnostic(model, right, state),
+            ],
+        ),
+        FormulaExpr::Not(inner) => FormulaFailureDiagnostic::leaf(
+            state,
+            format!(
+                "negated formula is satisfied at {}: {}",
+                state,
+                format_formula_expr(inner)
+            ),
+        ),
+        FormulaExpr::Implies(left, right) => {
+            if formula_expr_holds_at(model, left, state) {
+                FormulaFailureDiagnostic::with_children(
+                    state,
+                    "antecedent holds but consequent failed",
+                    vec![explain_formula_failure_diagnostic(model, right, state)],
+                )
+            } else {
+                FormulaFailureDiagnostic::leaf(
+                    state,
+                    "implication unexpectedly failed while antecedent is false",
+                )
+            }
+        }
+        FormulaExpr::Paren(inner) => explain_formula_failure_diagnostic(model, inner, state),
+        FormulaExpr::Eventually(inner) => {
+            let targets = satisfying_node_names(model, inner);
+            let reachable = reachable_node_names(model, state);
+            let reachable_targets = targets
+                .iter()
+                .filter(|target| reachable.contains(*target))
+                .cloned()
+                .collect::<Vec<_>>();
+
+            if reachable_targets.is_empty() {
+                FormulaFailureDiagnostic::leaf(
+                    state,
+                    format!(
+                        "eventually({}) failed because no satisfying state is reachable from {}; reachable states: {}",
+                        format_formula_expr(inner),
+                        state,
+                        format_node_names(&reachable)
+                    ),
+                )
+            } else {
+                FormulaFailureDiagnostic::leaf(
+                    state,
+                    format!(
+                        "eventually({}) unexpectedly failed despite reachable satisfying states: {}",
+                        format_formula_expr(inner),
+                        reachable_targets.join(", ")
+                    ),
+                )
+            }
+        }
+        FormulaExpr::Always(inner) => {
+            let reachable = reachable_node_names(model, state);
+            let failed = reachable
+                .iter()
+                .find(|candidate| !formula_expr_holds_at(model, inner, candidate.as_str()));
+
+            if let Some(failed_state) = failed {
+                FormulaFailureDiagnostic::with_children(
+                    state,
+                    format!(
+                        "always({}) failed because reachable state {} fails",
+                        format_formula_expr(inner),
+                        failed_state
+                    ),
+                    vec![explain_formula_failure_diagnostic(
+                        model,
+                        inner,
+                        failed_state,
+                    )],
+                )
+            } else {
+                FormulaFailureDiagnostic::leaf(state, "always unexpectedly failed")
+            }
+        }
+        FormulaExpr::Next(inner) => {
+            let successors = successor_node_names(model, state);
+            if successors.is_empty() {
+                FormulaFailureDiagnostic::leaf(
+                    state,
+                    format!(
+                        "next({}) failed because {} has no outgoing transitions",
+                        format_formula_expr(inner),
+                        state
+                    ),
+                )
+            } else {
+                FormulaFailureDiagnostic::leaf(
+                    state,
+                    format!(
+                        "next({}) failed because no successor from {} satisfies it; successors: {}",
+                        format_formula_expr(inner),
+                        state,
+                        format_node_names(&successors)
+                    ),
+                )
+            }
+        }
+        FormulaExpr::Until(left, right) => FormulaFailureDiagnostic::leaf(
+            state,
+            format!(
+                "until failed from {}; left: {}; right: {}",
+                state,
+                format_formula_expr(left),
+                format_formula_expr(right)
+            ),
+        ),
+        FormulaExpr::Diamond(_, _)
+        | FormulaExpr::Box(_, _)
+        | FormulaExpr::DiamondBox(_, _)
+        | FormulaExpr::Lfp(_, _)
+        | FormulaExpr::Gfp(_, _)
+        | FormulaExpr::Var(_) => FormulaFailureDiagnostic::leaf(
+            state,
+            format!("{} failed at {}", format_formula_expr(expr), state),
+        ),
+    }
+}
+
+fn formula_expr_holds_at(model: &Model, expr: &FormulaExpr, state: &str) -> bool {
+    let checker = ModelChecker::new(model.clone());
+    let formula = Formula::new("diagnostic".to_string(), expr.clone());
+    checker.check_formula_at_state(&formula, state).is_satisfied
+}
+
+fn satisfying_node_names(model: &Model, expr: &FormulaExpr) -> Vec<String> {
+    let checker = ModelChecker::new(model.clone());
+    let formula = Formula::new("diagnostic".to_string(), expr.clone());
+    let mut nodes = checker
+        .check_formula_any_state(&formula)
+        .satisfying_states
+        .into_iter()
+        .map(|state| state.node_name)
+        .collect::<Vec<_>>();
+    nodes.sort();
+    nodes.dedup();
+    nodes
+}
+
+fn reachable_node_names(model: &Model, start: &str) -> Vec<String> {
+    let mut reachable = vec![start.to_string()];
+    let mut index = 0;
+
+    while index < reachable.len() {
+        let current = reachable[index].clone();
+        for successor in successor_node_names(model, &current) {
+            if !reachable.contains(&successor) {
+                reachable.push(successor);
+            }
+        }
+        index += 1;
+    }
+
+    reachable.sort();
+    reachable
+}
+
+fn successor_node_names(model: &Model, state: &str) -> Vec<String> {
+    let mut successors = Vec::new();
+
+    for part in &model.parts {
+        for transition in &part.transitions {
+            if transition.from == state && !successors.contains(&transition.to) {
+                successors.push(transition.to.clone());
+            }
+        }
+    }
+
+    for transition in &model.transitions {
+        if transition.from == state && !successors.contains(&transition.to) {
+            successors.push(transition.to.clone());
+        }
+    }
+
+    successors.sort();
+    successors
+}
+
+fn format_satisfying_states(states: &[modality_lang::State]) -> String {
+    if states.is_empty() {
+        return "none".to_string();
+    }
+
+    let mut labels = states
+        .iter()
+        .map(|state| format!("{}:{}", state.part_name, state.node_name))
+        .collect::<Vec<_>>();
+    labels.sort();
+    labels.join(", ")
+}
+
+fn format_node_names(nodes: &[String]) -> String {
+    if nodes.is_empty() {
+        "none".to_string()
+    } else {
+        nodes.join(", ")
+    }
+}
+
+fn format_formula_expr(expr: &FormulaExpr) -> String {
+    match expr {
+        FormulaExpr::True => "true".to_string(),
+        FormulaExpr::False => "false".to_string(),
+        FormulaExpr::Prop(name) | FormulaExpr::Var(name) => name.clone(),
+        FormulaExpr::And(left, right) => {
+            format!(
+                "{} & {}",
+                format_formula_expr(left),
+                format_formula_expr(right)
+            )
+        }
+        FormulaExpr::Or(left, right) => {
+            format!(
+                "{} | {}",
+                format_formula_expr(left),
+                format_formula_expr(right)
+            )
+        }
+        FormulaExpr::Not(inner) => format!("!{}", format_formula_expr(inner)),
+        FormulaExpr::Implies(left, right) => {
+            format!(
+                "{} -> {}",
+                format_formula_expr(left),
+                format_formula_expr(right)
+            )
+        }
+        FormulaExpr::Paren(inner) => format!("({})", format_formula_expr(inner)),
+        FormulaExpr::Diamond(properties, inner) => {
+            format!(
+                "<{}> {}",
+                ModelValidator::format_properties(properties),
+                format_formula_expr(inner)
+            )
+        }
+        FormulaExpr::Box(properties, inner) => {
+            format!(
+                "[{}] {}",
+                ModelValidator::format_properties(properties),
+                format_formula_expr(inner)
+            )
+        }
+        FormulaExpr::DiamondBox(properties, inner) => {
+            format!(
+                "[<{}>] {}",
+                ModelValidator::format_properties(properties),
+                format_formula_expr(inner)
+            )
+        }
+        FormulaExpr::Lfp(var, inner) => format!("lfp({}, {})", var, format_formula_expr(inner)),
+        FormulaExpr::Gfp(var, inner) => format!("gfp({}, {})", var, format_formula_expr(inner)),
+        FormulaExpr::Eventually(inner) => format!("eventually({})", format_formula_expr(inner)),
+        FormulaExpr::Always(inner) => format!("always({})", format_formula_expr(inner)),
+        FormulaExpr::Until(left, right) => {
+            format!(
+                "{} until {}",
+                format_formula_expr(left),
+                format_formula_expr(right)
+            )
+        }
+        FormulaExpr::Next(inner) => format!("next({})", format_formula_expr(inner)),
     }
 }
 
@@ -635,5 +986,56 @@ model TestModel {
             .apply_action(&["START".to_string(), "APPROVED".to_string()])
             .expect("all positive predicates should match");
         assert!(validator.current_states.contains("active"));
+    }
+
+    #[test]
+    fn test_model_replacement_rule_rejection_explains_formula_failure() {
+        let mut validator = ModelValidator::new();
+
+        let accepted_model = r#"
+model TestModel {
+    initial q0
+    part flow {
+        q0 -> q1 [+MODEL]
+        q1 -> q1
+        q1 -> q2 [+POST]
+    }
+}
+        "#;
+        validator.apply_model(accepted_model, 0).unwrap();
+        validator
+            .apply_rule(
+                r#"
+rule reaches_done {
+    formula must_reach_done {
+        eventually(q2)
+    }
+}
+                "#,
+                1,
+            )
+            .unwrap();
+
+        let replacement_model = r#"
+model TestModel {
+    initial q0
+    part flow {
+        q0 -> q1 [+MODEL]
+        q1 -> q1
+        q1 -> q1 [+POST]
+    }
+}
+        "#;
+
+        let result = validator.validate_new_model(replacement_model);
+
+        assert!(!result.valid);
+        let err = result.errors.join("\n");
+        assert!(err.contains("Model violates rule 'must_reach_done' anchored at commit 1"));
+        assert!(err.contains("failed anchor state: q0"));
+        assert!(err.contains("satisfying states in candidate model: none"));
+        assert!(err.contains(
+            "counterexample: eventually(q2) failed because no satisfying state is reachable from q0; reachable states: q0, q1"
+        ));
     }
 }
