@@ -363,9 +363,8 @@ fn explain_formula_failure(model: &Model, expr: &FormulaExpr, state: &str) -> St
                 name, state
             )
         }
-        FormulaExpr::Lfp(_, inner) | FormulaExpr::Gfp(_, inner) => {
-            explain_formula_failure(model, inner, state)
-        }
+        FormulaExpr::Lfp(var, inner) => explain_lfp_failure(model, var, inner, state),
+        FormulaExpr::Gfp(var, inner) => explain_gfp_failure(model, var, inner, state),
     }
 }
 
@@ -373,6 +372,145 @@ fn formula_expr_holds_at(model: &Model, expr: &FormulaExpr, state: &str) -> bool
     let checker = ModelChecker::new(model.clone());
     let formula = Formula::new("diagnostic".to_string(), expr.clone());
     checker.check_formula_at_state(&formula, state).is_satisfied
+}
+
+fn explain_lfp_failure(model: &Model, var: &str, inner: &FormulaExpr, state: &str) -> String {
+    let mut current = Vec::new();
+    let mut iteration = 0;
+
+    loop {
+        let unfolded = substitute_fixed_point_var(inner, var, &current);
+        let next = satisfying_node_names(model, &unfolded);
+
+        if next.contains(&state.to_string()) {
+            return format!(
+                "least fixed point {} unexpectedly failed even though {} entered at unfolding {}",
+                var,
+                state,
+                iteration + 1
+            );
+        }
+
+        if next == current {
+            return format!(
+                "least fixed point {} never adds {} after {} unfoldings; final witness set: {}; unfolded body failed with {} = {}: {}",
+                var,
+                state,
+                iteration,
+                format_node_names(&current),
+                var,
+                format_node_names(&current),
+                explain_formula_failure(model, &unfolded, state)
+            );
+        }
+
+        current = next;
+        iteration += 1;
+    }
+}
+
+fn explain_gfp_failure(model: &Model, var: &str, inner: &FormulaExpr, state: &str) -> String {
+    let mut current = all_node_names(model);
+    let mut iteration = 0;
+
+    loop {
+        let unfolded = substitute_fixed_point_var(inner, var, &current);
+        let next = intersect_node_names(&current, &satisfying_node_names(model, &unfolded));
+
+        if current.contains(&state.to_string()) && !next.contains(&state.to_string()) {
+            return format!(
+                "greatest fixed point {} removes {} at unfolding {}; prior witness set: {}; unfolded body failed with {} = {}: {}",
+                var,
+                state,
+                iteration + 1,
+                format_node_names(&current),
+                var,
+                format_node_names(&current),
+                explain_formula_failure(model, &unfolded, state)
+            );
+        }
+
+        if next == current {
+            return format!(
+                "greatest fixed point {} unexpectedly stabilized without {} in the witness set: {}",
+                var,
+                state,
+                format_node_names(&current)
+            );
+        }
+
+        current = next;
+        iteration += 1;
+    }
+}
+
+fn substitute_fixed_point_var(expr: &FormulaExpr, var: &str, states: &[String]) -> FormulaExpr {
+    match expr {
+        FormulaExpr::Var(name) | FormulaExpr::Prop(name) if name == var => {
+            state_set_formula_expr(states)
+        }
+        FormulaExpr::And(left, right) => FormulaExpr::And(
+            Box::new(substitute_fixed_point_var(left, var, states)),
+            Box::new(substitute_fixed_point_var(right, var, states)),
+        ),
+        FormulaExpr::Or(left, right) => FormulaExpr::Or(
+            Box::new(substitute_fixed_point_var(left, var, states)),
+            Box::new(substitute_fixed_point_var(right, var, states)),
+        ),
+        FormulaExpr::Not(inner) => {
+            FormulaExpr::Not(Box::new(substitute_fixed_point_var(inner, var, states)))
+        }
+        FormulaExpr::Implies(left, right) => FormulaExpr::Implies(
+            Box::new(substitute_fixed_point_var(left, var, states)),
+            Box::new(substitute_fixed_point_var(right, var, states)),
+        ),
+        FormulaExpr::Paren(inner) => {
+            FormulaExpr::Paren(Box::new(substitute_fixed_point_var(inner, var, states)))
+        }
+        FormulaExpr::Diamond(properties, inner) => FormulaExpr::Diamond(
+            properties.clone(),
+            Box::new(substitute_fixed_point_var(inner, var, states)),
+        ),
+        FormulaExpr::Box(properties, inner) => FormulaExpr::Box(
+            properties.clone(),
+            Box::new(substitute_fixed_point_var(inner, var, states)),
+        ),
+        FormulaExpr::DiamondBox(properties, inner) => FormulaExpr::DiamondBox(
+            properties.clone(),
+            Box::new(substitute_fixed_point_var(inner, var, states)),
+        ),
+        FormulaExpr::Eventually(inner) => {
+            FormulaExpr::Eventually(Box::new(substitute_fixed_point_var(inner, var, states)))
+        }
+        FormulaExpr::Always(inner) => {
+            FormulaExpr::Always(Box::new(substitute_fixed_point_var(inner, var, states)))
+        }
+        FormulaExpr::Until(left, right) => FormulaExpr::Until(
+            Box::new(substitute_fixed_point_var(left, var, states)),
+            Box::new(substitute_fixed_point_var(right, var, states)),
+        ),
+        FormulaExpr::Next(inner) => {
+            FormulaExpr::Next(Box::new(substitute_fixed_point_var(inner, var, states)))
+        }
+        FormulaExpr::Lfp(bound, inner) if bound != var => FormulaExpr::Lfp(
+            bound.clone(),
+            Box::new(substitute_fixed_point_var(inner, var, states)),
+        ),
+        FormulaExpr::Gfp(bound, inner) if bound != var => FormulaExpr::Gfp(
+            bound.clone(),
+            Box::new(substitute_fixed_point_var(inner, var, states)),
+        ),
+        _ => expr.clone(),
+    }
+}
+
+fn state_set_formula_expr(states: &[String]) -> FormulaExpr {
+    states.iter().skip(1).fold(
+        states
+            .first()
+            .map_or(FormulaExpr::False, |state| FormulaExpr::Prop(state.clone())),
+        |acc, state| FormulaExpr::Or(Box::new(acc), Box::new(FormulaExpr::Prop(state.clone()))),
+    )
 }
 
 fn explain_diamond_failure(
@@ -512,6 +650,41 @@ fn satisfying_node_names(model: &Model, expr: &FormulaExpr) -> Vec<String> {
     nodes.sort();
     nodes.dedup();
     nodes
+}
+
+fn all_node_names(model: &Model) -> Vec<String> {
+    let mut nodes = Vec::new();
+
+    if let Some(initial) = &model.initial {
+        nodes.push(initial.clone());
+    }
+
+    for part in &model.parts {
+        for transition in &part.transitions {
+            nodes.push(transition.from.clone());
+            nodes.push(transition.to.clone());
+        }
+    }
+
+    for transition in &model.transitions {
+        nodes.push(transition.from.clone());
+        nodes.push(transition.to.clone());
+    }
+
+    nodes.sort();
+    nodes.dedup();
+    nodes
+}
+
+fn intersect_node_names(left: &[String], right: &[String]) -> Vec<String> {
+    let mut intersection = left
+        .iter()
+        .filter(|node| right.contains(node))
+        .cloned()
+        .collect::<Vec<_>>();
+    intersection.sort();
+    intersection.dedup();
+    intersection
 }
 
 fn reachable_node_names(model: &Model, start: &str) -> Vec<String> {
@@ -1401,6 +1574,86 @@ model BadReplacement {
         assert!(
             err.to_string()
                 .contains("q1 does not match required witness node q2"),
+            "{err}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn explains_lfp_rule_failure_with_unfolding_witness_set() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let store = ContractStore::init(temp_dir.path(), "contract_id".to_string())?;
+
+        let accepted_model = r#"
+model Accepted {
+  initial q0
+  part flow {
+    q0 -> q1 [+MODEL]
+    q1 -> q2 [+POST]
+    q2 -> q2 [+MODEL]
+  }
+}
+        "#;
+        let mut model_commit = CommitFile::new();
+        model_commit.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(accepted_model.to_string()),
+        );
+        store.save_commit("model", &model_commit)?;
+        store.set_head("model")?;
+
+        let rule_content = r#"
+export default rule {
+  formula {
+    lfp(X, q2 | <+POST> X)
+  }
+}
+        "#;
+        let mut rule_commit = CommitFile::with_parent("model".to_string());
+        rule_commit.add_action(
+            "rule".to_string(),
+            Some("/rules/eventual_post_target.modality".to_string()),
+            Value::String(rule_content.to_string()),
+        );
+        store.save_commit("rule", &rule_commit)?;
+        store.set_head("rule")?;
+
+        let bad_replacement = r#"
+model BadReplacement {
+  initial q0
+  part flow {
+    q0 -> q1 [+MODEL]
+    q1 -> q1 [+POST]
+    q1 -> q1 [+MODEL]
+  }
+}
+        "#;
+        let mut pending = CommitFile::with_parent("rule".to_string());
+        pending.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(bad_replacement.to_string()),
+        );
+
+        let err = validate_pending_commit(accepted_model, &store, &pending)
+            .expect_err("replacement must preserve accepted lfp rule");
+
+        assert!(
+            err.to_string()
+                .contains("least fixed point X never adds q1 after 0 unfoldings"),
+            "{err}"
+        );
+        assert!(err.to_string().contains("final witness set: none"), "{err}");
+        assert!(
+            err.to_string()
+                .contains("unfolded body failed with X = none"),
+            "{err}"
+        );
+        assert!(
+            err.to_string()
+                .contains("both disjuncts failed: q1 does not match required witness node q2"),
             "{err}"
         );
 
