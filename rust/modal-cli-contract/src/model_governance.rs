@@ -2,7 +2,7 @@ use anyhow::Result;
 use modal_common::contract_store::{CommitFile, ContractStore};
 use modal_common::model_diagnostics::{
     summarize_candidate_transition, CandidateTransitionExplanation, FixedPointPolarity,
-    FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome,
+    FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
 };
 use modality_lang::{
     parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Property, PropertySign,
@@ -231,55 +231,81 @@ fn format_satisfying_states(states: &[modality_lang::State]) -> String {
 }
 
 fn explain_formula_failure(model: &Model, expr: &FormulaExpr, state: &str) -> String {
+    explain_formula_failure_diagnostic(model, expr, state).render_inline()
+}
+
+fn explain_formula_failure_diagnostic(
+    model: &Model,
+    expr: &FormulaExpr,
+    state: &str,
+) -> FormulaFailureDiagnostic {
     match expr {
-        FormulaExpr::True => "true unexpectedly failed".to_string(),
-        FormulaExpr::False => format!("false is never satisfied at {}", state),
-        FormulaExpr::Prop(name) => {
-            format!("{} does not match required witness node {}", state, name)
+        FormulaExpr::True => FormulaFailureDiagnostic::leaf(state, "true unexpectedly failed"),
+        FormulaExpr::False => {
+            FormulaFailureDiagnostic::leaf(state, format!("false is never satisfied at {}", state))
         }
+        FormulaExpr::Prop(name) => FormulaFailureDiagnostic::leaf(
+            state,
+            format!("{} does not match required witness node {}", state, name),
+        ),
         FormulaExpr::And(left, right) => {
             let left_holds = formula_expr_holds_at(model, left, state);
             let right_holds = formula_expr_holds_at(model, right, state);
             match (left_holds, right_holds) {
-                (false, false) => format!(
-                    "both conjuncts failed: {}; {}",
-                    explain_formula_failure(model, left, state),
-                    explain_formula_failure(model, right, state)
+                (false, false) => FormulaFailureDiagnostic::with_children(
+                    state,
+                    "both conjuncts failed",
+                    vec![
+                        explain_formula_failure_diagnostic(model, left, state),
+                        explain_formula_failure_diagnostic(model, right, state),
+                    ],
                 ),
-                (false, true) => format!(
-                    "left conjunct failed: {}",
-                    explain_formula_failure(model, left, state)
+                (false, true) => FormulaFailureDiagnostic::with_children(
+                    state,
+                    "left conjunct failed",
+                    vec![explain_formula_failure_diagnostic(model, left, state)],
                 ),
-                (true, false) => format!(
-                    "right conjunct failed: {}",
-                    explain_formula_failure(model, right, state)
+                (true, false) => FormulaFailureDiagnostic::with_children(
+                    state,
+                    "right conjunct failed",
+                    vec![explain_formula_failure_diagnostic(model, right, state)],
                 ),
-                (true, true) => "conjunction unexpectedly failed".to_string(),
+                (true, true) => {
+                    FormulaFailureDiagnostic::leaf(state, "conjunction unexpectedly failed")
+                }
             }
         }
-        FormulaExpr::Or(left, right) => format!(
-            "both disjuncts failed: {}; {}",
-            explain_formula_failure(model, left, state),
-            explain_formula_failure(model, right, state)
+        FormulaExpr::Or(left, right) => FormulaFailureDiagnostic::with_children(
+            state,
+            "both disjuncts failed",
+            vec![
+                explain_formula_failure_diagnostic(model, left, state),
+                explain_formula_failure_diagnostic(model, right, state),
+            ],
         ),
-        FormulaExpr::Not(inner) => {
+        FormulaExpr::Not(inner) => FormulaFailureDiagnostic::leaf(
+            state,
             format!(
                 "negated formula is satisfied at {}: {}",
                 state,
                 format_formula_expr(inner)
-            )
-        }
+            ),
+        ),
         FormulaExpr::Implies(left, right) => {
             if formula_expr_holds_at(model, left, state) {
-                format!(
-                    "antecedent holds but consequent failed: {}",
-                    explain_formula_failure(model, right, state)
+                FormulaFailureDiagnostic::with_children(
+                    state,
+                    "antecedent holds but consequent failed",
+                    vec![explain_formula_failure_diagnostic(model, right, state)],
                 )
             } else {
-                "implication unexpectedly failed while antecedent is false".to_string()
+                FormulaFailureDiagnostic::leaf(
+                    state,
+                    "implication unexpectedly failed while antecedent is false",
+                )
             }
         }
-        FormulaExpr::Paren(inner) => explain_formula_failure(model, inner, state),
+        FormulaExpr::Paren(inner) => explain_formula_failure_diagnostic(model, inner, state),
         FormulaExpr::Eventually(inner) => {
             let targets = satisfying_node_names(model, inner);
             let reachable = reachable_node_names(model, state);
@@ -290,17 +316,23 @@ fn explain_formula_failure(model: &Model, expr: &FormulaExpr, state: &str) -> St
                 .collect::<Vec<_>>();
 
             if reachable_targets.is_empty() {
-                format!(
-                    "eventually({}) failed because no satisfying state is reachable from {}; reachable states: {}",
-                    format_formula_expr(inner),
+                FormulaFailureDiagnostic::leaf(
                     state,
-                    format_node_names(&reachable)
+                    format!(
+                        "eventually({}) failed because no satisfying state is reachable from {}; reachable states: {}",
+                        format_formula_expr(inner),
+                        state,
+                        format_node_names(&reachable)
+                    ),
                 )
             } else {
-                format!(
-                    "eventually({}) unexpectedly failed despite reachable satisfying states: {}",
-                    format_formula_expr(inner),
-                    reachable_targets.join(", ")
+                FormulaFailureDiagnostic::leaf(
+                    state,
+                    format!(
+                        "eventually({}) unexpectedly failed despite reachable satisfying states: {}",
+                        format_formula_expr(inner),
+                        reachable_targets.join(", ")
+                    ),
                 )
             }
         }
@@ -311,58 +343,81 @@ fn explain_formula_failure(model: &Model, expr: &FormulaExpr, state: &str) -> St
                 .find(|candidate| !formula_expr_holds_at(model, inner, candidate.as_str()));
 
             if let Some(failed_state) = failed {
-                format!(
-                    "always({}) failed because reachable state {} fails: {}",
-                    format_formula_expr(inner),
-                    failed_state,
-                    explain_formula_failure(model, inner, failed_state)
+                FormulaFailureDiagnostic::with_children(
+                    state,
+                    format!(
+                        "always({}) failed because reachable state {} fails",
+                        format_formula_expr(inner),
+                        failed_state
+                    ),
+                    vec![explain_formula_failure_diagnostic(
+                        model,
+                        inner,
+                        failed_state,
+                    )],
                 )
             } else {
-                "always unexpectedly failed".to_string()
+                FormulaFailureDiagnostic::leaf(state, "always unexpectedly failed")
             }
         }
-        FormulaExpr::Until(left, right) => {
+        FormulaExpr::Until(left, right) => FormulaFailureDiagnostic::leaf(
+            state,
             format!(
                 "until failed from {}; left: {}; right: {}",
                 state,
                 format_formula_expr(left),
                 format_formula_expr(right)
-            )
-        }
+            ),
+        ),
         FormulaExpr::Next(inner) => {
             let successors = successor_node_names(model, state);
             if successors.is_empty() {
-                format!(
-                    "next({}) failed because {} has no outgoing transitions",
-                    format_formula_expr(inner),
-                    state
+                FormulaFailureDiagnostic::leaf(
+                    state,
+                    format!(
+                        "next({}) failed because {} has no outgoing transitions",
+                        format_formula_expr(inner),
+                        state
+                    ),
                 )
             } else {
-                format!(
-                    "next({}) failed because no successor from {} satisfies it; successors: {}",
-                    format_formula_expr(inner),
+                FormulaFailureDiagnostic::leaf(
                     state,
-                    format_node_names(&successors)
+                    format!(
+                        "next({}) failed because no successor from {} satisfies it; successors: {}",
+                        format_formula_expr(inner),
+                        state,
+                        format_node_names(&successors)
+                    ),
                 )
             }
         }
-        FormulaExpr::Diamond(properties, inner) => {
-            explain_diamond_failure(model, state, properties, inner)
-        }
-        FormulaExpr::Box(properties, inner) => explain_box_failure(model, state, properties, inner),
+        FormulaExpr::Diamond(properties, inner) => FormulaFailureDiagnostic::leaf(
+            state,
+            explain_diamond_failure(model, state, properties, inner),
+        ),
+        FormulaExpr::Box(properties, inner) => FormulaFailureDiagnostic::leaf(
+            state,
+            explain_box_failure(model, state, properties, inner),
+        ),
         FormulaExpr::DiamondBox(properties, inner) => {
             let expanded =
                 FormulaExpr::DiamondBox(properties.clone(), inner.clone()).expand_diamond_box();
-            explain_formula_failure(model, &expanded, state)
+            explain_formula_failure_diagnostic(model, &expanded, state)
         }
-        FormulaExpr::Var(name) => {
+        FormulaExpr::Var(name) => FormulaFailureDiagnostic::leaf(
+            state,
             format!(
                 "fixed-point variable {} is not satisfied at {}",
                 name, state
-            )
+            ),
+        ),
+        FormulaExpr::Lfp(var, inner) => {
+            FormulaFailureDiagnostic::leaf(state, explain_lfp_failure(model, var, inner, state))
         }
-        FormulaExpr::Lfp(var, inner) => explain_lfp_failure(model, var, inner, state),
-        FormulaExpr::Gfp(var, inner) => explain_gfp_failure(model, var, inner, state),
+        FormulaExpr::Gfp(var, inner) => {
+            FormulaFailureDiagnostic::leaf(state, explain_gfp_failure(model, var, inner, state))
+        }
     }
 }
 

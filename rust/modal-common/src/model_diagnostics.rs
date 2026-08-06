@@ -31,6 +31,50 @@ pub struct FixedPointUnfoldingDiagnostic {
     pub witness_set: String,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct FormulaFailureDiagnostic {
+    pub children: Vec<FormulaFailureDiagnostic>,
+    pub detail: String,
+    pub state: String,
+}
+
+impl FormulaFailureDiagnostic {
+    pub fn leaf(state: impl Into<String>, detail: impl Into<String>) -> Self {
+        Self {
+            children: Vec::new(),
+            detail: detail.into(),
+            state: state.into(),
+        }
+    }
+
+    pub fn with_children(
+        state: impl Into<String>,
+        detail: impl Into<String>,
+        children: Vec<FormulaFailureDiagnostic>,
+    ) -> Self {
+        Self {
+            children,
+            detail: detail.into(),
+            state: state.into(),
+        }
+    }
+
+    pub fn render_inline(&self) -> String {
+        if self.children.is_empty() {
+            return self.detail.clone();
+        }
+
+        let child_summaries = self
+            .children
+            .iter()
+            .map(Self::render_inline)
+            .collect::<Vec<_>>()
+            .join("; ");
+
+        format!("{}: {}", self.detail, child_summaries)
+    }
+}
+
 impl FixedPointUnfoldingDiagnostic {
     pub fn render_inline(&self) -> String {
         match (&self.polarity, &self.outcome) {
@@ -151,6 +195,23 @@ mod tests {
         assert_eq!(
             diagnostic.render_inline(),
             "least fixed point X never adds q1 after 0 unfoldings; final witness set: none; unfolded body failed with X = none: both disjuncts failed"
+        );
+    }
+
+    #[test]
+    fn renders_recursive_formula_failure_diagnostic() {
+        let diagnostic = FormulaFailureDiagnostic::with_children(
+            "q1",
+            "both conjuncts failed",
+            vec![
+                FormulaFailureDiagnostic::leaf("q1", "q1 does not match required witness node q2"),
+                FormulaFailureDiagnostic::leaf("q1", "false is never satisfied at q1"),
+            ],
+        );
+
+        assert_eq!(
+            diagnostic.render_inline(),
+            "both conjuncts failed: q1 does not match required witness node q2; false is never satisfied at q1"
         );
     }
 }
