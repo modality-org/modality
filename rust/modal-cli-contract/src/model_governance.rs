@@ -348,18 +348,10 @@ fn explain_formula_failure(model: &Model, expr: &FormulaExpr, state: &str) -> St
                 )
             }
         }
-        FormulaExpr::Diamond(properties, inner) => format!(
-            "no outgoing transition from {} matched <{}> {}",
-            state,
-            format_properties(properties),
-            format_formula_expr(inner)
-        ),
-        FormulaExpr::Box(properties, inner) => format!(
-            "some outgoing transition from {} matched [{}] and reached a state that failed {}",
-            state,
-            format_properties(properties),
-            format_formula_expr(inner)
-        ),
+        FormulaExpr::Diamond(properties, inner) => {
+            explain_diamond_failure(model, state, properties, inner)
+        }
+        FormulaExpr::Box(properties, inner) => explain_box_failure(model, state, properties, inner),
         FormulaExpr::DiamondBox(properties, inner) => {
             let expanded =
                 FormulaExpr::DiamondBox(properties.clone(), inner.clone()).expand_diamond_box();
@@ -381,6 +373,131 @@ fn formula_expr_holds_at(model: &Model, expr: &FormulaExpr, state: &str) -> bool
     let checker = ModelChecker::new(model.clone());
     let formula = Formula::new("diagnostic".to_string(), expr.clone());
     checker.check_formula_at_state(&formula, state).is_satisfied
+}
+
+fn explain_diamond_failure(
+    model: &Model,
+    state: &str,
+    properties: &[Property],
+    inner: &FormulaExpr,
+) -> String {
+    let matching = matching_formula_transitions(model, state, properties);
+    if matching.is_empty() {
+        return format!(
+            "diamond <{}> {} failed because no outgoing transition from {} matched the action labels",
+            format_properties(properties),
+            format_formula_expr(inner),
+            state
+        );
+    }
+
+    let failed_targets = matching
+        .iter()
+        .filter(|transition| !formula_expr_holds_at(model, inner, transition.to.as_str()))
+        .map(|transition| {
+            format!(
+                "{} reached {}, which failed: {}",
+                format_transition_witness(transition),
+                transition.to,
+                explain_formula_failure(model, inner, transition.to.as_str())
+            )
+        })
+        .collect::<Vec<_>>();
+
+    if failed_targets.is_empty() {
+        format!(
+            "diamond <{}> {} unexpectedly failed despite matching satisfying transitions: {}",
+            format_properties(properties),
+            format_formula_expr(inner),
+            format_transition_list(&matching)
+        )
+    } else {
+        format!(
+            "diamond <{}> {} failed because matched transitions did not reach a satisfying state: {}",
+            format_properties(properties),
+            format_formula_expr(inner),
+            failed_targets.join("; ")
+        )
+    }
+}
+
+fn explain_box_failure(
+    model: &Model,
+    state: &str,
+    properties: &[Property],
+    inner: &FormulaExpr,
+) -> String {
+    let matching = matching_formula_transitions(model, state, properties);
+    let failed_targets = matching
+        .iter()
+        .filter(|transition| !formula_expr_holds_at(model, inner, transition.to.as_str()))
+        .map(|transition| {
+            format!(
+                "{} reached {}, which failed: {}",
+                format_transition_witness(transition),
+                transition.to,
+                explain_formula_failure(model, inner, transition.to.as_str())
+            )
+        })
+        .collect::<Vec<_>>();
+
+    if failed_targets.is_empty() {
+        format!(
+            "box [{}] {} unexpectedly failed from {}; matching transitions: {}",
+            format_properties(properties),
+            format_formula_expr(inner),
+            state,
+            format_transition_list(&matching)
+        )
+    } else {
+        format!(
+            "box [{}] {} failed because matching transition targets violated it: {}",
+            format_properties(properties),
+            format_formula_expr(inner),
+            failed_targets.join("; ")
+        )
+    }
+}
+
+fn matching_formula_transitions<'a>(
+    model: &'a Model,
+    state: &str,
+    properties: &[Property],
+) -> Vec<&'a Transition> {
+    let mut matches = Vec::new();
+
+    for part in &model.parts {
+        for transition in &part.transitions {
+            if transition.from == state
+                && transition_matches_formula_properties(transition, properties)
+            {
+                matches.push(transition);
+            }
+        }
+    }
+
+    matches.sort_by(|left, right| {
+        left.from
+            .cmp(&right.from)
+            .then_with(|| left.to.cmp(&right.to))
+            .then_with(|| {
+                format_properties(&left.properties).cmp(&format_properties(&right.properties))
+            })
+    });
+    matches
+}
+
+fn transition_matches_formula_properties(transition: &Transition, properties: &[Property]) -> bool {
+    properties.iter().all(|property| {
+        transition
+            .properties
+            .iter()
+            .any(|candidate| candidate == property)
+            || !transition
+                .properties
+                .iter()
+                .any(|candidate| candidate.name == property.name)
+    })
 }
 
 fn satisfying_node_names(model: &Model, expr: &FormulaExpr) -> Vec<String> {
@@ -442,6 +559,27 @@ fn format_node_names(nodes: &[String]) -> String {
     } else {
         nodes.join(", ")
     }
+}
+
+fn format_transition_list(transitions: &[&Transition]) -> String {
+    if transitions.is_empty() {
+        "none".to_string()
+    } else {
+        transitions
+            .iter()
+            .map(|transition| format_transition_witness(transition))
+            .collect::<Vec<_>>()
+            .join("; ")
+    }
+}
+
+fn format_transition_witness(transition: &Transition) -> String {
+    format!(
+        "{} -> {} [{}]",
+        transition.from,
+        transition.to,
+        format_properties(&transition.properties)
+    )
 }
 
 fn format_formula_expr(expr: &FormulaExpr) -> String {
@@ -1186,6 +1324,85 @@ model GoodReplacement {
         );
 
         validate_pending_commit(accepted_model, &store, &pending)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn explains_action_modal_rule_failure_with_transition_witness() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let store = ContractStore::init(temp_dir.path(), "contract_id".to_string())?;
+
+        let accepted_model = r#"
+model Accepted {
+  initial q0
+  part flow {
+    q0 -> q1 [+MODEL]
+    q1 -> q2 [+POST]
+    q2 -> q2 [+MODEL]
+  }
+}
+        "#;
+        let mut model_commit = CommitFile::new();
+        model_commit.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(accepted_model.to_string()),
+        );
+        store.save_commit("model", &model_commit)?;
+        store.set_head("model")?;
+
+        let rule_content = r#"
+export default rule {
+  formula {
+    <+POST> q2
+  }
+}
+        "#;
+        let mut rule_commit = CommitFile::with_parent("model".to_string());
+        rule_commit.add_action(
+            "rule".to_string(),
+            Some("/rules/post_reaches_q2.modality".to_string()),
+            Value::String(rule_content.to_string()),
+        );
+        store.save_commit("rule", &rule_commit)?;
+        store.set_head("rule")?;
+
+        let bad_replacement = r#"
+model BadReplacement {
+  initial q0
+  part flow {
+    q0 -> q1 [+MODEL]
+    q1 -> q1 [+POST]
+    q1 -> q1 [+MODEL]
+  }
+}
+        "#;
+        let mut pending = CommitFile::with_parent("rule".to_string());
+        pending.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(bad_replacement.to_string()),
+        );
+
+        let err = validate_pending_commit(accepted_model, &store, &pending)
+            .expect_err("replacement must preserve accepted action-modal rule");
+
+        assert!(
+            err.to_string()
+                .contains("counterexample: diamond <+POST> q2 failed"),
+            "{err}"
+        );
+        assert!(
+            err.to_string()
+                .contains("q1 -> q1 [+POST] reached q1, which failed"),
+            "{err}"
+        );
+        assert!(
+            err.to_string()
+                .contains("q1 does not match required witness node q2"),
+            "{err}"
+        );
 
         Ok(())
     }
