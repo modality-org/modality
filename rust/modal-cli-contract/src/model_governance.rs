@@ -1,7 +1,8 @@
 use anyhow::Result;
 use modal_common::contract_store::{CommitFile, ContractStore};
 use modal_common::model_diagnostics::{
-    summarize_candidate_transition, CandidateTransitionExplanation,
+    summarize_candidate_transition, CandidateTransitionExplanation, FixedPointPolarity,
+    FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome,
 };
 use modality_lang::{
     parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Property, PropertySign,
@@ -380,25 +381,32 @@ fn explain_lfp_failure(model: &Model, var: &str, inner: &FormulaExpr, state: &st
         let next = satisfying_node_names(model, &unfolded);
 
         if next.contains(&state.to_string()) {
-            return format!(
-                "least fixed point {} unexpectedly failed even though {} entered at unfolding {}",
-                var,
-                state,
-                iteration + 1
-            );
+            return FixedPointUnfoldingDiagnostic {
+                body_failure: None,
+                outcome: FixedPointUnfoldingOutcome::EnteredUnexpectedly,
+                polarity: FixedPointPolarity::Least,
+                state: state.to_string(),
+                substituted_witness_set: None,
+                unfolding_count: iteration + 1,
+                variable: var.to_string(),
+                witness_set: format_node_names(&next),
+            }
+            .render_inline();
         }
 
         if next == current {
-            return format!(
-                "least fixed point {} never adds {} after {} unfoldings; final witness set: {}; unfolded body failed with {} = {}: {}",
-                var,
-                state,
-                iteration,
-                format_node_names(&current),
-                var,
-                format_node_names(&current),
-                explain_formula_failure(model, &unfolded, state)
-            );
+            let witness_set = format_node_names(&current);
+            return FixedPointUnfoldingDiagnostic {
+                body_failure: Some(explain_formula_failure(model, &unfolded, state)),
+                outcome: FixedPointUnfoldingOutcome::NeverEntered,
+                polarity: FixedPointPolarity::Least,
+                state: state.to_string(),
+                substituted_witness_set: Some(witness_set.clone()),
+                unfolding_count: iteration,
+                variable: var.to_string(),
+                witness_set,
+            }
+            .render_inline();
         }
 
         current = next;
@@ -415,25 +423,32 @@ fn explain_gfp_failure(model: &Model, var: &str, inner: &FormulaExpr, state: &st
         let next = intersect_node_names(&current, &satisfying_node_names(model, &unfolded));
 
         if current.contains(&state.to_string()) && !next.contains(&state.to_string()) {
-            return format!(
-                "greatest fixed point {} removes {} at unfolding {}; prior witness set: {}; unfolded body failed with {} = {}: {}",
-                var,
-                state,
-                iteration + 1,
-                format_node_names(&current),
-                var,
-                format_node_names(&current),
-                explain_formula_failure(model, &unfolded, state)
-            );
+            let witness_set = format_node_names(&current);
+            return FixedPointUnfoldingDiagnostic {
+                body_failure: Some(explain_formula_failure(model, &unfolded, state)),
+                outcome: FixedPointUnfoldingOutcome::Removed,
+                polarity: FixedPointPolarity::Greatest,
+                state: state.to_string(),
+                substituted_witness_set: Some(witness_set.clone()),
+                unfolding_count: iteration + 1,
+                variable: var.to_string(),
+                witness_set,
+            }
+            .render_inline();
         }
 
         if next == current {
-            return format!(
-                "greatest fixed point {} unexpectedly stabilized without {} in the witness set: {}",
-                var,
-                state,
-                format_node_names(&current)
-            );
+            return FixedPointUnfoldingDiagnostic {
+                body_failure: None,
+                outcome: FixedPointUnfoldingOutcome::StabilizedWithoutState,
+                polarity: FixedPointPolarity::Greatest,
+                state: state.to_string(),
+                substituted_witness_set: None,
+                unfolding_count: iteration,
+                variable: var.to_string(),
+                witness_set: format_node_names(&current),
+            }
+            .render_inline();
         }
 
         current = next;
