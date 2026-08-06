@@ -1,17 +1,14 @@
 use anyhow::Result;
 use modal_common::contract_store::{CommitFile, ContractStore};
+use modal_common::model_diagnostics::{
+    summarize_candidate_transition, CandidateTransitionExplanation,
+};
 use modality_lang::{
     parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Property, PropertySign,
     PropertySource, Transition,
 };
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
-
-struct CandidateTransitionExplanation {
-    failures: Vec<String>,
-    summary: String,
-    transition_key: String,
-}
 
 struct AnchoredRule {
     formula: Formula,
@@ -928,33 +925,14 @@ fn explain_candidate_transition(
     facts: &CommitFacts,
 ) -> CandidateTransitionExplanation {
     let failures = transition_failures(&transition.properties, facts);
-    let part_prefix = part_name
-        .map(|name| format!("part {} ", name))
-        .unwrap_or_default();
-    let transition_key = format!(
-        "{}{}:{}->{}",
-        part_prefix, current_state, transition.from, transition.to
-    );
-
-    let summary = format!(
-        "{}candidate from current state {}: {} -> {} [{}]; failed predicates: {}",
-        part_prefix,
+    summarize_candidate_transition(
+        part_name,
         current_state,
-        transition.from,
-        transition.to,
-        format_properties(&transition.properties),
-        if failures.is_empty() {
-            "none".to_string()
-        } else {
-            failures.join(", ")
-        }
-    );
-
-    CandidateTransitionExplanation {
+        &transition.from,
+        &transition.to,
+        &format_properties(&transition.properties),
         failures,
-        summary,
-        transition_key,
-    }
+    )
 }
 
 fn transition_failures(properties: &[Property], facts: &CommitFacts) -> Vec<String> {

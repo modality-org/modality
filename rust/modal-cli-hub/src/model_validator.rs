@@ -10,6 +10,9 @@
 //! - **Rule anchoring**: Each rule is anchored to the commit where it was added
 //! - **Replay**: New models must replay history to establish valid state mapping
 
+use modal_common::model_diagnostics::{
+    summarize_candidate_transition, CandidateTransitionExplanation,
+};
 use modality_lang::{
     parse_content_lalrpop, Formula, Model, ModelChecker, Property, PropertySign, Transition,
 };
@@ -48,12 +51,6 @@ pub struct ReplayCommit {
     pub rule_content: Option<String>,
     /// For MODEL commits: the model content
     pub model_content: Option<String>,
-}
-
-struct CandidateTransitionExplanation {
-    failures: Vec<String>,
-    summary: String,
-    transition_key: String,
 }
 
 /// Model validator
@@ -381,33 +378,14 @@ impl ModelValidator {
         labels: &[String],
     ) -> CandidateTransitionExplanation {
         let failures = self.transition_predicate_failures(&transition.properties, labels);
-        let part_prefix = part_name
-            .map(|name| format!("part {} ", name))
-            .unwrap_or_default();
-        let transition_key = format!(
-            "{}{}:{}->{}",
-            part_prefix, current_state, transition.from, transition.to
-        );
-
-        let summary = format!(
-            "{}candidate from current state {}: {} -> {} [{}]; failed predicates: {}",
-            part_prefix,
+        summarize_candidate_transition(
+            part_name,
             current_state,
-            transition.from,
-            transition.to,
-            Self::format_properties(&transition.properties),
-            if failures.is_empty() {
-                "none".to_string()
-            } else {
-                failures.join(", ")
-            }
-        );
-
-        CandidateTransitionExplanation {
+            &transition.from,
+            &transition.to,
+            &Self::format_properties(&transition.properties),
             failures,
-            summary,
-            transition_key,
-        }
+        )
     }
 
     fn format_properties(properties: &[Property]) -> String {

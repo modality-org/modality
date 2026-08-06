@@ -9,6 +9,7 @@ homepage = "https://www.modality.org"
 
 [dependencies]
 modal-cli-common = { path = "../modal-cli-common", version = "0.1.0" }
+modal-common = { path = "../modal-common", version = "0.1.7" }
 modality-lang = { path = "../modality-lang", version = "0.1.7" }
 modal-rpc = { path = "../modal-rpc", version = "0.1.0" }
 anyhow = "1.0"
