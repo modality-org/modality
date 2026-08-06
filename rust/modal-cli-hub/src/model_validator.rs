@@ -12,7 +12,8 @@
 
 use modal_common::model_diagnostics::{
     summarize_candidate_transition, ActionModalFailureDiagnostic, ActionModalKind,
-    CandidateTransitionExplanation, FormulaFailureDiagnostic,
+    CandidateTransitionExplanation, FixedPointPolarity, FixedPointUnfoldingDiagnostic,
+    FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
 };
 use modality_lang::{
     parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Property, PropertySign,
@@ -705,12 +706,16 @@ fn explain_formula_failure_diagnostic(
                 FormulaExpr::DiamondBox(properties.clone(), inner.clone()).expand_diamond_box();
             explain_formula_failure_diagnostic(model, &expanded, state)
         }
-        FormulaExpr::Lfp(_, _) | FormulaExpr::Gfp(_, _) | FormulaExpr::Var(_) => {
-            FormulaFailureDiagnostic::leaf(
-                state,
-                format!("{} failed at {}", format_formula_expr(expr), state),
-            )
+        FormulaExpr::Lfp(var, inner) => {
+            FormulaFailureDiagnostic::leaf(state, explain_lfp_failure(model, var, inner, state))
         }
+        FormulaExpr::Gfp(var, inner) => {
+            FormulaFailureDiagnostic::leaf(state, explain_gfp_failure(model, var, inner, state))
+        }
+        FormulaExpr::Var(name) => FormulaFailureDiagnostic::leaf(
+            state,
+            format!("fixed-point variable {} is unbound at {}", name, state),
+        ),
     }
 }
 
@@ -718,6 +723,159 @@ fn formula_expr_holds_at(model: &Model, expr: &FormulaExpr, state: &str) -> bool
     let checker = ModelChecker::new(model.clone());
     let formula = Formula::new("diagnostic".to_string(), expr.clone());
     checker.check_formula_at_state(&formula, state).is_satisfied
+}
+
+fn explain_lfp_failure(model: &Model, var: &str, inner: &FormulaExpr, state: &str) -> String {
+    let mut current = Vec::new();
+    let mut iteration = 0;
+
+    loop {
+        let unfolded = substitute_fixed_point_var(inner, var, &current);
+        let next = satisfying_node_names(model, &unfolded);
+
+        if next.contains(&state.to_string()) {
+            return FixedPointUnfoldingDiagnostic {
+                body_failure: None,
+                outcome: FixedPointUnfoldingOutcome::EnteredUnexpectedly,
+                polarity: FixedPointPolarity::Least,
+                state: state.to_string(),
+                substituted_witness_set: None,
+                unfolding_count: iteration + 1,
+                variable: var.to_string(),
+                witness_set: format_node_names(&next),
+            }
+            .render_inline();
+        }
+
+        if next == current {
+            let witness_set = format_node_names(&current);
+            return FixedPointUnfoldingDiagnostic {
+                body_failure: Some(explain_formula_failure(model, &unfolded, state)),
+                outcome: FixedPointUnfoldingOutcome::NeverEntered,
+                polarity: FixedPointPolarity::Least,
+                state: state.to_string(),
+                substituted_witness_set: Some(witness_set.clone()),
+                unfolding_count: iteration,
+                variable: var.to_string(),
+                witness_set,
+            }
+            .render_inline();
+        }
+
+        current = next;
+        iteration += 1;
+    }
+}
+
+fn explain_gfp_failure(model: &Model, var: &str, inner: &FormulaExpr, state: &str) -> String {
+    let mut current = all_node_names(model);
+    let mut iteration = 0;
+
+    loop {
+        let unfolded = substitute_fixed_point_var(inner, var, &current);
+        let next = intersect_node_names(&current, &satisfying_node_names(model, &unfolded));
+
+        if current.contains(&state.to_string()) && !next.contains(&state.to_string()) {
+            let witness_set = format_node_names(&current);
+            return FixedPointUnfoldingDiagnostic {
+                body_failure: Some(explain_formula_failure(model, &unfolded, state)),
+                outcome: FixedPointUnfoldingOutcome::Removed,
+                polarity: FixedPointPolarity::Greatest,
+                state: state.to_string(),
+                substituted_witness_set: Some(witness_set.clone()),
+                unfolding_count: iteration + 1,
+                variable: var.to_string(),
+                witness_set,
+            }
+            .render_inline();
+        }
+
+        if next == current {
+            return FixedPointUnfoldingDiagnostic {
+                body_failure: None,
+                outcome: FixedPointUnfoldingOutcome::StabilizedWithoutState,
+                polarity: FixedPointPolarity::Greatest,
+                state: state.to_string(),
+                substituted_witness_set: None,
+                unfolding_count: iteration,
+                variable: var.to_string(),
+                witness_set: format_node_names(&current),
+            }
+            .render_inline();
+        }
+
+        current = next;
+        iteration += 1;
+    }
+}
+
+fn substitute_fixed_point_var(expr: &FormulaExpr, var: &str, states: &[String]) -> FormulaExpr {
+    match expr {
+        FormulaExpr::Var(name) | FormulaExpr::Prop(name) if name == var => {
+            state_set_formula_expr(states)
+        }
+        FormulaExpr::And(left, right) => FormulaExpr::And(
+            Box::new(substitute_fixed_point_var(left, var, states)),
+            Box::new(substitute_fixed_point_var(right, var, states)),
+        ),
+        FormulaExpr::Or(left, right) => FormulaExpr::Or(
+            Box::new(substitute_fixed_point_var(left, var, states)),
+            Box::new(substitute_fixed_point_var(right, var, states)),
+        ),
+        FormulaExpr::Not(inner) => {
+            FormulaExpr::Not(Box::new(substitute_fixed_point_var(inner, var, states)))
+        }
+        FormulaExpr::Implies(left, right) => FormulaExpr::Implies(
+            Box::new(substitute_fixed_point_var(left, var, states)),
+            Box::new(substitute_fixed_point_var(right, var, states)),
+        ),
+        FormulaExpr::Paren(inner) => {
+            FormulaExpr::Paren(Box::new(substitute_fixed_point_var(inner, var, states)))
+        }
+        FormulaExpr::Diamond(properties, inner) => FormulaExpr::Diamond(
+            properties.clone(),
+            Box::new(substitute_fixed_point_var(inner, var, states)),
+        ),
+        FormulaExpr::Box(properties, inner) => FormulaExpr::Box(
+            properties.clone(),
+            Box::new(substitute_fixed_point_var(inner, var, states)),
+        ),
+        FormulaExpr::DiamondBox(properties, inner) => FormulaExpr::DiamondBox(
+            properties.clone(),
+            Box::new(substitute_fixed_point_var(inner, var, states)),
+        ),
+        FormulaExpr::Eventually(inner) => {
+            FormulaExpr::Eventually(Box::new(substitute_fixed_point_var(inner, var, states)))
+        }
+        FormulaExpr::Always(inner) => {
+            FormulaExpr::Always(Box::new(substitute_fixed_point_var(inner, var, states)))
+        }
+        FormulaExpr::Until(left, right) => FormulaExpr::Until(
+            Box::new(substitute_fixed_point_var(left, var, states)),
+            Box::new(substitute_fixed_point_var(right, var, states)),
+        ),
+        FormulaExpr::Next(inner) => {
+            FormulaExpr::Next(Box::new(substitute_fixed_point_var(inner, var, states)))
+        }
+        FormulaExpr::Lfp(bound, inner) if bound != var => FormulaExpr::Lfp(
+            bound.clone(),
+            Box::new(substitute_fixed_point_var(inner, var, states)),
+        ),
+        FormulaExpr::Gfp(bound, inner) if bound != var => FormulaExpr::Gfp(
+            bound.clone(),
+            Box::new(substitute_fixed_point_var(inner, var, states)),
+        ),
+        _ => expr.clone(),
+    }
+}
+
+fn state_set_formula_expr(states: &[String]) -> FormulaExpr {
+    states.iter().skip(1).fold(
+        states
+            .first()
+            .map_or(FormulaExpr::False, |state| FormulaExpr::Prop(state.clone())),
+        |acc, state| FormulaExpr::Or(Box::new(acc), Box::new(FormulaExpr::Prop(state.clone()))),
+    )
 }
 
 fn satisfying_node_names(model: &Model, expr: &FormulaExpr) -> Vec<String> {
@@ -732,6 +890,41 @@ fn satisfying_node_names(model: &Model, expr: &FormulaExpr) -> Vec<String> {
     nodes.sort();
     nodes.dedup();
     nodes
+}
+
+fn all_node_names(model: &Model) -> Vec<String> {
+    let mut nodes = Vec::new();
+
+    if let Some(initial) = &model.initial {
+        nodes.push(initial.clone());
+    }
+
+    for part in &model.parts {
+        for transition in &part.transitions {
+            nodes.push(transition.from.clone());
+            nodes.push(transition.to.clone());
+        }
+    }
+
+    for transition in &model.transitions {
+        nodes.push(transition.from.clone());
+        nodes.push(transition.to.clone());
+    }
+
+    nodes.sort();
+    nodes.dedup();
+    nodes
+}
+
+fn intersect_node_names(left: &[String], right: &[String]) -> Vec<String> {
+    let mut intersection = left
+        .iter()
+        .filter(|node| right.contains(node))
+        .cloned()
+        .collect::<Vec<_>>();
+    intersection.sort();
+    intersection.dedup();
+    intersection
 }
 
 fn explain_diamond_failure(
@@ -1222,5 +1415,57 @@ model TestModel {
         assert!(err.contains("counterexample: diamond <+POST> q2 failed"));
         assert!(err.contains("q1 -> q1 [+POST] reached q1, which failed"));
         assert!(err.contains("q1 does not match required witness node q2"));
+    }
+
+    #[test]
+    fn test_model_replacement_rule_rejection_explains_fixed_point_unfolding() {
+        let mut validator = ModelValidator::new();
+
+        let accepted_model = r#"
+model TestModel {
+    initial q1
+    part flow {
+        q1 -> q2 [+POST]
+        q2 -> q2 [+MODEL]
+    }
+}
+        "#;
+        validator.apply_model(accepted_model, 0).unwrap();
+        validator
+            .apply_rule(
+                r#"
+rule post_eventually_reaches_done {
+    formula must_post_eventually_reach_done {
+        lfp(X, q2 | <+POST> X)
+    }
+}
+                "#,
+                1,
+            )
+            .unwrap();
+
+        let replacement_model = r#"
+model TestModel {
+    initial q1
+    part flow {
+        q1 -> q1 [+POST]
+        q1 -> q1 [+MODEL]
+    }
+}
+        "#;
+
+        let result = validator.validate_new_model(replacement_model);
+
+        assert!(!result.valid);
+        let err = result.errors.join("\n");
+        assert!(err.contains(
+            "Model violates rule 'must_post_eventually_reach_done' anchored at commit 1"
+        ));
+        assert!(err.contains("failed anchor state: q1"));
+        assert!(err.contains("least fixed point X never adds q1 after 0 unfoldings"));
+        assert!(err.contains("final witness set: none"));
+        assert!(err.contains("unfolded body failed with X = none"));
+        assert!(err.contains("diamond <+POST> false failed"));
+        assert!(err.contains("q1 -> q1 [+POST] reached q1, which failed"));
     }
 }
