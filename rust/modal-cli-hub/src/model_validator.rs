@@ -11,7 +11,8 @@
 //! - **Replay**: New models must replay history to establish valid state mapping
 
 use modal_common::model_diagnostics::{
-    summarize_candidate_transition, CandidateTransitionExplanation, FormulaFailureDiagnostic,
+    summarize_candidate_transition, ActionModalFailureDiagnostic, ActionModalKind,
+    CandidateTransitionExplanation, FormulaFailureDiagnostic,
 };
 use modality_lang::{
     parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Property, PropertySign,
@@ -691,15 +692,25 @@ fn explain_formula_failure_diagnostic(
                 format_formula_expr(right)
             ),
         ),
-        FormulaExpr::Diamond(_, _)
-        | FormulaExpr::Box(_, _)
-        | FormulaExpr::DiamondBox(_, _)
-        | FormulaExpr::Lfp(_, _)
-        | FormulaExpr::Gfp(_, _)
-        | FormulaExpr::Var(_) => FormulaFailureDiagnostic::leaf(
+        FormulaExpr::Diamond(properties, inner) => FormulaFailureDiagnostic::leaf(
             state,
-            format!("{} failed at {}", format_formula_expr(expr), state),
+            explain_diamond_failure(model, state, properties, inner),
         ),
+        FormulaExpr::Box(properties, inner) => FormulaFailureDiagnostic::leaf(
+            state,
+            explain_box_failure(model, state, properties, inner),
+        ),
+        FormulaExpr::DiamondBox(properties, inner) => {
+            let expanded =
+                FormulaExpr::DiamondBox(properties.clone(), inner.clone()).expand_diamond_box();
+            explain_formula_failure_diagnostic(model, &expanded, state)
+        }
+        FormulaExpr::Lfp(_, _) | FormulaExpr::Gfp(_, _) | FormulaExpr::Var(_) => {
+            FormulaFailureDiagnostic::leaf(
+                state,
+                format!("{} failed at {}", format_formula_expr(expr), state),
+            )
+        }
     }
 }
 
@@ -721,6 +732,123 @@ fn satisfying_node_names(model: &Model, expr: &FormulaExpr) -> Vec<String> {
     nodes.sort();
     nodes.dedup();
     nodes
+}
+
+fn explain_diamond_failure(
+    model: &Model,
+    state: &str,
+    properties: &[Property],
+    inner: &FormulaExpr,
+) -> String {
+    let matching = matching_formula_transitions(model, state, properties);
+    let matched_target_failures = matching
+        .iter()
+        .filter(|transition| !formula_expr_holds_at(model, inner, transition.to.as_str()))
+        .map(|transition| {
+            format!(
+                "{} reached {}, which failed: {}",
+                format_transition_witness(transition),
+                transition.to,
+                explain_formula_failure(model, inner, transition.to.as_str())
+            )
+        })
+        .collect::<Vec<_>>();
+
+    ActionModalFailureDiagnostic {
+        formula: format_formula_expr(inner),
+        kind: ActionModalKind::Diamond,
+        matched_target_failures,
+        properties: ModelValidator::format_properties(properties),
+        state: state.to_string(),
+        transitions: matching
+            .iter()
+            .map(|transition| format_transition_witness(transition))
+            .collect(),
+    }
+    .render_inline()
+}
+
+fn explain_box_failure(
+    model: &Model,
+    state: &str,
+    properties: &[Property],
+    inner: &FormulaExpr,
+) -> String {
+    let matching = matching_formula_transitions(model, state, properties);
+    let matched_target_failures = matching
+        .iter()
+        .filter(|transition| !formula_expr_holds_at(model, inner, transition.to.as_str()))
+        .map(|transition| {
+            format!(
+                "{} reached {}, which failed: {}",
+                format_transition_witness(transition),
+                transition.to,
+                explain_formula_failure(model, inner, transition.to.as_str())
+            )
+        })
+        .collect::<Vec<_>>();
+
+    ActionModalFailureDiagnostic {
+        formula: format_formula_expr(inner),
+        kind: ActionModalKind::Box,
+        matched_target_failures,
+        properties: ModelValidator::format_properties(properties),
+        state: state.to_string(),
+        transitions: matching
+            .iter()
+            .map(|transition| format_transition_witness(transition))
+            .collect(),
+    }
+    .render_inline()
+}
+
+fn matching_formula_transitions<'a>(
+    model: &'a Model,
+    state: &str,
+    properties: &[Property],
+) -> Vec<&'a Transition> {
+    let mut matches = Vec::new();
+
+    for part in &model.parts {
+        for transition in &part.transitions {
+            if transition.from == state
+                && transition_matches_formula_properties(transition, properties)
+            {
+                matches.push(transition);
+            }
+        }
+    }
+
+    for transition in &model.transitions {
+        if transition.from == state && transition_matches_formula_properties(transition, properties)
+        {
+            matches.push(transition);
+        }
+    }
+
+    matches.sort_by(|left, right| {
+        left.from
+            .cmp(&right.from)
+            .then_with(|| left.to.cmp(&right.to))
+            .then_with(|| {
+                ModelValidator::format_properties(&left.properties)
+                    .cmp(&ModelValidator::format_properties(&right.properties))
+            })
+    });
+    matches
+}
+
+fn transition_matches_formula_properties(transition: &Transition, properties: &[Property]) -> bool {
+    properties.iter().all(|property| {
+        transition
+            .properties
+            .iter()
+            .any(|candidate| candidate == property)
+            || !transition
+                .properties
+                .iter()
+                .any(|candidate| candidate.name == property.name)
+    })
 }
 
 fn reachable_node_names(model: &Model, start: &str) -> Vec<String> {
@@ -781,6 +909,15 @@ fn format_node_names(nodes: &[String]) -> String {
     } else {
         nodes.join(", ")
     }
+}
+
+fn format_transition_witness(transition: &Transition) -> String {
+    format!(
+        "{} -> {} [{}]",
+        transition.from,
+        transition.to,
+        ModelValidator::format_properties(&transition.properties)
+    )
 }
 
 fn format_formula_expr(expr: &FormulaExpr) -> String {
@@ -1037,5 +1174,53 @@ model TestModel {
         assert!(err.contains(
             "counterexample: eventually(q2) failed because no satisfying state is reachable from q0; reachable states: q0, q1"
         ));
+    }
+
+    #[test]
+    fn test_model_replacement_rule_rejection_explains_action_modal_witness() {
+        let mut validator = ModelValidator::new();
+
+        let accepted_model = r#"
+model TestModel {
+    initial q1
+    part flow {
+        q1 -> q2 [+POST]
+        q2 -> q2 [+MODEL]
+    }
+}
+        "#;
+        validator.apply_model(accepted_model, 0).unwrap();
+        validator
+            .apply_rule(
+                r#"
+rule post_reaches_done {
+    formula must_post_to_done {
+        <+POST> q2
+    }
+}
+                "#,
+                1,
+            )
+            .unwrap();
+
+        let replacement_model = r#"
+model TestModel {
+    initial q1
+    part flow {
+        q1 -> q1 [+POST]
+        q1 -> q1 [+MODEL]
+    }
+}
+        "#;
+
+        let result = validator.validate_new_model(replacement_model);
+
+        assert!(!result.valid);
+        let err = result.errors.join("\n");
+        assert!(err.contains("Model violates rule 'must_post_to_done' anchored at commit 1"));
+        assert!(err.contains("failed anchor state: q1"));
+        assert!(err.contains("counterexample: diamond <+POST> q2 failed"));
+        assert!(err.contains("q1 -> q1 [+POST] reached q1, which failed"));
+        assert!(err.contains("q1 does not match required witness node q2"));
     }
 }

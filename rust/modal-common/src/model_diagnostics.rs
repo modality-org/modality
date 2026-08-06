@@ -38,6 +38,22 @@ pub struct FormulaFailureDiagnostic {
     pub state: String,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum ActionModalKind {
+    Box,
+    Diamond,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ActionModalFailureDiagnostic {
+    pub formula: String,
+    pub kind: ActionModalKind,
+    pub matched_target_failures: Vec<String>,
+    pub properties: String,
+    pub state: String,
+    pub transitions: Vec<String>,
+}
+
 impl FormulaFailureDiagnostic {
     pub fn leaf(state: impl Into<String>, detail: impl Into<String>) -> Self {
         Self {
@@ -72,6 +88,42 @@ impl FormulaFailureDiagnostic {
             .join("; ");
 
         format!("{}: {}", self.detail, child_summaries)
+    }
+}
+
+impl ActionModalFailureDiagnostic {
+    pub fn render_inline(&self) -> String {
+        match self.kind {
+            ActionModalKind::Diamond if self.transitions.is_empty() => format!(
+                "diamond <{}> {} failed because no outgoing transition from {} matched the action labels",
+                self.properties, self.formula, self.state
+            ),
+            ActionModalKind::Diamond if self.matched_target_failures.is_empty() => format!(
+                "diamond <{}> {} unexpectedly failed despite matching satisfying transitions: {}",
+                self.properties,
+                self.formula,
+                format_diagnostic_list(&self.transitions)
+            ),
+            ActionModalKind::Diamond => format!(
+                "diamond <{}> {} failed because matched transitions did not reach a satisfying state: {}",
+                self.properties,
+                self.formula,
+                self.matched_target_failures.join("; ")
+            ),
+            ActionModalKind::Box if self.matched_target_failures.is_empty() => format!(
+                "box [{}] {} unexpectedly failed from {}; matching transitions: {}",
+                self.properties,
+                self.formula,
+                self.state,
+                format_diagnostic_list(&self.transitions)
+            ),
+            ActionModalKind::Box => format!(
+                "box [{}] {} failed because matching transition targets violated it: {}",
+                self.properties,
+                self.formula,
+                self.matched_target_failures.join("; ")
+            ),
+        }
     }
 }
 
@@ -123,6 +175,14 @@ impl FixedPointUnfoldingDiagnostic {
                 self.polarity, self.variable, self.outcome, self.state
             ),
         }
+    }
+}
+
+fn format_diagnostic_list(items: &[String]) -> String {
+    if items.is_empty() {
+        "none".to_string()
+    } else {
+        items.join("; ")
     }
 }
 
@@ -212,6 +272,26 @@ mod tests {
         assert_eq!(
             diagnostic.render_inline(),
             "both conjuncts failed: q1 does not match required witness node q2; false is never satisfied at q1"
+        );
+    }
+
+    #[test]
+    fn renders_action_modal_transition_witness_diagnostic() {
+        let diagnostic = ActionModalFailureDiagnostic {
+            formula: "q2".to_string(),
+            kind: ActionModalKind::Diamond,
+            matched_target_failures: vec![
+                "q1 -> q1 [+POST] reached q1, which failed: q1 does not match required witness node q2"
+                    .to_string(),
+            ],
+            properties: "+POST".to_string(),
+            state: "q1".to_string(),
+            transitions: vec!["q1 -> q1 [+POST]".to_string()],
+        };
+
+        assert_eq!(
+            diagnostic.render_inline(),
+            "diamond <+POST> q2 failed because matched transitions did not reach a satisfying state: q1 -> q1 [+POST] reached q1, which failed: q1 does not match required witness node q2"
         );
     }
 }
