@@ -16,9 +16,9 @@ The smoke uses the source-built lean onboarding `modal` binary to create a
 contract, create Alice and Bob passfiles, write their `.id` files into contract
 state, commit the state with Alice's signature, and inspect status plus log
 output. The log check asserts that the signed onboarding commit exposes Alice's
-signer ID in both JSON and text output, so the smoke covers the visible
-authority evidence a new user sees when they run `modal c log` as well as
-commit count.
+signer ID and the commit message in both JSON and text output, so the smoke
+covers the visible authority evidence and human-readable commit context a new
+user sees when they run `modal c log` as well as commit count.
 
 To check the installed or source-built help surface before running a flow:
 

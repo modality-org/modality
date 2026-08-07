@@ -96,6 +96,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     } else {
         CommitFile::new()
     };
+    commit.head.message = opts.message.clone();
 
     // Handle --all flag: commit all changes from state + rules directories
     if opts.all {

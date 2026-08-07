@@ -22,6 +22,8 @@ pub struct CommitHead {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub signatures: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub evolution: Option<Value>,
@@ -43,6 +45,7 @@ impl CommitFile {
             body: Vec::new(),
             head: CommitHead {
                 parent: None,
+                message: None,
                 signatures: None,
                 evolution: None,
                 rule_for_this_commit: None,
@@ -55,6 +58,7 @@ impl CommitFile {
             body: Vec::new(),
             head: CommitHead {
                 parent: Some(parent_id),
+                message: None,
                 signatures: None,
                 evolution: None,
                 rule_for_this_commit: None,

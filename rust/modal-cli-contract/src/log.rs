@@ -85,6 +85,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 };
                 println!("Parent: {}...", short_parent);
             }
+            if let Some(message) = &commit.head.message {
+                println!("Message: {}", message);
+            }
 
             let signers = commit_signers(commit);
             println!("Signatures: {}", signers.len());
@@ -116,6 +119,7 @@ fn commit_summary_json(id: &str, commit: &CommitFile) -> serde_json::Value {
     serde_json::json!({
         "id": id,
         "parent": commit.head.parent,
+        "message": commit.head.message,
         "actions": commit.body.len(),
         "signature_count": signers.len(),
         "signers": signers,
@@ -150,11 +154,13 @@ mod tests {
         commit.head.signatures = Some(serde_json::json!({
             "alice-id": "sig"
         }));
+        commit.head.message = Some("Initial contract setup".to_string());
 
         let summary = commit_summary_json("commit-id", &commit);
 
         assert_eq!(summary["id"], "commit-id");
         assert_eq!(summary["parent"], "parent-id");
+        assert_eq!(summary["message"], "Initial contract setup");
         assert_eq!(summary["actions"], 1);
         assert_eq!(summary["signature_count"], 1);
         assert!(summary["signers"]

@@ -116,9 +116,10 @@ modal c status
 modal c log
 ```
 
-The smoke checks both JSON and text log output for Alice's signer ID, so the
-plain `modal c log` command above must show the visible authority evidence a
-new user needs to confirm the signed commit.
+The smoke checks both JSON and text log output for Alice's signer ID and the
+commit message, so the plain `modal c log` command above must show the visible
+authority evidence and human-readable commit context a new user needs to confirm
+the signed commit.
 
 ## What's Next?
 
