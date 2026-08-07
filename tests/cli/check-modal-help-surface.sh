@@ -27,9 +27,11 @@ trap cleanup EXIT
 
 HELP="$TMP_DIR/modal-help.txt"
 CONTRACT_HELP="$TMP_DIR/modal-contract-help.txt"
+CONTRACT_ALIAS_HELP="$TMP_DIR/modal-c-help.txt"
 
 "$MODAL_BIN" --help >"$HELP"
 "$MODAL_BIN" contract --help >"$CONTRACT_HELP"
+"$MODAL_BIN" c --help >"$CONTRACT_ALIAS_HELP"
 
 require_command() {
   local command_name="$1"
@@ -57,6 +59,7 @@ done
 
 for command_name in create checkout commit set set-named-id status log; do
   require_command "$command_name" "$CONTRACT_HELP"
+  require_command "$command_name" "$CONTRACT_ALIAS_HELP"
 done
 
 case "$MODAL_HELP_SURFACE" in
