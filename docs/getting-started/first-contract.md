@@ -8,8 +8,7 @@ title: Your First Contract
 This page tracks the canonical first-contract path. Today, the verified path is
 source-built and uses the language/model CLI against a parser-backed witness
 model. The local contract-log workflow is verified through the source-built
-lean `modal` wrapper; the installed release wrapper path is still being brought
-into line with that checked flow.
+lean `modal` wrapper and through a temporary Cargo-installed lean wrapper.
 
 ## 1. Run the Verified Source Check
 
@@ -86,6 +85,13 @@ second check. To build and run the lean wrapper path in one command:
 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh
 ```
 
+To install the same lean wrapper into a temporary Cargo root and verify the
+installed binary:
+
+```bash
+MODAL_ONBOARDING_INSTALL=1 tests/run-onboarding-smokes.sh
+```
+
 To run only the source-built wrapper smoke:
 
 ```bash
@@ -110,9 +116,9 @@ modal c status
 modal c log
 ```
 
-Until the installed `modal` wrapper path has runtime verification, use the
-source-built language check or lean wrapper smoke above as the verified
-first-contract checks.
+The smoke checks both JSON and text log output for Alice's signer ID, so the
+plain `modal c log` command above must show the visible authority evidence a
+new user needs to confirm the signed commit.
 
 ## What's Next?
 

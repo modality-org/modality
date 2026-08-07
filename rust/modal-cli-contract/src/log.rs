@@ -86,6 +86,15 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 println!("Parent: {}...", short_parent);
             }
 
+            let signers = commit_signers(commit);
+            println!("Signatures: {}", signers.len());
+            if !signers.is_empty() {
+                println!("Signers:");
+                for signer in &signers {
+                    println!("  {}", signer);
+                }
+            }
+
             // Show actions summary
             if !commit.body.is_empty() {
                 println!("Actions:");
@@ -102,13 +111,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 }
 
 fn commit_summary_json(id: &str, commit: &CommitFile) -> serde_json::Value {
-    let signers = commit
-        .head
-        .signatures
-        .as_ref()
-        .and_then(|signatures| signatures.as_object())
-        .map(|signatures| signatures.keys().cloned().collect::<Vec<_>>())
-        .unwrap_or_default();
+    let signers = commit_signers(commit);
 
     serde_json::json!({
         "id": id,
@@ -119,9 +122,21 @@ fn commit_summary_json(id: &str, commit: &CommitFile) -> serde_json::Value {
     })
 }
 
+fn commit_signers(commit: &CommitFile) -> Vec<String> {
+    let mut signers = commit
+        .head
+        .signatures
+        .as_ref()
+        .and_then(|signatures| signatures.as_object())
+        .map(|signatures| signatures.keys().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    signers.sort();
+    signers
+}
+
 #[cfg(test)]
 mod tests {
-    use super::commit_summary_json;
+    use super::{commit_signers, commit_summary_json};
     use modal_common::contract_store::CommitFile;
 
     #[test]
@@ -147,5 +162,19 @@ mod tests {
             .expect("signers should be an array")
             .iter()
             .any(|signer| signer == "alice-id"));
+    }
+
+    #[test]
+    fn commit_signers_are_stable_for_text_and_json_logs() {
+        let mut commit = CommitFile::with_parent("parent-id".to_string());
+        commit.head.signatures = Some(serde_json::json!({
+            "bob-id": "sig-b",
+            "alice-id": "sig-a"
+        }));
+
+        assert_eq!(
+            commit_signers(&commit),
+            vec!["alice-id".to_string(), "bob-id".to_string()]
+        );
     }
 }

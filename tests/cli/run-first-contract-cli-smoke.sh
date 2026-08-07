@@ -51,6 +51,7 @@ BOB_ID="$("$MODAL_BIN" id get --path "$BOB_PASSFILE")"
 
 "$MODAL_BIN" c status --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/status.json"
 "$MODAL_BIN" c log --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/log.json"
+"$MODAL_BIN" c log --dir "$CONTRACT_DIR" >"$TMP_DIR/log.txt"
 
 grep -q "$ALICE_ID" "$CONTRACT_DIR/state/parties/alice.id"
 grep -q "$BOB_ID" "$CONTRACT_DIR/state/parties/bob.id"
@@ -58,5 +59,7 @@ grep -q '"total_commits": 2' "$TMP_DIR/status.json"
 grep -q '"commits":' "$TMP_DIR/log.json"
 grep -q '"signature_count": 1' "$TMP_DIR/log.json"
 grep -q "$ALICE_ID" "$TMP_DIR/log.json"
+grep -q "Signatures: 1" "$TMP_DIR/log.txt"
+grep -q "$ALICE_ID" "$TMP_DIR/log.txt"
 
 echo "first-contract CLI smoke passed"
