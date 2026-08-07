@@ -15,7 +15,9 @@ tests/cli/run-first-contract-cli-smoke.sh
 The smoke uses the source-built lean onboarding `modal` binary to create a
 contract, create Alice and Bob passfiles, write their `.id` files into contract
 state, commit the state with Alice's signature, and inspect status plus log
-output.
+output. The log check asserts that the signed onboarding commit exposes Alice's
+signer ID in JSON output, so the smoke covers the visible authority evidence as
+well as commit count.
 
 To check the installed or source-built help surface before running a flow:
 
