@@ -564,6 +564,34 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "full"))]
+    fn lean_help_surface_excludes_full_runtime_commands() {
+        let command = Cli::command();
+        let names: Vec<_> = command
+            .get_subcommands()
+            .map(|subcommand| subcommand.get_name().to_string())
+            .collect();
+
+        for full_only in [
+            "node",
+            "local",
+            "net",
+            "hub",
+            "run",
+            "predicate",
+            "program",
+            "chain",
+            "killall",
+            "upgrade",
+        ] {
+            assert!(
+                !names.iter().any(|name| name == full_only),
+                "lean modal --help should omit full-only `{full_only}`; saw {names:?}"
+            );
+        }
+    }
+
+    #[test]
     fn documented_contract_aliases_parse() {
         let cases: &[&[&str]] = &[
             &["modal", "c", "--help"],

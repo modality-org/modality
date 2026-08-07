@@ -94,7 +94,23 @@ cargo build -p modal
 modal --help
 ```
 
-You should see the available commands:
+For the lean onboarding wrapper, you should see the first-contract command
+surface, including:
+
+```
+contract   Contract related commands
+id         ID and key related commands
+passfile   Passfile related commands
+status     Show status
+commit     Commit changes
+set        Set a state file value
+```
+
+You should not see the full runtime command groups such as `hub`, `node`,
+`predicate`, `program`, or `chain` unless you built the full wrapper.
+
+For the full wrapper, `modal --help` should also include broader runtime
+commands such as:
 
 ```
 modal - Modality CLI
