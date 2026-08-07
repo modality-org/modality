@@ -32,7 +32,8 @@ The check covers both `modal contract --help` and the documented
 `modal c --help` alias used by the first-contract guide. It also checks the
 first-contract subcommand help pages for the documented identity and commit
 flags: `modal id create --path`, `modal id get --path`, `modal c commit`
-with `--all`, `--sign`, and `--message`, plus `modal c set-named-id`.
+with `--all`, `--sign`, and `--message`, `modal c status` and `modal c log`
+inspection flags, plus `modal c set-named-id`.
 
 Use `cargo build -p modal` when you are testing the full wrapper surface,
 including node, network, hub, chain, predicate, and program commands.

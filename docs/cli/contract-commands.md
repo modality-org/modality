@@ -78,7 +78,7 @@ Extract committed state to the working `state/` directory.
 ## Status
 
 ```bash
-modal c status
+modal c status [OPTIONS]
 modal status  # shortcut when in contract directory
 ```
 
@@ -87,6 +87,13 @@ Shows:
 - Modified files
 - Staged changes
 - Rule validation status
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--dir <DIR>` | Contract directory (defaults to current directory) |
+| `--remote <NAME>` | Remote name to compare with (default: `origin`) |
+| `--output <FORMAT>` | Output format: `text` or `json` |
 
 ## Diff
 
@@ -113,9 +120,9 @@ Show commit history.
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--verbose`, `-v` | Show full commit details |
-| `--limit <N>` | Limit number of commits shown |
-| `--oneline` | Compact format |
+| `--dir <DIR>` | Contract directory (defaults to current directory) |
+| `--limit <N>`, `-n <N>` | Limit number of commits shown |
+| `--output <FORMAT>` | Output format: `text` or `json` |
 
 **Example output:**
 ```

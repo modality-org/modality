@@ -65,9 +65,8 @@ This is the source-built language/model CLI, not the installed contract CLI.
 The intended contract-log flow uses `modal` commands to create a contract,
 create identities, commit state, and inspect the log. The source-built command
 modules and lean wrapper now have regression coverage for this local
-identity-backed flow. The installed release wrapper path is still pending
-runtime verification and should not be treated as the canonical copy-paste
-onboarding path yet.
+identity-backed flow, including source-built and temporary Cargo-installed
+debug and release wrappers.
 
 To run the current onboarding smoke bundle:
 

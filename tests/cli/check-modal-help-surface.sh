@@ -32,6 +32,8 @@ ID_GET_HELP="$TMP_DIR/modal-id-get-help.txt"
 CONTRACT_HELP="$TMP_DIR/modal-contract-help.txt"
 CONTRACT_ALIAS_HELP="$TMP_DIR/modal-c-help.txt"
 COMMIT_HELP="$TMP_DIR/modal-c-commit-help.txt"
+STATUS_HELP="$TMP_DIR/modal-c-status-help.txt"
+LOG_HELP="$TMP_DIR/modal-c-log-help.txt"
 SET_NAMED_ID_HELP="$TMP_DIR/modal-c-set-named-id-help.txt"
 
 "$MODAL_BIN" --help >"$HELP"
@@ -41,6 +43,8 @@ SET_NAMED_ID_HELP="$TMP_DIR/modal-c-set-named-id-help.txt"
 "$MODAL_BIN" contract --help >"$CONTRACT_HELP"
 "$MODAL_BIN" c --help >"$CONTRACT_ALIAS_HELP"
 "$MODAL_BIN" c commit --help >"$COMMIT_HELP"
+"$MODAL_BIN" c status --help >"$STATUS_HELP"
+"$MODAL_BIN" c log --help >"$LOG_HELP"
 "$MODAL_BIN" c set-named-id --help >"$SET_NAMED_ID_HELP"
 
 require_command() {
@@ -94,6 +98,13 @@ done
 for required_flag in --all --sign --message; do
   require_help_pattern "(^|[[:space:]])$required_flag([[:space:],=<]|$)" "$COMMIT_HELP"
 done
+
+for required_flag in --dir --output; do
+  require_help_pattern "(^|[[:space:]])$required_flag([[:space:],=<]|$)" "$STATUS_HELP"
+  require_help_pattern "(^|[[:space:]])$required_flag([[:space:],=<]|$)" "$LOG_HELP"
+done
+
+require_help_pattern "(^|[[:space:]])(-n,?[[:space:]]*)?--limit([[:space:],=<]|$)" "$LOG_HELP"
 
 require_help_pattern "Set a state \\.id file" "$SET_NAMED_ID_HELP"
 
