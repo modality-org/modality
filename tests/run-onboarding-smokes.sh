@@ -7,6 +7,12 @@ BUILD_MODAL="${MODAL_ONBOARDING_BUILD:-0}"
 INSTALL_MODAL="${MODAL_ONBOARDING_INSTALL:-0}"
 MODAL_ONBOARDING_FEATURES="${MODAL_ONBOARDING_FEATURES:-contract-onboarding}"
 MODAL_ONBOARDING_PROFILE="${MODAL_ONBOARDING_PROFILE:-debug}"
+if [[ "$MODAL_ONBOARDING_FEATURES" == "full" ]]; then
+  DEFAULT_MODAL_HELP_SURFACE="full"
+else
+  DEFAULT_MODAL_HELP_SURFACE="lean"
+fi
+MODAL_HELP_SURFACE="${MODAL_HELP_SURFACE:-$DEFAULT_MODAL_HELP_SURFACE}"
 
 case "$MODAL_ONBOARDING_PROFILE" in
   debug)
@@ -71,6 +77,8 @@ if [[ ! -x "$MODAL_BIN" && "$BUILD_MODAL" == "1" ]]; then
 fi
 
 if [[ -x "$MODAL_BIN" ]]; then
+  MODAL_BIN="$MODAL_BIN" MODAL_HELP_SURFACE="$MODAL_HELP_SURFACE" \
+    "$ROOT_DIR/tests/cli/check-modal-help-surface.sh"
   MODAL_BIN="$MODAL_BIN" "$ROOT_DIR/tests/cli/run-first-contract-cli-smoke.sh"
 else
   cat <<EOF

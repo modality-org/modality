@@ -12,7 +12,11 @@ This always runs the parser-backed language smoke and checks that both the
 default contract CLI dependency tree and the lean `modal` onboarding wrapper
 avoid onboarding-heavy network/storage/compression deps. It also runs the
 first-contract CLI wrapper smoke when `rust/target/debug/modal` exists, or when
-`MODAL_BIN=/path/to/modal` points at another built `modal` binary.
+`MODAL_BIN=/path/to/modal` points at another built `modal` binary. When a
+binary is present, it also checks that the real `modal --help` surface matches
+the selected onboarding shape: lean builds must expose the first-contract
+commands and omit full runtime groups, while `MODAL_ONBOARDING_FEATURES=full`
+expects those runtime groups to be present.
 
 To measure the full source-built wrapper path from the same entry point, ask the
 smoke to build the binary when it is missing:
@@ -26,7 +30,9 @@ onboarding failures report the resource problem before incremental build output
 fills the filesystem. Override the guard with `MODAL_ONBOARDING_MIN_KB` only for
 known no-build diagnostic runs. Build mode uses `contract-onboarding` by
 default; set `MODAL_ONBOARDING_FEATURES=full` only when measuring the full
-network/hub wrapper.
+network/hub wrapper. Set `MODAL_HELP_SURFACE=lean|full` only when checking an
+explicit `MODAL_BIN` whose feature shape differs from
+`MODAL_ONBOARDING_FEATURES`.
 
 To measure the lean release-profile wrapper, set `MODAL_ONBOARDING_PROFILE`:
 

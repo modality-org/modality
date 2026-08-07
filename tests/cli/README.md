@@ -17,6 +17,15 @@ contract, create Alice and Bob passfiles, write their `.id` files into contract
 state, commit the state with Alice's signature, and inspect status plus log
 output.
 
+To check the installed or source-built help surface before running a flow:
+
+```bash
+MODAL_BIN=/path/to/modal tests/cli/check-modal-help-surface.sh
+```
+
+The default check is the lean onboarding surface. Use
+`MODAL_HELP_SURFACE=full` when testing a full wrapper build.
+
 Use `cargo build -p modal` when you are testing the full wrapper surface,
 including node, network, hub, chain, predicate, and program commands.
 
