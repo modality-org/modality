@@ -4647,6 +4647,9 @@ fn format_llm_review_bundle(
     let facts = FormulaFactSummary::from_formulas(&parsed_input.formulas);
     facts.write_markdown(&mut output);
 
+    output.push_str("## Source Clause Trace\n\n");
+    write_source_clause_trace(&mut output, review_source, extracted_formulas.len());
+
     output.push_str("## Extracted Formulas\n\n");
     for (index, formula) in extracted_formulas.iter().enumerate() {
         output.push_str(&format!("{}. `{}`\n", index + 1, formula_preview(formula)));
@@ -4691,11 +4694,94 @@ fn format_llm_review_bundle(
 
     output.push_str("## Known Gaps\n\n");
     output.push_str(
-        "- Original source text is captured for review, but natural-language-to-facts extraction is not available in this path yet; the fact summary starts after formula extraction.\n",
+        "- Structured `F1:` source-clause trace lines are preserved for reviewer traceability, but automatic natural-language-to-facts extraction is not available in this path yet; the fact summary starts after formula extraction.\n",
     );
     output.push_str("- Passing synthesis proves the witness model satisfies the extracted formulas; it does not prove the extracted formulas capture the original intent.\n");
 
     output
+}
+
+fn write_source_clause_trace(
+    output: &mut String,
+    review_source: Option<&ReviewSource>,
+    formula_count: usize,
+) {
+    let Some(review_source) = review_source else {
+        output.push_str("- No original source was supplied, so no source-clause trace is available.\n\n");
+        return;
+    };
+
+    let trace = extract_source_clause_trace(&review_source.content, formula_count);
+    if trace.iter().all(Option::is_none) {
+        output.push_str(
+            "- No structured source-clause lines found. Prefix source lines with `F1:`, `F2:`, etc. to preserve reviewer-authored clause-to-formula traceability.\n\n",
+        );
+        return;
+    }
+
+    output.push_str(
+        "- Trace source: reviewer-authored formula labels in the original source text.\n",
+    );
+    output.push_str("- These clauses are preserved for review; they are not inferred by the natural-language parser.\n\n");
+
+    for (index, clause) in trace.iter().enumerate() {
+        let formula_label = format!("F{}", index + 1);
+        match clause {
+            Some(clause) => {
+                output.push_str(&format!(
+                    "- {} source clause: {}\n",
+                    formula_label,
+                    clause.trim()
+                ));
+            }
+            None => {
+                output.push_str(&format!(
+                    "- {} source clause: not supplied in structured source text\n",
+                    formula_label
+                ));
+            }
+        }
+    }
+    output.push('\n');
+}
+
+fn extract_source_clause_trace(source: &str, formula_count: usize) -> Vec<Option<String>> {
+    let mut trace = vec![None; formula_count];
+    for line in source.lines() {
+        let trimmed = line.trim();
+        let Some(after_f) = trimmed.strip_prefix('F') else {
+            continue;
+        };
+
+        let digit_count = after_f.chars().take_while(|ch| ch.is_ascii_digit()).count();
+        if digit_count == 0 {
+            continue;
+        }
+
+        let (digits, rest) = after_f.split_at(digit_count);
+        let Ok(formula_number) = digits.parse::<usize>() else {
+            continue;
+        };
+        if formula_number == 0 || formula_number > formula_count {
+            continue;
+        }
+
+        let rest = rest.trim_start();
+        let Some(clause) = rest
+            .strip_prefix(':')
+            .or_else(|| rest.strip_prefix('-'))
+            .or_else(|| rest.strip_prefix('.'))
+        else {
+            continue;
+        };
+
+        let clause = clause.trim();
+        if !clause.is_empty() {
+            trace[formula_number - 1] = Some(clause.to_string());
+        }
+    }
+
+    trace
 }
 
 fn write_output_file_if_requested(output: &str, output_path: Option<&PathBuf>) -> Result<()> {
@@ -20475,7 +20561,7 @@ F3: [+APPROVE] true -> <+oracle_attests(/oracles/review.id, "reviewed", "true")>
         .unwrap();
         std::fs::write(
             &source_path,
-            "When an approval is recorded, require reviewer signature and review oracle evidence.",
+            "F1: The contract must expose an approval move.\nF2: When an approval is recorded, require reviewer signature.\nF3: When an approval is recorded, require review oracle evidence.",
         )
         .unwrap();
 
@@ -20495,7 +20581,7 @@ F3: [+APPROVE] true -> <+oracle_attests(/oracles/review.id, "reviewed", "true")>
         assert!(bundle.contains("# Modality Synthesis Review Bundle"));
         assert!(bundle.contains("## Original Source"));
         assert!(bundle.contains(&format!("- Input: `--source-file {}`", source_path.display())));
-        assert!(bundle.contains("require reviewer signature and review oracle evidence"));
+        assert!(bundle.contains("require reviewer signature"));
         assert!(bundle.contains("## LLM Response"));
         assert!(bundle.contains("## Extracted Facts"));
         assert!(bundle.contains("- Extraction source: parser-backed formula AST"));
@@ -20506,6 +20592,11 @@ F3: [+APPROVE] true -> <+oracle_attests(/oracles/review.id, "reviewed", "true")>
         assert!(bundle.contains("`+oracle_attests(/oracles/review.id, reviewed, true)`"));
         assert!(bundle.contains("External evidence predicates:"));
         assert!(bundle.contains("Opaque witness atoms:"));
+        assert!(bundle.contains("## Source Clause Trace"));
+        assert!(bundle.contains("- Trace source: reviewer-authored formula labels"));
+        assert!(bundle.contains("- F1 source clause: The contract must expose an approval move."));
+        assert!(bundle.contains("- F2 source clause: When an approval is recorded, require reviewer signature."));
+        assert!(bundle.contains("- F3 source clause: When an approval is recorded, require review oracle evidence."));
         assert!(bundle.contains("## Extracted Formulas"));
         assert!(bundle.contains("## Verifier Result"));
         assert!(bundle.contains("Status: passed (`--verify`)"));
@@ -20533,6 +20624,29 @@ F3: [+APPROVE] true -> <+oracle_attests(/oracles/review.id, "reviewed", "true")>
 
         let err = run(&opts).await.unwrap_err();
         assert!(err.to_string().contains("--review-bundle requires --verify"));
+    }
+
+    #[test]
+    fn source_clause_trace_preserves_structured_formula_labels() {
+        let trace = extract_source_clause_trace(
+            r#"
+Intro text without a formula id.
+F1: Approval must be available.
+F2 - Approval requires a reviewer signature.
+F4: Ignored because only three formulas were extracted.
+F3. Approval requires external review evidence.
+"#,
+            3,
+        );
+
+        assert_eq!(
+            trace,
+            vec![
+                Some("Approval must be available.".to_string()),
+                Some("Approval requires a reviewer signature.".to_string()),
+                Some("Approval requires external review evidence.".to_string()),
+            ]
+        );
     }
 
     #[tokio::test]
