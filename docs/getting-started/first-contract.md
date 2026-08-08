@@ -39,13 +39,6 @@ modal c set-named-id /parties/bob.id bob.mod_passfile
 
 This records Alice and Bob's public identities in the contract state.
 
-Commit the identities before adding signature-guarded model transitions. The
-model will look up signer IDs from committed state.
-
-```bash
-modal c commit --all --sign alice.mod_passfile -m "Add party identities"
-```
-
 ## 4. Define the Witness Model
 
 Replace `model/default.modality` with the following Modality code. This is file
@@ -55,18 +48,17 @@ content, not a terminal command.
 export default model {
   initial q0
 
-  q0 -> q1 [+POST]
-  q1 -> q2 [+MODEL +signed_by(/parties/alice.id)]
-  q2 -> q2 [+signed_by(/parties/alice.id)]
-  q2 -> q2 [+signed_by(/parties/bob.id)]
+  q0 -> q1 [+POST +MODEL]
+  q1 -> q1 [+POST +signed_by(/parties/alice.id)]
+  q1 -> q1 [+POST +signed_by(/parties/bob.id)]
+  q1 -> q1 [+MODEL +signed_by(/parties/alice.id)]
 }
 ```
 
-`q0`, `q1`, and `q2` are witness nodes. The predicates on each transition say
-which evidence is required as the contract evolves. The first transition admits
-the identity bootstrap commit. The authorization rule below starts after that
-bootstrap point, so later model replacement and state commits require Alice or
-Bob.
+`q0` and `q1` are witness nodes. The first transition admits the bootstrap
+commit that installs identity evidence and the first model. After that, the
+model exposes only signed `POST` and `MODEL` paths for ordinary state changes
+and model replacement.
 
 ## 5. Add Protection Rules
 
@@ -83,14 +75,15 @@ is also file content, not a terminal command.
 export default rule {
   starting_at $PARENT
   formula {
-    always(+signed_by(/parties/alice.id) | +signed_by(/parties/bob.id))
+    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
   }
 }
 ```
 
-This rule says every valid model must require commits to be signed by Alice or
-Bob. At commit time, the transition predicates in `model/default.modality` are
-what the verifier checks against the signed commit.
+This rule starts after the bootstrap transition. The `[]` prefix matters:
+`always(...)` includes the current witness node, while `[] always(...)` lets the
+initial commit install the identity evidence and then constrains every successor
+model so it does not expose an unsigned transition.
 
 ## 6. Commit and Verify
 
@@ -100,8 +93,8 @@ modal c status
 modal c log
 ```
 
-`modal c log` should show Alice's signer ID plus both commit messages:
-`Add party identities` and `Initial contract setup`.
+`modal c log` should show Alice's signer ID plus the commit message:
+`Initial contract setup`.
 
 ## What's Next?
 
