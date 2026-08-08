@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::path::PathBuf;
 
 /// Synthesize a model from a template, pattern, or rule
@@ -4057,6 +4057,162 @@ fn formula_preview(formula: &str) -> String {
     }
 }
 
+#[derive(Default)]
+struct FormulaFactSummary {
+    actions: BTreeSet<String>,
+    predicates: BTreeSet<String>,
+    external_predicates: BTreeSet<String>,
+    state_atoms: BTreeSet<String>,
+}
+
+impl FormulaFactSummary {
+    fn from_formulas(formulas: &[modality_lang::FormulaExpr]) -> Self {
+        let mut summary = Self::default();
+        for formula in formulas {
+            summary.visit_expr(formula);
+        }
+        summary
+    }
+
+    fn write_markdown(&self, output: &mut String) {
+        output.push_str("- Action labels:\n");
+        write_fact_list(output, &self.actions);
+        output.push_str("- Predicate calls:\n");
+        write_fact_list(output, &self.predicates);
+        output.push_str("- External evidence predicates:\n");
+        write_fact_list(output, &self.external_predicates);
+        output.push_str("- Opaque witness atoms:\n");
+        write_fact_list(output, &self.state_atoms);
+        output.push('\n');
+    }
+
+    fn visit_expr(&mut self, expr: &modality_lang::FormulaExpr) {
+        use modality_lang::FormulaExpr;
+
+        match expr {
+            FormulaExpr::True | FormulaExpr::False | FormulaExpr::Var(_) => {}
+            FormulaExpr::Prop(atom) => {
+                self.state_atoms.insert(atom.clone());
+            }
+            FormulaExpr::And(left, right)
+            | FormulaExpr::Or(left, right)
+            | FormulaExpr::Implies(left, right)
+            | FormulaExpr::Until(left, right) => {
+                self.visit_expr(left);
+                self.visit_expr(right);
+            }
+            FormulaExpr::Not(inner)
+            | FormulaExpr::Paren(inner)
+            | FormulaExpr::Lfp(_, inner)
+            | FormulaExpr::Gfp(_, inner)
+            | FormulaExpr::Eventually(inner)
+            | FormulaExpr::Always(inner)
+            | FormulaExpr::Next(inner) => {
+                self.visit_expr(inner);
+            }
+            FormulaExpr::Diamond(properties, inner)
+            | FormulaExpr::Box(properties, inner)
+            | FormulaExpr::DiamondBox(properties, inner) => {
+                self.visit_properties(properties);
+                self.visit_expr(inner);
+            }
+        }
+    }
+
+    fn visit_properties(&mut self, properties: &[modality_lang::Property]) {
+        for property in properties {
+            let rendered = render_property_fact(property);
+            if property.is_predicate() {
+                self.predicates.insert(rendered.clone());
+                if is_external_evidence_predicate(&property.name) {
+                    self.external_predicates.insert(rendered);
+                }
+            } else {
+                self.actions.insert(rendered);
+            }
+        }
+    }
+}
+
+fn write_fact_list(output: &mut String, facts: &BTreeSet<String>) {
+    if facts.is_empty() {
+        output.push_str("  - none\n");
+        return;
+    }
+
+    for fact in facts {
+        output.push_str(&format!("  - `{}`\n", fact));
+    }
+}
+
+fn render_property_fact(property: &modality_lang::Property) -> String {
+    let sign = match property.sign {
+        modality_lang::PropertySign::Plus => "+",
+        modality_lang::PropertySign::Minus => "-",
+    };
+
+    if let Some((_, args)) = property.get_predicate() {
+        if let Some(arg) = args.get("arg").and_then(|value| value.as_str()) {
+            return format!(
+                "{}{}({})",
+                sign,
+                modality_lang::ast::predicate_display_name(&property.name),
+                render_predicate_arg(arg)
+            );
+        }
+
+        if let Some(args) = args.get("args").and_then(|value| value.as_array()) {
+            let rendered_args = args
+                .iter()
+                .filter_map(|value| value.as_str())
+                .map(render_predicate_arg)
+                .collect::<Vec<_>>()
+                .join(", ");
+            return format!(
+                "{}{}({})",
+                sign,
+                modality_lang::ast::predicate_display_name(&property.name),
+                rendered_args
+            );
+        }
+    }
+
+    format!("{}{}", sign, property.name)
+}
+
+fn render_predicate_arg(arg: &str) -> String {
+    if is_identifier_arg(arg) || is_path_arg(arg) {
+        arg.to_string()
+    } else {
+        format!("\"{}\"", arg.replace('\\', "\\\\").replace('"', "\\\""))
+    }
+}
+
+fn is_identifier_arg(value: &str) -> bool {
+    let mut chars = value.chars();
+    match chars.next() {
+        Some(first) if first == '_' || first.is_ascii_alphabetic() => {}
+        _ => return false,
+    }
+    chars.all(|ch| ch == '_' || ch.is_ascii_alphanumeric())
+}
+
+fn is_path_arg(value: &str) -> bool {
+    value.starts_with('/')
+        && value
+            .chars()
+            .skip(1)
+            .all(|ch| ch == '_' || ch == '.' || ch == '/' || ch.is_ascii_alphanumeric())
+}
+
+fn is_external_evidence_predicate(name: &str) -> bool {
+    !matches!(
+        name,
+        "signed_by" | "any_signed" | "all_signed" | "threshold" | "modifies" | "adds_rule"
+            | "post_to"
+    )
+}
+
 fn parsed_formula_label(
     input_index: usize,
     parsed_index: usize,
@@ -4373,8 +4529,12 @@ fn format_llm_review_bundle(
     output.push_str("\n```\n\n");
 
     output.push_str("## Extracted Facts\n\n");
-    output.push_str("- Natural-language fact extraction is not available in this path yet.\n");
-    output.push_str("- Review starts from parser-extracted formula candidates below.\n\n");
+    output.push_str("- Extraction source: parser-backed formula AST, not inferred natural language.\n");
+    output.push_str(
+        "- These facts summarize the modal actions, predicates, and opaque atoms that drive the witness search.\n\n",
+    );
+    let facts = FormulaFactSummary::from_formulas(&parsed_input.formulas);
+    facts.write_markdown(&mut output);
 
     output.push_str("## Extracted Formulas\n\n");
     for (index, formula) in extracted_formulas.iter().enumerate() {
@@ -4419,7 +4579,7 @@ fn format_llm_review_bundle(
     output.push_str("- Signature, path, oracle, and external-world facts must be supplied by contract evidence at verification time.\n\n");
 
     output.push_str("## Known Gaps\n\n");
-    output.push_str("- This bundle records formula extraction, not a full NL-to-facts trace.\n");
+    output.push_str("- Natural-language-to-facts extraction is not available in this path yet; the fact summary starts after formula extraction.\n");
     output.push_str("- Passing synthesis proves the witness model satisfies the extracted formulas; it does not prove the extracted formulas capture the original intent.\n");
 
     output
@@ -20190,6 +20350,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             r#"
 F1: always([<+APPROVE>] true)
 F2: [+APPROVE] true -> <+signed_by(/users/reviewer.id)> true
+F3: [+APPROVE] true -> <+oracle_attests(/oracles/review.id, "reviewed", "true")> true
 "#,
         )
         .unwrap();
@@ -20208,6 +20369,14 @@ F2: [+APPROVE] true -> <+signed_by(/users/reviewer.id)> true
         assert!(bundle.contains("# Modality Synthesis Review Bundle"));
         assert!(bundle.contains("## Source"));
         assert!(bundle.contains("## Extracted Facts"));
+        assert!(bundle.contains("- Extraction source: parser-backed formula AST"));
+        assert!(bundle.contains("Action labels:"));
+        assert!(bundle.contains("`+APPROVE`"));
+        assert!(bundle.contains("Predicate calls:"));
+        assert!(bundle.contains("`+signed_by(/users/reviewer.id)`"));
+        assert!(bundle.contains("`+oracle_attests(/oracles/review.id, reviewed, true)`"));
+        assert!(bundle.contains("External evidence predicates:"));
+        assert!(bundle.contains("Opaque witness atoms:"));
         assert!(bundle.contains("## Extracted Formulas"));
         assert!(bundle.contains("## Verifier Result"));
         assert!(bundle.contains("Status: passed (`--verify`)"));
