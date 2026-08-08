@@ -63,6 +63,14 @@ pub struct Opts {
     #[arg(long)]
     pub llm_response_file: Option<PathBuf>,
 
+    /// Original prompt or source text that led to the LLM response
+    #[arg(long)]
+    pub source_text: Option<String>,
+
+    /// File containing original prompt or source text that led to the LLM response
+    #[arg(long)]
+    pub source_file: Option<PathBuf>,
+
     /// Output file path
     #[arg(short, long)]
     pub output: Option<PathBuf>,
@@ -176,6 +184,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     let llm_response =
         load_llm_response(opts.llm_response.as_ref(), opts.llm_response_file.as_ref())?;
+    let review_source = load_review_source(opts.source_text.as_ref(), opts.source_file.as_ref())?;
 
     if opts.verify && !has_verifiable_synthesis_inputs(opts) {
         return Err(anyhow::anyhow!(
@@ -255,6 +264,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             opts.review_bundle.as_ref(),
             &llm_response_source_label(opts),
             llm_response,
+            review_source.as_ref(),
             &formulas,
             &parsed_input,
             &output,
@@ -3126,6 +3136,9 @@ fn synthesis_list_text() -> String {
     output.push_str(
         "  modality model synthesize --llm-response-file response.md --verify --review-bundle review.md\n",
     );
+    output.push_str(
+        "  modality model synthesize --source-file prompt.md --llm-response-file response.md --verify --review-bundle review.md\n",
+    );
 
     output
 }
@@ -3146,6 +3159,32 @@ fn load_llm_response(
         (None, Some(path)) => Ok(Some(std::fs::read_to_string(path).with_context(|| {
             format!("Failed to read LLM response file {}", path.display())
         })?)),
+        (None, None) => Ok(None),
+    }
+}
+
+struct ReviewSource {
+    label: String,
+    content: String,
+}
+
+fn load_review_source(
+    source_text: Option<&String>,
+    source_file: Option<&PathBuf>,
+) -> Result<Option<ReviewSource>> {
+    match (source_text, source_file) {
+        (Some(_), Some(_)) => Err(anyhow::anyhow!(
+            "Use either --source-text or --source-file, not both"
+        )),
+        (Some(content), None) => Ok(Some(ReviewSource {
+            label: "--source-text inline text".to_string(),
+            content: content.clone(),
+        })),
+        (None, Some(path)) => Ok(Some(ReviewSource {
+            label: format!("--source-file {}", path.display()),
+            content: std::fs::read_to_string(path)
+                .with_context(|| format!("Failed to read source file {}", path.display()))?,
+        })),
         (None, None) => Ok(None),
     }
 }
@@ -3172,6 +3211,18 @@ fn has_verifiable_synthesis_inputs(opts: &Opts) -> bool {
 }
 
 fn ensure_review_bundle_mode(opts: &Opts) -> Result<()> {
+    if opts.source_text.is_some() && opts.source_file.is_some() {
+        return Err(anyhow::anyhow!(
+            "Use either --source-text or --source-file, not both"
+        ));
+    }
+
+    if opts.review_bundle.is_none() && (opts.source_text.is_some() || opts.source_file.is_some()) {
+        return Err(anyhow::anyhow!(
+            "--source-text and --source-file require --review-bundle so the original source is captured"
+        ));
+    }
+
     if opts.review_bundle.is_none() {
         return Ok(());
     }
@@ -3237,6 +3288,12 @@ fn list_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     if opts.llm_response_file.is_some() {
         conflicts.push("--llm-response-file");
     }
+    if opts.source_text.is_some() {
+        conflicts.push("--source-text");
+    }
+    if opts.source_file.is_some() {
+        conflicts.push("--source-file");
+    }
     if opts.output.is_some() {
         conflicts.push("--output");
     }
@@ -3282,6 +3339,12 @@ fn prompt_generation_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     }
     if opts.llm_response_file.is_some() {
         conflicts.push("--llm-response-file");
+    }
+    if opts.source_text.is_some() {
+        conflicts.push("--source-text");
+    }
+    if opts.source_file.is_some() {
+        conflicts.push("--source-file");
     }
     if opts.output.is_some() {
         conflicts.push("--output");
@@ -3329,6 +3392,12 @@ fn describe_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     if opts.llm_response_file.is_some() {
         conflicts.push("--llm-response-file");
     }
+    if opts.source_text.is_some() {
+        conflicts.push("--source-text");
+    }
+    if opts.source_file.is_some() {
+        conflicts.push("--source-file");
+    }
     if opts.verify {
         conflicts.push("--verify");
     }
@@ -3372,6 +3441,12 @@ fn template_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     if opts.llm_response_file.is_some() {
         conflicts.push("--llm-response-file");
     }
+    if opts.source_text.is_some() {
+        conflicts.push("--source-text");
+    }
+    if opts.source_file.is_some() {
+        conflicts.push("--source-file");
+    }
     if opts.verify {
         conflicts.push("--verify");
     }
@@ -3414,6 +3489,12 @@ fn formulas_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     }
     if opts.llm_response_file.is_some() {
         conflicts.push("--llm-response-file");
+    }
+    if opts.source_text.is_some() {
+        conflicts.push("--source-text");
+    }
+    if opts.source_file.is_some() {
+        conflicts.push("--source-file");
     }
     if opts.list {
         conflicts.push("--list");
@@ -3460,6 +3541,12 @@ fn rule_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     }
     if opts.llm_response_file.is_some() {
         conflicts.push("--llm-response-file");
+    }
+    if opts.source_text.is_some() {
+        conflicts.push("--source-text");
+    }
+    if opts.source_file.is_some() {
+        conflicts.push("--source-file");
     }
     if opts.list {
         conflicts.push("--list");
@@ -3633,6 +3720,12 @@ fn existing_model_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     }
     if opts.llm_response_file.is_some() {
         conflicts.push("--llm-response-file");
+    }
+    if opts.source_text.is_some() {
+        conflicts.push("--source-text");
+    }
+    if opts.source_file.is_some() {
+        conflicts.push("--source-file");
     }
     if opts.milestones.is_some() {
         conflicts.push("--milestones");
@@ -4484,6 +4577,7 @@ fn write_llm_review_bundle_if_requested(
     review_bundle_path: Option<&PathBuf>,
     source_label: &str,
     source_response: &str,
+    review_source: Option<&ReviewSource>,
     extracted_formulas: &[String],
     parsed_input: &ParsedFormulaInputs,
     model_output: &str,
@@ -4496,6 +4590,7 @@ fn write_llm_review_bundle_if_requested(
     let bundle = format_llm_review_bundle(
         source_label,
         source_response,
+        review_source,
         extracted_formulas,
         parsed_input,
         model_output,
@@ -4513,6 +4608,7 @@ fn write_llm_review_bundle_if_requested(
 fn format_llm_review_bundle(
     source_label: &str,
     source_response: &str,
+    review_source: Option<&ReviewSource>,
     extracted_formulas: &[String],
     parsed_input: &ParsedFormulaInputs,
     model_output: &str,
@@ -4521,7 +4617,22 @@ fn format_llm_review_bundle(
     let mut output = String::new();
     output.push_str("# Modality Synthesis Review Bundle\n\n");
 
-    output.push_str("## Source\n\n");
+    output.push_str("## Original Source\n\n");
+    if let Some(review_source) = review_source {
+        output.push_str(&format!("- Input: `{}`\n", review_source.label));
+        output.push_str(
+            "- Source type: original prompt, source clause, or reviewer-supplied context before formula extraction\n\n",
+        );
+        output.push_str("```text\n");
+        output.push_str(review_source.content.trim());
+        output.push_str("\n```\n\n");
+    } else {
+        output.push_str(
+            "- Not supplied. Use `--source-text` or `--source-file` with `--review-bundle` to capture the prompt or source clause that produced the LLM response.\n\n",
+        );
+    }
+
+    output.push_str("## LLM Response\n\n");
     output.push_str(&format!("- Input: `{}`\n", source_label));
     output.push_str("- Source type: LLM response text supplied by the reviewer\n\n");
     output.push_str("```text\n");
@@ -4579,7 +4690,9 @@ fn format_llm_review_bundle(
     output.push_str("- Signature, path, oracle, and external-world facts must be supplied by contract evidence at verification time.\n\n");
 
     output.push_str("## Known Gaps\n\n");
-    output.push_str("- Natural-language-to-facts extraction is not available in this path yet; the fact summary starts after formula extraction.\n");
+    output.push_str(
+        "- Original source text is captured for review, but natural-language-to-facts extraction is not available in this path yet; the fact summary starts after formula extraction.\n",
+    );
     output.push_str("- Passing synthesis proves the witness model satisfies the extracted formulas; it does not prove the extracted formulas capture the original intent.\n");
 
     output
@@ -4703,6 +4816,8 @@ mod tests {
             generate_prompt: false,
             llm_response: None,
             llm_response_file: None,
+            source_text: None,
+            source_file: None,
             output: None,
             review_bundle: None,
             verify: false,
@@ -20345,6 +20460,10 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "modality-synthesize-review-bundle-{}.md",
             std::process::id()
         ));
+        let source_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-review-source-{}.md",
+            std::process::id()
+        ));
         std::fs::write(
             &response_path,
             r#"
@@ -20354,9 +20473,15 @@ F3: [+APPROVE] true -> <+oracle_attests(/oracles/review.id, "reviewed", "true")>
 "#,
         )
         .unwrap();
+        std::fs::write(
+            &source_path,
+            "When an approval is recorded, require reviewer signature and review oracle evidence.",
+        )
+        .unwrap();
 
         let mut opts = default_test_opts();
         opts.llm_response_file = Some(response_path.clone());
+        opts.source_file = Some(source_path.clone());
         opts.review_bundle = Some(review_path.clone());
         opts.verify = true;
 
@@ -20364,10 +20489,14 @@ F3: [+APPROVE] true -> <+oracle_attests(/oracles/review.id, "reviewed", "true")>
 
         let bundle = std::fs::read_to_string(&review_path).unwrap();
         std::fs::remove_file(response_path).unwrap();
+        std::fs::remove_file(&source_path).unwrap();
         std::fs::remove_file(review_path).unwrap();
 
         assert!(bundle.contains("# Modality Synthesis Review Bundle"));
-        assert!(bundle.contains("## Source"));
+        assert!(bundle.contains("## Original Source"));
+        assert!(bundle.contains(&format!("- Input: `--source-file {}`", source_path.display())));
+        assert!(bundle.contains("require reviewer signature and review oracle evidence"));
+        assert!(bundle.contains("## LLM Response"));
         assert!(bundle.contains("## Extracted Facts"));
         assert!(bundle.contains("- Extraction source: parser-backed formula AST"));
         assert!(bundle.contains("Action labels:"));
