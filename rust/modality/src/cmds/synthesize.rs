@@ -67,6 +67,10 @@ pub struct Opts {
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
+    /// Write a review bundle for verified LLM-response synthesis
+    #[arg(long)]
+    pub review_bundle: Option<PathBuf>,
+
     /// Verify parser-backed synthesized models against their input formulas
     #[arg(long)]
     pub verify: bool,
@@ -94,6 +98,7 @@ pub struct Opts {
 
 pub async fn run(opts: &Opts) -> Result<()> {
     ensure_output_format_is_supported(&opts.format)?;
+    ensure_review_bundle_mode(opts)?;
 
     if has_existing_model_inputs(opts) {
         return run_existing_model_synthesis(opts);
@@ -246,6 +251,15 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("{}", output);
 
         write_output_file_if_requested(&output, opts.output.as_ref())?;
+        write_llm_review_bundle_if_requested(
+            opts.review_bundle.as_ref(),
+            &llm_response_source_label(opts),
+            llm_response,
+            &formulas,
+            &parsed_input,
+            &output,
+            &opts.format,
+        )?;
 
         return Ok(());
     }
@@ -3109,6 +3123,9 @@ fn synthesis_list_text() -> String {
         "  modality model synthesize --describe \"escrow where buyer deposits funds\" --generate-prompt\n",
     );
     output.push_str("  modality model synthesize --llm-response-file response.md --verify\n");
+    output.push_str(
+        "  modality model synthesize --llm-response-file response.md --verify --review-bundle review.md\n",
+    );
 
     output
 }
@@ -3133,6 +3150,16 @@ fn load_llm_response(
     }
 }
 
+fn llm_response_source_label(opts: &Opts) -> String {
+    if opts.llm_response.is_some() {
+        "--llm-response inline text".to_string()
+    } else if let Some(path) = &opts.llm_response_file {
+        format!("--llm-response-file {}", path.display())
+    } else {
+        "--llm-response source unknown".to_string()
+    }
+}
+
 fn has_existing_model_inputs(opts: &Opts) -> bool {
     opts.existing_model.is_some() || opts.proposed_formula.is_some() || opts.proposed_rule.is_some()
 }
@@ -3142,6 +3169,26 @@ fn has_verifiable_synthesis_inputs(opts: &Opts) -> bool {
         || opts.rule.is_some()
         || opts.llm_response.is_some()
         || opts.llm_response_file.is_some()
+}
+
+fn ensure_review_bundle_mode(opts: &Opts) -> Result<()> {
+    if opts.review_bundle.is_none() {
+        return Ok(());
+    }
+
+    if opts.llm_response.is_none() && opts.llm_response_file.is_none() {
+        return Err(anyhow::anyhow!(
+            "--review-bundle requires --llm-response or --llm-response-file"
+        ));
+    }
+
+    if !opts.verify {
+        return Err(anyhow::anyhow!(
+            "--review-bundle requires --verify so the bundle includes a parser-backed verifier result"
+        ));
+    }
+
+    Ok(())
 }
 
 fn ensure_output_format_is_supported(format: &str) -> Result<()> {
@@ -3193,6 +3240,9 @@ fn list_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     if opts.output.is_some() {
         conflicts.push("--output");
     }
+    if opts.review_bundle.is_some() {
+        conflicts.push("--review-bundle");
+    }
     if opts.verify {
         conflicts.push("--verify");
     }
@@ -3235,6 +3285,9 @@ fn prompt_generation_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     }
     if opts.output.is_some() {
         conflicts.push("--output");
+    }
+    if opts.review_bundle.is_some() {
+        conflicts.push("--review-bundle");
     }
     if opts.verify {
         conflicts.push("--verify");
@@ -3364,6 +3417,9 @@ fn formulas_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     }
     if opts.list {
         conflicts.push("--list");
+    }
+    if opts.review_bundle.is_some() {
+        conflicts.push("--review-bundle");
     }
     if opts.milestones.is_some() {
         conflicts.push("--milestones");
@@ -4268,6 +4324,107 @@ fn write_or_print_model(output: &str, output_path: Option<&PathBuf>) -> Result<(
     Ok(())
 }
 
+fn write_llm_review_bundle_if_requested(
+    review_bundle_path: Option<&PathBuf>,
+    source_label: &str,
+    source_response: &str,
+    extracted_formulas: &[String],
+    parsed_input: &ParsedFormulaInputs,
+    model_output: &str,
+    model_format: &str,
+) -> Result<()> {
+    let Some(review_bundle_path) = review_bundle_path else {
+        return Ok(());
+    };
+
+    let bundle = format_llm_review_bundle(
+        source_label,
+        source_response,
+        extracted_formulas,
+        parsed_input,
+        model_output,
+        model_format,
+    );
+    write_output_file(&bundle, review_bundle_path)?;
+    println!(
+        "✅ Synthesis review bundle written to {}",
+        review_bundle_path.display()
+    );
+
+    Ok(())
+}
+
+fn format_llm_review_bundle(
+    source_label: &str,
+    source_response: &str,
+    extracted_formulas: &[String],
+    parsed_input: &ParsedFormulaInputs,
+    model_output: &str,
+    model_format: &str,
+) -> String {
+    let mut output = String::new();
+    output.push_str("# Modality Synthesis Review Bundle\n\n");
+
+    output.push_str("## Source\n\n");
+    output.push_str(&format!("- Input: `{}`\n", source_label));
+    output.push_str("- Source type: LLM response text supplied by the reviewer\n\n");
+    output.push_str("```text\n");
+    output.push_str(source_response.trim());
+    output.push_str("\n```\n\n");
+
+    output.push_str("## Extracted Facts\n\n");
+    output.push_str("- Natural-language fact extraction is not available in this path yet.\n");
+    output.push_str("- Review starts from parser-extracted formula candidates below.\n\n");
+
+    output.push_str("## Extracted Formulas\n\n");
+    for (index, formula) in extracted_formulas.iter().enumerate() {
+        output.push_str(&format!("{}. `{}`\n", index + 1, formula_preview(formula)));
+    }
+    output.push('\n');
+
+    output.push_str("## Parser Result\n\n");
+    output.push_str(&format!(
+        "- Parsed formulas: {}\n",
+        parsed_input.formulas.len()
+    ));
+    output.push_str(&format!(
+        "- Unparsed formulas: {}\n",
+        parsed_input.unparsed.len()
+    ));
+    if !parsed_input.labels.is_empty() {
+        output.push_str("- Parsed labels:\n");
+        for label in &parsed_input.labels {
+            output.push_str(&format!("  - {}\n", label));
+        }
+    }
+    if !parsed_input.unparsed.is_empty() {
+        output.push_str("- Unparsed details:\n");
+        for detail in &parsed_input.unparsed {
+            output.push_str(&format!("  - {}\n", detail));
+        }
+    }
+    output.push('\n');
+
+    output.push_str("## Verifier Result\n\n");
+    output.push_str("- Status: passed (`--verify`)\n");
+    output.push_str("- Scope: synthesized witness model checked against every parser-backed extracted formula\n\n");
+
+    output.push_str("## Witness Model\n\n");
+    output.push_str(&format!("```{}\n", model_format));
+    output.push_str(model_output.trim());
+    output.push_str("\n```\n\n");
+
+    output.push_str("## Assumptions\n\n");
+    output.push_str("- Predicate meanings come from the runtime predicate library, not from the LLM response.\n");
+    output.push_str("- Signature, path, oracle, and external-world facts must be supplied by contract evidence at verification time.\n\n");
+
+    output.push_str("## Known Gaps\n\n");
+    output.push_str("- This bundle records formula extraction, not a full NL-to-facts trace.\n");
+    output.push_str("- Passing synthesis proves the witness model satisfies the extracted formulas; it does not prove the extracted formulas capture the original intent.\n");
+
+    output
+}
+
 fn write_output_file_if_requested(output: &str, output_path: Option<&PathBuf>) -> Result<()> {
     if let Some(output_path) = output_path {
         write_output_file(output, output_path)?;
@@ -4387,6 +4544,7 @@ mod tests {
             llm_response: None,
             llm_response_file: None,
             output: None,
+            review_bundle: None,
             verify: false,
             party_a: "Alice".to_string(),
             party_b: "Bob".to_string(),
@@ -6060,6 +6218,15 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
                 );
             }
         }
+    }
+
+    #[test]
+    fn synthesis_list_includes_review_bundle_example() {
+        let output = synthesis_list_text();
+
+        assert!(output.contains(
+            "modality model synthesize --llm-response-file response.md --verify --review-bundle review.md"
+        ));
     }
 
     #[test]
@@ -20006,6 +20173,68 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         assert!(output.contains("+REVIEW"));
         assert!(output.contains("+WAIT"));
         assert!(output.contains("+ARCHIVE"));
+    }
+
+    #[tokio::test]
+    async fn llm_response_file_verify_writes_review_bundle() {
+        let response_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-review-response-{}.md",
+            std::process::id()
+        ));
+        let review_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-review-bundle-{}.md",
+            std::process::id()
+        ));
+        std::fs::write(
+            &response_path,
+            r#"
+F1: always([<+APPROVE>] true)
+F2: [+APPROVE] true -> <+signed_by(/users/reviewer.id)> true
+"#,
+        )
+        .unwrap();
+
+        let mut opts = default_test_opts();
+        opts.llm_response_file = Some(response_path.clone());
+        opts.review_bundle = Some(review_path.clone());
+        opts.verify = true;
+
+        run(&opts).await.unwrap();
+
+        let bundle = std::fs::read_to_string(&review_path).unwrap();
+        std::fs::remove_file(response_path).unwrap();
+        std::fs::remove_file(review_path).unwrap();
+
+        assert!(bundle.contains("# Modality Synthesis Review Bundle"));
+        assert!(bundle.contains("## Source"));
+        assert!(bundle.contains("## Extracted Facts"));
+        assert!(bundle.contains("## Extracted Formulas"));
+        assert!(bundle.contains("## Verifier Result"));
+        assert!(bundle.contains("Status: passed (`--verify`)"));
+        assert!(bundle.contains("## Witness Model"));
+        assert!(bundle.contains("model Contract"));
+        assert!(bundle.contains("## Assumptions"));
+        assert!(bundle.contains("## Known Gaps"));
+    }
+
+    #[tokio::test]
+    async fn review_bundle_requires_verified_llm_response_mode() {
+        let mut opts = default_test_opts();
+        opts.formulas = Some("always([<+APPROVE>] true)".to_string());
+        opts.review_bundle = Some(PathBuf::from("review.md"));
+        opts.verify = true;
+
+        let err = run(&opts).await.unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("--review-bundle requires --llm-response or --llm-response-file"));
+
+        let mut opts = default_test_opts();
+        opts.llm_response = Some("F1: always([<+APPROVE>] true)".to_string());
+        opts.review_bundle = Some(PathBuf::from("review.md"));
+
+        let err = run(&opts).await.unwrap_err();
+        assert!(err.to_string().contains("--review-bundle requires --verify"));
     }
 
     #[tokio::test]
