@@ -5,7 +5,7 @@ use modal_common::model_diagnostics::{
     FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
 };
 use modality_lang::{
-    parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Property, PropertySign,
+    parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Part, Property, PropertySign,
     PropertySource, Transition,
 };
 use serde_json::Value;
@@ -80,20 +80,23 @@ fn replay_history_to_current_state(
             continue;
         }
 
-        let new_rules = anchored_rules_from_commit(&commit, commit_index, &current_states)?;
-        for rule in &new_rules {
-            validate_anchored_rule(model, rule)?;
-        }
-        anchored_rules.extend(new_rules);
-
         let facts = CommitFacts::from_commit(&commit, &state);
-        current_states =
-            next_states_for_commit(model, &current_states, &facts).ok_or_else(|| {
+        let next_states = next_states_for_commit(model, &current_states, &facts)
+            .or_else(|| commit_contains_rule(&commit).then(|| current_states.clone()))
+            .ok_or_else(|| {
                 anyhow::anyhow!(
                     "Existing commit cannot be replayed against governing model: {}",
                     explain_no_valid_transition(model, &current_states, &facts)
                 )
             })?;
+
+        let new_rules = anchored_rules_from_commit(&commit, commit_index, &next_states)?;
+        for rule in &new_rules {
+            validate_anchored_rule(model, rule)?;
+        }
+        anchored_rules.extend(new_rules);
+
+        current_states = next_states;
         apply_commit_to_state(&commit, &mut state);
     }
 
@@ -112,6 +115,13 @@ fn load_commits_oldest_first(store: &ContractStore) -> Result<Vec<CommitFile>> {
 
     commits.reverse();
     Ok(commits)
+}
+
+fn commit_contains_rule(commit: &CommitFile) -> bool {
+    commit
+        .body
+        .iter()
+        .any(|action| action.method.eq_ignore_ascii_case("rule"))
 }
 
 fn next_states_for_commit(
@@ -179,7 +189,7 @@ fn anchored_rules_from_commit(
 }
 
 fn validate_anchored_rule(model: &Model, rule: &AnchoredRule) -> Result<()> {
-    let checker = ModelChecker::new(model.clone());
+    let checker = ModelChecker::new(model_for_rule_checking(model));
 
     for state in &rule.anchor_states {
         let result = checker.check_formula_at_state(&rule.formula, state);
@@ -198,6 +208,20 @@ fn validate_anchored_rule(model: &Model, rule: &AnchoredRule) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn model_for_rule_checking(model: &Model) -> Model {
+    if model.transitions.is_empty() {
+        return model.clone();
+    }
+
+    let mut normalized = model.clone();
+    let mut part = Part::new("default".to_string());
+    for transition in &model.transitions {
+        part.add_transition(transition.clone());
+    }
+    normalized.parts.push(part);
+    normalized
 }
 
 fn parse_rule_formula(rule_content: &str) -> Result<Option<(Formula, String)>> {
@@ -422,7 +446,7 @@ fn explain_formula_failure_diagnostic(
 }
 
 fn formula_expr_holds_at(model: &Model, expr: &FormulaExpr, state: &str) -> bool {
-    let checker = ModelChecker::new(model.clone());
+    let checker = ModelChecker::new(model_for_rule_checking(model));
     let formula = Formula::new("diagnostic".to_string(), expr.clone());
     checker.check_formula_at_state(&formula, state).is_satisfied
 }
@@ -706,7 +730,7 @@ fn transition_matches_formula_properties(transition: &Transition, properties: &[
 }
 
 fn satisfying_node_names(model: &Model, expr: &FormulaExpr) -> Vec<String> {
-    let checker = ModelChecker::new(model.clone());
+    let checker = ModelChecker::new(model_for_rule_checking(model));
     let formula = Formula::new("diagnostic".to_string(), expr.clone());
     let mut nodes = checker
         .check_formula_any_state(&formula)
@@ -1394,6 +1418,92 @@ model ReplayCurrent {
             "{err}"
         );
         assert!(!err.to_string().contains("q0 -> q1"), "{err}");
+
+        Ok(())
+    }
+
+    #[test]
+    fn anchors_bootstrap_rule_after_installing_initial_model() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let store = ContractStore::init(temp_dir.path(), "contract_id".to_string())?;
+
+        let bootstrap_model = r#"
+model FirstContract {
+  initial q0
+  q0 --> q1: +POST +MODEL
+  q1 --> q1: +POST +signed_by(/parties/alice.id)
+  q1 --> q1: +POST +signed_by(/parties/bob.id)
+  q1 --> q1: +MODEL +signed_by(/parties/alice.id)
+}
+        "#;
+        let bootstrap_rule = r#"
+export default rule {
+  formula {
+    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+  }
+}
+        "#;
+
+        let mut bootstrap = CommitFile::new();
+        bootstrap.add_action(
+            "post".to_string(),
+            Some("/parties/alice.id".to_string()),
+            Value::String("alice_key".to_string()),
+        );
+        bootstrap.add_action(
+            "post".to_string(),
+            Some("/parties/bob.id".to_string()),
+            Value::String("bob_key".to_string()),
+        );
+        bootstrap.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(bootstrap_model.to_string()),
+        );
+        bootstrap.add_action(
+            "rule".to_string(),
+            Some("/rules/authorized.modality".to_string()),
+            Value::String(bootstrap_rule.to_string()),
+        );
+        bootstrap.head.signatures = Some(serde_json::json!({
+            "alice_key": "sig"
+        }));
+        store.save_commit("bootstrap", &bootstrap)?;
+        store.set_head("bootstrap")?;
+
+        let mut signed_post = CommitFile::with_parent("bootstrap".to_string());
+        signed_post.add_action(
+            "post".to_string(),
+            Some("/notes/signed.text".to_string()),
+            Value::String("signed".to_string()),
+        );
+        signed_post.head.signatures = Some(serde_json::json!({
+            "alice_key": "sig"
+        }));
+
+        validate_pending_commit(bootstrap_model, &store, &signed_post)?;
+
+        let mut unsigned_post = CommitFile::with_parent("bootstrap".to_string());
+        unsigned_post.add_action(
+            "post".to_string(),
+            Some("/notes/unsigned.text".to_string()),
+            Value::String("unsigned".to_string()),
+        );
+
+        let err = validate_pending_commit(bootstrap_model, &store, &unsigned_post)
+            .expect_err("unsigned post-bootstrap commit should be rejected");
+
+        assert!(err.to_string().contains("current states {\"q1\"}"), "{err}");
+        assert!(
+            err.to_string()
+                .contains("missing +signed_by(/parties/alice.id)"),
+            "{err}"
+        );
+        assert!(
+            err.to_string()
+                .contains("missing +signed_by(/parties/bob.id)"),
+            "{err}"
+        );
 
         Ok(())
     }

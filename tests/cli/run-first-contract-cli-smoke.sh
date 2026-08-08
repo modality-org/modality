@@ -87,4 +87,28 @@ grep -q "Signatures: 1" "$TMP_DIR/log.txt"
 grep -q "$ALICE_ID" "$TMP_DIR/log.txt"
 grep -q '\[\] always' "$CONTRACT_DIR/rules/authorized.modality"
 
+"$MODAL_BIN" c commit \
+  --path /notes.text \
+  --value "signed update" \
+  --dir "$CONTRACT_DIR" \
+  --sign "$ALICE_PASSFILE" \
+  --output json \
+  --message "Signed update" >"$TMP_DIR/signed-post.json"
+
+grep -q '"status": "committed"' "$TMP_DIR/signed-post.json"
+
+if "$MODAL_BIN" c commit \
+  --path /unsigned.text \
+  --value "unsigned update" \
+  --dir "$CONTRACT_DIR" \
+  --output json \
+  --message "Unsigned update" >"$TMP_DIR/unsigned-post.json" 2>"$TMP_DIR/unsigned-post.err"; then
+  echo "expected unsigned post-bootstrap commit to fail" >&2
+  exit 1
+fi
+
+grep -q 'current states {"q1"}' "$TMP_DIR/unsigned-post.err"
+grep -q "missing +signed_by(/parties/alice.id)" "$TMP_DIR/unsigned-post.err"
+grep -q "missing +signed_by(/parties/bob.id)" "$TMP_DIR/unsigned-post.err"
+
 echo "first-contract CLI smoke passed"
