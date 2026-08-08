@@ -1011,9 +1011,7 @@ fn transition_failures(properties: &[Property], facts: &CommitFacts) -> Vec<Stri
         .filter_map(|property| {
             let holds = facts.predicate_holds(property);
             match property.sign {
-                PropertySign::Plus if !holds => {
-                    Some(format!("missing {}", format_property(property)))
-                }
+                PropertySign::Plus if !holds => Some(facts.missing_predicate_message(property)),
                 PropertySign::Minus if holds => {
                     Some(format!("forbidden {} matched", format_property(property)))
                 }
@@ -1158,6 +1156,26 @@ impl CommitFacts {
         }
     }
 
+    fn missing_predicate_message(&self, property: &Property) -> String {
+        let formatted = format_property(property);
+        if property.name == "signed_by" {
+            if let Some(path) = predicate_args(property).first() {
+                let normalized = normalize_path(path);
+                if self
+                    .modified_paths
+                    .iter()
+                    .any(|modified| modified == &normalized)
+                {
+                    return format!(
+                        "missing {formatted} (this commit writes {path}; signed_by checks previously committed state, so commit identity evidence before depending on it)"
+                    );
+                }
+            }
+        }
+
+        format!("missing {formatted}")
+    }
+
     fn member_values<'a>(&'a self, path: &'a str) -> impl Iterator<Item = String> + 'a {
         let prefix = normalize_path(path);
         self.state.iter().filter_map(move |(key, value)| {
@@ -1280,6 +1298,57 @@ model MembersOnly {
             err.find("forbidden -modifies(/members) matched").unwrap()
                 < err.find("missing +all_signed(/members)").unwrap(),
             "closest candidate should appear before farther candidate: {err}"
+        );
+    }
+
+    #[test]
+    fn explains_signed_by_identity_bootstrap_ordering() {
+        let model = parse_content_lalrpop(
+            r#"
+model Bootstrap {
+  initial q0
+  q0 --> q1: +MODEL +signed_by(/parties/alice.id)
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("q0".to_string());
+        let state = HashMap::new();
+
+        let mut commit = CommitFile::new();
+        commit.add_action(
+            "post".to_string(),
+            Some("/parties/alice.id".to_string()),
+            Value::String("alice_key".to_string()),
+        );
+        commit.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String("model Bootstrap {}".to_string()),
+        );
+        commit.head.signatures = Some(serde_json::json!({
+            "alice_key": "sig"
+        }));
+        let facts = CommitFacts::from_commit(&commit, &state);
+
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+
+        assert!(
+            err.contains("missing +signed_by(/parties/alice.id)"),
+            "{err}"
+        );
+        assert!(
+            err.contains("this commit writes /parties/alice.id"),
+            "{err}"
+        );
+        assert!(
+            err.contains("signed_by checks previously committed state"),
+            "{err}"
+        );
+        assert!(
+            err.contains("commit identity evidence before depending on it"),
+            "{err}"
         );
     }
 
