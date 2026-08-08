@@ -47,6 +47,34 @@ BOB_ID="$("$MODAL_BIN" id get --path "$BOB_PASSFILE")"
   --dir "$CONTRACT_DIR" \
   --sign "$ALICE_PASSFILE" \
   --output json \
+  --message "Add party identities" >/dev/null
+
+cat >"$CONTRACT_DIR/model/default.modality" <<'EOF'
+export default model {
+  initial q0
+
+  q0 -> q1 [+POST]
+  q1 -> q2 [+MODEL +signed_by(/parties/alice.id)]
+  q2 -> q2 [+signed_by(/parties/alice.id)]
+  q2 -> q2 [+signed_by(/parties/bob.id)]
+}
+EOF
+
+mkdir -p "$CONTRACT_DIR/rules"
+cat >"$CONTRACT_DIR/rules/authorized.modality" <<'EOF'
+export default rule {
+  starting_at $PARENT
+  formula {
+    always(+signed_by(/parties/alice.id) | +signed_by(/parties/bob.id))
+  }
+}
+EOF
+
+"$MODAL_BIN" c commit \
+  --all \
+  --dir "$CONTRACT_DIR" \
+  --sign "$ALICE_PASSFILE" \
+  --output json \
   --message "Initial contract setup" >/dev/null
 
 "$MODAL_BIN" c status --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/status.json"
@@ -55,11 +83,13 @@ BOB_ID="$("$MODAL_BIN" id get --path "$BOB_PASSFILE")"
 
 grep -q "$ALICE_ID" "$CONTRACT_DIR/state/parties/alice.id"
 grep -q "$BOB_ID" "$CONTRACT_DIR/state/parties/bob.id"
-grep -q '"total_commits": 2' "$TMP_DIR/status.json"
+grep -q '"total_commits": 3' "$TMP_DIR/status.json"
 grep -q '"commits":' "$TMP_DIR/log.json"
+grep -q '"message": "Add party identities"' "$TMP_DIR/log.json"
 grep -q '"message": "Initial contract setup"' "$TMP_DIR/log.json"
-grep -q '"signature_count": 1' "$TMP_DIR/log.json"
+grep -Eq '"signature_count": 1' "$TMP_DIR/log.json"
 grep -q "$ALICE_ID" "$TMP_DIR/log.json"
+grep -q "Message: Add party identities" "$TMP_DIR/log.txt"
 grep -q "Message: Initial contract setup" "$TMP_DIR/log.txt"
 grep -q "Signatures: 1" "$TMP_DIR/log.txt"
 grep -q "$ALICE_ID" "$TMP_DIR/log.txt"

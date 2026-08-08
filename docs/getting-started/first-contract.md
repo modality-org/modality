@@ -39,6 +39,13 @@ modal c set-named-id /parties/bob.id bob.mod_passfile
 
 This records Alice and Bob's public identities in the contract state.
 
+Commit the identities before adding signature-guarded model transitions. The
+model will look up signer IDs from committed state.
+
+```bash
+modal c commit --all --sign alice.mod_passfile -m "Add party identities"
+```
+
 ## 4. Define the Witness Model
 
 Replace `model/default.modality` with the following Modality code. This is file
@@ -48,15 +55,18 @@ content, not a terminal command.
 export default model {
   initial q0
 
-  q0 -> q1 [+signed_by(/parties/alice.id)]
-  q1 -> q2 [+signed_by(/parties/bob.id)]
+  q0 -> q1 [+POST]
+  q1 -> q2 [+MODEL +signed_by(/parties/alice.id)]
   q2 -> q2 [+signed_by(/parties/alice.id)]
   q2 -> q2 [+signed_by(/parties/bob.id)]
 }
 ```
 
 `q0`, `q1`, and `q2` are witness nodes. The predicates on each transition say
-which signatures are required as the contract evolves.
+which evidence is required as the contract evolves. The first transition admits
+the identity bootstrap commit. The authorization rule below starts after that
+bootstrap point, so later model replacement and state commits require Alice or
+Bob.
 
 ## 5. Add Protection Rules
 
@@ -90,7 +100,8 @@ modal c status
 modal c log
 ```
 
-`modal c log` should show Alice's signer ID and the commit message.
+`modal c log` should show Alice's signer ID plus both commit messages:
+`Add party identities` and `Initial contract setup`.
 
 ## What's Next?
 
