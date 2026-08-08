@@ -5,120 +5,92 @@ title: Your First Contract
 
 # Your First Contract
 
-This page tracks the canonical first-contract path. Today, the verified path is
-source-built and uses the language/model CLI against a parser-backed witness
-model. The local contract-log workflow is verified through the source-built
-lean `modal` wrapper and through a temporary Cargo-installed lean wrapper.
+This page walks through creating a small local contract with the `modal`
+contract CLI. If you only have a `modality` command, install `modal` from the
+[installation guide](./installation.md) first.
 
-## 1. Run the Verified Source Check
+## 1. Create a Contract
 
 ```bash
-git clone https://github.com/modality-org/modality.git
-cd modality/tests/language
-./run-onboarding-tests.sh
+mkdir my-first-contract
+cd my-first-contract
+modal contract create
 ```
 
-The smoke test builds the Rust language CLI from source and validates the
-first-contract fixture. Passing output includes:
+This creates a `.contract/` directory and a starter `model/default.modality`
+file.
 
-```text
-Parts: 1
-Transitions: 4
-Contract is valid!
-All properties are predicates (verifiable).
+## 2. Create Identities
+
+```bash
+modal id create --path alice.mod_passfile
+modal id create --path bob.mod_passfile
 ```
 
-## 2. Inspect the Witness Model
+The passfiles contain private keys. Keep them local and do not commit them.
 
-The smoke test validates `tests/language/03-first-contract/first-contract.modality`:
+## 3. Add Identities to Contract State
+
+```bash
+modal c checkout
+modal c set-named-id /parties/alice.id alice.mod_passfile
+modal c set-named-id /parties/bob.id bob.mod_passfile
+```
+
+This records Alice and Bob's public identities in the contract state.
+
+## 4. Define the Witness Model
+
+Replace `model/default.modality` with the following Modality code. This is file
+content, not a terminal command.
 
 ```modality
-model FirstContract {
+export default model {
   initial q0
 
-  part flow {
-    q0 --> q1: +signed_by(/parties/alice.id)
-    q1 --> q2: +signed_by(/parties/bob.id)
-    q2 --> q2: +signed_by(/parties/alice.id)
-    q2 --> q2: +signed_by(/parties/bob.id)
+  q0 -> q1 [+signed_by(/parties/alice.id)]
+  q1 -> q2 [+signed_by(/parties/bob.id)]
+  q2 -> q2 [+signed_by(/parties/alice.id)]
+  q2 -> q2 [+signed_by(/parties/bob.id)]
+}
+```
+
+`q0`, `q1`, and `q2` are witness nodes. The predicates on each transition say
+which signatures are required as the contract evolves.
+
+## 5. Add Protection Rules
+
+Create the `rules/` directory:
+
+```bash
+mkdir -p rules
+```
+
+Then create `rules/authorized.modality` with the following Modality code. This
+is also file content, not a terminal command.
+
+```modality
+export default rule {
+  starting_at $PARENT
+  formula {
+    always(+signed_by(/parties/alice.id) | +signed_by(/parties/bob.id))
   }
 }
 ```
 
-`q0`, `q1`, and `q2` are opaque witness nodes. The contract meaning lives on
-the labelled transitions and predicates, here the required signatures for Alice
-and Bob.
+This rule says every valid model must require commits to be signed by Alice or
+Bob. At commit time, the transition predicates in `model/default.modality` are
+what the verifier checks against the signed commit.
 
-## 3. Run the Underlying CLI Command
-
-```bash
-cd modality/rust
-cargo run -q -p modality -- model validate \
-  ../tests/language/03-first-contract/first-contract.modality \
-  --verbose
-```
-
-This is the source-built language/model CLI, not the installed contract CLI.
-
-## Contract CLI Path
-
-The intended contract-log flow uses `modal` commands to create a contract,
-create identities, commit state, and inspect the log. The source-built command
-modules and lean wrapper now have regression coverage for this local
-identity-backed flow, including source-built and temporary Cargo-installed
-debug and release wrappers.
-
-To run the current onboarding smoke bundle:
+## 6. Commit and Verify
 
 ```bash
-cd modality
-tests/run-onboarding-smokes.sh
-```
-
-That bundle always runs the parser-backed first-contract language check. If a
-source-built `rust/target/debug/modal` exists, it also runs the contract-log
-wrapper smoke; otherwise it prints the exact build command for enabling that
-second check. To build and run the lean wrapper path in one command:
-
-```bash
-MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh
-```
-
-To install the same lean wrapper into a temporary Cargo root and verify the
-installed binary:
-
-```bash
-MODAL_ONBOARDING_INSTALL=1 tests/run-onboarding-smokes.sh
-```
-
-To run only the source-built wrapper smoke:
-
-```bash
-cd modality/rust
-cargo build -p modal --no-default-features --features contract-onboarding
-cd ..
-tests/cli/run-first-contract-cli-smoke.sh
-```
-
-The target shape is:
-
-```bash
-mkdir my-contract && cd my-contract
-modal contract create
-modal id create --path alice.mod_passfile
-modal id create --path bob.mod_passfile
-modal c checkout
-modal c set-named-id /parties/alice.id alice.mod_passfile
-modal c set-named-id /parties/bob.id bob.mod_passfile
 modal c commit --all --sign alice.mod_passfile -m "Initial contract setup"
 modal c status
 modal c log
 ```
 
-The smoke checks both JSON and text log output for Alice's signer ID and the
-commit message, so the plain `modal c log` command above must show the visible
-authority evidence and human-readable commit context a new user needs to confirm
-the signed commit.
+`modal c log` should show Alice's signer ID and the commit message.
 
 ## What's Next?
 
