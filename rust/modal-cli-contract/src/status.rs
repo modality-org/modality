@@ -5,9 +5,6 @@ use std::path::PathBuf;
 
 use modal_common::contract_store::ContractStore;
 
-#[cfg(feature = "model-status")]
-use modality_lang::parse_content_lalrpop;
-
 #[derive(Debug, Parser)]
 #[command(about = "Show contract status")]
 pub struct Opts {
@@ -56,13 +53,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         #[cfg(feature = "model-status")]
         {
             let model_content = std::fs::read_to_string(&model_path)?;
-            match parse_content_lalrpop(&model_content) {
-                Ok(model) => {
-                    let initial = model.initial.clone().unwrap_or_else(|| "init".to_string());
-                    Some(initial)
-                }
-                Err(_) => None,
-            }
+            crate::model_governance::current_model_state_labels(&model_content, &store)
+                .ok()
+                .map(|states| states.join(", "))
         }
         #[cfg(not(feature = "model-status"))]
         {
@@ -220,4 +213,3 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     Ok(())
 }
-

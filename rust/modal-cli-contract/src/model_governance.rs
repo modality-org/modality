@@ -56,6 +56,21 @@ pub fn latest_accepted_model_content(store: &ContractStore) -> Result<Option<Str
     Ok(None)
 }
 
+pub fn current_model_state_labels(
+    fallback_model_content: &str,
+    store: &ContractStore,
+) -> Result<Vec<String>> {
+    let governing_model =
+        latest_accepted_model_content(store)?.unwrap_or_else(|| fallback_model_content.to_string());
+    let model = parse_content_lalrpop(&governing_model)
+        .map_err(|err| anyhow::anyhow!("Invalid governing model syntax: {}", err))?;
+    let (current_states, _state, _anchored_rules) = replay_history_to_current_state(&model, store)?;
+
+    let mut states = current_states.into_iter().collect::<Vec<_>>();
+    states.sort();
+    Ok(states)
+}
+
 fn pending_model_content(commit: &CommitFile) -> Option<&str> {
     commit.body.iter().rev().find_map(|action| {
         if action.method.eq_ignore_ascii_case("model") {
@@ -1547,6 +1562,41 @@ model Second {
             latest_accepted_model_content(&store)?.as_deref(),
             Some(second_model)
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn reports_current_model_state_from_replayed_history() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let store = ContractStore::init(temp_dir.path(), "contract_id".to_string())?;
+
+        let model = r#"
+model FirstContract {
+  initial q0
+  q0 --> q1: +POST +MODEL
+  q1 --> q1: +POST +signed_by(/parties/alice.id)
+}
+        "#;
+
+        let mut bootstrap = CommitFile::new();
+        bootstrap.add_action(
+            "post".to_string(),
+            Some("/parties/alice.id".to_string()),
+            Value::String("alice_key".to_string()),
+        );
+        bootstrap.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(model.to_string()),
+        );
+        bootstrap.head.signatures = Some(serde_json::json!({
+            "alice_key": "sig"
+        }));
+        store.save_commit("bootstrap", &bootstrap)?;
+        store.set_head("bootstrap")?;
+
+        assert_eq!(current_model_state_labels(model, &store)?, vec!["q1"]);
 
         Ok(())
     }

@@ -78,6 +78,7 @@ EOF
 grep -q "$ALICE_ID" "$CONTRACT_DIR/state/parties/alice.id"
 grep -q "$BOB_ID" "$CONTRACT_DIR/state/parties/bob.id"
 grep -q '"total_commits": 2' "$TMP_DIR/status.json"
+grep -q '"model_state": "q1"' "$TMP_DIR/status.json"
 grep -q '"commits":' "$TMP_DIR/log.json"
 grep -q '"message": "Initial contract setup"' "$TMP_DIR/log.json"
 grep -Eq '"signature_count": 1' "$TMP_DIR/log.json"
