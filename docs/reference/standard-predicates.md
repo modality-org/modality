@@ -21,6 +21,7 @@ local validator path.
 | `signed_by(/path.id)` | Pending commit signatures plus the public key string at `/path.id` in accepted state | Reads previously committed state, not values written by the same commit |
 | `any_signed(/path)` | Pending commit signatures plus every accepted-state `*.id` file under `/path` | At least one listed identity must sign |
 | `all_signed(/path)` | Pending commit signatures plus every accepted-state `*.id` file under `/path` | The directory must contain at least one identity, and every listed identity must sign |
+| `threshold("n", /path)` | Pending commit signatures plus every accepted-state `*.id` file under `/path` | At least `n` unique listed identities must sign |
 | `modifies(/path)` | Pending commit body paths | Matches `/path` itself or descendants such as `/path/alice.id` |
 
 Other reference predicates below describe the intended standard vocabulary.
@@ -35,8 +36,7 @@ currently enforced by the local first-contract validator.
 | Predicate family | Local first-contract validator | Notes |
 |------------------|--------------------------------|-------|
 | Method labels such as `+POST` and `+MODEL` | Enforced | Derived from pending commit body methods |
-| `signed_by`, `any_signed`, `all_signed`, `modifies` | Enforced | Derived from pending signatures, accepted state, and modified paths |
-| `threshold` | Not first-contract-local yet | Intended multisig vocabulary; needs predicate-specific local implementation and tests before onboarding examples depend on it |
+| `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies` | Enforced | Derived from pending signatures, accepted state, and modified paths |
 | `before`, `after`, state predicates, hash predicates, `oracle_attests`, and `wasm` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |
 
 ## Path Predicates
@@ -115,21 +115,21 @@ Verifies ALL members from a path have signed.
 
 ### threshold
 
-Intended n-of-m multisig verification. This is not part of the current local
-first-contract validator evidence matrix yet.
+Verifies n-of-m signatures from the accepted identities under a path.
 
 ```modality
-+threshold("2", /treasury/signers.json)
++threshold("2", /treasury/signers)
 ```
 
 **Arguments:**
 - `n` — Minimum signatures required
-- `signers_path` — Path to JSON array of authorized signer paths
+- `signers_path` — Path prefix containing signer public keys in `*.id` files
 
-**Features:**
-- Should prevent the same signer from counting twice
-- Should reject unauthorized signers
-- Needs implementation-backed docs and tests before local onboarding depends on it
+**Behavior:**
+- Enumerates all `.id` files under the path in accepted contract state
+- Counts each authorized public key at most once
+- Ignores commit signatures from keys that are not listed under the path
+- Passes when at least `n` unique listed identities signed the pending commit
 
 ## Time Predicates
 
@@ -235,7 +235,7 @@ export default rule {
 Transition predicates use the same predicate names inside governing models:
 
 ```modality
-pending -> executed [+threshold("2", /treasury/signers.json)]
+pending -> executed [+threshold("2", /treasury/signers)]
 ```
 
 ## Custom WASM Predicates

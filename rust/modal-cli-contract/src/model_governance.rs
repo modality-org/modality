@@ -1187,6 +1187,14 @@ impl CommitFacts {
                         && members.iter().all(|member| self.signers.contains(member))
                 })
                 .unwrap_or(false),
+            "threshold" => match (args.first(), args.get(1)) {
+                (Some(required), Some(path)) => required
+                    .parse::<usize>()
+                    .ok()
+                    .map(|required| self.threshold_signed(required, path))
+                    .unwrap_or(false),
+                _ => false,
+            },
             "modifies" => args
                 .first()
                 .map(|path| self.modifies_path(path))
@@ -1224,6 +1232,19 @@ impl CommitFacts {
                 None
             }
         })
+    }
+
+    fn threshold_signed(&self, required: usize, path: &str) -> bool {
+        if required == 0 {
+            return true;
+        }
+
+        let signed_members = self
+            .member_values(path)
+            .filter(|member| self.signers.contains(member))
+            .collect::<HashSet<_>>();
+
+        signed_members.len() >= required
     }
 
     fn modifies_path(&self, path: &str) -> bool {
@@ -1521,6 +1542,65 @@ export default rule {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn enforces_threshold_against_unique_accepted_member_signatures() {
+        let model = parse_content_lalrpop(
+            r#"
+model Threshold {
+  initial active
+  active --> active: +POST +threshold("2", /treasury/signers)
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("active".to_string());
+        let mut state = HashMap::new();
+        state.insert(
+            "treasury/signers/alice.id".to_string(),
+            Value::String("alice_key".to_string()),
+        );
+        state.insert(
+            "treasury/signers/bob.id".to_string(),
+            Value::String("bob_key".to_string()),
+        );
+        state.insert(
+            "treasury/signers/carol.id".to_string(),
+            Value::String("carol_key".to_string()),
+        );
+
+        let mut one_signature = CommitFile::new();
+        one_signature.add_action(
+            "post".to_string(),
+            Some("/payments/next.json".to_string()),
+            serde_json::json!({"amount": 10}),
+        );
+        one_signature.head.signatures = Some(serde_json::json!({
+            "alice_key": "sig",
+            "stranger_key": "sig"
+        }));
+        let one_signature_facts = CommitFacts::from_commit(&one_signature, &state);
+
+        let err = explain_no_valid_transition(&model, &current_states, &one_signature_facts);
+
+        assert!(
+            err.contains("missing +threshold(2, /treasury/signers)"),
+            "{err}"
+        );
+
+        let mut two_signatures = one_signature;
+        two_signatures.head.signatures = Some(serde_json::json!({
+            "alice_key": "sig",
+            "bob_key": "sig"
+        }));
+        let two_signature_facts = CommitFacts::from_commit(&two_signatures, &state);
+
+        assert!(
+            has_valid_transition(&model, &current_states, &two_signature_facts),
+            "two accepted member signatures should satisfy threshold"
+        );
     }
 
     #[test]
