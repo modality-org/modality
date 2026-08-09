@@ -25,6 +25,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
+VERSION="$TMP_DIR/modal-version.txt"
 HELP="$TMP_DIR/modal-help.txt"
 ID_HELP="$TMP_DIR/modal-id-help.txt"
 ID_CREATE_HELP="$TMP_DIR/modal-id-create-help.txt"
@@ -36,6 +37,7 @@ STATUS_HELP="$TMP_DIR/modal-c-status-help.txt"
 LOG_HELP="$TMP_DIR/modal-c-log-help.txt"
 SET_NAMED_ID_HELP="$TMP_DIR/modal-c-set-named-id-help.txt"
 
+"$MODAL_BIN" --version >"$VERSION"
 "$MODAL_BIN" --help >"$HELP"
 "$MODAL_BIN" id --help >"$ID_HELP"
 "$MODAL_BIN" id create --help >"$ID_CREATE_HELP"
@@ -76,6 +78,8 @@ require_help_pattern() {
     exit 1
   fi
 }
+
+require_help_pattern "^modal[[:space:]]+[0-9]" "$VERSION"
 
 for command_name in contract id passfile status commit set; do
   require_command "$command_name" "$HELP"

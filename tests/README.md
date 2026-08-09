@@ -13,10 +13,11 @@ default contract CLI dependency tree and the lean `modal` onboarding wrapper
 avoid onboarding-heavy network/storage/compression deps. It also runs the
 first-contract CLI wrapper smoke when `rust/target/debug/modal` exists, or when
 `MODAL_BIN=/path/to/modal` points at another built `modal` binary. When a
-binary is present, it also checks that the real `modal --help` surface matches
-the selected onboarding shape: lean builds must expose the first-contract
-commands and omit full runtime groups, while `MODAL_ONBOARDING_FEATURES=full`
-expects those runtime groups to be present.
+binary is present, it also checks that the real `modal --version` output
+identifies the wrapper and that the `modal --help` surface matches the selected
+onboarding shape: lean builds must expose the first-contract commands and omit
+full runtime groups, while `MODAL_ONBOARDING_FEATURES=full` expects those
+runtime groups to be present.
 
 To measure the full source-built wrapper path from the same entry point, ask the
 smoke to build the binary when it is missing:
@@ -52,8 +53,11 @@ MODAL_ONBOARDING_INSTALL=1 tests/run-onboarding-smokes.sh
 ```
 
 With the default `debug` profile this uses `cargo install --debug` so local
-iteration stays fast. Add `MODAL_ONBOARDING_PROFILE=release` when measuring the
-release-profile installed wrapper.
+iteration stays fast. The smoke asserts that `cargo install` produced an
+executable `bin/modal` in the temporary Cargo root and runs the help-surface and
+first-contract checks against that installed binary. Add
+`MODAL_ONBOARDING_PROFILE=release` when measuring the release-profile installed
+wrapper.
 
 ```bash
 MODAL_ONBOARDING_INSTALL=1 MODAL_ONBOARDING_PROFILE=release tests/run-onboarding-smokes.sh

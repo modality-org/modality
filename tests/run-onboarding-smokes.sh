@@ -67,6 +67,20 @@ if [[ "$INSTALL_MODAL" == "1" ]]; then
       "${CARGO_INSTALL_PROFILE_ARGS[@]}"
   )
   MODAL_BIN="$INSTALL_ROOT/bin/modal"
+  if [[ ! -x "$MODAL_BIN" ]]; then
+    echo "cargo install did not produce executable modal at $MODAL_BIN" >&2
+    exit 1
+  fi
+  installed_version="$("$MODAL_BIN" --version)"
+  case "$installed_version" in
+    modal\ [0-9]*)
+      echo "installed modal smoke binary: $MODAL_BIN ($installed_version)"
+      ;;
+    *)
+      echo "installed modal reported unexpected version output: $installed_version" >&2
+      exit 1
+      ;;
+  esac
 fi
 
 if [[ ! -x "$MODAL_BIN" && "$BUILD_MODAL" == "1" ]]; then
