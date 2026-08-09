@@ -100,6 +100,21 @@ grep -q '\[\] always' "$CONTRACT_DIR/rules/authorized.modality"
 
 grep -q '"status": "committed"' "$TMP_DIR/signed-post.json"
 
+"$MODAL_BIN" c status --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/post-status.json"
+"$MODAL_BIN" c status --dir "$CONTRACT_DIR" >"$TMP_DIR/post-status.txt"
+"$MODAL_BIN" c log --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/post-log.json"
+"$MODAL_BIN" c log --dir "$CONTRACT_DIR" >"$TMP_DIR/post-log.txt"
+
+grep -q '"total_commits": 3' "$TMP_DIR/post-status.json"
+grep -q '"model_state": "q1"' "$TMP_DIR/post-status.json"
+grep -q "Model state: q1" "$TMP_DIR/post-status.txt"
+grep -q '"message": "Signed update"' "$TMP_DIR/post-log.json"
+grep -Eq '"signature_count": 1' "$TMP_DIR/post-log.json"
+grep -q "$ALICE_ID" "$TMP_DIR/post-log.json"
+grep -q "Message: Signed update" "$TMP_DIR/post-log.txt"
+grep -q "Signatures: 1" "$TMP_DIR/post-log.txt"
+grep -q "$ALICE_ID" "$TMP_DIR/post-log.txt"
+
 if "$MODAL_BIN" c commit \
   --path /unsigned.text \
   --value "unsigned update" \

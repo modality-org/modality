@@ -20,10 +20,11 @@ replayed governing model state as `q1`, while the log check asserts that the
 signed onboarding commit exposes Alice's signer ID and the commit message in
 both JSON and text output. Together these cover the visible authority evidence
 and human-readable contract context a new user sees when they run `modal c
-status` and `modal c log`. It then commits a signed post-bootstrap state update
-and attempts an unsigned one, asserting that the governing model accepts the
-signed path and rejects the unsigned path with missing `signed_by` predicate
-diagnostics.
+status` and `modal c log`. It then commits a signed post-bootstrap state
+update, asserts that status/log now expose the third committed entry while the
+governing model state remains `q1`, and attempts an unsigned one, asserting
+that the governing model rejects the unsigned path with missing `signed_by`
+predicate diagnostics.
 
 To check the installed or source-built help surface before running a flow:
 
