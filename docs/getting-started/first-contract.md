@@ -96,6 +96,34 @@ modal c log
 `modal c log` should show Alice's signer ID plus the commit message:
 `Initial contract setup`.
 
+## 7. Prove the Rule Is Active
+
+Now make one ordinary signed state update:
+
+```bash
+modal c commit \
+  --path /notes.text \
+  --value "signed update" \
+  --sign alice.mod_passfile \
+  -m "Signed update"
+```
+
+`modal c status` should still report `Model state: q1`, and `modal c log`
+should show a new `Signed update` entry with Alice's signer ID.
+
+Then try the same kind of update without a signature:
+
+```bash
+modal c commit \
+  --path /unsigned.text \
+  --value "unsigned update" \
+  -m "Unsigned update"
+```
+
+The unsigned commit should be rejected from `q1` with missing `signed_by`
+predicate diagnostics. That rejection is the contract enforcing the
+post-bootstrap rule you added in `rules/authorized.modality`.
+
 ## What's Next?
 
 - [Core Concepts](/docs/concepts) — Understand the theory
