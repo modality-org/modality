@@ -5,7 +5,27 @@ title: Standard Predicates
 
 # Standard Predicates
 
-Predicates are the building blocks for contract rules. They evaluate based on commit data and contract state.
+Predicates are the building blocks for governing-model transitions and contract
+rules. The local contract-log validator enforces the predicates below from
+replayable commit artifacts: the pending commit body, the pending commit
+signatures, and the already accepted contract state.
+
+## Current Local Evidence Matrix
+
+These are the predicate and label facts currently used by the first-contract
+local validator path.
+
+| Fact | Evidence source | Current-state rule |
+|------|-----------------|--------------------|
+| `+POST`, `+MODEL`, and other method labels | Pending commit body methods | Checked on the pending commit |
+| `signed_by(/path.id)` | Pending commit signatures plus the public key string at `/path.id` in accepted state | Reads previously committed state, not values written by the same commit |
+| `any_signed(/path)` | Pending commit signatures plus every accepted-state `*.id` file under `/path` | At least one listed identity must sign |
+| `all_signed(/path)` | Pending commit signatures plus every accepted-state `*.id` file under `/path` | The directory must contain at least one identity, and every listed identity must sign |
+| `modifies(/path)` | Pending commit body paths | Matches `/path` itself or descendants such as `/path/alice.id` |
+
+Other reference predicates below describe the intended standard vocabulary.
+Treat them as requiring predicate-specific implementation and tests before
+using them in the local first-contract path.
 
 ## Path Predicates
 
@@ -27,7 +47,7 @@ Checks if the commit writes to paths under a given prefix.
 **Example:**
 ```modality
 // Only allow membership changes if all members sign
-always([+modifies(/members)] true -> <+all_signed(/members)> true)
+always(![+modifies(/members)] true | <+all_signed(/members)> true)
 ```
 
 ## Signature Predicates
@@ -37,11 +57,16 @@ always([+modifies(/members)] true -> <+all_signed(/members)> true)
 Verifies the commit is signed by a specific ed25519 key.
 
 ```modality
-signed_by(/users/alice.id)
++signed_by(/users/alice.id)
 ```
 
 **Arguments:**
 - `path` — Path to the public key in contract state
+
+**Behavior:**
+- Looks up the public key string at `path` in the accepted contract state
+- Passes if the pending commit includes a matching signature
+- Does not see identity files written by the same pending commit
 
 ### any_signed
 
@@ -73,6 +98,7 @@ Verifies ALL members from a path have signed.
 **Behavior:**
 - Enumerates all `.id` files under the path  
 - Passes only if EVERY member has a valid signature
+- Fails when the path contains no `.id` members
 - Used for "unanimous consent" patterns like adding members
 
 ### threshold
@@ -186,7 +212,7 @@ export default rule {
   starting_at $PARENT
   formula {
     // After deadline, only buyer can commit
-    always(<+after(/deadlines/expiry.datetime)> true -> <+signed_by(/users/buyer.id)> true)
+    always(!<+after(/deadlines/expiry.datetime)> true | <+signed_by(/users/buyer.id)> true)
   }
 }
 ```
