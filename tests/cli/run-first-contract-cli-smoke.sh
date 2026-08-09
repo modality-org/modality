@@ -72,6 +72,7 @@ EOF
   --message "Initial contract setup" >/dev/null
 
 "$MODAL_BIN" c status --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/status.json"
+"$MODAL_BIN" c status --dir "$CONTRACT_DIR" >"$TMP_DIR/status.txt"
 "$MODAL_BIN" c log --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/log.json"
 "$MODAL_BIN" c log --dir "$CONTRACT_DIR" >"$TMP_DIR/log.txt"
 
@@ -79,6 +80,7 @@ grep -q "$ALICE_ID" "$CONTRACT_DIR/state/parties/alice.id"
 grep -q "$BOB_ID" "$CONTRACT_DIR/state/parties/bob.id"
 grep -q '"total_commits": 2' "$TMP_DIR/status.json"
 grep -q '"model_state": "q1"' "$TMP_DIR/status.json"
+grep -q "Model state: q1" "$TMP_DIR/status.txt"
 grep -q '"commits":' "$TMP_DIR/log.json"
 grep -q '"message": "Initial contract setup"' "$TMP_DIR/log.json"
 grep -Eq '"signature_count": 1' "$TMP_DIR/log.json"

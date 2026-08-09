@@ -15,13 +15,15 @@ tests/cli/run-first-contract-cli-smoke.sh
 The smoke uses the source-built lean onboarding `modal` binary to create a
 contract, create Alice and Bob passfiles, write their `.id` files into contract
 state, commit the state with Alice's signature, and inspect status plus log
-output. The log check asserts that the signed onboarding commit exposes Alice's
-signer ID and the commit message in both JSON and text output, so the smoke
-covers the visible authority evidence and human-readable commit context a new
-user sees when they run `modal c log` as well as commit count. It then commits
-a signed post-bootstrap state update and attempts an unsigned one, asserting
-that the governing model accepts the signed path and rejects the unsigned path
-with missing `signed_by` predicate diagnostics.
+output. The status check asserts that both JSON and text output report the
+replayed governing model state as `q1`, while the log check asserts that the
+signed onboarding commit exposes Alice's signer ID and the commit message in
+both JSON and text output. Together these cover the visible authority evidence
+and human-readable contract context a new user sees when they run `modal c
+status` and `modal c log`. It then commits a signed post-bootstrap state update
+and attempts an unsigned one, asserting that the governing model accepts the
+signed path and rejects the unsigned path with missing `signed_by` predicate
+diagnostics.
 
 To check the installed or source-built help surface before running a flow:
 
