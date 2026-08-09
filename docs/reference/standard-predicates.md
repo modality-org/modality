@@ -27,6 +27,18 @@ Other reference predicates below describe the intended standard vocabulary.
 Treat them as requiring predicate-specific implementation and tests before
 using them in the local first-contract path.
 
+## Implementation Status
+
+Use this table to distinguish the predicate vocabulary from the predicates
+currently enforced by the local first-contract validator.
+
+| Predicate family | Local first-contract validator | Notes |
+|------------------|--------------------------------|-------|
+| Method labels such as `+POST` and `+MODEL` | Enforced | Derived from pending commit body methods |
+| `signed_by`, `any_signed`, `all_signed`, `modifies` | Enforced | Derived from pending signatures, accepted state, and modified paths |
+| `threshold` | Not first-contract-local yet | Intended multisig vocabulary; needs predicate-specific local implementation and tests before onboarding examples depend on it |
+| `before`, `after`, state predicates, hash predicates, `oracle_attests`, and `wasm` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |
+
 ## Path Predicates
 
 ### modifies
@@ -103,7 +115,8 @@ Verifies ALL members from a path have signed.
 
 ### threshold
 
-n-of-m multisig verification.
+Intended n-of-m multisig verification. This is not part of the current local
+first-contract validator evidence matrix yet.
 
 ```modality
 +threshold("2", /treasury/signers.json)
@@ -114,15 +127,15 @@ n-of-m multisig verification.
 - `signers_path` — Path to JSON array of authorized signer paths
 
 **Features:**
-- Prevents same signer from signing twice
-- Rejects unauthorized signers
-- Works with any n-of-m configuration
+- Should prevent the same signer from counting twice
+- Should reject unauthorized signers
+- Needs implementation-backed docs and tests before local onboarding depends on it
 
 ## Time Predicates
 
 ### before
 
-Checks current time is before a deadline.
+Intended predicate for checking that current time is before a deadline.
 
 ```modality
 before(/deadlines/expiry.datetime)
@@ -130,7 +143,7 @@ before(/deadlines/expiry.datetime)
 
 ### after
 
-Checks current time is after a timestamp.
+Intended predicate for checking that current time is after a timestamp.
 
 ```modality
 after(/deadlines/start.datetime)
@@ -140,7 +153,7 @@ after(/deadlines/start.datetime)
 
 ### bool_true / bool_false
 
-Check boolean state values.
+Intended predicates for checking boolean state values.
 
 ```modality
 bool_true(/status/delivered.bool)
@@ -149,7 +162,7 @@ bool_false(/flags/cancelled.bool)
 
 ### text_eq
 
-Compare text values.
+Intended predicate for comparing text values.
 
 ```modality
 text_eq(/status.text, "approved")
@@ -157,7 +170,7 @@ text_eq(/status.text, "approved")
 
 ### num_eq / num_gt / num_gte / num_lt / num_lte
 
-Numeric comparisons.
+Intended predicates for numeric comparisons.
 
 ```modality
 num_gte(/balance.num, 100)
@@ -168,7 +181,9 @@ num_lt(/deposit.num, /limit.num)
 
 ### oracle_attests
 
-Verifies a signed attestation from a trusted oracle.
+Intended predicate for checking a signed attestation from a trusted oracle.
+This is external evidence vocabulary until a validator path documents the
+attestation format, freshness rule, replay binding, and signature check.
 
 ```modality
 oracle_attests(/oracles/delivery.id, "delivered", "true")
@@ -180,16 +195,16 @@ oracle_attests(/oracles/delivery.id, "delivered", "true")
 - `value` — Expected value (optional)
 
 **Security features:**
-- Verifies oracle signature
-- Enforces attestation freshness
-- Binds attestation to specific contract
-- Prevents replay attacks
+- Should verify oracle signatures
+- Should enforce attestation freshness
+- Should bind attestations to a specific contract
+- Should prevent replay attacks
 
 ## Hash Predicates
 
 ### hash_matches
 
-Verifies SHA256 hash commitment.
+Intended predicate for checking a SHA256 hash commitment.
 
 ```modality
 hash_matches(/commitments/secret.hash, /revealed/value.text)
@@ -225,7 +240,8 @@ pending -> executed [+threshold("2", /treasury/signers.json)]
 
 ## Custom WASM Predicates
 
-You can create custom predicates as WASM modules:
+WASM predicates are intended custom predicate modules. They are not part of the
+current local first-contract validator evidence matrix.
 
 ```bash
 modal predicate create --name my_predicate --output ./predicates/

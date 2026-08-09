@@ -11,6 +11,11 @@ required_patterns=(
   "| \`any_signed(/path)\` | Pending commit signatures plus every accepted-state \`*.id\` file under \`/path\` | At least one listed identity must sign |"
   "| \`all_signed(/path)\` | Pending commit signatures plus every accepted-state \`*.id\` file under \`/path\` | The directory must contain at least one identity, and every listed identity must sign |"
   "| \`modifies(/path)\` | Pending commit body paths | Matches \`/path\` itself or descendants such as \`/path/alice.id\` |"
+  "## Implementation Status"
+  "| \`threshold\` | Not first-contract-local yet | Intended multisig vocabulary; needs predicate-specific local implementation and tests before onboarding examples depend on it |"
+  "| \`before\`, \`after\`, state predicates, hash predicates, \`oracle_attests\`, and \`wasm\` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |"
+  "Intended n-of-m multisig verification. This is not part of the current local"
+  "WASM predicates are intended custom predicate modules. They are not part of the"
   "Does not see identity files written by the same pending commit"
 )
 
