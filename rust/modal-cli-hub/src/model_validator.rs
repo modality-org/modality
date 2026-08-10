@@ -11,9 +11,9 @@
 //! - **Replay**: New models must replay history to establish valid state mapping
 
 use modal_common::model_diagnostics::{
-    summarize_candidate_transition, ActionModalFailureDiagnostic, ActionModalKind,
-    CandidateTransitionExplanation, FixedPointPolarity, FixedPointUnfoldingDiagnostic,
-    FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
+    summarize_candidate_transition, summarize_non_current_transition, ActionModalFailureDiagnostic,
+    ActionModalKind, CandidateTransitionExplanation, FixedPointPolarity,
+    FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
 };
 use modality_lang::{
     parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Property, PropertySign,
@@ -360,6 +360,27 @@ impl ModelValidator {
 
         if candidates.is_empty() {
             lines.push("Candidate transitions: none from current states".to_string());
+            let mut similar = self
+                .all_transitions(model)
+                .into_iter()
+                .filter(|(_, transition)| !self.current_states.contains(&transition.from))
+                .map(|(part_name, transition)| {
+                    self.explain_non_current_transition(part_name, transition, labels)
+                })
+                .collect::<Vec<_>>();
+            if !similar.is_empty() {
+                similar.sort_by(|left, right| {
+                    left.failures
+                        .len()
+                        .cmp(&right.failures.len())
+                        .then_with(|| left.transition_key.cmp(&right.transition_key))
+                });
+                lines.push(
+                    "Similar transitions from other states ranked by predicate distance:"
+                        .to_string(),
+                );
+                lines.extend(similar.into_iter().map(|candidate| candidate.summary));
+            }
         } else {
             candidates.sort_by(|left, right| {
                 left.failures
@@ -379,6 +400,22 @@ impl ModelValidator {
         lines.join("; ")
     }
 
+    fn all_transitions<'a>(&self, model: &'a Model) -> Vec<(Option<&'a str>, &'a Transition)> {
+        let mut transitions = Vec::new();
+
+        for part in &model.parts {
+            for transition in &part.transitions {
+                transitions.push((Some(part.name.as_str()), transition));
+            }
+        }
+
+        for transition in &model.transitions {
+            transitions.push((None, transition));
+        }
+
+        transitions
+    }
+
     fn explain_candidate_transition(
         &self,
         part_name: Option<&str>,
@@ -390,6 +427,25 @@ impl ModelValidator {
         summarize_candidate_transition(
             part_name,
             current_state,
+            &transition.from,
+            &transition.to,
+            &Self::format_properties(&transition.properties),
+            failures,
+        )
+    }
+
+    fn explain_non_current_transition(
+        &self,
+        part_name: Option<&str>,
+        transition: &Transition,
+        labels: &[String],
+    ) -> CandidateTransitionExplanation {
+        let mut current_states = self.current_states.iter().cloned().collect::<Vec<_>>();
+        current_states.sort();
+        let failures = self.transition_predicate_failures(&transition.properties, labels);
+        summarize_non_current_transition(
+            part_name,
+            &current_states,
             &transition.from,
             &transition.to,
             &Self::format_properties(&transition.properties),
@@ -1292,6 +1348,30 @@ model TestModel {
             err.find(closest).unwrap() < err.find(farther).unwrap(),
             "closest candidate should be reported before farther candidates: {err}"
         );
+    }
+
+    #[test]
+    fn test_action_rejection_explains_similar_non_current_transitions() {
+        let mut validator = ModelValidator::new();
+
+        let model = r#"
+model TestModel {
+    init --> active: +START
+}
+        "#;
+
+        validator.apply_model(model, 0).unwrap();
+        validator.apply_action(&["START".to_string()]).unwrap();
+
+        let err = validator
+            .apply_action(&["START".to_string()])
+            .expect_err("active has no outgoing START candidate");
+
+        assert!(err.contains("Candidate transitions: none from current states"));
+        assert!(err.contains("Similar transitions from other states ranked by predicate distance"));
+        assert!(err.contains(
+            "non-current transition from init to active [+START]; current states: active; failed predicates: none"
+        ));
     }
 
     #[test]

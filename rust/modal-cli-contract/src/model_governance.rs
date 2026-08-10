@@ -1,8 +1,9 @@
 use anyhow::Result;
 use modal_common::contract_store::{CommitFile, ContractStore};
 use modal_common::model_diagnostics::{
-    summarize_candidate_transition, CandidateTransitionExplanation, FixedPointPolarity,
-    FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
+    summarize_candidate_transition, summarize_non_current_transition,
+    CandidateTransitionExplanation, FixedPointPolarity, FixedPointUnfoldingDiagnostic,
+    FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
 };
 use modality_lang::{
     parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Part, Property, PropertySign,
@@ -983,6 +984,25 @@ fn explain_no_valid_transition(
 
     if candidates.is_empty() {
         lines.push("Candidate transitions: none from current states".to_string());
+        let mut similar = all_transitions(model)
+            .into_iter()
+            .filter(|(_, transition)| !current_states.contains(&transition.from))
+            .map(|(part_name, transition)| {
+                explain_non_current_transition(part_name, current_states, transition, facts)
+            })
+            .collect::<Vec<_>>();
+        if !similar.is_empty() {
+            similar.sort_by(|left, right| {
+                left.failures
+                    .len()
+                    .cmp(&right.failures.len())
+                    .then_with(|| left.transition_key.cmp(&right.transition_key))
+            });
+            lines.push(
+                "Similar transitions from other states ranked by predicate distance:".to_string(),
+            );
+            lines.extend(similar.into_iter().map(|candidate| candidate.summary));
+        }
     } else {
         candidates.sort_by(|left, right| {
             left.failures
@@ -1027,6 +1047,22 @@ fn candidate_transitions<'a>(
     candidates
 }
 
+fn all_transitions(model: &Model) -> Vec<(Option<&str>, &Transition)> {
+    let mut transitions = Vec::new();
+
+    for part in &model.parts {
+        for transition in &part.transitions {
+            transitions.push((Some(part.name.as_str()), transition));
+        }
+    }
+
+    for transition in &model.transitions {
+        transitions.push((None, transition));
+    }
+
+    transitions
+}
+
 fn explain_candidate_transition(
     part_name: Option<&str>,
     current_state: &str,
@@ -1037,6 +1073,25 @@ fn explain_candidate_transition(
     summarize_candidate_transition(
         part_name,
         current_state,
+        &transition.from,
+        &transition.to,
+        &format_properties(&transition.properties),
+        failures,
+    )
+}
+
+fn explain_non_current_transition(
+    part_name: Option<&str>,
+    current_states: &HashSet<String>,
+    transition: &Transition,
+    facts: &CommitFacts,
+) -> CandidateTransitionExplanation {
+    let mut current_states = current_states.iter().cloned().collect::<Vec<_>>();
+    current_states.sort();
+    let failures = transition_failures(&transition.properties, facts);
+    summarize_non_current_transition(
+        part_name,
+        &current_states,
         &transition.from,
         &transition.to,
         &format_properties(&transition.properties),
@@ -1404,6 +1459,60 @@ model MembersOnly {
             err.find("forbidden -modifies(/members) matched").unwrap()
                 < err.find("missing +all_signed(/members)").unwrap(),
             "closest candidate should appear before farther candidate: {err}"
+        );
+    }
+
+    #[test]
+    fn explains_similar_transitions_when_current_state_has_no_candidates() {
+        let model = parse_content_lalrpop(
+            r#"
+model Stuck {
+  initial q0
+  q1 --> q2: +POST
+  q1 --> q3: +POST +signed_by(/parties/alice.id)
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("q0".to_string());
+
+        let mut commit = CommitFile::new();
+        commit.add_action(
+            "post".to_string(),
+            Some("/notes/entry.text".to_string()),
+            Value::String("entry".to_string()),
+        );
+        let facts = CommitFacts::from_commit(&commit, &HashMap::new());
+
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+
+        assert!(
+            err.contains("Candidate transitions: none from current states"),
+            "{err}"
+        );
+        assert!(
+            err.contains("Similar transitions from other states ranked by predicate distance"),
+            "{err}"
+        );
+        assert!(
+            err.contains(
+                "non-current transition from q1 to q2 [+POST]; current states: q0; failed predicates: none"
+            ),
+            "{err}"
+        );
+        assert!(
+            err.contains(
+                "non-current transition from q1 to q3 [+POST +signed_by(/parties/alice.id)]"
+            ),
+            "{err}"
+        );
+        assert!(
+            err.find("q1 to q2 [+POST]").unwrap()
+                < err
+                    .find("q1 to q3 [+POST +signed_by(/parties/alice.id)]")
+                    .unwrap(),
+            "nearest similar transition should appear before farther transition: {err}"
         );
     }
 

@@ -214,6 +214,39 @@ pub fn summarize_candidate_transition(
     }
 }
 
+pub fn summarize_non_current_transition(
+    part_name: Option<&str>,
+    current_states: &[String],
+    from: &str,
+    to: &str,
+    properties: &str,
+    failures: Vec<String>,
+) -> CandidateTransitionExplanation {
+    let part_prefix = part_name
+        .map(|name| format!("part {} ", name))
+        .unwrap_or_default();
+    let current_states = if current_states.is_empty() {
+        "none".to_string()
+    } else {
+        current_states.join(", ")
+    };
+    let transition_key = format!("{}{}->{}", part_prefix, from, to);
+    let failed_predicates = if failures.is_empty() {
+        "none".to_string()
+    } else {
+        failures.join(", ")
+    };
+
+    CandidateTransitionExplanation {
+        failures,
+        summary: format!(
+            "{}non-current transition from {} to {} [{}]; current states: {}; failed predicates: {}",
+            part_prefix, from, to, properties, current_states, failed_predicates
+        ),
+        transition_key,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -236,6 +269,24 @@ mod tests {
         assert_eq!(
             explanation.summary,
             "part ledger candidate from current state draft: draft -> posted [+POST +signed_by(/parties/alice.id)]; failed predicates: missing +signed_by(/parties/alice.id)"
+        );
+    }
+
+    #[test]
+    fn summarizes_non_current_transition_with_current_states() {
+        let explanation = summarize_non_current_transition(
+            Some("ledger"),
+            &["locked".to_string()],
+            "draft",
+            "posted",
+            "+POST +signed_by(/parties/alice.id)",
+            vec!["missing +signed_by(/parties/alice.id)".to_string()],
+        );
+
+        assert_eq!(explanation.transition_key, "part ledger draft->posted");
+        assert_eq!(
+            explanation.summary,
+            "part ledger non-current transition from draft to posted [+POST +signed_by(/parties/alice.id)]; current states: locked; failed predicates: missing +signed_by(/parties/alice.id)"
         );
     }
 
