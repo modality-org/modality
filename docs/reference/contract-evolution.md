@@ -31,6 +31,7 @@ export default model {
 
   q0 -> q1 [+POST +MODEL]
   q1 -> q1 [+POST +signed_by(/parties/alice.id)]
+  q1 -> q1 [+RULE +signed_by(/parties/alice.id)]
   q1 -> q1 [+MODEL +signed_by(/parties/alice.id)]
 }
 ```
@@ -48,14 +49,16 @@ commit:
 export default rule {
   starting_at $PARENT
   formula {
-    [] always([-signed_by(/parties/alice.id)] false)
+    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
   }
 }
 ```
 
 This does not remove the old model. It adds a permanent constraint over future
 witness models: after the rule's parent point, every reachable successor must
-include `+signed_by(/parties/alice.id)`.
+include either Alice's or Bob's signature. The `+RULE` transition above is what
+allows this separate rule commit; without it, the old model would reject the
+rule addition before the accumulated rule set can grow.
 
 A later `MODEL` commit is accepted only if both checks pass:
 
@@ -74,6 +77,7 @@ export default model {
   q0 -> q1 [+POST +MODEL]
   q1 -> q1 [+POST +signed_by(/parties/alice.id)]
   q1 -> q1 [+POST +signed_by(/parties/bob.id)]
+  q1 -> q1 [+RULE +signed_by(/parties/alice.id)]
   q1 -> q1 [+MODEL +signed_by(/parties/alice.id)]
 }
 ```
@@ -87,6 +91,7 @@ export default model {
 
   q0 -> q1 [+POST +MODEL]
   q1 -> q1 [+POST]
+  q1 -> q1 [+RULE +signed_by(/parties/alice.id)]
   q1 -> q1 [+MODEL +signed_by(/parties/alice.id)]
 }
 ```

@@ -96,6 +96,7 @@ if [[ -x "$MODAL_BIN" ]]; then
   MODAL_BIN="$MODAL_BIN" MODAL_HELP_SURFACE="$MODAL_HELP_SURFACE" \
     "$ROOT_DIR/tests/cli/check-modal-help-surface.sh"
   MODAL_BIN="$MODAL_BIN" "$ROOT_DIR/tests/cli/run-first-contract-cli-smoke.sh"
+  MODAL_BIN="$MODAL_BIN" "$ROOT_DIR/tests/cli/run-contract-evolution-cli-smoke.sh"
 else
   cat <<EOF
 first-contract CLI smoke skipped: modal binary not found at $MODAL_BIN

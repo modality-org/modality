@@ -50,3 +50,18 @@ To test another binary:
 ```bash
 MODAL_BIN=/path/to/modal tests/cli/run-first-contract-cli-smoke.sh
 ```
+
+## Contract Evolution
+
+```bash
+cd rust
+cargo build -p modal --no-default-features --features contract-onboarding
+cd ..
+tests/cli/run-contract-evolution-cli-smoke.sh
+```
+
+The evolution smoke creates a V1 contract, proves unsigned post-bootstrap
+updates are rejected, appends a signed accumulated rule, rejects a replacement
+model that reintroduces unsigned steady-state posts, accepts a replacement
+model that adds Bob as another authorized signer, and then proves Bob-signed
+V2 updates are accepted while unsigned V2 updates are still rejected.
