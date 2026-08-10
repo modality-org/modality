@@ -126,6 +126,8 @@ if "$MODAL_BIN" c commit \
 fi
 
 grep -q 'current states {"q1"}' "$TMP_DIR/unsigned-post.err"
+grep -q "Closest candidate transition: candidate from current state q1: q1 -> q1 \[+POST +signed_by(/parties/alice.id)\]; failed predicates: missing +signed_by(/parties/alice.id)" "$TMP_DIR/unsigned-post.err"
+grep -q "candidate from current state q1: q1 -> q1 \[+POST +signed_by(/parties/bob.id)\]; failed predicates: missing +signed_by(/parties/bob.id)" "$TMP_DIR/unsigned-post.err"
 grep -q "missing +signed_by(/parties/alice.id)" "$TMP_DIR/unsigned-post.err"
 grep -q "missing +signed_by(/parties/bob.id)" "$TMP_DIR/unsigned-post.err"
 

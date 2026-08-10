@@ -23,8 +23,8 @@ and human-readable contract context a new user sees when they run `modal c
 status` and `modal c log`. It then commits a signed post-bootstrap state
 update, asserts that status/log now expose the third committed entry while the
 governing model state remains `q1`, and attempts an unsigned one, asserting
-that the governing model rejects the unsigned path with missing `signed_by`
-predicate diagnostics.
+that the governing model rejects the unsigned path with the closest candidate
+transition and missing `signed_by` predicate diagnostics.
 
 To check the installed or source-built help surface before running a flow:
 
