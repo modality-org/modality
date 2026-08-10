@@ -39,10 +39,38 @@ modal c set-named-id /parties/bob.id bob.mod_passfile
 
 This records Alice and Bob's public identities in the contract state.
 
-## 4. Define the Witness Model
+## 4. Add Protection Rules
 
-Replace `model/default.modality` with the following Modality code. This is file
-content, not a terminal command.
+Create the `rules/` directory:
+
+```bash
+mkdir -p rules
+```
+
+Then create `rules/authorized.modality` with the following Modality code. This
+is file content, not a terminal command.
+
+```modality
+export default rule {
+  starting_at $PARENT
+  formula {
+    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+  }
+}
+```
+
+This rule starts after the bootstrap transition. The `[]` prefix matters:
+`always(...)` includes the current witness node, while `[] always(...)` lets the
+initial commit install the identity evidence and then constrains every successor
+model so it does not expose an unsigned transition.
+
+## 5. Synthesize the Witness Model
+
+The governing model should be generated from the accumulated rules before you
+commit to the contract. Until commit-time synthesis is fully automatic, review
+the synthesized candidate and write it to `model/default.modality`.
+
+For this first contract, the witness model should have this shape:
 
 ```modality
 export default model {
@@ -59,31 +87,6 @@ export default model {
 commit that installs identity evidence and the first model. After that, the
 model exposes only signed `POST` and `MODEL` paths for ordinary state changes
 and model replacement.
-
-## 5. Add Protection Rules
-
-Create the `rules/` directory:
-
-```bash
-mkdir -p rules
-```
-
-Then create `rules/authorized.modality` with the following Modality code. This
-is also file content, not a terminal command.
-
-```modality
-export default rule {
-  starting_at $PARENT
-  formula {
-    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
-  }
-}
-```
-
-This rule starts after the bootstrap transition. The `[]` prefix matters:
-`always(...)` includes the current witness node, while `[] always(...)` lets the
-initial commit install the identity evidence and then constrains every successor
-model so it does not expose an unsigned transition.
 
 ## 6. Commit and Verify
 

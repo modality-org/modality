@@ -12,6 +12,10 @@
 
 </div>
 
+> **Work in progress:** Modality is under active development. The language,
+> verifier, CLI, docs, and examples are still changing, and some workflows may
+> require building from source or using experimental commands.
+
 ## What is Modality?
 
 Modality is a verification language for AI agent cooperation.
