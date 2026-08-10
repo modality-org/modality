@@ -1220,6 +1220,18 @@ impl CommitFacts {
             }
         }
 
+        if property.name == "threshold" {
+            let args = predicate_args(property);
+            if let (Some(required), Some(path)) = (args.first(), args.get(1)) {
+                if let Ok(required) = required.parse::<usize>() {
+                    return format!(
+                        "missing {formatted} ({})",
+                        self.threshold_failure_detail(required, path)
+                    );
+                }
+            }
+        }
+
         format!("missing {formatted}")
     }
 
@@ -1245,6 +1257,30 @@ impl CommitFacts {
             .collect::<HashSet<_>>();
 
         signed_members.len() >= required
+    }
+
+    fn threshold_failure_detail(&self, required: usize, path: &str) -> String {
+        let accepted_members = self.member_values(path).collect::<HashSet<_>>();
+        let authorized_signers = accepted_members
+            .intersection(&self.signers)
+            .cloned()
+            .collect::<HashSet<_>>();
+        let unauthorized_signers = self
+            .signers
+            .difference(&accepted_members)
+            .cloned()
+            .collect::<HashSet<_>>();
+        let missing = required.saturating_sub(authorized_signers.len());
+
+        format!(
+            "authorized signatures {}/{} required from {} accepted members under {}; missing {}; unauthorized signatures ignored: {}",
+            authorized_signers.len(),
+            required,
+            accepted_members.len(),
+            path,
+            missing,
+            format_sorted_set(&unauthorized_signers)
+        )
     }
 
     fn modifies_path(&self, path: &str) -> bool {
@@ -1289,6 +1325,16 @@ fn extract_signers(commit: &CommitFile) -> HashSet<String> {
 
 fn normalize_path(path: &str) -> String {
     path.trim_start_matches('/').to_string()
+}
+
+fn format_sorted_set(items: &HashSet<String>) -> String {
+    if items.is_empty() {
+        return "none".to_string();
+    }
+
+    let mut sorted = items.iter().cloned().collect::<Vec<_>>();
+    sorted.sort();
+    sorted.join(", ")
 }
 
 #[cfg(test)]
@@ -1587,6 +1633,17 @@ model Threshold {
 
         assert!(
             err.contains("missing +threshold(2, /treasury/signers)"),
+            "{err}"
+        );
+        assert!(
+            err.contains(
+                "authorized signatures 1/2 required from 3 accepted members under /treasury/signers"
+            ),
+            "{err}"
+        );
+        assert!(err.contains("missing 1"), "{err}");
+        assert!(
+            err.contains("unauthorized signatures ignored: stranger_key"),
             "{err}"
         );
 

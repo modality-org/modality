@@ -18,6 +18,7 @@ required_patterns=(
   "Verifies n-of-m signatures from the accepted identities under a path."
   "Counts each authorized public key at most once"
   "Ignores commit signatures from keys that are not listed under the path"
+  "Rejection output reports the authorized signature count, accepted member count,"
   "WASM predicates are intended custom predicate modules. They are not part of the"
   "Does not see identity files written by the same pending commit"
 )

@@ -130,6 +130,8 @@ Verifies n-of-m signatures from the accepted identities under a path.
 - Counts each authorized public key at most once
 - Ignores commit signatures from keys that are not listed under the path
 - Passes when at least `n` unique listed identities signed the pending commit
+- Rejection output reports the authorized signature count, accepted member count,
+  missing signature count, and any unauthorized signatures that were ignored
 
 ## Time Predicates
 
