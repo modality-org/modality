@@ -11,8 +11,9 @@ tests/run-onboarding-smokes.sh
 This always runs the parser-backed language smoke, checks that the standard
 predicate reference preserves the local evidence-source matrix, checks that the
 contract evolution reference preserves the accumulated-rule and witness
-replacement model, and checks that both the default contract CLI dependency tree
-and the lean `modal` onboarding wrapper avoid onboarding-heavy
+replacement model, checks that the rule syntax reference preserves the
+commitment-versus-enabledness trap warning, and checks that both the default
+contract CLI dependency tree and the lean `modal` onboarding wrapper avoid onboarding-heavy
 network/storage/compression deps. It also runs the
 first-contract CLI wrapper smoke when `rust/target/debug/modal` exists, or when
 `MODAL_BIN=/path/to/modal` points at another built `modal` binary. When a

@@ -57,6 +57,33 @@ starting_at abc123...         // Specific commit hash
 | `[-ACTION] φ` | If ACTION is refused/impossible, φ holds |
 | `[<+ACTION>] φ` | Committed: CAN do ACTION and CANNOT refuse |
 
+### Commitment Versus Enabledness
+
+Use the operator that matches the claim you want the contract to make:
+
+```modality
+<+PAY> true
+```
+
+`PAY` is enabled from the current witness state.
+
+```modality
+[<+PAY>] true
+```
+
+`PAY` is committed: it is enabled and its refusal edge is unavailable.
+
+```modality
+[+PAY] +signed_by(/parties/alice.id)
+```
+
+Every matching `PAY` transition must carry Alice's signature predicate.
+
+Avoid `[+PAY] true` as a guard. A box formula with inner `true` is satisfied
+even when there is no matching `PAY` transition, so it does not prove `PAY`
+happened or that `PAY` is committed. Run `modality model lint <file>` before
+signing rules; it reports this as `modality/vacuous-box-guard`.
+
 ## Temporal Operators (Syntactic Sugar)
 
 ```modality
@@ -90,7 +117,16 @@ lfp(X, target | <>X)
 φ & ψ           // Conjunction (and)
 φ | ψ           // Disjunction (or)
 !φ              // Negation (not)
-φ -> ψ          // Implication
 true            // Always true
 false           // Always false
 ```
+
+Prefer explicit boolean form for conditional rules:
+
+```modality
+!+modifies(/members) | +all_signed(/members)
+```
+
+The parser still accepts implication syntax in some contexts, but docs and
+onboarding examples avoid it so temporal steps and proof implication are not
+conflated.
