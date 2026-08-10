@@ -118,6 +118,11 @@ The second transition admits membership edits only when all accepted
 `/members/*.id` identities sign. The third transition makes witness replacement
 use the same membership authority.
 
+The contract evolution CLI smoke runs this pattern end to end using the current
+single-signer commit command: Alice alone can append an ordinary note, Alice can
+add Bob while she is the only accepted member, Bob can then append an ordinary
+note, and Alice alone cannot add `/members/carol.id` after Bob is accepted.
+
 ## Bounded Terms
 
 Terms that should expire need explicit language support, such as an

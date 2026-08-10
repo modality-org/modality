@@ -22,6 +22,10 @@ required_patterns=(
   "active -> active [+POST +any_signed(/members) -modifies(/members)]"
   "active -> active [+POST +modifies(/members) +all_signed(/members)]"
   "active -> active [+MODEL +all_signed(/members)]"
+  "Alice alone can"
+  "add Bob while she is the only accepted member"
+  "Bob can then append an ordinary"
+  "Alice alone cannot add \`/members/carol.id\`"
   "Until that path is runnable in the contract CLI"
   "rules keep accumulating"
 )

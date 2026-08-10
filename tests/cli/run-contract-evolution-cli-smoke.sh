@@ -171,4 +171,89 @@ grep -q '"message": "Bob signed V2 update"' "$TMP_DIR/log.json"
 grep -q "$ALICE_ID" "$TMP_DIR/log.json"
 grep -q "$BOB_ID" "$TMP_DIR/log.json"
 
+MEMBERS_CONTRACT_DIR="$TMP_DIR/protected-members-contract"
+CAROL_PASSFILE="$TMP_DIR/carol.mod_passfile"
+
+"$MODAL_BIN" contract create --dir "$MEMBERS_CONTRACT_DIR" --output json >/dev/null
+"$MODAL_BIN" id create --path "$CAROL_PASSFILE" >/dev/null
+
+"$MODAL_BIN" c checkout --dir "$MEMBERS_CONTRACT_DIR" >/dev/null
+"$MODAL_BIN" c set-named-id /members/alice.id "$ALICE_PASSFILE" --dir "$MEMBERS_CONTRACT_DIR" >/dev/null
+
+cat >"$MEMBERS_CONTRACT_DIR/model/default.modality" <<'EOF'
+export default model {
+  initial q0
+
+  q0 -> active [+POST +MODEL]
+  active -> active [+POST +any_signed(/members) -modifies(/members)]
+  active -> active [+POST +modifies(/members) +all_signed(/members)]
+  active -> active [+MODEL +all_signed(/members)]
+}
+EOF
+
+"$MODAL_BIN" c commit \
+  --all \
+  --dir "$MEMBERS_CONTRACT_DIR" \
+  --sign "$ALICE_PASSFILE" \
+  --output json \
+  --message "Protected members setup" >"$TMP_DIR/members-setup.json"
+
+grep -q '"status": "committed"' "$TMP_DIR/members-setup.json"
+
+"$MODAL_BIN" c commit \
+  --path /notes/member-update.text \
+  --value "one member can update ordinary state" \
+  --dir "$MEMBERS_CONTRACT_DIR" \
+  --sign "$ALICE_PASSFILE" \
+  --output json \
+  --message "Alice ordinary update" >"$TMP_DIR/alice-ordinary-update.json"
+
+grep -q '"status": "committed"' "$TMP_DIR/alice-ordinary-update.json"
+
+"$MODAL_BIN" c set-named-id /members/bob.id "$BOB_PASSFILE" --dir "$MEMBERS_CONTRACT_DIR" >/dev/null
+
+"$MODAL_BIN" c commit \
+  --all \
+  --dir "$MEMBERS_CONTRACT_DIR" \
+  --sign "$ALICE_PASSFILE" \
+  --output json \
+  --message "Alice adds Bob" >"$TMP_DIR/alice-adds-bob.json"
+
+grep -q '"status": "committed"' "$TMP_DIR/alice-adds-bob.json"
+
+"$MODAL_BIN" c commit \
+  --path /notes/bob-member-update.text \
+  --value "bob can update ordinary state after membership acceptance" \
+  --dir "$MEMBERS_CONTRACT_DIR" \
+  --sign "$BOB_PASSFILE" \
+  --output json \
+  --message "Bob ordinary update" >"$TMP_DIR/bob-ordinary-update.json"
+
+grep -q '"status": "committed"' "$TMP_DIR/bob-ordinary-update.json"
+
+"$MODAL_BIN" c set-named-id /members/carol.id "$CAROL_PASSFILE" --dir "$MEMBERS_CONTRACT_DIR" >/dev/null
+
+if "$MODAL_BIN" c commit \
+  --all \
+  --dir "$MEMBERS_CONTRACT_DIR" \
+  --sign "$ALICE_PASSFILE" \
+  --output json \
+  --message "Alice-only member change" >"$TMP_DIR/alice-only-member-change.json" 2>"$TMP_DIR/alice-only-member-change.err"; then
+  echo "expected one-signer protected member change to fail" >&2
+  exit 1
+fi
+
+grep -q "missing +all_signed(/members)" "$TMP_DIR/alice-only-member-change.err"
+
+"$MODAL_BIN" c status --dir "$MEMBERS_CONTRACT_DIR" --output json >"$TMP_DIR/members-status.json"
+"$MODAL_BIN" c log --dir "$MEMBERS_CONTRACT_DIR" --output json >"$TMP_DIR/members-log.json"
+
+grep -q '"total_commits": 5' "$TMP_DIR/members-status.json"
+grep -q '"model_state": "active"' "$TMP_DIR/members-status.json"
+grep -q '"message": "Alice ordinary update"' "$TMP_DIR/members-log.json"
+grep -q '"message": "Alice adds Bob"' "$TMP_DIR/members-log.json"
+grep -q '"message": "Bob ordinary update"' "$TMP_DIR/members-log.json"
+grep -q "$ALICE_ID" "$TMP_DIR/members-log.json"
+grep -q "$BOB_ID" "$TMP_DIR/members-log.json"
+
 echo "contract evolution CLI smoke passed"
