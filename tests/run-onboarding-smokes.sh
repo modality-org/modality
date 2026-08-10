@@ -49,6 +49,7 @@ fi
 "$ROOT_DIR/tests/language/run-onboarding-tests.sh"
 "$ROOT_DIR/tests/cli/check-contract-cli-deps.sh"
 "$ROOT_DIR/tests/docs/check-predicate-evidence-doc.sh"
+"$ROOT_DIR/tests/docs/check-contract-evolution-doc.sh"
 
 if [[ "$INSTALL_MODAL" == "1" ]]; then
   INSTALL_ROOT="$(mktemp -d)"
