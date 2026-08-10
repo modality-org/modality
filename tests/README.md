@@ -12,9 +12,10 @@ This always runs the parser-backed language smoke, checks that the standard
 predicate reference preserves the local evidence-source matrix, checks that the
 contract evolution reference preserves the accumulated-rule and witness
 replacement model, checks that the rule syntax reference preserves the
-commitment-versus-enabledness trap warning, and checks that both the default
-contract CLI dependency tree and the lean `modal` onboarding wrapper avoid onboarding-heavy
-network/storage/compression deps. It also runs the
+commitment-versus-enabledness trap warning, runs the `modality model lint` smoke
+when a `modality` binary is present, and checks that both the default contract
+CLI dependency tree and the lean `modal` onboarding wrapper avoid
+onboarding-heavy network/storage/compression deps. It also runs the
 first-contract CLI wrapper smoke when `rust/target/debug/modal` exists, or when
 `MODAL_BIN=/path/to/modal` points at another built `modal` binary. When a
 binary is present, it also checks that the real `modal --version` output
@@ -40,6 +41,14 @@ default; set `MODAL_ONBOARDING_FEATURES=full` only when measuring the full
 network/hub wrapper. Set `MODAL_HELP_SURFACE=lean|full` only when checking an
 explicit `MODAL_BIN` whose feature shape differs from
 `MODAL_ONBOARDING_FEATURES`.
+
+To run the lint smoke against a cached language CLI without rebuilding, pass
+`MODALITY_BIN`. The same binary is also used for the parser-backed
+first-contract language smoke, avoiding `cargo run` in low-disk no-build runs:
+
+```bash
+MODALITY_BIN=/path/to/modality tests/run-onboarding-smokes.sh
+```
 
 To measure the lean release-profile wrapper, set `MODAL_ONBOARDING_PROFILE`:
 

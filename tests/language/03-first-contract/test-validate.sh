@@ -2,10 +2,19 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUST_DIR="$SCRIPT_DIR/../../../rust"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 MODEL="$SCRIPT_DIR/first-contract.modality"
+MODALITY_BIN="${MODALITY_BIN:-}"
 
-output="$(cd "$RUST_DIR" && cargo run -q -p modality -- model validate "$MODEL" --verbose)"
+if [[ -n "$MODALITY_BIN" ]]; then
+  if [[ ! -x "$MODALITY_BIN" ]]; then
+    echo "MODALITY_BIN is not executable: $MODALITY_BIN" >&2
+    exit 1
+  fi
+  output="$("$MODALITY_BIN" model validate "$MODEL" --verbose)"
+else
+  output="$(cd "$ROOT_DIR/rust" && cargo run -q -p modality -- model validate "$MODEL" --verbose)"
+fi
 
 printf '%s\n' "$output"
 
