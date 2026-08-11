@@ -51,6 +51,7 @@ fi
 "$ROOT_DIR/tests/docs/check-predicate-evidence-doc.sh"
 "$ROOT_DIR/tests/docs/check-contract-evolution-doc.sh"
 "$ROOT_DIR/tests/docs/check-language-traps-doc.sh"
+"$ROOT_DIR/tests/docs/check-first-contract-doc.sh"
 "$ROOT_DIR/tests/language/check-model-lint-cli.sh"
 
 if [[ "$INSTALL_MODAL" == "1" ]]; then

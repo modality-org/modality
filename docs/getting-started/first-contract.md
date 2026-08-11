@@ -70,16 +70,21 @@ The governing model should be generated from the accumulated rules before you
 commit to the contract. Until commit-time synthesis is fully automatic, review
 the synthesized candidate and write it to `model/default.modality`.
 
+```bash
+mkdir -p model
+modality model synthesize --rule rules/authorized.modality --verify -o model/default.modality
+```
+
 For this first contract, the witness model should have this shape:
 
 ```modality
-export default model {
-  initial q0
-
-  q0 -> q1 [+POST +MODEL]
-  q1 -> q1 [+POST +signed_by(/parties/alice.id)]
-  q1 -> q1 [+POST +signed_by(/parties/bob.id)]
-  q1 -> q1 [+MODEL +signed_by(/parties/alice.id)]
+model Contract {
+  part flow {
+    q0 --> q1: +POST +MODEL
+    q1 --> q1: +POST +signed_by(/parties/alice.id)
+    q1 --> q1: +POST +signed_by(/parties/bob.id)
+    q1 --> q1: +MODEL +signed_by(/parties/alice.id)
+  }
 }
 ```
 

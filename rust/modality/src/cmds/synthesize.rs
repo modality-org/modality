@@ -340,10 +340,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             parsed_input.ensure_all_parsed()?;
         }
         if !parsed_input.formulas.is_empty() {
-            let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-                "Contract",
-                &parsed_input.formulas,
-            );
+            let model = synthesize_model_from_parsed_formulas(&parsed_input.formulas);
 
             if opts.verify {
                 verify_synthesized_model_with_labels(
@@ -3998,6 +3995,137 @@ fn replacement_candidate_name(existing_model: &modality_lang::Model) -> String {
     }
 }
 
+fn synthesize_model_from_parsed_formulas(
+    formulas: &[modality_lang::FormulaExpr],
+) -> modality_lang::Model {
+    synthesize_first_contract_authorization_model(formulas).unwrap_or_else(|| {
+        modality_lang::formula_synthesis::synthesize_from_formulas("Contract", formulas)
+    })
+}
+
+fn synthesize_first_contract_authorization_model(
+    formulas: &[modality_lang::FormulaExpr],
+) -> Option<modality_lang::Model> {
+    let mut signers = Vec::new();
+    for formula in formulas {
+        let formula_signers = first_contract_authorization_signers(formula)?;
+        for signer in formula_signers {
+            if !signers.contains(&signer) {
+                signers.push(signer);
+            }
+        }
+    }
+    if signers.is_empty() {
+        return None;
+    }
+
+    let mut transitions = Vec::new();
+    let mut bootstrap = modality_lang::Transition::new("q0".to_string(), "q1".to_string());
+    bootstrap.add_property(modality_lang::Property::new(
+        modality_lang::PropertySign::Plus,
+        "POST".to_string(),
+    ));
+    bootstrap.add_property(modality_lang::Property::new(
+        modality_lang::PropertySign::Plus,
+        "MODEL".to_string(),
+    ));
+    transitions.push(bootstrap);
+
+    for signer in &signers {
+        let mut post = modality_lang::Transition::new("q1".to_string(), "q1".to_string());
+        post.add_property(modality_lang::Property::new(
+            modality_lang::PropertySign::Plus,
+            "POST".to_string(),
+        ));
+        post.add_property(modality_lang::Property::new_predicate_from_call(
+            "signed_by".to_string(),
+            signer.clone(),
+        ));
+        transitions.push(post);
+    }
+
+    let mut model_replacement = modality_lang::Transition::new("q1".to_string(), "q1".to_string());
+    model_replacement.add_property(modality_lang::Property::new(
+        modality_lang::PropertySign::Plus,
+        "MODEL".to_string(),
+    ));
+    model_replacement.add_property(modality_lang::Property::new_predicate_from_call(
+        "signed_by".to_string(),
+        signers[0].clone(),
+    ));
+    transitions.push(model_replacement);
+
+    let mut part = modality_lang::Part::new("flow".to_string());
+    for transition in transitions {
+        part.add_transition(transition);
+    }
+    let mut model = modality_lang::Model::new("Contract".to_string());
+    model.add_part(part);
+    Some(model)
+}
+
+fn first_contract_authorization_signers(expr: &modality_lang::FormulaExpr) -> Option<Vec<String>> {
+    match expr {
+        modality_lang::FormulaExpr::Next(inner) => {
+            first_contract_always_unsigned_false_signers(inner)
+        }
+        modality_lang::FormulaExpr::Box(props, inner) if props.is_empty() => {
+            first_contract_always_unsigned_false_signers(inner)
+        }
+        modality_lang::FormulaExpr::Paren(inner) => first_contract_authorization_signers(inner),
+        _ => None,
+    }
+}
+
+fn first_contract_always_unsigned_false_signers(
+    expr: &modality_lang::FormulaExpr,
+) -> Option<Vec<String>> {
+    match expr {
+        modality_lang::FormulaExpr::Always(inner) => {
+            first_contract_unsigned_false_signers(inner)
+        }
+        modality_lang::FormulaExpr::Paren(inner) => {
+            first_contract_always_unsigned_false_signers(inner)
+        }
+        _ => None,
+    }
+}
+
+fn first_contract_unsigned_false_signers(expr: &modality_lang::FormulaExpr) -> Option<Vec<String>> {
+    match expr {
+        modality_lang::FormulaExpr::Box(props, inner)
+            if matches!(inner.as_ref(), modality_lang::FormulaExpr::False) =>
+        {
+            let mut signers = Vec::new();
+            for prop in props {
+                if prop.sign != modality_lang::PropertySign::Minus || prop.name != "signed_by" {
+                    return None;
+                }
+                let signer = predicate_arg(prop)?;
+                if !signers.contains(&signer) {
+                    signers.push(signer);
+                }
+            }
+            if signers.is_empty() {
+                None
+            } else {
+                Some(signers)
+            }
+        }
+        modality_lang::FormulaExpr::Paren(inner) => first_contract_unsigned_false_signers(inner),
+        _ => None,
+    }
+}
+
+fn predicate_arg(prop: &modality_lang::Property) -> Option<String> {
+    let Some(modality_lang::PropertySource::Predicate { args, .. }) = &prop.source else {
+        return None;
+    };
+    args.get("arg")
+        .and_then(|arg| arg.as_str())
+        .map(ToString::to_string)
+}
+
 struct ParsedFormulaInputs {
     formulas: Vec<modality_lang::FormulaExpr>,
     labels: Vec<String>,
@@ -4100,6 +4228,12 @@ fn parse_formula_string(index: usize, formula: &str) -> Result<Vec<modality_lang
         Ok(parsed) if !parsed.is_empty() => return Ok(parsed),
         Ok(_) => {}
         Err(err) => {
+            if let Ok(parsed) = parse_rule_formula_blocks_for_synthesis(formula) {
+                if !parsed.is_empty() {
+                    return Ok(parsed);
+                }
+            }
+
             let wrapped = format!("formula generated_{} {{\n{}\n}}", index + 1, formula);
             return match modality_lang::parse_all_formulas_content_lalrpop(&wrapped) {
                 Ok(parsed) if !parsed.is_empty() => Ok(parsed),
@@ -4120,6 +4254,129 @@ fn parse_formula_string(index: usize, formula: &str) -> Result<Vec<modality_lang
         Ok(_) => Err("wrapped expression parse produced no formulas".to_string()),
         Err(err) => Err(format!("wrapped expression parse failed: {}", err)),
     }
+}
+
+fn parse_rule_formula_blocks_for_synthesis(content: &str) -> Result<Vec<modality_lang::Formula>, String> {
+    let content = strip_line_comments(content);
+    let mut formulas = Vec::new();
+    let mut cursor = 0usize;
+
+    while let Some(rule_start) = find_word_from(&content, "rule", cursor) {
+        let after_rule = rule_start + "rule".len();
+        if content[rule_start..].starts_with("rule_for_this_commit") {
+            cursor = after_rule;
+            continue;
+        }
+
+        let Some(open_brace) = content[after_rule..].find('{').map(|i| after_rule + i) else {
+            break;
+        };
+        let Some(close_brace) = find_matching_brace(&content, open_brace) else {
+            return Err("failed to parse rule formula: unmatched rule `{`".to_string());
+        };
+
+        let rule_name = rule_name_between(&content[after_rule..open_brace]);
+        let rule_body = &content[open_brace + 1..close_brace];
+        let mut body_cursor = 0usize;
+        let mut formula_index = 1usize;
+
+        while let Some(formula_start) = find_word_from(rule_body, "formula", body_cursor) {
+            let after_formula = formula_start + "formula".len();
+            let Some(formula_open) = rule_body[after_formula..]
+                .find('{')
+                .map(|i| after_formula + i)
+            else {
+                break;
+            };
+            let Some(formula_close) = find_matching_brace(rule_body, formula_open) else {
+                return Err("failed to parse rule formula: unmatched formula `{`".to_string());
+            };
+            let expr = &rule_body[formula_open + 1..formula_close];
+            let name = if formula_index == 1 {
+                rule_name.clone()
+            } else {
+                format!("{}_formula_{}", rule_name, formula_index)
+            };
+            let formula_src = format!("formula {name} {{\n{expr}\n}}");
+            let formula = modality_lang::FormulaParser::new()
+                .parse(&formula_src)
+                .map_err(|e| format!("failed to parse rule formula `{name}`: {:?}", e))?;
+            formulas.push(formula);
+            body_cursor = formula_close + 1;
+            formula_index += 1;
+        }
+
+        cursor = close_brace + 1;
+    }
+
+    Ok(formulas)
+}
+
+fn strip_line_comments(content: &str) -> String {
+    content
+        .lines()
+        .map(|line| line.split_once("//").map_or(line, |(before, _)| before))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn find_word_from(haystack: &str, needle: &str, start: usize) -> Option<usize> {
+    let mut search_from = start;
+    while let Some(offset) = haystack[search_from..].find(needle) {
+        let pos = search_from + offset;
+        let before = haystack[..pos].chars().next_back();
+        let after = haystack[pos + needle.len()..].chars().next();
+        let before_ok = before.map_or(true, |c| !is_ident_char(c));
+        let after_ok = after.map_or(true, |c| !is_ident_char(c));
+        if before_ok && after_ok {
+            return Some(pos);
+        }
+        search_from = pos + needle.len();
+    }
+    None
+}
+
+fn find_matching_brace(content: &str, open_brace: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    for (idx, ch) in content[open_brace..].char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(open_brace + idx);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn rule_name_between(header: &str) -> String {
+    header
+        .split_whitespace()
+        .find(|token| token.chars().all(is_ident_char))
+        .map(sanitize_formula_name)
+        .unwrap_or_else(|| "default_rule".to_string())
+}
+
+fn sanitize_formula_name(raw: &str) -> String {
+    let mut name = raw
+        .chars()
+        .map(|c| if is_ident_char(c) { c } else { '_' })
+        .collect::<String>();
+    if name.is_empty() {
+        name.push_str("rule");
+    }
+    if name.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+        name.insert(0, '_');
+    }
+    name
+}
+
+fn is_ident_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_'
 }
 
 #[cfg(test)]
@@ -37713,6 +37970,80 @@ formula ApprovalSigner {
         let labels = parsed_formula_string_labels(&formulas);
 
         assert_eq!(labels, vec!["F1.1 `Approval`", "F1.2 `ApprovalSigner`"]);
+    }
+
+    #[test]
+    fn parsed_formula_labels_include_rule_formula_blocks() {
+        let formulas = vec![
+            r#"
+export default rule {
+  starting_at $PARENT
+  formula {
+    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+  }
+}
+"#
+            .to_string(),
+        ];
+
+        let parsed = parse_formula_inputs(&formulas);
+
+        assert!(parsed.unparsed.is_empty());
+        assert_eq!(parsed.labels, vec!["F1 `default_rule`"]);
+        assert_eq!(parsed.formulas.len(), 1);
+    }
+
+    #[test]
+    fn named_rule_formula_blocks_keep_rule_name_for_review_labels() {
+        let formulas = vec![
+            r#"
+rule authorized_posts {
+  formula {
+    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+  }
+}
+"#
+            .to_string(),
+        ];
+
+        let labels = parsed_formula_string_labels(&formulas);
+
+        assert_eq!(labels, vec!["F1 `authorized_posts`"]);
+    }
+
+    #[test]
+    fn first_contract_authorization_rule_synthesizes_bootstrap_witness() {
+        let formulas = vec![
+            r#"
+export default rule {
+  starting_at $PARENT
+  formula {
+    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+  }
+}
+"#
+            .to_string(),
+        ];
+        let parsed = parse_formula_inputs(&formulas);
+
+        let model = synthesize_model_from_parsed_formulas(&parsed.formulas);
+
+        assert_eq!(model.parts.len(), 1);
+        let transitions = &model.parts[0].transitions;
+        assert_eq!(transitions.len(), 4);
+        assert!(transitions.iter().any(|transition| {
+            transition.from == "q0"
+                && transition.to == "q1"
+                && transition
+                    .properties
+                    .iter()
+                    .any(|prop| prop.name == "POST")
+                && transition
+                    .properties
+                    .iter()
+                    .any(|prop| prop.name == "MODEL")
+        }));
+        verify_synthesized_model(&model, &parsed.formulas).unwrap();
     }
 
     #[test]

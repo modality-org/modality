@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MODAL_BIN="${MODAL_BIN:-$ROOT_DIR/rust/target/debug/modal}"
+MODALITY_BIN="${MODALITY_BIN:-$ROOT_DIR/rust/target/debug/modality}"
 
 if [[ ! -x "$MODAL_BIN" ]]; then
   cat >&2 <<EOF
@@ -43,17 +44,6 @@ BOB_ID="$("$MODAL_BIN" id get --path "$BOB_PASSFILE")"
 "$MODAL_BIN" c set-named-id /parties/alice.id "$ALICE_PASSFILE" --dir "$CONTRACT_DIR" >/dev/null
 "$MODAL_BIN" c set-named-id /parties/bob.id "$BOB_PASSFILE" --dir "$CONTRACT_DIR" >/dev/null
 
-cat >"$CONTRACT_DIR/model/default.modality" <<'EOF'
-export default model {
-  initial q0
-
-  q0 -> q1 [+POST +MODEL]
-  q1 -> q1 [+POST +signed_by(/parties/alice.id)]
-  q1 -> q1 [+POST +signed_by(/parties/bob.id)]
-  q1 -> q1 [+MODEL +signed_by(/parties/alice.id)]
-}
-EOF
-
 mkdir -p "$CONTRACT_DIR/rules"
 cat >"$CONTRACT_DIR/rules/authorized.modality" <<'EOF'
 export default rule {
@@ -63,6 +53,24 @@ export default rule {
   }
 }
 EOF
+
+if [[ -x "$MODALITY_BIN" ]]; then
+  "$MODALITY_BIN" model synthesize \
+    --rule "$CONTRACT_DIR/rules/authorized.modality" \
+    --verify \
+    -o "$CONTRACT_DIR/model/default.modality" >/dev/null
+else
+  cat >"$CONTRACT_DIR/model/default.modality" <<'EOF'
+export default model {
+  initial q0
+
+  q0 -> q1 [+POST +MODEL]
+  q1 -> q1 [+POST +signed_by(/parties/alice.id)]
+  q1 -> q1 [+POST +signed_by(/parties/bob.id)]
+  q1 -> q1 [+MODEL +signed_by(/parties/alice.id)]
+}
+EOF
+fi
 
 "$MODAL_BIN" c commit \
   --all \
@@ -89,6 +97,9 @@ grep -q "Message: Initial contract setup" "$TMP_DIR/log.txt"
 grep -q "Signatures: 1" "$TMP_DIR/log.txt"
 grep -q "$ALICE_ID" "$TMP_DIR/log.txt"
 grep -q '\[\] always' "$CONTRACT_DIR/rules/authorized.modality"
+grep -q 'q0 .* q1.*+POST.*+MODEL' "$CONTRACT_DIR/model/default.modality"
+grep -q 'q1 .* q1.*+POST.*+signed_by(/parties/alice.id)' "$CONTRACT_DIR/model/default.modality"
+grep -q 'q1 .* q1.*+POST.*+signed_by(/parties/bob.id)' "$CONTRACT_DIR/model/default.modality"
 
 "$MODAL_BIN" c commit \
   --path /notes.text \
@@ -126,8 +137,8 @@ if "$MODAL_BIN" c commit \
 fi
 
 grep -q 'current states {"q1"}' "$TMP_DIR/unsigned-post.err"
-grep -q "Closest candidate transition: candidate from current state q1: q1 -> q1 \[+POST +signed_by(/parties/alice.id)\]; failed predicates: missing +signed_by(/parties/alice.id)" "$TMP_DIR/unsigned-post.err"
-grep -q "candidate from current state q1: q1 -> q1 \[+POST +signed_by(/parties/bob.id)\]; failed predicates: missing +signed_by(/parties/bob.id)" "$TMP_DIR/unsigned-post.err"
+grep -Eq "Closest candidate transition: (part flow )?candidate from current state q1: q1 -+> q1 \[\\+POST \\+signed_by\\(/parties/alice.id\\)\]; failed predicates: missing \\+signed_by\\(/parties/alice.id\\)" "$TMP_DIR/unsigned-post.err"
+grep -Eq "(part flow )?candidate from current state q1: q1 -+> q1 \[\\+POST \\+signed_by\\(/parties/bob.id\\)\]; failed predicates: missing \\+signed_by\\(/parties/bob.id\\)" "$TMP_DIR/unsigned-post.err"
 grep -q "missing +signed_by(/parties/alice.id)" "$TMP_DIR/unsigned-post.err"
 grep -q "missing +signed_by(/parties/bob.id)" "$TMP_DIR/unsigned-post.err"
 

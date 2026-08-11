@@ -12,9 +12,11 @@ This always runs the parser-backed language smoke, checks that the standard
 predicate reference preserves the local evidence-source matrix, checks that the
 contract evolution reference preserves the accumulated-rule and witness
 replacement model, checks that the rule syntax reference preserves the
-commitment-versus-enabledness trap warning, runs the `modality model lint` smoke
-when a `modality` binary is present, and checks that both the default contract
-CLI dependency tree and the lean `modal` onboarding wrapper avoid
+commitment-versus-enabledness trap warning, checks that the first-contract guide
+adds rules, synthesizes the witness model with `--verify`, and then commits,
+runs the `modality model lint` smoke when a `modality` binary is present, and
+checks that both the default contract CLI dependency tree and the lean `modal`
+onboarding wrapper avoid
 onboarding-heavy network/storage/compression deps. It also runs the
 first-contract CLI wrapper smoke when `rust/target/debug/modal` exists, or when
 `MODAL_BIN=/path/to/modal` points at another built `modal` binary. When a
@@ -44,7 +46,10 @@ explicit `MODAL_BIN` whose feature shape differs from
 
 To run the lint smoke against a cached language CLI without rebuilding, pass
 `MODALITY_BIN`. The same binary is also used for the parser-backed
-first-contract language smoke, avoiding `cargo run` in low-disk no-build runs:
+first-contract language smoke and, when a `modal` binary is present, to
+synthesize the first-contract witness model from the rule with `--verify`
+before the contract CLI smoke commits it. This avoids `cargo run` in low-disk
+no-build runs:
 
 ```bash
 MODALITY_BIN=/path/to/modality tests/run-onboarding-smokes.sh
