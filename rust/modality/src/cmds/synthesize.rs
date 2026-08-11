@@ -75,7 +75,7 @@ pub struct Opts {
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
-    /// Write a review bundle for verified LLM-response synthesis
+    /// Write a review bundle for verified parser-backed synthesis
     #[arg(long)]
     pub review_bundle: Option<PathBuf>,
 
@@ -353,6 +353,15 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
             let output = format_synthesized_model(&model, &opts.format)?;
             write_or_print_model(&output, opts.output.as_ref())?;
+            write_rule_review_bundle_if_requested(
+                opts.review_bundle.as_ref(),
+                rule_path,
+                &content,
+                review_source.as_ref(),
+                &parsed_input,
+                &output,
+                &opts.format,
+            )?;
         } else {
             if opts.verify {
                 return Err(anyhow::anyhow!(
@@ -3224,9 +3233,9 @@ fn ensure_review_bundle_mode(opts: &Opts) -> Result<()> {
         return Ok(());
     }
 
-    if opts.llm_response.is_none() && opts.llm_response_file.is_none() {
+    if opts.llm_response.is_none() && opts.llm_response_file.is_none() && opts.rule.is_none() {
         return Err(anyhow::anyhow!(
-            "--review-bundle requires --llm-response or --llm-response-file"
+            "--review-bundle requires --rule, --llm-response, or --llm-response-file"
         ));
     }
 
@@ -4862,9 +4871,71 @@ fn write_llm_review_bundle_if_requested(
     Ok(())
 }
 
+fn write_rule_review_bundle_if_requested(
+    review_bundle_path: Option<&PathBuf>,
+    rule_path: &PathBuf,
+    rule_content: &str,
+    review_source: Option<&ReviewSource>,
+    parsed_input: &ParsedFormulaInputs,
+    model_output: &str,
+    model_format: &str,
+) -> Result<()> {
+    let Some(review_bundle_path) = review_bundle_path else {
+        return Ok(());
+    };
+
+    let formulas: Vec<String> = if parsed_input.labels.is_empty() {
+        Vec::new()
+    } else {
+        parsed_input.labels.clone()
+    };
+    let bundle = format_synthesis_review_bundle(
+        "Rule File",
+        &format!("--rule {}", rule_path.display()),
+        "rule file supplied by the reviewer",
+        rule_content,
+        review_source,
+        &formulas,
+        parsed_input,
+        model_output,
+        model_format,
+    );
+    write_output_file(&bundle, review_bundle_path)?;
+    println!(
+        "✅ Synthesis review bundle written to {}",
+        review_bundle_path.display()
+    );
+
+    Ok(())
+}
+
 fn format_llm_review_bundle(
     source_label: &str,
     source_response: &str,
+    review_source: Option<&ReviewSource>,
+    extracted_formulas: &[String],
+    parsed_input: &ParsedFormulaInputs,
+    model_output: &str,
+    model_format: &str,
+) -> String {
+    format_synthesis_review_bundle(
+        "LLM Response",
+        source_label,
+        "LLM response text supplied by the reviewer",
+        source_response,
+        review_source,
+        extracted_formulas,
+        parsed_input,
+        model_output,
+        model_format,
+    )
+}
+
+fn format_synthesis_review_bundle(
+    input_heading: &str,
+    input_label: &str,
+    input_type: &str,
+    input_content: &str,
     review_source: Option<&ReviewSource>,
     extracted_formulas: &[String],
     parsed_input: &ParsedFormulaInputs,
@@ -4889,11 +4960,11 @@ fn format_llm_review_bundle(
         );
     }
 
-    output.push_str("## LLM Response\n\n");
-    output.push_str(&format!("- Input: `{}`\n", source_label));
-    output.push_str("- Source type: LLM response text supplied by the reviewer\n\n");
+    output.push_str(&format!("## {}\n\n", input_heading));
+    output.push_str(&format!("- Input: `{}`\n", input_label));
+    output.push_str(&format!("- Source type: {}\n\n", input_type));
     output.push_str("```text\n");
-    output.push_str(source_response.trim());
+    output.push_str(input_content.trim());
     output.push_str("\n```\n\n");
 
     output.push_str("## Extracted Facts\n\n");
@@ -20864,6 +20935,55 @@ F3: [+APPROVE] true -> <+oracle_attests(/oracles/review.id, "reviewed", "true")>
     }
 
     #[tokio::test]
+    async fn rule_file_verify_writes_review_bundle() {
+        let rule_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-review-rule-{}.modality",
+            std::process::id()
+        ));
+        let review_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-rule-review-bundle-{}.md",
+            std::process::id()
+        ));
+        std::fs::write(
+            &rule_path,
+            r#"
+rule post_requires_reviewer {
+  formula {
+    always([+POST] true -> <+signed_by(/users/reviewer.id)> true)
+  }
+}
+"#,
+        )
+        .unwrap();
+
+        let mut opts = default_test_opts();
+        opts.rule = Some(rule_path.clone());
+        opts.review_bundle = Some(review_path.clone());
+        opts.verify = true;
+
+        run(&opts).await.unwrap();
+
+        let bundle = std::fs::read_to_string(&review_path).unwrap();
+        let rule_input = format!("- Input: `--rule {}`", rule_path.display());
+        std::fs::remove_file(rule_path).unwrap();
+        std::fs::remove_file(review_path).unwrap();
+
+        assert!(bundle.contains("# Modality Synthesis Review Bundle"));
+        assert!(bundle.contains("## Rule File"));
+        assert!(bundle.contains(&rule_input));
+        assert!(bundle.contains("post_requires_reviewer"));
+        assert!(bundle.contains("## Extracted Facts"));
+        assert!(bundle.contains("`+POST`"));
+        assert!(bundle.contains("`+signed_by(/users/reviewer.id)`"));
+        assert!(bundle.contains("## Verifier Result"));
+        assert!(bundle.contains("Status: passed (`--verify`)"));
+        assert!(bundle.contains("## Witness Model"));
+        assert!(bundle.contains("model Contract"));
+        assert!(bundle.contains("## Assumptions"));
+        assert!(bundle.contains("## Known Gaps"));
+    }
+
+    #[tokio::test]
     async fn review_bundle_requires_verified_llm_response_mode() {
         let mut opts = default_test_opts();
         opts.formulas = Some("always([<+APPROVE>] true)".to_string());
@@ -20873,7 +20993,7 @@ F3: [+APPROVE] true -> <+oracle_attests(/oracles/review.id, "reviewed", "true")>
         let err = run(&opts).await.unwrap_err();
         assert!(err
             .to_string()
-            .contains("--review-bundle requires --llm-response or --llm-response-file"));
+            .contains("--review-bundle requires --rule, --llm-response, or --llm-response-file"));
 
         let mut opts = default_test_opts();
         opts.llm_response = Some("F1: always([<+APPROVE>] true)".to_string());

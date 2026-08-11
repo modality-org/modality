@@ -26,6 +26,7 @@ trap cleanup EXIT
 
 RULE="$TMP_DIR/post-requires-reviewer.modality"
 MODEL="$TMP_DIR/post-requires-reviewer-model.modality"
+REVIEW_BUNDLE="$TMP_DIR/post-requires-reviewer-review.md"
 SYNTH_OUT="$TMP_DIR/synthesize.out"
 VALIDATE_OUT="$TMP_DIR/validate.out"
 
@@ -40,6 +41,7 @@ EOF
 "$MODALITY_BIN" model synthesize \
   --rule "$RULE" \
   --verify \
+  --review-bundle "$REVIEW_BUNDLE" \
   -o "$MODEL" >"$SYNTH_OUT" 2>&1
 
 required_synthesis_patterns=(
@@ -47,6 +49,7 @@ required_synthesis_patterns=(
   "Verifying synthesized model against 1 formula(s)"
   'F1 `post_requires_reviewer` satisfied'
   "post_requires_reviewer"
+  "Synthesis review bundle written to"
 )
 
 for pattern in "${required_synthesis_patterns[@]}"; do
@@ -66,6 +69,31 @@ for pattern in "${required_model_patterns[@]}"; do
   if ! grep -Fq "$pattern" "$MODEL"; then
     echo "rule synthesized witness is missing: $pattern" >&2
     cat "$MODEL" >&2
+    exit 1
+  fi
+done
+
+required_review_patterns=(
+  "# Modality Synthesis Review Bundle"
+  "## Rule File"
+  "post_requires_reviewer"
+  "## Extracted Facts"
+  "Action labels:"
+  '`+POST`'
+  "Predicate calls:"
+  '`+signed_by(/users/reviewer.id)`'
+  "## Verifier Result"
+  "Status: passed (\`--verify\`)"
+  "## Witness Model"
+  "model Contract"
+  "## Assumptions"
+  "## Known Gaps"
+)
+
+for pattern in "${required_review_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$REVIEW_BUNDLE"; then
+    echo "rule synthesis review bundle is missing: $pattern" >&2
+    cat "$REVIEW_BUNDLE" >&2
     exit 1
   fi
 done
