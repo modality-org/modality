@@ -73,6 +73,7 @@ the synthesized candidate and write it to `model/default.modality`.
 ```bash
 mkdir -p model
 modality model synthesize --rule rules/authorized.modality --verify -o model/default.modality
+modality model validate model/default.modality --verbose
 ```
 
 For this first contract, the witness model should have this shape:
@@ -92,6 +93,8 @@ model Contract {
 commit that installs identity evidence and the first model. After that, the
 model exposes only signed `POST` and `MODEL` paths for ordinary state changes
 and model replacement.
+
+The validation command should report `Contract is valid!` and `Transitions: 4`.
 
 ## 6. Commit and Verify
 
