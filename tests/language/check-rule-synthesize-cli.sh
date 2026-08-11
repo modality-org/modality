@@ -29,6 +29,9 @@ MODEL="$TMP_DIR/post-requires-reviewer-model.modality"
 REVIEW_BUNDLE="$TMP_DIR/post-requires-reviewer-review.md"
 SYNTH_OUT="$TMP_DIR/synthesize.out"
 VALIDATE_OUT="$TMP_DIR/validate.out"
+UNSAT_RULE="$TMP_DIR/unsatisfied-rule.modality"
+UNSAT_REVIEW_BUNDLE="$TMP_DIR/unsatisfied-rule-review.md"
+UNSAT_OUT="$TMP_DIR/unsatisfied-rule.out"
 
 cat >"$RULE" <<'EOF'
 rule post_requires_reviewer {
@@ -110,6 +113,61 @@ for pattern in "${required_validation_patterns[@]}"; do
   if ! grep -Fq "$pattern" "$VALIDATE_OUT"; then
     echo "rule synthesized witness validation output is missing: $pattern" >&2
     cat "$VALIDATE_OUT" >&2
+    exit 1
+  fi
+done
+
+cat >"$UNSAT_RULE" <<'EOF'
+rule impossible_contract {
+  formula {
+    false
+  }
+}
+EOF
+
+if "$MODALITY_BIN" model synthesize \
+  --rule "$UNSAT_RULE" \
+  --verify \
+  --review-bundle "$UNSAT_REVIEW_BUNDLE" >"$UNSAT_OUT" 2>&1; then
+  echo "unsatisfied rule synthesis unexpectedly succeeded" >&2
+  cat "$UNSAT_OUT" >&2
+  exit 1
+fi
+
+required_unsat_patterns=(
+  "Synthesizing from rule file:"
+  "Verifying synthesized model against 1 formula(s)"
+  "Synthesis failure review bundle written to"
+  "No satisfying witness found by current synthesis heuristics"
+  "verifier rejected the synthesized candidate"
+)
+
+for pattern in "${required_unsat_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$UNSAT_OUT"; then
+    echo "unsatisfied rule synthesis output is missing: $pattern" >&2
+    cat "$UNSAT_OUT" >&2
+    exit 1
+  fi
+done
+
+required_unsat_review_patterns=(
+  "# Modality Synthesis Review Bundle"
+  "## Rule File"
+  "impossible_contract"
+  "## Extracted Facts"
+  "## Verifier Result"
+  "Status: failed (\`--verify\`)"
+  "no satisfying witness was found by the current synthesis heuristics"
+  "## Candidate Witness Model"
+  "model Contract"
+  "## Known Gaps"
+  "bounded heuristic search path"
+)
+
+for pattern in "${required_unsat_review_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$UNSAT_REVIEW_BUNDLE"; then
+    echo "unsatisfied rule synthesis review bundle is missing: $pattern" >&2
+    cat "$UNSAT_REVIEW_BUNDLE" >&2
     exit 1
   fi
 done

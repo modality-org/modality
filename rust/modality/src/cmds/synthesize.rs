@@ -341,17 +341,32 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
         if !parsed_input.formulas.is_empty() {
             let model = synthesize_model_from_parsed_formulas(&parsed_input.formulas);
+            let output = format_synthesized_model(&model, &opts.format)?;
 
             if opts.verify {
-                verify_synthesized_model_with_labels(
+                if let Err(err) = verify_synthesized_model_with_labels(
                     &model,
                     &parsed_input.formulas,
                     &parsed_input.labels,
-                )?;
+                ) {
+                    write_rule_failed_review_bundle_if_requested(
+                        opts.review_bundle.as_ref(),
+                        rule_path,
+                        &content,
+                        review_source.as_ref(),
+                        &parsed_input,
+                        &output,
+                        &opts.format,
+                        &err,
+                    )?;
+                    return Err(anyhow::anyhow!(
+                        "No satisfying witness found by current synthesis heuristics for parser-backed rule formulas; verifier rejected the synthesized candidate: {}",
+                        err
+                    ));
+                }
                 println!();
             }
 
-            let output = format_synthesized_model(&model, &opts.format)?;
             write_or_print_model(&output, opts.output.as_ref())?;
             write_rule_review_bundle_if_requested(
                 opts.review_bundle.as_ref(),
@@ -4869,6 +4884,113 @@ fn write_llm_review_bundle_if_requested(
     );
 
     Ok(())
+}
+
+fn write_rule_failed_review_bundle_if_requested(
+    review_bundle_path: Option<&PathBuf>,
+    rule_path: &PathBuf,
+    rule_content: &str,
+    review_source: Option<&ReviewSource>,
+    parsed_input: &ParsedFormulaInputs,
+    model_output: &str,
+    model_format: &str,
+    verifier_error: &anyhow::Error,
+) -> Result<()> {
+    let Some(review_bundle_path) = review_bundle_path else {
+        return Ok(());
+    };
+
+    let bundle = format_failed_rule_review_bundle(
+        rule_path,
+        rule_content,
+        review_source,
+        parsed_input,
+        model_output,
+        model_format,
+        verifier_error,
+    );
+    write_output_file(&bundle, review_bundle_path)?;
+    println!(
+        "⚠️  Synthesis failure review bundle written to {}",
+        review_bundle_path.display()
+    );
+
+    Ok(())
+}
+
+fn format_failed_rule_review_bundle(
+    rule_path: &PathBuf,
+    rule_content: &str,
+    review_source: Option<&ReviewSource>,
+    parsed_input: &ParsedFormulaInputs,
+    model_output: &str,
+    model_format: &str,
+    verifier_error: &anyhow::Error,
+) -> String {
+    let mut output = String::new();
+    output.push_str("# Modality Synthesis Review Bundle\n\n");
+
+    output.push_str("## Original Source\n\n");
+    if let Some(review_source) = review_source {
+        output.push_str(&format!("- Input: `{}`\n\n", review_source.label));
+        output.push_str("```text\n");
+        output.push_str(review_source.content.trim());
+        output.push_str("\n```\n\n");
+    } else {
+        output.push_str(
+            "- Not supplied. Use `--source-text` or `--source-file` with `--review-bundle` to capture reviewer context.\n\n",
+        );
+    }
+
+    output.push_str("## Rule File\n\n");
+    output.push_str(&format!("- Input: `--rule {}`\n\n", rule_path.display()));
+    output.push_str("```text\n");
+    output.push_str(rule_content.trim());
+    output.push_str("\n```\n\n");
+
+    output.push_str("## Extracted Facts\n\n");
+    output.push_str(
+        "- Extraction source: parser-backed formula AST, not inferred natural language.\n\n",
+    );
+    let facts = FormulaFactSummary::from_formulas(&parsed_input.formulas);
+    facts.write_markdown(&mut output);
+
+    output.push_str("## Parser Result\n\n");
+    output.push_str(&format!(
+        "- Parsed formulas: {}\n",
+        parsed_input.formulas.len()
+    ));
+    output.push_str(&format!(
+        "- Unparsed formulas: {}\n",
+        parsed_input.unparsed.len()
+    ));
+    if !parsed_input.labels.is_empty() {
+        output.push_str("- Parsed labels:\n");
+        for label in &parsed_input.labels {
+            output.push_str(&format!("  - {}\n", label));
+        }
+    }
+    output.push('\n');
+
+    output.push_str("## Verifier Result\n\n");
+    output.push_str("- Status: failed (`--verify`)\n");
+    output.push_str(
+        "- Outcome: no satisfying witness was found by the current synthesis heuristics.\n",
+    );
+    output.push_str(&format!("- Verifier error: `{}`\n\n", verifier_error));
+
+    output.push_str("## Candidate Witness Model\n\n");
+    output.push_str(&format!("```{}\n", model_format));
+    output.push_str(model_output.trim());
+    output.push_str("\n```\n\n");
+
+    output.push_str("## Known Gaps\n\n");
+    output.push_str("- This is a bounded heuristic search path, not a complete model finder.\n");
+    output.push_str(
+        "- Review the candidate, formula shape, and predicate assumptions before broadening synthesis heuristics.\n",
+    );
+
+    output
 }
 
 fn write_rule_review_bundle_if_requested(

@@ -17,8 +17,8 @@ adds rules, synthesizes the witness model with `--verify`, validates it with
 `modality model validate`, and then commits, runs the first-contract
 rule-to-witness synthesis smoke, validates the synthesized witness, runs a
 signed-`POST` rule synthesis smoke, validates that synthesized witness, runs the
-`modality model lint` smoke when a `modality`
-binary is present, and checks that
+unsatisfied-rule no-witness diagnostic bundle check, runs the `modality model
+lint` smoke when a `modality` binary is present, and checks that
 both the default contract CLI dependency tree and the lean `modal` onboarding
 wrapper avoid onboarding-heavy network/storage/compression deps. It also runs the
 first-contract CLI wrapper smoke when `rust/target/debug/modal` exists, or when
@@ -50,8 +50,8 @@ explicit `MODAL_BIN` whose feature shape differs from
 To run the lint smoke against a cached language CLI without rebuilding, pass
 `MODALITY_BIN`. The same binary is also used for the parser-backed
 first-contract language smoke, the standalone first-contract rule-to-witness
-synthesis smoke, the signed-`POST` rule synthesis plus review-bundle smoke, and, when a `modal`
-binary is present, to synthesize the
+synthesis smoke, the signed-`POST` rule synthesis plus review-bundle and
+no-witness diagnostic smoke, and, when a `modal` binary is present, to synthesize the
 first-contract witness model from the rule with `--verify` before the contract
 CLI smoke commits it. This avoids `cargo run` in low-disk no-build runs:
 
