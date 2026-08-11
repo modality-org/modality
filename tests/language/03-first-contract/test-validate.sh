@@ -33,7 +33,7 @@ if ! grep -q "Contract is valid!" <<<"$output"; then
   exit 1
 fi
 
-if ! grep -q "All properties are predicates (verifiable)." <<<"$output"; then
-  echo "expected first-contract fixture to pass predicate-only validation" >&2
+if ! grep -q "All properties are predicates or commit method labels (verifier-observed)." <<<"$output"; then
+  echo "expected first-contract fixture to pass verifier-observed property validation" >&2
   exit 1
 fi

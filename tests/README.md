@@ -14,8 +14,9 @@ contract evolution reference preserves the accumulated-rule and witness
 replacement model, checks that the rule syntax reference preserves the
 commitment-versus-enabledness trap warning, checks that the first-contract guide
 adds rules, synthesizes the witness model with `--verify`, and then commits,
-runs the first-contract rule-to-witness synthesis smoke and the
-`modality model lint` smoke when a `modality` binary is present, and checks that
+runs the first-contract rule-to-witness synthesis smoke, validates the
+synthesized witness, runs the `modality model lint` smoke when a `modality`
+binary is present, and checks that
 both the default contract CLI dependency tree and the lean `modal` onboarding
 wrapper avoid onboarding-heavy network/storage/compression deps. It also runs the
 first-contract CLI wrapper smoke when `rust/target/debug/modal` exists, or when

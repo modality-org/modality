@@ -1,7 +1,8 @@
 //! Contract Validation
 //!
-//! Ensures contracts only contain predicates, not raw propositions.
-//! Predicates are verifiable; propositions are just claims.
+//! Ensures contracts only contain predicates or known contract method labels.
+//! Predicates and method labels are verifier-observed; raw propositions are
+//! just claims.
 
 use crate::ast::{Model, Property, PropertySign, PropertySource};
 
@@ -30,7 +31,12 @@ pub enum ValidationError {
 impl std::fmt::Display for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ValidationError::RawProposition { property_name, transition_from, transition_to, hint } => {
+            ValidationError::RawProposition {
+                property_name,
+                transition_from,
+                transition_to,
+                hint,
+            } => {
                 write!(
                     f,
                     "Raw proposition '+{}' in transition {} --> {} is not allowed in contracts. {}",
@@ -62,14 +68,16 @@ impl std::fmt::Display for ValidationError {
 /// Validation result
 pub type ValidationResult = Result<(), Vec<ValidationError>>;
 
-/// Validate that a model only contains predicates, not raw propositions
-/// 
-/// In contracts, every action must be verifiable. Raw propositions like `+DELIVER`
-/// cannot be verified - only predicates like `+signed_by(bob)` can be checked
-/// against commit data.
+/// Validate that a model only contains predicates or known contract method
+/// labels.
+///
+/// In contracts, every property must be verifier-observed. Raw propositions
+/// like `+DELIVER` cannot be verified. Predicates like `+signed_by(bob)` can
+/// be checked against commit data, and known method labels like `+POST` are
+/// derived from the pending commit body.
 pub fn validate_no_raw_propositions(model: &Model) -> ValidationResult {
     let mut errors = Vec::new();
-    
+
     // Check direct transitions
     for transition in &model.transitions {
         for prop in &transition.properties {
@@ -86,7 +94,7 @@ pub fn validate_no_raw_propositions(model: &Model) -> ValidationResult {
             }
         }
     }
-    
+
     // Check transitions in parts
     for part in &model.parts {
         for transition in &part.transitions {
@@ -105,7 +113,7 @@ pub fn validate_no_raw_propositions(model: &Model) -> ValidationResult {
             }
         }
     }
-    
+
     if errors.is_empty() {
         Ok(())
     } else {
@@ -185,21 +193,31 @@ pub fn validate_sets_one_of(
     }
 }
 
-/// Check if a property is a raw proposition (no predicate source)
+/// Check if a property is a raw proposition (no predicate source and not a
+/// known contract method label).
 fn is_raw_proposition(prop: &Property) -> bool {
     match &prop.source {
-        None => true, // No source = raw proposition
-        Some(PropertySource::Static) => true, // Static = raw proposition
-        Some(PropertySource::Predicate { .. }) => false, // Predicate = OK
+        None => !is_contract_method_label(prop), // No source = raw proposition or method label
+        Some(PropertySource::Static) => !is_contract_method_label(prop), // Static = raw proposition or method label
+        Some(PropertySource::Predicate { .. }) => false,                 // Predicate = OK
     }
 }
+
+/// Contract method labels are not domain claims. They are supplied by the
+/// contract verifier from the pending commit body.
+fn is_contract_method_label(prop: &Property) -> bool {
+    prop.sign == PropertySign::Plus && KNOWN_CONTRACT_METHOD_LABELS.contains(&prop.name.as_str())
+}
+
+/// Method labels emitted by the current local contract verifier.
+pub const KNOWN_CONTRACT_METHOD_LABELS: &[&str] = &["POST", "RULE", "MODEL"];
 
 /// List of known predicates for helpful error messages
 pub const KNOWN_PREDICATES: &[&str] = &[
     "signed_by",
     "threshold",
     "before",
-    "after", 
+    "after",
     "hash_matches",
     "preimage_of",
     "amount_equals",
@@ -212,27 +230,27 @@ pub const KNOWN_PREDICATES: &[&str] = &[
 /// Suggest predicates for common action names
 pub fn suggest_predicate(action_name: &str) -> String {
     let lower = action_name.to_lowercase();
-    
+
     if lower.contains("sign") || lower.contains("approve") || lower.contains("commit") {
         return "signed_by(/users/party.id)".to_string();
     }
-    
+
     if lower.contains("pay") || lower.contains("deposit") || lower.contains("transfer") {
         return "signed_by(/users/payer.id) and consider amount_equals(value)".to_string();
     }
-    
+
     if lower.contains("deliver") || lower.contains("complete") || lower.contains("done") {
         return "signed_by(/users/provider.id)".to_string();
     }
-    
+
     if lower.contains("deadline") || lower.contains("expire") {
         return "before(/state/deadline.datetime) or after(/state/deadline.datetime)".to_string();
     }
-    
+
     if lower.contains("reveal") || lower.contains("claim") {
         return "hash_matches(/state/commitment.hash) or preimage_of(/state/hash.hash)".to_string();
     }
-    
+
     // Default suggestion
     "signed_by(/users/party.id)".to_string()
 }
@@ -240,31 +258,31 @@ pub fn suggest_predicate(action_name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{Model, Part, Transition, Property, PropertySign};
-    
+    use crate::ast::{Model, Part, Property, PropertySign, Transition};
+
     #[test]
     fn test_raw_proposition_rejected() {
         let mut model = Model::new("Test".to_string());
         let mut part = Part::new("flow".to_string());
-        
+
         let mut t = Transition::new("a".to_string(), "b".to_string());
         t.add_property(Property::new(PropertySign::Plus, "DELIVER".to_string()));
         part.add_transition(t);
         model.add_part(part);
-        
+
         let result = validate_no_raw_propositions(&model);
         assert!(result.is_err());
-        
+
         let errors = result.unwrap_err();
         assert_eq!(errors.len(), 1);
         assert!(matches!(errors[0], ValidationError::RawProposition { .. }));
     }
-    
+
     #[test]
     fn test_predicate_accepted() {
         let mut model = Model::new("Test".to_string());
         let mut part = Part::new("flow".to_string());
-        
+
         let mut t = Transition::new("a".to_string(), "b".to_string());
         t.add_property(Property::new_predicate_from_call(
             "signed_by".to_string(),
@@ -272,16 +290,49 @@ mod tests {
         ));
         part.add_transition(t);
         model.add_part(part);
-        
+
         let result = validate_no_raw_propositions(&model);
         assert!(result.is_ok());
     }
-    
+
+    #[test]
+    fn test_contract_method_labels_accepted() {
+        let mut model = Model::new("Test".to_string());
+        let mut part = Part::new("flow".to_string());
+
+        let mut t = Transition::new("q0".to_string(), "q1".to_string());
+        t.add_property(Property::new(PropertySign::Plus, "POST".to_string()));
+        t.add_property(Property::new(PropertySign::Plus, "MODEL".to_string()));
+        t.add_property(Property::new_predicate_from_call(
+            "signed_by".to_string(),
+            "/users/alice.id".to_string(),
+        ));
+        part.add_transition(t);
+        model.add_part(part);
+
+        let result = validate_no_raw_propositions(&model);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_unknown_action_label_still_rejected() {
+        let mut model = Model::new("Test".to_string());
+        let mut part = Part::new("flow".to_string());
+
+        let mut t = Transition::new("a".to_string(), "b".to_string());
+        t.add_property(Property::new(PropertySign::Plus, "DELIVER".to_string()));
+        part.add_transition(t);
+        model.add_part(part);
+
+        let result = validate_no_raw_propositions(&model);
+        assert!(result.is_err());
+    }
+
     #[test]
     fn test_mixed_properties() {
         let mut model = Model::new("Test".to_string());
         let mut part = Part::new("flow".to_string());
-        
+
         let mut t = Transition::new("a".to_string(), "b".to_string());
         // One predicate, one raw
         t.add_property(Property::new_predicate_from_call(
@@ -291,10 +342,10 @@ mod tests {
         t.add_property(Property::new(PropertySign::Plus, "DELIVER".to_string()));
         part.add_transition(t);
         model.add_part(part);
-        
+
         let result = validate_no_raw_propositions(&model);
         assert!(result.is_err());
-        
+
         let errors = result.unwrap_err();
         assert_eq!(errors.len(), 1);
     }

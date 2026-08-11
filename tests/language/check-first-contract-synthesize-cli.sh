@@ -27,6 +27,7 @@ trap cleanup EXIT
 RULE="$TMP_DIR/authorized.modality"
 MODEL="$TMP_DIR/default.modality"
 SYNTH_OUT="$TMP_DIR/synthesize.out"
+VALIDATE_OUT="$TMP_DIR/validate.out"
 
 cat >"$RULE" <<'EOF'
 export default rule {
@@ -69,6 +70,22 @@ for pattern in "${required_model_patterns[@]}"; do
   if ! grep -Fq "$pattern" "$MODEL"; then
     echo "first-contract synthesized witness is missing: $pattern" >&2
     cat "$MODEL" >&2
+    exit 1
+  fi
+done
+
+"$MODALITY_BIN" model validate "$MODEL" --verbose >"$VALIDATE_OUT" 2>&1
+
+required_validation_patterns=(
+  "Contract is valid!"
+  "All properties are predicates or commit method labels (verifier-observed)."
+  "Transitions: 4"
+)
+
+for pattern in "${required_validation_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$VALIDATE_OUT"; then
+    echo "first-contract synthesized witness validation output is missing: $pattern" >&2
+    cat "$VALIDATE_OUT" >&2
     exit 1
   fi
 done

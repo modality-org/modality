@@ -11,4 +11,4 @@ Run it from this directory:
 ```
 
 The check verifies that `modality model validate` accepts the witness model with
-one part, four transitions, and predicate-only transition properties.
+one part, four transitions, and verifier-observed transition properties.

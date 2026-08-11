@@ -101,7 +101,7 @@ enum ModelCommands {
     #[command(about = "Synthesize a model from a template")]
     Synthesize(Box<cmds::synthesize::Opts>),
 
-    #[command(about = "Validate a contract model (predicates only, no raw propositions)")]
+    #[command(about = "Validate a contract model (predicates/method labels, no raw propositions)")]
     Validate(cmds::validate::Opts),
 
     #[command(about = "Lint governance formulas for vacuous guards and witness-node references")]
