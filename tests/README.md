@@ -15,7 +15,8 @@ replacement model, checks that the rule syntax reference preserves the
 commitment-versus-enabledness trap warning, checks that the first-contract guide
 adds rules, synthesizes the witness model with `--verify`, validates it with
 `modality model validate`, and then commits, runs the first-contract
-rule-to-witness synthesis smoke, validates the synthesized witness, runs the
+rule-to-witness synthesis smoke, validates the synthesized witness, runs a
+signed-`POST` rule synthesis smoke, validates that synthesized witness, runs the
 `modality model lint` smoke when a `modality`
 binary is present, and checks that
 both the default contract CLI dependency tree and the lean `modal` onboarding
@@ -49,7 +50,8 @@ explicit `MODAL_BIN` whose feature shape differs from
 To run the lint smoke against a cached language CLI without rebuilding, pass
 `MODALITY_BIN`. The same binary is also used for the parser-backed
 first-contract language smoke, the standalone first-contract rule-to-witness
-synthesis smoke, and, when a `modal` binary is present, to synthesize the
+synthesis smoke, the signed-`POST` rule synthesis smoke, and, when a `modal`
+binary is present, to synthesize the
 first-contract witness model from the rule with `--verify` before the contract
 CLI smoke commits it. This avoids `cargo run` in low-disk no-build runs:
 
