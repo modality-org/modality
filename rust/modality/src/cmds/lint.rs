@@ -5,7 +5,7 @@ use std::path::PathBuf;
 /// Lint Modality governance formulas for common semantic mistakes
 #[derive(Parser, Debug)]
 pub struct Opts {
-    /// Path to a .modality file containing `formula` blocks (and optionally a witness model)
+    /// Path to a .modality file containing `formula` or rule `formula` blocks (and optionally a witness model)
     pub file: PathBuf,
 
     /// Witness model file for witness-node-leak checks (defaults to models in `file`)
@@ -74,7 +74,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
     );
 
     if opts.deny_warnings {
-        Err(anyhow::anyhow!("Formula lint failed with {warning_count} finding(s)"))
+        Err(anyhow::anyhow!(
+            "Formula lint failed with {warning_count} finding(s)"
+        ))
     } else {
         Ok(())
     }

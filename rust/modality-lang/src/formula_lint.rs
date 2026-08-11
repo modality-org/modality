@@ -126,16 +126,178 @@ pub fn lint_formulas_in_content(
     content: &str,
     opts: &FormulaLintOptions,
 ) -> Result<Vec<(String, Vec<FormulaLintDiagnostic>)>, String> {
-    let formulas = crate::parse_all_formulas_content_lalrpop(content)?;
+    let mut formulas = parse_top_level_formula_blocks(content)?;
+    formulas.extend(parse_rule_formula_blocks(content)?);
     Ok(formulas
         .iter()
-        .map(|f| {
-            (
-                f.name.clone(),
-                lint_formula_with_source(f, content, opts),
-            )
-        })
+        .map(|f| (f.name.clone(), lint_formula_with_source(f, content, opts)))
         .collect())
+}
+
+fn parse_top_level_formula_blocks(content: &str) -> Result<Vec<Formula>, String> {
+    let content = strip_line_comments(content);
+    let mut formulas = Vec::new();
+    let mut cursor = 0usize;
+
+    while let Some(formula_start) = find_word_from(&content, "formula", cursor) {
+        if brace_depth_before(&content, formula_start) != 0 {
+            cursor = formula_start + "formula".len();
+            continue;
+        }
+
+        let Some(open_brace) = content[formula_start..]
+            .find('{')
+            .map(|i| formula_start + i)
+        else {
+            break;
+        };
+        let Some(close_brace) = find_matching_brace(&content, open_brace) else {
+            return Err("Failed to parse formula: unmatched `{`".to_string());
+        };
+        let formula_src = &content[formula_start..=close_brace];
+        let formula = crate::FormulaParser::new()
+            .parse(formula_src)
+            .map_err(|e| format!("Failed to parse formula: {:?}", e))?;
+        formulas.push(formula);
+        cursor = close_brace + 1;
+    }
+
+    Ok(formulas)
+}
+
+fn parse_rule_formula_blocks(content: &str) -> Result<Vec<Formula>, String> {
+    let content = strip_line_comments(content);
+    let mut formulas = Vec::new();
+    let mut cursor = 0usize;
+
+    while let Some(rule_start) = find_word_from(&content, "rule", cursor) {
+        let after_rule = rule_start + "rule".len();
+        if content[rule_start..].starts_with("rule_for_this_commit") {
+            cursor = after_rule;
+            continue;
+        }
+
+        let Some(open_brace) = content[after_rule..].find('{').map(|i| after_rule + i) else {
+            break;
+        };
+        let Some(close_brace) = find_matching_brace(&content, open_brace) else {
+            return Err("Failed to parse rule formula: unmatched rule `{`".to_string());
+        };
+
+        let rule_name = rule_name_between(&content[after_rule..open_brace]);
+        let rule_body = &content[open_brace + 1..close_brace];
+        let mut body_cursor = 0usize;
+        let mut formula_index = 1usize;
+
+        while let Some(formula_start) = find_word_from(rule_body, "formula", body_cursor) {
+            let after_formula = formula_start + "formula".len();
+            let Some(formula_open) = rule_body[after_formula..]
+                .find('{')
+                .map(|i| after_formula + i)
+            else {
+                break;
+            };
+            let Some(formula_close) = find_matching_brace(rule_body, formula_open) else {
+                return Err("Failed to parse rule formula: unmatched formula `{`".to_string());
+            };
+            let expr = &rule_body[formula_open + 1..formula_close];
+            let name = if formula_index == 1 {
+                rule_name.clone()
+            } else {
+                format!("{}_formula_{}", rule_name, formula_index)
+            };
+            let formula_src = format!("formula {name} {{\n{expr}\n}}");
+            let formula = crate::FormulaParser::new()
+                .parse(&formula_src)
+                .map_err(|e| format!("Failed to parse rule formula `{name}`: {:?}", e))?;
+            formulas.push(formula);
+            body_cursor = formula_close + 1;
+            formula_index += 1;
+        }
+
+        cursor = close_brace + 1;
+    }
+
+    Ok(formulas)
+}
+
+fn strip_line_comments(content: &str) -> String {
+    content
+        .lines()
+        .map(|line| line.split_once("//").map_or(line, |(before, _)| before))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn find_word_from(haystack: &str, needle: &str, start: usize) -> Option<usize> {
+    let mut search_from = start;
+    while let Some(offset) = haystack[search_from..].find(needle) {
+        let pos = search_from + offset;
+        let before = haystack[..pos].chars().next_back();
+        let after = haystack[pos + needle.len()..].chars().next();
+        let before_ok = before.map_or(true, |c| !is_ident_char(c));
+        let after_ok = after.map_or(true, |c| !is_ident_char(c));
+        if before_ok && after_ok {
+            return Some(pos);
+        }
+        search_from = pos + needle.len();
+    }
+    None
+}
+
+fn brace_depth_before(content: &str, pos: usize) -> usize {
+    let mut depth = 0usize;
+    for ch in content[..pos].chars() {
+        match ch {
+            '{' => depth += 1,
+            '}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    depth
+}
+
+fn is_ident_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_'
+}
+
+fn find_matching_brace(content: &str, open_brace: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    for (idx, ch) in content[open_brace..].char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(open_brace + idx);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn rule_name_between(header: &str) -> String {
+    header
+        .split_whitespace()
+        .find(|token| token.chars().all(is_ident_char))
+        .map(sanitize_formula_name)
+        .unwrap_or_else(|| "default_rule".to_string())
+}
+
+fn sanitize_formula_name(raw: &str) -> String {
+    let mut name = raw
+        .chars()
+        .map(|c| if is_ident_char(c) { c } else { '_' })
+        .collect::<String>();
+    if name.is_empty() {
+        name.push_str("rule");
+    }
+    if name.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+        name.insert(0, '_');
+    }
+    name
 }
 
 struct LintContext<'a> {
@@ -210,8 +372,11 @@ fn walk_expr(expr: &FormulaExpr, ctx: &mut LintContext<'_>) {
             walk_expr(l, ctx);
             walk_expr(r, ctx);
         }
-        FormulaExpr::Not(inner) | FormulaExpr::Always(inner) | FormulaExpr::Eventually(inner)
-        | FormulaExpr::Next(inner) | FormulaExpr::Paren(inner) => {
+        FormulaExpr::Not(inner)
+        | FormulaExpr::Always(inner)
+        | FormulaExpr::Eventually(inner)
+        | FormulaExpr::Next(inner)
+        | FormulaExpr::Paren(inner) => {
             walk_expr(inner, ctx);
         }
         FormulaExpr::Implies(l, r) => {
@@ -219,9 +384,10 @@ fn walk_expr(expr: &FormulaExpr, ctx: &mut LintContext<'_>) {
                 ctx.diags.push(FormulaLintDiagnostic {
                     code: LintCode::BackwardEventuallyOrdering,
                     severity: LintSeverity::Warning,
-                    message: "`eventually(<+ACTION> true)` under a modal guard is forward \
+                    message:
+                        "`eventually(<+ACTION> true)` under a modal guard is forward \
                               reachability on the LTS, not \"ACTION already occurred on the trace\""
-                        .to_string(),
+                            .to_string(),
                     suggestion: Some(
                         "use `always(<+LATER> true -> !<+EARLIER> true)` instead of \
                          `eventually(<+EARLIER> true)` under a LATER guard"
@@ -355,18 +521,14 @@ mod tests {
 
     #[test]
     fn accepts_phase_gate_ordering() {
-        let diags = lint_expr(
-            "always(<+FINALIZE_ORDER> true -> !<+VALIDATE_AUTHORIZATION> true)",
-        );
+        let diags = lint_expr("always(<+FINALIZE_ORDER> true -> !<+VALIDATE_AUTHORIZATION> true)");
         assert!(!has_code(&diags, LintCode::BackwardEventuallyOrdering));
         assert!(diags.is_empty());
     }
 
     #[test]
     fn accepts_diamondbox_ordering_guard() {
-        let diags = lint_expr(
-            "always(<+FINALIZE_ORDER> true -> !<+VALIDATE_AUTHORIZATION> true)",
-        );
+        let diags = lint_expr("always(<+FINALIZE_ORDER> true -> !<+VALIDATE_AUTHORIZATION> true)");
         assert!(!has_code(&diags, LintCode::VacuousBoxGuard));
         assert!(!has_code(&diags, LintCode::BareWitnessProp));
     }
@@ -439,5 +601,36 @@ mod tests {
             "governance formulas should be lint-clean: {}",
             failures.join("; ")
         );
+    }
+
+    #[test]
+    fn lints_named_rule_formula_blocks() {
+        let content = r#"
+rule payment_guard {
+  formula {
+    always([+PAY] true)
+  }
+}
+"#;
+        let results = lint_formulas_in_content(content, &FormulaLintOptions::default()).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0, "payment_guard");
+        assert!(has_code(&results[0].1, LintCode::VacuousBoxGuard));
+    }
+
+    #[test]
+    fn lints_export_default_rule_formula_blocks() {
+        let content = r#"
+export default rule {
+  starting_at $PARENT
+  formula {
+    always(<+PAY> true)
+  }
+}
+"#;
+        let results = lint_formulas_in_content(content, &FormulaLintOptions::default()).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0, "default_rule");
+        assert!(results[0].1.is_empty());
     }
 }
