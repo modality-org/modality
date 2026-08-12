@@ -92,10 +92,17 @@ cargo build -p modal
 
 ```bash
 modal --help
+modality model --help
 ```
 
-For the lean onboarding wrapper, you should see the first-contract command
-surface, including:
+Use `modal` for contract logs, identities, commits, status, and the first-contract
+local flow. Use `modality` for model and rule authoring tasks such as
+`modality model synthesize`, `modality model validate`, and `modality model lint`.
+A successful onboarding install should make both command surfaces visible before
+you start the first-contract guide.
+
+For the lean onboarding wrapper, `modal --help` should show the first-contract
+command surface, including:
 
 ```
 contract   Contract related commands
