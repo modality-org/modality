@@ -1,0 +1,70 @@
+# Verifier Rejection Explanations
+
+Runtime verification should reject a commit from the accepted governing model and
+then explain that rejection from the same model. Synthesis can help authors find
+a witness model, but it is not part of commit-time acceptance.
+
+## What A Good Rejection Shows
+
+When no transition matches the pending commit, the explanation should include:
+
+- The current governing-model state reached by replaying accepted commits.
+- The closest candidate transition from that current state.
+- The predicates that failed on that candidate.
+- Other candidate transitions from the current state, ranked behind the closest
+  candidate.
+- Similar transitions from other states when the current state has no candidate
+  for the pending action.
+
+For the first-contract path, an unsigned steady-state update after bootstrap
+should fail at `q1`. The useful rejection is not just "commit rejected"; it
+points at the two signed `+POST` candidates and reports the missing signatures:
+
+```text
+current states {"q1"}
+Closest candidate transition: candidate from current state q1: q1 to q1 [+POST +signed_by(/parties/alice.id)]; failed predicates: missing +signed_by(/parties/alice.id)
+candidate from current state q1: q1 to q1 [+POST +signed_by(/parties/bob.id)]; failed predicates: missing +signed_by(/parties/bob.id)
+```
+
+That tells the user both where replay landed and what evidence would have made
+the commit valid.
+
+## Predicate Evidence
+
+Failed predicate lines should name the predicate and the missing or forbidden
+evidence. Current first-contract-local examples include:
+
+- `missing +signed_by(/parties/alice.id)` when the commit lacks Alice's accepted
+  identity signature.
+- `missing +threshold("2", /treasury/signers)` with counts for authorized
+  signatures observed, required signatures, accepted members, missing
+  signatures, and ignored unauthorized signatures.
+- `forbidden -modifies(/members) matched` when the pending commit changes a path
+  that the candidate transition explicitly forbids.
+
+These diagnostics should stay tied to parsed commit facts, accepted state, and
+signature evidence rather than raw string guesses.
+
+## Current Executable Coverage
+
+The onboarding smoke preserves the first-contract rejection surface in
+`tests/cli/run-first-contract-cli-smoke.sh`. It asserts that an unsigned
+post-bootstrap update:
+
+- Replays to `q1`.
+- Reports a closest signed `+POST` candidate.
+- Lists the second signed `+POST` candidate.
+- Names the missing `signed_by` predicates for Alice and Bob.
+
+The contract evolution smoke preserves the same shape after model replacement,
+and the model-governance unit tests cover ranked candidate transitions, similar
+non-current transitions, signed identity bootstrap ordering, threshold evidence,
+and model-replacement rule failures.
+
+## Boundaries
+
+Rejection explanations prove why a pending commit did not match the accepted
+model and evidence available to the verifier. They do not prove that an
+external party should have signed, that off-chain evidence is true, or that a
+different model would be a better contract. Those questions belong in review,
+synthesis artifacts, or external evidence integrations.

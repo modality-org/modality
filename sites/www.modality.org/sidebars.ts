@@ -68,6 +68,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'reference/standard-predicates',
         'reference/contract-evolution',
+        'reference/verifier-rejections',
         'reference/synthesis-review',
         'reference/gotchas',
       ],
