@@ -53,6 +53,34 @@ This is not a contract approval. It is a review artifact that says the current
 tooling did not find a satisfying witness. Revise the rule, supply a witness
 model manually, or improve the synthesizer before treating the rule as ready.
 
+Review failed bundles with the same care as passing bundles. The failure is
+useful only when it preserves enough evidence to diagnose the gap:
+
+- Confirm the rule source is the text the reviewer intended to check.
+- Compare extracted facts with the formula and look for missing labels or
+  predicates.
+- Read the verifier error before changing the rule; it may point at an
+  unsupported synthesis pattern instead of an impossible contract.
+- Inspect the candidate witness model to see which move the heuristic tried.
+- Keep the known gaps attached to the review record when the next revision is
+  proposed.
+
+For an intentionally impossible rule such as:
+
+```modality
+rule impossible_contract {
+  formula {
+    false
+  }
+}
+```
+
+a failed bundle should preserve the rule source, state that `--verify` failed,
+include the rejected candidate witness model, and name the bounded heuristic
+search path as a known gap. That is a useful negative result: it tells reviewers
+the tool found no current witness instead of quietly presenting a model as if it
+proved the rule.
+
 ## Review Boundary
 
 The current parser-backed path covers rule formulas and generated witness

@@ -17,6 +17,12 @@ required_patterns=(
   "candidate witness model that failed verification"
   "bounded heuristic search path"
   "It is a review artifact"
+  "Confirm the rule source is the text the reviewer intended to check."
+  "Read the verifier error before changing the rule"
+  "unsupported synthesis pattern instead of an impossible contract"
+  "rule impossible_contract"
+  "state that \`--verify\` failed"
+  "useful negative result"
   "does not automatically prove that natural-language intent"
 )
 
