@@ -57,6 +57,7 @@ fi
 "$ROOT_DIR/tests/docs/check-synthesis-review-doc.sh"
 "$ROOT_DIR/tests/language/check-first-contract-synthesize-cli.sh"
 "$ROOT_DIR/tests/language/check-rule-synthesize-cli.sh"
+"$ROOT_DIR/tests/language/check-acme-review-benchmark.sh"
 "$ROOT_DIR/tests/language/check-model-lint-cli.sh"
 
 if [[ "$INSTALL_MODAL" == "1" ]]; then

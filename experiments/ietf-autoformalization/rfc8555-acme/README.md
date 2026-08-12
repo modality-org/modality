@@ -15,6 +15,7 @@ ACME automates certificate issuance between a certificate authority (CA) and an 
 | [model/default.modality](./model/default.modality) | Witness LTS governing model |
 | [diagrams/acme-issuance.png](./diagrams/acme-issuance.png) | Witness LTS diagram (source: [acme-issuance.mmd](./diagrams/acme-issuance.mmd)) |
 | [rules/governance.modality](./rules/governance.modality) | Fourteen governance formulas (nine temporal + five structural) |
+| [review-benchmark/](./review-benchmark/) | Narrow source-clause review-bundle fixture for the finalize step |
 | [lean/](./lean/) | Lean 4 mirror of model + governance props |
 | [normative-core.md](./normative-core.md) | RFC → obligation mapping |
 | [synthesis-notes.md](./synthesis-notes.md) | Verification notes and test command |
@@ -92,6 +93,19 @@ cd experiments/ietf-autoformalization/rfc8555-acme/lean && lake build Acme8555
 ```
 
 See [lean/README.md](./lean/README.md) for the Modality ↔ Lean mapping.
+
+Synthesis review benchmark:
+
+```bash
+MODALITY_BIN=/path/to/modality tests/language/check-acme-review-benchmark.sh
+```
+
+The benchmark intentionally covers one narrow RFC 8555 §7.4 finalize clause. It
+checks that the parser-backed rule synthesis bundle preserves the reviewer source
+clause, extracted `+ACME_FINALIZE_ORDER` action, account-holder signature
+predicate, verifier status, explicit external assumptions, and known gaps. It
+does not claim that DNS/HTTP validation, CSR soundness, CA policy, WebPKI trust,
+or the full path-write ACME corpus are synthesized end to end.
 
 ## Modality Mapping Notes
 

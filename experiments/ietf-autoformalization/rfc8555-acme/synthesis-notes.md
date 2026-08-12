@@ -42,6 +42,21 @@ Run:
 cd rust/modality-lang && cargo test acme_rfc8555 -- --nocapture
 ```
 
+Synthesis review-bundle benchmark:
+
+```bash
+MODALITY_BIN=/path/to/modality tests/language/check-acme-review-benchmark.sh
+```
+
+This smoke uses [review-benchmark/finalize-order-source.txt](./review-benchmark/finalize-order-source.txt)
+and [review-benchmark/finalize-order-rule.modality](./review-benchmark/finalize-order-rule.modality)
+to keep one RFC 8555 §7.4 finalize source clause traceable through
+`modality model synthesize --rule --source-file --verify --review-bundle`.
+It measures reviewability only: the full ACME path-write corpus remains the
+hand-authored model-checker benchmark, and DNS/HTTP control, CSR soundness, CA
+policy, WebPKI trust, and ACME account-key authentication remain external
+assumptions.
+
 ## Results
 
 All fourteen governance rules were model-checked against `AcmeIssuance` via `ModelChecker::check_formula`. Skip-edge regression injects a concurrent `+pending` / `+processing` write on `q1 -> q3` and expects `finalize_requires_authorization` to fail.

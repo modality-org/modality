@@ -1,0 +1,2 @@
+F1: RFC 8555 section 7.4 says the client finalizes an order by submitting a CSR to the order finalize URL.
+External assumption: ACME account-key authentication, CSR cryptographic soundness, CA policy, WebPKI trust, and DNS or HTTP domain-control validation are checked outside this Modality witness.

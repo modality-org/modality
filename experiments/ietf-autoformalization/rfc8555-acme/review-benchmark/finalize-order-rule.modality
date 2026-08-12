@@ -1,0 +1,11 @@
+// RFC 8555 ACME review-bundle benchmark slice.
+//
+// This is a parser-backed synthesis-review fixture, not the full ACME
+// path-write corpus. It keeps one RFC source clause traceable through a
+// synthesized witness bundle while external ACME evidence stays explicit.
+
+rule acme_finalize_requires_account_holder {
+  formula {
+    always([+ACME_FINALIZE_ORDER] true -> <+signed_by(/users/account_holder.id)> true)
+  }
+}

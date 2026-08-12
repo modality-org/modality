@@ -37,6 +37,9 @@ validates that generated model, and only then commits it through `modal`. The
 same real `modal` binary also runs the contract evolution smoke, which verifies
 an additive rule commit, rejected bad witness replacement, accepted V2 witness
 replacement, and Bob-signed successor update.
+The language CLI bundle also runs an ACME RFC 8555 review-benchmark smoke that
+preserves a source clause, extracted action and signature facts, verifier
+status, explicit external assumptions, and known gaps in a review bundle.
 
 To measure the full source-built wrapper path from the same entry point, ask the
 smoke to build the binary when it is missing:
@@ -58,7 +61,8 @@ To run the lint smoke against a cached language CLI without rebuilding, pass
 `MODALITY_BIN`. The same binary is also used for the parser-backed
 first-contract language smoke, the standalone first-contract rule-to-witness
 synthesis smoke, the signed-`POST` rule synthesis plus review-bundle and
-no-witness diagnostic smoke, and, when a `modal` binary is present, to synthesize the
+no-witness diagnostic smoke, the ACME RFC 8555 review-benchmark smoke, and,
+when a `modal` binary is present, to synthesize the
 first-contract witness model from the rule with `--verify` before the contract
 CLI smoke commits it. This avoids `cargo run` in low-disk no-build runs:
 
