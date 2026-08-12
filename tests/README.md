@@ -14,7 +14,8 @@ contract evolution reference preserves the accumulated-rule and witness
 replacement model, checks that the rule syntax reference preserves the
 commitment-versus-enabledness trap warning, checks that the first-contract guide
 adds rules, synthesizes the witness model with `--verify`, validates it with
-`modality model validate`, and then commits, runs the first-contract
+`modality model validate`, and then commits, checks that the synthesis review
+reference explains passed bundles and no-witness bundles, runs the first-contract
 rule-to-witness synthesis smoke, validates the synthesized witness, runs a
 signed-`POST` rule synthesis smoke, validates that synthesized witness, runs the
 unsatisfied-rule no-witness diagnostic bundle check, runs the `modality model
