@@ -12,6 +12,10 @@ required_patterns=(
   "predicates that failed"
   "Similar transitions from other states"
   'current states {"q1"}'
+  "Candidate transitions: none from current states"
+  "non-current transition from q1 to q2 [+POST]; current states: q0; failed predicates: none"
+  "still be unavailable"
+  "current witness state"
   "missing +signed_by(/parties/alice.id)"
   "missing +signed_by(/parties/bob.id)"
   'missing +threshold("2", /treasury/signers)'

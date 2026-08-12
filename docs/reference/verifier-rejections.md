@@ -29,6 +29,22 @@ candidate from current state q1: q1 to q1 [+POST +signed_by(/parties/bob.id)]; f
 That tells the user both where replay landed and what evidence would have made
 the commit valid.
 
+When replay lands in a state with no matching action at all, the useful
+fallback is a ranked list of similar transitions from other states. For example,
+if replay is at `q0` but a pending `POST` only resembles transitions leaving
+`q1`, the explanation should make the state mismatch explicit before naming the
+nearby paths:
+
+```text
+Candidate transitions: none from current states
+Similar transitions from other states ranked by predicate distance:
+non-current transition from q1 to q2 [+POST]; current states: q0; failed predicates: none
+non-current transition from q1 to q3 [+POST +signed_by(/parties/alice.id)]; current states: q0; failed predicates: missing +signed_by(/parties/alice.id)
+```
+
+That distinction matters because a transition with no failed predicates can
+still be unavailable from the current witness state.
+
 ## Predicate Evidence
 
 Failed predicate lines should name the predicate and the missing or forbidden
