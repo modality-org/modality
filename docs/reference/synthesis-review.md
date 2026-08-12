@@ -9,6 +9,7 @@ bundle:
 ```bash
 modality model synthesize \
   --rule rules/post-requires-reviewer.modality \
+  --source-file source/post-requires-reviewer.txt \
   --verify \
   --review-bundle review/post-requires-reviewer.md \
   -o model/post-requires-reviewer.modality
@@ -18,6 +19,7 @@ A useful bundle should let a reviewer answer five questions before signing or
 committing the result:
 
 - Which rule file was used?
+- Which reviewer-authored source clause, prompt, or protocol text was preserved?
 - Which action labels and predicate calls were extracted by the parser?
 - Did `--verify` accept the witness model?
 - Which assumptions and known gaps are still outside the proof?
@@ -39,6 +41,13 @@ the bundle should include the rule source, extracted facts such as `+POST` and
 `+signed_by(/users/reviewer.id)`, a passed verifier result, and the witness
 model that the verifier accepted. Treat that witness as something to inspect,
 not as proof that the original human intent was complete.
+
+When the rule came from reviewer-authored text, pass that text with
+`--source-file` or `--source-text` instead of relying on the rule file alone.
+Structured lines such as `F1: Every accepted post move must have reviewer
+signature evidence attached.` should appear in the Source Clause Trace section
+next to the extracted formula. This trace is preserved for review; it is not
+natural-language extraction.
 
 ## No-Witness Bundle
 

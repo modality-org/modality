@@ -3563,12 +3563,6 @@ fn rule_mode_conflicts(opts: &Opts) -> Vec<&'static str> {
     if opts.llm_response_file.is_some() {
         conflicts.push("--llm-response-file");
     }
-    if opts.source_text.is_some() {
-        conflicts.push("--source-text");
-    }
-    if opts.source_file.is_some() {
-        conflicts.push("--source-file");
-    }
     if opts.list {
         conflicts.push("--list");
     }
@@ -21066,6 +21060,10 @@ F3: [+APPROVE] true -> <+oracle_attests(/oracles/review.id, "reviewed", "true")>
             "modality-synthesize-rule-review-bundle-{}.md",
             std::process::id()
         ));
+        let source_path = std::env::temp_dir().join(format!(
+            "modality-synthesize-rule-review-source-{}.txt",
+            std::process::id()
+        ));
         std::fs::write(
             &rule_path,
             r#"
@@ -21077,9 +21075,15 @@ rule post_requires_reviewer {
 "#,
         )
         .unwrap();
+        std::fs::write(
+            &source_path,
+            "F1: Every accepted post move must have reviewer signature evidence attached.",
+        )
+        .unwrap();
 
         let mut opts = default_test_opts();
         opts.rule = Some(rule_path.clone());
+        opts.source_file = Some(source_path.clone());
         opts.review_bundle = Some(review_path.clone());
         opts.verify = true;
 
@@ -21087,16 +21091,27 @@ rule post_requires_reviewer {
 
         let bundle = std::fs::read_to_string(&review_path).unwrap();
         let rule_input = format!("- Input: `--rule {}`", rule_path.display());
+        let source_input = format!("- Input: `--source-file {}`", source_path.display());
         std::fs::remove_file(rule_path).unwrap();
+        std::fs::remove_file(source_path).unwrap();
         std::fs::remove_file(review_path).unwrap();
 
         assert!(bundle.contains("# Modality Synthesis Review Bundle"));
+        assert!(bundle.contains("## Original Source"));
+        assert!(bundle.contains(&source_input));
+        assert!(bundle.contains(
+            "Every accepted post move must have reviewer signature evidence attached."
+        ));
         assert!(bundle.contains("## Rule File"));
         assert!(bundle.contains(&rule_input));
         assert!(bundle.contains("post_requires_reviewer"));
         assert!(bundle.contains("## Extracted Facts"));
         assert!(bundle.contains("`+POST`"));
         assert!(bundle.contains("`+signed_by(/users/reviewer.id)`"));
+        assert!(bundle.contains("## Source Clause Trace"));
+        assert!(bundle.contains(
+            "- F1 source clause: Every accepted post move must have reviewer signature evidence attached."
+        ));
         assert!(bundle.contains("## Verifier Result"));
         assert!(bundle.contains("Status: passed (`--verify`)"));
         assert!(bundle.contains("## Witness Model"));

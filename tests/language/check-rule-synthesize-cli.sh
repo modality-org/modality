@@ -25,6 +25,7 @@ cleanup() {
 trap cleanup EXIT
 
 RULE="$TMP_DIR/post-requires-reviewer.modality"
+SOURCE="$TMP_DIR/post-requires-reviewer-source.txt"
 MODEL="$TMP_DIR/post-requires-reviewer-model.modality"
 REVIEW_BUNDLE="$TMP_DIR/post-requires-reviewer-review.md"
 SYNTH_OUT="$TMP_DIR/synthesize.out"
@@ -41,8 +42,14 @@ rule post_requires_reviewer {
 }
 EOF
 
+cat >"$SOURCE" <<'EOF'
+F1: Every accepted post move must have reviewer signature evidence attached.
+External assumption: signature verification and path identity evidence come from commit data.
+EOF
+
 "$MODALITY_BIN" model synthesize \
   --rule "$RULE" \
+  --source-file "$SOURCE" \
   --verify \
   --review-bundle "$REVIEW_BUNDLE" \
   -o "$MODEL" >"$SYNTH_OUT" 2>&1
@@ -56,7 +63,7 @@ required_synthesis_patterns=(
 )
 
 for pattern in "${required_synthesis_patterns[@]}"; do
-  if ! grep -Fq "$pattern" "$SYNTH_OUT"; then
+  if ! grep -Fq -- "$pattern" "$SYNTH_OUT"; then
     echo "rule synthesis output is missing: $pattern" >&2
     cat "$SYNTH_OUT" >&2
     exit 1
@@ -69,7 +76,7 @@ required_model_patterns=(
 )
 
 for pattern in "${required_model_patterns[@]}"; do
-  if ! grep -Fq "$pattern" "$MODEL"; then
+  if ! grep -Fq -- "$pattern" "$MODEL"; then
     echo "rule synthesized witness is missing: $pattern" >&2
     cat "$MODEL" >&2
     exit 1
@@ -78,6 +85,9 @@ done
 
 required_review_patterns=(
   "# Modality Synthesis Review Bundle"
+  "## Original Source"
+  "- Input: \`--source-file $SOURCE\`"
+  "Every accepted post move must have reviewer signature evidence attached."
   "## Rule File"
   "post_requires_reviewer"
   "## Extracted Facts"
@@ -85,6 +95,8 @@ required_review_patterns=(
   '`+POST`'
   "Predicate calls:"
   '`+signed_by(/users/reviewer.id)`'
+  "## Source Clause Trace"
+  "F1 source clause: Every accepted post move must have reviewer signature evidence attached."
   "## Verifier Result"
   "Status: passed (\`--verify\`)"
   "## Witness Model"
@@ -94,7 +106,7 @@ required_review_patterns=(
 )
 
 for pattern in "${required_review_patterns[@]}"; do
-  if ! grep -Fq "$pattern" "$REVIEW_BUNDLE"; then
+  if ! grep -Fq -- "$pattern" "$REVIEW_BUNDLE"; then
     echo "rule synthesis review bundle is missing: $pattern" >&2
     cat "$REVIEW_BUNDLE" >&2
     exit 1
@@ -110,7 +122,7 @@ required_validation_patterns=(
 )
 
 for pattern in "${required_validation_patterns[@]}"; do
-  if ! grep -Fq "$pattern" "$VALIDATE_OUT"; then
+  if ! grep -Fq -- "$pattern" "$VALIDATE_OUT"; then
     echo "rule synthesized witness validation output is missing: $pattern" >&2
     cat "$VALIDATE_OUT" >&2
     exit 1
@@ -143,7 +155,7 @@ required_unsat_patterns=(
 )
 
 for pattern in "${required_unsat_patterns[@]}"; do
-  if ! grep -Fq "$pattern" "$UNSAT_OUT"; then
+  if ! grep -Fq -- "$pattern" "$UNSAT_OUT"; then
     echo "unsatisfied rule synthesis output is missing: $pattern" >&2
     cat "$UNSAT_OUT" >&2
     exit 1
@@ -165,7 +177,7 @@ required_unsat_review_patterns=(
 )
 
 for pattern in "${required_unsat_review_patterns[@]}"; do
-  if ! grep -Fq "$pattern" "$UNSAT_REVIEW_BUNDLE"; then
+  if ! grep -Fq -- "$pattern" "$UNSAT_REVIEW_BUNDLE"; then
     echo "unsatisfied rule synthesis review bundle is missing: $pattern" >&2
     cat "$UNSAT_REVIEW_BUNDLE" >&2
     exit 1
