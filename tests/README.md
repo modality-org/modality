@@ -31,9 +31,12 @@ binary is present, it also checks that the real `modal --version` output
 identifies the wrapper and that the `modal --help` surface matches the selected
 onboarding shape: lean builds must expose the first-contract commands and omit
 full runtime groups, while `MODAL_ONBOARDING_FEATURES=full` expects those
-runtime groups to be present. The same real binary also runs the contract
-evolution smoke, which verifies an additive rule commit, rejected bad witness
-replacement, accepted V2 witness replacement, and Bob-signed successor update.
+runtime groups to be present. When `MODALITY_BIN` is also present, the
+first-contract CLI smoke synthesizes the governing witness with `--verify`,
+validates that generated model, and only then commits it through `modal`. The
+same real `modal` binary also runs the contract evolution smoke, which verifies
+an additive rule commit, rejected bad witness replacement, accepted V2 witness
+replacement, and Bob-signed successor update.
 
 To measure the full source-built wrapper path from the same entry point, ask the
 smoke to build the binary when it is missing:

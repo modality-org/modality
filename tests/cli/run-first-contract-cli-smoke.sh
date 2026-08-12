@@ -59,6 +59,12 @@ if [[ -x "$MODALITY_BIN" ]]; then
     --rule "$CONTRACT_DIR/rules/authorized.modality" \
     --verify \
     -o "$CONTRACT_DIR/model/default.modality" >/dev/null
+  "$MODALITY_BIN" model validate "$CONTRACT_DIR/model/default.modality" \
+    --verbose >"$TMP_DIR/synthesized-model-validate.out" 2>&1
+  grep -q "Contract is valid!" "$TMP_DIR/synthesized-model-validate.out"
+  grep -q "Transitions: 4" "$TMP_DIR/synthesized-model-validate.out"
+  grep -q "All properties are predicates or commit method labels (verifier-observed)." \
+    "$TMP_DIR/synthesized-model-validate.out"
 else
   cat >"$CONTRACT_DIR/model/default.modality" <<'EOF'
 export default model {
