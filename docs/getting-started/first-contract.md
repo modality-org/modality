@@ -142,7 +142,9 @@ modal c commit \
 The unsigned commit should be rejected from `q1` with missing `signed_by`
 predicate diagnostics. That rejection is the contract enforcing the
 post-bootstrap rule you added in `rules/authorized.modality`; `modal c log`
-should still end at the last accepted signed update.
+should still end at the last accepted signed update. After `modal c checkout`,
+the replayed `state/notes.text` file should still contain `signed update`, and
+there should be no `state/unsigned.text` file.
 
 ## What's Next?
 

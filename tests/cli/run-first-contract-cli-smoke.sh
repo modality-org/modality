@@ -127,6 +127,7 @@ grep -q '"status": "committed"' "$TMP_DIR/signed-post.json"
 "$MODAL_BIN" c status --dir "$CONTRACT_DIR" >"$TMP_DIR/post-status.txt"
 "$MODAL_BIN" c log --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/post-log.json"
 "$MODAL_BIN" c log --dir "$CONTRACT_DIR" >"$TMP_DIR/post-log.txt"
+"$MODAL_BIN" c checkout --dir "$CONTRACT_DIR" >/dev/null
 
 grep -q '"total_commits": 3' "$TMP_DIR/post-status.json"
 grep -q '"model_state": "q1"' "$TMP_DIR/post-status.json"
@@ -137,6 +138,7 @@ grep -q "$ALICE_ID" "$TMP_DIR/post-log.json"
 grep -q "Message: Signed update" "$TMP_DIR/post-log.txt"
 grep -q "Signatures: 1" "$TMP_DIR/post-log.txt"
 grep -q "$ALICE_ID" "$TMP_DIR/post-log.txt"
+grep -q "signed update" "$CONTRACT_DIR/state/notes.text"
 
 if "$MODAL_BIN" c commit \
   --path /unsigned.text \
@@ -156,10 +158,16 @@ grep -q "missing +signed_by(/parties/bob.id)" "$TMP_DIR/unsigned-post.err"
 
 "$MODAL_BIN" c status --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/rejected-status.json"
 "$MODAL_BIN" c log --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/rejected-log.json"
+"$MODAL_BIN" c checkout --dir "$CONTRACT_DIR" >/dev/null
 
 grep -q '"total_commits": 3' "$TMP_DIR/rejected-status.json"
 grep -q '"model_state": "q1"' "$TMP_DIR/rejected-status.json"
 grep -q '"message": "Signed update"' "$TMP_DIR/rejected-log.json"
+grep -q "signed update" "$CONTRACT_DIR/state/notes.text"
+if [[ -e "$CONTRACT_DIR/state/unsigned.text" ]]; then
+  echo "rejected unsigned commit changed replayed contract state" >&2
+  exit 1
+fi
 if grep -q '"message": "Unsigned update"' "$TMP_DIR/rejected-log.json"; then
   echo "rejected unsigned commit was appended to the contract log" >&2
   exit 1

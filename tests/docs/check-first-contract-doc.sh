@@ -24,6 +24,9 @@ required_patterns=(
   "missing \`signed_by\`"
   "predicate diagnostics"
   "should still end at the last accepted signed update"
+  "After \`modal c checkout\`"
+  "state/notes.text"
+  "state/unsigned.text"
 )
 
 for pattern in "${required_patterns[@]}"; do
