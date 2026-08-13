@@ -23,6 +23,7 @@ required_patterns=(
   "## 7. Prove the Rule Is Active"
   "missing \`signed_by\`"
   "predicate diagnostics"
+  "should still end at the last accepted signed update"
 )
 
 for pattern in "${required_patterns[@]}"; do

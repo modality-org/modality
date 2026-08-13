@@ -154,4 +154,15 @@ grep -Eq "(part flow )?candidate from current state q1: q1 -+> q1 \[\\+POST \\+s
 grep -q "missing +signed_by(/parties/alice.id)" "$TMP_DIR/unsigned-post.err"
 grep -q "missing +signed_by(/parties/bob.id)" "$TMP_DIR/unsigned-post.err"
 
+"$MODAL_BIN" c status --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/rejected-status.json"
+"$MODAL_BIN" c log --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/rejected-log.json"
+
+grep -q '"total_commits": 3' "$TMP_DIR/rejected-status.json"
+grep -q '"model_state": "q1"' "$TMP_DIR/rejected-status.json"
+grep -q '"message": "Signed update"' "$TMP_DIR/rejected-log.json"
+if grep -q '"message": "Unsigned update"' "$TMP_DIR/rejected-log.json"; then
+  echo "rejected unsigned commit was appended to the contract log" >&2
+  exit 1
+fi
+
 echo "first-contract CLI smoke passed"
