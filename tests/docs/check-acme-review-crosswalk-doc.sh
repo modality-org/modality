@@ -6,14 +6,19 @@ CROSSWALK="$ROOT_DIR/experiments/ietf-autoformalization/rfc8555-acme/review-benc
 
 required_patterns=(
   "ACME Finalize Review Benchmark Crosswalk"
-  'one RFC 8555 section 7.4 source clause'
+  'two RFC 8555 source clauses'
   '`+ACME_FINALIZE_ORDER`'
+  '`+ACME_CREATE_ORDER`'
   '`+sets(/order/status.text, "processing")`'
+  '`+sets(/order/status.text, "pending")`'
   '`+signed_by(/users/account_holder.id)`'
   '`only_holder_finalizes`'
+  '`only_holder_creates_order`'
   '`finalize_requires_ready`'
   '`finalize_requires_authorization`'
   '`finalize_requires_order`'
+  'RFC section 7.1.4 source clause'
+  'universal per-edge action guards'
   'order and challenge status closed enums'
   'External assumption only'
   'not mechanically translated yet'

@@ -34,6 +34,12 @@ if ! grep -Fq -- 'always(!<+ACME_FINALIZE_ORDER> true | <+ACME_FINALIZE_ORDER +s
   exit 1
 fi
 
+if ! grep -Fq -- 'always(!<+ACME_CREATE_ORDER> true | <+ACME_CREATE_ORDER +signed_by(/users/account_holder.id)> true)' "$RULE"; then
+  echo "ACME review benchmark rule is missing the explicit newOrder/signature Boolean guard" >&2
+  cat "$RULE" >&2
+  exit 1
+fi
+
 TMP_DIR="$(mktemp -d)"
 cleanup() {
   rm -rf "$TMP_DIR"
@@ -53,8 +59,9 @@ SYNTH_OUT="$TMP_DIR/acme-finalize-synthesize.out"
 
 required_output_patterns=(
   "Synthesizing from rule file:"
-  "Verifying synthesized model against 1 formula(s)"
-  'F1 `acme_finalize_requires_account_holder` satisfied'
+  "Verifying synthesized model against 2 formula(s)"
+  'F1.1 `acme_finalize_requires_account_holder` satisfied'
+  'F1.2 `acme_new_order_requires_account_holder` satisfied'
   "Synthesis review bundle written to"
 )
 
@@ -69,6 +76,8 @@ done
 required_model_patterns=(
   "model Contract"
   "+ACME_FINALIZE_ORDER +signed_by(/users/account_holder.id)"
+  "+ACME_CREATE_ORDER"
+  "+signed_by(/users/account_holder.id)"
 )
 
 for pattern in "${required_model_patterns[@]}"; do
@@ -84,6 +93,8 @@ required_review_patterns=(
   "## Original Source"
   "RFC 8555 section 7.4"
   "submitting a CSR to the order finalize URL"
+  "RFC 8555 section 7.1.4"
+  "server's newOrder resource"
   "External assumption: ACME account-key authentication"
   "CSR cryptographic soundness"
   "CA policy"
@@ -91,11 +102,14 @@ required_review_patterns=(
   "DNS or HTTP domain-control validation"
   "## Rule File"
   "acme_finalize_requires_account_holder"
+  "acme_new_order_requires_account_holder"
   "## Extracted Facts"
   '`+ACME_FINALIZE_ORDER`'
+  '`+ACME_CREATE_ORDER`'
   '`+signed_by(/users/account_holder.id)`'
   "## Source Clause Trace"
   "F1 source clause: RFC 8555 section 7.4"
+  "F2 source clause: RFC 8555 section 7.1.4"
   "## Verifier Result"
   "Status: passed (\`--verify\`)"
   "## Witness Model"

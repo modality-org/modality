@@ -15,8 +15,8 @@ ACME automates certificate issuance between a certificate authority (CA) and an 
 | [model/default.modality](./model/default.modality) | Witness LTS governing model |
 | [diagrams/acme-issuance.png](./diagrams/acme-issuance.png) | Witness LTS diagram (source: [acme-issuance.mmd](./diagrams/acme-issuance.mmd)) |
 | [rules/governance.modality](./rules/governance.modality) | Fourteen governance formulas (nine temporal + five structural) |
-| [review-benchmark/](./review-benchmark/) | Narrow source-clause review-bundle fixture for the finalize step |
-| [review-benchmark/path-write-crosswalk.md](./review-benchmark/path-write-crosswalk.md) | Reviewer crosswalk from the abstract finalize fixture to the path-write corpus |
+| [review-benchmark/](./review-benchmark/) | Narrow source-clause review-bundle fixture for `newOrder` and finalize |
+| [review-benchmark/path-write-crosswalk.md](./review-benchmark/path-write-crosswalk.md) | Reviewer crosswalk from the abstract review fixture to the path-write corpus |
 | [lean/](./lean/) | Lean 4 mirror of model + governance props |
 | [normative-core.md](./normative-core.md) | RFC → obligation mapping |
 | [synthesis-notes.md](./synthesis-notes.md) | Verification notes and test command |
@@ -101,19 +101,21 @@ Synthesis review benchmark:
 MODALITY_BIN=/path/to/modality tests/language/check-acme-review-benchmark.sh
 ```
 
-The benchmark intentionally covers one narrow RFC 8555 §7.4 finalize clause. It
-checks that the parser-backed rule synthesis bundle preserves the reviewer source
-clause, extracted `+ACME_FINALIZE_ORDER` action, account-holder signature
-predicate, verifier status, explicit external assumptions, and known gaps. It
-uses explicit Boolean formula syntax instead of implication sugar. It does not
-claim that DNS/HTTP validation, CSR soundness, CA policy, WebPKI trust, or the
-full path-write ACME corpus are synthesized end to end. The
+The benchmark intentionally covers two narrow RFC 8555 source clauses:
+`newOrder` (§7.1.4) and finalize (§7.4). It checks that the parser-backed rule
+synthesis bundle preserves the reviewer source clauses, extracted
+`+ACME_CREATE_ORDER` and `+ACME_FINALIZE_ORDER` actions, account-holder
+signature predicate, verifier status, explicit external assumptions, and known
+gaps. It uses explicit Boolean formula syntax instead of implication sugar. It
+does not claim that DNS/HTTP validation, CSR soundness, CA policy, WebPKI trust,
+or the full path-write ACME corpus are synthesized end to end. The
 [path-write crosswalk](./review-benchmark/path-write-crosswalk.md) records the
-current reviewer decision: the abstract finalize action is conceptually aligned
-with `+sets(/order/status.text, "processing")` and
-`+signed_by(/users/account_holder.id)`, but readiness, authorization, prior-order,
-closed-enum, and CA authority constraints still live in the hand-authored
-path-write corpus.
+current reviewer decision: the abstract `newOrder` and finalize actions are
+conceptually aligned with `+sets(/order/status.text, "pending")`,
+`+sets(/order/status.text, "processing")`, and
+`+signed_by(/users/account_holder.id)`, but readiness, authorization,
+prior-order, closed-enum, and CA authority constraints still live in the
+hand-authored path-write corpus.
 
 ## Modality Mapping Notes
 

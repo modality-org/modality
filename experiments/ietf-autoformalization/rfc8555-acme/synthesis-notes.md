@@ -50,20 +50,22 @@ MODALITY_BIN=/path/to/modality tests/language/check-acme-review-benchmark.sh
 
 This smoke uses [review-benchmark/finalize-order-source.txt](./review-benchmark/finalize-order-source.txt)
 and [review-benchmark/finalize-order-rule.modality](./review-benchmark/finalize-order-rule.modality)
-to keep one RFC 8555 §7.4 finalize source clause traceable through
-`modality model synthesize --rule --source-file --verify --review-bundle`.
-The fixture rule uses explicit `!A | B` Boolean syntax instead of implication
-sugar, matching the current teaching guidance. It measures reviewability only:
-the full ACME path-write corpus remains the hand-authored model-checker
-benchmark, and DNS/HTTP control, CSR soundness, CA policy, WebPKI trust, and
-ACME account-key authentication remain external assumptions.
+to keep two RFC 8555 source clauses traceable through
+`modality model synthesize --rule --source-file --verify --review-bundle`:
+`newOrder` (§7.1.4) and finalize (§7.4). The fixture rules use explicit
+`!A | B` Boolean syntax instead of implication sugar, matching the current
+teaching guidance. They measure reviewability only: the full ACME path-write
+corpus remains the hand-authored model-checker benchmark, and DNS/HTTP control,
+CSR soundness, CA policy, WebPKI trust, and ACME account-key authentication
+remain external assumptions.
 
 [review-benchmark/path-write-crosswalk.md](./review-benchmark/path-write-crosswalk.md)
-compares the abstract `+ACME_FINALIZE_ORDER` review fixture with the
-path-write corpus. The current decision is to keep the fixture as a source-clause
-review layer until synthesis can emit the concrete
-`+sets(/order/status.text, "processing")` finalize write and the related phase
-gates directly.
+compares the abstract `+ACME_CREATE_ORDER` and `+ACME_FINALIZE_ORDER` review
+fixture with the path-write corpus. The current decision is to keep the fixture
+as a source-clause review layer until synthesis can emit the concrete
+`+sets(/order/status.text, "pending")` and
+`+sets(/order/status.text, "processing")` writes and the related phase gates
+directly.
 
 ## Results
 

@@ -1,2 +1,3 @@
 F1: RFC 8555 section 7.4 says the client finalizes an order by submitting a CSR to the order finalize URL.
+F2: RFC 8555 section 7.1.4 says the client begins certificate issuance by sending a POST request to the server's newOrder resource.
 External assumption: ACME account-key authentication, CSR cryptographic soundness, CA policy, WebPKI trust, and DNS or HTTP domain-control validation are checked outside this Modality witness.

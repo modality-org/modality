@@ -19,8 +19,8 @@ keeps the `modal` contract CLI and `modality` model CLI split explicit, checks
 that the verifier rejection reference preserves current-state, closest-candidate,
 and missing-predicate diagnostics, checks that the synthesis review reference
 explains passed bundles and no-witness bundles, checks that the ACME review
-benchmark crosswalk keeps the abstract finalize fixture distinct from the
-path-write corpus, runs the first-contract
+benchmark crosswalk keeps the abstract `newOrder` and finalize fixture distinct
+from the path-write corpus, runs the first-contract
 rule-to-witness synthesis smoke, validates the synthesized witness, runs a
 signed-`POST` rule synthesis smoke, validates that synthesized witness, runs the
 unsatisfied-rule no-witness diagnostic bundle check, runs the `modality model
@@ -40,7 +40,7 @@ same real `modal` binary also runs the contract evolution smoke, which verifies
 an additive rule commit, rejected bad witness replacement, accepted V2 witness
 replacement, and Bob-signed successor update.
 The language CLI bundle also runs an ACME RFC 8555 review-benchmark smoke that
-preserves a source clause, extracted action and signature facts, verifier
+preserves source clauses, extracted action and signature facts, verifier
 status, explicit external assumptions, and known gaps in a review bundle while
 guarding that the benchmark rule uses explicit Boolean syntax instead of
 implication sugar.
