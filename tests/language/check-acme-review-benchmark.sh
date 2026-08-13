@@ -40,6 +40,12 @@ if ! grep -Fq -- 'always(!<+ACME_CREATE_ORDER> true | <+ACME_CREATE_ORDER +signe
   exit 1
 fi
 
+if ! grep -Fq -- 'always(!<+ACME_VALIDATE_AUTHORIZATION> true | <+ACME_VALIDATE_AUTHORIZATION +signed_by(/users/certificate_authority.id)> true)' "$RULE"; then
+  echo "ACME review benchmark rule is missing the explicit authorization-validation/CA Boolean guard" >&2
+  cat "$RULE" >&2
+  exit 1
+fi
+
 TMP_DIR="$(mktemp -d)"
 cleanup() {
   rm -rf "$TMP_DIR"
@@ -59,9 +65,10 @@ SYNTH_OUT="$TMP_DIR/acme-finalize-synthesize.out"
 
 required_output_patterns=(
   "Synthesizing from rule file:"
-  "Verifying synthesized model against 2 formula(s)"
+  "Verifying synthesized model against 3 formula(s)"
   'F1.1 `acme_finalize_requires_account_holder` satisfied'
   'F1.2 `acme_new_order_requires_account_holder` satisfied'
+  'F1.3 `acme_authorization_validation_requires_ca` satisfied'
   "Synthesis review bundle written to"
 )
 
@@ -78,6 +85,8 @@ required_model_patterns=(
   "+ACME_FINALIZE_ORDER +signed_by(/users/account_holder.id)"
   "+ACME_CREATE_ORDER"
   "+signed_by(/users/account_holder.id)"
+  "+ACME_VALIDATE_AUTHORIZATION"
+  "+signed_by(/users/certificate_authority.id)"
 )
 
 for pattern in "${required_model_patterns[@]}"; do
@@ -95,6 +104,8 @@ required_review_patterns=(
   "submitting a CSR to the order finalize URL"
   "RFC 8555 section 7.1.4"
   "server's newOrder resource"
+  "RFC 8555 section 7.1.5"
+  "marks authorization valid after successful challenge validation"
   "External assumption: ACME account-key authentication"
   "CSR cryptographic soundness"
   "CA policy"
@@ -103,13 +114,17 @@ required_review_patterns=(
   "## Rule File"
   "acme_finalize_requires_account_holder"
   "acme_new_order_requires_account_holder"
+  "acme_authorization_validation_requires_ca"
   "## Extracted Facts"
   '`+ACME_FINALIZE_ORDER`'
   '`+ACME_CREATE_ORDER`'
+  '`+ACME_VALIDATE_AUTHORIZATION`'
   '`+signed_by(/users/account_holder.id)`'
+  '`+signed_by(/users/certificate_authority.id)`'
   "## Source Clause Trace"
   "F1 source clause: RFC 8555 section 7.4"
   "F2 source clause: RFC 8555 section 7.1.4"
+  "F3 source clause: RFC 8555 section 7.1.5"
   "## Verifier Result"
   "Status: passed (\`--verify\`)"
   "## Witness Model"

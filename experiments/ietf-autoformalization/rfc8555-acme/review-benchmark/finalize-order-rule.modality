@@ -1,7 +1,7 @@
 // RFC 8555 ACME review-bundle benchmark slice.
 //
 // This is a parser-backed synthesis-review fixture, not the full ACME
-// path-write corpus. It keeps two RFC source clauses traceable through a
+// path-write corpus. It keeps three RFC source clauses traceable through a
 // synthesized witness bundle while external ACME evidence stays explicit.
 
 rule acme_finalize_requires_account_holder {
@@ -13,5 +13,11 @@ rule acme_finalize_requires_account_holder {
 rule acme_new_order_requires_account_holder {
   formula {
     always(!<+ACME_CREATE_ORDER> true | <+ACME_CREATE_ORDER +signed_by(/users/account_holder.id)> true)
+  }
+}
+
+rule acme_authorization_validation_requires_ca {
+  formula {
+    always(!<+ACME_VALIDATE_AUTHORIZATION> true | <+ACME_VALIDATE_AUTHORIZATION +signed_by(/users/certificate_authority.id)> true)
   }
 }
