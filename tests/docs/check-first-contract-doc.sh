@@ -8,12 +8,16 @@ required_patterns=(
   "## 4. Add Protection Rules"
   "## 5. Synthesize the Witness Model"
   "mkdir -p model"
-  "modality model synthesize --rule rules/authorized.modality --verify -o model/default.modality"
+  "mkdir -p review"
+  "--review-bundle review/authorized.md"
   "modality model validate model/default.modality --verbose"
   "Contract is valid!"
   "Transitions: 4"
   "review"
   "the synthesized candidate"
+  "parser-backed extracted facts"
+  "passed verifier result"
+  "known gaps"
   "## 6. Commit and Verify"
   "modal c commit --all --sign alice.mod_passfile"
   "## 7. Prove the Rule Is Active"
@@ -22,7 +26,7 @@ required_patterns=(
 )
 
 for pattern in "${required_patterns[@]}"; do
-  if ! grep -Fq "$pattern" "$DOC"; then
+  if ! grep -Fq -- "$pattern" "$DOC"; then
     echo "first-contract guide is missing verified onboarding text: $pattern" >&2
     exit 1
   fi

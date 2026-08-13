@@ -45,6 +45,7 @@ BOB_ID="$("$MODAL_BIN" id get --path "$BOB_PASSFILE")"
 "$MODAL_BIN" c set-named-id /parties/bob.id "$BOB_PASSFILE" --dir "$CONTRACT_DIR" >/dev/null
 
 mkdir -p "$CONTRACT_DIR/rules"
+mkdir -p "$CONTRACT_DIR/review"
 cat >"$CONTRACT_DIR/rules/authorized.modality" <<'EOF'
 export default rule {
   starting_at $PARENT
@@ -58,7 +59,12 @@ if [[ -x "$MODALITY_BIN" ]]; then
   "$MODALITY_BIN" model synthesize \
     --rule "$CONTRACT_DIR/rules/authorized.modality" \
     --verify \
+    --review-bundle "$CONTRACT_DIR/review/authorized.md" \
     -o "$CONTRACT_DIR/model/default.modality" >/dev/null
+  grep -q "# Modality Synthesis Review Bundle" "$CONTRACT_DIR/review/authorized.md"
+  grep -q "Status: passed (\`--verify\`)" "$CONTRACT_DIR/review/authorized.md"
+  grep -q "## Extracted Facts" "$CONTRACT_DIR/review/authorized.md"
+  grep -q "## Witness Model" "$CONTRACT_DIR/review/authorized.md"
   "$MODALITY_BIN" model validate "$CONTRACT_DIR/model/default.modality" \
     --verbose >"$TMP_DIR/synthesized-model-validate.out" 2>&1
   grep -q "Contract is valid!" "$TMP_DIR/synthesized-model-validate.out"

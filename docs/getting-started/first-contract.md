@@ -72,7 +72,12 @@ the synthesized candidate and write it to `model/default.modality`.
 
 ```bash
 mkdir -p model
-modality model synthesize --rule rules/authorized.modality --verify -o model/default.modality
+mkdir -p review
+modality model synthesize \
+  --rule rules/authorized.modality \
+  --verify \
+  --review-bundle review/authorized.md \
+  -o model/default.modality
 modality model validate model/default.modality --verbose
 ```
 
@@ -95,6 +100,9 @@ model exposes only signed `POST` and `MODEL` paths for ordinary state changes
 and model replacement.
 
 The validation command should report `Contract is valid!` and `Transitions: 4`.
+The review bundle should preserve the rule file, parser-backed extracted facts,
+passed verifier result, witness model, assumptions, and known gaps before the
+model is committed.
 
 ## 6. Commit and Verify
 

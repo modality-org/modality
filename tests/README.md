@@ -66,11 +66,12 @@ explicit `MODAL_BIN` whose feature shape differs from
 To run the lint smoke against a cached language CLI without rebuilding, pass
 `MODALITY_BIN`. The same binary is also used for the parser-backed
 first-contract language smoke, the standalone first-contract rule-to-witness
-synthesis smoke, the signed-`POST` rule synthesis plus review-bundle and
-no-witness diagnostic smoke, the ACME RFC 8555 review-benchmark smoke, and,
-when a `modal` binary is present, to synthesize the
-first-contract witness model from the rule with `--verify` before the contract
-CLI smoke commits it. This avoids `cargo run` in low-disk no-build runs:
+synthesis smoke plus its review bundle, the signed-`POST` rule synthesis plus
+review-bundle and no-witness diagnostic smoke, the ACME RFC 8555
+review-benchmark smoke, and, when a `modal` binary is present, to synthesize the
+first-contract witness model from the rule with `--verify`, write the review
+bundle, and only then let the contract CLI smoke commit it. This avoids
+`cargo run` in low-disk no-build runs:
 
 ```bash
 MODALITY_BIN=/path/to/modality tests/run-onboarding-smokes.sh

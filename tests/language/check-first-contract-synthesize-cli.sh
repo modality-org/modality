@@ -26,6 +26,7 @@ trap cleanup EXIT
 
 RULE="$TMP_DIR/authorized.modality"
 MODEL="$TMP_DIR/default.modality"
+REVIEW_BUNDLE="$TMP_DIR/authorized-review.md"
 SYNTH_OUT="$TMP_DIR/synthesize.out"
 VALIDATE_OUT="$TMP_DIR/validate.out"
 
@@ -41,6 +42,7 @@ EOF
 "$MODALITY_BIN" model synthesize \
   --rule "$RULE" \
   --verify \
+  --review-bundle "$REVIEW_BUNDLE" \
   -o "$MODEL" >"$SYNTH_OUT" 2>&1
 
 required_synthesis_patterns=(
@@ -48,6 +50,7 @@ required_synthesis_patterns=(
   "Verifying synthesized model against 1 formula(s)"
   'F1 `default_rule` satisfied'
   "default_rule"
+  "Synthesis review bundle written to"
 )
 
 for pattern in "${required_synthesis_patterns[@]}"; do
@@ -70,6 +73,31 @@ for pattern in "${required_model_patterns[@]}"; do
   if ! grep -Fq "$pattern" "$MODEL"; then
     echo "first-contract synthesized witness is missing: $pattern" >&2
     cat "$MODEL" >&2
+    exit 1
+  fi
+done
+
+required_review_patterns=(
+  "# Modality Synthesis Review Bundle"
+  "## Rule File"
+  "default_rule"
+  "## Extracted Facts"
+  '`-signed_by(/parties/alice.id)`'
+  '`-signed_by(/parties/bob.id)`'
+  "## Verifier Result"
+  "Status: passed (\`--verify\`)"
+  "## Witness Model"
+  "q0 --> q1: +POST +MODEL"
+  "q1 --> q1: +POST +signed_by(/parties/alice.id)"
+  "q1 --> q1: +POST +signed_by(/parties/bob.id)"
+  "## Assumptions"
+  "## Known Gaps"
+)
+
+for pattern in "${required_review_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$REVIEW_BUNDLE"; then
+    echo "first-contract synthesis review bundle is missing: $pattern" >&2
+    cat "$REVIEW_BUNDLE" >&2
     exit 1
   fi
 done
