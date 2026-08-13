@@ -105,8 +105,9 @@ The benchmark intentionally covers one narrow RFC 8555 §7.4 finalize clause. It
 checks that the parser-backed rule synthesis bundle preserves the reviewer source
 clause, extracted `+ACME_FINALIZE_ORDER` action, account-holder signature
 predicate, verifier status, explicit external assumptions, and known gaps. It
-does not claim that DNS/HTTP validation, CSR soundness, CA policy, WebPKI trust,
-or the full path-write ACME corpus are synthesized end to end. The
+uses explicit Boolean formula syntax instead of implication sugar. It does not
+claim that DNS/HTTP validation, CSR soundness, CA policy, WebPKI trust, or the
+full path-write ACME corpus are synthesized end to end. The
 [path-write crosswalk](./review-benchmark/path-write-crosswalk.md) records the
 current reviewer decision: the abstract finalize action is conceptually aligned
 with `+sets(/order/status.text, "processing")` and

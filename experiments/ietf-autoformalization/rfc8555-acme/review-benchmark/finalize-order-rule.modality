@@ -6,6 +6,6 @@
 
 rule acme_finalize_requires_account_holder {
   formula {
-    always([+ACME_FINALIZE_ORDER] true -> <+signed_by(/users/account_holder.id)> true)
+    always(!<+ACME_FINALIZE_ORDER> true | <+ACME_FINALIZE_ORDER +signed_by(/users/account_holder.id)> true)
   }
 }

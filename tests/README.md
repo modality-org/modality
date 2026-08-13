@@ -41,7 +41,9 @@ an additive rule commit, rejected bad witness replacement, accepted V2 witness
 replacement, and Bob-signed successor update.
 The language CLI bundle also runs an ACME RFC 8555 review-benchmark smoke that
 preserves a source clause, extracted action and signature facts, verifier
-status, explicit external assumptions, and known gaps in a review bundle.
+status, explicit external assumptions, and known gaps in a review bundle while
+guarding that the benchmark rule uses explicit Boolean syntax instead of
+implication sugar.
 
 To measure the full source-built wrapper path from the same entry point, ask the
 smoke to build the binary when it is missing:

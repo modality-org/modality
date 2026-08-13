@@ -16,6 +16,11 @@ The parser-backed synthesis fixture extracts:
 - `+ACME_FINALIZE_ORDER`
 - `+signed_by(/users/account_holder.id)`
 
+The fixture rule is intentionally written with explicit Boolean syntax
+(`!A | B`) rather than formula implication sugar. That keeps the benchmark
+aligned with the current teaching rule while preserving the source clause,
+extracted facts, witness model, verifier result, assumptions, and known gaps.
+
 The hand-authored path-write corpus represents the same finalize move as:
 
 - `+sets(/order/status.text, "processing")`

@@ -22,6 +22,18 @@ BENCH_DIR="$ROOT_DIR/experiments/ietf-autoformalization/rfc8555-acme/review-benc
 RULE="$BENCH_DIR/finalize-order-rule.modality"
 SOURCE="$BENCH_DIR/finalize-order-source.txt"
 
+if grep -Eq -- '->|\bimplies\b' "$RULE"; then
+  echo "ACME review benchmark rule must use explicit Boolean form, not implication sugar" >&2
+  cat "$RULE" >&2
+  exit 1
+fi
+
+if ! grep -Fq -- 'always(!<+ACME_FINALIZE_ORDER> true | <+ACME_FINALIZE_ORDER +signed_by(/users/account_holder.id)> true)' "$RULE"; then
+  echo "ACME review benchmark rule is missing the explicit finalize/signature Boolean guard" >&2
+  cat "$RULE" >&2
+  exit 1
+fi
+
 TMP_DIR="$(mktemp -d)"
 cleanup() {
   rm -rf "$TMP_DIR"
