@@ -57,6 +57,13 @@ hand-authored model-checker benchmark, and DNS/HTTP control, CSR soundness, CA
 policy, WebPKI trust, and ACME account-key authentication remain external
 assumptions.
 
+[review-benchmark/path-write-crosswalk.md](./review-benchmark/path-write-crosswalk.md)
+compares the abstract `+ACME_FINALIZE_ORDER` review fixture with the
+path-write corpus. The current decision is to keep the fixture as a source-clause
+review layer until synthesis can emit the concrete
+`+sets(/order/status.text, "processing")` finalize write and the related phase
+gates directly.
+
 ## Results
 
 All fourteen governance rules were model-checked against `AcmeIssuance` via `ModelChecker::check_formula`. Skip-edge regression injects a concurrent `+pending` / `+processing` write on `q1 -> q3` and expects `finalize_requires_authorization` to fail.

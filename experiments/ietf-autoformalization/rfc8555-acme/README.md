@@ -16,6 +16,7 @@ ACME automates certificate issuance between a certificate authority (CA) and an 
 | [diagrams/acme-issuance.png](./diagrams/acme-issuance.png) | Witness LTS diagram (source: [acme-issuance.mmd](./diagrams/acme-issuance.mmd)) |
 | [rules/governance.modality](./rules/governance.modality) | Fourteen governance formulas (nine temporal + five structural) |
 | [review-benchmark/](./review-benchmark/) | Narrow source-clause review-bundle fixture for the finalize step |
+| [review-benchmark/path-write-crosswalk.md](./review-benchmark/path-write-crosswalk.md) | Reviewer crosswalk from the abstract finalize fixture to the path-write corpus |
 | [lean/](./lean/) | Lean 4 mirror of model + governance props |
 | [normative-core.md](./normative-core.md) | RFC → obligation mapping |
 | [synthesis-notes.md](./synthesis-notes.md) | Verification notes and test command |
@@ -105,7 +106,13 @@ checks that the parser-backed rule synthesis bundle preserves the reviewer sourc
 clause, extracted `+ACME_FINALIZE_ORDER` action, account-holder signature
 predicate, verifier status, explicit external assumptions, and known gaps. It
 does not claim that DNS/HTTP validation, CSR soundness, CA policy, WebPKI trust,
-or the full path-write ACME corpus are synthesized end to end.
+or the full path-write ACME corpus are synthesized end to end. The
+[path-write crosswalk](./review-benchmark/path-write-crosswalk.md) records the
+current reviewer decision: the abstract finalize action is conceptually aligned
+with `+sets(/order/status.text, "processing")` and
+`+signed_by(/users/account_holder.id)`, but readiness, authorization, prior-order,
+closed-enum, and CA authority constraints still live in the hand-authored
+path-write corpus.
 
 ## Modality Mapping Notes
 

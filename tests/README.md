@@ -18,7 +18,9 @@ adds rules, synthesizes the witness model with `--verify`, validates it with
 keeps the `modal` contract CLI and `modality` model CLI split explicit, checks
 that the verifier rejection reference preserves current-state, closest-candidate,
 and missing-predicate diagnostics, checks that the synthesis review reference
-explains passed bundles and no-witness bundles, runs the first-contract
+explains passed bundles and no-witness bundles, checks that the ACME review
+benchmark crosswalk keeps the abstract finalize fixture distinct from the
+path-write corpus, runs the first-contract
 rule-to-witness synthesis smoke, validates the synthesized witness, runs a
 signed-`POST` rule synthesis smoke, validates that synthesized witness, runs the
 unsatisfied-rule no-witness diagnostic bundle check, runs the `modality model
