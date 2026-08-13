@@ -56,6 +56,7 @@ fi
 "$ROOT_DIR/tests/docs/check-verifier-rejections-doc.sh"
 "$ROOT_DIR/tests/docs/check-synthesis-review-doc.sh"
 "$ROOT_DIR/tests/docs/check-acme-review-crosswalk-doc.sh"
+"$ROOT_DIR/tests/language/check-modality-help-surface.sh"
 "$ROOT_DIR/tests/language/check-first-contract-synthesize-cli.sh"
 "$ROOT_DIR/tests/language/check-rule-synthesize-cli.sh"
 "$ROOT_DIR/tests/language/check-acme-review-benchmark.sh"

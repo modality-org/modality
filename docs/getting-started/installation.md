@@ -101,6 +101,17 @@ local flow. Use `modality` for model and rule authoring tasks such as
 A successful onboarding install should make both command surfaces visible before
 you start the first-contract guide.
 
+For the language CLI, `modality --help` should only expose the model command
+group, and `modality model --help` should expose the parser and review tools:
+
+```
+model      Model related commands
+check      Check a formula against a model
+synthesize Synthesize a model from a template
+validate   Validate a contract model
+lint       Lint governance formulas
+```
+
 For the lean onboarding wrapper, `modal --help` should show the first-contract
 command surface, including:
 
