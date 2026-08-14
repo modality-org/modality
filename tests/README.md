@@ -55,13 +55,23 @@ smoke to build the binary when it is missing:
 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh
 ```
 
+The first-contract path also depends on the `modality` language CLI for lint,
+synthesis, review-bundle generation, and validation. Build both CLIs from the
+same entry point when measuring a fresh first-contract run:
+
+```bash
+MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh
+```
+
 The smoke checks for at least 1 GiB of free disk before invoking Cargo so local
 onboarding failures report the resource problem before incremental build output
 fills the filesystem. Override the guard with `MODAL_ONBOARDING_MIN_KB` only for
 known no-build diagnostic runs. Build mode uses `contract-onboarding` by
 default; set `MODAL_ONBOARDING_FEATURES=full` only when measuring the full
-network/hub wrapper. Set `MODAL_HELP_SURFACE=lean|full` only when checking an
-explicit `MODAL_BIN` whose feature shape differs from
+network/hub wrapper. If `CARGO_TARGET_DIR` points at a temporary target, the
+smoke looks for both default binaries under that same target directory. Set
+`MODAL_HELP_SURFACE=lean|full` only when checking an explicit `MODAL_BIN` whose
+feature shape differs from
 `MODAL_ONBOARDING_FEATURES`.
 
 To run the lint smoke against a cached language CLI without rebuilding, pass
@@ -81,7 +91,7 @@ MODALITY_BIN=/path/to/modality tests/run-onboarding-smokes.sh
 To measure the lean release-profile wrapper, set `MODAL_ONBOARDING_PROFILE`:
 
 ```bash
-MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_PROFILE=release tests/run-onboarding-smokes.sh
+MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_PROFILE=release tests/run-onboarding-smokes.sh
 ```
 
 The default profile is `debug`, which builds and smokes

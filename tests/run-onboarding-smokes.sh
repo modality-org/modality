@@ -3,10 +3,25 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MIN_FREE_KB="${MODAL_ONBOARDING_MIN_KB:-1048576}"
+BUILD_MODALITY="${MODALITY_ONBOARDING_BUILD:-0}"
 BUILD_MODAL="${MODAL_ONBOARDING_BUILD:-0}"
 INSTALL_MODAL="${MODAL_ONBOARDING_INSTALL:-0}"
 MODAL_ONBOARDING_FEATURES="${MODAL_ONBOARDING_FEATURES:-contract-onboarding}"
 MODAL_ONBOARDING_PROFILE="${MODAL_ONBOARDING_PROFILE:-debug}"
+
+if [[ -n "${CARGO_TARGET_DIR:-}" ]]; then
+  case "$CARGO_TARGET_DIR" in
+    /*)
+      CARGO_OUTPUT_DIR="$CARGO_TARGET_DIR"
+      ;;
+    *)
+      CARGO_OUTPUT_DIR="$ROOT_DIR/rust/$CARGO_TARGET_DIR"
+      ;;
+  esac
+else
+  CARGO_OUTPUT_DIR="$ROOT_DIR/rust/target"
+fi
+
 if [[ "$MODAL_ONBOARDING_FEATURES" == "full" ]]; then
   DEFAULT_MODAL_HELP_SURFACE="full"
 else
@@ -18,12 +33,14 @@ case "$MODAL_ONBOARDING_PROFILE" in
   debug)
     CARGO_PROFILE_ARGS=()
     CARGO_INSTALL_PROFILE_ARGS=(--debug)
-    DEFAULT_MODAL_BIN="$ROOT_DIR/rust/target/debug/modal"
+    DEFAULT_MODAL_BIN="$CARGO_OUTPUT_DIR/debug/modal"
+    DEFAULT_MODALITY_BIN="$CARGO_OUTPUT_DIR/debug/modality"
     ;;
   release)
     CARGO_PROFILE_ARGS=(--release)
     CARGO_INSTALL_PROFILE_ARGS=()
-    DEFAULT_MODAL_BIN="$ROOT_DIR/rust/target/release/modal"
+    DEFAULT_MODAL_BIN="$CARGO_OUTPUT_DIR/release/modal"
+    DEFAULT_MODALITY_BIN="$CARGO_OUTPUT_DIR/release/modality"
     ;;
   *)
     echo "unsupported MODAL_ONBOARDING_PROFILE: $MODAL_ONBOARDING_PROFILE" >&2
@@ -33,6 +50,7 @@ case "$MODAL_ONBOARDING_PROFILE" in
 esac
 
 MODAL_BIN="${MODAL_BIN:-$DEFAULT_MODAL_BIN}"
+MODALITY_BIN="${MODALITY_BIN:-$DEFAULT_MODALITY_BIN}"
 
 available_kb="$(df -Pk "$ROOT_DIR" | awk 'NR == 2 { print $4 }')"
 if [[ "$available_kb" -lt "$MIN_FREE_KB" ]]; then
@@ -44,6 +62,17 @@ Free disk space, or lower the preflight only for a known no-build run:
   MODAL_ONBOARDING_MIN_KB=$available_kb $0
 EOF
   exit 1
+fi
+
+if [[ ! -x "$MODALITY_BIN" && "$BUILD_MODALITY" == "1" ]]; then
+  (
+    cd "$ROOT_DIR/rust"
+    cargo build "${CARGO_PROFILE_ARGS[@]}" -p modality
+  )
+fi
+
+if [[ -x "$MODALITY_BIN" ]]; then
+  export MODALITY_BIN
 fi
 
 "$ROOT_DIR/tests/language/run-onboarding-tests.sh"
@@ -115,8 +144,11 @@ first-contract CLI smoke skipped: modal binary not found at $MODAL_BIN
 Build it during the smoke:
   MODAL_ONBOARDING_BUILD=1 $0
 
+Build both CLIs during the smoke, so language synthesis/lint checks cannot skip:
+  MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 $0
+
 Build and smoke the release-profile onboarding wrapper:
-  MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_PROFILE=release $0
+  MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_PROFILE=release $0
 
 Install and smoke the lean onboarding wrapper in a temporary Cargo root:
   MODAL_ONBOARDING_INSTALL=1 $0
