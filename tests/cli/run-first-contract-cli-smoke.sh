@@ -112,6 +112,10 @@ grep -q '\[\] always' "$CONTRACT_DIR/rules/authorized.modality"
 grep -q 'q0 .* q1.*+POST.*+MODEL' "$CONTRACT_DIR/model/default.modality"
 grep -q 'q1 .* q1.*+POST.*+signed_by(/parties/alice.id)' "$CONTRACT_DIR/model/default.modality"
 grep -q 'q1 .* q1.*+POST.*+signed_by(/parties/bob.id)' "$CONTRACT_DIR/model/default.modality"
+sha256sum \
+  "$CONTRACT_DIR/rules/authorized.modality" \
+  "$CONTRACT_DIR/model/default.modality" \
+  >"$TMP_DIR/accepted-artifacts.sha256"
 
 "$MODAL_BIN" c commit \
   --path /notes.text \
@@ -164,6 +168,7 @@ grep -q '"total_commits": 3' "$TMP_DIR/rejected-status.json"
 grep -q '"model_state": "q1"' "$TMP_DIR/rejected-status.json"
 grep -q '"message": "Signed update"' "$TMP_DIR/rejected-log.json"
 grep -q "signed update" "$CONTRACT_DIR/state/notes.text"
+sha256sum --check "$TMP_DIR/accepted-artifacts.sha256" >/dev/null
 if [[ -e "$CONTRACT_DIR/state/unsigned.text" ]]; then
   echo "rejected unsigned commit changed replayed contract state" >&2
   exit 1

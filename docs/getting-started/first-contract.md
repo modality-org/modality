@@ -115,6 +115,11 @@ modal c log
 `modal c log` should show Alice's signer ID plus the commit message:
 `Initial contract setup`.
 
+At this point the accepted rule and witness model are the local files that
+govern the next transition. Keep `rules/authorized.modality` and
+`model/default.modality` with the contract; the smoke test checks that a
+rejected commit does not alter those accepted artifacts.
+
 ## 7. Prove the Rule Is Active
 
 Now make one ordinary signed state update:
@@ -144,7 +149,9 @@ predicate diagnostics. That rejection is the contract enforcing the
 post-bootstrap rule you added in `rules/authorized.modality`; `modal c log`
 should still end at the last accepted signed update. After `modal c checkout`,
 the replayed `state/notes.text` file should still contain `signed update`, and
-there should be no `state/unsigned.text` file.
+there should be no `state/unsigned.text` file. The accepted
+`rules/authorized.modality` and `model/default.modality` files should also be
+unchanged.
 
 ## What's Next?
 
