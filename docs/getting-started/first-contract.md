@@ -73,6 +73,7 @@ the synthesized candidate and write it to `model/default.modality`.
 ```bash
 mkdir -p model
 mkdir -p review
+modality model lint rules/authorized.modality
 modality model synthesize \
   --rule rules/authorized.modality \
   --verify \
@@ -99,10 +100,11 @@ commit that installs identity evidence and the first model. After that, the
 model exposes only signed `POST` and `MODEL` paths for ordinary state changes
 and model replacement.
 
-The validation command should report `Contract is valid!` and `Transitions: 4`.
-The review bundle should preserve the rule file, parser-backed extracted facts,
-passed verifier result, witness model, assumptions, and known gaps before the
-model is committed.
+The lint command should report that the rule formula is lint-clean before
+synthesis starts. The validation command should report `Contract is valid!` and
+`Transitions: 4`. The review bundle should preserve the rule file,
+parser-backed extracted facts, passed verifier result, witness model,
+assumptions, and known gaps before the model is committed.
 
 ## 6. Commit and Verify
 

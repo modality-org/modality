@@ -70,6 +70,10 @@ export default rule {
 }
 EOF
 
+"$MODALITY_BIN" model lint "$CONTRACT_DIR/rules/authorized.modality" \
+  >"$TMP_DIR/authorized-rule-lint.out" 2>&1
+grep -q "1 formula(s) lint-clean" "$TMP_DIR/authorized-rule-lint.out"
+
 "$MODALITY_BIN" model synthesize \
   --rule "$CONTRACT_DIR/rules/authorized.modality" \
   --verify \

@@ -27,6 +27,7 @@ trap cleanup EXIT
 RULE="$TMP_DIR/authorized.modality"
 MODEL="$TMP_DIR/default.modality"
 REVIEW_BUNDLE="$TMP_DIR/authorized-review.md"
+LINT_OUT="$TMP_DIR/lint.out"
 SYNTH_OUT="$TMP_DIR/synthesize.out"
 VALIDATE_OUT="$TMP_DIR/validate.out"
 
@@ -38,6 +39,9 @@ export default rule {
   }
 }
 EOF
+
+"$MODALITY_BIN" model lint "$RULE" >"$LINT_OUT" 2>&1
+grep -q "1 formula(s) lint-clean" "$LINT_OUT"
 
 "$MODALITY_BIN" model synthesize \
   --rule "$RULE" \
