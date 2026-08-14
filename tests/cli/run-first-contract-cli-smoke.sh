@@ -162,12 +162,19 @@ grep -q "missing +signed_by(/parties/alice.id)" "$TMP_DIR/unsigned-post.err"
 grep -q "missing +signed_by(/parties/bob.id)" "$TMP_DIR/unsigned-post.err"
 
 "$MODAL_BIN" c status --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/rejected-status.json"
+"$MODAL_BIN" c status --dir "$CONTRACT_DIR" >"$TMP_DIR/rejected-status.txt"
 "$MODAL_BIN" c log --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/rejected-log.json"
+"$MODAL_BIN" c log --dir "$CONTRACT_DIR" >"$TMP_DIR/rejected-log.txt"
 "$MODAL_BIN" c checkout --dir "$CONTRACT_DIR" >/dev/null
 
 grep -q '"total_commits": 3' "$TMP_DIR/rejected-status.json"
 grep -q '"model_state": "q1"' "$TMP_DIR/rejected-status.json"
+grep -q "Total commits: 3" "$TMP_DIR/rejected-status.txt"
+grep -q "Model state: q1" "$TMP_DIR/rejected-status.txt"
 grep -q '"message": "Signed update"' "$TMP_DIR/rejected-log.json"
+grep -q "Message: Signed update" "$TMP_DIR/rejected-log.txt"
+grep -q "Signatures: 1" "$TMP_DIR/rejected-log.txt"
+grep -q "$ALICE_ID" "$TMP_DIR/rejected-log.txt"
 grep -q "signed update" "$CONTRACT_DIR/state/notes.text"
 sha256sum --check "$TMP_DIR/accepted-artifacts.sha256" >/dev/null
 if [[ -e "$CONTRACT_DIR/state/unsigned.text" ]]; then
@@ -176,6 +183,10 @@ if [[ -e "$CONTRACT_DIR/state/unsigned.text" ]]; then
 fi
 if grep -q '"message": "Unsigned update"' "$TMP_DIR/rejected-log.json"; then
   echo "rejected unsigned commit was appended to the contract log" >&2
+  exit 1
+fi
+if grep -q "Message: Unsigned update" "$TMP_DIR/rejected-log.txt"; then
+  echo "rejected unsigned commit was shown in the human-readable contract log" >&2
   exit 1
 fi
 

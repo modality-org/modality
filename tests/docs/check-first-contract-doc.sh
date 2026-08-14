@@ -27,6 +27,7 @@ required_patterns=(
   "## 7. Prove the Rule Is Active"
   "missing \`signed_by\`"
   "predicate diagnostics"
+  "should still show \`Total commits: 3\` and \`Model state: q1\`"
   "should still end at the last accepted signed update"
   "After \`modal c checkout\`"
   "state/notes.text"
