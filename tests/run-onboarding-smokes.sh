@@ -129,6 +129,6 @@ Or build it first:
   cargo build ${CARGO_PROFILE_ARGS[*]} -p modal --no-default-features --features "$MODAL_ONBOARDING_FEATURES"
 
 Or pass an existing binary:
-  MODAL_BIN=/path/to/modal $0
+  MODAL_BIN=/path/to/modal MODALITY_BIN=/path/to/modality $0
 EOF
 fi

@@ -19,6 +19,21 @@ EOF
   exit 2
 fi
 
+if [[ ! -x "$MODALITY_BIN" ]]; then
+  cat >&2 <<EOF
+modality binary not found at: $MODALITY_BIN
+
+The first-contract smoke synthesizes and verifies the governing witness model
+before committing it. Build the language CLI first:
+  cd "$ROOT_DIR/rust"
+  cargo build -p modality
+
+Or pass an existing binary:
+  MODALITY_BIN=/path/to/modality $0
+EOF
+  exit 2
+fi
+
 TMP_DIR="$(mktemp -d)"
 cleanup() {
   rm -rf "$TMP_DIR"
@@ -55,34 +70,21 @@ export default rule {
 }
 EOF
 
-if [[ -x "$MODALITY_BIN" ]]; then
-  "$MODALITY_BIN" model synthesize \
-    --rule "$CONTRACT_DIR/rules/authorized.modality" \
-    --verify \
-    --review-bundle "$CONTRACT_DIR/review/authorized.md" \
-    -o "$CONTRACT_DIR/model/default.modality" >/dev/null
-  grep -q "# Modality Synthesis Review Bundle" "$CONTRACT_DIR/review/authorized.md"
-  grep -q "Status: passed (\`--verify\`)" "$CONTRACT_DIR/review/authorized.md"
-  grep -q "## Extracted Facts" "$CONTRACT_DIR/review/authorized.md"
-  grep -q "## Witness Model" "$CONTRACT_DIR/review/authorized.md"
-  "$MODALITY_BIN" model validate "$CONTRACT_DIR/model/default.modality" \
-    --verbose >"$TMP_DIR/synthesized-model-validate.out" 2>&1
-  grep -q "Contract is valid!" "$TMP_DIR/synthesized-model-validate.out"
-  grep -q "Transitions: 4" "$TMP_DIR/synthesized-model-validate.out"
-  grep -q "All properties are predicates or commit method labels (verifier-observed)." \
-    "$TMP_DIR/synthesized-model-validate.out"
-else
-  cat >"$CONTRACT_DIR/model/default.modality" <<'EOF'
-export default model {
-  initial q0
-
-  q0 -> q1 [+POST +MODEL]
-  q1 -> q1 [+POST +signed_by(/parties/alice.id)]
-  q1 -> q1 [+POST +signed_by(/parties/bob.id)]
-  q1 -> q1 [+MODEL +signed_by(/parties/alice.id)]
-}
-EOF
-fi
+"$MODALITY_BIN" model synthesize \
+  --rule "$CONTRACT_DIR/rules/authorized.modality" \
+  --verify \
+  --review-bundle "$CONTRACT_DIR/review/authorized.md" \
+  -o "$CONTRACT_DIR/model/default.modality" >/dev/null
+grep -q "# Modality Synthesis Review Bundle" "$CONTRACT_DIR/review/authorized.md"
+grep -q "Status: passed (\`--verify\`)" "$CONTRACT_DIR/review/authorized.md"
+grep -q "## Extracted Facts" "$CONTRACT_DIR/review/authorized.md"
+grep -q "## Witness Model" "$CONTRACT_DIR/review/authorized.md"
+"$MODALITY_BIN" model validate "$CONTRACT_DIR/model/default.modality" \
+  --verbose >"$TMP_DIR/synthesized-model-validate.out" 2>&1
+grep -q "Contract is valid!" "$TMP_DIR/synthesized-model-validate.out"
+grep -q "Transitions: 4" "$TMP_DIR/synthesized-model-validate.out"
+grep -q "All properties are predicates or commit method labels (verifier-observed)." \
+  "$TMP_DIR/synthesized-model-validate.out"
 
 "$MODAL_BIN" c commit \
   --all \

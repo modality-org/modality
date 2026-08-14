@@ -29,18 +29,19 @@ diagnostic bundle check, runs the `modality model lint` smoke when a `modality`
 binary is present, and checks that
 both the default contract CLI dependency tree and the lean `modal` onboarding
 wrapper avoid onboarding-heavy network/storage/compression deps. It also runs the
-first-contract CLI wrapper smoke when `rust/target/debug/modal` exists, or when
-`MODAL_BIN=/path/to/modal` points at another built `modal` binary. When a
+first-contract CLI wrapper smoke when both `rust/target/debug/modal` and
+`rust/target/debug/modality` exist, or when `MODAL_BIN=/path/to/modal` and
+`MODALITY_BIN=/path/to/modality` point at built binaries. When a `modal`
 binary is present, it also checks that the real `modal --version` output
 identifies the wrapper and that the `modal --help` surface matches the selected
 onboarding shape: lean builds must expose the first-contract commands and omit
 full runtime groups, while `MODAL_ONBOARDING_FEATURES=full` expects those
-runtime groups to be present. When `MODALITY_BIN` is also present, the
-first-contract CLI smoke synthesizes the governing witness with `--verify`,
-validates that generated model, and only then commits it through `modal`. The
-same real `modal` binary also runs the contract evolution smoke, which verifies
-an additive rule commit, rejected bad witness replacement, accepted V2 witness
-replacement, and Bob-signed successor update.
+runtime groups to be present. The first-contract CLI smoke synthesizes the
+governing witness with `--verify`, validates that generated model, and only
+then commits it through `modal`. The same real `modal` binary also runs the
+contract evolution smoke, which verifies an additive rule commit, rejected bad
+witness replacement, accepted V2 witness replacement, and Bob-signed successor
+update.
 The language CLI bundle also runs an ACME RFC 8555 review-benchmark smoke that
 preserves source clauses, extracted action and signature facts, verifier
 status, explicit external assumptions, and known gaps in a review bundle while
