@@ -129,7 +129,9 @@ MODAL_ONBOARDING_PACKAGE_CHECK=1 tests/run-onboarding-smokes.sh
 
 The package-readiness probe accepts either a successful Cargo package
 preparation or the current known blocker: `modal` still references workspace
-CLI crates that are not published to the registry.
+CLI crates that are not published to the registry. While blocked, it prints the
+selected direct workspace dependencies and the selected workspace package
+closure so the external package or installer work has a concrete crate list.
 
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 

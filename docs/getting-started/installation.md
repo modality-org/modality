@@ -105,7 +105,11 @@ Local source builds and temporary Cargo-root installs are verified by the
 onboarding smokes. External crates.io-style packaging is tracked separately:
 `tests/cli/check-modal-package-readiness.sh` reports the current blocker until
 the workspace CLI crates that `modal` depends on are available from the
-registry.
+registry. Its blocker output names the selected direct workspace dependencies
+(`modal-cli-contract`, `modal-common`, and `modality`) and the selected package
+closure (`modal-cli-common`, `modal-cli-contract`, `modal-common`, `modality`,
+and `modality-lang`) that must be covered by an external package or installer
+plan.
 
 For the language CLI, `modality --help` should only expose the model command
 group, and `modality model --help` should expose the parser and review tools:
