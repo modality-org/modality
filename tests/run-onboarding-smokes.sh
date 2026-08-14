@@ -6,6 +6,7 @@ MIN_FREE_KB="${MODAL_ONBOARDING_MIN_KB:-1048576}"
 BUILD_MODALITY="${MODALITY_ONBOARDING_BUILD:-0}"
 BUILD_MODAL="${MODAL_ONBOARDING_BUILD:-0}"
 INSTALL_MODAL="${MODAL_ONBOARDING_INSTALL:-0}"
+PACKAGE_CHECK_MODAL="${MODAL_ONBOARDING_PACKAGE_CHECK:-0}"
 MODAL_ONBOARDING_FEATURES="${MODAL_ONBOARDING_FEATURES:-contract-onboarding}"
 MODAL_ONBOARDING_PROFILE="${MODAL_ONBOARDING_PROFILE:-debug}"
 
@@ -91,6 +92,10 @@ fi
 "$ROOT_DIR/tests/language/check-acme-review-benchmark.sh"
 "$ROOT_DIR/tests/language/check-model-lint-cli.sh"
 
+if [[ "$PACKAGE_CHECK_MODAL" == "1" ]]; then
+  "$ROOT_DIR/tests/cli/check-modal-package-readiness.sh"
+fi
+
 if [[ "$INSTALL_MODAL" == "1" ]]; then
   INSTALL_ROOT="$(mktemp -d)"
   cleanup_install() {
@@ -155,6 +160,9 @@ Install and smoke the lean onboarding wrapper in a temporary Cargo root:
 
 Install and smoke the release-profile onboarding wrapper:
   MODAL_ONBOARDING_INSTALL=1 MODAL_ONBOARDING_PROFILE=release $0
+
+Check whether the lean wrapper is ready for crates.io-style packaging:
+  MODAL_ONBOARDING_PACKAGE_CHECK=1 $0
 
 Or build it first:
   cd "$ROOT_DIR/rust"

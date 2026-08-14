@@ -101,6 +101,12 @@ local flow. Use `modality` for model and rule authoring tasks such as
 A successful onboarding install should make both command surfaces visible before
 you start the first-contract guide.
 
+Local source builds and temporary Cargo-root installs are verified by the
+onboarding smokes. External crates.io-style packaging is tracked separately:
+`tests/cli/check-modal-package-readiness.sh` reports the current blocker until
+the workspace CLI crates that `modal` depends on are available from the
+registry.
+
 For the language CLI, `modality --help` should only expose the model command
 group, and `modality model --help` should expose the parser and review tools:
 

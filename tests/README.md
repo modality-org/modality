@@ -47,6 +47,10 @@ preserves source clauses, extracted action and signature facts, verifier
 status, explicit external assumptions, and known gaps in a review bundle while
 guarding that the benchmark rule uses explicit Boolean syntax instead of
 implication sugar.
+Set `MODAL_ONBOARDING_PACKAGE_CHECK=1` to also run the package-readiness probe
+for the lean wrapper. That probe runs Cargo's package preparation and reports
+the current external-package blocker when `modal` still depends on workspace
+CLI crates that are not available from the registry.
 
 To measure the full source-built wrapper path from the same entry point, ask the
 smoke to build the binary when it is missing:
@@ -115,6 +119,17 @@ wrapper.
 ```bash
 MODAL_ONBOARDING_INSTALL=1 MODAL_ONBOARDING_PROFILE=release tests/run-onboarding-smokes.sh
 ```
+
+To measure crates.io-style package readiness for the lean wrapper without
+claiming that external distribution is finished, run:
+
+```bash
+MODAL_ONBOARDING_PACKAGE_CHECK=1 tests/run-onboarding-smokes.sh
+```
+
+The package-readiness probe accepts either a successful Cargo package
+preparation or the current known blocker: `modal` still references workspace
+CLI crates that are not published to the registry.
 
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 

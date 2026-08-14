@@ -48,6 +48,18 @@ and `--message`, `modal c status` and `modal c log` inspection flags, plus
 Use `cargo build -p modal` when you are testing the full wrapper surface,
 including node, network, hub, chain, predicate, and program commands.
 
+To check whether the lean wrapper is ready for crates.io-style package
+preparation:
+
+```bash
+tests/cli/check-modal-package-readiness.sh
+```
+
+This is a readiness probe, not an install command. It passes if Cargo can
+prepare the package, and it also passes with a clear message for the current
+known blocker: `modal` still depends on workspace CLI crates that are not
+available from the registry.
+
 To test another binary:
 
 ```bash
