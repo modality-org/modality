@@ -20,8 +20,10 @@ required_patterns=(
   "known gaps"
   "## 6. Commit and Verify"
   "modal c commit --all --sign alice.mod_passfile"
-  "accepted rule and witness model"
-  "rejected commit does not alter those accepted artifacts"
+  "accepted rule, witness model, and synthesis review bundle"
+  "synthesis review bundle"
+  "rejected"
+  "does not alter those accepted artifacts"
   "## 7. Prove the Rule Is Active"
   "missing \`signed_by\`"
   "predicate diagnostics"
@@ -29,7 +31,8 @@ required_patterns=(
   "After \`modal c checkout\`"
   "state/notes.text"
   "state/unsigned.text"
-  "\`rules/authorized.modality\` and \`model/default.modality\` files should also be"
+  "\`rules/authorized.modality\`, \`model/default.modality\`, and"
+  "\`review/authorized.md\` files should also be"
 )
 
 for pattern in "${required_patterns[@]}"; do

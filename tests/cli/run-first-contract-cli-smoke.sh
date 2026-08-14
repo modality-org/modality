@@ -115,6 +115,7 @@ grep -q 'q1 .* q1.*+POST.*+signed_by(/parties/bob.id)' "$CONTRACT_DIR/model/defa
 sha256sum \
   "$CONTRACT_DIR/rules/authorized.modality" \
   "$CONTRACT_DIR/model/default.modality" \
+  "$CONTRACT_DIR/review/authorized.md" \
   >"$TMP_DIR/accepted-artifacts.sha256"
 
 "$MODAL_BIN" c commit \
