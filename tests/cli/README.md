@@ -84,10 +84,11 @@ MODAL_BIN=/path/to/modal tests/cli/check-modal-release-archive-readiness.sh
 
 The archive-readiness check creates a temporary
 `modal-<version>-<os>-<arch>-<profile>.tar.gz`, verifies that it contains
-`bin/modal`, `README.txt`, and `SHA256SUMS`, unpacks it, verifies the checksum
-manifest, checks the unpacked binary version and help surface, and runs the full
-first-contract smoke when `MODALITY_BIN=/path/to/modality` is supplied. Set
-`MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` to keep the generated tarball.
+`bin/modal`, `README.txt`, `PROVENANCE.txt`, and `SHA256SUMS`, unpacks it,
+verifies the checksum manifest, checks the provenance source revision, profile,
+and help surface, checks the unpacked binary version and help surface, and runs
+the full first-contract smoke when `MODALITY_BIN=/path/to/modality` is supplied.
+Set `MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` to keep the generated tarball.
 
 To test another binary:
 

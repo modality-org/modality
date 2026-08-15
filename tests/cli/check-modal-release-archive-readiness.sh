@@ -66,6 +66,17 @@ if [[ -z "$version_slug" ]]; then
   exit 1
 fi
 archive_name="modal-${version_slug}-${os}-${arch}-${PROFILE}.tar.gz"
+source_revision="${MODAL_ONBOARDING_ARCHIVE_REV:-}"
+version_revision_pattern='@([^)]+)\)'
+if [[ -z "$source_revision" && "$version_output" =~ $version_revision_pattern ]]; then
+  source_revision="${BASH_REMATCH[1]}"
+fi
+if [[ -z "$source_revision" ]] && git -C "$ROOT_DIR" rev-parse --verify HEAD >/dev/null 2>&1; then
+  source_revision="$(git -C "$ROOT_DIR" rev-parse HEAD)"
+fi
+if [[ -z "$source_revision" ]]; then
+  source_revision="unknown"
+fi
 
 if [[ -n "${MODAL_ONBOARDING_ARCHIVE_DIR:-}" ]]; then
   ARCHIVE_DIR="$MODAL_ONBOARDING_ARCHIVE_DIR"
@@ -95,13 +106,23 @@ version: $version_output
 profile: $PROFILE
 help surface: $HELP_SURFACE
 EOF
+cat >"$STAGE_DIR/PROVENANCE.txt" <<EOF
+modal release archive smoke provenance
+source revision: $source_revision
+version: $version_output
+profile: $PROFILE
+features: ${MODAL_ONBOARDING_FEATURES:-contract-onboarding}
+help surface: $HELP_SURFACE
+os: $os
+arch: $arch
+EOF
 (
   cd "$STAGE_DIR"
-  sha256sum bin/modal README.txt >SHA256SUMS
+  sha256sum bin/modal README.txt PROVENANCE.txt >SHA256SUMS
 )
 
 ARCHIVE_PATH="$ARCHIVE_DIR/$archive_name"
-tar -C "$STAGE_DIR" -czf "$ARCHIVE_PATH" bin/modal README.txt SHA256SUMS
+tar -C "$STAGE_DIR" -czf "$ARCHIVE_PATH" bin/modal README.txt PROVENANCE.txt SHA256SUMS
 
 archive_listing="$(tar -tzf "$ARCHIVE_PATH" | sort)"
 if ! grep -Fxq "README.txt" <<<"$archive_listing"; then
@@ -110,6 +131,10 @@ if ! grep -Fxq "README.txt" <<<"$archive_listing"; then
 fi
 if ! grep -Fxq "bin/modal" <<<"$archive_listing"; then
   echo "release archive is missing bin/modal" >&2
+  exit 1
+fi
+if ! grep -Fxq "PROVENANCE.txt" <<<"$archive_listing"; then
+  echo "release archive is missing PROVENANCE.txt" >&2
   exit 1
 fi
 if ! grep -Fxq "SHA256SUMS" <<<"$archive_listing"; then
@@ -122,7 +147,7 @@ checksum_entries="$(
   cd "$UNPACK_DIR"
   awk '{ print $2 }' SHA256SUMS | sort
 )"
-expected_checksum_entries="$(printf '%s\n' "README.txt" "bin/modal" | sort)"
+expected_checksum_entries="$(printf '%s\n' "PROVENANCE.txt" "README.txt" "bin/modal" | sort)"
 if [[ "$checksum_entries" != "$expected_checksum_entries" ]]; then
   cat >&2 <<EOF
 release archive checksum manifest has unexpected entries
@@ -137,6 +162,18 @@ fi
   cd "$UNPACK_DIR"
   sha256sum -c SHA256SUMS >/dev/null
 )
+if ! grep -Fq "source revision: $source_revision" "$UNPACK_DIR/PROVENANCE.txt"; then
+  echo "release archive provenance is missing source revision: $source_revision" >&2
+  exit 1
+fi
+if ! grep -Fq "profile: $PROFILE" "$UNPACK_DIR/PROVENANCE.txt"; then
+  echo "release archive provenance is missing profile: $PROFILE" >&2
+  exit 1
+fi
+if ! grep -Fq "help surface: $HELP_SURFACE" "$UNPACK_DIR/PROVENANCE.txt"; then
+  echo "release archive provenance is missing help surface: $HELP_SURFACE" >&2
+  exit 1
+fi
 UNPACKED_MODAL="$UNPACK_DIR/bin/modal"
 if [[ ! -x "$UNPACKED_MODAL" ]]; then
   echo "unpacked modal is not executable at $UNPACKED_MODAL" >&2

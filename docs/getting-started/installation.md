@@ -111,8 +111,10 @@ test for release checklists or CI evidence.
 Release-archive-shaped binary bundles are measured by
 `tests/cli/check-modal-release-archive-readiness.sh`, which creates a
 `modal-<version>-<os>-<arch>-<profile>.tar.gz` containing `bin/modal` and
-`README.txt` plus `SHA256SUMS`, unpacks it, verifies the checksum manifest,
-and checks that the manifest covers exactly `bin/modal` and `README.txt`. It
+`README.txt` plus `PROVENANCE.txt` and `SHA256SUMS`, unpacks it, verifies the
+checksum manifest, and checks that the manifest covers exactly `bin/modal`,
+`README.txt`, and `PROVENANCE.txt`. The provenance file records the source
+revision, version, profile, features, platform, and expected help surface. It
 checks the unpacked help surface and runs the first-contract CLI smoke when a
 built `modality` binary is supplied.
 External crates.io-style packaging is tracked separately:
