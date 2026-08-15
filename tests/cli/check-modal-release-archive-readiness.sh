@@ -125,6 +125,17 @@ ARCHIVE_PATH="$ARCHIVE_DIR/$archive_name"
 tar -C "$STAGE_DIR" -czf "$ARCHIVE_PATH" bin/modal README.txt PROVENANCE.txt SHA256SUMS
 
 archive_listing="$(tar -tzf "$ARCHIVE_PATH" | sort)"
+expected_archive_listing="$(printf '%s\n' "PROVENANCE.txt" "README.txt" "SHA256SUMS" "bin/modal" | sort)"
+if [[ "$archive_listing" != "$expected_archive_listing" ]]; then
+  cat >&2 <<EOF
+release archive has unexpected entries
+expected:
+$expected_archive_listing
+actual:
+$archive_listing
+EOF
+  exit 1
+fi
 if ! grep -Fxq "README.txt" <<<"$archive_listing"; then
   echo "release archive is missing README.txt" >&2
   exit 1
