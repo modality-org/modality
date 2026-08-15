@@ -57,7 +57,8 @@ surface, and run the first-contract CLI smoke when `MODALITY_BIN` points at a
 built language CLI. By default this uses `file://$PWD` so local and CI runs can
 exercise the same Cargo Git-install resolver without publishing crates; set
 `MODAL_ONBOARDING_GIT_URL=https://github.com/modality-org/modality.git` when
-checking the public repository path.
+checking the public repository path, and set `MODAL_ONBOARDING_GIT_REV=<commit>`
+when the install evidence must be pinned to an exact revision.
 
 To measure the full source-built wrapper path from the same entry point, ask the
 smoke to build the binary when it is missing:
@@ -150,7 +151,8 @@ MODAL_ONBOARDING_GIT_INSTALL_CHECK=1 tests/run-onboarding-smokes.sh
 The Git-install probe installs `modal` into a temporary Cargo root from
 `MODAL_ONBOARDING_GIT_URL` or, by default, `file://$PWD`. Pair it with
 `MODALITY_BIN=/path/to/modality` when you want the installed `modal` binary to
-run the full first-contract contract smoke after the help-surface check.
+run the full first-contract contract smoke after the help-surface check. Set
+`MODAL_ONBOARDING_GIT_REV=<commit>` to pin the installed source revision.
 
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 

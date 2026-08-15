@@ -106,6 +106,8 @@ onboarding smokes. Git URL installs are measured by
 `tests/cli/check-modal-git-install-readiness.sh`, which installs `modal` into a
 temporary Cargo root, checks the installed help surface, and runs the
 first-contract CLI smoke when a built `modality` binary is supplied.
+Set `MODAL_ONBOARDING_GIT_REV=<commit>` to pin the exact Git revision under
+test for release checklists or CI evidence.
 External crates.io-style packaging is tracked separately:
 `tests/cli/check-modal-package-readiness.sh` reports the current blocker until
 the workspace CLI crates that `modal` depends on are available from the

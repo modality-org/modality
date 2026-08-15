@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REPO_URL="${MODAL_ONBOARDING_GIT_URL:-file://$ROOT_DIR}"
+REPO_REV="${MODAL_ONBOARDING_GIT_REV:-}"
 FEATURES="${MODAL_ONBOARDING_FEATURES:-contract-onboarding}"
 PROFILE="${MODAL_ONBOARDING_PROFILE:-debug}"
 HELP_SURFACE="${MODAL_HELP_SURFACE:-lean}"
@@ -24,14 +25,20 @@ esac
 INSTALL_ROOT="$(mktemp -d)"
 TEMP_CARGO_HOME="$(mktemp -d)"
 TEMP_CARGO_TARGET_DIR="$(mktemp -d)"
+REV_ARGS=()
 cleanup() {
   rm -rf "$INSTALL_ROOT" "$TEMP_CARGO_HOME" "$TEMP_CARGO_TARGET_DIR"
 }
 trap cleanup EXIT
 
+if [[ -n "$REPO_REV" ]]; then
+  REV_ARGS=(--rev "$REPO_REV")
+fi
+
 CARGO_HOME="$TEMP_CARGO_HOME" CARGO_TARGET_DIR="$TEMP_CARGO_TARGET_DIR" \
   cargo install \
     --git "$REPO_URL" \
+    "${REV_ARGS[@]}" \
     modal \
     --no-default-features \
     --features "$FEATURES" \
@@ -61,4 +68,8 @@ first-contract path:
 EOF
 fi
 
-echo "modal git install readiness check passed: $REPO_URL"
+if [[ -n "$REPO_REV" ]]; then
+  echo "modal git install readiness check passed: $REPO_URL#$REPO_REV"
+else
+  echo "modal git install readiness check passed: $REPO_URL"
+fi

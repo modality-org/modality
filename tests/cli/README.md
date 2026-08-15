@@ -70,8 +70,10 @@ tests/cli/check-modal-git-install-readiness.sh
 The Git-install readiness check defaults to `file://$PWD`, which exercises
 Cargo's Git resolver without requiring registry publication. Set
 `MODAL_ONBOARDING_GIT_URL=https://github.com/modality-org/modality.git` to
-check the public repository path, and pass `MODALITY_BIN=/path/to/modality` to
-run the installed `modal` binary through the full first-contract smoke.
+check the public repository path, set `MODAL_ONBOARDING_GIT_REV=<commit>` to
+pin the exact Git revision under test, and pass
+`MODALITY_BIN=/path/to/modality` to run the installed `modal` binary through
+the full first-contract smoke.
 
 To test another binary:
 

@@ -21,6 +21,8 @@ required_patterns=(
   "temporary Cargo root"
   "runs the"
   "first-contract CLI smoke when a built \`modality\` binary is supplied"
+  "MODAL_ONBOARDING_GIT_REV=<commit>"
+  "pin the exact Git revision"
   "External crates.io-style packaging is tracked separately"
   "tests/cli/check-modal-package-readiness.sh"
   "workspace CLI crates that \`modal\` depends on are available from the"
