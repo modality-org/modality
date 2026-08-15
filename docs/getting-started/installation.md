@@ -112,7 +112,8 @@ Release-archive-shaped binary bundles are measured by
 `tests/cli/check-modal-release-archive-readiness.sh`, which creates a
 `modal-<version>-<os>-<arch>-<profile>.tar.gz` containing `bin/modal` and
 `README.txt` plus `SHA256SUMS`, unpacks it, verifies the checksum manifest,
-checks the unpacked help surface, and runs the first-contract CLI smoke when a
+and checks that the manifest covers exactly `bin/modal` and `README.txt`. It
+checks the unpacked help surface and runs the first-contract CLI smoke when a
 built `modality` binary is supplied.
 External crates.io-style packaging is tracked separately:
 `tests/cli/check-modal-package-readiness.sh` reports the current blocker until

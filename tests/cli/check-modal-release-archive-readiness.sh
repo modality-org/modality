@@ -118,6 +118,21 @@ if ! grep -Fxq "SHA256SUMS" <<<"$archive_listing"; then
 fi
 
 tar -C "$UNPACK_DIR" -xzf "$ARCHIVE_PATH"
+checksum_entries="$(
+  cd "$UNPACK_DIR"
+  awk '{ print $2 }' SHA256SUMS | sort
+)"
+expected_checksum_entries="$(printf '%s\n' "README.txt" "bin/modal" | sort)"
+if [[ "$checksum_entries" != "$expected_checksum_entries" ]]; then
+  cat >&2 <<EOF
+release archive checksum manifest has unexpected entries
+expected:
+$expected_checksum_entries
+actual:
+$checksum_entries
+EOF
+  exit 1
+fi
 (
   cd "$UNPACK_DIR"
   sha256sum -c SHA256SUMS >/dev/null

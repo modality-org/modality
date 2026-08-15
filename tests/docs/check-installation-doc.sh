@@ -31,6 +31,7 @@ required_patterns=(
   "plus \`SHA256SUMS\`"
   "unpacks it"
   "verifies the checksum manifest"
+  "manifest covers exactly \`bin/modal\` and \`README.txt\`"
   "checks the unpacked help surface"
   "External crates.io-style packaging is tracked separately"
   "tests/cli/check-modal-package-readiness.sh"
