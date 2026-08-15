@@ -7,6 +7,7 @@ BUILD_MODALITY="${MODALITY_ONBOARDING_BUILD:-0}"
 BUILD_MODAL="${MODAL_ONBOARDING_BUILD:-0}"
 INSTALL_MODAL="${MODAL_ONBOARDING_INSTALL:-0}"
 PACKAGE_CHECK_MODAL="${MODAL_ONBOARDING_PACKAGE_CHECK:-0}"
+GIT_INSTALL_CHECK_MODAL="${MODAL_ONBOARDING_GIT_INSTALL_CHECK:-0}"
 MODAL_ONBOARDING_FEATURES="${MODAL_ONBOARDING_FEATURES:-contract-onboarding}"
 MODAL_ONBOARDING_PROFILE="${MODAL_ONBOARDING_PROFILE:-debug}"
 
@@ -96,6 +97,10 @@ if [[ "$PACKAGE_CHECK_MODAL" == "1" ]]; then
   "$ROOT_DIR/tests/cli/check-modal-package-readiness.sh"
 fi
 
+if [[ "$GIT_INSTALL_CHECK_MODAL" == "1" ]]; then
+  "$ROOT_DIR/tests/cli/check-modal-git-install-readiness.sh"
+fi
+
 if [[ "$INSTALL_MODAL" == "1" ]]; then
   INSTALL_ROOT="$(mktemp -d)"
   cleanup_install() {
@@ -163,6 +168,9 @@ Install and smoke the release-profile onboarding wrapper:
 
 Check whether the lean wrapper is ready for crates.io-style packaging:
   MODAL_ONBOARDING_PACKAGE_CHECK=1 $0
+
+Install the lean wrapper from a Git URL into a temporary Cargo root:
+  MODAL_ONBOARDING_GIT_INSTALL_CHECK=1 $0
 
 Or build it first:
   cd "$ROOT_DIR/rust"

@@ -51,6 +51,13 @@ Set `MODAL_ONBOARDING_PACKAGE_CHECK=1` to also run the package-readiness probe
 for the lean wrapper. That probe runs Cargo's package preparation and reports
 the current external-package blocker when `modal` still depends on workspace
 CLI crates that are not available from the registry.
+Set `MODAL_ONBOARDING_GIT_INSTALL_CHECK=1` to also install the lean wrapper
+from a Git URL into a temporary Cargo root, check the installed `modal` help
+surface, and run the first-contract CLI smoke when `MODALITY_BIN` points at a
+built language CLI. By default this uses `file://$PWD` so local and CI runs can
+exercise the same Cargo Git-install resolver without publishing crates; set
+`MODAL_ONBOARDING_GIT_URL=https://github.com/modality-org/modality.git` when
+checking the public repository path.
 
 To measure the full source-built wrapper path from the same entry point, ask the
 smoke to build the binary when it is missing:
@@ -132,6 +139,18 @@ preparation or the current known blocker: `modal` still references workspace
 CLI crates that are not published to the registry. While blocked, it prints the
 selected direct workspace dependencies and the selected workspace package
 closure so the external package or installer work has a concrete crate list.
+
+To measure Git-install readiness for the lean wrapper without waiting on
+registry publication, run:
+
+```bash
+MODAL_ONBOARDING_GIT_INSTALL_CHECK=1 tests/run-onboarding-smokes.sh
+```
+
+The Git-install probe installs `modal` into a temporary Cargo root from
+`MODAL_ONBOARDING_GIT_URL` or, by default, `file://$PWD`. Pair it with
+`MODALITY_BIN=/path/to/modality` when you want the installed `modal` binary to
+run the full first-contract contract smoke after the help-surface check.
 
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 

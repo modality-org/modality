@@ -102,7 +102,11 @@ A successful onboarding install should make both command surfaces visible before
 you start the first-contract guide.
 
 Local source builds and temporary Cargo-root installs are verified by the
-onboarding smokes. External crates.io-style packaging is tracked separately:
+onboarding smokes. Git URL installs are measured by
+`tests/cli/check-modal-git-install-readiness.sh`, which installs `modal` into a
+temporary Cargo root, checks the installed help surface, and runs the
+first-contract CLI smoke when a built `modality` binary is supplied.
+External crates.io-style packaging is tracked separately:
 `tests/cli/check-modal-package-readiness.sh` reports the current blocker until
 the workspace CLI crates that `modal` depends on are available from the
 registry. Its blocker output names the selected direct workspace dependencies
