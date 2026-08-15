@@ -166,9 +166,10 @@ MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_ARCHIVE_CHECK=1 tests/run-onboarding-s
 ```
 
 The archive-readiness probe creates a `modal-<version>-<os>-<arch>-<profile>.tar.gz`
-containing `bin/modal` and `README.txt`, unpacks it, checks that the unpacked
-binary reports the same version, checks the selected help surface, and runs the
-first-contract CLI smoke when `MODALITY_BIN` points at a built language CLI. Set
+containing `bin/modal`, `README.txt`, and `SHA256SUMS`, unpacks it, verifies the
+checksum manifest, checks that the unpacked binary reports the same version,
+checks the selected help surface, and runs the first-contract CLI smoke when
+`MODALITY_BIN` points at a built language CLI. Set
 `MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` when you want to keep the generated
 tarball for release inspection.
 

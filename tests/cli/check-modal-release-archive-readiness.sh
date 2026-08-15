@@ -95,9 +95,13 @@ version: $version_output
 profile: $PROFILE
 help surface: $HELP_SURFACE
 EOF
+(
+  cd "$STAGE_DIR"
+  sha256sum bin/modal README.txt >SHA256SUMS
+)
 
 ARCHIVE_PATH="$ARCHIVE_DIR/$archive_name"
-tar -C "$STAGE_DIR" -czf "$ARCHIVE_PATH" bin/modal README.txt
+tar -C "$STAGE_DIR" -czf "$ARCHIVE_PATH" bin/modal README.txt SHA256SUMS
 
 archive_listing="$(tar -tzf "$ARCHIVE_PATH" | sort)"
 if ! grep -Fxq "README.txt" <<<"$archive_listing"; then
@@ -108,8 +112,16 @@ if ! grep -Fxq "bin/modal" <<<"$archive_listing"; then
   echo "release archive is missing bin/modal" >&2
   exit 1
 fi
+if ! grep -Fxq "SHA256SUMS" <<<"$archive_listing"; then
+  echo "release archive is missing SHA256SUMS" >&2
+  exit 1
+fi
 
 tar -C "$UNPACK_DIR" -xzf "$ARCHIVE_PATH"
+(
+  cd "$UNPACK_DIR"
+  sha256sum -c SHA256SUMS >/dev/null
+)
 UNPACKED_MODAL="$UNPACK_DIR/bin/modal"
 if [[ ! -x "$UNPACKED_MODAL" ]]; then
   echo "unpacked modal is not executable at $UNPACKED_MODAL" >&2
