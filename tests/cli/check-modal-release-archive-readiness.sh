@@ -77,6 +77,17 @@ fi
 if [[ -z "$source_revision" ]]; then
   source_revision="unknown"
 fi
+if [[ -n "${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" && "$source_revision" != "$MODAL_ONBOARDING_ARCHIVE_EXPECT_REV" ]]; then
+  cat >&2 <<EOF
+release archive source revision mismatch
+expected: $MODAL_ONBOARDING_ARCHIVE_EXPECT_REV
+actual:   $source_revision
+
+Rebuild modal from the expected revision, or unset
+MODAL_ONBOARDING_ARCHIVE_EXPECT_REV for a smoke-only archive shape check.
+EOF
+  exit 1
+fi
 
 if [[ -n "${MODAL_ONBOARDING_ARCHIVE_DIR:-}" ]]; then
   ARCHIVE_DIR="$MODAL_ONBOARDING_ARCHIVE_DIR"

@@ -41,6 +41,8 @@ required_patterns=(
   "profile, features, platform, and expected help surface"
   "It checks the unpacked"
   "help surface"
+  "MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>"
+  "must fail if the built \`modal\` binary is stale"
   "External crates.io-style packaging is tracked separately"
   "tests/cli/check-modal-package-readiness.sh"
   "workspace CLI crates that \`modal\` depends on are available from the"

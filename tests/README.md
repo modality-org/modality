@@ -173,7 +173,9 @@ records the source revision, profile, and help surface, checks that the unpacked
 binary reports the same version, checks the selected help surface, and runs the
 first-contract CLI smoke when `MODALITY_BIN` points at a built language CLI. Set
 `MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` when you want to keep the generated
-tarball for release inspection.
+tarball for release inspection. Set
+`MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release evidence must fail
+if the built `modal` binary is stale or came from a different source revision.
 
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 

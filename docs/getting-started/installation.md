@@ -117,7 +117,9 @@ and checks that the manifest covers exactly `bin/modal`, `README.txt`, and
 `PROVENANCE.txt`. The provenance file records the source revision, version,
 profile, features, platform, and expected help surface. It checks the unpacked
 help surface and runs the first-contract CLI smoke when a built `modality`
-binary is supplied.
+binary is supplied. Set `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when
+release evidence must fail if the built `modal` binary is stale or came from a
+different source revision.
 External crates.io-style packaging is tracked separately:
 `tests/cli/check-modal-package-readiness.sh` reports the current blocker until
 the workspace CLI crates that `modal` depends on are available from the
