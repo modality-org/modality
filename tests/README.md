@@ -59,6 +59,10 @@ exercise the same Cargo Git-install resolver without publishing crates; set
 `MODAL_ONBOARDING_GIT_URL=https://github.com/modality-org/modality.git` when
 checking the public repository path, and set `MODAL_ONBOARDING_GIT_REV=<commit>`
 when the install evidence must be pinned to an exact revision.
+Set `MODAL_ONBOARDING_ARCHIVE_CHECK=1` to also create a
+release-archive-shaped tarball from a built or installed lean wrapper, unpack
+it, check the unpacked `modal` help surface, and run the first-contract CLI
+smoke when `MODALITY_BIN` points at a built language CLI.
 
 To measure the full source-built wrapper path from the same entry point, ask the
 smoke to build the binary when it is missing:
@@ -153,6 +157,20 @@ The Git-install probe installs `modal` into a temporary Cargo root from
 `MODALITY_BIN=/path/to/modality` when you want the installed `modal` binary to
 run the full first-contract contract smoke after the help-surface check. Set
 `MODAL_ONBOARDING_GIT_REV=<commit>` to pin the installed source revision.
+
+To measure release-archive readiness from a built lean wrapper without
+publishing a registry package, run:
+
+```bash
+MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_ARCHIVE_CHECK=1 tests/run-onboarding-smokes.sh
+```
+
+The archive-readiness probe creates a `modal-<version>-<os>-<arch>-<profile>.tar.gz`
+containing `bin/modal` and `README.txt`, unpacks it, checks that the unpacked
+binary reports the same version, checks the selected help surface, and runs the
+first-contract CLI smoke when `MODALITY_BIN` points at a built language CLI. Set
+`MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` when you want to keep the generated
+tarball for release inspection.
 
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 

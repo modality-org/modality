@@ -75,6 +75,20 @@ pin the exact Git revision under test, and pass
 `MODALITY_BIN=/path/to/modality` to run the installed `modal` binary through
 the full first-contract smoke.
 
+To check whether a built lean wrapper has the shape needed for a release
+archive:
+
+```bash
+MODAL_BIN=/path/to/modal tests/cli/check-modal-release-archive-readiness.sh
+```
+
+The archive-readiness check creates a temporary
+`modal-<version>-<os>-<arch>-<profile>.tar.gz`, verifies that it contains
+`bin/modal` and `README.txt`, unpacks it, checks the unpacked binary version and
+help surface, and runs the full first-contract smoke when
+`MODALITY_BIN=/path/to/modality` is supplied. Set
+`MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` to keep the generated tarball.
+
 To test another binary:
 
 ```bash

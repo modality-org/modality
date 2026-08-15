@@ -8,6 +8,7 @@ BUILD_MODAL="${MODAL_ONBOARDING_BUILD:-0}"
 INSTALL_MODAL="${MODAL_ONBOARDING_INSTALL:-0}"
 PACKAGE_CHECK_MODAL="${MODAL_ONBOARDING_PACKAGE_CHECK:-0}"
 GIT_INSTALL_CHECK_MODAL="${MODAL_ONBOARDING_GIT_INSTALL_CHECK:-0}"
+ARCHIVE_CHECK_MODAL="${MODAL_ONBOARDING_ARCHIVE_CHECK:-0}"
 MODAL_ONBOARDING_FEATURES="${MODAL_ONBOARDING_FEATURES:-contract-onboarding}"
 MODAL_ONBOARDING_PROFILE="${MODAL_ONBOARDING_PROFILE:-debug}"
 
@@ -142,6 +143,11 @@ if [[ ! -x "$MODAL_BIN" && "$BUILD_MODAL" == "1" ]]; then
   )
 fi
 
+if [[ "$ARCHIVE_CHECK_MODAL" == "1" ]]; then
+  MODAL_BIN="$MODAL_BIN" MODAL_HELP_SURFACE="$MODAL_HELP_SURFACE" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"
+fi
+
 if [[ -x "$MODAL_BIN" ]]; then
   MODAL_BIN="$MODAL_BIN" MODAL_HELP_SURFACE="$MODAL_HELP_SURFACE" \
     "$ROOT_DIR/tests/cli/check-modal-help-surface.sh"
@@ -171,6 +177,9 @@ Check whether the lean wrapper is ready for crates.io-style packaging:
 
 Install the lean wrapper from a Git URL into a temporary Cargo root:
   MODAL_ONBOARDING_GIT_INSTALL_CHECK=1 $0
+
+Create and smoke a release-archive-shaped tarball from a built wrapper:
+  MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_ARCHIVE_CHECK=1 $0
 
 Or build it first:
   cd "$ROOT_DIR/rust"
