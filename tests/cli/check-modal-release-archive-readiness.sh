@@ -149,6 +149,22 @@ tar -C "$STAGE_DIR" -czf "$ARCHIVE_PATH" \
   sha256sum "$archive_name" >"$archive_name.sha256"
   sha256sum -c "$archive_name.sha256" >/dev/null
 )
+cat >"$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" <<EOF
+modal release archive download verification
+
+Artifact:
+  $archive_name
+
+Expected source revision:
+  $source_revision
+
+Verify before unpacking or trusting the binary:
+  sha256sum -c $archive_name.sha256
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=$source_revision tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-dir
+
+Add MODAL_ONBOARDING_ARTIFACT_SMOKE=1 and MODALITY_BIN=/path/to/modality to
+run the help-surface and first-contract smokes against the unpacked modal binary.
+EOF
 MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
   "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" >/dev/null
 

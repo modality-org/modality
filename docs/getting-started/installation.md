@@ -127,7 +127,8 @@ The `.github/workflows/onboarding-release-archive.yml` workflow wires this into
 GitHub Actions without publishing anything: it builds `modality`, builds the
 lean release `modal` wrapper with `contract-onboarding`, runs the archive
 readiness check with the expected source revision, then uploads the verified
-replayable archive bundle and detached tarball checksum as a workflow artifact.
+replayable archive bundle, detached tarball checksum, and
+`VERIFY-DOWNLOAD.txt` verification recipe as a workflow artifact.
 Run it manually with
 `workflow_dispatch`, or tag a commit as `modal-v*` when you want tag-scoped
 release evidence.
@@ -144,6 +145,9 @@ archive members, internal checksum manifest, executable `bin/modal`,
 provenance, source revision, and replayable evidence bundle marker. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when a downloaded artifact must
 fail unless its internal provenance matches one exact source revision.
+The uploaded `VERIFY-DOWNLOAD.txt` repeats the expected source revision and the
+exact verifier command so the artifact directory remains self-describing after
+download.
 External crates.io-style packaging is tracked separately:
 `tests/cli/check-modal-package-readiness.sh` reports the current blocker until
 the workspace CLI crates that `modal` depends on are available from the

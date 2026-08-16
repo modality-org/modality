@@ -91,9 +91,12 @@ declares the replayable bundle, artifact, source revision, and post-unpack
 checks, checks the unpacked binary version and help surface, and runs the full
 first-contract smoke when `MODALITY_BIN=/path/to/modality` is supplied. Set
 `MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` to keep the generated tarball and
-detached `.sha256` checksum. Set `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>`
-when release evidence must fail if the built `modal` binary is stale or came
-from a different source revision.
+detached `.sha256` checksum. The kept directory also includes
+`VERIFY-DOWNLOAD.txt`, which names the archive, expected source revision,
+detached checksum check, and exact download-verifier command for artifact
+consumers. Set `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release
+evidence must fail if the built `modal` binary is stale or came from a
+different source revision.
 
 To verify a downloaded GitHub Actions artifact before unpacking or trusting it:
 
