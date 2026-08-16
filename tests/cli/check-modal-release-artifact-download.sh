@@ -8,6 +8,9 @@ usage: $0 /path/to/downloaded-artifact-dir
 
 Pass the directory produced by:
   gh run download <run-id> --name <artifact-name> --dir /path/to/downloaded-artifact-dir
+
+Set MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit> when the downloaded artifact
+must prove it came from one exact source revision.
 EOF
   exit 2
 fi
@@ -114,6 +117,28 @@ if ! grep -Fq "artifact: $archive_name" "$unpack_dir/EVIDENCE-BUNDLE.txt"; then
 fi
 if ! grep -Fq "source revision:" "$unpack_dir/PROVENANCE.txt"; then
   echo "release artifact provenance is missing source revision" >&2
+  exit 1
+fi
+provenance_revision="$(
+  awk -F': ' '/^source revision: / { print $2 }' "$unpack_dir/PROVENANCE.txt"
+)"
+if [[ -z "$provenance_revision" ]]; then
+  echo "release artifact provenance has an empty source revision" >&2
+  exit 1
+fi
+if [[ -n "${MODAL_ONBOARDING_ARTIFACT_EXPECT_REV:-}" && "$provenance_revision" != "$MODAL_ONBOARDING_ARTIFACT_EXPECT_REV" ]]; then
+  cat >&2 <<EOF
+release artifact source revision mismatch
+expected: $MODAL_ONBOARDING_ARTIFACT_EXPECT_REV
+actual:   $provenance_revision
+
+Download the artifact from the expected workflow run or unset
+MODAL_ONBOARDING_ARTIFACT_EXPECT_REV for a smoke-only artifact shape check.
+EOF
+  exit 1
+fi
+if ! grep -Fq "source revision: $provenance_revision" "$unpack_dir/EVIDENCE-BUNDLE.txt"; then
+  echo "release artifact evidence manifest is missing source revision: $provenance_revision" >&2
   exit 1
 fi
 

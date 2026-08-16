@@ -183,8 +183,10 @@ The archive check also runs the downloaded-artifact verifier against the
 generated archive directory, which simulates the GitHub Actions artifact
 consumer path by requiring exactly one `modal-*.tar.gz`, its matching detached
 `.sha256` sidecar, the exact internal archive members, the internal checksum
-manifest, executable `bin/modal`, provenance, and the replayable evidence
-bundle marker.
+manifest, executable `bin/modal`, provenance, source revision, and the
+replayable evidence bundle marker. Set
+`MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when checking a downloaded
+workflow artifact against one exact source revision.
 
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 

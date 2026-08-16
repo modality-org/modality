@@ -105,9 +105,11 @@ The download check expects exactly one `modal-*.tar.gz` and its matching
 detached `.sha256` sidecar, verifies the sidecar first, then unpacks the archive
 into a temporary directory and rechecks the exact member list, internal checksum
 manifest, executable `bin/modal`, provenance marker, and replayable evidence
-bundle marker. Set `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` to also run the help
-surface check, and pass `MODALITY_BIN=/path/to/modality` with that flag to run
-the first-contract smoke against the downloaded binary.
+bundle marker. Set `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when the
+downloaded artifact must fail unless its provenance names one exact source
+revision. Set `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` to also run the help surface
+check, and pass `MODALITY_BIN=/path/to/modality` with that flag to run the
+first-contract smoke against the downloaded binary.
 
 To test another binary:
 

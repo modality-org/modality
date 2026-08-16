@@ -149,7 +149,8 @@ tar -C "$STAGE_DIR" -czf "$ARCHIVE_PATH" \
   sha256sum "$archive_name" >"$archive_name.sha256"
   sha256sum -c "$archive_name.sha256" >/dev/null
 )
-"$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" >/dev/null
+MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" >/dev/null
 
 archive_listing="$(tar -tzf "$ARCHIVE_PATH" | sort)"
 expected_archive_listing="$(

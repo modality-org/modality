@@ -141,7 +141,9 @@ tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-
 The download check expects exactly one `modal-*.tar.gz` plus its matching
 `.sha256` sidecar, verifies the detached checksum first, then rechecks the exact
 archive members, internal checksum manifest, executable `bin/modal`,
-provenance, and replayable evidence bundle marker.
+provenance, source revision, and replayable evidence bundle marker. Set
+`MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when a downloaded artifact must
+fail unless its internal provenance matches one exact source revision.
 External crates.io-style packaging is tracked separately:
 `tests/cli/check-modal-package-readiness.sh` reports the current blocker until
 the workspace CLI crates that `modal` depends on are available from the
