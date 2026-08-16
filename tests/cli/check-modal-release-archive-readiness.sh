@@ -127,16 +127,33 @@ help surface: $HELP_SURFACE
 os: $os
 arch: $arch
 EOF
+cat >"$STAGE_DIR/EVIDENCE-BUNDLE.txt" <<EOF
+modal replayable evidence bundle
+artifact: $archive_name
+source revision: $source_revision
+binary: bin/modal
+provenance: PROVENANCE.txt
+checksums: SHA256SUMS
+post-unpack checks: version, help surface, first-contract smoke when MODALITY_BIN is supplied
+EOF
 (
   cd "$STAGE_DIR"
-  sha256sum bin/modal README.txt PROVENANCE.txt >SHA256SUMS
+  sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
 )
 
 ARCHIVE_PATH="$ARCHIVE_DIR/$archive_name"
-tar -C "$STAGE_DIR" -czf "$ARCHIVE_PATH" bin/modal README.txt PROVENANCE.txt SHA256SUMS
+tar -C "$STAGE_DIR" -czf "$ARCHIVE_PATH" \
+  bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 
 archive_listing="$(tar -tzf "$ARCHIVE_PATH" | sort)"
-expected_archive_listing="$(printf '%s\n' "PROVENANCE.txt" "README.txt" "SHA256SUMS" "bin/modal" | sort)"
+expected_archive_listing="$(
+  printf '%s\n' \
+    "EVIDENCE-BUNDLE.txt" \
+    "PROVENANCE.txt" \
+    "README.txt" \
+    "SHA256SUMS" \
+    "bin/modal" | sort
+)"
 if [[ "$archive_listing" != "$expected_archive_listing" ]]; then
   cat >&2 <<EOF
 release archive has unexpected entries
@@ -159,6 +176,10 @@ if ! grep -Fxq "PROVENANCE.txt" <<<"$archive_listing"; then
   echo "release archive is missing PROVENANCE.txt" >&2
   exit 1
 fi
+if ! grep -Fxq "EVIDENCE-BUNDLE.txt" <<<"$archive_listing"; then
+  echo "release archive is missing EVIDENCE-BUNDLE.txt" >&2
+  exit 1
+fi
 if ! grep -Fxq "SHA256SUMS" <<<"$archive_listing"; then
   echo "release archive is missing SHA256SUMS" >&2
   exit 1
@@ -169,7 +190,9 @@ checksum_entries="$(
   cd "$UNPACK_DIR"
   awk '{ print $2 }' SHA256SUMS | sort
 )"
-expected_checksum_entries="$(printf '%s\n' "PROVENANCE.txt" "README.txt" "bin/modal" | sort)"
+expected_checksum_entries="$(
+  printf '%s\n' "EVIDENCE-BUNDLE.txt" "PROVENANCE.txt" "README.txt" "bin/modal" | sort
+)"
 if [[ "$checksum_entries" != "$expected_checksum_entries" ]]; then
   cat >&2 <<EOF
 release archive checksum manifest has unexpected entries
@@ -194,6 +217,22 @@ if ! grep -Fq "profile: $PROFILE" "$UNPACK_DIR/PROVENANCE.txt"; then
 fi
 if ! grep -Fq "help surface: $HELP_SURFACE" "$UNPACK_DIR/PROVENANCE.txt"; then
   echo "release archive provenance is missing help surface: $HELP_SURFACE" >&2
+  exit 1
+fi
+if ! grep -Fq "modal replayable evidence bundle" "$UNPACK_DIR/EVIDENCE-BUNDLE.txt"; then
+  echo "release archive evidence manifest is missing its bundle marker" >&2
+  exit 1
+fi
+if ! grep -Fq "artifact: $archive_name" "$UNPACK_DIR/EVIDENCE-BUNDLE.txt"; then
+  echo "release archive evidence manifest is missing artifact: $archive_name" >&2
+  exit 1
+fi
+if ! grep -Fq "source revision: $source_revision" "$UNPACK_DIR/EVIDENCE-BUNDLE.txt"; then
+  echo "release archive evidence manifest is missing source revision: $source_revision" >&2
+  exit 1
+fi
+if ! grep -Fq "post-unpack checks: version, help surface, first-contract smoke when MODALITY_BIN is supplied" "$UNPACK_DIR/EVIDENCE-BUNDLE.txt"; then
+  echo "release archive evidence manifest is missing post-unpack checks" >&2
   exit 1
 fi
 UNPACKED_MODAL="$UNPACK_DIR/bin/modal"
