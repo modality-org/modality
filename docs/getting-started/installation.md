@@ -123,6 +123,13 @@ It checks the unpacked help surface and runs the first-contract CLI smoke when a
 built `modality` binary is supplied. Set
 `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release evidence must fail
 if the built `modal` binary is stale or came from a different source revision.
+The `.github/workflows/onboarding-release-archive.yml` workflow wires this into
+GitHub Actions without publishing anything: it builds `modality`, builds the
+lean release `modal` wrapper with `contract-onboarding`, runs the archive
+readiness check with the expected source revision, then uploads the verified
+replayable archive bundle as a workflow artifact. Run it manually with
+`workflow_dispatch`, or tag a commit as `modal-v*` when you want tag-scoped
+release evidence.
 External crates.io-style packaging is tracked separately:
 `tests/cli/check-modal-package-readiness.sh` reports the current blocker until
 the workspace CLI crates that `modal` depends on are available from the

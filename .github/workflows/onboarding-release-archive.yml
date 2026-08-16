@@ -1,0 +1,101 @@
+name: Onboarding Release Archive
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'modal-v*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_HTTP_MULTIPLEXING: "false"
+  CARGO_NET_RETRY: "10"
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  linux-x86-64:
+    name: Linux x86_64 lean modal archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      - name: Cache cargo build
+        uses: actions/cache@v5
+        with:
+          path: rust/target
+          key: ${{ runner.os }}-onboarding-release-archive-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-onboarding-release-archive-
+
+      - name: Install system dependencies
+        timeout-minutes: 40
+        run: |
+          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
+          grep -ril 'packages.microsoft.com' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null | xargs -r sudo sed -i 's/^\([^#].*\)$/# disabled for CI: \1/'
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y cmake clang libssl-dev pkg-config
+
+      - name: Capture source revision
+        id: source-revision
+        run: |
+          short_rev="$(git rev-parse --short HEAD)"
+          echo "MODAL_SOURCE_REV=$short_rev" >> "$GITHUB_ENV"
+          echo "short=$short_rev" >> "$GITHUB_OUTPUT"
+
+      - name: Build language CLI
+        working-directory: rust
+        run: cargo build --release --locked -p modality
+
+      - name: Build lean onboarding modal
+        working-directory: rust
+        env:
+          MODAL_GIT_BRANCH: ${{ github.ref_name }}
+          MODAL_GIT_COMMIT: ${{ steps.source-revision.outputs.short }}
+        run: cargo build --release --locked -p modal --no-default-features --features contract-onboarding
+
+      - name: Create and verify replayable archive bundle
+        env:
+          MODAL_BIN: rust/target/release/modal
+          MODALITY_BIN: rust/target/release/modality
+          MODAL_ONBOARDING_PROFILE: release
+          MODAL_ONBOARDING_ARCHIVE_DIR: release-archive
+          MODAL_ONBOARDING_ARCHIVE_EXPECT_REV: ${{ steps.source-revision.outputs.short }}
+        run: tests/cli/check-modal-release-archive-readiness.sh
+
+      - name: Upload archive bundle
+        uses: actions/upload-artifact@v5
+        with:
+          name: modal-linux-x86_64-release-archive-${{ steps.source-revision.outputs.short }}
+          path: release-archive/*
+          if-no-files-found: error
+
+      - name: Archive summary
+        run: |
+          echo "## Onboarding release archive" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source revision: \`${MODAL_SOURCE_REV}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Profile: \`release\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Feature set: \`contract-onboarding\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Evidence: exact archive members, checksums, provenance, help surface, first-contract smoke" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          find release-archive -maxdepth 1 -type f -printf '- `%f`\n' >> "$GITHUB_STEP_SUMMARY"
