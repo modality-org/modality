@@ -34,6 +34,11 @@ if [[ "${#sidecars[@]}" -ne 1 ]]; then
     "$ARTIFACT_DIR" "${#sidecars[@]}" >&2
   exit 1
 fi
+recipe_path="$ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+if [[ ! -f "$recipe_path" ]]; then
+  printf 'expected VERIFY-DOWNLOAD.txt recipe in %s\n' "$ARTIFACT_DIR" >&2
+  exit 1
+fi
 
 archive_path="${archives[0]}"
 sidecar_path="${sidecars[0]}"
@@ -139,6 +144,35 @@ EOF
 fi
 if ! grep -Fq "source revision: $provenance_revision" "$unpack_dir/EVIDENCE-BUNDLE.txt"; then
   echo "release artifact evidence manifest is missing source revision: $provenance_revision" >&2
+  exit 1
+fi
+if ! grep -Fq "modal release archive download verification" "$recipe_path"; then
+  echo "release artifact verification recipe is missing its title" >&2
+  exit 1
+fi
+if ! grep -Fq "$archive_name" "$recipe_path"; then
+  echo "release artifact verification recipe is missing archive: $archive_name" >&2
+  exit 1
+fi
+if ! grep -Fq "$expected_sidecar_name" "$recipe_path"; then
+  echo "release artifact verification recipe is missing checksum sidecar: $expected_sidecar_name" >&2
+  exit 1
+fi
+if ! grep -Fq "Expected source revision:" "$recipe_path"; then
+  echo "release artifact verification recipe is missing expected source revision label" >&2
+  exit 1
+fi
+if ! grep -Fq "$provenance_revision" "$recipe_path"; then
+  echo "release artifact verification recipe is missing source revision: $provenance_revision" >&2
+  exit 1
+fi
+if ! grep -Fq "sha256sum -c $expected_sidecar_name" "$recipe_path"; then
+  echo "release artifact verification recipe is missing detached checksum command" >&2
+  exit 1
+fi
+expected_verify_command="MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=$provenance_revision tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-dir"
+if ! grep -Fq "$expected_verify_command" "$recipe_path"; then
+  echo "release artifact verification recipe is missing exact verifier command" >&2
   exit 1
 fi
 
