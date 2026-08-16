@@ -95,6 +95,20 @@ detached `.sha256` checksum. Set `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>`
 when release evidence must fail if the built `modal` binary is stale or came
 from a different source revision.
 
+To verify a downloaded GitHub Actions artifact before unpacking or trusting it:
+
+```bash
+tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-dir
+```
+
+The download check expects exactly one `modal-*.tar.gz` and its matching
+detached `.sha256` sidecar, verifies the sidecar first, then unpacks the archive
+into a temporary directory and rechecks the exact member list, internal checksum
+manifest, executable `bin/modal`, provenance marker, and replayable evidence
+bundle marker. Set `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` to also run the help
+surface check, and pass `MODALITY_BIN=/path/to/modality` with that flag to run
+the first-contract smoke against the downloaded binary.
+
 To test another binary:
 
 ```bash

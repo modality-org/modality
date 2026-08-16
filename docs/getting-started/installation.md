@@ -131,6 +131,17 @@ replayable archive bundle and detached tarball checksum as a workflow artifact.
 Run it manually with
 `workflow_dispatch`, or tag a commit as `modal-v*` when you want tag-scoped
 release evidence.
+After downloading that artifact, verify it before unpacking or trusting the
+binary:
+
+```bash
+tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-dir
+```
+
+The download check expects exactly one `modal-*.tar.gz` plus its matching
+`.sha256` sidecar, verifies the detached checksum first, then rechecks the exact
+archive members, internal checksum manifest, executable `bin/modal`,
+provenance, and replayable evidence bundle marker.
 External crates.io-style packaging is tracked separately:
 `tests/cli/check-modal-package-readiness.sh` reports the current blocker until
 the workspace CLI crates that `modal` depends on are available from the

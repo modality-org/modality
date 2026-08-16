@@ -179,6 +179,12 @@ want to keep the generated tarball and detached `.sha256` checksum for release
 inspection. Set
 `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release evidence must fail
 if the built `modal` binary is stale or came from a different source revision.
+The archive check also runs the downloaded-artifact verifier against the
+generated archive directory, which simulates the GitHub Actions artifact
+consumer path by requiring exactly one `modal-*.tar.gz`, its matching detached
+`.sha256` sidecar, the exact internal archive members, the internal checksum
+manifest, executable `bin/modal`, provenance, and the replayable evidence
+bundle marker.
 
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 
