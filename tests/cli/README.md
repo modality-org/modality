@@ -90,9 +90,10 @@ source revision, profile, and help surface, checks the evidence manifest
 declares the replayable bundle, artifact, source revision, and post-unpack
 checks, checks the unpacked binary version and help surface, and runs the full
 first-contract smoke when `MODALITY_BIN=/path/to/modality` is supplied. Set
-`MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` to keep the generated tarball. Set
-`MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release evidence must fail
-if the built `modal` binary is stale or came from a different source revision.
+`MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` to keep the generated tarball and
+detached `.sha256` checksum. Set `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>`
+when release evidence must fail if the built `modal` binary is stale or came
+from a different source revision.
 
 To test another binary:
 

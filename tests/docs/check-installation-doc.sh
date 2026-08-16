@@ -60,6 +60,7 @@ required_patterns=(
   "lean release \`modal\` wrapper"
   "contract-onboarding"
   "uploads the verified"
+  "detached tarball checksum"
   "workflow artifact"
   "workflow_dispatch"
   "modal-v*"

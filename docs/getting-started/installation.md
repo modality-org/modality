@@ -127,7 +127,8 @@ The `.github/workflows/onboarding-release-archive.yml` workflow wires this into
 GitHub Actions without publishing anything: it builds `modality`, builds the
 lean release `modal` wrapper with `contract-onboarding`, runs the archive
 readiness check with the expected source revision, then uploads the verified
-replayable archive bundle as a workflow artifact. Run it manually with
+replayable archive bundle and detached tarball checksum as a workflow artifact.
+Run it manually with
 `workflow_dispatch`, or tag a commit as `modal-v*` when you want tag-scoped
 release evidence.
 External crates.io-style packaging is tracked separately:

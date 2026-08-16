@@ -144,6 +144,11 @@ EOF
 ARCHIVE_PATH="$ARCHIVE_DIR/$archive_name"
 tar -C "$STAGE_DIR" -czf "$ARCHIVE_PATH" \
   bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+(
+  cd "$ARCHIVE_DIR"
+  sha256sum "$archive_name" >"$archive_name.sha256"
+  sha256sum -c "$archive_name.sha256" >/dev/null
+)
 
 archive_listing="$(tar -tzf "$ARCHIVE_PATH" | sort)"
 expected_archive_listing="$(
