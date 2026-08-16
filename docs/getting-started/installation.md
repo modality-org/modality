@@ -140,7 +140,8 @@ tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-
 ```
 
 The download check expects exactly one `modal-*.tar.gz` plus its matching
-`.sha256` sidecar plus exactly one `VERIFY-DOWNLOAD.txt` recipe, verifies the detached checksum first,
+`.sha256` sidecar plus exactly one `VERIFY-DOWNLOAD.txt` recipe, rejects any
+other top-level files in the downloaded artifact directory, verifies the detached checksum first,
 then rechecks the exact archive members, internal checksum manifest, executable `bin/modal`,
 provenance, source revision, replayable evidence bundle marker, and the recipe's archive, checksum, revision,
 and verifier command. Set

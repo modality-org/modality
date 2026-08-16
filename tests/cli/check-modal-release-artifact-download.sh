@@ -44,6 +44,22 @@ archive_path="${archives[0]}"
 sidecar_path="${sidecars[0]}"
 archive_name="$(basename "$archive_path")"
 expected_sidecar_name="$archive_name.sha256"
+top_level_files="$(
+  find "$ARTIFACT_DIR" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort
+)"
+expected_top_level_files="$(
+  printf '%s\n' "$archive_name" "$expected_sidecar_name" "VERIFY-DOWNLOAD.txt" | sort
+)"
+if [[ "$top_level_files" != "$expected_top_level_files" ]]; then
+  cat >&2 <<EOF
+release artifact download directory has unexpected top-level files
+expected:
+$expected_top_level_files
+actual:
+$top_level_files
+EOF
+  exit 1
+fi
 if [[ "$(basename "$sidecar_path")" != "$expected_sidecar_name" ]]; then
   cat >&2 <<EOF
 release artifact checksum sidecar does not match archive name
