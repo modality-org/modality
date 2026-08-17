@@ -193,6 +193,16 @@ if ! grep -Fq "source revision:" "$unpack_dir/PROVENANCE.txt"; then
   echo "release artifact provenance is missing source revision" >&2
   exit 1
 fi
+provenance_revision_count="$(
+  grep -Ec '^source revision: .+' "$unpack_dir/PROVENANCE.txt" || true
+)"
+if [[ "$provenance_revision_count" -ne 1 ]]; then
+  cat >&2 <<EOF
+release artifact provenance must name exactly one source revision
+actual count: $provenance_revision_count
+EOF
+  exit 1
+fi
 provenance_revision="$(
   awk -F': ' '/^source revision: / { print $2 }' "$unpack_dir/PROVENANCE.txt"
 )"
