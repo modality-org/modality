@@ -78,6 +78,7 @@ required_patterns=(
   "other top-level entries"
   "regular non-symlink files"
   "verifies the detached checksum first"
+  "detached checksum sidecar to name exactly that one archive"
   "executable \`bin/modal\`"
   "regular non-symlink unpacked files"
   "expected payload modes"

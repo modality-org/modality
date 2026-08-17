@@ -297,6 +297,28 @@ EOF
 fi
 rm -rf "$NEGATIVE_STAGE_DIR"
 NEGATIVE_STAGE_DIR=""
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
+cat "$ARCHIVE_DIR/$archive_name.sha256" >>"$NEGATIVE_ARTIFACT_DIR/$archive_name.sha256"
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a duplicated detached checksum sidecar entry" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact detached checksum sidecar has unexpected entries" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the duplicated detached checksum sidecar for the wrong reason
+expected: release artifact detached checksum sidecar has unexpected entries
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 
 archive_listing="$(tar -tzf "$ARCHIVE_PATH" | sort)"
 expected_archive_listing="$(

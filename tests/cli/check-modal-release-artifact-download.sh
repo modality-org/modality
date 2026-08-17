@@ -69,6 +69,19 @@ expected: $expected_sidecar_name
 EOF
   exit 1
 fi
+sidecar_entries="$(
+  awk '{ print $2 }' "$sidecar_path" | sort
+)"
+if [[ "$sidecar_entries" != "$archive_name" ]]; then
+  cat >&2 <<EOF
+release artifact detached checksum sidecar has unexpected entries
+expected:
+$archive_name
+actual:
+$sidecar_entries
+EOF
+  exit 1
+fi
 for required_path in "$archive_path" "$sidecar_path" "$recipe_path"; do
   if [[ ! -f "$required_path" || -L "$required_path" ]]; then
     printf 'release artifact top-level entry must be a regular non-symlink file: %s\n' \
