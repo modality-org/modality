@@ -128,8 +128,10 @@ GitHub Actions without publishing anything: it builds `modality`, builds the
 lean release `modal` wrapper with `contract-onboarding`, runs the archive
 readiness check with the expected source revision, then uploads the verified
 replayable archive bundle, detached tarball checksum, and
-`VERIFY-DOWNLOAD.txt` verification recipe as a workflow artifact. The workflow
-summary prints the exact `gh run download` command for that run and the
+`VERIFY-DOWNLOAD.txt` verification recipe as a workflow artifact. The
+recipe names the exact downloaded directory entries before the expected source
+revision and verifier command. The workflow summary prints the exact
+`gh run download` command for that run and the
 matching `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` replay verifier
 command.
 Run it manually with
@@ -151,6 +153,8 @@ then rechecks the exact archive members, internal checksum manifest, executable 
 regular non-symlink unpacked files with expected payload modes (`bin/modal` as
 `0755`; text and checksum files as `0644`), provenance, source revision, replayable
 evidence bundle marker, and the recipe's archive, checksum, revision, and verifier command.
+It also checks that the recipe names the expected downloaded directory entries:
+the archive, its `.sha256` sidecar, and `VERIFY-DOWNLOAD.txt`.
 Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when a downloaded artifact must
 fail unless its internal provenance matches one exact source revision.

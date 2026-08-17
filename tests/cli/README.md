@@ -92,9 +92,10 @@ checks, checks the unpacked binary version and help surface, and runs the full
 first-contract smoke when `MODALITY_BIN=/path/to/modality` is supplied. Set
 `MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` to keep the generated tarball and
 detached `.sha256` checksum. The kept directory also includes
-`VERIFY-DOWNLOAD.txt`, which names the archive, expected source revision,
-detached checksum check, and exact download-verifier command for artifact
-consumers. Set `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release
+`VERIFY-DOWNLOAD.txt`, which names the exact downloaded directory entries,
+archive, expected source revision, detached checksum check, and exact
+download-verifier command for artifact consumers. Set
+`MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release
 evidence must fail if the built `modal` binary is stale or came from a
 different source revision.
 
@@ -113,7 +114,7 @@ into a temporary directory and rechecks the exact member list, internal
 checksum manifest, regular non-symlink unpacked files, executable `bin/modal`,
 expected unpacked payload modes (`bin/modal` as `0755`; text and checksum files
 as `0644`), provenance marker, replayable evidence bundle marker, and the recipe's archive,
-checksum, revision, and verifier command. Set
+checksum, expected directory entries, revision, and verifier command. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when the downloaded artifact
 must fail unless its provenance names one exact source revision. Set
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` to also run the help surface check, and pass

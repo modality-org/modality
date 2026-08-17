@@ -165,6 +165,11 @@ modal release archive download verification
 Artifact:
   $archive_name
 
+Expected downloaded directory entries:
+  $archive_name
+  $archive_name.sha256
+  VERIFY-DOWNLOAD.txt
+
 Expected source revision:
   $source_revision
 
@@ -314,6 +319,28 @@ if ! grep -Fq "release artifact detached checksum sidecar has unexpected entries
   cat >&2 <<EOF
 release artifact verifier rejected the duplicated detached checksum sidecar for the wrong reason
 expected: release artifact detached checksum sidecar has unexpected entries
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
+sed -i '/^Expected downloaded directory entries:/,+3d' "$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a recipe without expected directory entries" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact verification recipe is missing expected directory entries label" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the stale recipe for the wrong reason
+expected: release artifact verification recipe is missing expected directory entries label
 actual:
 $negative_output
 EOF

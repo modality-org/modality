@@ -227,6 +227,16 @@ if ! grep -Fq "$expected_sidecar_name" "$recipe_path"; then
   echo "release artifact verification recipe is missing checksum sidecar: $expected_sidecar_name" >&2
   exit 1
 fi
+if ! grep -Fq "Expected downloaded directory entries:" "$recipe_path"; then
+  echo "release artifact verification recipe is missing expected directory entries label" >&2
+  exit 1
+fi
+for expected_top_level_entry in "$archive_name" "$expected_sidecar_name" "VERIFY-DOWNLOAD.txt"; do
+  if ! grep -Fq "  $expected_top_level_entry" "$recipe_path"; then
+    echo "release artifact verification recipe is missing expected directory entry: $expected_top_level_entry" >&2
+    exit 1
+  fi
+done
 if ! grep -Fq "Expected source revision:" "$recipe_path"; then
   echo "release artifact verification recipe is missing expected source revision label" >&2
   exit 1

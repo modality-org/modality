@@ -177,8 +177,9 @@ surface, and runs the first-contract CLI smoke when `MODALITY_BIN` points at a
 built language CLI. Set `MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` when you
 want to keep the generated tarball and detached `.sha256` checksum for release
 inspection. The kept directory also includes `VERIFY-DOWNLOAD.txt`, which names
-the archive, expected source revision, detached checksum check, and exact
-download-verifier command for the artifact consumer. Set
+the exact downloaded directory entries, archive, expected source revision,
+detached checksum check, and exact download-verifier command for the artifact
+consumer. Set
 `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release evidence must fail
 if the built `modal` binary is stale or came from a different source revision.
 The archive check also runs the downloaded-artifact verifier against the
@@ -191,7 +192,7 @@ checksum manifest, regular non-symlink unpacked files, executable `bin/modal`,
 provenance, source revision, the
 expected unpacked payload modes (`bin/modal` as `0755`; text and checksum files
 as `0644`), the replayable evidence bundle marker, and the recipe's archive, checksum,
-revision, and verifier command. Set
+expected directory entries, revision, and verifier command. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when checking a downloaded
 workflow artifact against one exact source revision.
 
