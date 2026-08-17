@@ -110,7 +110,8 @@ rejects any other top-level artifact entries, requires those entries to be
 regular non-symlink files, verifies the sidecar first, then unpacks the archive
 into a temporary directory and rechecks the exact member list, internal
 checksum manifest, regular non-symlink unpacked files, executable `bin/modal`,
-provenance marker, replayable evidence bundle marker, and the recipe's archive,
+expected unpacked payload modes (`bin/modal` as `0755`; text and checksum files
+as `0644`), provenance marker, replayable evidence bundle marker, and the recipe's archive,
 checksum, revision, and verifier command. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when the downloaded artifact
 must fail unless its provenance names one exact source revision. Set

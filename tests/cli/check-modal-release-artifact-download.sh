@@ -140,6 +140,25 @@ do
     exit 1
   fi
 done
+check_unpacked_mode() {
+  local relative_path="$1"
+  local expected_mode="$2"
+  local actual_mode
+  actual_mode="$(stat -c '%a' "$unpack_dir/$relative_path")"
+  if [[ "$actual_mode" != "$expected_mode" ]]; then
+    cat >&2 <<EOF
+release artifact unpacked entry has unexpected mode: $relative_path
+expected: $expected_mode
+actual:   $actual_mode
+EOF
+    exit 1
+  fi
+}
+check_unpacked_mode "bin/modal" "755"
+check_unpacked_mode "README.txt" "644"
+check_unpacked_mode "PROVENANCE.txt" "644"
+check_unpacked_mode "EVIDENCE-BUNDLE.txt" "644"
+check_unpacked_mode "SHA256SUMS" "644"
 (
   cd "$unpack_dir"
   sha256sum -c SHA256SUMS >/dev/null
