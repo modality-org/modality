@@ -44,19 +44,19 @@ archive_path="${archives[0]}"
 sidecar_path="${sidecars[0]}"
 archive_name="$(basename "$archive_path")"
 expected_sidecar_name="$archive_name.sha256"
-top_level_files="$(
-  find "$ARTIFACT_DIR" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort
+top_level_entries="$(
+  find "$ARTIFACT_DIR" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort
 )"
-expected_top_level_files="$(
+expected_top_level_entries="$(
   printf '%s\n' "$archive_name" "$expected_sidecar_name" "VERIFY-DOWNLOAD.txt" | sort
 )"
-if [[ "$top_level_files" != "$expected_top_level_files" ]]; then
+if [[ "$top_level_entries" != "$expected_top_level_entries" ]]; then
   cat >&2 <<EOF
-release artifact download directory has unexpected top-level files
+release artifact download directory has unexpected top-level entries
 expected:
-$expected_top_level_files
+$expected_top_level_entries
 actual:
-$top_level_files
+$top_level_entries
 EOF
   exit 1
 fi

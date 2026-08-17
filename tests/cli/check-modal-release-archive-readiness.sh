@@ -100,8 +100,12 @@ fi
 
 STAGE_DIR="$(mktemp -d)"
 UNPACK_DIR="$(mktemp -d)"
+NEGATIVE_ARTIFACT_DIR=""
 cleanup() {
   rm -rf "$STAGE_DIR" "$UNPACK_DIR"
+  if [[ -n "$NEGATIVE_ARTIFACT_DIR" ]]; then
+    rm -rf "$NEGATIVE_ARTIFACT_DIR"
+  fi
   if [[ "$CLEAN_ARCHIVE_DIR" == "1" ]]; then
     rm -rf "$ARCHIVE_DIR"
   fi
@@ -167,6 +171,27 @@ run the help-surface and first-contract smokes against the unpacked modal binary
 EOF
 MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
   "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" >/dev/null
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
+mkdir "$NEGATIVE_ARTIFACT_DIR/unexpected"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted an unexpected top-level directory" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact download directory has unexpected top-level entries" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the malformed directory for the wrong reason
+expected: release artifact download directory has unexpected top-level entries
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 
 archive_listing="$(tar -tzf "$ARCHIVE_PATH" | sort)"
 expected_archive_listing="$(

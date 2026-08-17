@@ -75,7 +75,7 @@ required_patterns=(
   ".sha256"
   "plus exactly one \`VERIFY-DOWNLOAD.txt\` recipe"
   "rejects any"
-  "other top-level files"
+  "other top-level entries"
   "verifies the detached checksum first"
   "executable \`bin/modal\`"
   "provenance, source revision,"
