@@ -69,6 +69,13 @@ expected: $expected_sidecar_name
 EOF
   exit 1
 fi
+for required_path in "$archive_path" "$sidecar_path" "$recipe_path"; do
+  if [[ ! -f "$required_path" || -L "$required_path" ]]; then
+    printf 'release artifact top-level entry must be a regular non-symlink file: %s\n' \
+      "$(basename "$required_path")" >&2
+    exit 1
+  fi
+done
 
 (
   cd "$ARTIFACT_DIR"

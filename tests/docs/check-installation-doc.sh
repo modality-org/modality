@@ -76,6 +76,7 @@ required_patterns=(
   "plus exactly one \`VERIFY-DOWNLOAD.txt\` recipe"
   "rejects any"
   "other top-level entries"
+  "regular non-symlink files"
   "verifies the detached checksum first"
   "executable \`bin/modal\`"
   "provenance, source revision,"
