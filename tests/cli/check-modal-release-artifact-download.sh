@@ -126,6 +126,20 @@ $checksum_entries
 EOF
   exit 1
 fi
+for required_unpacked_path in \
+  "$unpack_dir/bin/modal" \
+  "$unpack_dir/README.txt" \
+  "$unpack_dir/PROVENANCE.txt" \
+  "$unpack_dir/EVIDENCE-BUNDLE.txt" \
+  "$unpack_dir/SHA256SUMS"
+do
+  if [[ ! -f "$required_unpacked_path" || -L "$required_unpacked_path" ]]; then
+    relative_path="${required_unpacked_path#"$unpack_dir"/}"
+    printf 'release artifact unpacked entry must be a regular non-symlink file: %s\n' \
+      "$relative_path" >&2
+    exit 1
+  fi
+done
 (
   cd "$unpack_dir"
   sha256sum -c SHA256SUMS >/dev/null

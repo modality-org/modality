@@ -144,8 +144,9 @@ The download check expects exactly one `modal-*.tar.gz` plus its matching
 other top-level entries in the downloaded artifact directory, requires those
 entries to be regular non-symlink files, verifies the detached checksum first,
 then rechecks the exact archive members, internal checksum manifest, executable `bin/modal`,
-provenance, source revision, replayable evidence bundle marker, and the recipe's archive, checksum, revision,
-and verifier command. Set
+regular non-symlink unpacked files, provenance, source revision, replayable
+evidence bundle marker, and the recipe's archive, checksum, revision, and verifier command.
+Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when a downloaded artifact must
 fail unless its internal provenance matches one exact source revision.
 The uploaded `VERIFY-DOWNLOAD.txt` repeats the expected source revision and the

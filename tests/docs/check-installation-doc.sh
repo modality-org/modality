@@ -79,6 +79,7 @@ required_patterns=(
   "regular non-symlink files"
   "verifies the detached checksum first"
   "executable \`bin/modal\`"
+  "regular non-symlink unpacked files"
   "provenance, source revision,"
   "recipe's archive, checksum, revision,"
   "and verifier command"

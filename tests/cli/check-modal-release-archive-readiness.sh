@@ -101,10 +101,14 @@ fi
 STAGE_DIR="$(mktemp -d)"
 UNPACK_DIR="$(mktemp -d)"
 NEGATIVE_ARTIFACT_DIR=""
+NEGATIVE_STAGE_DIR=""
 cleanup() {
   rm -rf "$STAGE_DIR" "$UNPACK_DIR"
   if [[ -n "$NEGATIVE_ARTIFACT_DIR" ]]; then
     rm -rf "$NEGATIVE_ARTIFACT_DIR"
+  fi
+  if [[ -n "$NEGATIVE_STAGE_DIR" ]]; then
+    rm -rf "$NEGATIVE_STAGE_DIR"
   fi
   if [[ "$CLEAN_ARCHIVE_DIR" == "1" ]]; then
     rm -rf "$ARCHIVE_DIR"
@@ -213,6 +217,43 @@ $negative_output
 EOF
   exit 1
 fi
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+NEGATIVE_STAGE_DIR="$(mktemp -d)"
+mkdir -p "$NEGATIVE_STAGE_DIR/bin"
+ln -s /bin/sh "$NEGATIVE_STAGE_DIR/bin/modal"
+cp "$STAGE_DIR/README.txt" "$NEGATIVE_STAGE_DIR/README.txt"
+cp "$STAGE_DIR/PROVENANCE.txt" "$NEGATIVE_STAGE_DIR/PROVENANCE.txt"
+cp "$STAGE_DIR/EVIDENCE-BUNDLE.txt" "$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+(
+  cd "$NEGATIVE_STAGE_DIR"
+  sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
+  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+)
+(
+  cd "$NEGATIVE_ARTIFACT_DIR"
+  sha256sum "$archive_name" >"$archive_name.sha256"
+)
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a symlinked unpacked modal payload" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact unpacked entry must be a regular non-symlink file: bin/modal" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the symlinked unpacked payload for the wrong reason
+expected: release artifact unpacked entry must be a regular non-symlink file: bin/modal
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_STAGE_DIR"
+NEGATIVE_STAGE_DIR=""
 
 archive_listing="$(tar -tzf "$ARCHIVE_PATH" | sort)"
 expected_archive_listing="$(
@@ -272,6 +313,20 @@ $checksum_entries
 EOF
   exit 1
 fi
+for required_unpacked_path in \
+  "$UNPACK_DIR/bin/modal" \
+  "$UNPACK_DIR/README.txt" \
+  "$UNPACK_DIR/PROVENANCE.txt" \
+  "$UNPACK_DIR/EVIDENCE-BUNDLE.txt" \
+  "$UNPACK_DIR/SHA256SUMS"
+do
+  if [[ ! -f "$required_unpacked_path" || -L "$required_unpacked_path" ]]; then
+    relative_path="${required_unpacked_path#"$UNPACK_DIR"/}"
+    printf 'release archive unpacked entry must be a regular non-symlink file: %s\n' \
+      "$relative_path" >&2
+    exit 1
+  fi
+done
 (
   cd "$UNPACK_DIR"
   sha256sum -c SHA256SUMS >/dev/null
