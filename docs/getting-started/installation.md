@@ -128,7 +128,10 @@ GitHub Actions without publishing anything: it builds `modality`, builds the
 lean release `modal` wrapper with `contract-onboarding`, runs the archive
 readiness check with the expected source revision, then uploads the verified
 replayable archive bundle, detached tarball checksum, and
-`VERIFY-DOWNLOAD.txt` verification recipe as a workflow artifact.
+`VERIFY-DOWNLOAD.txt` verification recipe as a workflow artifact. The workflow
+summary prints the exact `gh run download` command for that run and the
+matching `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` replay verifier
+command.
 Run it manually with
 `workflow_dispatch`, or tag a commit as `modal-v*` when you want tag-scoped
 release evidence.
