@@ -118,7 +118,10 @@ provenance, replayable evidence bundle marker, and the recipe's archive,
 checksum, exact expected directory entries, revision, and verifier command. The
 provenance file must name exactly one source revision and exactly one value for
 the required metadata fields, while the recipe source-revision section must
-name exactly one source revision. Set
+name exactly one source revision. The recipe also preserves the optional
+`MODAL_ONBOARDING_ARTIFACT_SMOKE=1` and `MODALITY_BIN=/path/to/modality`
+environment for replaying the help-surface and first-contract smokes against
+the unpacked binary. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when the downloaded artifact
 must fail unless its provenance names one exact source revision. Set
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` to also run the help surface check, and pass

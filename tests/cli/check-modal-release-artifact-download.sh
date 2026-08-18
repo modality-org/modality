@@ -371,6 +371,14 @@ if ! grep -Fq "$expected_verify_command" "$recipe_path"; then
   echo "release artifact verification recipe is missing exact verifier command" >&2
   exit 1
 fi
+if ! grep -Fq "Add MODAL_ONBOARDING_ARTIFACT_SMOKE=1 and MODALITY_BIN=/path/to/modality to" "$recipe_path"; then
+  echo "release artifact verification recipe is missing smoke replay environment" >&2
+  exit 1
+fi
+if ! grep -Fq "run the help-surface and first-contract smokes against the unpacked modal binary." "$recipe_path"; then
+  echo "release artifact verification recipe is missing smoke replay description" >&2
+  exit 1
+fi
 
 if [[ "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-0}" == "1" ]]; then
   ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
