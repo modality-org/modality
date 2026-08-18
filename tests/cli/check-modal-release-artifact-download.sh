@@ -225,6 +225,22 @@ if ! grep -Fq "source revision: $provenance_revision" "$unpack_dir/EVIDENCE-BUND
   echo "release artifact evidence manifest is missing source revision: $provenance_revision" >&2
   exit 1
 fi
+if ! grep -Fq "binary: bin/modal" "$unpack_dir/EVIDENCE-BUNDLE.txt"; then
+  echo "release artifact evidence manifest is missing binary: bin/modal" >&2
+  exit 1
+fi
+if ! grep -Fq "provenance: PROVENANCE.txt" "$unpack_dir/EVIDENCE-BUNDLE.txt"; then
+  echo "release artifact evidence manifest is missing provenance: PROVENANCE.txt" >&2
+  exit 1
+fi
+if ! grep -Fq "checksums: SHA256SUMS" "$unpack_dir/EVIDENCE-BUNDLE.txt"; then
+  echo "release artifact evidence manifest is missing checksums: SHA256SUMS" >&2
+  exit 1
+fi
+if ! grep -Fq "post-unpack checks: version, help surface, first-contract smoke when MODALITY_BIN is supplied" "$unpack_dir/EVIDENCE-BUNDLE.txt"; then
+  echo "release artifact evidence manifest is missing post-unpack checks" >&2
+  exit 1
+fi
 if ! grep -Fq "modal release archive download verification" "$recipe_path"; then
   echo "release artifact verification recipe is missing its title" >&2
   exit 1
