@@ -151,8 +151,12 @@ entries to be regular non-symlink files, verifies the detached checksum first,
 requires the detached checksum sidecar to name exactly that one archive,
 then rechecks the exact archive members, internal checksum manifest, executable `bin/modal`,
 regular non-symlink unpacked files with expected payload modes (`bin/modal` as
-`0755`; text and checksum files as `0644`), provenance, source revision, replayable
-evidence bundle marker, and the recipe's archive, checksum, revision, and verifier command.
+`0755`; text and checksum files as `0644`), provenance metadata, source revision,
+replayable evidence bundle marker, and the recipe's archive, checksum, revision,
+and verifier command.
+The provenance file must keep exactly one value for version, profile, features,
+help surface, OS, and architecture, so stale or partial provenance fails before
+the binary is trusted.
 The evidence bundle must also keep naming the checked binary, provenance file,
 checksum manifest, and post-unpack smoke checks, so stale or hand-edited bundles
 cannot omit the replay ingredients while preserving checksums.

@@ -210,6 +210,39 @@ if [[ -z "$provenance_revision" ]]; then
   echo "release artifact provenance has an empty source revision" >&2
   exit 1
 fi
+require_provenance_field() {
+  local label="$1"
+  local count
+  local value
+  count="$(
+    grep -Ec "^${label}: .+" "$unpack_dir/PROVENANCE.txt" || true
+  )"
+  if [[ "$count" -ne 1 ]]; then
+    cat >&2 <<EOF
+release artifact provenance must name exactly one $label
+actual count: $count
+EOF
+    exit 1
+  fi
+  value="$(
+    awk -v label="$label" '
+      index($0, label ": ") == 1 {
+        sub(label ": ", "")
+        print
+      }
+    ' "$unpack_dir/PROVENANCE.txt"
+  )"
+  if [[ -z "$value" ]]; then
+    echo "release artifact provenance has an empty $label" >&2
+    exit 1
+  fi
+}
+require_provenance_field "version"
+require_provenance_field "profile"
+require_provenance_field "features"
+require_provenance_field "help surface"
+require_provenance_field "os"
+require_provenance_field "arch"
 if [[ -n "${MODAL_ONBOARDING_ARTIFACT_EXPECT_REV:-}" && "$provenance_revision" != "$MODAL_ONBOARDING_ARTIFACT_EXPECT_REV" ]]; then
   cat >&2 <<EOF
 release artifact source revision mismatch

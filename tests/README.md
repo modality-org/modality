@@ -189,10 +189,11 @@ consumer path by requiring exactly one `modal-*.tar.gz`, its matching detached
 top-level artifact entries, regular non-symlink top-level files, the exact
 one-entry detached checksum sidecar, internal archive members, the internal
 checksum manifest, regular non-symlink unpacked files, executable `bin/modal`,
-provenance, source revision, the
+provenance metadata, source revision, the
 expected unpacked payload modes (`bin/modal` as `0755`; text and checksum files
 as `0644`), the replayable evidence bundle marker, exactly one provenance
-source revision, and the recipe's archive, checksum, exact expected directory
+source revision, exactly one value for the required provenance metadata fields,
+and the recipe's archive, checksum, exact expected directory
 entries, revision, and verifier command. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when checking a downloaded
 workflow artifact against one exact source revision.
