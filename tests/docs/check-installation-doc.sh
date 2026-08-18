@@ -103,6 +103,8 @@ required_patterns=(
   ".sha256"
   "sidecar, and"
   "VERIFY-DOWNLOAD.txt"
+  "recipe's expected source revision section must name exactly the same single"
+  "revision as the unpacked provenance"
   "MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>"
   "unless its internal provenance matches one exact source revision"
   "uploaded \`VERIFY-DOWNLOAD.txt\` repeats the expected source revision"

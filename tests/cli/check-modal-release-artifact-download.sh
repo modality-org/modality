@@ -251,8 +251,21 @@ if ! grep -Fq "Expected source revision:" "$recipe_path"; then
   echo "release artifact verification recipe is missing expected source revision label" >&2
   exit 1
 fi
-if ! grep -Fq "$provenance_revision" "$recipe_path"; then
-  echo "release artifact verification recipe is missing source revision: $provenance_revision" >&2
+recipe_expected_revisions="$(
+  awk '
+    /^Expected source revision:$/ { in_section = 1; next }
+    in_section && /^$/ { in_section = 0; next }
+    in_section && /^  / { sub(/^  /, ""); print }
+  ' "$recipe_path"
+)"
+if [[ "$recipe_expected_revisions" != "$provenance_revision" ]]; then
+  cat >&2 <<EOF
+release artifact verification recipe has unexpected source revisions
+expected:
+$provenance_revision
+actual:
+$recipe_expected_revisions
+EOF
   exit 1
 fi
 if ! grep -Fq "sha256sum -c $expected_sidecar_name" "$recipe_path"; then

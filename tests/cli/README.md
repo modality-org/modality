@@ -115,7 +115,8 @@ checksum manifest, regular non-symlink unpacked files, executable `bin/modal`,
 expected unpacked payload modes (`bin/modal` as `0755`; text and checksum files
 as `0644`), provenance marker, replayable evidence bundle marker, and the recipe's archive,
 checksum, expected directory entries, revision, and verifier command. The
-provenance file must name exactly one source revision. Set
+provenance file and recipe source-revision section must each name exactly one
+source revision. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when the downloaded artifact
 must fail unless its provenance names one exact source revision. Set
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` to also run the help surface check, and pass
