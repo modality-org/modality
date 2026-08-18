@@ -362,6 +362,27 @@ $recipe_expected_revisions
 EOF
   exit 1
 fi
+if ! grep -Fq "Expected help surface:" "$recipe_path"; then
+  echo "release artifact verification recipe is missing expected help surface label" >&2
+  exit 1
+fi
+recipe_expected_help_surfaces="$(
+  awk '
+    /^Expected help surface:$/ { in_section = 1; next }
+    in_section && /^$/ { in_section = 0; next }
+    in_section && /^  / { sub(/^  /, ""); print }
+  ' "$recipe_path"
+)"
+if [[ "$recipe_expected_help_surfaces" != "$provenance_help_surface" ]]; then
+  cat >&2 <<EOF
+release artifact verification recipe has unexpected help surfaces
+expected:
+$provenance_help_surface
+actual:
+$recipe_expected_help_surfaces
+EOF
+  exit 1
+fi
 if ! grep -Fq "sha256sum -c $expected_sidecar_name" "$recipe_path"; then
   echo "release artifact verification recipe is missing detached checksum command" >&2
   exit 1
