@@ -153,6 +153,8 @@ then rechecks the exact archive members, internal checksum manifest, executable 
 regular non-symlink unpacked files with expected payload modes (`bin/modal` as
 `0755`; text and checksum files as `0644`), provenance, source revision, replayable
 evidence bundle marker, and the recipe's archive, checksum, revision, and verifier command.
+The recipe's artifact section must name exactly the one downloaded archive, so
+stale or hand-edited extra artifact names fail before unpacking.
 The provenance file must name exactly one source revision, so ambiguous or
 hand-merged provenance fails before the binary is trusted.
 It also checks that the recipe names exactly the expected downloaded directory entries:

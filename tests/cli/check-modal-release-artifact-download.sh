@@ -229,8 +229,25 @@ if ! grep -Fq "modal release archive download verification" "$recipe_path"; then
   echo "release artifact verification recipe is missing its title" >&2
   exit 1
 fi
-if ! grep -Fq "$archive_name" "$recipe_path"; then
-  echo "release artifact verification recipe is missing archive: $archive_name" >&2
+if ! grep -Fq "Artifact:" "$recipe_path"; then
+  echo "release artifact verification recipe is missing artifact label" >&2
+  exit 1
+fi
+recipe_artifacts="$(
+  awk '
+    /^Artifact:$/ { in_section = 1; next }
+    in_section && /^$/ { in_section = 0; next }
+    in_section && /^  / { sub(/^  /, ""); print }
+  ' "$recipe_path"
+)"
+if [[ "$recipe_artifacts" != "$archive_name" ]]; then
+  cat >&2 <<EOF
+release artifact verification recipe has unexpected artifacts
+expected:
+$archive_name
+actual:
+$recipe_artifacts
+EOF
   exit 1
 fi
 if ! grep -Fq "$expected_sidecar_name" "$recipe_path"; then

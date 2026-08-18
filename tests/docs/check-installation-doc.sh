@@ -98,6 +98,8 @@ required_patterns=(
   "hand-merged provenance fails"
   "recipe's archive, checksum, revision,"
   "and verifier command"
+  "recipe's artifact section must name exactly the one downloaded archive"
+  "stale or hand-edited extra artifact names fail before unpacking"
   "recipe names exactly the expected downloaded directory entries"
   "the archive, its"
   ".sha256"
