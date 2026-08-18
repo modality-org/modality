@@ -98,7 +98,7 @@ required_patterns=(
   "hand-merged provenance fails"
   "recipe's archive, checksum, revision,"
   "and verifier command"
-  "recipe names the expected downloaded directory entries"
+  "recipe names exactly the expected downloaded directory entries"
   "the archive, its"
   ".sha256"
   "sidecar, and"

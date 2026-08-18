@@ -241,12 +241,23 @@ if ! grep -Fq "Expected downloaded directory entries:" "$recipe_path"; then
   echo "release artifact verification recipe is missing expected directory entries label" >&2
   exit 1
 fi
-for expected_top_level_entry in "$archive_name" "$expected_sidecar_name" "VERIFY-DOWNLOAD.txt"; do
-  if ! grep -Fq "  $expected_top_level_entry" "$recipe_path"; then
-    echo "release artifact verification recipe is missing expected directory entry: $expected_top_level_entry" >&2
-    exit 1
-  fi
-done
+recipe_expected_top_level_entries="$(
+  awk '
+    /^Expected downloaded directory entries:$/ { in_section = 1; next }
+    in_section && /^$/ { in_section = 0; next }
+    in_section && /^  / { sub(/^  /, ""); print }
+  ' "$recipe_path" | sort
+)"
+if [[ "$recipe_expected_top_level_entries" != "$expected_top_level_entries" ]]; then
+  cat >&2 <<EOF
+release artifact verification recipe has unexpected downloaded directory entries
+expected:
+$expected_top_level_entries
+actual:
+$recipe_expected_top_level_entries
+EOF
+  exit 1
+fi
 if ! grep -Fq "Expected source revision:" "$recipe_path"; then
   echo "release artifact verification recipe is missing expected source revision label" >&2
   exit 1

@@ -155,7 +155,7 @@ regular non-symlink unpacked files with expected payload modes (`bin/modal` as
 evidence bundle marker, and the recipe's archive, checksum, revision, and verifier command.
 The provenance file must name exactly one source revision, so ambiguous or
 hand-merged provenance fails before the binary is trusted.
-It also checks that the recipe names the expected downloaded directory entries:
+It also checks that the recipe names exactly the expected downloaded directory entries:
 the archive, its `.sha256` sidecar, and `VERIFY-DOWNLOAD.txt`.
 The recipe's expected source revision section must name exactly the same single
 revision as the unpacked provenance.
