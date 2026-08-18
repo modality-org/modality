@@ -210,7 +210,7 @@ if [[ -z "$provenance_revision" ]]; then
   echo "release artifact provenance has an empty source revision" >&2
   exit 1
 fi
-require_provenance_field() {
+read_provenance_field() {
   local label="$1"
   local count
   local value
@@ -236,13 +236,14 @@ EOF
     echo "release artifact provenance has an empty $label" >&2
     exit 1
   fi
+  printf '%s\n' "$value"
 }
-require_provenance_field "version"
-require_provenance_field "profile"
-require_provenance_field "features"
-require_provenance_field "help surface"
-require_provenance_field "os"
-require_provenance_field "arch"
+provenance_version="$(read_provenance_field "version")"
+provenance_profile="$(read_provenance_field "profile")"
+provenance_features="$(read_provenance_field "features")"
+provenance_help_surface="$(read_provenance_field "help surface")"
+provenance_os="$(read_provenance_field "os")"
+provenance_arch="$(read_provenance_field "arch")"
 if [[ -n "${MODAL_ONBOARDING_ARTIFACT_EXPECT_REV:-}" && "$provenance_revision" != "$MODAL_ONBOARDING_ARTIFACT_EXPECT_REV" ]]; then
   cat >&2 <<EOF
 release artifact source revision mismatch
@@ -272,6 +273,22 @@ if ! grep -Fq "checksums: SHA256SUMS" "$unpack_dir/EVIDENCE-BUNDLE.txt"; then
 fi
 if ! grep -Fq "post-unpack checks: version, help surface, first-contract smoke when MODALITY_BIN is supplied" "$unpack_dir/EVIDENCE-BUNDLE.txt"; then
   echo "release artifact evidence manifest is missing post-unpack checks" >&2
+  exit 1
+fi
+if ! grep -Fq "modal release archive smoke artifact" "$unpack_dir/README.txt"; then
+  echo "release artifact README is missing its artifact marker" >&2
+  exit 1
+fi
+if ! grep -Fq "version: $provenance_version" "$unpack_dir/README.txt"; then
+  echo "release artifact README is missing version: $provenance_version" >&2
+  exit 1
+fi
+if ! grep -Fq "profile: $provenance_profile" "$unpack_dir/README.txt"; then
+  echo "release artifact README is missing profile: $provenance_profile" >&2
+  exit 1
+fi
+if ! grep -Fq "help surface: $provenance_help_surface" "$unpack_dir/README.txt"; then
+  echo "release artifact README is missing help surface: $provenance_help_surface" >&2
   exit 1
 fi
 if ! grep -Fq "modal release archive download verification" "$recipe_path"; then

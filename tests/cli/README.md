@@ -113,7 +113,8 @@ exactly that one archive, verifies the sidecar first, then unpacks the archive
 into a temporary directory and rechecks the exact member list, internal
 checksum manifest, regular non-symlink unpacked files, executable `bin/modal`,
 expected unpacked payload modes (`bin/modal` as `0755`; text and checksum files
-as `0644`), provenance metadata, replayable evidence bundle marker, and the recipe's archive,
+as `0644`), provenance metadata, README artifact marker and metadata matching
+provenance, replayable evidence bundle marker, and the recipe's archive,
 checksum, exact expected directory entries, revision, and verifier command. The
 provenance file must name exactly one source revision and exactly one value for
 the required metadata fields, while the recipe source-revision section must

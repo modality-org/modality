@@ -191,7 +191,8 @@ one-entry detached checksum sidecar, internal archive members, the internal
 checksum manifest, regular non-symlink unpacked files, executable `bin/modal`,
 provenance metadata, source revision, the
 expected unpacked payload modes (`bin/modal` as `0755`; text and checksum files
-as `0644`), the replayable evidence bundle marker, exactly one provenance
+as `0644`), the README artifact marker and metadata matching provenance, the
+replayable evidence bundle marker, exactly one provenance
 source revision, exactly one value for the required provenance metadata fields,
 and the recipe's archive, checksum, exact expected directory
 entries, revision, and verifier command. Set
