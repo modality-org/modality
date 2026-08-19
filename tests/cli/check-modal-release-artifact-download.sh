@@ -305,18 +305,36 @@ if ! grep -Fq "modal release archive smoke artifact" "$unpack_dir/README.txt"; t
   echo "release artifact README is missing its artifact marker" >&2
   exit 1
 fi
-if ! grep -Fq "version: $provenance_version" "$unpack_dir/README.txt"; then
-  echo "release artifact README is missing version: $provenance_version" >&2
-  exit 1
-fi
-if ! grep -Fq "profile: $provenance_profile" "$unpack_dir/README.txt"; then
-  echo "release artifact README is missing profile: $provenance_profile" >&2
-  exit 1
-fi
-if ! grep -Fq "help surface: $provenance_help_surface" "$unpack_dir/README.txt"; then
-  echo "release artifact README is missing help surface: $provenance_help_surface" >&2
-  exit 1
-fi
+check_readme_field() {
+  local label="$1"
+  local expected="$2"
+  local count
+  local values
+  count="$(
+    grep -Ec "^${label}: .+" "$unpack_dir/README.txt" || true
+  )"
+  values="$(
+    awk -v label="$label" '
+      index($0, label ": ") == 1 {
+        sub(label ": ", "")
+        print
+      }
+    ' "$unpack_dir/README.txt"
+  )"
+  if [[ "$count" -ne 1 || "$values" != "$expected" ]]; then
+    cat >&2 <<EOF
+release artifact README has unexpected $label values
+expected:
+$expected
+actual:
+$values
+EOF
+    exit 1
+  fi
+}
+check_readme_field "version" "$provenance_version"
+check_readme_field "profile" "$provenance_profile"
+check_readme_field "help surface" "$provenance_help_surface"
 if ! grep -Fq "modal release archive download verification" "$recipe_path"; then
   echo "release artifact verification recipe is missing its title" >&2
   exit 1

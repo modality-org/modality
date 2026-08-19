@@ -101,6 +101,8 @@ required_patterns=(
   "repeat the same version, profile,"
   "and help surface as provenance"
   "stale human-facing bundle notes fail"
+  "README metadata fields must also be single-valued"
+  "hand-edited notes with both current and stale values fail"
   "provenance file must name exactly one source revision"
   "ambiguous or"
   "hand-merged provenance fails"
