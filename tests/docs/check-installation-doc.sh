@@ -124,6 +124,8 @@ required_patterns=(
   "fails before the binary is trusted"
   "recipe's artifact section must name exactly the one downloaded archive"
   "stale or hand-edited extra artifact names fail before unpacking"
+  "recipe title must also appear exactly once"
+  "hand-merged recipe preambles"
   "recipe names exactly the expected downloaded directory entries"
   "the archive, its"
   ".sha256"

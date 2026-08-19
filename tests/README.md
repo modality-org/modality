@@ -195,7 +195,7 @@ as `0644`), the README artifact marker and metadata matching provenance, the
 replayable evidence bundle marker, exactly one provenance
 source revision, exactly one value for the required provenance metadata fields,
 and the recipe's archive, checksum, exact expected directory
-entries, revision, help surface, and verifier command. Set
+entries, single title, revision, help surface, and verifier command. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when checking a downloaded
 workflow artifact against one exact source revision.
 

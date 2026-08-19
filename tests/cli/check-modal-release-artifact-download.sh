@@ -346,8 +346,16 @@ EOF
 check_readme_field "version" "$provenance_version"
 check_readme_field "profile" "$provenance_profile"
 check_readme_field "help surface" "$provenance_help_surface"
-if ! grep -Fq "modal release archive download verification" "$recipe_path"; then
-  echo "release artifact verification recipe is missing its title" >&2
+recipe_title_count="$(
+  grep -Fxc "modal release archive download verification" "$recipe_path" || true
+)"
+if [[ "$recipe_title_count" -ne 1 ]]; then
+  cat >&2 <<EOF
+release artifact verification recipe has unexpected title lines
+expected:
+modal release archive download verification
+actual count: $recipe_title_count
+EOF
   exit 1
 fi
 if ! grep -Fq "Artifact:" "$recipe_path"; then
