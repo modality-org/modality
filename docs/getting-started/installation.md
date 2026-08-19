@@ -154,6 +154,9 @@ regular non-symlink unpacked files with expected payload modes (`bin/modal` as
 `0755`; text and checksum files as `0644`), provenance metadata, source revision,
 replayable evidence bundle marker, and the recipe's archive, checksum, revision,
 and verifier command.
+The archive filename must match the version, OS, architecture, and profile
+recorded in provenance, so a consistently renamed tarball, sidecar, and recipe
+still fails before the binary is trusted.
 The provenance file must keep exactly one value for version, profile, features,
 help surface, OS, and architecture, so stale or partial provenance fails before
 the binary is trusted.

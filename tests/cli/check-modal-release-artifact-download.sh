@@ -244,6 +244,32 @@ provenance_features="$(read_provenance_field "features")"
 provenance_help_surface="$(read_provenance_field "help surface")"
 provenance_os="$(read_provenance_field "os")"
 provenance_arch="$(read_provenance_field "arch")"
+case "$provenance_version" in
+  modal\ *)
+    provenance_version_slug="$(
+      printf '%s' "${provenance_version#modal }" |
+        tr '[:upper:]' '[:lower:]' |
+        sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//'
+    )"
+    ;;
+  *)
+    echo "release artifact provenance has unexpected version: $provenance_version" >&2
+    exit 1
+    ;;
+esac
+if [[ -z "$provenance_version_slug" ]]; then
+  echo "release artifact provenance version did not produce a usable archive slug" >&2
+  exit 1
+fi
+expected_archive_name="modal-${provenance_version_slug}-${provenance_os}-${provenance_arch}-${provenance_profile}.tar.gz"
+if [[ "$archive_name" != "$expected_archive_name" ]]; then
+  cat >&2 <<EOF
+release artifact archive name does not match provenance metadata
+expected: $expected_archive_name
+actual:   $archive_name
+EOF
+  exit 1
+fi
 if [[ -n "${MODAL_ONBOARDING_ARTIFACT_EXPECT_REV:-}" && "$provenance_revision" != "$MODAL_ONBOARDING_ARTIFACT_EXPECT_REV" ]]; then
   cat >&2 <<EOF
 release artifact source revision mismatch
