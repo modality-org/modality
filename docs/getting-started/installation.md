@@ -167,7 +167,9 @@ so hand-edited notes with both current and stale values fail before the binary
 is trusted.
 The evidence bundle must also keep naming the checked binary, provenance file,
 checksum manifest, and post-unpack smoke checks, so stale or hand-edited bundles
-cannot omit the replay ingredients while preserving checksums.
+cannot omit the replay ingredients while preserving checksums. Those evidence
+manifest fields must also be single-valued, so hand-merged manifests with both
+current and stale replay ingredients fail before the binary is trusted.
 The recipe's artifact section must name exactly the one downloaded archive, so
 stale or hand-edited extra artifact names fail before unpacking.
 The provenance file must name exactly one source revision, so ambiguous or

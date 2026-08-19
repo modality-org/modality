@@ -120,7 +120,9 @@ The archive filename must also match the version, OS, architecture, and profile
 recorded in provenance, so a consistently renamed tarball, sidecar, and recipe
 fails before the binary is trusted. The
 provenance file must name exactly one source revision and exactly one value for
-the required metadata fields, while the recipe source-revision and help-surface
+the required metadata fields. Evidence manifest fields for the artifact, source
+revision, binary, provenance file, checksum manifest, and post-unpack checks
+must also be single-valued. The recipe source-revision and help-surface
 sections must each name exactly one value matching provenance. The recipe also preserves the optional
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` and `MODALITY_BIN=/path/to/modality`
 environment for replaying the help-surface and first-contract smokes against

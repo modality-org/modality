@@ -185,10 +185,33 @@ if ! grep -Fq "modal replayable evidence bundle" "$unpack_dir/EVIDENCE-BUNDLE.tx
   echo "release artifact evidence manifest is missing its bundle marker" >&2
   exit 1
 fi
-if ! grep -Fq "artifact: $archive_name" "$unpack_dir/EVIDENCE-BUNDLE.txt"; then
-  echo "release artifact evidence manifest is missing artifact: $archive_name" >&2
-  exit 1
-fi
+check_evidence_field() {
+  local label="$1"
+  local expected="$2"
+  local count
+  local values
+  count="$(
+    grep -Ec "^${label}: .+" "$unpack_dir/EVIDENCE-BUNDLE.txt" || true
+  )"
+  values="$(
+    awk -v label="$label" '
+      index($0, label ": ") == 1 {
+        sub(label ": ", "")
+        print
+      }
+    ' "$unpack_dir/EVIDENCE-BUNDLE.txt"
+  )"
+  if [[ "$count" -ne 1 || "$values" != "$expected" ]]; then
+    cat >&2 <<EOF
+release artifact evidence manifest has unexpected $label values
+expected:
+$expected
+actual:
+$values
+EOF
+    exit 1
+  fi
+}
 if ! grep -Fq "source revision:" "$unpack_dir/PROVENANCE.txt"; then
   echo "release artifact provenance is missing source revision" >&2
   exit 1
@@ -281,26 +304,14 @@ MODAL_ONBOARDING_ARTIFACT_EXPECT_REV for a smoke-only artifact shape check.
 EOF
   exit 1
 fi
-if ! grep -Fq "source revision: $provenance_revision" "$unpack_dir/EVIDENCE-BUNDLE.txt"; then
-  echo "release artifact evidence manifest is missing source revision: $provenance_revision" >&2
-  exit 1
-fi
-if ! grep -Fq "binary: bin/modal" "$unpack_dir/EVIDENCE-BUNDLE.txt"; then
-  echo "release artifact evidence manifest is missing binary: bin/modal" >&2
-  exit 1
-fi
-if ! grep -Fq "provenance: PROVENANCE.txt" "$unpack_dir/EVIDENCE-BUNDLE.txt"; then
-  echo "release artifact evidence manifest is missing provenance: PROVENANCE.txt" >&2
-  exit 1
-fi
-if ! grep -Fq "checksums: SHA256SUMS" "$unpack_dir/EVIDENCE-BUNDLE.txt"; then
-  echo "release artifact evidence manifest is missing checksums: SHA256SUMS" >&2
-  exit 1
-fi
-if ! grep -Fq "post-unpack checks: version, help surface, first-contract smoke when MODALITY_BIN is supplied" "$unpack_dir/EVIDENCE-BUNDLE.txt"; then
-  echo "release artifact evidence manifest is missing post-unpack checks" >&2
-  exit 1
-fi
+check_evidence_field "artifact" "$archive_name"
+check_evidence_field "source revision" "$provenance_revision"
+check_evidence_field "binary" "bin/modal"
+check_evidence_field "provenance" "PROVENANCE.txt"
+check_evidence_field "checksums" "SHA256SUMS"
+check_evidence_field \
+  "post-unpack checks" \
+  "version, help surface, first-contract smoke when MODALITY_BIN is supplied"
 if ! grep -Fq "modal release archive smoke artifact" "$unpack_dir/README.txt"; then
   echo "release artifact README is missing its artifact marker" >&2
   exit 1
