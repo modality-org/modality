@@ -44,6 +44,25 @@ archive_path="${archives[0]}"
 sidecar_path="${sidecars[0]}"
 archive_name="$(basename "$archive_path")"
 expected_sidecar_name="$archive_name.sha256"
+check_sha256_line_shape() {
+  local manifest_path="$1"
+  local label="$2"
+  local expected_count="$3"
+  local actual_count
+  local shaped_count
+  actual_count="$(sed '/^$/d' "$manifest_path" | wc -l)"
+  shaped_count="$(
+    grep -Ec '^[0-9a-f]{64}  [^[:space:]]+$' "$manifest_path" || true
+  )"
+  if [[ "$actual_count" -ne "$expected_count" || "$shaped_count" -ne "$expected_count" ]]; then
+    cat >&2 <<EOF
+release artifact $label has unexpected checksum lines
+expected count: $expected_count
+actual count:   $actual_count
+EOF
+    exit 1
+  fi
+}
 top_level_entries="$(
   find "$ARTIFACT_DIR" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort
 )"
@@ -69,6 +88,7 @@ expected: $expected_sidecar_name
 EOF
   exit 1
 fi
+check_sha256_line_shape "$sidecar_path" "detached checksum sidecar" 1
 sidecar_entries="$(
   awk '{ print $2 }' "$sidecar_path" | sort
 )"
@@ -122,6 +142,7 @@ cleanup() {
 trap cleanup EXIT
 
 tar -C "$unpack_dir" -xzf "$archive_path"
+check_sha256_line_shape "$unpack_dir/SHA256SUMS" "checksum manifest" 4
 checksum_entries="$(
   cd "$unpack_dir"
   awk '{ print $2 }' SHA256SUMS | sort
