@@ -94,7 +94,8 @@ first-contract smoke when `MODALITY_BIN=/path/to/modality` is supplied. Set
 detached `.sha256` checksum. The kept directory also includes
 `VERIFY-DOWNLOAD.txt`, which names the exact downloaded directory entries,
 archive, expected source revision, expected help surface, detached checksum
-check, and exact download-verifier command for artifact consumers. Set
+check, and exact download-verifier command for artifact consumers in the
+canonical emitted order. Set
 `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release
 evidence must fail if the built `modal` binary is stale or came from a
 different source revision.
@@ -125,7 +126,9 @@ revision, binary, provenance file, checksum manifest, and post-unpack checks
 must also be single-valued. The recipe source-revision and help-surface
 sections must each name exactly one value matching provenance, and its detached
 checksum command, exact verifier command, smoke replay environment, and smoke
-replay description must each appear exactly once. The recipe also preserves the optional
+replay description must each appear exactly once. The recipe sections must also
+stay in the emitted order, so hand-shuffled recipes fail even when their values
+still match provenance. The recipe also preserves the optional
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` and `MODALITY_BIN=/path/to/modality`
 environment for replaying the help-surface and first-contract smokes against
 the unpacked binary. Set

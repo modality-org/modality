@@ -438,6 +438,37 @@ $recipe_expected_help_surfaces
 EOF
   exit 1
 fi
+recipe_sections="$(
+  grep -Fnx -e "Artifact:" \
+    -e "Expected downloaded directory entries:" \
+    -e "Expected source revision:" \
+    -e "Expected help surface:" \
+    -e "Verify before unpacking or trusting the binary:" \
+    "$recipe_path" | cut -d: -f2-
+)"
+recipe_section_count="$(printf '%s\n' "$recipe_sections" | sed '/^$/d' | wc -l)"
+expected_recipe_sections="$(
+  printf '%s\n' \
+    "Artifact:" \
+    "Expected downloaded directory entries:" \
+    "Expected source revision:" \
+    "Expected help surface:" \
+    "Verify before unpacking or trusting the binary:"
+)"
+if [[ "$recipe_section_count" -ne 5 || "$recipe_sections" != "$expected_recipe_sections" ]]; then
+  cat >&2 <<EOF
+release artifact verification recipe has unexpected section order
+expected order:
+Artifact:
+Expected downloaded directory entries:
+Expected source revision:
+Expected help surface:
+Verify before unpacking or trusting the binary:
+actual order:
+$recipe_sections
+EOF
+  exit 1
+fi
 check_recipe_line() {
   local expected="$1"
   local label="$2"
