@@ -889,6 +889,29 @@ $negative_output
 EOF
   exit 1
 fi
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
+perl -0pi -e 's/(  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=[^\n]+check-modal-release-artifact-download\.sh \/path\/to\/downloaded-artifact-dir\n)/$1  echo stale-extra-verification-step\n/' \
+  "$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a recipe with an extra verification command" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact verification recipe has unexpected verification commands" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the extra-command recipe for the wrong reason
+expected: release artifact verification recipe has unexpected verification commands
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 
 archive_listing="$(tar -tzf "$ARCHIVE_PATH" | sort)"
 expected_archive_listing="$(

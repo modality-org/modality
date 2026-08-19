@@ -179,7 +179,7 @@ want to keep the generated tarball and detached `.sha256` checksum for release
 inspection. The kept directory also includes `VERIFY-DOWNLOAD.txt`, which names
 the exact downloaded directory entries, archive, expected source revision,
 expected help surface, detached checksum check, and exact download-verifier
-command for the artifact consumer. Set
+command section for the artifact consumer. Set
 `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release evidence must fail
 if the built `modal` binary is stale or came from a different source revision.
 The archive check also runs the downloaded-artifact verifier against the
@@ -196,7 +196,8 @@ as `0644`), the README artifact marker and metadata matching provenance, the
 replayable evidence bundle marker, exactly one provenance
 source revision, exactly one value for the required provenance metadata fields,
 and the recipe's archive, checksum, exact expected directory
-entries, single title, revision, help surface, and verifier command. Set
+entries, single title, revision, help surface, and verifier command section,
+rejecting any extra verification commands. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when checking a downloaded
 workflow artifact against one exact source revision.
 

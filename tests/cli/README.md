@@ -117,7 +117,7 @@ files, executable `bin/modal`, expected unpacked payload modes (`bin/modal` as
 `0755`; text and checksum files as `0644`), provenance metadata, README
 artifact marker and metadata matching provenance, replayable evidence bundle
 marker, and the recipe's archive, checksum, exact expected directory entries,
-revision, help surface, and verifier command.
+revision, help surface, and exact verification-command section.
 The archive filename must also match the version, OS, architecture, and profile
 recorded in provenance, so a consistently renamed tarball, sidecar, and recipe
 fails before the binary is trusted. The
@@ -128,9 +128,10 @@ must also be single-valued. The recipe title must appear exactly once. The
 recipe source-revision and help-surface
 sections must each name exactly one value matching provenance, and its detached
 checksum command, exact verifier command, smoke replay environment, and smoke
-replay description must each appear exactly once. The recipe sections must also
-stay in the emitted order, so hand-shuffled recipes fail even when their values
-still match provenance. The recipe also preserves the optional
+replay description must each appear exactly once, and the verification-command
+section must contain no extra commands. The recipe sections must also stay in
+the emitted order, so hand-shuffled recipes fail even when their values still
+match provenance. The recipe also preserves the optional
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` and `MODALITY_BIN=/path/to/modality`
 environment for replaying the help-surface and first-contract smokes against
 the unpacked binary. Set

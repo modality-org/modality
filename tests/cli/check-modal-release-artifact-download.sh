@@ -523,6 +523,28 @@ expected_verify_command="MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=$provenance_revisi
 check_recipe_line \
   "  $expected_verify_command" \
   "verifier command"
+recipe_verify_commands="$(
+  awk '
+    /^Verify before unpacking or trusting the binary:$/ { in_section = 1; next }
+    in_section && /^$/ { in_section = 0; next }
+    in_section && /^  / { print }
+  ' "$recipe_path"
+)"
+expected_recipe_verify_commands="$(
+  printf '%s\n' \
+    "  sha256sum -c $expected_sidecar_name" \
+    "  $expected_verify_command"
+)"
+if [[ "$recipe_verify_commands" != "$expected_recipe_verify_commands" ]]; then
+  cat >&2 <<EOF
+release artifact verification recipe has unexpected verification commands
+expected:
+$expected_recipe_verify_commands
+actual:
+$recipe_verify_commands
+EOF
+  exit 1
+fi
 check_recipe_line \
   "Add MODAL_ONBOARDING_ARTIFACT_SMOKE=1 and MODALITY_BIN=/path/to/modality to" \
   "smoke replay environment"
