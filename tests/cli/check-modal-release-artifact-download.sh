@@ -438,23 +438,37 @@ $recipe_expected_help_surfaces
 EOF
   exit 1
 fi
-if ! grep -Fq "sha256sum -c $expected_sidecar_name" "$recipe_path"; then
-  echo "release artifact verification recipe is missing detached checksum command" >&2
-  exit 1
-fi
+check_recipe_line() {
+  local expected="$1"
+  local label="$2"
+  local count
+  local values
+  count="$(grep -Fxc "$expected" "$recipe_path" || true)"
+  values="$(grep -Fx "$expected" "$recipe_path" || true)"
+  if [[ "$count" -ne 1 ]]; then
+    cat >&2 <<EOF
+release artifact verification recipe has unexpected $label lines
+expected:
+$expected
+actual:
+$values
+EOF
+    exit 1
+  fi
+}
+check_recipe_line \
+  "  sha256sum -c $expected_sidecar_name" \
+  "detached checksum command"
 expected_verify_command="MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=$provenance_revision tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-dir"
-if ! grep -Fq "$expected_verify_command" "$recipe_path"; then
-  echo "release artifact verification recipe is missing exact verifier command" >&2
-  exit 1
-fi
-if ! grep -Fq "Add MODAL_ONBOARDING_ARTIFACT_SMOKE=1 and MODALITY_BIN=/path/to/modality to" "$recipe_path"; then
-  echo "release artifact verification recipe is missing smoke replay environment" >&2
-  exit 1
-fi
-if ! grep -Fq "run the help-surface and first-contract smokes against the unpacked modal binary." "$recipe_path"; then
-  echo "release artifact verification recipe is missing smoke replay description" >&2
-  exit 1
-fi
+check_recipe_line \
+  "  $expected_verify_command" \
+  "verifier command"
+check_recipe_line \
+  "Add MODAL_ONBOARDING_ARTIFACT_SMOKE=1 and MODALITY_BIN=/path/to/modality to" \
+  "smoke replay environment"
+check_recipe_line \
+  "run the help-surface and first-contract smokes against the unpacked modal binary." \
+  "smoke replay description"
 
 if [[ "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-0}" == "1" ]]; then
   ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

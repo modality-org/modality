@@ -159,6 +159,7 @@ tar -C "$STAGE_DIR" -czf "$ARCHIVE_PATH" \
   sha256sum "$archive_name" >"$archive_name.sha256"
   sha256sum -c "$archive_name.sha256" >/dev/null
 )
+expected_verify_command="MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=$source_revision tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-dir"
 cat >"$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" <<EOF
 modal release archive download verification
 
@@ -178,7 +179,7 @@ Expected help surface:
 
 Verify before unpacking or trusting the binary:
   sha256sum -c $archive_name.sha256
-  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=$source_revision tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-dir
+  $expected_verify_command
 
 Add MODAL_ONBOARDING_ARTIFACT_SMOKE=1 and MODALITY_BIN=/path/to/modality to
 run the help-surface and first-contract smokes against the unpacked modal binary.
@@ -785,10 +786,35 @@ negative_output="$(
   echo "release artifact verifier accepted a recipe without smoke replay environment" >&2
   exit 1
 }
-if ! grep -Fq "release artifact verification recipe is missing smoke replay environment" <<<"$negative_output"; then
+if ! grep -Fq "release artifact verification recipe has unexpected smoke replay environment lines" <<<"$negative_output"; then
   cat >&2 <<EOF
 release artifact verifier rejected the missing-smoke recipe for the wrong reason
-expected: release artifact verification recipe is missing smoke replay environment
+expected: release artifact verification recipe has unexpected smoke replay environment lines
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
+cat >>"$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt" <<EOF
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=stale-or-ambiguous tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-dir
+  $expected_verify_command
+EOF
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a recipe with ambiguous verifier commands" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact verification recipe has unexpected verifier command lines" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the ambiguous verifier-command recipe for the wrong reason
+expected: release artifact verification recipe has unexpected verifier command lines
 actual:
 $negative_output
 EOF

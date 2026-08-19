@@ -187,7 +187,10 @@ fail unless its internal provenance matches one exact source revision.
 The uploaded `VERIFY-DOWNLOAD.txt` repeats the expected source revision and the
 exact verifier command, plus the optional `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`
 and `MODALITY_BIN=/path/to/modality` replay environment, so the artifact
-directory remains self-describing after download.
+directory remains self-describing after download. The detached checksum command,
+exact verifier command, smoke replay environment, and smoke replay description
+must each appear exactly once, so hand-merged recipes with stale duplicate replay
+commands fail before the binary is trusted.
 External crates.io-style packaging is tracked separately:
 `tests/cli/check-modal-package-readiness.sh` reports the current blocker until
 the workspace CLI crates that `modal` depends on are available from the
