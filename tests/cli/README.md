@@ -109,9 +109,10 @@ tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-
 The download check expects exactly one `modal-*.tar.gz` and its matching
 detached `.sha256` sidecar plus exactly one `VERIFY-DOWNLOAD.txt` recipe,
 rejects any other top-level artifact entries, requires those entries to be
-regular non-symlink files, requires the detached checksum sidecar to name
-exactly that one archive with one canonical SHA-256 line, verifies the sidecar
-first, then unpacks the archive into a temporary directory and rechecks the
+regular non-symlink files with canonical `0644` modes, requires the detached
+checksum sidecar to name exactly that one archive with one canonical SHA-256
+line, verifies the sidecar first, then unpacks the archive into a temporary
+directory and rechecks the
 exact member list in the emitted order, internal checksum manifest entries in
 the emitted order, regular non-symlink unpacked
 files, executable `bin/modal`, expected unpacked payload modes (`bin/modal` as

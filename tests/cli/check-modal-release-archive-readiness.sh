@@ -159,6 +159,7 @@ tar -C "$STAGE_DIR" -czf "$ARCHIVE_PATH" \
   sha256sum "$archive_name" >"$archive_name.sha256"
   sha256sum -c "$archive_name.sha256" >/dev/null
 )
+chmod 0644 "$ARCHIVE_PATH" "$ARCHIVE_DIR/$archive_name.sha256"
 expected_verify_command="MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=$source_revision tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-dir"
 cat >"$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" <<EOF
 modal release archive download verification
@@ -184,6 +185,7 @@ Verify before unpacking or trusting the binary:
 Add MODAL_ONBOARDING_ARTIFACT_SMOKE=1 and MODALITY_BIN=/path/to/modality to
 run the help-surface and first-contract smokes against the unpacked modal binary.
 EOF
+chmod 0644 "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt"
 MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
   "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" >/dev/null
 NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
@@ -202,6 +204,28 @@ if ! grep -Fq "release artifact download directory has unexpected top-level entr
   cat >&2 <<EOF
 release artifact verifier rejected the malformed directory for the wrong reason
 expected: release artifact download directory has unexpected top-level entries
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
+chmod 0600 "$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a top-level recipe with the wrong mode" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact top-level entry has unexpected mode: VERIFY-DOWNLOAD.txt" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the bad-mode recipe for the wrong reason
+expected: release artifact top-level entry has unexpected mode: VERIFY-DOWNLOAD.txt
 actual:
 $negative_output
 EOF

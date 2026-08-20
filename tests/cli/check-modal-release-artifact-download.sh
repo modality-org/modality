@@ -112,6 +112,23 @@ for required_path in "$archive_path" "$sidecar_path" "$recipe_path"; do
     exit 1
   fi
 done
+check_top_level_mode() {
+  local path="$1"
+  local expected_mode="$2"
+  local actual_mode
+  actual_mode="$(stat -c '%a' "$path")"
+  if [[ "$actual_mode" != "$expected_mode" ]]; then
+    cat >&2 <<EOF
+release artifact top-level entry has unexpected mode: $(basename "$path")
+expected: $expected_mode
+actual:   $actual_mode
+EOF
+    exit 1
+  fi
+}
+check_top_level_mode "$archive_path" "644"
+check_top_level_mode "$sidecar_path" "644"
+check_top_level_mode "$recipe_path" "644"
 
 (
   cd "$ARTIFACT_DIR"
