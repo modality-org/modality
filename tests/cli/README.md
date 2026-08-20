@@ -85,8 +85,8 @@ MODAL_BIN=/path/to/modal tests/cli/check-modal-release-archive-readiness.sh
 The archive-readiness check creates a temporary
 `modal-<version>-<os>-<arch>-<profile>.tar.gz`, verifies that it contains
 `bin/modal`, `README.txt`, `PROVENANCE.txt`, `EVIDENCE-BUNDLE.txt`, and
-`SHA256SUMS`, unpacks it, verifies the checksum manifest, checks the provenance
-source revision, profile, and help surface, checks the evidence manifest
+`SHA256SUMS` in the emitted order, unpacks it, verifies the checksum manifest,
+checks the provenance source revision, profile, and help surface, checks the evidence manifest
 declares the replayable bundle, artifact, source revision, and post-unpack
 checks, checks the unpacked binary version and help surface, and runs the full
 first-contract smoke when `MODALITY_BIN=/path/to/modality` is supplied. Set
@@ -112,7 +112,7 @@ rejects any other top-level artifact entries, requires those entries to be
 regular non-symlink files, requires the detached checksum sidecar to name
 exactly that one archive with one canonical SHA-256 line, verifies the sidecar
 first, then unpacks the archive into a temporary directory and rechecks the
-exact member list, internal checksum manifest, regular non-symlink unpacked
+exact member list in the emitted order, internal checksum manifest, regular non-symlink unpacked
 files, executable `bin/modal`, expected unpacked payload modes (`bin/modal` as
 `0755`; text and checksum files as `0644`), provenance metadata, README
 artifact marker and metadata matching provenance, replayable evidence bundle

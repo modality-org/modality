@@ -168,7 +168,8 @@ MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_ARCHIVE_CHECK=1 tests/run-onboarding-s
 The archive-readiness probe creates a `modal-<version>-<os>-<arch>-<profile>.tar.gz`
 containing `bin/modal`, `README.txt`, `PROVENANCE.txt`, `EVIDENCE-BUNDLE.txt`,
 and `SHA256SUMS`, unpacks it, verifies the checksum manifest, asserts that the
-manifest covers exactly `bin/modal`, `README.txt`, `PROVENANCE.txt`, and
+archive contains exactly those five entries in the emitted order, asserts that
+the manifest covers exactly `bin/modal`, `README.txt`, `PROVENANCE.txt`, and
 `EVIDENCE-BUNDLE.txt`, checks that provenance records the source revision,
 profile, and help surface, checks that the evidence manifest names the
 replayable bundle, artifact, source revision, and post-unpack checks, checks
@@ -188,8 +189,8 @@ consumer path by requiring exactly one `modal-*.tar.gz`, its matching detached
 `.sha256` sidecar, exactly one `VERIFY-DOWNLOAD.txt` recipe, no other
 top-level artifact entries, regular non-symlink top-level files, the exact
 one-entry detached checksum sidecar with a canonical SHA-256 line, internal
-archive members, the internal checksum manifest, regular non-symlink unpacked
-files, executable `bin/modal`,
+archive members in the emitted order, the internal checksum manifest, regular
+non-symlink unpacked files, executable `bin/modal`,
 provenance metadata, source revision, the
 expected unpacked payload modes (`bin/modal` as `0755`; text and checksum files
 as `0644`), the README artifact marker and metadata matching provenance, the

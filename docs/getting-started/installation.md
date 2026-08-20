@@ -113,7 +113,7 @@ Release-archive-shaped binary bundles are measured by
 `modal-<version>-<os>-<arch>-<profile>.tar.gz` containing `bin/modal` and
 `README.txt` plus `PROVENANCE.txt`, `EVIDENCE-BUNDLE.txt`, and `SHA256SUMS`,
 unpacks it, verifies the checksum manifest, checks that the archive contains
-exactly those five entries,
+exactly those five entries in the emitted order,
 and checks that the manifest covers exactly `bin/modal`, `README.txt`, and
 `PROVENANCE.txt` plus `EVIDENCE-BUNDLE.txt`. The provenance file records the
 source revision, version, profile, features, platform, and expected help
@@ -150,7 +150,8 @@ other top-level entries in the downloaded artifact directory, requires those
 entries to be regular non-symlink files, verifies the detached checksum first,
 requires the detached checksum sidecar to be one canonical SHA-256 line naming
 exactly that one archive,
-then rechecks the exact archive members, internal checksum manifest, executable `bin/modal`,
+then rechecks the exact archive members in the emitted order, internal checksum
+manifest, executable `bin/modal`,
 regular non-symlink unpacked files with expected payload modes (`bin/modal` as
 `0755`; text and checksum files as `0644`), provenance metadata, source revision,
 replayable evidence bundle marker, and the recipe's archive, checksum, revision,

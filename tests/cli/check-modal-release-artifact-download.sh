@@ -118,14 +118,14 @@ done
   sha256sum -c "$expected_sidecar_name" >/dev/null
 )
 
-archive_listing="$(tar -tzf "$archive_path" | sort)"
+archive_listing="$(tar -tzf "$archive_path")"
 expected_archive_listing="$(
   printf '%s\n' \
-    "EVIDENCE-BUNDLE.txt" \
-    "PROVENANCE.txt" \
+    "bin/modal" \
     "README.txt" \
-    "SHA256SUMS" \
-    "bin/modal" | sort
+    "PROVENANCE.txt" \
+    "EVIDENCE-BUNDLE.txt" \
+    "SHA256SUMS"
 )"
 if [[ "$archive_listing" != "$expected_archive_listing" ]]; then
   cat >&2 <<EOF
