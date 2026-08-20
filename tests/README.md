@@ -197,6 +197,7 @@ expected unpacked payload modes (`bin/modal` as `0755`; text and checksum files
 as `0644`), the README artifact marker and metadata matching provenance, the
 replayable evidence bundle marker, exactly one provenance
 source revision, exactly one value for the required provenance metadata fields,
+one of the supported provenance profiles (`debug` or `release`),
 and the recipe's archive, checksum, exact expected directory
 entries, single title, revision, help surface, and verifier command section,
 rejecting any extra verification commands. It also requires the optional smoke

@@ -161,8 +161,9 @@ The archive filename must match the version, OS, architecture, and profile
 recorded in provenance, so a consistently renamed tarball, sidecar, and recipe
 still fails before the binary is trusted.
 The provenance file must keep exactly one value for version, profile, features,
-help surface, OS, and architecture, so stale or partial provenance fails before
-the binary is trusted.
+help surface, OS, and architecture, and the profile must be one of the
+supported build profiles (`debug` or `release`), so stale, partial, or
+unsupported provenance fails before the binary is trusted.
 The README must keep the artifact marker and repeat the same version, profile,
 and help surface as provenance, so stale human-facing bundle notes fail before
 the binary is trusted. Those README metadata fields must also be single-valued,

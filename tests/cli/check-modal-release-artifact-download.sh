@@ -324,6 +324,14 @@ provenance_features="$(read_provenance_field "features")"
 provenance_help_surface="$(read_provenance_field "help surface")"
 provenance_os="$(read_provenance_field "os")"
 provenance_arch="$(read_provenance_field "arch")"
+case "$provenance_profile" in
+  debug|release)
+    ;;
+  *)
+    echo "release artifact provenance has unsupported profile: $provenance_profile" >&2
+    exit 1
+    ;;
+esac
 case "$provenance_version" in
   modal\ *)
     provenance_version_slug="$(
