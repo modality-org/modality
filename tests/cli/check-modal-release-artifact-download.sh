@@ -153,6 +153,9 @@ checksum_entries="$(
 expected_checksum_entries="$(
   printf '%s\n' "EVIDENCE-BUNDLE.txt" "PROVENANCE.txt" "README.txt" "bin/modal" | sort
 )"
+expected_checksum_entries_ordered="$(
+  printf '%s\n' "bin/modal" "README.txt" "PROVENANCE.txt" "EVIDENCE-BUNDLE.txt"
+)"
 if [[ "$checksum_entries" != "$expected_checksum_entries" ]]; then
   cat >&2 <<EOF
 release artifact checksum manifest has unexpected entries
@@ -160,6 +163,19 @@ expected:
 $expected_checksum_entries
 actual:
 $checksum_entries
+EOF
+  exit 1
+fi
+checksum_entries_ordered="$(
+  awk '{ print $2 }' "$unpack_dir/SHA256SUMS"
+)"
+if [[ "$checksum_entries_ordered" != "$expected_checksum_entries_ordered" ]]; then
+  cat >&2 <<EOF
+release artifact checksum manifest has unexpected entry order
+expected:
+$expected_checksum_entries_ordered
+actual:
+$checksum_entries_ordered
 EOF
   exit 1
 fi

@@ -112,7 +112,8 @@ rejects any other top-level artifact entries, requires those entries to be
 regular non-symlink files, requires the detached checksum sidecar to name
 exactly that one archive with one canonical SHA-256 line, verifies the sidecar
 first, then unpacks the archive into a temporary directory and rechecks the
-exact member list in the emitted order, internal checksum manifest, regular non-symlink unpacked
+exact member list in the emitted order, internal checksum manifest entries in
+the emitted order, regular non-symlink unpacked
 files, executable `bin/modal`, expected unpacked payload modes (`bin/modal` as
 `0755`; text and checksum files as `0644`), provenance metadata, README
 artifact marker and metadata matching provenance, replayable evidence bundle

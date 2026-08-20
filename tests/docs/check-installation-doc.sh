@@ -86,6 +86,8 @@ required_patterns=(
   "detached checksum sidecar to be one canonical SHA-256 line"
   "naming"
   "exactly that one archive"
+  "internal checksum"
+  "manifest entries in the emitted order"
   "executable \`bin/modal\`"
   "regular non-symlink unpacked files"
   "expected payload modes"

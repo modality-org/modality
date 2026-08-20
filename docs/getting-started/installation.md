@@ -151,7 +151,7 @@ entries to be regular non-symlink files, verifies the detached checksum first,
 requires the detached checksum sidecar to be one canonical SHA-256 line naming
 exactly that one archive,
 then rechecks the exact archive members in the emitted order, internal checksum
-manifest, executable `bin/modal`,
+manifest entries in the emitted order, executable `bin/modal`,
 regular non-symlink unpacked files with expected payload modes (`bin/modal` as
 `0755`; text and checksum files as `0644`), provenance metadata, source revision,
 replayable evidence bundle marker, and the recipe's archive, checksum, revision,

@@ -189,8 +189,8 @@ consumer path by requiring exactly one `modal-*.tar.gz`, its matching detached
 `.sha256` sidecar, exactly one `VERIFY-DOWNLOAD.txt` recipe, no other
 top-level artifact entries, regular non-symlink top-level files, the exact
 one-entry detached checksum sidecar with a canonical SHA-256 line, internal
-archive members in the emitted order, the internal checksum manifest, regular
-non-symlink unpacked files, executable `bin/modal`,
+archive members in the emitted order, internal checksum manifest entries in the
+emitted order, regular non-symlink unpacked files, executable `bin/modal`,
 provenance metadata, source revision, the
 expected unpacked payload modes (`bin/modal` as `0755`; text and checksum files
 as `0644`), the README artifact marker and metadata matching provenance, the
