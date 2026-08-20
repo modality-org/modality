@@ -332,6 +332,14 @@ case "$provenance_profile" in
     exit 1
     ;;
 esac
+case "$provenance_help_surface" in
+  lean|full)
+    ;;
+  *)
+    echo "release artifact provenance has unsupported help surface: $provenance_help_surface" >&2
+    exit 1
+    ;;
+esac
 case "$provenance_version" in
   modal\ *)
     provenance_version_slug="$(
@@ -620,7 +628,8 @@ fi
 
 if [[ "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-0}" == "1" ]]; then
   ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-  MODAL_BIN="$unpack_dir/bin/modal" "$ROOT_DIR/tests/cli/check-modal-help-surface.sh"
+  MODAL_BIN="$unpack_dir/bin/modal" MODAL_HELP_SURFACE="$provenance_help_surface" \
+    "$ROOT_DIR/tests/cli/check-modal-help-surface.sh"
   if [[ -x "${MODALITY_BIN:-}" ]]; then
     MODAL_BIN="$unpack_dir/bin/modal" MODALITY_BIN="$MODALITY_BIN" \
       "$ROOT_DIR/tests/cli/run-first-contract-cli-smoke.sh"

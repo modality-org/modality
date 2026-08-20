@@ -126,9 +126,10 @@ recorded in provenance, so a consistently renamed tarball, sidecar, and recipe
 fails before the binary is trusted. The
 provenance file must name exactly one source revision and exactly one value for
 the required metadata fields, and the profile must be one of the supported build
-profiles (`debug` or `release`). Evidence manifest fields for the artifact, source
-revision, binary, provenance file, checksum manifest, and post-unpack checks
-must also be single-valued. The recipe title must appear exactly once. The
+profiles (`debug` or `release`). Its help surface must also be one of the
+supported surfaces (`lean` or `full`). Evidence manifest fields for the artifact,
+source revision, binary, provenance file, checksum manifest, and post-unpack
+checks must also be single-valued. The recipe title must appear exactly once. The
 recipe source-revision and help-surface
 sections must each name exactly one value matching provenance, and its detached
 checksum command, exact verifier command, smoke replay environment, and smoke

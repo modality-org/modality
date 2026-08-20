@@ -164,6 +164,10 @@ The provenance file must keep exactly one value for version, profile, features,
 help surface, OS, and architecture, and the profile must be one of the
 supported build profiles (`debug` or `release`), so stale, partial, or
 unsupported provenance fails before the binary is trusted.
+The help surface recorded in provenance must also be one of the supported
+surfaces (`lean` or `full`), and optional smoke replay checks that exact surface
+instead of assuming a default. A consistently edited README, provenance file,
+and recipe that invent a new surface still fails before the binary is trusted.
 The README must keep the artifact marker and repeat the same version, profile,
 and help surface as provenance, so stale human-facing bundle notes fail before
 the binary is trusted. Those README metadata fields must also be single-valued,
