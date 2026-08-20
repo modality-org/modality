@@ -69,6 +69,9 @@ top_level_entries="$(
 expected_top_level_entries="$(
   printf '%s\n' "$archive_name" "$expected_sidecar_name" "VERIFY-DOWNLOAD.txt" | sort
 )"
+expected_top_level_entries_ordered="$(
+  printf '%s\n' "$archive_name" "$expected_sidecar_name" "VERIFY-DOWNLOAD.txt"
+)"
 if [[ "$top_level_entries" != "$expected_top_level_entries" ]]; then
   cat >&2 <<EOF
 release artifact download directory has unexpected top-level entries
@@ -413,13 +416,13 @@ recipe_expected_top_level_entries="$(
     /^Expected downloaded directory entries:$/ { in_section = 1; next }
     in_section && /^$/ { in_section = 0; next }
     in_section && /^  / { sub(/^  /, ""); print }
-  ' "$recipe_path" | sort
+  ' "$recipe_path"
 )"
-if [[ "$recipe_expected_top_level_entries" != "$expected_top_level_entries" ]]; then
+if [[ "$recipe_expected_top_level_entries" != "$expected_top_level_entries_ordered" ]]; then
   cat >&2 <<EOF
 release artifact verification recipe has unexpected downloaded directory entries
 expected:
-$expected_top_level_entries
+$expected_top_level_entries_ordered
 actual:
 $recipe_expected_top_level_entries
 EOF

@@ -177,8 +177,9 @@ The recipe title must also appear exactly once, so hand-merged recipe preambles
 fail before the binary is trusted.
 The provenance file must name exactly one source revision, so ambiguous or
 hand-merged provenance fails before the binary is trusted.
-It also checks that the recipe names exactly the expected downloaded directory entries:
-the archive, its `.sha256` sidecar, and `VERIFY-DOWNLOAD.txt`.
+It also checks that the recipe names exactly the expected downloaded directory
+entries in the emitted order: the archive, its `.sha256` sidecar, and
+`VERIFY-DOWNLOAD.txt`.
 The recipe's expected source revision section must name exactly the same single
 revision as the unpacked provenance.
 The recipe's expected help surface section must name exactly the same single

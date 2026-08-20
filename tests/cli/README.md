@@ -116,8 +116,9 @@ exact member list, internal checksum manifest, regular non-symlink unpacked
 files, executable `bin/modal`, expected unpacked payload modes (`bin/modal` as
 `0755`; text and checksum files as `0644`), provenance metadata, README
 artifact marker and metadata matching provenance, replayable evidence bundle
-marker, and the recipe's archive, checksum, exact expected directory entries,
-revision, help surface, and exact verification-command section.
+marker, and the recipe's archive, checksum, exact expected directory entries in
+the emitted order, revision, help surface, and exact verification-command
+section.
 The archive filename must also match the version, OS, architecture, and profile
 recorded in provenance, so a consistently renamed tarball, sidecar, and recipe
 fails before the binary is trusted. The
