@@ -198,7 +198,9 @@ replayable evidence bundle marker, exactly one provenance
 source revision, exactly one value for the required provenance metadata fields,
 and the recipe's archive, checksum, exact expected directory
 entries, single title, revision, help surface, and verifier command section,
-rejecting any extra verification commands. Set
+rejecting any extra verification commands. It also requires the optional smoke
+replay note to remain the exact final two-line trailer, so stale inserted text
+cannot split the smoke instructions while preserving the required lines. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when checking a downloaded
 workflow artifact against one exact source revision.
 

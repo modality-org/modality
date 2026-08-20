@@ -133,7 +133,9 @@ checksum command, exact verifier command, smoke replay environment, and smoke
 replay description must each appear exactly once, and the verification-command
 section must contain no extra commands. The recipe sections must also stay in
 the emitted order, so hand-shuffled recipes fail even when their values still
-match provenance. The recipe also preserves the optional
+match provenance. The recipe smoke replay note must remain the exact final
+two-line trailer, so stale inserted text cannot split the optional smoke
+instructions while preserving both required lines. The recipe also preserves the optional
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` and `MODALITY_BIN=/path/to/modality`
 environment for replaying the help-surface and first-contract smokes against
 the unpacked binary. Set

@@ -570,6 +570,28 @@ check_recipe_line \
 check_recipe_line \
   "run the help-surface and first-contract smokes against the unpacked modal binary." \
   "smoke replay description"
+recipe_smoke_replay_trailer="$(
+  awk '
+    /^Verify before unpacking or trusting the binary:$/ { saw_verify = 1; next }
+    saw_verify && /^$/ { in_trailer = 1; next }
+    in_trailer { print }
+  ' "$recipe_path"
+)"
+expected_recipe_smoke_replay_trailer="$(
+  printf '%s\n' \
+    "Add MODAL_ONBOARDING_ARTIFACT_SMOKE=1 and MODALITY_BIN=/path/to/modality to" \
+    "run the help-surface and first-contract smokes against the unpacked modal binary."
+)"
+if [[ "$recipe_smoke_replay_trailer" != "$expected_recipe_smoke_replay_trailer" ]]; then
+  cat >&2 <<EOF
+release artifact verification recipe has unexpected smoke replay trailer
+expected:
+$expected_recipe_smoke_replay_trailer
+actual:
+$recipe_smoke_replay_trailer
+EOF
+  exit 1
+fi
 
 if [[ "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-0}" == "1" ]]; then
   ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
