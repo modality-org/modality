@@ -340,6 +340,14 @@ case "$provenance_help_surface" in
     exit 1
     ;;
 esac
+case "$provenance_features" in
+  contract-onboarding|full)
+    ;;
+  *)
+    echo "release artifact provenance has unsupported feature set: $provenance_features" >&2
+    exit 1
+    ;;
+esac
 case "$provenance_version" in
   modal\ *)
     provenance_version_slug="$(

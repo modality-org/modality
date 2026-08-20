@@ -198,6 +198,7 @@ as `0644`), the README artifact marker and metadata matching provenance, the
 replayable evidence bundle marker, exactly one provenance
 source revision, exactly one value for the required provenance metadata fields,
 one of the supported provenance profiles (`debug` or `release`), one of the
+supported provenance feature sets (`contract-onboarding` or `full`), one of the
 supported provenance help surfaces (`lean` or `full`),
 and the recipe's archive, checksum, exact expected directory
 entries, single title, revision, help surface, and verifier command section,
