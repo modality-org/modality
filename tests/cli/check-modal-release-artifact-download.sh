@@ -238,8 +238,16 @@ if [[ ! -x "$unpack_dir/bin/modal" ]]; then
   echo "release artifact unpacked modal is not executable" >&2
   exit 1
 fi
-if ! grep -Fq "modal replayable evidence bundle" "$unpack_dir/EVIDENCE-BUNDLE.txt"; then
-  echo "release artifact evidence manifest is missing its bundle marker" >&2
+evidence_marker_count="$(
+  grep -Fxc "modal replayable evidence bundle" "$unpack_dir/EVIDENCE-BUNDLE.txt" || true
+)"
+if [[ "$evidence_marker_count" -ne 1 ]]; then
+  cat >&2 <<EOF
+release artifact evidence manifest has unexpected marker lines
+expected:
+modal replayable evidence bundle
+actual count: $evidence_marker_count
+EOF
   exit 1
 fi
 check_evidence_field() {
