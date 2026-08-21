@@ -937,6 +937,67 @@ rm -rf "$NEGATIVE_STAGE_DIR"
 NEGATIVE_STAGE_DIR=""
 rm -rf "$NEGATIVE_ARTIFACT_DIR"
 NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+stale_version_revision="staleabc"
+if [[ "$version_output" =~ $version_revision_pattern ]]; then
+  stale_version_output="$(
+    printf '%s' "$version_output" | sed -E "s/@[^)]*\\)/@$stale_version_revision)/"
+  )"
+else
+  stale_version_output="$version_output (stale@$stale_version_revision)"
+fi
+stale_version_slug="$(
+  printf '%s' "${stale_version_output#modal }" |
+    tr '[:upper:]' '[:lower:]' |
+    sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//'
+)"
+stale_version_archive_name="modal-${stale_version_slug}-${os}-${arch}-${PROFILE}.tar.gz"
+NEGATIVE_STAGE_DIR="$(mktemp -d)"
+mkdir -p "$NEGATIVE_STAGE_DIR/bin"
+cp "$STAGE_DIR/bin/modal" "$NEGATIVE_STAGE_DIR/bin/modal"
+sed "s/^version: .*$/version: $stale_version_output/" \
+  "$STAGE_DIR/README.txt" >"$NEGATIVE_STAGE_DIR/README.txt"
+sed "s/^version: .*$/version: $stale_version_output/" \
+  "$STAGE_DIR/PROVENANCE.txt" >"$NEGATIVE_STAGE_DIR/PROVENANCE.txt"
+sed "s/artifact: $archive_name/artifact: $stale_version_archive_name/" \
+  "$STAGE_DIR/EVIDENCE-BUNDLE.txt" >"$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+chmod 0755 "$NEGATIVE_STAGE_DIR/bin/modal"
+chmod 0644 \
+  "$NEGATIVE_STAGE_DIR/README.txt" \
+  "$NEGATIVE_STAGE_DIR/PROVENANCE.txt" \
+  "$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+(
+  cd "$NEGATIVE_STAGE_DIR"
+  sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
+  chmod 0644 SHA256SUMS
+  tar -czf "$NEGATIVE_ARTIFACT_DIR/$stale_version_archive_name" \
+    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+)
+(
+  cd "$NEGATIVE_ARTIFACT_DIR"
+  sha256sum "$stale_version_archive_name" >"$stale_version_archive_name.sha256"
+)
+sed "s/$archive_name/$stale_version_archive_name/g" "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" \
+  >"$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted provenance version metadata with a stale revision" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact provenance version revision does not match source revision" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the stale-version artifact for the wrong reason
+expected: release artifact provenance version revision does not match source revision
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_STAGE_DIR"
+NEGATIVE_STAGE_DIR=""
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
 unsupported_arch="${arch}+stale"
 unsupported_arch_archive_name="modal-${version_slug}-${os}-${unsupported_arch}-${PROFILE}.tar.gz"
 NEGATIVE_STAGE_DIR="$(mktemp -d)"

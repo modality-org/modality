@@ -129,10 +129,12 @@ provenance file must name exactly one source revision and exactly one value for
 the required metadata fields. The profile must be one of the supported build
 profiles (`debug` or `release`), and the feature set must be one of the
 supported wrapper feature sets (`contract-onboarding` or `full`). Its help
-surface must also be one of the supported surfaces (`lean` or `full`). Evidence
-manifest fields for the artifact,
-source revision, binary, provenance file, checksum manifest, and post-unpack
-checks must also be single-valued. The recipe title must appear exactly once. The
+surface must also be one of the supported surfaces (`lean` or `full`).
+If the version string carries an embedded revision marker, that revision must
+match the single source revision recorded by provenance. Evidence manifest
+fields for the artifact, source revision, binary, provenance file, checksum
+manifest, and post-unpack checks must also be single-valued. The recipe title
+must appear exactly once. The
 recipe source-revision and help-surface
 sections must each name exactly one value matching provenance, and its detached
 checksum command, exact verifier command, smoke replay environment, and smoke

@@ -188,9 +188,10 @@ generated archive directory, which simulates the GitHub Actions artifact
 consumer path by requiring exactly one `modal-*.tar.gz`, its matching detached
 `.sha256` sidecar, exactly one `VERIFY-DOWNLOAD.txt` recipe, no other
 top-level artifact entries, regular non-symlink top-level files with canonical
-`0644` modes, the exact one-entry detached checksum sidecar with a canonical
-SHA-256 line, internal archive members in the emitted order, internal checksum
-manifest entries in the
+`0644` modes, single-valued provenance whose embedded version revision matches
+the source revision when present, the exact one-entry detached checksum sidecar
+with a canonical SHA-256 line, internal archive members in the emitted order,
+internal checksum manifest entries in the
 emitted order, regular non-symlink unpacked files, executable `bin/modal`,
 provenance metadata, source revision, the
 expected unpacked payload modes (`bin/modal` as `0755`; text and checksum files

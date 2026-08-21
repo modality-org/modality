@@ -166,6 +166,10 @@ archive-safe lowercase platform tokens. The profile must be one of the supported
 (`debug` or `release`), and the feature set must be one of the supported wrapper feature sets
 (`contract-onboarding` or `full`), so stale, partial, or unsupported provenance fails
 before the binary is trusted.
+If the provenance version string carries an embedded revision marker, that
+revision must match the single source revision recorded by provenance, so a
+consistently renamed bundle with stale version metadata still fails before the
+binary is trusted.
 The help surface recorded in provenance must also be one of the supported
 surfaces (`lean` or `full`), and optional smoke replay checks that exact surface
 instead of assuming a default. A consistently edited README, provenance file,

@@ -324,6 +324,18 @@ provenance_features="$(read_provenance_field "features")"
 provenance_help_surface="$(read_provenance_field "help surface")"
 provenance_os="$(read_provenance_field "os")"
 provenance_arch="$(read_provenance_field "arch")"
+version_revision_pattern='@([^)]+)\)'
+if [[ "$provenance_version" =~ $version_revision_pattern ]]; then
+  provenance_version_revision="${BASH_REMATCH[1]}"
+  if [[ "$provenance_version_revision" != "$provenance_revision" ]]; then
+    cat >&2 <<EOF
+release artifact provenance version revision does not match source revision
+version revision: $provenance_version_revision
+source revision:  $provenance_revision
+EOF
+    exit 1
+  fi
+fi
 check_provenance_slug_field() {
   local label="$1"
   local value="$2"
