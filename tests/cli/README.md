@@ -145,13 +145,13 @@ match provenance. The recipe smoke replay note must remain the exact final
 two-line trailer, so stale inserted text cannot split the optional smoke
 instructions while preserving both required lines. The recipe also preserves the optional
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` and `MODALITY_BIN=/path/to/modality`
-environment for replaying the help-surface and first-contract smokes against
-the unpacked binary. Set
+environment for replaying the version, help-surface, and first-contract smokes
+against the unpacked binary. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when the downloaded artifact
 must fail unless its provenance names one exact source revision. Set
-`MODAL_ONBOARDING_ARTIFACT_SMOKE=1` to also run the help surface check, and pass
-`MODALITY_BIN=/path/to/modality` with that flag to run the first-contract smoke
-against the downloaded binary.
+`MODAL_ONBOARDING_ARTIFACT_SMOKE=1` to also run the version and help surface
+checks, and pass `MODALITY_BIN=/path/to/modality` with that flag to run the
+first-contract smoke against the downloaded binary.
 
 To test another binary:
 

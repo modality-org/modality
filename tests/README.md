@@ -208,7 +208,9 @@ rejecting any extra verification commands. It also requires the optional smoke
 replay note to remain the exact final two-line trailer, so stale inserted text
 cannot split the smoke instructions while preserving the required lines. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when checking a downloaded
-workflow artifact against one exact source revision.
+workflow artifact against one exact source revision. Set
+`MODAL_ONBOARDING_ARTIFACT_SMOKE=1` to also check that the downloaded binary's
+reported version matches provenance before replaying the selected help surface.
 
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 

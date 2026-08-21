@@ -658,6 +658,15 @@ fi
 
 if [[ "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-0}" == "1" ]]; then
   ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+  unpacked_version="$("$unpack_dir/bin/modal" --version)"
+  if [[ "$unpacked_version" != "$provenance_version" ]]; then
+    cat >&2 <<EOF
+release artifact unpacked modal version does not match provenance
+expected: $provenance_version
+actual:   $unpacked_version
+EOF
+    exit 1
+  fi
   MODAL_BIN="$unpack_dir/bin/modal" MODAL_HELP_SURFACE="$provenance_help_surface" \
     "$ROOT_DIR/tests/cli/check-modal-help-surface.sh"
   if [[ -x "${MODALITY_BIN:-}" ]]; then

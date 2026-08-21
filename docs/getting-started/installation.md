@@ -171,9 +171,11 @@ revision must match the single source revision recorded by provenance, so a
 consistently renamed bundle with stale version metadata still fails before the
 binary is trusted.
 The help surface recorded in provenance must also be one of the supported
-surfaces (`lean` or `full`), and optional smoke replay checks that exact surface
-instead of assuming a default. A consistently edited README, provenance file,
-and recipe that invent a new surface still fails before the binary is trusted.
+surfaces (`lean` or `full`), and optional smoke replay checks that the unpacked
+binary reports the exact version named by provenance before checking that exact
+help surface instead of assuming a default. A consistently edited README,
+provenance file, and recipe that invent a new surface still fails before the
+binary is trusted.
 The README must keep the artifact marker and repeat the same version, profile,
 and help surface as provenance, so stale human-facing bundle notes fail before
 the binary is trusted. Those README metadata fields must also be single-valued,
