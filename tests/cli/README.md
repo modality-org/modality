@@ -136,7 +136,7 @@ match the single source revision recorded by provenance. The replayable
 evidence bundle marker must appear exactly once, and evidence manifest fields
 for the artifact, source revision, binary, provenance file, checksum manifest,
 and post-unpack checks must also be single-valued. The recipe title must appear
-exactly once. The
+exactly once as the first line. The
 recipe source-revision and help-surface
 sections must each name exactly one value matching provenance, and its detached
 checksum command, exact verifier command, smoke replay environment, and smoke

@@ -194,8 +194,9 @@ also be single-valued, so hand-merged manifests with both current and stale
 replay ingredients fail before the binary is trusted.
 The recipe's artifact section must name exactly the one downloaded archive, so
 stale or hand-edited extra artifact names fail before unpacking.
-The recipe title must also appear exactly once, so hand-merged recipe preambles
-fail before the binary is trusted.
+The recipe title must also appear exactly once as the first line, so stale
+notes inserted before it or hand-merged recipe preambles fail before the binary
+is trusted.
 The provenance file must name exactly one source revision, so ambiguous or
 hand-merged provenance fails before the binary is trusted.
 It also checks that the recipe names exactly the expected downloaded directory

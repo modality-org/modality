@@ -493,6 +493,17 @@ actual count: $recipe_title_count
 EOF
   exit 1
 fi
+recipe_first_line="$(sed -n '1p' "$recipe_path")"
+if [[ "$recipe_first_line" != "modal release archive download verification" ]]; then
+  cat >&2 <<EOF
+release artifact verification recipe title must be the first line
+expected:
+modal release archive download verification
+actual:
+$recipe_first_line
+EOF
+  exit 1
+fi
 if ! grep -Fq "Artifact:" "$recipe_path"; then
   echo "release artifact verification recipe is missing artifact label" >&2
   exit 1

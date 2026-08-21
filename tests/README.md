@@ -205,8 +205,8 @@ one of the supported provenance profiles (`debug` or `release`), one of the
 supported provenance feature sets (`contract-onboarding` or `full`), one of the
 supported provenance help surfaces (`lean` or `full`),
 and the recipe's archive, checksum, exact expected directory
-entries, single title, revision, help surface, and verifier command section,
-rejecting any extra verification commands. It also requires the optional smoke
+entries, first-line single title, revision, help surface, and verifier command
+section, rejecting any extra verification commands. It also requires the optional smoke
 replay note to remain the exact final two-line trailer, so stale inserted text
 cannot split the smoke instructions while preserving the required lines. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when checking a downloaded

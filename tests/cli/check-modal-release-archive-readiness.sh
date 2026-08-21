@@ -1441,6 +1441,28 @@ NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
 cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
 cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
 cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
+sed -i '1i stale downloaded artifact note' "$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a recipe with a stale preamble before the title" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact verification recipe title must be the first line" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the preamble recipe for the wrong reason
+expected: release artifact verification recipe title must be the first line
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
 cat >>"$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt" <<EOF
 modal release archive download verification
 EOF
