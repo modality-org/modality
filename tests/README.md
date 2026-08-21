@@ -199,6 +199,7 @@ as `0644`), exactly one README artifact marker, README metadata matching
 provenance, the single provenance marker, the single replayable evidence bundle
 marker, exactly one provenance source revision, exactly one value for the
 required provenance metadata fields,
+lowercase hex source revision token,
 archive-safe OS and architecture tokens,
 one of the supported provenance profiles (`debug` or `release`), one of the
 supported provenance feature sets (`contract-onboarding` or `full`), one of the

@@ -166,6 +166,9 @@ archive-safe lowercase platform tokens. The profile must be one of the supported
 (`debug` or `release`), and the feature set must be one of the supported wrapper feature sets
 (`contract-onboarding` or `full`), so stale, partial, or unsupported provenance fails
 before the binary is trusted.
+The source revision must also be a lowercase hex commit token, so `unknown` or
+hand-edited revision notes fail even when the checksums and replay recipe are
+rebuilt consistently around them.
 The provenance marker must also appear exactly once, so hand-merged provenance
 preambles fail before any field values are trusted.
 If the provenance version string carries an embedded revision marker, that

@@ -310,6 +310,10 @@ if [[ -z "$provenance_revision" ]]; then
   echo "release artifact provenance has an empty source revision" >&2
   exit 1
 fi
+if [[ ! "$provenance_revision" =~ ^[0-9a-f]{7,40}$ ]]; then
+  echo "release artifact provenance has unsupported source revision: $provenance_revision" >&2
+  exit 1
+fi
 read_provenance_field() {
   local label="$1"
   local count
