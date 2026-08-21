@@ -435,8 +435,16 @@ check_evidence_field "checksums" "SHA256SUMS"
 check_evidence_field \
   "post-unpack checks" \
   "version, help surface, first-contract smoke when MODALITY_BIN is supplied"
-if ! grep -Fq "modal release archive smoke artifact" "$unpack_dir/README.txt"; then
-  echo "release artifact README is missing its artifact marker" >&2
+readme_marker_count="$(
+  grep -Fxc "modal release archive smoke artifact" "$unpack_dir/README.txt" || true
+)"
+if [[ "$readme_marker_count" -ne 1 ]]; then
+  cat >&2 <<EOF
+release artifact README has unexpected marker lines
+expected:
+modal release archive smoke artifact
+actual count: $readme_marker_count
+EOF
   exit 1
 fi
 check_readme_field() {

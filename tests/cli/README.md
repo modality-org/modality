@@ -116,11 +116,11 @@ directory and rechecks the
 exact member list in the emitted order, internal checksum manifest entries in
 the emitted order, regular non-symlink unpacked
 files, executable `bin/modal`, expected unpacked payload modes (`bin/modal` as
-`0755`; text and checksum files as `0644`), provenance metadata, README
-artifact marker and metadata matching provenance, replayable evidence bundle
-marker, and the recipe's archive, checksum, exact expected directory entries in
-the emitted order, revision, help surface, and exact verification-command
-section.
+`0755`; text and checksum files as `0644`), provenance metadata, exactly one
+README artifact marker plus metadata matching provenance, replayable evidence
+bundle marker, and the recipe's archive, checksum, exact expected directory
+entries in the emitted order, revision, help surface, and exact
+verification-command section.
 The archive filename must also match the version, OS, architecture, and profile
 recorded in provenance, so a consistently renamed tarball, sidecar, and recipe
 fails before the binary is trusted. OS and architecture values must stay

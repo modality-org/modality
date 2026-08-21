@@ -178,11 +178,11 @@ binary reports the exact version named by provenance before checking that exact
 help surface instead of assuming a default. A consistently edited README,
 provenance file, and recipe that invent a new surface still fails before the
 binary is trusted.
-The README must keep the artifact marker and repeat the same version, profile,
-and help surface as provenance, so stale human-facing bundle notes fail before
-the binary is trusted. Those README metadata fields must also be single-valued,
-so hand-edited notes with both current and stale values fail before the binary
-is trusted.
+The README artifact marker must appear exactly once, and the README must repeat
+the same version, profile, and help surface as provenance, so stale human-facing
+bundle notes fail before the binary is trusted. Those README metadata fields
+must also be single-valued, so hand-edited notes with both current and stale
+values fail before the binary is trusted.
 The evidence bundle marker must appear exactly once. The evidence bundle must
 also keep naming the checked binary, provenance file, checksum manifest, and
 post-unpack smoke checks, so stale or hand-edited bundles cannot omit the replay
