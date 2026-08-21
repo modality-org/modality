@@ -161,7 +161,8 @@ The archive filename must match the version, OS, architecture, and profile
 recorded in provenance, so a consistently renamed tarball, sidecar, and recipe
 still fails before the binary is trusted.
 The provenance file must keep exactly one value for version, profile, features,
-help surface, OS, and architecture. The profile must be one of the supported build profiles
+help surface, OS, and architecture. OS and architecture values must stay
+archive-safe lowercase platform tokens. The profile must be one of the supported build profiles
 (`debug` or `release`), and the feature set must be one of the supported wrapper feature sets
 (`contract-onboarding` or `full`), so stale, partial, or unsupported provenance fails
 before the binary is trusted.

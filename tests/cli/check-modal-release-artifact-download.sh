@@ -324,6 +324,16 @@ provenance_features="$(read_provenance_field "features")"
 provenance_help_surface="$(read_provenance_field "help surface")"
 provenance_os="$(read_provenance_field "os")"
 provenance_arch="$(read_provenance_field "arch")"
+check_provenance_slug_field() {
+  local label="$1"
+  local value="$2"
+  if [[ ! "$value" =~ ^[a-z0-9._-]+$ ]]; then
+    echo "release artifact provenance has unsupported $label value: $value" >&2
+    exit 1
+  fi
+}
+check_provenance_slug_field "os" "$provenance_os"
+check_provenance_slug_field "arch" "$provenance_arch"
 case "$provenance_profile" in
   debug|release)
     ;;

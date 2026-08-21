@@ -100,6 +100,8 @@ required_patterns=(
   "provenance file must keep exactly one value for version"
   "profile, features,"
   "help surface, OS, and architecture"
+  "OS and architecture values must stay"
+  "archive-safe lowercase platform tokens"
   "profile must be one of the"
   "supported build profiles"
   "\`debug\` or \`release\`"

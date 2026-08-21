@@ -197,6 +197,7 @@ expected unpacked payload modes (`bin/modal` as `0755`; text and checksum files
 as `0644`), the README artifact marker and metadata matching provenance, the
 replayable evidence bundle marker, exactly one provenance
 source revision, exactly one value for the required provenance metadata fields,
+archive-safe OS and architecture tokens,
 one of the supported provenance profiles (`debug` or `release`), one of the
 supported provenance feature sets (`contract-onboarding` or `full`), one of the
 supported provenance help surfaces (`lean` or `full`),
