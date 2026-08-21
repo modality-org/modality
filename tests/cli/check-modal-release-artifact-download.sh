@@ -273,6 +273,18 @@ if ! grep -Fq "source revision:" "$unpack_dir/PROVENANCE.txt"; then
   echo "release artifact provenance is missing source revision" >&2
   exit 1
 fi
+provenance_marker_count="$(
+  grep -Fxc "modal release archive smoke provenance" "$unpack_dir/PROVENANCE.txt" || true
+)"
+if [[ "$provenance_marker_count" -ne 1 ]]; then
+  cat >&2 <<EOF
+release artifact provenance has unexpected marker lines
+expected:
+modal release archive smoke provenance
+actual count: $provenance_marker_count
+EOF
+  exit 1
+fi
 provenance_revision_count="$(
   grep -Ec '^source revision: .+' "$unpack_dir/PROVENANCE.txt" || true
 )"

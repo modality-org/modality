@@ -125,8 +125,8 @@ The archive filename must also match the version, OS, architecture, and profile
 recorded in provenance, so a consistently renamed tarball, sidecar, and recipe
 fails before the binary is trusted. OS and architecture values must stay
 archive-safe lowercase platform tokens. The
-provenance file must name exactly one source revision and exactly one value for
-the required metadata fields. The profile must be one of the supported build
+provenance file must keep exactly one marker line, name exactly one source
+revision, and exactly one value for the required metadata fields. The profile must be one of the supported build
 profiles (`debug` or `release`), and the feature set must be one of the
 supported wrapper feature sets (`contract-onboarding` or `full`). Its help
 surface must also be one of the supported surfaces (`lean` or `full`).

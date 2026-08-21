@@ -155,8 +155,8 @@ then rechecks the exact archive members in the emitted order, internal checksum
 manifest entries in the emitted order, executable `bin/modal`,
 regular non-symlink unpacked files with expected payload modes (`bin/modal` as
 `0755`; text and checksum files as `0644`), provenance metadata, source revision,
-replayable evidence bundle marker, and the recipe's archive, checksum, revision,
-and verifier command.
+single provenance marker, replayable evidence bundle marker, and the recipe's
+archive, checksum, revision, and verifier command.
 The archive filename must match the version, OS, architecture, and profile
 recorded in provenance, so a consistently renamed tarball, sidecar, and recipe
 still fails before the binary is trusted.
@@ -166,6 +166,8 @@ archive-safe lowercase platform tokens. The profile must be one of the supported
 (`debug` or `release`), and the feature set must be one of the supported wrapper feature sets
 (`contract-onboarding` or `full`), so stale, partial, or unsupported provenance fails
 before the binary is trusted.
+The provenance marker must also appear exactly once, so hand-merged provenance
+preambles fail before any field values are trusted.
 If the provenance version string carries an embedded revision marker, that
 revision must match the single source revision recorded by provenance, so a
 consistently renamed bundle with stale version metadata still fails before the
