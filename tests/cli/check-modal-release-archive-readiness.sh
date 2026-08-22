@@ -58,8 +58,25 @@ case "$version_output" in
     ;;
 esac
 
-os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-arch="$(uname -m)"
+os="${MODAL_ONBOARDING_ARCHIVE_OS:-$(uname -s | tr '[:upper:]' '[:lower:]')}"
+arch="${MODAL_ONBOARDING_ARCHIVE_ARCH:-$(uname -m)}"
+check_archive_slug_field() {
+  local label="$1"
+  local value="$2"
+  if [[ ! "$value" =~ ^[a-z0-9._-]+$ ]]; then
+    cat >&2 <<EOF
+release archive platform metadata is not archive-safe
+field:  $label
+actual: $value
+
+Set MODAL_ONBOARDING_ARCHIVE_OS and MODAL_ONBOARDING_ARCHIVE_ARCH only to
+lowercase archive-safe platform tokens.
+EOF
+    exit 1
+  fi
+}
+check_archive_slug_field "os" "$os"
+check_archive_slug_field "arch" "$arch"
 version_slug="$(printf '%s' "$version" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//')"
 if [[ -z "$version_slug" ]]; then
   echo "modal version did not produce a usable archive slug: $version_output" >&2
@@ -1620,6 +1637,23 @@ if ! grep -Fq "release archive source revision is not an archive-safe commit tok
   cat >&2 <<EOF
 release archive readiness rejected unsupported producer source revision for the wrong reason
 expected: release archive source revision is not an archive-safe commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+negative_output="$(
+  MODAL_ONBOARDING_ARCHIVE_ARCH="${arch}+stale" \
+  MODAL_ONBOARDING_ARCHIVE_EXPECT_REV="" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive readiness accepted unsafe producer platform metadata" >&2
+  exit 1
+}
+if ! grep -Fq "release archive platform metadata is not archive-safe" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive readiness rejected unsafe producer platform metadata for the wrong reason
+expected: release archive platform metadata is not archive-safe
 actual:
 $negative_output
 EOF

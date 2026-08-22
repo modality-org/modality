@@ -174,6 +174,10 @@ before the binary is trusted.
 The source revision must also be a lowercase hex commit token, so `unknown` or
 hand-edited revision notes fail even when the checksums and replay recipe are
 rebuilt consistently around them.
+The archive producer also fails before emitting release evidence when the OS or
+architecture provenance is not an archive-safe lowercase platform token, so
+unsafe platform metadata cannot be advertised and then left for the downloaded
+artifact verifier to catch later.
 The provenance marker must also appear exactly once, so hand-merged provenance
 preambles fail before any field values are trusted.
 If the provenance version string carries an embedded revision marker, that
