@@ -479,6 +479,7 @@ EOF
   fi
 }
 check_readme_field "version" "$provenance_version"
+check_readme_field "source revision" "$provenance_revision"
 check_readme_field "profile" "$provenance_profile"
 check_readme_field "help surface" "$provenance_help_surface"
 recipe_title_count="$(
