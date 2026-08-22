@@ -77,6 +77,11 @@ required_patterns=(
   "optional \`MODAL_ONBOARDING_ARTIFACT_SMOKE=1\` replay command"
   "checks the downloaded binary's version"
   "when \`MODALITY_BIN=/path/to/modality\` is available"
+  "summary also includes a local replay block"
+  "creates an \`artifact_dir\`"
+  "downloads the named artifact there"
+  "runs the pinned verifier against that"
+  "shows the optional smoke replay against the same directory"
   "workflow_dispatch"
   "modal-v*"
   "After downloading that artifact"
@@ -252,6 +257,13 @@ done
 required_workflow_patterns=(
   "binary version, recorded help surface, first-contract smoke"
   "Smoke replay:"
+  "### Local replay"
+  "artifact_dir=/tmp/modal-release-\${MODAL_SOURCE_REV}"
+  "mkdir -p \"\$artifact_dir\""
+  'gh run download ${GITHUB_RUN_ID} --name ${artifact_name}'
+  '--dir \"\$artifact_dir\"'
+  'tests/cli/check-modal-release-artifact-download.sh \"\$artifact_dir\"'
+  "Optional: replay the downloaded binary through version, help-surface, and first-contract smokes"
   "MODAL_ONBOARDING_ARTIFACT_SMOKE=1"
   "MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=\${MODAL_SOURCE_REV}"
   "MODALITY_BIN=/path/to/modality"
