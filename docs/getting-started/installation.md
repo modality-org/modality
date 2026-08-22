@@ -117,7 +117,10 @@ exactly those five entries in the emitted order,
 and checks that the manifest covers exactly `bin/modal`, `README.txt`, and
 `PROVENANCE.txt` plus `EVIDENCE-BUNDLE.txt`. The provenance file records the
 source revision, version, profile, features, platform, and expected help
-surface. The evidence manifest names the replayable evidence bundle, artifact,
+surface. The archive producer now fails before emitting release evidence when
+the source revision is not a lowercase hex commit token, so `unknown` or
+hand-written revision notes cannot become the advertised archive provenance.
+The evidence manifest names the replayable evidence bundle, artifact,
 source revision, binary, provenance file, checksum file, and post-unpack checks.
 It checks the unpacked help surface and runs the first-contract CLI smoke when a
 built `modality` binary is supplied. Set

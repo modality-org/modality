@@ -77,6 +77,16 @@ fi
 if [[ -z "$source_revision" ]]; then
   source_revision="unknown"
 fi
+if [[ ! "$source_revision" =~ ^[0-9a-f]{7,40}$ ]]; then
+  cat >&2 <<EOF
+release archive source revision is not an archive-safe commit token
+actual: $source_revision
+
+Build modal from a Git checkout, or set MODAL_ONBOARDING_ARCHIVE_REV to the
+lowercase source commit used for this archive.
+EOF
+  exit 1
+fi
 if [[ -n "${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" && "$source_revision" != "$MODAL_ONBOARDING_ARCHIVE_EXPECT_REV" ]]; then
   cat >&2 <<EOF
 release archive source revision mismatch
@@ -1593,6 +1603,23 @@ if ! grep -Fq "release artifact verification recipe is not the canonical emitted
   cat >&2 <<EOF
 release artifact verifier rejected the stale inter-section recipe for the wrong reason
 expected: release artifact verification recipe is not the canonical emitted recipe
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+negative_output="$(
+  MODAL_ONBOARDING_ARCHIVE_REV="unknown" \
+  MODAL_ONBOARDING_ARCHIVE_EXPECT_REV="" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive readiness accepted an unsupported producer source revision" >&2
+  exit 1
+}
+if ! grep -Fq "release archive source revision is not an archive-safe commit token" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive readiness rejected unsupported producer source revision for the wrong reason
+expected: release archive source revision is not an archive-safe commit token
 actual:
 $negative_output
 EOF
