@@ -137,8 +137,8 @@ expected source revision, expected help surface, and verifier command. The
 workflow summary prints the exact `gh run download` command for that run and the
 matching `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` replay verifier
 command, plus the optional `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` replay command
-that checks the downloaded binary's version, help surface, and first-contract
-path when `MODALITY_BIN=/path/to/modality` is available.
+that checks the downloaded binary's version, recorded help surface, and
+first-contract path when `MODALITY_BIN=/path/to/modality` is available.
 Run it manually with
 `workflow_dispatch`, or tag a commit as `modal-v*` when you want tag-scoped
 release evidence.

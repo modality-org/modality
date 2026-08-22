@@ -250,11 +250,13 @@ for pattern in "${required_patterns[@]}"; do
 done
 
 required_workflow_patterns=(
+  "binary version, recorded help surface, first-contract smoke"
   "Smoke replay:"
   "MODAL_ONBOARDING_ARTIFACT_SMOKE=1"
   "MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=\${MODAL_SOURCE_REV}"
   "MODALITY_BIN=/path/to/modality"
   "tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-dir"
+  "checks the unpacked binary version, recorded help surface, and first-contract path"
 )
 
 for pattern in "${required_workflow_patterns[@]}"; do
