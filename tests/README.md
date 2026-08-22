@@ -171,10 +171,10 @@ and `SHA256SUMS`, unpacks it, verifies the checksum manifest, asserts that the
 archive contains exactly those five entries in the emitted order, asserts that
 the manifest covers exactly `bin/modal`, `README.txt`, `PROVENANCE.txt`, and
 `EVIDENCE-BUNDLE.txt`, checks that provenance records the source revision,
-archive-safe platform tokens, profile, and help surface, checks that the
-evidence manifest names the replayable bundle, artifact, source revision, and
-post-unpack checks, then checks that the unpacked binary reports the same
-version, checks the selected help
+archive-safe platform tokens, profile, feature set, and help surface, checks
+that the evidence manifest names the replayable bundle, artifact, source
+revision, and post-unpack checks, then checks that the unpacked binary reports
+the same version, checks the selected help
 surface, and runs the first-contract CLI smoke when `MODALITY_BIN` points at a
 built language CLI. Set `MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` when you
 want to keep the generated tarball and detached `.sha256` checksum for release

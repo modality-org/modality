@@ -87,9 +87,9 @@ The archive-readiness check creates a temporary
 `bin/modal`, `README.txt`, `PROVENANCE.txt`, `EVIDENCE-BUNDLE.txt`, and
 `SHA256SUMS` in the emitted order, unpacks it, verifies the checksum manifest,
 checks the provenance source revision, archive-safe platform tokens, profile,
-and help surface, checks the evidence manifest declares the replayable bundle,
-artifact, source revision, and post-unpack checks, then checks the unpacked
-binary version and help surface, and runs the full
+feature set, and help surface, checks the evidence manifest declares the
+replayable bundle, artifact, source revision, and post-unpack checks, then
+checks the unpacked binary version and help surface, and runs the full
 first-contract smoke when `MODALITY_BIN=/path/to/modality` is supplied. Set
 `MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` to keep the generated tarball and
 detached `.sha256` checksum. The kept directory also includes

@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PROFILE="${MODAL_ONBOARDING_PROFILE:-debug}"
 HELP_SURFACE="${MODAL_HELP_SURFACE:-lean}"
+FEATURES="${MODAL_ONBOARDING_FEATURES:-contract-onboarding}"
 
 if [[ -z "${MODAL_BIN:-}" ]]; then
   if [[ -n "${CARGO_TARGET_DIR:-}" ]]; then
@@ -77,6 +78,33 @@ EOF
 }
 check_archive_slug_field "os" "$os"
 check_archive_slug_field "arch" "$arch"
+case "$HELP_SURFACE" in
+  lean|full)
+    ;;
+  *)
+    cat >&2 <<EOF
+release archive help surface is not supported
+actual: $HELP_SURFACE
+
+Set MODAL_HELP_SURFACE only to lean or full before emitting release evidence.
+EOF
+    exit 1
+    ;;
+esac
+case "$FEATURES" in
+  contract-onboarding|full)
+    ;;
+  *)
+    cat >&2 <<EOF
+release archive feature set is not supported
+actual: $FEATURES
+
+Set MODAL_ONBOARDING_FEATURES only to contract-onboarding or full before
+emitting release evidence.
+EOF
+    exit 1
+    ;;
+esac
 version_slug="$(printf '%s' "$version" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//')"
 if [[ -z "$version_slug" ]]; then
   echo "modal version did not produce a usable archive slug: $version_output" >&2
@@ -157,7 +185,7 @@ modal release archive smoke provenance
 source revision: $source_revision
 version: $version_output
 profile: $PROFILE
-features: ${MODAL_ONBOARDING_FEATURES:-contract-onboarding}
+features: $FEATURES
 help surface: $HELP_SURFACE
 os: $os
 arch: $arch
@@ -1062,7 +1090,7 @@ NEGATIVE_STAGE_DIR="$(mktemp -d)"
 mkdir -p "$NEGATIVE_STAGE_DIR/bin"
 cp "$STAGE_DIR/bin/modal" "$NEGATIVE_STAGE_DIR/bin/modal"
 cp "$STAGE_DIR/README.txt" "$NEGATIVE_STAGE_DIR/README.txt"
-sed "s/^features: ${MODAL_ONBOARDING_FEATURES:-contract-onboarding}\$/features: $unsupported_features/" \
+sed "s/^features: $FEATURES\$/features: $unsupported_features/" \
   "$STAGE_DIR/PROVENANCE.txt" >"$NEGATIVE_STAGE_DIR/PROVENANCE.txt"
 cp "$STAGE_DIR/EVIDENCE-BUNDLE.txt" "$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
 chmod 0755 "$NEGATIVE_STAGE_DIR/bin/modal"
@@ -1654,6 +1682,40 @@ if ! grep -Fq "release archive platform metadata is not archive-safe" <<<"$negat
   cat >&2 <<EOF
 release archive readiness rejected unsafe producer platform metadata for the wrong reason
 expected: release archive platform metadata is not archive-safe
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+negative_output="$(
+  MODAL_HELP_SURFACE="experimental" \
+  MODAL_ONBOARDING_ARCHIVE_EXPECT_REV="" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive readiness accepted an unsupported producer help surface" >&2
+  exit 1
+}
+if ! grep -Fq "release archive help surface is not supported" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive readiness rejected unsupported producer help surface for the wrong reason
+expected: release archive help surface is not supported
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+negative_output="$(
+  MODAL_ONBOARDING_FEATURES="experimental-features" \
+  MODAL_ONBOARDING_ARCHIVE_EXPECT_REV="" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive readiness accepted an unsupported producer feature set" >&2
+  exit 1
+}
+if ! grep -Fq "release archive feature set is not supported" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive readiness rejected unsupported producer feature set for the wrong reason
+expected: release archive feature set is not supported
 actual:
 $negative_output
 EOF

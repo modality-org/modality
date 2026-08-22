@@ -178,6 +178,10 @@ The archive producer also fails before emitting release evidence when the OS or
 architecture provenance is not an archive-safe lowercase platform token, so
 unsafe platform metadata cannot be advertised and then left for the downloaded
 artifact verifier to catch later.
+The archive producer also fails before emitting release evidence when the
+advertised help surface or wrapper feature set is not one of the supported
+values, so experimental labels cannot be published as replayable installer
+provenance.
 The provenance marker must also appear exactly once, so hand-merged provenance
 preambles fail before any field values are trusted.
 If the provenance version string carries an embedded revision marker, that
