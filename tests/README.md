@@ -208,7 +208,9 @@ and the recipe's archive, checksum, exact expected directory
 entries, first-line single title, revision, help surface, and verifier command
 section, rejecting any extra verification commands. It also requires the optional smoke
 replay note to remain the exact final two-line trailer, so stale inserted text
-cannot split the smoke instructions while preserving the required lines. Set
+cannot split the smoke instructions while preserving the required lines, then
+checks the full recipe against the canonical emitted text so extra prose between
+valid sections is rejected. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when checking a downloaded
 workflow artifact against one exact source revision. Set
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` to also check that the downloaded binary's

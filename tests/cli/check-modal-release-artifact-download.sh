@@ -698,6 +698,42 @@ $recipe_smoke_replay_trailer
 EOF
   exit 1
 fi
+expected_recipe_content="$(cat <<EOF
+modal release archive download verification
+
+Artifact:
+  $archive_name
+
+Expected downloaded directory entries:
+  $archive_name
+  $expected_sidecar_name
+  VERIFY-DOWNLOAD.txt
+
+Expected source revision:
+  $provenance_revision
+
+Expected help surface:
+  $provenance_help_surface
+
+Verify before unpacking or trusting the binary:
+  sha256sum -c $expected_sidecar_name
+  $expected_verify_command
+
+Add MODAL_ONBOARDING_ARTIFACT_SMOKE=1 and MODALITY_BIN=/path/to/modality to
+run the help-surface and first-contract smokes against the unpacked modal binary.
+EOF
+)"
+actual_recipe_content="$(cat "$recipe_path")"
+if [[ "$actual_recipe_content" != "$expected_recipe_content" ]]; then
+  cat >&2 <<EOF
+release artifact verification recipe is not the canonical emitted recipe
+expected:
+$expected_recipe_content
+actual:
+$actual_recipe_content
+EOF
+  exit 1
+fi
 
 if [[ "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-0}" == "1" ]]; then
   ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
