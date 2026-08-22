@@ -100,5 +100,6 @@ jobs:
           echo "- Evidence: detached tarball checksum, download verification recipe, exact archive members, checksums, provenance, help surface, first-contract smoke" >> "$GITHUB_STEP_SUMMARY"
           echo "- Download: \`gh run download ${GITHUB_RUN_ID} --name ${artifact_name} --dir /path/to/downloaded-artifact-dir\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Verify: \`MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=${MODAL_SOURCE_REV} tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-dir\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Smoke replay: \`MODAL_ONBOARDING_ARTIFACT_SMOKE=1 MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=${MODAL_SOURCE_REV} MODALITY_BIN=/path/to/modality tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-dir\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           find release-archive -maxdepth 1 -type f -printf '- `%f`\n' >> "$GITHUB_STEP_SUMMARY"

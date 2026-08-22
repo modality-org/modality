@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/getting-started/installation.md"
+WORKFLOW="$ROOT_DIR/.github/workflows/onboarding-release-archive.yml"
 
 required_patterns=(
   "# Installation"
@@ -69,6 +70,9 @@ required_patterns=(
   "summary prints the exact"
   "gh run download"
   "matching \`MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>\` replay verifier"
+  "optional \`MODAL_ONBOARDING_ARTIFACT_SMOKE=1\` replay command"
+  "checks the downloaded binary's version"
+  "when \`MODALITY_BIN=/path/to/modality\` is available"
   "workflow_dispatch"
   "modal-v*"
   "After downloading that artifact"
@@ -230,6 +234,21 @@ required_patterns=(
 for pattern in "${required_patterns[@]}"; do
   if ! grep -Fq -- "$pattern" "$DOC"; then
     echo "installation guide is missing onboarding CLI split text: $pattern" >&2
+    exit 1
+  fi
+done
+
+required_workflow_patterns=(
+  "Smoke replay:"
+  "MODAL_ONBOARDING_ARTIFACT_SMOKE=1"
+  "MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=\${MODAL_SOURCE_REV}"
+  "MODALITY_BIN=/path/to/modality"
+  "tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-dir"
+)
+
+for pattern in "${required_workflow_patterns[@]}"; do
+  if ! grep -Fq -- "$pattern" "$WORKFLOW"; then
+    echo "onboarding release workflow summary is missing replay text: $pattern" >&2
     exit 1
   fi
 done
