@@ -432,6 +432,7 @@ EOF
   exit 1
 fi
 check_evidence_field "artifact" "$archive_name"
+check_evidence_field "version" "$provenance_version"
 check_evidence_field "source revision" "$provenance_revision"
 check_evidence_field "profile" "$provenance_profile"
 check_evidence_field "features" "$provenance_features"
