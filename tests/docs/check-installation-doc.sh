@@ -165,6 +165,7 @@ required_patterns=(
   "provenance"
   "stale human-facing"
   "bundle notes fail"
+  "including stale version notes"
   "Those README"
   "metadata fields"
   "must also be single-valued"

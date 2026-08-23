@@ -205,7 +205,8 @@ binary is trusted.
 The README artifact marker must appear exactly once, and the README must repeat
 the same version, source revision, profile, feature set, and help surface as
 provenance, so stale human-facing bundle notes fail before the binary is
-trusted. Those README metadata fields must also be single-valued, so
+trusted, including stale version notes.
+Those README metadata fields must also be single-valued, so
 hand-edited notes with both current and stale values fail before the binary is
 trusted.
 The evidence bundle marker must appear exactly once. The evidence bundle must
