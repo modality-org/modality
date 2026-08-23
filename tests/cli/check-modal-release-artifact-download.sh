@@ -433,6 +433,8 @@ EOF
 fi
 check_evidence_field "artifact" "$archive_name"
 check_evidence_field "source revision" "$provenance_revision"
+check_evidence_field "profile" "$provenance_profile"
+check_evidence_field "features" "$provenance_features"
 check_evidence_field "help surface" "$provenance_help_surface"
 check_evidence_field "binary" "bin/modal"
 check_evidence_field "provenance" "PROVENANCE.txt"

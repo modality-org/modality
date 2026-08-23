@@ -88,7 +88,8 @@ The archive-readiness check creates a temporary
 `SHA256SUMS` in the emitted order, unpacks it, verifies the checksum manifest,
 checks the provenance source revision, archive-safe platform tokens, profile,
 feature set, and help surface, checks the evidence manifest declares the
-replayable bundle, artifact, source revision, and post-unpack checks, then
+replayable bundle, artifact, source revision, profile, feature set, help
+surface, and post-unpack checks, then
 checks the unpacked binary version and help surface, and runs the full
 first-contract smoke when `MODALITY_BIN=/path/to/modality` is supplied. Set
 `MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` to keep the generated tarball and
@@ -135,8 +136,9 @@ surface must also be one of the supported surfaces (`lean` or `full`).
 If the version string carries an embedded revision marker, that revision must
 match the single source revision recorded by provenance. The replayable
 evidence bundle marker must appear exactly once, and evidence manifest fields
-for the artifact, source revision, binary, provenance file, checksum manifest,
-and post-unpack checks must also be single-valued. The recipe title must appear
+for the artifact, source revision, profile, feature set, help surface, binary,
+provenance file, checksum manifest, and post-unpack checks must also be
+single-valued. The recipe title must appear
 exactly once as the first line. The
 recipe source-revision and help-surface
 sections must each name exactly one value matching provenance, and its detached
