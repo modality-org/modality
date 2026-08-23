@@ -182,6 +182,10 @@ The archive producer also fails before emitting release evidence when the OS or
 architecture provenance is not an archive-safe lowercase platform token, so
 unsafe platform metadata cannot be advertised and then left for the downloaded
 artifact verifier to catch later.
+The archive producer also fails before emitting release evidence when the build
+profile is not one of the supported values (`debug` or `release`), so ad-hoc
+profile labels cannot become installer provenance even when `MODAL_BIN` points
+at an explicit binary.
 The archive producer also fails before emitting release evidence when the
 advertised help surface or wrapper feature set is not one of the supported
 values, so experimental labels cannot be published as replayable installer

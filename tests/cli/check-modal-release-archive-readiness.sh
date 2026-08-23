@@ -6,6 +6,16 @@ PROFILE="${MODAL_ONBOARDING_PROFILE:-debug}"
 HELP_SURFACE="${MODAL_HELP_SURFACE:-lean}"
 FEATURES="${MODAL_ONBOARDING_FEATURES:-contract-onboarding}"
 
+case "$PROFILE" in
+  debug|release)
+    ;;
+  *)
+    echo "unsupported MODAL_ONBOARDING_PROFILE: $PROFILE" >&2
+    echo "expected: debug or release" >&2
+    exit 2
+    ;;
+esac
+
 if [[ -z "${MODAL_BIN:-}" ]]; then
   if [[ -n "${CARGO_TARGET_DIR:-}" ]]; then
     case "$CARGO_TARGET_DIR" in
@@ -26,11 +36,6 @@ if [[ -z "${MODAL_BIN:-}" ]]; then
       ;;
     release)
       MODAL_BIN="$CARGO_OUTPUT_DIR/release/modal"
-      ;;
-    *)
-      echo "unsupported MODAL_ONBOARDING_PROFILE: $PROFILE" >&2
-      echo "expected: debug or release" >&2
-      exit 2
       ;;
   esac
 fi
@@ -1784,6 +1789,23 @@ if ! grep -Fq "release artifact verification recipe is not the canonical emitted
   cat >&2 <<EOF
 release artifact verifier rejected the stale inter-section recipe for the wrong reason
 expected: release artifact verification recipe is not the canonical emitted recipe
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+negative_output="$(
+  MODAL_ONBOARDING_PROFILE="smoke" \
+  MODAL_ONBOARDING_ARCHIVE_EXPECT_REV="" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive readiness accepted an unsupported producer build profile" >&2
+  exit 1
+}
+if ! grep -Fq "unsupported MODAL_ONBOARDING_PROFILE: smoke" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive readiness rejected unsupported producer build profile for the wrong reason
+expected: unsupported MODAL_ONBOARDING_PROFILE: smoke
 actual:
 $negative_output
 EOF
