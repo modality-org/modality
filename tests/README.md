@@ -172,7 +172,7 @@ archive contains exactly those five entries in the emitted order, asserts that
 the manifest covers exactly `bin/modal`, `README.txt`, `PROVENANCE.txt`, and
 `EVIDENCE-BUNDLE.txt`, checks that provenance records the source revision,
 archive-safe platform tokens, profile, feature set, and help surface, checks
-that the evidence manifest names the replayable bundle, artifact, version,
+that the evidence manifest names the replayable bundle, exact artifact, version,
 source revision, profile, feature set, help surface, and post-unpack checks, then
 checks that the unpacked binary reports the same version, checks the selected
 help surface, and runs the first-contract CLI smoke when `MODALITY_BIN` points
