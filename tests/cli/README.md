@@ -119,7 +119,8 @@ exact member list in the emitted order, internal checksum manifest entries in
 the emitted order, regular non-symlink unpacked
 files, executable `bin/modal`, expected unpacked payload modes (`bin/modal` as
 `0755`; text and checksum files as `0644`), provenance metadata, exactly one
-README artifact marker plus metadata matching provenance, replayable evidence
+README artifact marker plus version, revision, profile, feature-set, and
+help-surface metadata matching provenance, replayable evidence
 bundle marker, and the recipe's archive, checksum, exact expected directory
 entries in the emitted order, revision, help surface, and exact
 verification-command section.

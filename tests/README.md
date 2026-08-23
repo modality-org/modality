@@ -196,8 +196,9 @@ internal checksum manifest entries in the
 emitted order, regular non-symlink unpacked files, executable `bin/modal`,
 provenance metadata, source revision, the
 expected unpacked payload modes (`bin/modal` as `0755`; text and checksum files
-as `0644`), exactly one README artifact marker, README metadata matching
-provenance, the single provenance marker, the single replayable evidence bundle
+as `0644`), exactly one README artifact marker, README version, revision,
+profile, feature-set, and help-surface metadata matching provenance, the single
+provenance marker, the single replayable evidence bundle
 marker, exactly one provenance source revision, exactly one value for the
 required provenance metadata fields,
 lowercase hex source revision token,
