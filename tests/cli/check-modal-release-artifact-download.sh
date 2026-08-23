@@ -576,6 +576,48 @@ $recipe_expected_revisions
 EOF
   exit 1
 fi
+if ! grep -Fq "Expected profile:" "$recipe_path"; then
+  echo "release artifact verification recipe is missing expected profile label" >&2
+  exit 1
+fi
+recipe_expected_profiles="$(
+  awk '
+    /^Expected profile:$/ { in_section = 1; next }
+    in_section && /^$/ { in_section = 0; next }
+    in_section && /^  / { sub(/^  /, ""); print }
+  ' "$recipe_path"
+)"
+if [[ "$recipe_expected_profiles" != "$provenance_profile" ]]; then
+  cat >&2 <<EOF
+release artifact verification recipe has unexpected profiles
+expected:
+$provenance_profile
+actual:
+$recipe_expected_profiles
+EOF
+  exit 1
+fi
+if ! grep -Fq "Expected feature set:" "$recipe_path"; then
+  echo "release artifact verification recipe is missing expected feature set label" >&2
+  exit 1
+fi
+recipe_expected_feature_sets="$(
+  awk '
+    /^Expected feature set:$/ { in_section = 1; next }
+    in_section && /^$/ { in_section = 0; next }
+    in_section && /^  / { sub(/^  /, ""); print }
+  ' "$recipe_path"
+)"
+if [[ "$recipe_expected_feature_sets" != "$provenance_features" ]]; then
+  cat >&2 <<EOF
+release artifact verification recipe has unexpected feature sets
+expected:
+$provenance_features
+actual:
+$recipe_expected_feature_sets
+EOF
+  exit 1
+fi
 if ! grep -Fq "Expected help surface:" "$recipe_path"; then
   echo "release artifact verification recipe is missing expected help surface label" >&2
   exit 1
@@ -601,6 +643,8 @@ recipe_sections="$(
   grep -Fnx -e "Artifact:" \
     -e "Expected downloaded directory entries:" \
     -e "Expected source revision:" \
+    -e "Expected profile:" \
+    -e "Expected feature set:" \
     -e "Expected help surface:" \
     -e "Verify before unpacking or trusting the binary:" \
     "$recipe_path" | cut -d: -f2-
@@ -611,16 +655,20 @@ expected_recipe_sections="$(
     "Artifact:" \
     "Expected downloaded directory entries:" \
     "Expected source revision:" \
+    "Expected profile:" \
+    "Expected feature set:" \
     "Expected help surface:" \
     "Verify before unpacking or trusting the binary:"
 )"
-if [[ "$recipe_section_count" -ne 5 || "$recipe_sections" != "$expected_recipe_sections" ]]; then
+if [[ "$recipe_section_count" -ne 7 || "$recipe_sections" != "$expected_recipe_sections" ]]; then
   cat >&2 <<EOF
 release artifact verification recipe has unexpected section order
 expected order:
 Artifact:
 Expected downloaded directory entries:
 Expected source revision:
+Expected profile:
+Expected feature set:
 Expected help surface:
 Verify before unpacking or trusting the binary:
 actual order:
@@ -716,6 +764,12 @@ Expected downloaded directory entries:
 
 Expected source revision:
   $provenance_revision
+
+Expected profile:
+  $provenance_profile
+
+Expected feature set:
+  $provenance_features
 
 Expected help surface:
   $provenance_help_surface

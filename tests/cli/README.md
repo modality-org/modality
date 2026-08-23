@@ -95,9 +95,9 @@ first-contract smoke when `MODALITY_BIN=/path/to/modality` is supplied. Set
 `MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` to keep the generated tarball and
 detached `.sha256` checksum. The kept directory also includes
 `VERIFY-DOWNLOAD.txt`, which names the exact downloaded directory entries,
-archive, expected source revision, expected help surface, detached checksum
-check, and exact download-verifier command for artifact consumers in the
-canonical emitted order. Set
+archive, expected source revision, expected profile, expected feature set,
+expected help surface, detached checksum check, and exact download-verifier
+command for artifact consumers in the canonical emitted order. Set
 `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release
 evidence must fail if the built `modal` binary is stale or came from a
 different source revision.
@@ -122,8 +122,8 @@ files, executable `bin/modal`, expected unpacked payload modes (`bin/modal` as
 README artifact marker plus version, revision, profile, feature-set, and
 help-surface metadata matching provenance, replayable evidence
 bundle marker, and the recipe's archive, checksum, exact expected directory
-entries in the emitted order, revision, help surface, and exact
-verification-command section.
+entries in the emitted order, revision, profile, feature set, help surface, and
+exact verification-command section.
 The archive filename must also match the version, OS, architecture, and profile
 recorded in provenance, so a consistently renamed tarball, sidecar, and recipe
 fails before the binary is trusted. OS and architecture values must stay

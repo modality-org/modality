@@ -134,8 +134,8 @@ readiness check with the expected source revision, then uploads the verified
 replayable archive bundle, detached tarball checksum, and
 `VERIFY-DOWNLOAD.txt` verification recipe as a workflow artifact. The
 recipe names, in order, the artifact, exact downloaded directory entries,
-expected source revision, expected help surface, and verifier command. The
-workflow summary prints the exact `gh run download` command for that run and the
+expected source revision, expected profile, expected feature set, expected help surface, and verifier command.
+The workflow summary prints the exact `gh run download` command for that run and the
 matching `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` replay verifier
 command, plus the optional `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` replay command
 that checks the downloaded binary's version, recorded help surface, and
@@ -227,6 +227,8 @@ entries in the emitted order: the archive, its `.sha256` sidecar, and
 `VERIFY-DOWNLOAD.txt`.
 The recipe's expected source revision section must name exactly the same single
 revision as the unpacked provenance.
+The recipe's expected profile and feature-set sections must also name exactly
+the same single values as the unpacked provenance.
 The recipe's expected help surface section must name exactly the same single
 help surface as the unpacked provenance, so a stale lean-versus-full replay
 recipe fails before the binary is trusted.

@@ -240,6 +240,12 @@ Expected downloaded directory entries:
 Expected source revision:
   $source_revision
 
+Expected profile:
+  $PROFILE
+
+Expected feature set:
+  $FEATURES
+
 Expected help surface:
   $HELP_SURFACE
 
@@ -1615,6 +1621,94 @@ NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
 cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
 cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
 cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
+sed -i '/^Expected profile:$/,+2d' "$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a recipe without expected profile" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact verification recipe is missing expected profile label" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the missing-profile recipe for the wrong reason
+expected: release artifact verification recipe is missing expected profile label
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
+sed -i '/^Expected profile:$/a\  stale-profile' "$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a recipe with ambiguous profiles" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact verification recipe has unexpected profiles" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the ambiguous-profile recipe for the wrong reason
+expected: release artifact verification recipe has unexpected profiles
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
+sed -i '/^Expected feature set:$/,+2d' "$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a recipe without expected feature set" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact verification recipe is missing expected feature set label" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the missing-feature-set recipe for the wrong reason
+expected: release artifact verification recipe is missing expected feature set label
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
+sed -i '/^Expected feature set:$/a\  stale-features' "$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a recipe with ambiguous feature sets" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact verification recipe has unexpected feature sets" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the ambiguous-feature-set recipe for the wrong reason
+expected: release artifact verification recipe has unexpected feature sets
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
 sed -i '/^Expected help surface:$/,+2d' "$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
 negative_output="$(
   MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
@@ -1659,7 +1753,7 @@ NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
 cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
 cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
 cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
-perl -0pi -e 's/(Expected source revision:\n  [^\n]+\n\n)(Expected help surface:\n  [^\n]+\n\n)/$2$1/' \
+perl -0pi -e 's/(Expected source revision:\n  [^\n]+\n\n)(Expected profile:\n  [^\n]+\n\nExpected feature set:\n  [^\n]+\n\n)(Expected help surface:\n  [^\n]+\n\n)/$3$2$1/' \
   "$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
 negative_output="$(
   MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \

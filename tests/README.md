@@ -180,8 +180,9 @@ at a built language CLI. Set `MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` when
 you want to keep the generated tarball and detached `.sha256` checksum for release
 inspection. The kept directory also includes `VERIFY-DOWNLOAD.txt`, which names
 the exact downloaded directory entries, archive, expected source revision,
-expected help surface, detached checksum check, and exact download-verifier
-command section for the artifact consumer. Set
+expected profile, expected feature set, expected help surface, detached
+checksum check, and exact download-verifier command section for the artifact
+consumer. Set
 `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release evidence must fail
 if the built `modal` binary is stale or came from a different source revision.
 The archive check also runs the downloaded-artifact verifier against the
@@ -207,8 +208,9 @@ one of the supported provenance profiles (`debug` or `release`), one of the
 supported provenance feature sets (`contract-onboarding` or `full`), one of the
 supported provenance help surfaces (`lean` or `full`),
 and the recipe's archive, checksum, exact expected directory
-entries, first-line single title, revision, help surface, and verifier command
-section, rejecting any extra verification commands. It also requires the optional smoke
+entries, first-line single title, revision, profile, feature set, help surface,
+and verifier command section, rejecting any extra verification commands. It
+also requires the optional smoke
 replay note to remain the exact final two-line trailer, so stale inserted text
 cannot split the smoke instructions while preserving the required lines, then
 checks the full recipe against the canonical emitted text so extra prose between
