@@ -209,6 +209,7 @@ required_patterns=(
   "sidecar, and recipe"
   "fails before the binary is trusted"
   "recipe's artifact section must name exactly the one downloaded archive"
+  "missing artifact metadata"
   "stale or hand-edited extra artifact names fail before unpacking"
   "recipe title must also appear exactly once"
   "as the first line"
