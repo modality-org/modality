@@ -224,6 +224,8 @@ required_patterns=(
   "VERIFY-DOWNLOAD.txt"
   "recipe's expected source revision section must name exactly the same single"
   "revision as the unpacked provenance"
+  "missing revision metadata or stale"
+  "duplicate revisions fail before the binary is trusted"
   "recipe's expected profile and feature-set sections must also name exactly"
   "the same single values as the unpacked provenance"
   "recipe's expected help surface section must name exactly the same single"

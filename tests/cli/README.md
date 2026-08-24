@@ -147,8 +147,9 @@ binary, provenance file, checksum manifest, and post-unpack checks must also be
 single-valued. The recipe artifact section must be present and single-valued.
 The recipe title must appear
 exactly once as the first line. The
-recipe source-revision and help-surface
-sections must each name exactly one value matching provenance, and its detached
+recipe source-revision section must be present and single-valued, and the
+source-revision and help-surface
+sections must each name exactly one value matching provenance. Its detached
 checksum command, exact verifier command, smoke replay environment, and smoke
 replay description must each appear exactly once, and the verification-command
 section must contain no extra commands. The recipe sections must also stay in

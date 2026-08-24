@@ -232,7 +232,8 @@ It also checks that the recipe names exactly the expected downloaded directory
 entries in the emitted order: the archive, its `.sha256` sidecar, and
 `VERIFY-DOWNLOAD.txt`.
 The recipe's expected source revision section must name exactly the same single
-revision as the unpacked provenance.
+revision as the unpacked provenance, so missing revision metadata or stale
+duplicate revisions fail before the binary is trusted.
 The recipe's expected profile and feature-set sections must also name exactly
 the same single values as the unpacked provenance.
 The recipe's expected help surface section must name exactly the same single
