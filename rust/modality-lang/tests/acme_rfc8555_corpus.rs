@@ -70,6 +70,7 @@ fn acme_rfc8555_governance_passes_formula_lint() {
     );
 }
 
+
 #[test]
 fn acme_rfc8555_model_satisfies_governance_rules() {
     let model = load_model();
