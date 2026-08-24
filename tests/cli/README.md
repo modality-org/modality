@@ -124,6 +124,9 @@ help-surface metadata matching provenance, replayable evidence
 bundle marker, and the recipe's archive, checksum, exact expected directory
 entries in the emitted order, revision, profile, feature set, help surface, and
 exact verification-command section.
+The producer smoke covers those top-level payload checks with negative cases for
+symlinked archive, checksum sidecar, and recipe entries plus non-canonical
+archive and sidecar modes.
 The archive filename must also match the version, OS, architecture, and profile
 recorded in provenance, so a consistently renamed tarball, sidecar, and recipe
 fails before the binary is trusted. OS and architecture values must stay

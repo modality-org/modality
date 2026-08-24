@@ -326,6 +326,92 @@ EOF
 fi
 rm -rf "$NEGATIVE_ARTIFACT_DIR"
 NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+ln -s "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/$archive_name"
+cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a symlinked archive payload" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact top-level entry must be a regular non-symlink file: $archive_name" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the symlinked archive for the wrong reason
+expected: release artifact top-level entry must be a regular non-symlink file: $archive_name
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
+ln -s "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/$archive_name.sha256"
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a symlinked checksum sidecar" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact top-level entry must be a regular non-symlink file: $archive_name.sha256" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the symlinked checksum sidecar for the wrong reason
+expected: release artifact top-level entry must be a regular non-symlink file: $archive_name.sha256
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
+chmod 0600 "$NEGATIVE_ARTIFACT_DIR/$archive_name"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a top-level archive with the wrong mode" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact top-level entry has unexpected mode: $archive_name" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the bad-mode archive for the wrong reason
+expected: release artifact top-level entry has unexpected mode: $archive_name
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
+chmod 0600 "$NEGATIVE_ARTIFACT_DIR/$archive_name.sha256"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a top-level checksum sidecar with the wrong mode" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact top-level entry has unexpected mode: $archive_name.sha256" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the bad-mode checksum sidecar for the wrong reason
+expected: release artifact top-level entry has unexpected mode: $archive_name.sha256
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
 NEGATIVE_STAGE_DIR="$(mktemp -d)"
 mkdir -p "$NEGATIVE_STAGE_DIR/bin"
 ln -s /bin/sh "$NEGATIVE_STAGE_DIR/bin/modal"

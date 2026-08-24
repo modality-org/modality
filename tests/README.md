@@ -199,7 +199,8 @@ provenance metadata, source revision, the
 expected unpacked payload modes (`bin/modal` as `0755`; text and checksum files
 as `0644`), exactly one README artifact marker, README version, revision,
 profile, feature-set, and help-surface metadata matching provenance, the single
-provenance marker, a stale README version negative case, the single replayable
+provenance marker, top-level symlink and mode negative cases for the archive,
+checksum sidecar, and recipe, a stale README version negative case, the single replayable
 evidence bundle marker, exactly one provenance source revision, exactly one
 value for the required provenance metadata fields,
 lowercase hex source revision token,
