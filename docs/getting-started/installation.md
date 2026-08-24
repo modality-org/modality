@@ -167,7 +167,7 @@ regular non-symlink unpacked files with expected payload modes (`bin/modal` as
 single provenance marker, replayable evidence bundle marker, and the recipe's
 archive, checksum, revision, and verifier command.
 The producer smoke also mutates the downloaded archive, checksum sidecar, and
-recipe into symlinks or non-canonical modes so those top-level payload checks
+recipe into directories, symlinks, or non-canonical modes so top-level payload checks
 stay covered by executable negative evidence.
 The archive filename must match the version, OS, architecture, and profile
 recorded in provenance, so a consistently renamed tarball, sidecar, and recipe

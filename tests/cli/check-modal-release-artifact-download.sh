@@ -35,7 +35,7 @@ if [[ "${#sidecars[@]}" -ne 1 ]]; then
   exit 1
 fi
 recipe_path="$ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
-if [[ ! -f "$recipe_path" ]]; then
+if [[ ! -e "$recipe_path" ]]; then
   printf 'expected VERIFY-DOWNLOAD.txt recipe in %s\n' "$ARTIFACT_DIR" >&2
   exit 1
 fi

@@ -199,7 +199,7 @@ required_patterns=(
   "recipe's"
   "archive, checksum, revision, and verifier command"
   "producer smoke also mutates the downloaded archive, checksum sidecar, and"
-  "recipe into symlinks or non-canonical modes"
+  "recipe into directories, symlinks, or non-canonical modes"
   "top-level payload checks"
   "executable negative evidence"
   "archive filename must match the version"
