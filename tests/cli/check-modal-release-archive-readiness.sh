@@ -2169,6 +2169,29 @@ rm -rf "$NEGATIVE_ARTIFACT_DIR"
 NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
 cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
 cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
+perl -0pi -e 's/\nVerify before unpacking or trusting the binary:\n  sha256sum -c [^\n]+\n  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=[^\n]+check-modal-release-artifact-download\.sh \/path\/to\/downloaded-artifact-dir\n//' \
+  "$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a recipe without a verification section" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact verification recipe has unexpected section order" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the missing-verification-section recipe for the wrong reason
+expected: release artifact verification recipe has unexpected section order
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
+cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
 grep -Fv "MODAL_ONBOARDING_ARTIFACT_SMOKE=1" "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" \
   >"$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
 negative_output="$(

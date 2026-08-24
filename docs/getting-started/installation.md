@@ -249,14 +249,14 @@ exact two-command verification section, plus the optional `MODAL_ONBOARDING_ARTI
 and `MODALITY_BIN=/path/to/modality` replay environment, so the artifact
 directory remains self-describing after download. The detached checksum command,
 exact verifier command, smoke replay environment, and smoke replay description
-must each appear exactly once, and no extra command may be added to the
-verification section, so hand-merged recipes with stale duplicate replay
-commands or extra replay commands fail before the binary is trusted. The smoke
-replay note must remain the exact final two-line trailer, so a stale inserted
-line cannot split the optional smoke instructions while preserving both required
-strings. After those targeted checks pass, the full recipe must still match the
-canonical emitted text exactly, so hand-inserted prose between otherwise valid
-sections fails before the binary is trusted.
+must each appear exactly once, and the verification section must stay present
+with no extra command added, so hand-merged recipes with missing, stale
+duplicate, or extra replay commands fail before the binary is trusted. The
+smoke replay note must remain the exact final two-line trailer, so a stale
+inserted line cannot split the optional smoke instructions while preserving both
+required strings. After those targeted checks pass, the full recipe must still
+match the canonical emitted text exactly, so hand-inserted prose between
+otherwise valid sections fails before the binary is trusted.
 External crates.io-style packaging is tracked separately:
 `tests/cli/check-modal-package-readiness.sh` reports the current blocker until
 the workspace CLI crates that `modal` depends on are available from the
