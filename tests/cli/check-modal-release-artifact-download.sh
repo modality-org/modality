@@ -72,6 +72,15 @@ expected_top_level_entries="$(
 expected_top_level_entries_ordered="$(
   printf '%s\n' "$archive_name" "$expected_sidecar_name" "VERIFY-DOWNLOAD.txt"
 )"
+if [[ "$(basename "$sidecar_path")" != "$expected_sidecar_name" ]]; then
+  cat >&2 <<EOF
+release artifact checksum sidecar does not match archive name
+archive:  $archive_name
+sidecar:  $(basename "$sidecar_path")
+expected: $expected_sidecar_name
+EOF
+  exit 1
+fi
 if [[ "$top_level_entries" != "$expected_top_level_entries" ]]; then
   cat >&2 <<EOF
 release artifact download directory has unexpected top-level entries
@@ -79,15 +88,6 @@ expected:
 $expected_top_level_entries
 actual:
 $top_level_entries
-EOF
-  exit 1
-fi
-if [[ "$(basename "$sidecar_path")" != "$expected_sidecar_name" ]]; then
-  cat >&2 <<EOF
-release artifact checksum sidecar does not match archive name
-archive:  $archive_name
-sidecar:  $(basename "$sidecar_path")
-expected: $expected_sidecar_name
 EOF
   exit 1
 fi

@@ -127,7 +127,8 @@ exact verification-command section.
 The producer smoke covers those top-level payload checks with negative cases for
 directory archive, checksum sidecar, and recipe entries; symlinked archive,
 checksum sidecar, and recipe entries; plus non-canonical archive, checksum
-sidecar, and recipe modes.
+sidecar, and recipe modes. It also covers a stale checksum sidecar name whose
+archive name no longer matches the downloaded tarball.
 The archive filename must also match the version, OS, architecture, and profile
 recorded in provenance, so a consistently renamed tarball, sidecar, and recipe
 fails before the binary is trusted. OS and architecture values must stay
