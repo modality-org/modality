@@ -79,6 +79,7 @@ required_patterns=(
   "summary prints the exact"
   "gh run download"
   "matching \`MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>\` replay verifier"
+  "summary records the GitHub artifact digest emitted by \`upload-artifact\`"
   "optional \`MODAL_ONBOARDING_ARTIFACT_SMOKE=1\` replay command"
   "checks the downloaded binary's version"
   "when \`MODALITY_BIN=/path/to/modality\` is available"
@@ -285,6 +286,9 @@ for pattern in "${required_patterns[@]}"; do
 done
 
 required_workflow_patterns=(
+  "id: upload-archive"
+  "GitHub artifact digest:"
+  "steps.upload-archive.outputs.digest"
   "binary version, recorded help surface, first-contract smoke"
   "Smoke replay:"
   "### Local replay"

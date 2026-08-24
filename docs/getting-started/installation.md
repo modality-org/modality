@@ -143,6 +143,9 @@ first-contract path when `MODALITY_BIN=/path/to/modality` is available. The
 summary also includes a local replay block that creates an `artifact_dir`,
 downloads the named artifact there, runs the pinned verifier against that
 directory, and then shows the optional smoke replay against the same directory.
+The same summary records the GitHub artifact digest emitted by `upload-artifact`
+so a manual release-candidate run keeps the platform archive identity visible
+next to the Modality replay commands.
 Run it manually with
 `workflow_dispatch`, or tag a commit as `modal-v*` when you want tag-scoped
 release evidence.
