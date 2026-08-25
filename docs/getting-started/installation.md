@@ -147,9 +147,13 @@ The same summary records the GitHub artifact digest emitted by `upload-artifact`
 and the exact detached tarball checksum line that the local replay verifies, so
 a manual release-candidate run keeps the platform archive identity visible next
 to the Modality archive identity and replay commands.
-Run it manually with
-`workflow_dispatch`, or tag a commit as `modal-v*` when you want tag-scoped
-release evidence.
+Run `workflow_dispatch` manually with
+`gh workflow run "Onboarding Release Archive" --ref main`, then watch the
+started run with `gh run watch <run-id> --exit-status`; or tag a commit as
+`modal-v*` when you want tag-scoped release evidence. The workflow summary is
+the release-candidate handoff surface: it names the source revision, GitHub
+artifact digest, detached tarball checksum, exact download command, pinned
+verifier command, and optional smoke replay command for that run.
 After downloading that artifact, verify it before unpacking or trusting the
 binary:
 

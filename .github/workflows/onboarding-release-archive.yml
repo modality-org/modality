@@ -93,7 +93,14 @@ jobs:
       - name: Archive summary
         run: |
           artifact_name="modal-linux-x86_64-release-archive-${MODAL_SOURCE_REV}"
-          checksum_line="$(cat "release-archive/${artifact_name}.tar.gz.sha256")"
+          shopt -s nullglob
+          archive_sidecars=(release-archive/modal-*.tar.gz.sha256)
+          shopt -u nullglob
+          if [ "${#archive_sidecars[@]}" -ne 1 ]; then
+            printf 'expected exactly one archive checksum sidecar, found %s\n' "${#archive_sidecars[@]}" >&2
+            exit 1
+          fi
+          checksum_line="$(cat "${archive_sidecars[0]}")"
           echo "## Onboarding release archive" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- Source revision: \`${MODAL_SOURCE_REV}\`" >> "$GITHUB_STEP_SUMMARY"
