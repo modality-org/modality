@@ -11,17 +11,24 @@ title: Identity Commands
 # Create with default path
 modal id create --path alice.passfile
 
-# Create with password protection
-modal id create --path alice.passfile --password
+# Create with passfile encryption
+modal id create --path alice.passfile --encrypt
+
+# Create in the standard passfile directory
+modal id create --name alice
 ```
+
+`modal id create` writes a passfile. Use `--path <PATH>` for an explicit
+location, `--dir <DIR>` for an output directory, or `--name <NAME>` for the
+standard `~/.modality/<name>.mod_passfile` location.
 
 ## Derive Sub-Identity
 
 ```bash
-modal id derive --path alice.passfile --sub "escrow-key" --output alice-escrow.passfile
+modal id derive --mnemonic "abandon abandon ..." --path alice-escrow.passfile
 ```
 
-Derives a deterministic sub-key from your main identity. Useful for:
+Derives a keypair from a BIP39 mnemonic seed phrase. Useful for:
 - Contract-specific keys
 - Rotating access keys
 - Hierarchical key management
@@ -38,13 +45,13 @@ modal id get --path alice.passfile
 ### Encrypt a Passfile
 
 ```bash
-modal passfile encrypt --path alice.passfile --password
+modal passfile encrypt --path alice.passfile
 ```
 
 ### Decrypt a Passfile
 
 ```bash
-modal passfile decrypt --path alice.passfile.enc --password
+modal passfile decrypt --path alice.passfile
 ```
 
 ## Best Practices
