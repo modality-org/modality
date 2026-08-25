@@ -93,12 +93,14 @@ jobs:
       - name: Archive summary
         run: |
           artifact_name="modal-linux-x86_64-release-archive-${MODAL_SOURCE_REV}"
+          detached_checksum="$(cat release-archive/*.tar.gz.sha256)"
           echo "## Onboarding release archive" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- Source revision: \`${MODAL_SOURCE_REV}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Profile: \`release\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Feature set: \`contract-onboarding\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- GitHub artifact digest: \`${{ steps.upload-archive.outputs.digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Detached archive checksum: \`${detached_checksum}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Evidence: detached tarball checksum, download verification recipe, exact archive members, checksums, provenance, binary version, recorded help surface, first-contract smoke" >> "$GITHUB_STEP_SUMMARY"
           echo "- Download: \`gh run download ${GITHUB_RUN_ID} --name ${artifact_name} --dir /path/to/downloaded-artifact-dir\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Verify: \`MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=${MODAL_SOURCE_REV} tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-dir\`" >> "$GITHUB_STEP_SUMMARY"
