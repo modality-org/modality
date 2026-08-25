@@ -20,7 +20,9 @@ that the CLI overview keeps the lean onboarding wrapper separate from full
 runtime command groups, checks that the contract command reference preserves the
 current `create`, `checkout`, `set`, and `set-named-id` help shapes, checks
 that the identity command reference preserves the current passfile creation,
-mnemonic derivation, and encrypt/decrypt flag shapes, checks
+mnemonic derivation, and encrypt/decrypt flag shapes, checks that the predicate
+command reference preserves the current full-wrapper `--contract-id`, `--args`,
+`--block-height`, `--timestamp`, `--dir`, and `--name` shapes, checks
 that older tutorials still use the current
 `set-named-id <path> <passfile>` and `commit --sign <passfile>` shapes, checks
 that the real `modality` model help surface matches the documented language CLI
