@@ -85,6 +85,7 @@ fi
 "$ROOT_DIR/tests/docs/check-language-traps-doc.sh"
 "$ROOT_DIR/tests/docs/check-installation-doc.sh"
 "$ROOT_DIR/tests/docs/check-cli-index-doc.sh"
+"$ROOT_DIR/tests/docs/check-cli-contract-doc.sh"
 "$ROOT_DIR/tests/docs/check-first-contract-doc.sh"
 "$ROOT_DIR/tests/docs/check-verifier-rejections-doc.sh"
 "$ROOT_DIR/tests/docs/check-synthesis-review-doc.sh"

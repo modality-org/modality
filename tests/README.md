@@ -17,7 +17,8 @@ adds rules, synthesizes the witness model with `--verify`, validates it with
 `modality model validate`, and then commits, checks that the installation guide
 keeps the `modal` contract CLI and `modality` model CLI split explicit, checks
 that the CLI overview keeps the lean onboarding wrapper separate from full
-runtime command groups, checks
+runtime command groups, checks that the contract command reference preserves the
+current `create`, `checkout`, `set`, and `set-named-id` help shapes, checks
 that the real `modality` model help surface matches the documented language CLI
 when a language binary is present, checks that the verifier rejection reference
 preserves current-state, closest-candidate, and missing-predicate diagnostics,

@@ -20,7 +20,7 @@ required_patterns=(
   "\`modality model validate\`"
   "full wrapper only"
   "modal c create"
-  "modal c set /parties/alice.id --named alice"
+  "modal c set-named-id /parties/alice.id alice.passfile"
   "modal c commit --all --sign alice.passfile"
 )
 
@@ -31,7 +31,10 @@ for pattern in "${required_patterns[@]}"; do
   fi
 done
 
-for forbidden_pattern in "curl -fsSL https://get.modality.org | sh" "cd rust && cargo build --release"; do
+for forbidden_pattern in \
+  "curl -fsSL https://get.modality.org | sh" \
+  "cd rust && cargo build --release" \
+  "modal c set /parties/alice.id --named alice"; do
   if grep -Fq -- "$forbidden_pattern" "$DOC"; then
     echo "CLI index still contains stale install text: $forbidden_pattern" >&2
     exit 1

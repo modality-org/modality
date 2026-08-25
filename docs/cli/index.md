@@ -75,7 +75,7 @@ modal id get --path alice.passfile
 
 # Contract workflow
 modal c create
-modal c set /parties/alice.id --named alice
+modal c set-named-id /parties/alice.id alice.passfile
 modal c commit --all --sign alice.passfile -m "Initial setup"
 modal c status
 modal c log

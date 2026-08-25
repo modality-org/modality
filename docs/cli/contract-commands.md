@@ -27,8 +27,8 @@ state/               # Working state directory
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--name <NAME>` | Contract name |
-| `--template <TEMPLATE>` | Initialize from template |
+| `--dir <DIR>` | Directory path where the contract will be created (defaults to current directory) |
+| `--output <FORMAT>` | Output format: `text` or `json` |
 
 ## Commit
 
@@ -72,8 +72,7 @@ Extract committed state to the working `state/` directory.
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--commit <HASH>` | Checkout specific commit |
-| `--force` | Overwrite local changes |
+| `--dir <DIR>` | Contract directory (defaults to current directory) |
 
 ## Status
 
@@ -133,7 +132,7 @@ def456 Initial contract setup [alice] 2024-01-15 10:00:00
 ## Set
 
 ```bash
-modal c set <PATH> [VALUE] [OPTIONS]
+modal c set [OPTIONS] <PATH> <VALUE>
 ```
 
 Set a state file value.
@@ -141,16 +140,12 @@ Set a state file value.
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--file <FILE>` | Read value from file |
-| `--type <TYPE>` | Explicit path type |
+| `--dir <DIR>` | Contract directory (defaults to current directory) |
 
 **Examples:**
 ```bash
 # Set text value
 modal c set /config/name.text "My Contract"
-
-# Set from file
-modal c set /data/config.json --file ./local-config.json
 
 # Set boolean
 modal c set /flags/active.bool true
@@ -159,14 +154,19 @@ modal c set /flags/active.bool true
 ## Set Named ID
 
 ```bash
-modal c set-named-id <PATH> --named <NAME>
+modal c set-named-id [OPTIONS] <PATH> <NAME>
 ```
 
-Set a `.id` file from a named passfile in your passfile directory.
+Set a `.id` file from a passfile path or a passfile name that resolves in the
+standard passfile locations.
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--dir <DIR>` | Contract directory (defaults to current directory) |
 
 ```bash
-modal c set-named-id /parties/alice.id --named alice
-# Uses ~/.modal/passfiles/alice.passfile
+modal c set-named-id /parties/alice.id alice.passfile
 ```
 
 ## Get
