@@ -41,8 +41,8 @@ mkdir -p model rules
 
 ```bash
 # Add user IDs using named passfiles
-modal c set-named-id /users/alice.id --named alice
-modal c set-named-id /users/bob.id --named bob
+modal c set-named-id /users/alice.id ~/.modality/alice.mod_passfile
+modal c set-named-id /users/bob.id ~/.modality/bob.mod_passfile
 ```
 
 ## Step 4: Define the Rules
@@ -81,7 +81,7 @@ The synthesizer generates a labeled transition system where all transitions requ
 ## Step 6: Commit the Setup (Signed)
 
 ```bash
-modal c commit --all --sign alice
+modal c commit --all --sign ~/.modality/alice.mod_passfile
 ```
 
 From this point on, all commits must be signed by Alice or Bob.
@@ -92,11 +92,11 @@ From this point on, all commits must be signed by Alice or Bob.
 # Alice posts a message
 mkdir -p state/data
 echo "Hello from Alice" > state/data/message.text
-modal c commit --all --sign alice
+modal c commit --all --sign ~/.modality/alice.mod_passfile
 
 # Bob updates the message
 echo "Hello from Bob" > state/data/message.text
-modal c commit --all --sign bob
+modal c commit --all --sign ~/.modality/bob.mod_passfile
 ```
 
 ## Step 8: View Status & Log

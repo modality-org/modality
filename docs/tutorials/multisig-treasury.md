@@ -35,9 +35,9 @@ modal c checkout
 
 ```bash
 # Add keyholder identities
-modal c set-named-id /treasury/alice.id --named alice
-modal c set-named-id /treasury/bob.id --named bob
-modal c set-named-id /treasury/carol.id --named carol
+modal c set-named-id /treasury/alice.id ~/.modality/alice.mod_passfile
+modal c set-named-id /treasury/bob.id ~/.modality/bob.mod_passfile
+modal c set-named-id /treasury/carol.id ~/.modality/carol.mod_passfile
 
 # Create signers list
 mkdir -p state/treasury
@@ -115,20 +115,20 @@ export default model {
 ## Step 6: Commit and Test
 
 ```bash
-modal c commit --all --sign alice -m "Initialize treasury"
+modal c commit --all --sign ~/.modality/alice.mod_passfile -m "Initialize treasury"
 ```
 
 ### Propose a Withdrawal
 
 ```bash
 echo '{"amount": 100, "to": "recipient_address"}' > state/treasury/proposal.json
-modal c commit --all --sign alice -m "Alice proposes withdrawal"
+modal c commit --all --sign ~/.modality/alice.mod_passfile -m "Alice proposes withdrawal"
 ```
 
 ### First Approval (Bob)
 
 ```bash
-modal c commit --all --sign bob -m "Bob approves"
+modal c commit --all --sign ~/.modality/bob.mod_passfile -m "Bob approves"
 ```
 
 ### Second Approval & Execute (Carol)
@@ -136,7 +136,7 @@ modal c commit --all --sign bob -m "Bob approves"
 With 2 signatures collected, the withdrawal can execute:
 
 ```bash
-modal c commit --all --sign carol -m "Execute withdrawal"
+modal c commit --all --sign ~/.modality/carol.mod_passfile -m "Execute withdrawal"
 ```
 
 ## How Threshold Works

@@ -37,9 +37,9 @@ modal c checkout
 
 ```bash
 # Add identities
-modal c set-named-id /users/buyer.id --named buyer
-modal c set-named-id /users/seller.id --named seller
-modal c set-named-id /oracles/delivery.id --named delivery_oracle
+modal c set-named-id /users/buyer.id ~/.modality/buyer.mod_passfile
+modal c set-named-id /users/seller.id ~/.modality/seller.mod_passfile
+modal c set-named-id /oracles/delivery.id ~/.modality/delivery_oracle.mod_passfile
 
 # Set escrow terms
 mkdir -p state/escrow
@@ -121,7 +121,7 @@ export default model {
 ## Step 6: Commit the Setup
 
 ```bash
-modal c commit --all --sign buyer -m "Initialize escrow"
+modal c commit --all --sign ~/.modality/buyer.mod_passfile -m "Initialize escrow"
 ```
 
 ## Step 7: Execute the Contract
@@ -130,19 +130,19 @@ modal c commit --all --sign buyer -m "Initialize escrow"
 
 ```bash
 # 1. Buyer deposits
-modal c commit --all --sign buyer -m "Buyer deposits"
+modal c commit --all --sign ~/.modality/buyer.mod_passfile -m "Buyer deposits"
 
 # 2. Seller ships
-modal c commit --all --sign seller -m "Seller ships"
+modal c commit --all --sign ~/.modality/seller.mod_passfile -m "Seller ships"
 
 # 3. Oracle attests delivery
-modal c commit --all --sign delivery_oracle -m "Oracle confirms, funds released"
+modal c commit --all --sign ~/.modality/delivery_oracle.mod_passfile -m "Oracle confirms, funds released"
 ```
 
 ### Dispute Path: Delivery Failed
 
 ```bash
-modal c commit --all --sign delivery_oracle -m "Oracle denies delivery, buyer refunded"
+modal c commit --all --sign ~/.modality/delivery_oracle.mod_passfile -m "Oracle denies delivery, buyer refunded"
 ```
 
 ### Timeout Path: Oracle Unresponsive
@@ -150,7 +150,7 @@ modal c commit --all --sign delivery_oracle -m "Oracle denies delivery, buyer re
 After the timeout deadline:
 
 ```bash
-modal c commit --all --sign buyer -m "Timeout refund"
+modal c commit --all --sign ~/.modality/buyer.mod_passfile -m "Timeout refund"
 ```
 
 ## Security Properties
