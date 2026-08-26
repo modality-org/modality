@@ -5,55 +5,63 @@ title: Network Commands
 
 # Network Commands (`modal net` / `modal network`)
 
-Query and interact with Modality networks.
+Query configured Modality networks and inspect full-wrapper network runtime data.
+These commands are available in the full Rust wrapper, not in the lean
+first-contract onboarding wrapper.
 
 ## Network Info
 
 ```bash
-modal net info [OPTIONS]
+modal net info [NETWORK]
 ```
 
-Display information about a Modality network.
+Display configured bootstrapper and DNS information for a named network.
+`NETWORK` is positional and defaults to `mainnet`.
 
-**Options:**
-| Option | Description |
-|--------|-------------|
-| `--network <NAME>` | Network name (mainnet/testnet) |
-| `--peer <ADDR>` | Query specific peer |
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `NETWORK` | Network name, such as `mainnet`, `testnet`, or a configured devnet |
 
 **Example output:**
 ```
-NETWORK: mainnet
-  Chain height: 1,234,567
-  Active validators: 42
-  Active miners: 128
-  Contracts: 5,432
-  
-BOOTSTRAP PEERS:
+Modality Network Information
+
+Network Name:     mainnet
+Description:      ...
+Bootstrappers:    2
+
+Bootstrapper Addresses:
   /ip4/boot1.modality.network/tcp/9000/p2p/12D3Koo...
   /ip4/boot2.modality.network/tcp/9000/p2p/12D3Koo...
+
+DNS Record:
+  _dnsaddr.mainnet.modality.network
 ```
 
 ## Network Storage
 
 ```bash
-modal net storage [OPTIONS]
+modal net storage --config <CONFIG> [OPTIONS]
 ```
 
-Inspect network datastore and show statistics.
+Inspect the datastore named by a node `config.json` and show canonical miner
+block statistics.
 
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--node <PATH>` | Node directory |
-| `--verbose` | Show detailed breakdown |
+| `--config <CONFIG>` | Path to the node configuration file |
+| `--detailed` | Show a detailed block list |
+| `--epoch <EPOCH>` | Filter blocks by epoch |
+| `--limit <LIMIT>` | Maximum detailed blocks to show; defaults to `10` |
 
 ## Mining Commands
 
 ### Sync Mining Data
 
 ```bash
-modal net mining sync [OPTIONS]
+modal net mining sync --config <CONFIG> --target <MULTIADDR> [OPTIONS]
 ```
 
 Sync miner blocks from a specified node.
@@ -61,27 +69,50 @@ Sync miner blocks from a specified node.
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--from <PEER>` | Source peer address |
-| `--node <PATH>` | Local node directory |
+| `--config <CONFIG>` | Path to the local node configuration file |
+| `--target <MULTIADDR>` | Source node multiaddress |
+| `--mode <MODE>` | Sync mode: `all`, `epoch`, or `range`; defaults to `all` |
+| `--epoch <EPOCH>` | Epoch number, required when `--mode epoch` |
+| `--from-index <INDEX>` | Start block index, required when `--mode range` |
+| `--to-index <INDEX>` | End block index, required when `--mode range` |
+| `--format <FORMAT>` | Output format: `summary` or `json`; defaults to `summary` |
+| `--persist` | Persist synced blocks to the local datastore |
 
 ## Local Development
 
 ### List Local Nodes
 
 ```bash
-modal local nodes
+modal local nodes [OPTIONS]
 ```
 
 Find all running modal node processes.
 
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--verbose` / `-v` | Show verbose output with full paths |
+| `--network <FILTER>` | Filter by network config path; supports trailing `*` wildcards |
+| `--devnet` | Shorthand for `--network devnet*` |
+| `--dir <DIR>` | Only show nodes in this directory or its subdirectories |
+
 ### Kill All Nodes
 
 ```bash
-modal local killall-nodes
+modal local killall-nodes [OPTIONS]
 modal killall  # shortcut
 ```
 
 Kill all running modal node processes.
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--force` / `-f` | Use `SIGKILL` instead of graceful shutdown |
+| `--dry-run` | Show what would be killed without killing processes |
+| `--network <FILTER>` | Filter by network config path; supports trailing `*` wildcards |
+| `--devnet` | Shorthand for `--network devnet*` |
+| `--dir <DIR>` | Only kill nodes in this directory or its subdirectories |
 
 ## Chain Commands
 
@@ -91,29 +122,29 @@ Kill all running modal node processes.
 modal chain validate [OPTIONS]
 ```
 
-Validate the local chain for consistency.
+Run local chain validation tests. Without `--test`, it runs all validation
+tests against an in-memory datastore unless `--datastore` is supplied.
 
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--node <PATH>` | Node directory |
-| `--from <HEIGHT>` | Start height |
-| `--to <HEIGHT>` | End height |
-| `--verbose` | Show validation details |
+| `--test <TEST>` / `-t <TEST>` | Test to run: `fork`, `gap`, `missing-parent`, `integrity`, `promotion`, or `duplicate-canonical`; may be repeated |
+| `--datastore <PATH>` / `-d <PATH>` | Existing datastore directory; otherwise uses in-memory storage |
+| `--json` | Output results as JSON |
 
 ### Heal Chain
 
 ```bash
-modal chain heal [OPTIONS]
+modal chain heal --datastore <PATH> [OPTIONS]
 ```
 
-Attempt to repair chain inconsistencies.
+Detect duplicate canonical blocks in a datastore and optionally mark duplicates
+as orphaned.
 
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--node <PATH>` | Node directory |
-| `--backup` | Create backup before healing |
+| `--datastore <PATH>` / `-d <PATH>` | Datastore directory to inspect or heal |
 | `--dry-run` | Show what would be done |
 
 ## Quick Run Commands
@@ -122,13 +153,13 @@ Shortcuts for running different node types:
 
 ```bash
 # Run a miner
-modal run miner --path ./my-node
+modal run miner --dir ./my-node
 
 # Run a validator
-modal run validator --path ./my-node
+modal run validator --dir ./my-node
 
 # Run an observer
-modal run observer --path ./my-node
+modal run observer --dir ./my-node
 ```
 
 These are equivalent to `modal node run-miner`, `modal node run-validator`, etc.
