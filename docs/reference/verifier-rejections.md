@@ -72,10 +72,29 @@ post-bootstrap update:
 - Lists the second signed `+POST` candidate.
 - Names the missing `signed_by` predicates for Alice and Bob.
 
-The contract evolution smoke preserves the same shape after model replacement,
-and the model-governance unit tests cover ranked candidate transitions, similar
-non-current transitions, signed identity bootstrap ordering, threshold evidence,
-and model-replacement rule failures.
+The contract evolution smoke preserves the same shape after model replacement.
+Focused local model-governance regressions cover the same explanation classes:
+
+- `explains_similar_transitions_when_current_state_has_no_candidates` preserves
+  the non-current transition fallback.
+- `explains_signed_by_identity_bootstrap_ordering` preserves bootstrap-order
+  evidence for identity paths.
+- `explains_action_modal_rule_failure_with_transition_witness` preserves
+  labelled transition witnesses for action-modal failures.
+- `explains_lfp_rule_failure_with_unfolding_witness_set` preserves
+  fixed-point unfolding witness sets.
+
+Hub-side `model_validator` regressions cover the shared server path:
+
+- `test_action_rejection_explains_candidate_transition_predicates` preserves
+  current-state candidate ranking and missing predicate evidence.
+- `test_action_rejection_explains_similar_non_current_transitions` preserves
+  similar transitions outside the current witness state.
+- `test_model_replacement_rule_rejection_explains_formula_failure`,
+  `test_model_replacement_rule_rejection_explains_action_modal_witness`, and
+  `test_model_replacement_rule_rejection_explains_fixed_point_unfolding`
+  preserve recursive formula, action-modal, and fixed-point model-replacement
+  counterexamples.
 
 ## Model-Replacement Rule Failures
 
