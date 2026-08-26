@@ -28,7 +28,8 @@ positional network argument, `--config`-based storage and mining helpers, local
 node filters, chain validation tests, and `--dir` quick-run shapes, checks
 that the node command reference preserves the current full-wrapper `--dir`,
 `--config`, `--target`, `--node-type`, inspection subcommand, and config-edit
-shapes, checks
+shapes, checks that the hub command reference preserves the current full-wrapper
+server-start-only CLI surface, REST routes, and HTTP remote handoff, checks
 that older tutorials still use the current
 `set-named-id <path> <passfile>` and `commit --sign <passfile>` shapes, checks
 that the real `modality` model help surface matches the documented language CLI
