@@ -88,6 +88,9 @@ Hub-side `model_validator` regressions cover the shared server path:
 
 - `test_action_rejection_explains_candidate_transition_predicates` preserves
   current-state candidate ranking and missing predicate evidence.
+- `test_action_rejection_ranks_closest_candidate_by_failed_predicates` preserves
+  closest-candidate ordering when multiple current-state transitions share the
+  pending action but have different predicate failures.
 - `test_action_rejection_explains_similar_non_current_transitions` preserves
   similar transitions outside the current witness state.
 - `test_model_replacement_rule_rejection_explains_formula_failure`,

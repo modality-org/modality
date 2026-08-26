@@ -28,6 +28,7 @@ required_patterns=(
   "explains_action_modal_rule_failure_with_transition_witness"
   "explains_lfp_rule_failure_with_unfolding_witness_set"
   "test_action_rejection_explains_candidate_transition_predicates"
+  "test_action_rejection_ranks_closest_candidate_by_failed_predicates"
   "test_action_rejection_explains_similar_non_current_transitions"
   "test_model_replacement_rule_rejection_explains_formula_failure"
   "test_model_replacement_rule_rejection_explains_action_modal_witness"
@@ -67,6 +68,7 @@ done
 
 hub_regressions=(
   "test_action_rejection_explains_candidate_transition_predicates"
+  "test_action_rejection_ranks_closest_candidate_by_failed_predicates"
   "test_action_rejection_explains_similar_non_current_transitions"
   "test_model_replacement_rule_rejection_explains_formula_failure"
   "test_model_replacement_rule_rejection_explains_action_modal_witness"
