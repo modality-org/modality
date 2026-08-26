@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/reference/verifier-rejections.md"
 LOCAL_GOVERNANCE="$ROOT_DIR/rust/modal-cli-contract/src/model_governance.rs"
 HUB_VALIDATOR="$ROOT_DIR/rust/modal-cli-hub/src/model_validator.rs"
+COMMON_DIAGNOSTICS="$ROOT_DIR/rust/modal-common/src/model_diagnostics.rs"
 
 required_patterns=(
   "# Verifier Rejection Explanations"
@@ -33,6 +34,13 @@ required_patterns=(
   "test_model_replacement_rule_rejection_explains_formula_failure"
   "test_model_replacement_rule_rejection_explains_action_modal_witness"
   "test_model_replacement_rule_rejection_explains_fixed_point_unfolding"
+  'Shared `modal-common::model_diagnostics` formatter regressions'
+  "summarizes_candidate_transition_with_stable_key_and_failures"
+  "summarizes_non_current_transition_with_current_states"
+  "renders_recursive_formula_failure_diagnostic"
+  "renders_action_modal_transition_witness_diagnostic"
+  "renders_least_fixed_point_unfolding_diagnostic"
+  "shared formatter drift"
   "Model-Replacement Rule Failures"
   "failed anchor state"
   "satisfying states in the candidate model"
@@ -78,6 +86,21 @@ hub_regressions=(
 for regression in "${hub_regressions[@]}"; do
   if ! grep -Fq -- "fn $regression" "$HUB_VALIDATOR"; then
     echo "verifier rejection hub regression is missing from source: $regression" >&2
+    exit 1
+  fi
+done
+
+common_regressions=(
+  "summarizes_candidate_transition_with_stable_key_and_failures"
+  "summarizes_non_current_transition_with_current_states"
+  "renders_recursive_formula_failure_diagnostic"
+  "renders_action_modal_transition_witness_diagnostic"
+  "renders_least_fixed_point_unfolding_diagnostic"
+)
+
+for regression in "${common_regressions[@]}"; do
+  if ! grep -Fq -- "fn $regression" "$COMMON_DIAGNOSTICS"; then
+    echo "verifier rejection shared diagnostic regression is missing from source: $regression" >&2
     exit 1
   fi
 done

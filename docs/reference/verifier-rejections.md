@@ -103,6 +103,24 @@ The doc smoke also cross-checks these regression names against the local
 governance and hub validator source files, so the reference cannot keep pointing
 at a renamed or removed test without failing the no-build docs check.
 
+Shared `modal-common::model_diagnostics` formatter regressions preserve the
+proof-fragment text both paths depend on:
+
+- `summarizes_candidate_transition_with_stable_key_and_failures` preserves the
+  ranked current-state candidate line and deterministic transition key.
+- `summarizes_non_current_transition_with_current_states` preserves the
+  non-current fallback line with explicit current states.
+- `renders_recursive_formula_failure_diagnostic` preserves nested formula
+  counterexample rendering.
+- `renders_action_modal_transition_witness_diagnostic` preserves labelled
+  action-modal transition witnesses.
+- `renders_least_fixed_point_unfolding_diagnostic` preserves fixed-point
+  witness-set and unfolding-count rendering.
+
+The no-build doc smoke cross-checks these names against
+`rust/modal-common/src/model_diagnostics.rs` too, so shared formatter drift is
+visible before a full Cargo build is available.
+
 ## Model-Replacement Rule Failures
 
 When a pending `MODEL` replacement violates an accepted rule, the rejection
