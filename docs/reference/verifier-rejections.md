@@ -96,6 +96,10 @@ Hub-side `model_validator` regressions cover the shared server path:
   preserve recursive formula, action-modal, and fixed-point model-replacement
   counterexamples.
 
+The doc smoke also cross-checks these regression names against the local
+governance and hub validator source files, so the reference cannot keep pointing
+at a renamed or removed test without failing the no-build docs check.
+
 ## Model-Replacement Rule Failures
 
 When a pending `MODEL` replacement violates an accepted rule, the rejection

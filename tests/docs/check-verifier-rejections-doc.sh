@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/reference/verifier-rejections.md"
+LOCAL_GOVERNANCE="$ROOT_DIR/rust/modal-cli-contract/src/model_governance.rs"
+HUB_VALIDATOR="$ROOT_DIR/rust/modal-cli-hub/src/model_validator.rs"
 
 required_patterns=(
   "# Verifier Rejection Explanations"
@@ -45,6 +47,35 @@ required_patterns=(
 for pattern in "${required_patterns[@]}"; do
   if ! grep -Fq -- "$pattern" "$DOC"; then
     echo "verifier rejection doc is missing: $pattern" >&2
+    exit 1
+  fi
+done
+
+local_regressions=(
+  "explains_similar_transitions_when_current_state_has_no_candidates"
+  "explains_signed_by_identity_bootstrap_ordering"
+  "explains_action_modal_rule_failure_with_transition_witness"
+  "explains_lfp_rule_failure_with_unfolding_witness_set"
+)
+
+for regression in "${local_regressions[@]}"; do
+  if ! grep -Fq -- "fn $regression" "$LOCAL_GOVERNANCE"; then
+    echo "verifier rejection local regression is missing from source: $regression" >&2
+    exit 1
+  fi
+done
+
+hub_regressions=(
+  "test_action_rejection_explains_candidate_transition_predicates"
+  "test_action_rejection_explains_similar_non_current_transitions"
+  "test_model_replacement_rule_rejection_explains_formula_failure"
+  "test_model_replacement_rule_rejection_explains_action_modal_witness"
+  "test_model_replacement_rule_rejection_explains_fixed_point_unfolding"
+)
+
+for regression in "${hub_regressions[@]}"; do
+  if ! grep -Fq -- "fn $regression" "$HUB_VALIDATOR"; then
+    echo "verifier rejection hub regression is missing from source: $regression" >&2
     exit 1
   fi
 done
