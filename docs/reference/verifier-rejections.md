@@ -77,6 +77,26 @@ and the model-governance unit tests cover ranked candidate transitions, similar
 non-current transitions, signed identity bootstrap ordering, threshold evidence,
 and model-replacement rule failures.
 
+## Model-Replacement Rule Failures
+
+When a pending `MODEL` replacement violates an accepted rule, the rejection
+should explain the failed rule against the candidate model instead of falling
+back to a generic rule violation. The current local and hub validators report:
+
+- The failed anchor state where the accepted rule no longer holds.
+- The satisfying states in the candidate model for the accepted formula.
+- A recursive formula counterexample for common Boolean and temporal forms.
+- Action-modal witnesses that name the matching transition, reached witness
+  state, and nested reason the target state failed the formula.
+- Fixed-point unfolding witnesses that show the final witness set, unfolding
+  count, substituted variable set, and nested unfolded-body failure.
+
+For example, a replacement that preserves replay history but breaks an accepted
+least-fixed-point reachability rule should say that the failed anchor was never
+added to the fixed-point witness set, then show the unfolded body that failed.
+That makes the rejection reviewable as a model-checking counterexample rather
+than a bare "replacement model violates rule" message.
+
 ## Boundaries
 
 Rejection explanations prove why a pending commit did not match the accepted
