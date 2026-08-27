@@ -10,6 +10,16 @@ title: Installation
 - Git
 - Rust toolchain (for building from source)
 
+The repository pins the Rust compiler in `rust/rust-toolchain.toml`. Before
+measuring source-build onboarding, confirm Cargo is using that pinned toolchain
+and that the locked dependency graph resolves with it:
+
+```bash
+cd modality/rust
+rustup show active-toolchain
+cargo metadata --locked --no-deps
+```
+
 ## Install from Source
 
 Build the lean onboarding wrapper first if your goal is the first-contract

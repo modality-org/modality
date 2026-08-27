@@ -1,5 +1,5 @@
-# aws-smithy-types 1.4.9 (pinned in modal-networks) requires rustc 1.91.1.
-# cross mounts this host toolchain into the Linux build container.
+# The locked workspace dependency graph requires rustc 1.94.1 or newer.
+# Keep this pinned so source-build onboarding and cross builds use the same compiler floor.
 [toolchain]
-channel = "1.91.1"
+channel = "1.94.1"
 targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]

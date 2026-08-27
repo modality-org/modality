@@ -7,6 +7,9 @@ WORKFLOW="$ROOT_DIR/.github/workflows/onboarding-release-archive.yml"
 
 required_patterns=(
   "# Installation"
+  "rust/rust-toolchain.toml"
+  "rustup show active-toolchain"
+  "cargo metadata --locked --no-deps"
   "cargo build --release -p modal --no-default-features --features contract-onboarding"
   "modal --help"
   "modality model --help"
