@@ -36,29 +36,38 @@ state/               # Working state directory
 modal c commit [OPTIONS]
 ```
 
-Create a new commit from staged changes.
+Create a new commit from the contract working directories, a single state path,
+or an inline domain action.
 
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--all`, `-a` | Commit all changes (state + rules + model) |
-| `--state` | Commit only state changes |
-| `--rules` | Commit only rule changes |
-| `--model` | Commit only model changes |
-| `--sign <PASSFILE>` | Sign commit with passfile |
+| `--path <PATH>` | State path to write for a single `POST`-style commit |
+| `--value <VALUE>` | Value for the single-path commit; strings, numbers, and JSON are accepted |
+| `--method <METHOD>` | Commit method for the single-path commit (default: `post`) |
+| `--dir <DIR>` | Contract directory (defaults to current directory) |
+| `--output <FORMAT>` | Output format: `text` or `json` |
+| `--sign <PASSFILE>` | Sign commit with a passfile |
+| `--all`, `-a` | Commit all changed `state/`, `rules/`, and `model/default.modality` files |
 | `--message`, `-m <MSG>` | Commit message |
-| `--action <JSON>` | Commit a domain action |
+| `--action <JSON>` | Commit an inline JSON domain action or read it from a `.json` file path |
+| `--asset-id <ASSET_ID>` | Asset ID for `CREATE` commits |
+| `--quantity <QUANTITY>` | Asset quantity for `CREATE` commits |
+| `--divisibility <DIVISIBILITY>` | Asset divisibility for `CREATE` commits |
+| `--to-contract <TO_CONTRACT>` | Destination contract ID for `SEND` commits |
+| `--amount <AMOUNT>` | Amount for `SEND` commits |
+| `--send-commit-id <SEND_COMMIT_ID>` | Source `SEND` commit ID for `RECV` commits |
 
 **Examples:**
 ```bash
 # Commit all changes with signature
 modal c commit --all --sign alice.passfile -m "Add escrow rules"
 
+# Commit one state file
+modal c commit --path /notes.text --value "signed update" --sign alice.passfile
+
 # Commit a domain action
 modal c commit --action '{"type":"DEPOSIT","amount":100}' --sign alice.passfile
-
-# Commit only state changes
-modal c commit --state -m "Update configuration"
 ```
 
 ## Checkout
@@ -105,8 +114,8 @@ Show changes between working state and committed state.
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--commit <HASH>` | Compare against specific commit |
-| `--stat` | Show only file statistics |
+| `--dir <DIR>` | Contract directory (defaults to current directory) |
+| `--output <FORMAT>` | Output format: `text` or `json` |
 
 ## Log
 
@@ -201,7 +210,7 @@ modal c commit-id
 ## Push
 
 ```bash
-modal c push <REMOTE> [OPTIONS]
+modal c push [OPTIONS]
 ```
 
 Push commits to a hub or chain validators.
@@ -213,13 +222,17 @@ Push commits to a hub or chain validators.
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--sign <PASSFILE>` | Sign push request |
-| `--force` | Force push |
+| `--remote <URL>` | Target node multiaddress or hub URL; also saves it under the remote name |
+| `--remote-name <NAME>` | Remote name (default: `origin`) |
+| `--dir <DIR>` | Contract directory (defaults to current directory) |
+| `--node-dir <DIR>` | Node directory for identity/config when using P2P remotes |
+| `--hub-creds <FILE>` | Hub credentials file for HTTP hub remotes |
+| `--output <FORMAT>` | Output format: `text` or `json` |
 
 ## Pull
 
 ```bash
-modal c pull <REMOTE> [OPTIONS]
+modal c pull [URL] [OPTIONS]
 ```
 
 Pull commits from a hub or chain.
@@ -227,7 +240,13 @@ Pull commits from a hub or chain.
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--checkout` | Checkout after pulling |
+| `[URL]` | Full contract URL to clone, such as `https://hub/contracts/<id>` |
+| `--remote <URL>` | Target node multiaddress or hub URL |
+| `--remote-name <NAME>` | Remote name (default: `origin`) |
+| `--dir <DIR>` | Contract directory (defaults to current directory) |
+| `--node-dir <DIR>` | Node directory for identity/config when using P2P remotes |
+| `--hub-creds <FILE>` | Hub credentials file for HTTP hub remotes |
+| `--output <FORMAT>` | Output format: `text` or `json` |
 
 ## Pack / Unpack
 
@@ -238,6 +257,15 @@ modal c pack --output contract.modal
 # Unpack contract file
 modal c unpack contract.modal --output ./my-contract
 ```
+
+**Options:**
+| Command | Option | Description |
+|---------|--------|-------------|
+| `pack` | `--output <FILE>`, `-o <FILE>` | Output `.contract` file path |
+| `pack` | `--dir <DIR>` | Contract directory (defaults to current directory) |
+| `unpack` | `<INPUT>` | Input `.contract` file path |
+| `unpack` | `--output <DIR>`, `-o <DIR>` | Output directory |
+| `unpack` | `--force` | Overwrite an existing output directory |
 
 ## Assets
 
