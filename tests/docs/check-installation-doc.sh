@@ -90,6 +90,9 @@ required_patterns=(
   "optional \`MODAL_ONBOARDING_ARTIFACT_SMOKE=1\` replay command"
   "checks the downloaded binary's version"
   "when \`MODALITY_BIN=/path/to/modality\` is available"
+  "uploaded Actions artifact"
+  "\`modal-linux-x86_64-release-archive-<source-revision>\` artifact name"
+  "download command stays tied to the exact source revision under test"
   "summary also includes a local replay block"
   "creates an \`artifact_dir\`"
   "downloads the named artifact there"
@@ -298,6 +301,8 @@ done
 
 required_workflow_patterns=(
   "id: upload-archive"
+  "name: modal-linux-x86_64-release-archive-\${{ steps.source-revision.outputs.short }}"
+  "artifact_name=\"modal-linux-x86_64-release-archive-\${MODAL_SOURCE_REV}\""
   "GitHub artifact digest:"
   "steps.upload-archive.outputs.digest"
   "binary version, recorded help surface, first-contract smoke"

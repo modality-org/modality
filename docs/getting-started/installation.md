@@ -150,6 +150,9 @@ matching `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` replay verifier
 command, plus the optional `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` replay command
 that checks the downloaded binary's version, recorded help surface, and
 first-contract path when `MODALITY_BIN=/path/to/modality` is available. The
+uploaded Actions artifact and the replay summary both use the
+`modal-linux-x86_64-release-archive-<source-revision>` artifact name, so the
+download command stays tied to the exact source revision under test. The
 summary also includes a local replay block that creates an `artifact_dir`,
 downloads the named artifact there, runs the pinned verifier against that
 directory, and then shows the optional smoke replay against the same directory.
