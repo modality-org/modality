@@ -102,6 +102,9 @@ Hub-side `model_validator` regressions cover the shared server path:
 The doc smoke also cross-checks these regression names against the local
 governance and hub validator source files, so the reference cannot keep pointing
 at a renamed or removed test without failing the no-build docs check.
+The no-build doc smoke cross-checks the first-contract smoke for the promised
+current-state, closest-candidate, missing-signature, and no-state-mutation
+assertions too.
 
 Shared `modal-common::model_diagnostics` formatter regressions preserve the
 proof-fragment text both paths depend on:

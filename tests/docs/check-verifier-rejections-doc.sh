@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/reference/verifier-rejections.md"
+FIRST_CONTRACT_SMOKE="$ROOT_DIR/tests/cli/run-first-contract-cli-smoke.sh"
 LOCAL_GOVERNANCE="$ROOT_DIR/rust/modal-cli-contract/src/model_governance.rs"
 HUB_VALIDATOR="$ROOT_DIR/rust/modal-cli-hub/src/model_validator.rs"
 COMMON_DIAGNOSTICS="$ROOT_DIR/rust/modal-common/src/model_diagnostics.rs"
@@ -35,6 +36,7 @@ required_patterns=(
   "test_model_replacement_rule_rejection_explains_action_modal_witness"
   "test_model_replacement_rule_rejection_explains_fixed_point_unfolding"
   'Shared `modal-common::model_diagnostics` formatter regressions'
+  "The no-build doc smoke cross-checks the first-contract smoke"
   "summarizes_candidate_transition_with_stable_key_and_failures"
   "summarizes_non_current_transition_with_current_states"
   "renders_recursive_formula_failure_diagnostic"
@@ -56,6 +58,23 @@ required_patterns=(
 for pattern in "${required_patterns[@]}"; do
   if ! grep -Fq -- "$pattern" "$DOC"; then
     echo "verifier rejection doc is missing: $pattern" >&2
+    exit 1
+  fi
+done
+
+first_contract_smoke_patterns=(
+  'current states {"q1"}'
+  "Closest candidate transition:"
+  "candidate from current state q1:"
+  "missing +signed_by(/parties/alice.id)"
+  "missing +signed_by(/parties/bob.id)"
+  "rejected unsigned commit changed replayed contract state"
+  "rejected unsigned commit was appended to the contract log"
+)
+
+for pattern in "${first_contract_smoke_patterns[@]}"; do
+  if ! grep -Fq -- "$pattern" "$FIRST_CONTRACT_SMOKE"; then
+    echo "first-contract rejection smoke is missing: $pattern" >&2
     exit 1
   fi
 done
