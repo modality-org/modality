@@ -20,7 +20,8 @@ cargo build --release -p modality
 
 The lean onboarding wrapper exposes the contract and identity surfaces needed by
 the first-contract guide: `modal contract`, `modal c`, `modal id`,
-`modal passfile`, `modal status`, `modal commit`, and `modal set`. It omits the
+`modal passfile`, `modal status`, `modal pull`, `modal commit`, `modal diff`,
+`modal set`, `modal repost`, `modal add-rule`, and `modal download`. It omits the
 runtime-heavy hub, node, network, predicate, program, chain, local, run,
 `killall`, and upgrade surfaces.
 
@@ -59,6 +60,21 @@ modal <command> --help
 # Show status (in contract directory)
 modal status
 
+# Pull commits (shortcut for modal contract pull)
+modal pull http://hub.example.com/contracts/my-contract
+
+# Show uncommitted changes (shortcut for modal contract diff)
+modal diff
+
+# Repost state from another contract
+modal repost source-contract-id /source/path /local/path
+
+# Add a rule to the current contract
+modal add-rule rules/member-protection.modality
+
+# Download a packed contract file
+modal download http://hub.example.com/contracts/my-contract.pack
+
 # Kill all local nodes (full wrapper only)
 modal killall
 
@@ -96,6 +112,13 @@ modal predicate test signed_by --data '{"path":"/alice.id","signature":"..."}'
 |--------------|----------|
 | `modal contract` | `modal c` |
 | `modal contract status` | `modal status` |
+| `modal contract pull` | `modal pull` |
+| `modal contract commit` | `modal commit` |
+| `modal contract diff` | `modal diff` |
+| `modal contract set` | `modal set` |
+| `modal contract repost` | `modal repost` |
+| `modal contract add-rule` | `modal add-rule` |
+| `modal contract download` | `modal download` |
 | `modal identity` | `modal id` |
 | `modal network` | `modal net` |
 | `modal local killall-nodes` | `modal killall` |
