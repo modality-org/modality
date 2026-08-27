@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/getting-started/first-contract.md"
+FIRST_CONTRACT_SMOKE="$ROOT_DIR/tests/cli/run-first-contract-cli-smoke.sh"
 
 required_patterns=(
   "## 4. Add Protection Rules"
@@ -55,5 +56,22 @@ if [[ "$rules_line" -ge "$synth_line" || "$synth_line" -ge "$lint_line" || "$lin
   echo "first-contract guide should add rules, lint them, synthesize and validate the witness, then commit" >&2
   exit 1
 fi
+
+first_contract_smoke_patterns=(
+  "sha256sum --check"
+  "accepted-artifacts.sha256"
+  "rejected unsigned commit changed replayed contract state"
+  "rejected unsigned commit was appended to the contract log"
+  "rejected unsigned commit was shown in the human-readable contract log"
+  'grep -q "signed update" "$CONTRACT_DIR/state/notes.text"'
+  '[[ -e "$CONTRACT_DIR/state/unsigned.text" ]]'
+)
+
+for pattern in "${first_contract_smoke_patterns[@]}"; do
+  if ! grep -Fq -- "$pattern" "$FIRST_CONTRACT_SMOKE"; then
+    echo "first-contract smoke is missing accepted-artifact rejection guard: $pattern" >&2
+    exit 1
+  fi
+done
 
 echo "first-contract doc check passed"
