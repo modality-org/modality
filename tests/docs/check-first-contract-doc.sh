@@ -58,6 +58,16 @@ if [[ "$rules_line" -ge "$synth_line" || "$synth_line" -ge "$lint_line" || "$lin
 fi
 
 first_contract_smoke_patterns=(
+  "authorized-rule-lint.out"
+  "1 formula(s) lint-clean"
+  "# Modality Synthesis Review Bundle"
+  'Status: passed (\`--verify\`)'
+  "## Extracted Facts"
+  "## Witness Model"
+  "synthesized-model-validate.out"
+  "Contract is valid!"
+  "Transitions: 4"
+  "All properties are predicates or commit method labels (verifier-observed)."
   "sha256sum --check"
   "accepted-artifacts.sha256"
   "rejected unsigned commit changed replayed contract state"
@@ -69,7 +79,7 @@ first_contract_smoke_patterns=(
 
 for pattern in "${first_contract_smoke_patterns[@]}"; do
   if ! grep -Fq -- "$pattern" "$FIRST_CONTRACT_SMOKE"; then
-    echo "first-contract smoke is missing accepted-artifact rejection guard: $pattern" >&2
+    echo "first-contract smoke is missing documented first-contract assertion: $pattern" >&2
     exit 1
   fi
 done
