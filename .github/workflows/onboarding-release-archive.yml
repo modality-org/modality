@@ -107,12 +107,17 @@ jobs:
             exit 1
           fi
           checksum_line="$(cat "${archive_sidecars[0]}")"
+          upload_digest='${{ steps.upload-archive.outputs.digest }}'
+          if [ -z "$upload_digest" ]; then
+            echo "expected upload-artifact to report a GitHub artifact digest" >&2
+            exit 1
+          fi
           echo "## Onboarding release archive" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- Source revision: \`${MODAL_SOURCE_REV}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Profile: \`release\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Feature set: \`contract-onboarding\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- GitHub artifact digest: \`${{ steps.upload-archive.outputs.digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- GitHub artifact digest: \`${upload_digest}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Detached tarball checksum: \`${checksum_line}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Evidence: detached tarball checksum, download verification recipe, exact archive members, checksums, provenance, binary version, recorded help surface, first-contract smoke" >> "$GITHUB_STEP_SUMMARY"
           echo "- Download: \`gh run download ${GITHUB_RUN_ID} --name ${artifact_name} --dir /path/to/downloaded-artifact-dir\`" >> "$GITHUB_STEP_SUMMARY"

@@ -157,9 +157,10 @@ summary also includes a local replay block that creates an `artifact_dir`,
 downloads the named artifact there, runs the pinned verifier against that
 directory, and then shows the optional smoke replay against the same directory.
 The same summary records the GitHub artifact digest emitted by `upload-artifact`
-and the exact detached tarball checksum line that the local replay verifies, so
-a manual release-candidate run keeps the platform archive identity visible next
-to the Modality archive identity and replay commands.
+and fails if that digest is missing. It also records the exact detached tarball checksum line
+that the local replay verifies, so a manual release-candidate run keeps the
+platform archive identity visible next to the Modality archive identity and
+replay commands.
 Run `workflow_dispatch` manually with
 `gh workflow run "Onboarding Release Archive" --ref main`, then watch the
 started run with `gh run watch <run-id> --exit-status`; or tag a commit as
