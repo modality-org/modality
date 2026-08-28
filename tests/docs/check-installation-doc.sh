@@ -102,6 +102,7 @@ required_patterns=(
   "shows the optional smoke replay against the same directory"
   "workflow_dispatch"
   "gh workflow run \"Onboarding Release Archive\" --ref main"
+  "gh run list --workflow \"Onboarding Release Archive\" --branch main --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId'"
   "gh run watch <run-id> --exit-status"
   "workflow summary is"
   "release-candidate handoff surface"

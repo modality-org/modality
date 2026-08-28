@@ -163,11 +163,13 @@ that the local replay verifies, so a manual release-candidate run keeps the
 platform archive identity visible next to the Modality archive identity and
 replay commands.
 Run `workflow_dispatch` manually with
-`gh workflow run "Onboarding Release Archive" --ref main`, then watch the
-started run with `gh run watch <run-id> --exit-status`; or tag a commit as
-`modal-v*` when you want tag-scoped release evidence. The workflow summary is
-the release-candidate handoff surface: it names the source revision, exact
-Actions artifact, GitHub artifact digest, detached tarball checksum, exact
+`gh workflow run "Onboarding Release Archive" --ref main`, capture the latest
+manual run id with
+`gh run list --workflow "Onboarding Release Archive" --branch main --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId'`,
+then watch the started run with `gh run watch <run-id> --exit-status`; or tag a
+commit as `modal-v*` when you want tag-scoped release evidence. The workflow summary is
+the release-candidate handoff surface: it names the source revision,
+exact Actions artifact, GitHub artifact digest, detached tarball checksum, exact
 download command, pinned verifier command, and optional smoke replay command for
 that run.
 After downloading that artifact, verify it before unpacking or trusting the
