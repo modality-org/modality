@@ -107,7 +107,7 @@ jobs:
             exit 1
           fi
           checksum_line="$(cat "${archive_sidecars[0]}")"
-          upload_digest='${{ steps.upload-archive.outputs.digest }}'
+          upload_digest="${{ steps.upload-archive.outputs['artifact-digest'] || steps.upload-archive.outputs.digest }}"
           if [ -z "$upload_digest" ]; then
             echo "expected upload-artifact to report a GitHub artifact digest" >&2
             exit 1
