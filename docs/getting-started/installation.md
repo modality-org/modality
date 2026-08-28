@@ -272,6 +272,10 @@ fails even when each section still carries the expected value.
 Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when a downloaded artifact must
 fail unless its internal provenance matches one exact source revision.
+Set `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only when a same-revision
+`MODALITY_BIN` is available for the optional first-contract smoke; unsupported
+smoke flag values now fail instead of silently downgrading to archive-only
+verification.
 The uploaded `VERIFY-DOWNLOAD.txt` repeats the expected source revision and the
 exact two-command verification section, plus the optional `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`
 and `MODALITY_BIN=/path/to/modality` same-revision replay environment, so the artifact

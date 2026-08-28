@@ -800,6 +800,21 @@ EOF
   exit 1
 fi
 
+case "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-0}" in
+  0|1)
+    ;;
+  *)
+    cat >&2 <<EOF
+release artifact smoke flag has unsupported value
+actual: ${MODAL_ONBOARDING_ARTIFACT_SMOKE}
+
+Set MODAL_ONBOARDING_ARTIFACT_SMOKE=1 to run the optional same-revision
+first-contract smoke, or leave it unset for archive-only verification.
+EOF
+    exit 2
+    ;;
+esac
+
 if [[ "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-0}" == "1" ]]; then
   ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   unpacked_version="$("$unpack_dir/bin/modal" --version)"
