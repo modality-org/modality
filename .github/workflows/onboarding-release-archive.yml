@@ -55,6 +55,12 @@ jobs:
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y cmake clang libssl-dev pkg-config
 
+      - name: Verify pinned Rust dependency graph
+        working-directory: rust
+        run: |
+          rustup show active-toolchain
+          cargo metadata --locked --no-deps --format-version 1
+
       - name: Capture source revision
         id: source-revision
         run: |

@@ -300,6 +300,9 @@ for pattern in "${required_patterns[@]}"; do
 done
 
 required_workflow_patterns=(
+  "Verify pinned Rust dependency graph"
+  "rustup show active-toolchain"
+  "cargo metadata --locked --no-deps --format-version 1"
   "id: upload-archive"
   "name: modal-linux-x86_64-release-archive-\${{ steps.source-revision.outputs.short }}"
   "artifact_name=\"modal-linux-x86_64-release-archive-\${MODAL_SOURCE_REV}\""
