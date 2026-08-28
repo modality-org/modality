@@ -17,7 +17,7 @@ and that the locked dependency graph resolves with it:
 ```bash
 cd modality/rust
 rustup show active-toolchain
-cargo metadata --locked --no-deps
+cargo metadata --locked --no-deps --format-version 1
 ```
 
 ## Install from Source

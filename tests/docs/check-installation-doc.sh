@@ -9,7 +9,7 @@ required_patterns=(
   "# Installation"
   "rust/rust-toolchain.toml"
   "rustup show active-toolchain"
-  "cargo metadata --locked --no-deps"
+  "cargo metadata --locked --no-deps --format-version 1"
   "cargo build --release -p modal --no-default-features --features contract-onboarding"
   "modal --help"
   "modality model --help"
