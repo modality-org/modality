@@ -133,8 +133,9 @@ hand-written revision notes cannot become the advertised archive provenance.
 The evidence manifest names the replayable evidence bundle, artifact,
 version, source revision, profile, feature set, exact help surface, binary,
 provenance file, checksum file, and post-unpack checks.
-It checks the unpacked help surface and runs the first-contract CLI smoke when a
-built `modality` binary is supplied. Set
+With `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, the download verifier now requires a
+same-revision `MODALITY_BIN`, checks the unpacked help surface, and runs the
+first-contract CLI smoke against the unpacked `modal` binary. Set
 `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release evidence must fail
 if the built `modal` binary is stale or came from a different source revision.
 The `.github/workflows/onboarding-release-archive.yml` workflow wires this into
@@ -273,9 +274,12 @@ Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when a downloaded artifact must
 fail unless its internal provenance matches one exact source revision.
 Set `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only when a same-revision
-`MODALITY_BIN` is available for the optional first-contract smoke; unsupported
-smoke flag values now fail instead of silently downgrading to archive-only
-verification.
+`MODALITY_BIN` is available; the verifier now rejects missing `MODALITY_BIN`
+rather than silently downgrading the requested first-contract smoke to
+archive-only verification. Unsupported smoke flag values also fail instead of
+silently downgrading to archive-only verification.
+Unsupported smoke flag values now fail, too, so a mistyped replay request cannot
+look like a successful archive-only check.
 The uploaded `VERIFY-DOWNLOAD.txt` repeats the expected source revision and the
 exact two-command verification section, plus the optional `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`
 and `MODALITY_BIN=/path/to/modality` same-revision replay environment, so the artifact

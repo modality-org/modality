@@ -165,10 +165,11 @@ environment for replaying the version, help-surface, and first-contract smokes
 against the unpacked binary. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when the downloaded artifact
 must fail unless its provenance names one exact source revision. Set
-`MODAL_ONBOARDING_ARTIFACT_SMOKE=1` to also run the version and help surface
-checks, and pass `MODALITY_BIN=/path/to/modality` with that flag to run the
-first-contract smoke against the downloaded binary. The supplied `modality`
-binary must advertise the same source revision as the downloaded archive.
+`MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only with
+`MODALITY_BIN=/path/to/modality`; the verifier then runs the version,
+help-surface, same-revision language CLI, and first-contract checks against the
+downloaded binary. The supplied `modality` binary must advertise the same source
+revision as the downloaded archive.
 
 To test another binary:
 

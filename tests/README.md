@@ -234,10 +234,11 @@ checks the full recipe against the canonical emitted text so extra prose between
 valid sections is rejected. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when checking a downloaded
 workflow artifact against one exact source revision. Set
-`MODAL_ONBOARDING_ARTIFACT_SMOKE=1` to also check that the downloaded binary's
-reported version matches provenance before replaying the selected help surface.
-When `MODALITY_BIN` is supplied for the first-contract smoke, its advertised
-source revision must match the downloaded archive provenance too.
+`MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only with
+`MODALITY_BIN=/path/to/modality`; the verifier then checks that the downloaded
+binary's reported version matches provenance, replays the selected help surface,
+and runs the first-contract smoke. The supplied `modality` binary must
+advertise the same source revision as the downloaded archive.
 
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 

@@ -442,7 +442,7 @@ check_evidence_field "provenance" "PROVENANCE.txt"
 check_evidence_field "checksums" "SHA256SUMS"
 check_evidence_field \
   "post-unpack checks" \
-  "version, help surface, first-contract smoke when MODALITY_BIN is supplied"
+  "version, help surface, first-contract smoke when artifact smoke is enabled"
 readme_marker_count="$(
   grep -Fxc "modal release archive smoke artifact" "$unpack_dir/README.txt" || true
 )"
@@ -817,6 +817,25 @@ esac
 
 if [[ "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-0}" == "1" ]]; then
   ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+  if [[ -z "${MODALITY_BIN:-}" ]]; then
+    cat >&2 <<EOF
+release artifact smoke replay requires MODALITY_BIN
+
+Set MODALITY_BIN=/path/to/modality built from the same source revision to run
+the first-contract smoke against the unpacked modal binary.
+EOF
+    exit 2
+  fi
+  if [[ ! -x "$MODALITY_BIN" ]]; then
+    cat >&2 <<EOF
+release artifact smoke replay needs an executable MODALITY_BIN
+actual: $MODALITY_BIN
+
+Set MODALITY_BIN=/path/to/modality built from the same source revision to run
+the first-contract smoke against the unpacked modal binary.
+EOF
+    exit 2
+  fi
   unpacked_version="$("$unpack_dir/bin/modal" --version)"
   if [[ "$unpacked_version" != "$provenance_version" ]]; then
     cat >&2 <<EOF
@@ -828,28 +847,26 @@ EOF
   fi
   MODAL_BIN="$unpack_dir/bin/modal" MODAL_HELP_SURFACE="$provenance_help_surface" \
     "$ROOT_DIR/tests/cli/check-modal-help-surface.sh"
-  if [[ -x "${MODALITY_BIN:-}" ]]; then
-    modality_version="$("$MODALITY_BIN" --version)"
-    modality_revision_pattern='@([^)]+)\)'
-    if [[ ! "$modality_version" =~ $modality_revision_pattern ]]; then
-      cat >&2 <<EOF
+  modality_version="$("$MODALITY_BIN" --version)"
+  modality_revision_pattern='@([^)]+)\)'
+  if [[ ! "$modality_version" =~ $modality_revision_pattern ]]; then
+    cat >&2 <<EOF
 release artifact smoke modality version does not include a source revision
 expected revision: $provenance_revision
 actual version:    $modality_version
 EOF
-      exit 1
-    fi
-    if [[ "${BASH_REMATCH[1]}" != "$provenance_revision" ]]; then
-      cat >&2 <<EOF
+    exit 1
+  fi
+  if [[ "${BASH_REMATCH[1]}" != "$provenance_revision" ]]; then
+    cat >&2 <<EOF
 release artifact smoke modality version does not match provenance source revision
 expected revision: $provenance_revision
 actual version:    $modality_version
 EOF
-      exit 1
-    fi
-    MODAL_BIN="$unpack_dir/bin/modal" MODALITY_BIN="$MODALITY_BIN" \
-      "$ROOT_DIR/tests/cli/run-first-contract-cli-smoke.sh"
+    exit 1
   fi
+  MODAL_BIN="$unpack_dir/bin/modal" MODALITY_BIN="$MODALITY_BIN" \
+    "$ROOT_DIR/tests/cli/run-first-contract-cli-smoke.sh"
 fi
 
 echo "modal release artifact download check passed: $archive_name"

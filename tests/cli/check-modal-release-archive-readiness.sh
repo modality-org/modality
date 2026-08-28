@@ -208,7 +208,7 @@ help surface: $HELP_SURFACE
 binary: bin/modal
 provenance: PROVENANCE.txt
 checksums: SHA256SUMS
-post-unpack checks: version, help surface, first-contract smoke when MODALITY_BIN is supplied
+post-unpack checks: version, help surface, first-contract smoke when artifact smoke is enabled
 EOF
 chmod 0644 "$STAGE_DIR/README.txt" "$STAGE_DIR/PROVENANCE.txt" "$STAGE_DIR/EVIDENCE-BUNDLE.txt"
 (
@@ -261,6 +261,24 @@ EOF
 chmod 0644 "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt"
 MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
   "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" >/dev/null
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_SMOKE=1 \
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    env -u MODALITY_BIN \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted smoke replay without MODALITY_BIN" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact smoke replay requires MODALITY_BIN" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the missing smoke modality binary for the wrong reason
+expected: release artifact smoke replay requires MODALITY_BIN
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 FAKE_STALE_MODALITY="$(mktemp)"
 cat >"$FAKE_STALE_MODALITY" <<'EOF'
 #!/usr/bin/env bash
@@ -2568,7 +2586,7 @@ if ! grep -Fq "features: $FEATURES" "$UNPACK_DIR/EVIDENCE-BUNDLE.txt"; then
   echo "release archive evidence manifest is missing features: $FEATURES" >&2
   exit 1
 fi
-if ! grep -Fq "post-unpack checks: version, help surface, first-contract smoke when MODALITY_BIN is supplied" "$UNPACK_DIR/EVIDENCE-BUNDLE.txt"; then
+if ! grep -Fq "post-unpack checks: version, help surface, first-contract smoke when artifact smoke is enabled" "$UNPACK_DIR/EVIDENCE-BUNDLE.txt"; then
   echo "release archive evidence manifest is missing post-unpack checks" >&2
   exit 1
 fi
