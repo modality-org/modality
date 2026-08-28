@@ -156,8 +156,9 @@ download command stays tied to the exact source revision under test. The
 summary also includes a local replay block that creates an `artifact_dir`,
 downloads the named artifact there, runs the pinned verifier against that
 directory, and then shows the optional smoke replay against the same directory.
-The same summary records the GitHub artifact digest emitted by `upload-artifact`
-and fails if that digest is missing. It also records the exact detached tarball checksum line
+The same summary records the exact Actions artifact name, the GitHub artifact
+digest emitted by `upload-artifact`, and fails if that digest is missing. It
+also records the exact detached tarball checksum line
 that the local replay verifies, so a manual release-candidate run keeps the
 platform archive identity visible next to the Modality archive identity and
 replay commands.
@@ -165,9 +166,10 @@ Run `workflow_dispatch` manually with
 `gh workflow run "Onboarding Release Archive" --ref main`, then watch the
 started run with `gh run watch <run-id> --exit-status`; or tag a commit as
 `modal-v*` when you want tag-scoped release evidence. The workflow summary is
-the release-candidate handoff surface: it names the source revision, GitHub
-artifact digest, detached tarball checksum, exact download command, pinned
-verifier command, and optional smoke replay command for that run.
+the release-candidate handoff surface: it names the source revision, exact
+Actions artifact, GitHub artifact digest, detached tarball checksum, exact
+download command, pinned verifier command, and optional smoke replay command for
+that run.
 After downloading that artifact, verify it before unpacking or trusting the
 binary:
 

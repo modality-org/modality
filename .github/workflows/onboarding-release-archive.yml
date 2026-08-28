@@ -117,6 +117,7 @@ jobs:
           echo "- Source revision: \`${MODAL_SOURCE_REV}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Profile: \`release\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Feature set: \`contract-onboarding\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Actions artifact: \`${artifact_name}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- GitHub artifact digest: \`${upload_digest}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Detached tarball checksum: \`${checksum_line}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Evidence: detached tarball checksum, download verification recipe, exact archive members, checksums, provenance, binary version, recorded help surface, first-contract smoke" >> "$GITHUB_STEP_SUMMARY"
