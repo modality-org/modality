@@ -91,7 +91,8 @@ required_patterns=(
   "Modality archive identity"
   "optional \`MODAL_ONBOARDING_ARTIFACT_SMOKE=1\` replay command"
   "checks the downloaded binary's version"
-  "when \`MODALITY_BIN=/path/to/modality\` is available"
+  "when \`MODALITY_BIN=/path/to/modality\` was built from the"
+  "same source revision"
   "uploaded Actions artifact"
   "\`modal-linux-x86_64-release-archive-<source-revision>\` artifact name"
   "download command stays tied to the exact source revision under test"
@@ -260,14 +261,14 @@ required_patterns=(
   "exact verifier command"
   "MODAL_ONBOARDING_ARTIFACT_SMOKE=1"
   "MODALITY_BIN=/path/to/modality"
-  "replay environment"
+  "same-revision replay environment"
   "detached checksum command"
   "smoke replay description"
   "must each appear exactly once"
   "verification section must stay present"
   "missing, stale"
   "duplicate, or extra replay commands fail before the binary is trusted"
-  "smoke replay note must remain the exact final two-line trailer"
+  "smoke replay note must remain the exact final three-line trailer"
   "inserted line cannot split the optional smoke instructions"
   "full recipe must still"
   "canonical emitted text exactly"
@@ -325,12 +326,13 @@ required_workflow_patterns=(
   'gh run download ${GITHUB_RUN_ID} --name ${artifact_name}'
   '--dir \"\$artifact_dir\"'
   'tests/cli/check-modal-release-artifact-download.sh \"\$artifact_dir\"'
-  "Optional: replay the downloaded binary through version, help-surface, and first-contract smokes"
+  "Optional: replay the downloaded binary through version, help-surface, same-revision modality, and first-contract smokes"
   "MODAL_ONBOARDING_ARTIFACT_SMOKE=1"
   "MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=\${MODAL_SOURCE_REV}"
   "MODALITY_BIN=/path/to/modality"
+  "same-revision modality"
   "tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-dir"
-  "checks the unpacked binary version, recorded help surface, and first-contract path"
+  "checks the unpacked binary version, recorded help surface, same-revision modality binary, and first-contract path"
 )
 
 for pattern in "${required_workflow_patterns[@]}"; do

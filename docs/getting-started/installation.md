@@ -149,7 +149,8 @@ The workflow summary prints the exact `gh run download` command for that run and
 matching `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` replay verifier
 command, plus the optional `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` replay command
 that checks the downloaded binary's version, recorded help surface, and
-first-contract path when `MODALITY_BIN=/path/to/modality` is available. The
+first-contract path when `MODALITY_BIN=/path/to/modality` was built from the
+same source revision. The
 uploaded Actions artifact and the replay summary both use the
 `modal-linux-x86_64-release-archive-<source-revision>` artifact name, so the
 download command stays tied to the exact source revision under test. The
@@ -273,13 +274,13 @@ Set
 fail unless its internal provenance matches one exact source revision.
 The uploaded `VERIFY-DOWNLOAD.txt` repeats the expected source revision and the
 exact two-command verification section, plus the optional `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`
-and `MODALITY_BIN=/path/to/modality` replay environment, so the artifact
+and `MODALITY_BIN=/path/to/modality` same-revision replay environment, so the artifact
 directory remains self-describing after download. The detached checksum command,
 exact verifier command, smoke replay environment, and smoke replay description
 must each appear exactly once, and the verification section must stay present
 with no extra command added, so hand-merged recipes with missing, stale
 duplicate, or extra replay commands fail before the binary is trusted. The
-smoke replay note must remain the exact final two-line trailer, so a stale
+smoke replay note must remain the exact final three-line trailer, so a stale
 inserted line cannot split the optional smoke instructions while preserving both
 required strings. After those targeted checks pass, the full recipe must still
 match the canonical emitted text exactly, so hand-inserted prose between

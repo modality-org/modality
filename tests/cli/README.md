@@ -167,7 +167,8 @@ against the unpacked binary. Set
 must fail unless its provenance names one exact source revision. Set
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` to also run the version and help surface
 checks, and pass `MODALITY_BIN=/path/to/modality` with that flag to run the
-first-contract smoke against the downloaded binary.
+first-contract smoke against the downloaded binary. The supplied `modality`
+binary must advertise the same source revision as the downloaded archive.
 
 To test another binary:
 

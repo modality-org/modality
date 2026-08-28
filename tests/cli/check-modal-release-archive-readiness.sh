@@ -254,12 +254,42 @@ Verify before unpacking or trusting the binary:
   sha256sum -c $archive_name.sha256
   $expected_verify_command
 
-Add MODAL_ONBOARDING_ARTIFACT_SMOKE=1 and MODALITY_BIN=/path/to/modality to
-run the help-surface and first-contract smokes against the unpacked modal binary.
+Add MODAL_ONBOARDING_ARTIFACT_SMOKE=1 and MODALITY_BIN=/path/to/modality built
+from the same source revision to run the help-surface and first-contract smokes
+against the unpacked modal binary.
 EOF
 chmod 0644 "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt"
 MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
   "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" >/dev/null
+FAKE_STALE_MODALITY="$(mktemp)"
+cat >"$FAKE_STALE_MODALITY" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then
+  echo "modality 0.0.0 (stale@deadbee)"
+  exit 0
+fi
+echo "stale modality test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_STALE_MODALITY"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_SMOKE=1 \
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+  MODALITY_BIN="$FAKE_STALE_MODALITY" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a stale modality smoke binary" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact smoke modality version does not match provenance source revision" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the stale modality smoke binary for the wrong reason
+expected: release artifact smoke modality version does not match provenance source revision
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
 cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
 cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
@@ -2215,7 +2245,7 @@ NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
 cp "$ARCHIVE_DIR/$archive_name" "$NEGATIVE_ARTIFACT_DIR/"
 cp "$ARCHIVE_DIR/$archive_name.sha256" "$NEGATIVE_ARTIFACT_DIR/"
 cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/"
-perl -0pi -e 's/(Add MODAL_ONBOARDING_ARTIFACT_SMOKE=1 and MODALITY_BIN=\/path\/to\/modality to\n)/$1stale smoke replay note\n/' \
+perl -0pi -e 's/(Add MODAL_ONBOARDING_ARTIFACT_SMOKE=1 and MODALITY_BIN=\/path\/to\/modality built\n)/$1stale smoke replay note\n/' \
   "$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
 negative_output="$(
   MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
@@ -2541,6 +2571,24 @@ MODAL_BIN="$UNPACKED_MODAL" MODAL_HELP_SURFACE="$HELP_SURFACE" \
   "$ROOT_DIR/tests/cli/check-modal-help-surface.sh"
 
 if [[ -x "${MODALITY_BIN:-}" ]]; then
+  modality_version="$("$MODALITY_BIN" --version)"
+  modality_revision_pattern='@([^)]+)\)'
+  if [[ ! "$modality_version" =~ $modality_revision_pattern ]]; then
+    cat >&2 <<EOF
+release archive smoke modality version does not include a source revision
+expected revision: $source_revision
+actual version:    $modality_version
+EOF
+    exit 1
+  fi
+  if [[ "${BASH_REMATCH[1]}" != "$source_revision" ]]; then
+    cat >&2 <<EOF
+release archive smoke modality version does not match source revision
+expected revision: $source_revision
+actual version:    $modality_version
+EOF
+    exit 1
+  fi
   MODAL_BIN="$UNPACKED_MODAL" MODALITY_BIN="$MODALITY_BIN" \
     "$ROOT_DIR/tests/cli/run-first-contract-cli-smoke.sh"
 else
@@ -2549,7 +2597,7 @@ first-contract release-archive smoke skipped: MODALITY_BIN not supplied
 
 Pass a built language CLI to verify the unpacked modal binary against the full
 first-contract path:
-  MODALITY_BIN=/path/to/modality $0
+  MODALITY_BIN=/path/to/modality-built-from-$source_revision $0
 EOF
 fi
 

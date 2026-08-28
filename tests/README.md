@@ -236,6 +236,8 @@ valid sections is rejected. Set
 workflow artifact against one exact source revision. Set
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` to also check that the downloaded binary's
 reported version matches provenance before replaying the selected help surface.
+When `MODALITY_BIN` is supplied for the first-contract smoke, its advertised
+source revision must match the downloaded archive provenance too.
 
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 
