@@ -376,6 +376,29 @@ for pattern in "${required_workflow_patterns[@]}"; do
   fi
 done
 
+set +e
+artifact_usage_output="$("$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" 2>&1)"
+artifact_usage_status="$?"
+set -e
+if [[ "$artifact_usage_status" -ne 2 ]]; then
+  echo "release artifact download verifier usage should exit 2 without a directory" >&2
+  exit 1
+fi
+required_artifact_usage_patterns=(
+  "usage: "
+  "MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>"
+  "MODAL_ONBOARDING_ARTIFACT_SMOKE=1"
+  "MODALITY_BIN=/path/to/modality built from the same source revision"
+  "version, help-surface, same-revision language CLI, and first-contract smokes"
+  "against the unpacked binary"
+)
+for pattern in "${required_artifact_usage_patterns[@]}"; do
+  if ! grep -Fq -- "$pattern" <<<"$artifact_usage_output"; then
+    echo "release artifact download verifier usage is missing replay text: $pattern" >&2
+    exit 1
+  fi
+done
+
 if grep -Eq -- '(^|[^[:alnum:]_])(->|implies)([^[:alnum:]_]|$)' "$DOC"; then
   echo "installation guide should avoid implication sugar" >&2
   exit 1

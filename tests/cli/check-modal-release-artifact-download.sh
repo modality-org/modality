@@ -11,6 +11,11 @@ Pass the directory produced by:
 
 Set MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit> when the downloaded artifact
 must prove it came from one exact source revision.
+
+Set MODAL_ONBOARDING_ARTIFACT_SMOKE=1 with
+MODALITY_BIN=/path/to/modality built from the same source revision to run
+version, help-surface, same-revision language CLI, and first-contract smokes
+against the unpacked binary.
 EOF
   exit 2
 fi
