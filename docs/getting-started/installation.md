@@ -168,9 +168,10 @@ that the local replay verifies, so a manual release-candidate run keeps the
 platform archive identity visible next to the Modality archive identity and
 replay commands.
 Run `workflow_dispatch` manually with
-`gh workflow run "Onboarding Release Archive" --ref main`, capture the latest
-manual run id with
-`gh run list --workflow "Onboarding Release Archive" --branch main --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId'`,
+`gh workflow run "Onboarding Release Archive" --ref main`, capture the exact
+source revision under test with `source_rev="$(git rev-parse HEAD)"`, capture
+the latest matching manual run id with
+`gh run list --workflow "Onboarding Release Archive" --branch main --event workflow_dispatch --commit "$source_rev" --limit 1 --json databaseId,headSha --jq '.[0] | select(.headSha == "'"$source_rev"'") | .databaseId'`,
 then watch the started run with `gh run watch <run-id> --exit-status`; or tag a
 commit as `modal-v*` when you want tag-scoped release evidence. The workflow summary is
 the release-candidate handoff surface: it names the source revision,
