@@ -228,7 +228,7 @@ and the recipe's archive, checksum, exact expected directory
 entries, first-line single title, revision, profile, feature set, help surface,
 and verifier command section, rejecting any extra verification commands. It
 also requires the optional smoke
-replay note to remain the exact final two-line trailer, so stale inserted text
+replay note to remain the exact final three-line trailer, so stale inserted text
 cannot split the smoke instructions while preserving the required lines, then
 checks the full recipe against the canonical emitted text so extra prose between
 valid sections is rejected. Set

@@ -155,7 +155,7 @@ replay description must each appear exactly once, and the verification-command
 section must stay present with no extra commands. The recipe sections must also
 stay in the emitted order, so hand-shuffled or verification-section-missing
 recipes fail even when their other values still match provenance. The recipe
-smoke replay note must remain the exact final two-line trailer, so stale
+smoke replay note must remain the exact final three-line trailer, so stale
 inserted text cannot split the optional smoke instructions while preserving
 both required lines. The whole recipe must also match the canonical emitted
 text exactly after the targeted checks pass, so hand-inserted prose between

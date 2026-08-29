@@ -318,6 +318,17 @@ for pattern in "${required_patterns[@]}"; do
   fi
 done
 
+for source_doc in "$ROOT_DIR/tests/README.md" "$ROOT_DIR/tests/cli/README.md"; do
+  if grep -Fq "final two-line trailer" "$source_doc"; then
+    echo "test onboarding docs should describe the canonical smoke trailer as three-line: $source_doc" >&2
+    exit 1
+  fi
+  if ! grep -Fq "final three-line trailer" "$source_doc"; then
+    echo "test onboarding docs are missing the canonical three-line smoke trailer wording: $source_doc" >&2
+    exit 1
+  fi
+done
+
 required_workflow_patterns=(
   "Verify pinned Rust dependency graph"
   "rustup show active-toolchain"
