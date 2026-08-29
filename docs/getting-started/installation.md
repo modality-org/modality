@@ -183,6 +183,11 @@ workflow summary is the release-candidate handoff surface: it names the source r
 exact Actions artifact, GitHub artifact digest, detached tarball checksum, exact
 download command, pinned verifier command, and optional smoke replay command for
 that run.
+For checkpoint review, treat the minimum evidence bundle as complete only when
+the handoff includes the exact source revision, matching workflow run id, exact
+Actions artifact name, GitHub artifact digest, detached tarball checksum line,
+downloaded-artifact verifier result, and, when first-contract replay is claimed,
+the same-revision `MODALITY_BIN` smoke replay result.
 After downloading that artifact, verify it before unpacking or trusting the
 binary:
 
