@@ -403,6 +403,22 @@ for pattern in "${required_artifact_usage_patterns[@]}"; do
   fi
 done
 
+required_artifact_recipe_patterns=(
+  "from the same source revision to run version, help-surface, same-revision"
+  "language CLI, and first-contract smokes against the unpacked modal binary."
+)
+for script in \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"
+do
+  for pattern in "${required_artifact_recipe_patterns[@]}"; do
+    if ! grep -Fq -- "$pattern" "$script"; then
+      echo "release artifact recipe script is missing full smoke replay wording: $script: $pattern" >&2
+      exit 1
+    fi
+  done
+done
+
 if grep -Eq -- '(^|[^[:alnum:]_])(->|implies)([^[:alnum:]_]|$)' "$DOC"; then
   echo "installation guide should avoid implication sugar" >&2
   exit 1

@@ -738,10 +738,10 @@ check_recipe_line \
   "Add MODAL_ONBOARDING_ARTIFACT_SMOKE=1 and MODALITY_BIN=/path/to/modality built" \
   "smoke replay environment"
 check_recipe_line \
-  "from the same source revision to run the help-surface and first-contract smokes" \
+  "from the same source revision to run version, help-surface, same-revision" \
   "smoke replay description"
 check_recipe_line \
-  "against the unpacked modal binary." \
+  "language CLI, and first-contract smokes against the unpacked modal binary." \
   "smoke replay description"
 recipe_smoke_replay_trailer="$(
   awk '
@@ -753,8 +753,8 @@ recipe_smoke_replay_trailer="$(
 expected_recipe_smoke_replay_trailer="$(
   printf '%s\n' \
     "Add MODAL_ONBOARDING_ARTIFACT_SMOKE=1 and MODALITY_BIN=/path/to/modality built" \
-    "from the same source revision to run the help-surface and first-contract smokes" \
-    "against the unpacked modal binary."
+    "from the same source revision to run version, help-surface, same-revision" \
+    "language CLI, and first-contract smokes against the unpacked modal binary."
 )"
 if [[ "$recipe_smoke_replay_trailer" != "$expected_recipe_smoke_replay_trailer" ]]; then
   cat >&2 <<EOF
@@ -794,8 +794,8 @@ Verify before unpacking or trusting the binary:
   $expected_verify_command
 
 Add MODAL_ONBOARDING_ARTIFACT_SMOKE=1 and MODALITY_BIN=/path/to/modality built
-from the same source revision to run the help-surface and first-contract smokes
-against the unpacked modal binary.
+from the same source revision to run version, help-surface, same-revision
+language CLI, and first-contract smokes against the unpacked modal binary.
 EOF
 )"
 actual_recipe_content="$(cat "$recipe_path")"

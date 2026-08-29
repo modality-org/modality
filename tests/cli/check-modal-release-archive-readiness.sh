@@ -255,8 +255,8 @@ Verify before unpacking or trusting the binary:
   $expected_verify_command
 
 Add MODAL_ONBOARDING_ARTIFACT_SMOKE=1 and MODALITY_BIN=/path/to/modality built
-from the same source revision to run the help-surface and first-contract smokes
-against the unpacked modal binary.
+from the same source revision to run version, help-surface, same-revision
+language CLI, and first-contract smokes against the unpacked modal binary.
 EOF
 chmod 0644 "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt"
 MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
