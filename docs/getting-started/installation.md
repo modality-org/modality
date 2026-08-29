@@ -173,7 +173,11 @@ wrong-revision run lookup stops before any artifact is trusted:
 ```bash
 source_rev="$(git rev-parse HEAD)"
 gh workflow run "Onboarding Release Archive" --ref main
-run_id="$(gh run list --workflow "Onboarding Release Archive" --branch main --event workflow_dispatch --commit "$source_rev" --limit 1 --json databaseId,headSha --jq '.[0] | select(.headSha == "'"$source_rev"'") | .databaseId')"
+for attempt in 1 2 3 4 5; do
+  run_id="$(gh run list --workflow "Onboarding Release Archive" --branch main --event workflow_dispatch --commit "$source_rev" --limit 1 --json databaseId,headSha --jq '.[0] | select(.headSha == "'"$source_rev"'") | .databaseId')"
+  test -n "$run_id" && break
+  sleep 3
+done
 test -n "$run_id"
 gh run watch "$run_id" --exit-status
 ```
