@@ -135,7 +135,9 @@ version, source revision, profile, feature set, exact help surface, binary,
 provenance file, checksum file, and post-unpack checks.
 With `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, the download verifier now requires a
 same-revision `MODALITY_BIN`, checks the unpacked help surface, and runs the
-first-contract CLI smoke against the unpacked `modal` binary. Set
+first-contract CLI smoke against the unpacked `modal` binary. The language CLI
+revision may be the exact provenance revision or a longer matching hex prefix
+for the same commit. Set
 `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release evidence must fail
 if the built `modal` binary is stale or came from a different source revision.
 The `.github/workflows/onboarding-release-archive.yml` workflow wires this into

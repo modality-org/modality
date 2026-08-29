@@ -239,7 +239,8 @@ workflow artifact against one exact source revision. Set
 binary's reported version matches provenance, replays the selected help surface,
 and runs the first-contract smoke. The supplied `modality` binary must
 advertise the same source revision as the downloaded archive, and must be
-executable before replay starts.
+executable before replay starts; a longer matching hex prefix for the same
+commit is accepted.
 
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 

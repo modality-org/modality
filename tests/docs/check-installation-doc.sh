@@ -62,6 +62,7 @@ required_patterns=(
   "post-unpack checks"
   "With \`MODAL_ONBOARDING_ARTIFACT_SMOKE=1\`, the download verifier now requires a"
   "same-revision \`MODALITY_BIN\`"
+  "longer matching hex prefix"
   "checks the unpacked help surface"
   "first-contract CLI smoke against the unpacked \`modal\` binary"
   "MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>"

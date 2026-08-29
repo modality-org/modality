@@ -63,6 +63,11 @@ EOF
     exit 1
   fi
 }
+revisions_match() {
+  local expected="$1"
+  local actual="$2"
+  [[ "$expected" == "$actual" || "$actual" == "$expected"* || "$expected" == "$actual"* ]]
+}
 top_level_entries="$(
   find "$ARTIFACT_DIR" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort
 )"
@@ -857,7 +862,8 @@ actual version:    $modality_version
 EOF
     exit 1
   fi
-  if [[ "${BASH_REMATCH[1]}" != "$provenance_revision" ]]; then
+  modality_revision="${BASH_REMATCH[1]}"
+  if ! revisions_match "$provenance_revision" "$modality_revision"; then
     cat >&2 <<EOF
 release artifact smoke modality version does not match provenance source revision
 expected revision: $provenance_revision
