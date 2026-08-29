@@ -276,10 +276,11 @@ fail unless its internal provenance matches one exact source revision.
 Set `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only when a same-revision
 `MODALITY_BIN` is available; the verifier now rejects missing `MODALITY_BIN`
 rather than silently downgrading the requested first-contract smoke to
-archive-only verification. Unsupported smoke flag values also fail instead of
-silently downgrading to archive-only verification.
-Unsupported smoke flag values now fail, too, so a mistyped replay request cannot
-look like a successful archive-only check.
+archive-only verification, and the producer smoke now proves that a
+non-executable `MODALITY_BIN` is rejected before any replay can pass.
+Unsupported smoke flag values now fail, too, instead of silently downgrading to archive-only
+verification, so a mistyped replay request cannot look like a successful
+archive-only check.
 The uploaded `VERIFY-DOWNLOAD.txt` repeats the expected source revision and the
 exact two-command verification section, plus the optional `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`
 and `MODALITY_BIN=/path/to/modality` same-revision replay environment, so the artifact

@@ -279,6 +279,30 @@ $negative_output
 EOF
   exit 1
 fi
+NONEXEC_MODALITY="$(mktemp)"
+cat >"$NONEXEC_MODALITY" <<'EOF'
+#!/usr/bin/env bash
+echo "modality 0.0.0 (@0000000)"
+EOF
+chmod 0644 "$NONEXEC_MODALITY"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_SMOKE=1 \
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+  MODALITY_BIN="$NONEXEC_MODALITY" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted smoke replay with non-executable MODALITY_BIN" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact smoke replay needs an executable MODALITY_BIN" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the non-executable smoke modality binary for the wrong reason
+expected: release artifact smoke replay needs an executable MODALITY_BIN
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 FAKE_STALE_MODALITY="$(mktemp)"
 cat >"$FAKE_STALE_MODALITY" <<'EOF'
 #!/usr/bin/env bash

@@ -263,6 +263,7 @@ required_patterns=(
   "only when a same-revision"
   "verifier now rejects missing \`MODALITY_BIN\`"
   "rather than silently downgrading the requested first-contract smoke"
+  "non-executable \`MODALITY_BIN\` is rejected before any replay can pass"
   "unsupported"
   "smoke flag values now fail"
   "silently downgrading to archive-only"

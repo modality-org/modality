@@ -169,7 +169,7 @@ must fail unless its provenance names one exact source revision. Set
 `MODALITY_BIN=/path/to/modality`; the verifier then runs the version,
 help-surface, same-revision language CLI, and first-contract checks against the
 downloaded binary. The supplied `modality` binary must advertise the same source
-revision as the downloaded archive.
+revision as the downloaded archive, and must be executable before replay starts.
 
 To test another binary:
 

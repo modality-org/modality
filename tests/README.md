@@ -238,7 +238,8 @@ workflow artifact against one exact source revision. Set
 `MODALITY_BIN=/path/to/modality`; the verifier then checks that the downloaded
 binary's reported version matches provenance, replays the selected help surface,
 and runs the first-contract smoke. The supplied `modality` binary must
-advertise the same source revision as the downloaded archive.
+advertise the same source revision as the downloaded archive, and must be
+executable before replay starts.
 
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 
