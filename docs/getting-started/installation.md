@@ -167,14 +167,19 @@ also records the exact detached tarball checksum line
 that the local replay verifies, so a manual release-candidate run keeps the
 platform archive identity visible next to the Modality archive identity and
 replay commands.
-Run `workflow_dispatch` manually with
-`gh workflow run "Onboarding Release Archive" --ref main`, capture the exact
-source revision under test with `source_rev="$(git rev-parse HEAD)"`, capture
-the latest matching manual run id with
-`gh run list --workflow "Onboarding Release Archive" --branch main --event workflow_dispatch --commit "$source_rev" --limit 1 --json databaseId,headSha --jq '.[0] | select(.headSha == "'"$source_rev"'") | .databaseId'`,
-then watch the started run with `gh run watch <run-id> --exit-status`; or tag a
-commit as `modal-v*` when you want tag-scoped release evidence. The workflow summary is
-the release-candidate handoff surface: it names the source revision,
+Run `workflow_dispatch` manually with this guarded handoff so an empty or
+wrong-revision run lookup stops before any artifact is trusted:
+
+```bash
+source_rev="$(git rev-parse HEAD)"
+gh workflow run "Onboarding Release Archive" --ref main
+run_id="$(gh run list --workflow "Onboarding Release Archive" --branch main --event workflow_dispatch --commit "$source_rev" --limit 1 --json databaseId,headSha --jq '.[0] | select(.headSha == "'"$source_rev"'") | .databaseId')"
+test -n "$run_id"
+gh run watch "$run_id" --exit-status
+```
+
+Tag a commit as `modal-v*` when you want tag-scoped release evidence. The
+workflow summary is the release-candidate handoff surface: it names the source revision,
 exact Actions artifact, GitHub artifact digest, detached tarball checksum, exact
 download command, pinned verifier command, and optional smoke replay command for
 that run.
