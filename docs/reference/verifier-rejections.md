@@ -69,7 +69,8 @@ post-bootstrap update:
 
 - Replays to `q1`.
 - Reports a closest signed `+POST` candidate.
-- Reports the ranked candidate section before listing alternate candidates.
+- Reports diagnostics in current-state, closest-candidate, ranked-section, then
+  alternate-candidate order.
 - Lists the second signed `+POST` candidate.
 - Names the missing `signed_by` predicates for Alice and Bob.
 

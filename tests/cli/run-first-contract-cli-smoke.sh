@@ -167,6 +167,12 @@ grep -q "Candidate transitions ranked by predicate distance:" "$TMP_DIR/unsigned
 grep -Eq "(part flow )?candidate from current state q1: q1 -+> q1 \[\\+POST \\+signed_by\\(/parties/bob.id\\)\]; failed predicates: missing \\+signed_by\\(/parties/bob.id\\)" "$TMP_DIR/unsigned-post.err"
 grep -q "missing +signed_by(/parties/alice.id)" "$TMP_DIR/unsigned-post.err"
 grep -q "missing +signed_by(/parties/bob.id)" "$TMP_DIR/unsigned-post.err"
+diagnostic_order="$(tr '\n' ' ' <"$TMP_DIR/unsigned-post.err")"
+if [[ "$diagnostic_order" != *'current states {"q1"}'*'Closest candidate transition:'*'Candidate transitions ranked by predicate distance:'*'missing +signed_by(/parties/bob.id)'* ]]; then
+  echo "unsigned rejection diagnostics are not in current-state, closest, ranked, alternate order" >&2
+  cat "$TMP_DIR/unsigned-post.err" >&2
+  exit 1
+fi
 
 "$MODAL_BIN" c status --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/rejected-status.json"
 "$MODAL_BIN" c status --dir "$CONTRACT_DIR" >"$TMP_DIR/rejected-status.txt"

@@ -37,7 +37,8 @@ required_patterns=(
   "test_model_replacement_rule_rejection_explains_fixed_point_unfolding"
   'Shared `modal-common::model_diagnostics` formatter regressions'
   "The no-build doc smoke cross-checks the first-contract smoke"
-  "Reports the ranked candidate section before listing alternate candidates"
+  "Reports diagnostics in current-state, closest-candidate, ranked-section, then"
+  "alternate-candidate order"
   "summarizes_candidate_transition_with_stable_key_and_failures"
   "summarizes_non_current_transition_with_current_states"
   "renders_recursive_formula_failure_diagnostic"
@@ -70,6 +71,8 @@ first_contract_smoke_patterns=(
   "Candidate transitions ranked by predicate distance:"
   "missing +signed_by(/parties/alice.id)"
   "missing +signed_by(/parties/bob.id)"
+  "diagnostic_order="
+  "unsigned rejection diagnostics are not in current-state, closest, ranked, alternate order"
   "rejected unsigned commit changed replayed contract state"
   "rejected unsigned commit was appended to the contract log"
 )
