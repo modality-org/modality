@@ -82,6 +82,8 @@ expected_top_level_entries="$(
 expected_top_level_entries_ordered="$(
   printf '%s\n' "$archive_name" "$expected_sidecar_name" "VERIFY-DOWNLOAD.txt"
 )"
+expected_post_unpack_checks_line="post-unpack checks: version, help surface, same-revision language CLI, first-contract smoke when artifact smoke is enabled"
+expected_post_unpack_checks="${expected_post_unpack_checks_line#post-unpack checks: }"
 if [[ "$(basename "$sidecar_path")" != "$expected_sidecar_name" ]]; then
   cat >&2 <<EOF
 release artifact checksum sidecar does not match archive name
@@ -450,9 +452,7 @@ check_evidence_field "help surface" "$provenance_help_surface"
 check_evidence_field "binary" "bin/modal"
 check_evidence_field "provenance" "PROVENANCE.txt"
 check_evidence_field "checksums" "SHA256SUMS"
-check_evidence_field \
-  "post-unpack checks" \
-  "version, help surface, first-contract smoke when artifact smoke is enabled"
+check_evidence_field "post-unpack checks" "$expected_post_unpack_checks"
 readme_marker_count="$(
   grep -Fxc "modal release archive smoke artifact" "$unpack_dir/README.txt" || true
 )"

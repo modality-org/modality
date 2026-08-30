@@ -60,6 +60,7 @@ required_patterns=(
   "provenance file,"
   "checksum file,"
   "post-unpack checks"
+  "same-revision language CLI check when artifact smoke replay is enabled"
   "With \`MODAL_ONBOARDING_ARTIFACT_SMOKE=1\`, the download verifier now requires a"
   "same-revision \`MODALITY_BIN\`"
   "longer matching hex prefix"
@@ -223,6 +224,7 @@ required_patterns=(
   "checked binary, provenance file,"
   "checksum manifest,"
   "post-unpack smoke checks"
+  "same-revision language CLI check when artifact smoke replay is"
   "cannot omit or drift"
   "from the replay"
   "ingredients while preserving"
@@ -414,6 +416,21 @@ do
   for pattern in "${required_artifact_recipe_patterns[@]}"; do
     if ! grep -Fq -- "$pattern" "$script"; then
       echo "release artifact recipe script is missing full smoke replay wording: $script: $pattern" >&2
+      exit 1
+    fi
+  done
+done
+
+required_evidence_manifest_patterns=(
+  "post-unpack checks: version, help surface, same-revision language CLI, first-contract smoke when artifact smoke is enabled"
+)
+for script in \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"
+do
+  for pattern in "${required_evidence_manifest_patterns[@]}"; do
+    if ! grep -Fq -- "$pattern" "$script"; then
+      echo "release artifact evidence manifest script is missing full replay wording: $script: $pattern" >&2
       exit 1
     fi
   done

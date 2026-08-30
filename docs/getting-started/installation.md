@@ -132,7 +132,8 @@ the source revision is not a lowercase hex commit token, so `unknown` or
 hand-written revision notes cannot become the advertised archive provenance.
 The evidence manifest names the replayable evidence bundle, artifact,
 version, source revision, profile, feature set, exact help surface, binary,
-provenance file, checksum file, and post-unpack checks.
+provenance file, checksum file, and post-unpack checks, including the
+same-revision language CLI check when artifact smoke replay is enabled.
 With `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, the download verifier now requires a
 same-revision `MODALITY_BIN`, checks the unpacked help surface, and runs the
 first-contract CLI smoke against the unpacked `modal` binary. The language CLI

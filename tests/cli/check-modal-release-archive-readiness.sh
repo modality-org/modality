@@ -208,7 +208,7 @@ help surface: $HELP_SURFACE
 binary: bin/modal
 provenance: PROVENANCE.txt
 checksums: SHA256SUMS
-post-unpack checks: version, help surface, first-contract smoke when artifact smoke is enabled
+post-unpack checks: version, help surface, same-revision language CLI, first-contract smoke when artifact smoke is enabled
 EOF
 chmod 0644 "$STAGE_DIR/README.txt" "$STAGE_DIR/PROVENANCE.txt" "$STAGE_DIR/EVIDENCE-BUNDLE.txt"
 (
@@ -2610,7 +2610,7 @@ if ! grep -Fq "features: $FEATURES" "$UNPACK_DIR/EVIDENCE-BUNDLE.txt"; then
   echo "release archive evidence manifest is missing features: $FEATURES" >&2
   exit 1
 fi
-if ! grep -Fq "post-unpack checks: version, help surface, first-contract smoke when artifact smoke is enabled" "$UNPACK_DIR/EVIDENCE-BUNDLE.txt"; then
+if ! grep -Fq "post-unpack checks: version, help surface, same-revision language CLI, first-contract smoke when artifact smoke is enabled" "$UNPACK_DIR/EVIDENCE-BUNDLE.txt"; then
   echo "release archive evidence manifest is missing post-unpack checks" >&2
   exit 1
 fi

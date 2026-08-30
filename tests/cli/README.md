@@ -89,7 +89,8 @@ The archive-readiness check creates a temporary
 checks the provenance source revision, archive-safe platform tokens, profile,
 feature set, and help surface, checks the evidence manifest declares the
 replayable bundle, exact artifact, version, source revision, profile, feature
-set, help surface, and post-unpack checks, then
+set, help surface, and post-unpack checks, including the same-revision language
+CLI check when artifact smoke replay is enabled, then
 checks the unpacked binary version and help surface, and runs the full
 first-contract smoke when `MODALITY_BIN=/path/to/modality` is supplied. Set
 `MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` to keep the generated tarball and
