@@ -172,6 +172,8 @@ Run `workflow_dispatch` manually with this guarded handoff so an empty or
 wrong-revision run lookup stops before any artifact is trusted:
 
 ```bash
+git fetch origin main
+test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
 source_rev="$(git rev-parse HEAD)"
 gh workflow run "Onboarding Release Archive" --ref main
 for attempt in 1 2 3 4 5; do

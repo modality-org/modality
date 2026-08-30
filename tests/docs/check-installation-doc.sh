@@ -108,6 +108,8 @@ required_patterns=(
   "shows the optional smoke replay against the same directory"
   "workflow_dispatch"
   "guarded handoff"
+  "git fetch origin main"
+  "test \"\$(git rev-parse HEAD)\" = \"\$(git rev-parse origin/main)\""
   "gh workflow run \"Onboarding Release Archive\" --ref main"
   "for attempt in 1 2 3 4 5; do"
   "source_rev=\"\$(git rev-parse HEAD)\""
