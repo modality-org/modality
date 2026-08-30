@@ -23,6 +23,9 @@ committing the result:
 - Which action labels and predicate calls were extracted by the parser?
 - Does the Review Checklist say source capture, clause trace, parser-backed
   formulas, verifier result, assumptions, and known gaps are present?
+- Does the Review Checklist say `Prompt-to-facts trace: not automatic` so the
+  reviewer knows preserved source clauses still need human comparison against
+  parser-backed formulas?
 - Did `--verify` accept the witness model?
 - Which assumptions and known gaps are still outside the proof?
 - Does the witness model expose only the moves the rule intended?
@@ -49,7 +52,8 @@ When the rule came from reviewer-authored text, pass that text with
 Structured lines such as `F1: Every accepted post move must have reviewer
 signature evidence attached.` should appear in the Source Clause Trace section
 next to the extracted formula. This trace is preserved for review; it is not
-natural-language extraction.
+natural-language extraction. The Review Checklist should repeat that boundary
+with `Prompt-to-facts trace: not automatic`.
 
 ## No-Witness Bundle
 

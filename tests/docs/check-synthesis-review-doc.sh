@@ -13,6 +13,7 @@ required_patterns=(
   "Which action labels and predicate calls were extracted by the parser?"
   "Which reviewer-authored source clause, prompt, or protocol text was preserved?"
   "Does the Review Checklist say source capture, clause trace, parser-backed"
+  "Prompt-to-facts trace: not automatic"
   "Did \`--verify\` accept the witness model?"
   "always(!+POST | <+signed_by(/users/reviewer.id)> true)"
   "Review Checklist with \`Verifier result:"

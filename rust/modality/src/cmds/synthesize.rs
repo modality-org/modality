@@ -5230,6 +5230,9 @@ fn write_review_checklist(
         })
         .unwrap_or(false);
     output.push_str(if trace_present { "yes\n" } else { "no\n" });
+    output.push_str(
+        "- Prompt-to-facts trace: not automatic; review preserved clauses against parser-backed formulas\n",
+    );
 
     output.push_str(&format!(
         "- Parser-backed formulas: {}\n",
@@ -21099,6 +21102,9 @@ F3: [+APPROVE] true -> <+oracle_attests(/oracles/review.id, "reviewed", "true")>
         assert!(bundle.contains("## Review Checklist"));
         assert!(bundle.contains("- Original source captured: yes"));
         assert!(bundle.contains("- Source-clause trace present: yes"));
+        assert!(bundle.contains(
+            "- Prompt-to-facts trace: not automatic; review preserved clauses against parser-backed formulas"
+        ));
         assert!(bundle.contains("- Parser-backed formulas: 3"));
         assert!(bundle.contains("- Verifier result: passed"));
         assert!(bundle.contains("## Extracted Formulas"));
@@ -21175,6 +21181,9 @@ rule post_requires_reviewer {
         assert!(bundle.contains("## Review Checklist"));
         assert!(bundle.contains("- Original source captured: yes"));
         assert!(bundle.contains("- Source-clause trace present: yes"));
+        assert!(bundle.contains(
+            "- Prompt-to-facts trace: not automatic; review preserved clauses against parser-backed formulas"
+        ));
         assert!(bundle.contains("- Parser-backed formulas: 1"));
         assert!(bundle.contains("- Verifier result: passed"));
         assert!(bundle.contains("## Verifier Result"));
