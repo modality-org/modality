@@ -21,6 +21,8 @@ committing the result:
 - Which rule file was used?
 - Which reviewer-authored source clause, prompt, or protocol text was preserved?
 - Which action labels and predicate calls were extracted by the parser?
+- Does the Review Checklist say source capture, clause trace, parser-backed
+  formulas, verifier result, assumptions, and known gaps are present?
 - Did `--verify` accept the witness model?
 - Which assumptions and known gaps are still outside the proof?
 - Does the witness model expose only the moves the rule intended?
@@ -38,9 +40,9 @@ rule post_requires_reviewer {
 ```
 
 the bundle should include the rule source, extracted facts such as `+POST` and
-`+signed_by(/users/reviewer.id)`, a passed verifier result, and the witness
-model that the verifier accepted. Treat that witness as something to inspect,
-not as proof that the original human intent was complete.
+`+signed_by(/users/reviewer.id)`, a Review Checklist with `Verifier result:
+passed`, and the witness model that the verifier accepted. Treat that witness as
+something to inspect, not as proof that the original human intent was complete.
 
 When the rule came from reviewer-authored text, pass that text with
 `--source-file` or `--source-text` instead of relying on the rule file alone.
@@ -54,9 +56,10 @@ natural-language extraction.
 If `--verify` rejects the synthesized candidate, the CLI should say that no satisfying witness was found by the current synthesis heuristics. With `--review-bundle`, it should still write a failed bundle containing:
 
 - The rule file and parser-backed extracted facts.
+- A Review Checklist with `Verifier result: failed`.
 - The verifier error.
 - The candidate witness model that failed verification.
-- Known gaps, including the bounded heuristic search path.
+- Assumptions and known gaps, including the bounded heuristic search path.
 
 This is not a contract approval. It is a review artifact that says the current
 tooling did not find a satisfying witness. Revise the rule, supply a witness

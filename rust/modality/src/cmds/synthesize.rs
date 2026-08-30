@@ -4949,6 +4949,15 @@ fn format_failed_rule_review_bundle(
     let facts = FormulaFactSummary::from_formulas(&parsed_input.formulas);
     facts.write_markdown(&mut output);
 
+    output.push_str("## Review Checklist\n\n");
+    write_review_checklist(
+        &mut output,
+        review_source,
+        parsed_input.formulas.len(),
+        parsed_input.formulas.len(),
+        false,
+    );
+
     output.push_str("## Parser Result\n\n");
     output.push_str(&format!(
         "- Parsed formulas: {}\n",
@@ -4977,6 +4986,10 @@ fn format_failed_rule_review_bundle(
     output.push_str(&format!("```{}\n", model_format));
     output.push_str(model_output.trim());
     output.push_str("\n```\n\n");
+
+    output.push_str("## Assumptions\n\n");
+    output.push_str("- Predicate meanings come from the runtime predicate library, not from the rule text alone.\n");
+    output.push_str("- Signature, path, oracle, and external-world facts must still be supplied by contract evidence at verification time.\n\n");
 
     output.push_str("## Known Gaps\n\n");
     output.push_str("- This is a bounded heuristic search path, not a complete model finder.\n");
@@ -5094,6 +5107,15 @@ fn format_synthesis_review_bundle(
     output.push_str("## Source Clause Trace\n\n");
     write_source_clause_trace(&mut output, review_source, extracted_formulas.len());
 
+    output.push_str("## Review Checklist\n\n");
+    write_review_checklist(
+        &mut output,
+        review_source,
+        extracted_formulas.len(),
+        parsed_input.formulas.len(),
+        true,
+    );
+
     output.push_str("## Extracted Formulas\n\n");
     for (index, formula) in extracted_formulas.iter().enumerate() {
         output.push_str(&format!("{}. `{}`\n", index + 1, formula_preview(formula)));
@@ -5187,6 +5209,39 @@ fn write_source_clause_trace(
         }
     }
     output.push('\n');
+}
+
+fn write_review_checklist(
+    output: &mut String,
+    review_source: Option<&ReviewSource>,
+    formula_count: usize,
+    parsed_formula_count: usize,
+    verifier_passed: bool,
+) {
+    output.push_str("- Original source captured: ");
+    output.push_str(if review_source.is_some() { "yes\n" } else { "no\n" });
+
+    output.push_str("- Source-clause trace present: ");
+    let trace_present = review_source
+        .map(|source| {
+            extract_source_clause_trace(&source.content, formula_count)
+                .iter()
+                .any(Option::is_some)
+        })
+        .unwrap_or(false);
+    output.push_str(if trace_present { "yes\n" } else { "no\n" });
+
+    output.push_str(&format!(
+        "- Parser-backed formulas: {}\n",
+        parsed_formula_count
+    ));
+    output.push_str(if verifier_passed {
+        "- Verifier result: passed\n"
+    } else {
+        "- Verifier result: failed\n"
+    });
+    output.push_str("- Assumptions section present: yes\n");
+    output.push_str("- Known gaps section present: yes\n\n");
 }
 
 fn extract_source_clause_trace(source: &str, formula_count: usize) -> Vec<Option<String>> {
@@ -21041,6 +21096,11 @@ F3: [+APPROVE] true -> <+oracle_attests(/oracles/review.id, "reviewed", "true")>
         assert!(bundle.contains("- F1 source clause: The contract must expose an approval move."));
         assert!(bundle.contains("- F2 source clause: When an approval is recorded, require reviewer signature."));
         assert!(bundle.contains("- F3 source clause: When an approval is recorded, require review oracle evidence."));
+        assert!(bundle.contains("## Review Checklist"));
+        assert!(bundle.contains("- Original source captured: yes"));
+        assert!(bundle.contains("- Source-clause trace present: yes"));
+        assert!(bundle.contains("- Parser-backed formulas: 3"));
+        assert!(bundle.contains("- Verifier result: passed"));
         assert!(bundle.contains("## Extracted Formulas"));
         assert!(bundle.contains("## Verifier Result"));
         assert!(bundle.contains("Status: passed (`--verify`)"));
@@ -21112,6 +21172,11 @@ rule post_requires_reviewer {
         assert!(bundle.contains(
             "- F1 source clause: Every accepted post move must have reviewer signature evidence attached."
         ));
+        assert!(bundle.contains("## Review Checklist"));
+        assert!(bundle.contains("- Original source captured: yes"));
+        assert!(bundle.contains("- Source-clause trace present: yes"));
+        assert!(bundle.contains("- Parser-backed formulas: 1"));
+        assert!(bundle.contains("- Verifier result: passed"));
         assert!(bundle.contains("## Verifier Result"));
         assert!(bundle.contains("Status: passed (`--verify`)"));
         assert!(bundle.contains("## Witness Model"));
