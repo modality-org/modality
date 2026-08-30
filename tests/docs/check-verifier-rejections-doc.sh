@@ -37,6 +37,7 @@ required_patterns=(
   "test_model_replacement_rule_rejection_explains_fixed_point_unfolding"
   'Shared `modal-common::model_diagnostics` formatter regressions'
   "The no-build doc smoke cross-checks the first-contract smoke"
+  "Reports the ranked candidate section before listing alternate candidates"
   "summarizes_candidate_transition_with_stable_key_and_failures"
   "summarizes_non_current_transition_with_current_states"
   "renders_recursive_formula_failure_diagnostic"
@@ -66,6 +67,7 @@ first_contract_smoke_patterns=(
   'current states {"q1"}'
   "Closest candidate transition:"
   "candidate from current state q1:"
+  "Candidate transitions ranked by predicate distance:"
   "missing +signed_by(/parties/alice.id)"
   "missing +signed_by(/parties/bob.id)"
   "rejected unsigned commit changed replayed contract state"
