@@ -120,7 +120,7 @@ jobs:
           echo "- Actions artifact: \`${artifact_name}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- GitHub artifact digest: \`${upload_digest}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Detached tarball checksum: \`${checksum_line}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Evidence: detached tarball checksum, download verification recipe, exact archive members, checksums, provenance, binary version, recorded help surface, first-contract smoke" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Evidence: detached tarball checksum, download verification recipe, exact archive members, checksums, provenance, binary version, recorded help surface, same-revision language CLI, first-contract smoke" >> "$GITHUB_STEP_SUMMARY"
           echo "- Download: \`gh run download ${GITHUB_RUN_ID} --name ${artifact_name} --dir /path/to/downloaded-artifact-dir\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Verify: \`MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=${MODAL_SOURCE_REV} tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-dir\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Smoke replay: \`MODAL_ONBOARDING_ARTIFACT_SMOKE=1 MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=${MODAL_SOURCE_REV} MODALITY_BIN=/path/to/modality tests/cli/check-modal-release-artifact-download.sh /path/to/downloaded-artifact-dir\` checks the unpacked binary version, recorded help surface, same-revision modality binary, and first-contract path" >> "$GITHUB_STEP_SUMMARY"

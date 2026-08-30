@@ -152,9 +152,9 @@ expected source revision, expected profile, expected feature set, expected help 
 The workflow summary prints the exact `gh run download` command for that run and the
 matching `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` replay verifier
 command, plus the optional `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` replay command
-that checks the downloaded binary's version, recorded help surface, and
-first-contract path when `MODALITY_BIN=/path/to/modality` was built from the
-same source revision. The
+that checks the downloaded binary's version, recorded help surface,
+same-revision language CLI, and first-contract path when
+`MODALITY_BIN=/path/to/modality` was built from the same source revision. The
 uploaded Actions artifact and the replay summary both use the
 `modal-linux-x86_64-release-archive-<source-revision>` artifact name, so the
 download command stays tied to the exact source revision under test. The
