@@ -151,6 +151,12 @@ fn parse_top_level_formula_blocks(content: &str) -> Result<Vec<Formula>, String>
         else {
             break;
         };
+        let header = content[formula_start + "formula".len()..open_brace].trim();
+        if header.is_empty() {
+            // Unnamed `formula { ... }` is a rule body, not a top-level declaration.
+            cursor = open_brace;
+            continue;
+        }
         let Some(close_brace) = find_matching_brace(&content, open_brace) else {
             return Err("Failed to parse formula: unmatched `{`".to_string());
         };
@@ -632,5 +638,25 @@ export default rule {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].0, "default_rule");
         assert!(results[0].1.is_empty());
+    }
+
+    #[test]
+    fn lints_first_contract_authorized_rule() {
+        let content = r#"
+export default rule {
+  starting_at $PARENT
+  formula {
+    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+  }
+}
+"#;
+        let results = lint_formulas_in_content(content, &FormulaLintOptions::default()).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0, "default_rule");
+        assert!(
+            results[0].1.is_empty(),
+            "first-contract authorized rule should be lint-clean: {:?}",
+            results[0].1
+        );
     }
 }
