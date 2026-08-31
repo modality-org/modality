@@ -19,9 +19,9 @@ local validator path.
 |------|-----------------|--------------------|
 | `+POST`, `+MODEL`, and other method labels | Pending commit body methods | Checked on the pending commit |
 | `signed_by(/path.id)` | Pending commit signatures plus the public key string at `/path.id` in accepted state | Reads previously committed state, not values written by the same commit |
-| `any_signed(/path)` | Pending commit signatures plus every accepted-state `*.id` file under `/path` | At least one listed identity must sign |
-| `all_signed(/path)` | Pending commit signatures plus every accepted-state `*.id` file under `/path` | The directory must contain at least one identity, and every listed identity must sign |
-| `threshold("n", /path)` | Pending commit signatures plus every accepted-state `*.id` file under `/path` | At least `n` unique listed identities must sign |
+| `any_signed(/path)` | Pending commit signatures plus every accepted-state `*.id` file at `/path` or descendants | At least one listed identity must sign |
+| `all_signed(/path)` | Pending commit signatures plus every accepted-state `*.id` file at `/path` or descendants | The path must contain at least one identity, and every listed identity must sign |
+| `threshold("n", /path)` | Pending commit signatures plus every accepted-state `*.id` file at `/path` or descendants | At least `n` unique listed identities must sign |
 | `modifies(/path)` | Pending commit body paths | Matches `/path` itself or descendants such as `/path/alice.id` |
 | `post_to_path(/path)` | Pending commit body methods and paths | Matches a `POST` action to `/path` itself or a descendant |
 | `has_property(/path, "a.b")` | Accepted-state JSON at `/path` | Reads previously committed JSON and follows dot-separated object keys |
@@ -46,17 +46,18 @@ currently enforced by the local first-contract validator.
 
 ### modifies
 
-Checks if the commit writes to paths under a given prefix.
+Checks if the commit writes to a path itself or a descendant path.
 
 ```modality
 +modifies(/members)
 ```
 
 **Arguments:**
-- `path` — Path prefix to check
+- `path` — Path or ancestor path to check
 
 **Behavior:**
-- Returns true if any path in the commit body starts with the given prefix
+- Returns true if any path in the commit body is the path itself or a descendant
+- Does not match sibling paths that merely share a string prefix
 - Used for path-based access control rules
 
 **Example:**
@@ -67,20 +68,21 @@ always(![+modifies(/members)] true | <+all_signed(/members)> true)
 
 ### post_to_path
 
-Checks if the pending commit includes a `POST` action to a path under a given
-prefix.
+Checks if the pending commit includes a `POST` action to the path itself or a
+descendant path.
 
 ```modality
 +post_to_path(/config)
 ```
 
 **Arguments:**
-- `path` — Path prefix to check
+- `path` — Path or ancestor path to check
 
 **Behavior:**
 - Looks only at the pending commit body
 - Ignores non-`POST` actions, even when they write under the same path
 - Returns true if any `POST` action targets the path itself or a descendant
+- Does not match sibling paths that merely share a string prefix
 
 ## Signature Predicates
 
@@ -109,10 +111,11 @@ Verifies at least one member from a path has signed.
 ```
 
 **Arguments:**
-- `path` — Path prefix containing member public keys
+- `path` — Path or ancestor path containing member public keys
 
 **Behavior:**
-- Enumerates all `.id` files under the path
+- Enumerates all `.id` files at the path or descendants
+- Does not count identities from sibling paths that merely share a string prefix
 - Passes if ANY member has a valid signature
 - Used for "any member can act" patterns
 
@@ -125,10 +128,11 @@ Verifies ALL members from a path have signed.
 ```
 
 **Arguments:**
-- `path` — Path prefix containing member public keys
+- `path` — Path or ancestor path containing member public keys
 
 **Behavior:**
-- Enumerates all `.id` files under the path  
+- Enumerates all `.id` files at the path or descendants
+- Does not count identities from sibling paths that merely share a string prefix
 - Passes only if EVERY member has a valid signature
 - Fails when the path contains no `.id` members
 - Used for "unanimous consent" patterns like adding members
@@ -143,10 +147,11 @@ Verifies n-of-m signatures from the accepted identities under a path.
 
 **Arguments:**
 - `n` — Minimum signatures required
-- `signers_path` — Path prefix containing signer public keys in `*.id` files
+- `signers_path` — Path or ancestor path containing signer public keys in `*.id` files
 
 **Behavior:**
-- Enumerates all `.id` files under the path in accepted contract state
+- Enumerates all `.id` files at the path or descendants in accepted contract state
+- Does not count identities from sibling paths that merely share a string prefix
 - Counts each authorized public key at most once
 - Ignores commit signatures from keys that are not listed under the path
 - Passes when at least `n` unique listed identities signed the pending commit

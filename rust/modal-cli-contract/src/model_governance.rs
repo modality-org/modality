@@ -1318,7 +1318,7 @@ impl CommitFacts {
     fn member_values<'a>(&'a self, path: &'a str) -> impl Iterator<Item = String> + 'a {
         let prefix = normalize_path(path);
         self.state.iter().filter_map(move |(key, value)| {
-            if key.starts_with(&prefix) && key.ends_with(".id") {
+            if path_or_descendant(key, &prefix) && key.ends_with(".id") {
                 value.as_str().map(ToString::to_string)
             } else {
                 None
@@ -1367,14 +1367,14 @@ impl CommitFacts {
         let prefix = normalize_path(path);
         self.modified_paths
             .iter()
-            .any(|path| path == &prefix || path.starts_with(&format!("{}/", prefix)))
+            .any(|path| path_or_descendant(path, &prefix))
     }
 
     fn posts_to_path(&self, path: &str) -> bool {
         let prefix = normalize_path(path);
         self.post_paths
             .iter()
-            .any(|path| path == &prefix || path.starts_with(&format!("{}/", prefix)))
+            .any(|path| path_or_descendant(path, &prefix))
     }
 
     fn has_state_property(&self, path: &str, property_path: &str) -> bool {
@@ -1421,6 +1421,10 @@ fn predicate_arg_values(args: &Value) -> Vec<&Value> {
         .or_else(|| args.as_array())
         .map(|items| items.iter().collect())
         .unwrap_or_default()
+}
+
+fn path_or_descendant(path: &str, prefix: &str) -> bool {
+    path == prefix || path.starts_with(&format!("{prefix}/"))
 }
 
 fn extract_signers(commit: &CommitFile) -> HashSet<String> {
@@ -1514,6 +1518,34 @@ model MembersOnly {
             err.find("forbidden -modifies(/members) matched").unwrap()
                 < err.find("missing +all_signed(/members)").unwrap(),
             "closest candidate should appear before farther candidate: {err}"
+        );
+    }
+
+    #[test]
+    fn ignores_sibling_paths_for_modifies_predicates() {
+        let model = parse_content_lalrpop(
+            r#"
+model Members {
+  initial active
+  active --> active: +POST -modifies(/members)
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("active".to_string());
+
+        let mut commit = CommitFile::new();
+        commit.add_action(
+            "post".to_string(),
+            Some("/memberships/alice.id".to_string()),
+            Value::String("alice_key".to_string()),
+        );
+        let facts = CommitFacts::from_commit(&commit, &HashMap::new());
+
+        assert!(
+            has_valid_transition(&model, &current_states, &facts),
+            "sibling paths should not satisfy modifies(/members)"
         );
     }
 
@@ -1825,6 +1857,40 @@ model Threshold {
     }
 
     #[test]
+    fn ignores_sibling_paths_for_member_signature_sets() {
+        let model = parse_content_lalrpop(
+            r#"
+model Members {
+  initial active
+  active --> active: +POST +any_signed(/members)
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("active".to_string());
+        let mut state = HashMap::new();
+        state.insert(
+            "memberships/alice.id".to_string(),
+            Value::String("alice_key".to_string()),
+        );
+
+        let mut commit = CommitFile::new();
+        commit.add_action(
+            "post".to_string(),
+            Some("/notes/next.text".to_string()),
+            Value::String("ok".to_string()),
+        );
+        commit.head.signatures = Some(serde_json::json!({
+            "alice_key": "sig"
+        }));
+        let facts = CommitFacts::from_commit(&commit, &state);
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+
+        assert!(err.contains("missing +any_signed(/members)"), "{err}");
+    }
+
+    #[test]
     fn enforces_post_to_path_against_pending_post_actions() {
         let model = parse_content_lalrpop(
             r#"
@@ -1861,6 +1927,17 @@ model PostPath {
         let err = explain_no_valid_transition(&model, &current_states, &non_post_facts);
 
         assert!(err.contains("missing +POST"), "{err}");
+        assert!(err.contains("missing +post_to_path(/config)"), "{err}");
+
+        let mut sibling_post = CommitFile::new();
+        sibling_post.add_action(
+            "post".to_string(),
+            Some("/config-old/value.text".to_string()),
+            Value::String("enabled".to_string()),
+        );
+        let sibling_facts = CommitFacts::from_commit(&sibling_post, &HashMap::new());
+        let err = explain_no_valid_transition(&model, &current_states, &sibling_facts);
+
         assert!(err.contains("missing +post_to_path(/config)"), "{err}");
 
         let mut other_post = CommitFile::new();
