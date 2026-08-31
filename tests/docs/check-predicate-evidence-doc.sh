@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/reference/standard-predicates.md"
+LANG_DOC="$ROOT_DIR/docs/language/predicates.md"
 
 required_patterns=(
   "## Current Local Evidence Matrix"
@@ -30,8 +31,31 @@ for pattern in "${required_patterns[@]}"; do
   fi
 done
 
+language_patterns=(
+  "This page names the language vocabulary."
+  "The currently verified local"
+  "first-contract path is narrower: method labels, \`signed_by\`, \`any_signed\`,"
+  "\`all_signed\`, \`threshold\`, and \`modifies\` are enforced from replayable commit"
+  "[standard predicate evidence matrix](../reference/standard-predicates.md)"
+  "Do not treat the future vocabulary below as runtime evidence until a validator"
+  "Oracle, time, comparison, hash,"
+  "and WASM predicates are extension vocabulary in the local first-contract path,"
+)
+
+for pattern in "${language_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$LANG_DOC"; then
+    echo "language predicate reference is missing evidence-boundary text: $pattern" >&2
+    exit 1
+  fi
+done
+
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$DOC"; then
   echo "standard predicate reference should avoid formula implication sugar" >&2
+  exit 1
+fi
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$LANG_DOC"; then
+  echo "language predicate reference should avoid formula implication sugar" >&2
   exit 1
 fi
 

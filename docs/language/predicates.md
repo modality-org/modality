@@ -5,6 +5,17 @@ title: Predicates
 
 # Predicates Reference
 
+This page names the language vocabulary. The currently verified local
+first-contract path is narrower: method labels, `signed_by`, `any_signed`,
+`all_signed`, `threshold`, and `modifies` are enforced from replayable commit
+artifacts. See the [standard predicate evidence matrix](../reference/standard-predicates.md)
+for the exact source of each fact.
+
+Do not treat the future vocabulary below as runtime evidence until a validator
+path documents its artifact format and tests. Oracle, time, comparison, hash,
+and WASM predicates are extension vocabulary in the local first-contract path,
+not proof that external facts were checked.
+
 ## Signature Predicates
 
 ```modality
