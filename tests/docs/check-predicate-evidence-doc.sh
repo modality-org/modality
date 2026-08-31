@@ -15,7 +15,14 @@ required_patterns=(
   "| \`modifies(/path)\` | Pending commit body paths | Matches \`/path\` itself or descendants such as \`/path/alice.id\` |"
   "## Implementation Status"
   "| \`signed_by\`, \`any_signed\`, \`all_signed\`, \`threshold\`, \`modifies\` | Enforced | Derived from pending signatures, accepted state, and modified paths |"
+  "| \`has_property\`, \`timestamp_valid\`, \`post_to_path\` | Unit-tested extension modules only | Implemented in \`modal-wasm-validation\`; not yet replay evidence for the local first-contract validator |"
   "| \`before\`, \`after\`, state predicates, hash predicates, \`oracle_attests\`, and \`wasm\` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |"
+  "The \`timestamp_valid\` extension module compares an input timestamp with the"
+  "replay must define where the trusted clock value"
+  "The \`modal-wasm-validation\` crate has unit-tested state-inspection modules"
+  "Treat their inputs as explicit JSON"
+  "A module such as"
+  "promoting it to local contract evidence requires a validator path that binds"
   "Verifies n-of-m signatures from the accepted identities under a path."
   "Counts each authorized public key at most once"
   "Ignores commit signatures from keys that are not listed under the path"
@@ -27,6 +34,27 @@ required_patterns=(
 for pattern in "${required_patterns[@]}"; do
   if ! grep -Fq "$pattern" "$DOC"; then
     echo "standard predicate reference is missing evidence text: $pattern" >&2
+    exit 1
+  fi
+done
+
+WASM_README="$ROOT_DIR/rust/modal-wasm-validation/src/predicates/README.md"
+wasm_patterns=(
+  "These modules are locally unit-tested predicate evaluators."
+  "not, by"
+  "themselves, evidence that the local first-contract validator can derive each"
+  "first-contract evidence boundary, use \`docs/reference/standard-predicates.md\`."
+  "The checked object is explicit predicate-test input"
+  "document how that object is derived from accepted state"
+  "The \"current time\" is \`context.timestamp\`"
+  "document the trusted clock source"
+  "The checked commit action list is explicit predicate-test input"
+  "must bind it to the pending commit body"
+)
+
+for pattern in "${wasm_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$WASM_README"; then
+    echo "wasm predicate README is missing evidence-boundary text: $pattern" >&2
     exit 1
   fi
 done

@@ -37,6 +37,7 @@ currently enforced by the local first-contract validator.
 |------------------|--------------------------------|-------|
 | Method labels such as `+POST` and `+MODEL` | Enforced | Derived from pending commit body methods |
 | `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies` | Enforced | Derived from pending signatures, accepted state, and modified paths |
+| `has_property`, `timestamp_valid`, `post_to_path` | Unit-tested extension modules only | Implemented in `modal-wasm-validation`; not yet replay evidence for the local first-contract validator |
 | `before`, `after`, state predicates, hash predicates, `oracle_attests`, and `wasm` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |
 
 ## Path Predicates
@@ -135,6 +136,11 @@ Verifies n-of-m signatures from the accepted identities under a path.
 
 ## Time Predicates
 
+The `timestamp_valid` extension module compares an input timestamp with the
+predicate context timestamp in unit tests. It is still external to the local
+first-contract path because replay must define where the trusted clock value
+comes from before deadline predicates can be treated as verifier evidence.
+
 ### before
 
 Intended predicate for checking that current time is before a deadline.
@@ -152,6 +158,12 @@ after(/deadlines/start.datetime)
 ```
 
 ## State Predicates
+
+The `modal-wasm-validation` crate has unit-tested state-inspection modules such
+as `has_property`, but those modules are not yet wired into the local
+first-contract validator evidence matrix. Treat their inputs as explicit JSON
+predicate-test data until a contract-log validator path documents how the JSON
+is derived from replayed commits and accepted state.
 
 ### bool_true / bool_false
 
@@ -243,7 +255,10 @@ pending -> executed [+threshold("2", /treasury/signers)]
 ## Custom WASM Predicates
 
 WASM predicates are intended custom predicate modules. They are not part of the
-current local first-contract validator evidence matrix.
+current local first-contract validator evidence matrix. A module such as
+`post_to_path` can be tested against explicit JSON commit-action input today,
+but promoting it to local contract evidence requires a validator path that binds
+those inputs to the pending commit body.
 
 ```bash
 modal predicate create --name my_predicate --output ./predicates/

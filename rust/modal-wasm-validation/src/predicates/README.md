@@ -1,6 +1,12 @@
 # Standard Predicates
 
-This directory contains the standard predicates available in the modal money network genesis contract at `/_code/modal/*.wasm`.
+This directory contains standard predicate modules intended for the modal money
+network genesis contract at `/_code/modal/*.wasm`.
+
+These modules are locally unit-tested predicate evaluators. They are not, by
+themselves, evidence that the local first-contract validator can derive each
+predicate fact from replayed contract commits. For the current local
+first-contract evidence boundary, use `docs/reference/standard-predicates.md`.
 
 ## Available Predicates
 
@@ -52,6 +58,9 @@ Checks if a numeric amount is within a specified range.
 **Path**: `/_code/modal/has_property.wasm`
 
 Checks if a JSON object has a specific property. Supports dot notation for nested properties.
+The checked object is explicit predicate-test input; a contract-log validator
+must separately document how that object is derived from accepted state before
+this becomes replay evidence.
 
 **Input**:
 ```json
@@ -70,6 +79,9 @@ Checks if a JSON object has a specific property. Supports dot notation for neste
 **Path**: `/_code/modal/timestamp_valid.wasm`
 
 Validates that a timestamp is within acceptable bounds relative to the current time.
+The "current time" is `context.timestamp`; a contract-log validator must
+document the trusted clock source before this can support local deadline
+evidence.
 
 **Input**:
 ```json
@@ -89,6 +101,9 @@ Validates that a timestamp is within acceptable bounds relative to the current t
 **Path**: `/_code/modal/post_to_path.wasm`
 
 Checks if a commit includes a POST action to a specific path.
+The checked commit action list is explicit predicate-test input; a validator
+must bind it to the pending commit body before this predicate can count as
+first-contract replay evidence.
 
 **Input**:
 ```json
@@ -189,4 +204,3 @@ Compiled WASM modules are cached for performance:
 - Hash verification prevents tampering
 - Deterministic execution required
 - Cross-contract execution limits prevent recursion
-
