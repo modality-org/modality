@@ -101,23 +101,26 @@ Synthesis review benchmark:
 MODALITY_BIN=/path/to/modality tests/language/check-acme-review-benchmark.sh
 ```
 
-The benchmark intentionally covers three narrow RFC 8555 source clauses:
-`newOrder` (§7.1.4), authorization validation (§7.1.5), and finalize (§7.4).
+The benchmark intentionally covers four narrow RFC 8555 source clauses:
+`newOrder` (§7.1.4), authorization validation (§7.1.5), finalize (§7.4),
+and certificate issuance (§8).
 It checks that the parser-backed rule synthesis bundle preserves the reviewer
 source clauses, extracted `+ACME_CREATE_ORDER`, `+ACME_VALIDATE_AUTHORIZATION`,
-and `+ACME_FINALIZE_ORDER` actions, account-holder and CA signature predicates,
-verifier status, explicit external assumptions, and known gaps. It uses explicit
-Boolean formula syntax instead of implication sugar. It does not claim that
+`+ACME_FINALIZE_ORDER`, and `+ACME_ISSUE_CERTIFICATE` actions, account-holder
+and CA signature predicates, verifier status, explicit external assumptions, and
+known gaps. It uses explicit Boolean formula syntax instead of implication sugar.
+It does not claim that
 DNS/HTTP validation, CSR soundness, CA policy, WebPKI trust, or the full
 path-write ACME corpus are synthesized end to end. The
 [path-write crosswalk](./review-benchmark/path-write-crosswalk.md) records the
 current reviewer decision: the abstract `newOrder`, authorization-validation,
-and finalize actions are conceptually aligned with
+finalize, and issuance actions are conceptually aligned with
 `+sets(/order/status.text, "pending")`,
 `+sets(/challenge/status.text, "valid")`,
-`+sets(/order/status.text, "processing")`, and matching signature predicates,
-but readiness, authorization, prior-order, closed-enum, and broader CA
-authority constraints still live in the
+`+sets(/order/status.text, "processing")`,
+`+sets(/order/status.text, "valid")`, and matching signature predicates, but
+readiness, authorization, prior-order, issuance-ordering, closed-enum, and
+invalid-order authority constraints still live in the
 hand-authored path-write corpus.
 
 ## Modality Mapping Notes

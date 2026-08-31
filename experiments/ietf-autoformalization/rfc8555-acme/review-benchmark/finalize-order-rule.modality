@@ -21,3 +21,9 @@ rule acme_authorization_validation_requires_ca {
     always(!<+ACME_VALIDATE_AUTHORIZATION> true | <+ACME_VALIDATE_AUTHORIZATION +signed_by(/users/certificate_authority.id)> true)
   }
 }
+
+rule acme_certificate_issuance_requires_ca {
+  formula {
+    always(!<+ACME_ISSUE_CERTIFICATE> true | <+ACME_ISSUE_CERTIFICATE +signed_by(/users/certificate_authority.id)> true)
+  }
+}

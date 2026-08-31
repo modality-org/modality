@@ -60,13 +60,14 @@ benchmark, and DNS/HTTP control, CSR soundness, CA policy, WebPKI trust, and
 ACME account-key authentication remain external assumptions.
 
 [review-benchmark/path-write-crosswalk.md](./review-benchmark/path-write-crosswalk.md)
-compares the abstract `+ACME_CREATE_ORDER`, `+ACME_VALIDATE_AUTHORIZATION`, and
-`+ACME_FINALIZE_ORDER` review fixture with the path-write corpus. The current
-decision is to keep the fixture as a source-clause review layer until synthesis
-can emit the concrete `+sets(/order/status.text, "pending")`,
+compares the abstract `+ACME_CREATE_ORDER`, `+ACME_VALIDATE_AUTHORIZATION`,
+`+ACME_FINALIZE_ORDER`, and `+ACME_ISSUE_CERTIFICATE` review fixture with the
+path-write corpus. The current decision is to keep the fixture as a
+source-clause review layer until synthesis can emit the concrete
+`+sets(/order/status.text, "pending")`,
 `+sets(/challenge/status.text, "valid")`, and
-`+sets(/order/status.text, "processing")` writes and the related phase gates
-directly.
+`+sets(/order/status.text, "processing")`,
+`+sets(/order/status.text, "valid")` writes and the related phase gates directly.
 
 ## Results
 
