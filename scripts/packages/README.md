@@ -4,11 +4,34 @@ This directory contains scripts for building and distributing Modality binaries 
 
 ## Scripts
 
+- **`build-dev.sh`** - Build a debug CLI for the local machine only (fast rebuild/test)
 - **`build.sh`** - Build binaries for all platforms
 - **`upload.sh`** - Upload built packages to S3
 - **`build-and-upload.sh`** - Combined build and upload (calls both scripts)
 
 ## Quick Start
+
+### Local Dev Build
+
+```bash
+./build-dev.sh
+```
+
+Native `cargo build -p modal` (debug, host only). No Docker, `cross`, WASM, or JS.
+Puts the binary at `rust/target/debug/modal` and copies it to `build/binaries/<platform>/`.
+
+```bash
+export PATH="$PWD/rust/target/debug:$PATH"
+modal --version
+```
+
+Debug and release profiles do not share compiled artifacts. To package that local CLI without compiling it again:
+
+```bash
+./build.sh --from-dev --skip-linux --skip-wasm
+```
+
+Omit `--skip-linux` / `--skip-wasm` if you still need those pieces; only the host CLI is reused.
 
 ### Build Only
 
@@ -73,6 +96,12 @@ This combines both build and upload steps.
 ### Build Commands
 
 ```bash
+# Debug build for this machine only (no cross-compile)
+./build-dev.sh
+
+# After build-dev.sh: package the debug CLI without recompiling it
+./build.sh --from-dev --skip-linux --skip-wasm
+
 # Build for all platforms
 ./build.sh
 

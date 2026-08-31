@@ -16,6 +16,9 @@ VERSION="${TIMESTAMP}-${GIT_COMMIT}"
 
 # Default values
 SKIP_JS=true
+SKIP_WASM=false
+SKIP_LINUX=false
+FROM_DEV=false
 CLEAN_BUILD=false
 
 # Colors for output
@@ -51,6 +54,9 @@ USAGE:
 
 OPTIONS:
     --version VERSION       Package version (default: TIMESTAMP-GITCOMMIT)
+    --from-dev             Reuse rust/target/debug/modal from build-dev.sh for this machine
+    --skip-linux           Skip Linux cross-compile (keep an existing linux binary if present)
+    --skip-wasm            Skip WASM package builds
     --skip-js              Skip JavaScript packages build
     --clean                Clean build directory before building
     -h, --help             Show this help message
@@ -58,7 +64,9 @@ OPTIONS:
 EXAMPLES:
     $0                      # Build all packages
     $0 --clean              # Clean build and rebuild
-    $0 --skip-js            # Build Rust packages only
+    $0 --from-dev           # After build-dev.sh: skip recompiling the host CLI
+    $0 --from-dev --skip-linux --skip-wasm
+                            # Package the local debug CLI only (no compile)
 
 EOF
 }
@@ -69,6 +77,18 @@ while [[ $# -gt 0 ]]; do
         --version)
             VERSION="$2"
             shift 2
+            ;;
+        --from-dev)
+            FROM_DEV=true
+            shift
+            ;;
+        --skip-linux)
+            SKIP_LINUX=true
+            shift
+            ;;
+        --skip-wasm)
+            SKIP_WASM=true
+            shift
             ;;
         --skip-js)
             SKIP_JS=true
@@ -97,6 +117,9 @@ log_info "Build directory: $BUILD_DIR"
 log_info "Git branch: $GIT_BRANCH"
 log_info "Git commit: $GIT_COMMIT"
 log_info "Version: $VERSION"
+if [[ "$FROM_DEV" == true ]]; then
+    log_info "Host CLI: reuse debug binary from build-dev.sh"
+fi
 
 # Clean build directory if requested
 if [[ "$CLEAN_BUILD" == true ]]; then
@@ -107,15 +130,38 @@ fi
 # Create build directory
 mkdir -p "$BUILD_DIR"
 
-# Build packages function
-build_packages() {
-    log_info "Building Modality packages..."
-    
-    # Install cross if not available
+host_rust_target() {
+    case "$(uname -s)-$(uname -m)" in
+        Darwin-arm64|Darwin-aarch64) echo "aarch64-apple-darwin" ;;
+        Darwin-x86_64) echo "x86_64-apple-darwin" ;;
+        Linux-x86_64) echo "x86_64-unknown-linux-gnu" ;;
+        Linux-aarch64|Linux-arm64) echo "aarch64-unknown-linux-gnu" ;;
+        *) echo "" ;;
+    esac
+}
+
+platform_for_target() {
+    case "$1" in
+        x86_64-unknown-linux-gnu) echo "linux-x86_64" ;;
+        aarch64-unknown-linux-gnu) echo "linux-aarch64" ;;
+        aarch64-apple-darwin) echo "darwin-aarch64" ;;
+        x86_64-apple-darwin) echo "darwin-x86_64" ;;
+        *) echo "" ;;
+    esac
+}
+
+ensure_cross() {
     if ! command -v cross &> /dev/null; then
         log_info "Installing cross for cross-compilation..."
         cargo install cross
     fi
+}
+
+# Build packages function
+build_packages() {
+    log_info "Building Modality packages..."
+    local host_target platform dest src
+    host_target="$(host_rust_target)"
     
     # Define target platforms
     TARGETS=(
@@ -128,41 +174,58 @@ build_packages() {
     cd "$PROJECT_ROOT/rust"
     
     for target in "${TARGETS[@]}"; do
+        platform="$(platform_for_target "$target")"
+        dest="$BUILD_DIR/binaries/$platform/modal"
+        mkdir -p "$(dirname "$dest")"
+        
+        if [[ "$SKIP_LINUX" == true && "$target" == *"linux"* ]]; then
+            if [[ -f "$dest" ]]; then
+                log_warning "Skipping $platform compile (keeping $dest)"
+                continue
+            fi
+            log_error "No existing $dest. Run without --skip-linux, or a full build.sh first."
+            exit 1
+        fi
+        
+        if [[ "$FROM_DEV" == true && "$target" == "$host_target" ]]; then
+            src="$PROJECT_ROOT/rust/target/debug/modal"
+            if [[ ! -f "$src" ]]; then
+                log_error "No debug CLI at $src"
+                log_error "Run ./scripts/packages/build-dev.sh first, or omit --from-dev."
+                exit 1
+            fi
+            log_info "Reusing debug CLI for $platform (from build-dev.sh)"
+            cp "$src" "$dest"
+            log_success "Packaged $platform without recompiling"
+            continue
+        fi
+        
         log_info "Building for $target..."
         
-        # Use cross for Linux and Windows, regular cargo for macOS (if on macOS)
-        if [[ "$target" == *"darwin"* ]] && [[ "$(uname -s)" == "Darwin" ]]; then
-            # On macOS, use native cargo for macOS targets
+        if [[ "$target" == "$host_target" ]]; then
+            # Host build: no --target, so artifacts live in target/release/ and
+            # subsequent package builds incrementally reuse that profile.
+            MODAL_GIT_BRANCH="$GIT_BRANCH" MODAL_GIT_COMMIT="$GIT_COMMIT" \
+                cargo build --release -p modal
+            src="$PROJECT_ROOT/rust/target/release/modal"
+        elif [[ "$target" == *"darwin"* ]] && [[ "$(uname -s)" == "Darwin" ]]; then
             rustup target add "$target" 2>/dev/null || true
-            MODAL_GIT_BRANCH="$GIT_BRANCH" MODAL_GIT_COMMIT="$GIT_COMMIT" cargo build --release -p modal --target "$target"
+            MODAL_GIT_BRANCH="$GIT_BRANCH" MODAL_GIT_COMMIT="$GIT_COMMIT" \
+                cargo build --release -p modal --target "$target"
+            src="$PROJECT_ROOT/rust/target/$target/release/modal"
         else
-            # Use cross for other platforms
-            # Skip compiler bug check by using AWS_LC_SYS_NO_AUTODETECT or CMAKE builder
+            ensure_cross
             MODAL_GIT_BRANCH="$GIT_BRANCH" \
             MODAL_GIT_COMMIT="$GIT_COMMIT" \
             AWS_LC_SYS_CMAKE_BUILDER="1" \
-            cross build --release -p modal --target "$target"
+                cross build --release -p modal --target "$target"
+            src="$PROJECT_ROOT/rust/target/$target/release/modal"
         fi
         
-        # Determine platform name and binary extension
-        case "$target" in
-            x86_64-unknown-linux-gnu)
-                platform="linux-x86_64"
-                binary_name="modal"
-                ;;
-            aarch64-apple-darwin)
-                platform="darwin-aarch64"
-                binary_name="modal"
-                ;;
-        esac
+        cp "$src" "$dest"
         
-        # Copy binary to platform-specific directory
-        mkdir -p "$BUILD_DIR/binaries/$platform"
-        cp "$PROJECT_ROOT/rust/target/$target/release/$binary_name" "$BUILD_DIR/binaries/$platform/"
-        
-        # Strip binary to reduce size (except Windows)
         if [[ "$platform" != "windows-"* ]]; then
-            strip "$BUILD_DIR/binaries/$platform/$binary_name" 2>/dev/null || true
+            strip "$dest" 2>/dev/null || true
         fi
         
         log_success "Built for $platform"
@@ -170,6 +233,9 @@ build_packages() {
     
     log_success "Rust CLI built successfully for all platforms"
     
+    if [[ "$SKIP_WASM" == true ]]; then
+        log_warning "Skipping WASM packages build"
+    else
     # Build WASM packages
     log_info "Building WASM packages..."
     
@@ -208,6 +274,7 @@ build_packages() {
     log_success "modal-wasm-validation WASM built"
     
     log_success "All WASM packages built successfully"
+    fi
     
     # Build JavaScript packages (if not skipped)
     if [[ "$SKIP_JS" == false ]]; then

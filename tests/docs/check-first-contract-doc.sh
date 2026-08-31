@@ -6,6 +6,7 @@ DOC="$ROOT_DIR/docs/getting-started/first-contract.md"
 FIRST_CONTRACT_SMOKE="$ROOT_DIR/tests/cli/run-first-contract-cli-smoke.sh"
 
 required_patterns=(
+  "modal contract create --dir ./my-first-contract"
   "## 4. Add Protection Rules"
   "## 5. Synthesize the Witness Model"
   "mkdir -p model"

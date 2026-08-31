@@ -12,17 +12,16 @@ contract CLI. If you only have a `modality` command, install `modal` from the
 ## 1. Create a Contract
 
 ```bash
-mkdir my-first-contract
-cd my-first-contract
-modal contract create
+modal contract create --dir ./my-first-contract
 ```
 
-This creates a `.contract/` directory and a starter `model/default.modality`
-file.
+This creates `./my-first-contract` with a `.contract/` directory and a starter
+`model/default.modality` file.
 
 ## 2. Create Identities
 
 ```bash
+cd my-first-contract
 modal id create --path alice.mod_passfile
 modal id create --path bob.mod_passfile
 ```
