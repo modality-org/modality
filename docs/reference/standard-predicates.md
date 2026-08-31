@@ -23,6 +23,7 @@ local validator path.
 | `all_signed(/path)` | Pending commit signatures plus every accepted-state `*.id` file under `/path` | The directory must contain at least one identity, and every listed identity must sign |
 | `threshold("n", /path)` | Pending commit signatures plus every accepted-state `*.id` file under `/path` | At least `n` unique listed identities must sign |
 | `modifies(/path)` | Pending commit body paths | Matches `/path` itself or descendants such as `/path/alice.id` |
+| `post_to_path(/path)` | Pending commit body methods and paths | Matches a `POST` action to `/path` itself or a descendant |
 
 Other reference predicates below describe the intended standard vocabulary.
 Treat them as requiring predicate-specific implementation and tests before
@@ -36,8 +37,8 @@ currently enforced by the local first-contract validator.
 | Predicate family | Local first-contract validator | Notes |
 |------------------|--------------------------------|-------|
 | Method labels such as `+POST` and `+MODEL` | Enforced | Derived from pending commit body methods |
-| `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies` | Enforced | Derived from pending signatures, accepted state, and modified paths |
-| `has_property`, `timestamp_valid`, `post_to_path` | Unit-tested extension modules only | Implemented in `modal-wasm-validation`; not yet replay evidence for the local first-contract validator |
+| `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path` | Enforced | Derived from pending signatures, accepted state, pending methods, and pending paths |
+| `has_property`, `timestamp_valid` | Unit-tested extension modules only | Implemented in `modal-wasm-validation`; not yet replay evidence for the local first-contract validator |
 | `before`, `after`, state predicates, hash predicates, `oracle_attests`, and `wasm` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |
 
 ## Path Predicates
@@ -62,6 +63,23 @@ Checks if the commit writes to paths under a given prefix.
 // Only allow membership changes if all members sign
 always(![+modifies(/members)] true | <+all_signed(/members)> true)
 ```
+
+### post_to_path
+
+Checks if the pending commit includes a `POST` action to a path under a given
+prefix.
+
+```modality
++post_to_path(/config)
+```
+
+**Arguments:**
+- `path` — Path prefix to check
+
+**Behavior:**
+- Looks only at the pending commit body
+- Ignores non-`POST` actions, even when they write under the same path
+- Returns true if any `POST` action targets the path itself or a descendant
 
 ## Signature Predicates
 
@@ -255,10 +273,10 @@ pending -> executed [+threshold("2", /treasury/signers)]
 ## Custom WASM Predicates
 
 WASM predicates are intended custom predicate modules. They are not part of the
-current local first-contract validator evidence matrix. A module such as
-`post_to_path` can be tested against explicit JSON commit-action input today,
-but promoting it to local contract evidence requires a validator path that binds
-those inputs to the pending commit body.
+current local first-contract validator evidence matrix unless the predicate is
+explicitly listed above. The local validator now derives `post_to_path(/path)`
+from the pending commit body directly; other WASM-style predicate-test inputs
+remain explicit JSON until a validator path documents their replay binding.
 
 ```bash
 modal predicate create --name my_predicate --output ./predicates/

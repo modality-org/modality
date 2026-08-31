@@ -101,9 +101,9 @@ evidence.
 **Path**: `/_code/modal/post_to_path.wasm`
 
 Checks if a commit includes a POST action to a specific path.
-The checked commit action list is explicit predicate-test input; a validator
-must bind it to the pending commit body before this predicate can count as
-first-contract replay evidence.
+The `modal-cli-contract` local model-governance path also derives
+`post_to_path(/path)` directly from the pending commit body, matching `POST`
+actions to the path itself or descendants.
 
 **Input**:
 ```json

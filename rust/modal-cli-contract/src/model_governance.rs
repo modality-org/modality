@@ -1192,6 +1192,7 @@ struct CommitFacts {
     methods: HashSet<String>,
     signers: HashSet<String>,
     modified_paths: Vec<String>,
+    post_paths: Vec<String>,
     state: HashMap<String, Value>,
 }
 
@@ -1207,6 +1208,13 @@ impl CommitFacts {
             modified_paths: commit
                 .body
                 .iter()
+                .filter_map(|action| action.path.as_deref())
+                .map(normalize_path)
+                .collect(),
+            post_paths: commit
+                .body
+                .iter()
+                .filter(|action| action.method.eq_ignore_ascii_case("post"))
                 .filter_map(|action| action.path.as_deref())
                 .map(normalize_path)
                 .collect(),
@@ -1253,6 +1261,10 @@ impl CommitFacts {
             "modifies" => args
                 .first()
                 .map(|path| self.modifies_path(path))
+                .unwrap_or(false),
+            "post_to_path" => args
+                .first()
+                .map(|path| self.posts_to_path(path))
                 .unwrap_or(false),
             _ => false,
         }
@@ -1341,6 +1353,13 @@ impl CommitFacts {
     fn modifies_path(&self, path: &str) -> bool {
         let prefix = normalize_path(path);
         self.modified_paths
+            .iter()
+            .any(|path| path == &prefix || path.starts_with(&format!("{}/", prefix)))
+    }
+
+    fn posts_to_path(&self, path: &str) -> bool {
+        let prefix = normalize_path(path);
+        self.post_paths
             .iter()
             .any(|path| path == &prefix || path.starts_with(&format!("{}/", prefix)))
     }
@@ -1767,6 +1786,57 @@ model Threshold {
             has_valid_transition(&model, &current_states, &two_signature_facts),
             "two accepted member signatures should satisfy threshold"
         );
+    }
+
+    #[test]
+    fn enforces_post_to_path_against_pending_post_actions() {
+        let model = parse_content_lalrpop(
+            r#"
+model PostPath {
+  initial active
+  active --> active: +POST +post_to_path(/config)
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("active".to_string());
+
+        let mut matching_post = CommitFile::new();
+        matching_post.add_action(
+            "post".to_string(),
+            Some("/config/value.text".to_string()),
+            Value::String("enabled".to_string()),
+        );
+        let matching_facts = CommitFacts::from_commit(&matching_post, &HashMap::new());
+
+        assert!(
+            has_valid_transition(&model, &current_states, &matching_facts),
+            "POST descendants should satisfy post_to_path(/config)"
+        );
+
+        let mut non_post_write = CommitFile::new();
+        non_post_write.add_action(
+            "model".to_string(),
+            Some("/config/model.modality".to_string()),
+            Value::String("model X { initial q0 }".to_string()),
+        );
+        let non_post_facts = CommitFacts::from_commit(&non_post_write, &HashMap::new());
+        let err = explain_no_valid_transition(&model, &current_states, &non_post_facts);
+
+        assert!(err.contains("missing +POST"), "{err}");
+        assert!(err.contains("missing +post_to_path(/config)"), "{err}");
+
+        let mut other_post = CommitFile::new();
+        other_post.add_action(
+            "post".to_string(),
+            Some("/other/value.text".to_string()),
+            Value::String("enabled".to_string()),
+        );
+        let other_facts = CommitFacts::from_commit(&other_post, &HashMap::new());
+        let err = explain_no_valid_transition(&model, &current_states, &other_facts);
+
+        assert!(err.contains("missing +post_to_path(/config)"), "{err}");
     }
 
     #[test]
