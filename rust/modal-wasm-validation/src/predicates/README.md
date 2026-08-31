@@ -58,9 +58,10 @@ Checks if a numeric amount is within a specified range.
 **Path**: `/_code/modal/has_property.wasm`
 
 Checks if a JSON object has a specific property. Supports dot notation for nested properties.
-The checked object is explicit predicate-test input; a contract-log validator
-must separately document how that object is derived from accepted state before
-this becomes replay evidence.
+The checked object is explicit predicate-test input for this WASM module. The
+`modal-cli-contract` local model-governance path also derives
+`has_property(/path, "a.b")` directly from accepted-state JSON, following
+dot-separated object keys on previously committed state.
 
 **Input**:
 ```json

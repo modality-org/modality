@@ -1266,6 +1266,10 @@ impl CommitFacts {
                 .first()
                 .map(|path| self.posts_to_path(path))
                 .unwrap_or(false),
+            "has_property" => match (args.first(), args.get(1)) {
+                (Some(path), Some(property_path)) => self.has_state_property(path, property_path),
+                _ => false,
+            },
             _ => false,
         }
     }
@@ -1296,6 +1300,15 @@ impl CommitFacts {
                         self.threshold_failure_detail(required, path)
                     );
                 }
+            }
+        }
+
+        if property.name == "has_property" {
+            let args = predicate_args(property);
+            if let (Some(path), Some(property_path)) = (args.first(), args.get(1)) {
+                return format!(
+                    "missing {formatted} (accepted state at {path} does not contain property {property_path})"
+                );
             }
         }
 
@@ -1362,6 +1375,29 @@ impl CommitFacts {
         self.post_paths
             .iter()
             .any(|path| path == &prefix || path.starts_with(&format!("{}/", prefix)))
+    }
+
+    fn has_state_property(&self, path: &str, property_path: &str) -> bool {
+        if property_path.is_empty() {
+            return false;
+        }
+
+        let Some(mut current) = self.state.get(&normalize_path(path)) else {
+            return false;
+        };
+
+        for part in property_path.split('.') {
+            if part.is_empty() {
+                return false;
+            }
+
+            let Some(next) = current.get(part) else {
+                return false;
+            };
+            current = next;
+        }
+
+        true
     }
 }
 
@@ -1837,6 +1873,72 @@ model PostPath {
         let err = explain_no_valid_transition(&model, &current_states, &other_facts);
 
         assert!(err.contains("missing +post_to_path(/config)"), "{err}");
+    }
+
+    #[test]
+    fn enforces_has_property_against_accepted_state() {
+        let model = parse_content_lalrpop(
+            r#"
+model HasProperty {
+  initial active
+  active --> active: +POST +has_property(/profiles/alice.json, "contact.email")
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("active".to_string());
+        let mut state = HashMap::new();
+        state.insert(
+            "profiles/alice.json".to_string(),
+            serde_json::json!({"contact": {"email": "alice@example.test"}}),
+        );
+
+        let mut commit = CommitFile::new();
+        commit.add_action(
+            "post".to_string(),
+            Some("/notes/next.text".to_string()),
+            Value::String("ok".to_string()),
+        );
+        let facts = CommitFacts::from_commit(&commit, &state);
+
+        assert!(
+            has_valid_transition(&model, &current_states, &facts),
+            "accepted-state JSON should satisfy has_property"
+        );
+
+        let mut missing_state = HashMap::new();
+        missing_state.insert(
+            "profiles/alice.json".to_string(),
+            serde_json::json!({"contact": {"phone": "555-0100"}}),
+        );
+        let missing_facts = CommitFacts::from_commit(&commit, &missing_state);
+        let err = explain_no_valid_transition(&model, &current_states, &missing_facts);
+
+        assert!(
+            err.contains("missing +has_property(/profiles/alice.json, contact.email)"),
+            "{err}"
+        );
+        assert!(
+            err.contains(
+                "accepted state at /profiles/alice.json does not contain property contact.email"
+            ),
+            "{err}"
+        );
+
+        let mut same_commit_write = CommitFile::new();
+        same_commit_write.add_action(
+            "post".to_string(),
+            Some("/profiles/alice.json".to_string()),
+            serde_json::json!({"contact": {"email": "alice@example.test"}}),
+        );
+        let same_commit_facts = CommitFacts::from_commit(&same_commit_write, &HashMap::new());
+        let err = explain_no_valid_transition(&model, &current_states, &same_commit_facts);
+
+        assert!(
+            err.contains("missing +has_property(/profiles/alice.json, contact.email)"),
+            "{err}"
+        );
     }
 
     #[test]

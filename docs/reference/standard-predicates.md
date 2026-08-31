@@ -24,6 +24,7 @@ local validator path.
 | `threshold("n", /path)` | Pending commit signatures plus every accepted-state `*.id` file under `/path` | At least `n` unique listed identities must sign |
 | `modifies(/path)` | Pending commit body paths | Matches `/path` itself or descendants such as `/path/alice.id` |
 | `post_to_path(/path)` | Pending commit body methods and paths | Matches a `POST` action to `/path` itself or a descendant |
+| `has_property(/path, "a.b")` | Accepted-state JSON at `/path` | Reads previously committed JSON and follows dot-separated object keys |
 
 Other reference predicates below describe the intended standard vocabulary.
 Treat them as requiring predicate-specific implementation and tests before
@@ -37,8 +38,8 @@ currently enforced by the local first-contract validator.
 | Predicate family | Local first-contract validator | Notes |
 |------------------|--------------------------------|-------|
 | Method labels such as `+POST` and `+MODEL` | Enforced | Derived from pending commit body methods |
-| `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path` | Enforced | Derived from pending signatures, accepted state, pending methods, and pending paths |
-| `has_property`, `timestamp_valid` | Unit-tested extension modules only | Implemented in `modal-wasm-validation`; not yet replay evidence for the local first-contract validator |
+| `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, and accepted-state JSON |
+| `timestamp_valid` | Unit-tested extension module only | Implemented in `modal-wasm-validation`; not yet replay evidence for the local first-contract validator |
 | `before`, `after`, state predicates, hash predicates, `oracle_attests`, and `wasm` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |
 
 ## Path Predicates
@@ -177,9 +178,18 @@ after(/deadlines/start.datetime)
 
 ## State Predicates
 
-The `modal-wasm-validation` crate has unit-tested state-inspection modules such
-as `has_property`, but those modules are not yet wired into the local
-first-contract validator evidence matrix. Treat their inputs as explicit JSON
+The local validator now derives `has_property(/path, "a.b")` from accepted
+contract state. It looks up the previously committed JSON value at `/path` and
+follows dot-separated object keys such as `a.b`. It does not see JSON written
+by the same pending commit.
+
+```modality
+has_property(/profiles/alice.json, "contact.email")
+```
+
+The `modal-wasm-validation` crate also has unit-tested state-inspection modules,
+but only the `has_property` binding above is first-contract-local replay
+evidence today. Treat other state predicate inputs as explicit JSON
 predicate-test data until a contract-log validator path documents how the JSON
 is derived from replayed commits and accepted state.
 
@@ -275,8 +285,9 @@ pending -> executed [+threshold("2", /treasury/signers)]
 WASM predicates are intended custom predicate modules. They are not part of the
 current local first-contract validator evidence matrix unless the predicate is
 explicitly listed above. The local validator now derives `post_to_path(/path)`
-from the pending commit body directly; other WASM-style predicate-test inputs
-remain explicit JSON until a validator path documents their replay binding.
+from the pending commit body directly and `has_property(/path, "a.b")` from
+accepted-state JSON directly; other WASM-style predicate-test inputs remain
+explicit JSON until a validator path documents their replay binding.
 
 ```bash
 modal predicate create --name my_predicate --output ./predicates/
