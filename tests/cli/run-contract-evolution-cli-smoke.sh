@@ -255,6 +255,16 @@ fi
 
 grep -q "missing +all_signed(/members)" "$TMP_DIR/alice-only-model-replacement.err"
 
+"$MODAL_BIN" c commit \
+  --all \
+  --dir "$MEMBERS_CONTRACT_DIR" \
+  --sign "$ALICE_PASSFILE" \
+  --sign "$BOB_PASSFILE" \
+  --output json \
+  --message "Alice and Bob replace model" >"$TMP_DIR/alice-bob-model-replacement.json"
+
+grep -q '"status": "committed"' "$TMP_DIR/alice-bob-model-replacement.json"
+
 cat >"$MEMBERS_CONTRACT_DIR/model/default.modality" <<'EOF'
 export default model {
   initial q0
@@ -283,11 +293,12 @@ grep -q "missing +all_signed(/members)" "$TMP_DIR/alice-only-member-change.err"
 "$MODAL_BIN" c status --dir "$MEMBERS_CONTRACT_DIR" --output json >"$TMP_DIR/members-status.json"
 "$MODAL_BIN" c log --dir "$MEMBERS_CONTRACT_DIR" --output json >"$TMP_DIR/members-log.json"
 
-grep -q '"total_commits": 5' "$TMP_DIR/members-status.json"
+grep -q '"total_commits": 6' "$TMP_DIR/members-status.json"
 grep -q '"model_state": "active"' "$TMP_DIR/members-status.json"
 grep -q '"message": "Alice ordinary update"' "$TMP_DIR/members-log.json"
 grep -q '"message": "Alice adds Bob"' "$TMP_DIR/members-log.json"
 grep -q '"message": "Bob ordinary update"' "$TMP_DIR/members-log.json"
+grep -q '"message": "Alice and Bob replace model"' "$TMP_DIR/members-log.json"
 grep -q "$ALICE_ID" "$TMP_DIR/members-log.json"
 grep -q "$BOB_ID" "$TMP_DIR/members-log.json"
 

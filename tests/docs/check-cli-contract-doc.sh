@@ -26,11 +26,13 @@ required_patterns=(
   "\`--path <PATH>\` | State path to write for a single \`POST\`-style commit"
   "\`--value <VALUE>\` | Value for the single-path commit"
   "\`--method <METHOD>\` | Commit method for the single-path commit"
+  "\`--sign <PASSFILE>\` | Sign commit with a passfile; repeat to attach multiple signatures"
   "\`--all\`, \`-a\` | Commit all changed \`state/\`, \`rules/\`, and \`model/default.modality\` files"
   "\`--asset-id <ASSET_ID>\` | Asset ID for \`CREATE\` commits"
   "\`--to-contract <TO_CONTRACT>\` | Destination contract ID for \`SEND\` commits"
   "\`--send-commit-id <SEND_COMMIT_ID>\` | Source \`SEND\` commit ID for \`RECV\` commits"
   "modal c commit --path /notes.text --value \"signed update\" --sign alice.passfile"
+  "modal c commit --all --sign alice.passfile --sign bob.passfile"
   "\`--remote <URL>\` | Target node multiaddress or hub URL; also saves it under the remote name"
   "\`--remote-name <NAME>\` | Remote name (default: \`origin\`)"
   "\`--hub-creds <FILE>\` | Hub credentials file for HTTP hub remotes"
@@ -80,7 +82,7 @@ for source_guard in \
   'to_contract: Option<String>' \
   'amount: Option<u64>' \
   'send_commit_id: Option<String>' \
-  'sign: Option<PathBuf>' \
+  'sign: Vec<PathBuf>' \
   'all: bool' \
   'message: Option<String>' \
   'action: Option<String>'; do

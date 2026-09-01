@@ -47,7 +47,7 @@ or an inline domain action.
 | `--method <METHOD>` | Commit method for the single-path commit (default: `post`) |
 | `--dir <DIR>` | Contract directory (defaults to current directory) |
 | `--output <FORMAT>` | Output format: `text` or `json` |
-| `--sign <PASSFILE>` | Sign commit with a passfile |
+| `--sign <PASSFILE>` | Sign commit with a passfile; repeat to attach multiple signatures |
 | `--all`, `-a` | Commit all changed `state/`, `rules/`, and `model/default.modality` files |
 | `--message`, `-m <MSG>` | Commit message |
 | `--action <JSON>` | Commit an inline JSON domain action or read it from a `.json` file path |
@@ -62,6 +62,9 @@ or an inline domain action.
 ```bash
 # Commit all changes with signature
 modal c commit --all --sign alice.passfile -m "Add escrow rules"
+
+# Commit all changes with multiple member signatures
+modal c commit --all --sign alice.passfile --sign bob.passfile -m "Replace witness"
 
 # Commit one state file
 modal c commit --path /notes.text --value "signed update" --sign alice.passfile

@@ -57,9 +57,9 @@ pub struct Opts {
     send_commit_id: Option<String>,
     
     // Signing
-    /// Path to passfile for signing the commit
+    /// Path to passfile for signing the commit; repeat to attach multiple signatures
     #[clap(long)]
-    sign: Option<PathBuf>,
+    sign: Vec<PathBuf>,
     
     /// Commit all changes from state directory
     #[clap(short = 'a', long)]
@@ -207,21 +207,20 @@ pub async fn run(opts: &Opts) -> Result<()> {
         );
     }
 
-    // Sign the commit if a passfile is provided
-    if let Some(passfile_path) = &opts.sign {
-        let passfile_str = passfile_path.to_string_lossy();
-        let keypair = load_signing_key(&passfile_str)?;
-        let public_key = keypair.public_key_as_base58_identity();
-        
-        // Sign the body (canonical JSON)
+    // Sign the commit once per supplied passfile.
+    if !opts.sign.is_empty() {
+        let mut sig_obj = serde_json::Map::new();
         let body_json = serde_json::to_string(&commit.body)?;
-        let signature = keypair.sign_string_as_base64_pad(&body_json)?;
-        
-        // Add signature to head
-        let sig_obj = serde_json::json!({
-            public_key: signature
-        });
-        commit.head.signatures = Some(sig_obj);
+
+        for passfile_path in &opts.sign {
+            let passfile_str = passfile_path.to_string_lossy();
+            let keypair = load_signing_key(&passfile_str)?;
+            let public_key = keypair.public_key_as_base58_identity();
+            let signature = keypair.sign_string_as_base64_pad(&body_json)?;
+            sig_obj.insert(public_key, Value::String(signature));
+        }
+
+        commit.head.signatures = Some(Value::Object(sig_obj));
     }
 
     // Validate the commit structure
