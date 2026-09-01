@@ -39,6 +39,10 @@ Verifies cryptographic signatures on data.
 **Path**: `/_code/modal/amount_in_range.wasm`
 
 Checks if a numeric amount is within a specified range.
+The checked amount is explicit predicate-test input for this WASM module. The
+`modal-cli-contract` local model-governance path also derives
+`amount_in_range(/path, "min", "max")` directly from accepted-state numbers.
+Bounds can be quoted numeric values or paths to accepted-state numeric values.
 
 **Input**:
 ```json
@@ -64,6 +68,8 @@ The checked object is explicit predicate-test input for this WASM module. The
 dot-separated object keys on previously committed state.
 It also derives `text_eq` from accepted-state strings when comparing a state
 path to a literal string or to another accepted-state path.
+It also derives `amount_in_range` from accepted-state numbers when comparing a
+state path to inclusive literal or accepted-state numeric bounds.
 
 **Input**:
 ```json

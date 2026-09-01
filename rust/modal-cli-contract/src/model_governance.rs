@@ -1274,6 +1274,10 @@ impl CommitFacts {
                 (Some(path), Some(expected)) => self.state_text_eq(path, expected),
                 _ => false,
             },
+            "amount_in_range" => match (args.first(), args.get(1), args.get(2)) {
+                (Some(path), Some(min), Some(max)) => self.amount_in_range(path, min, max),
+                _ => false,
+            },
             _ => false,
         }
     }
@@ -1321,6 +1325,15 @@ impl CommitFacts {
             if let (Some(path), Some(expected)) = (args.first(), args.get(1)) {
                 return format!(
                     "missing {formatted} (accepted state text at {path} does not equal {expected})"
+                );
+            }
+        }
+
+        if property.name == "amount_in_range" {
+            let args = predicate_args(property);
+            if let (Some(path), Some(min), Some(max)) = (args.first(), args.get(1), args.get(2)) {
+                return format!(
+                    "missing {formatted} (accepted state number at {path} is not in inclusive range [{min}, {max}])"
                 );
             }
         }
@@ -1432,15 +1445,52 @@ impl CommitFacts {
 
         expected.map(|expected| actual == expected).unwrap_or(false)
     }
+
+    fn amount_in_range(&self, path: &str, min: &str, max: &str) -> bool {
+        let Some(amount) = self.state_number(path) else {
+            return false;
+        };
+        let Some(min) = self.number_arg(min) else {
+            return false;
+        };
+        let Some(max) = self.number_arg(max) else {
+            return false;
+        };
+
+        min <= max && amount >= min && amount <= max
+    }
+
+    fn number_arg(&self, arg: &str) -> Option<f64> {
+        if arg.starts_with('/') {
+            self.state_number(arg)
+        } else {
+            arg.parse::<f64>().ok()
+        }
+    }
+
+    fn state_number(&self, path: &str) -> Option<f64> {
+        self.state
+            .get(&normalize_path(path))
+            .and_then(Value::as_f64)
+    }
 }
 
 fn predicate_args(property: &Property) -> Vec<String> {
     match &property.source {
         Some(PropertySource::Predicate { args, .. }) => predicate_arg_values(args)
             .into_iter()
-            .filter_map(|item| item.as_str().map(ToString::to_string))
+            .filter_map(predicate_arg_text)
             .collect(),
         _ => Vec::new(),
+    }
+}
+
+fn predicate_arg_text(item: &Value) -> Option<String> {
+    match item {
+        Value::String(value) => Some(value.to_string()),
+        Value::Number(value) => Some(value.to_string()),
+        Value::Bool(value) => Some(value.to_string()),
+        _ => None,
     }
 }
 
@@ -2119,6 +2169,74 @@ model TextEqPath {
         assert!(
             has_valid_transition(&path_model, &current_states, &facts),
             "accepted-state text should satisfy path-to-path text_eq"
+        );
+    }
+
+    #[test]
+    fn enforces_amount_in_range_against_accepted_state_numbers() {
+        let literal_model = parse_content_lalrpop(
+            r#"
+model AmountInRangeLiteral {
+  initial active
+  active --> active: +POST +amount_in_range(/invoice/amount.num, "10", "100")
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("active".to_string());
+        let mut state = HashMap::new();
+        state.insert("invoice/amount.num".to_string(), serde_json::json!(50));
+
+        let mut commit = CommitFile::new();
+        commit.add_action(
+            "post".to_string(),
+            Some("/notes/next.text".to_string()),
+            Value::String("ok".to_string()),
+        );
+        let facts = CommitFacts::from_commit(&commit, &state);
+
+        assert!(
+            has_valid_transition(&literal_model, &current_states, &facts),
+            "accepted-state number should satisfy literal amount_in_range"
+        );
+
+        let mut pending_only = CommitFile::new();
+        pending_only.add_action(
+            "post".to_string(),
+            Some("/invoice/amount.num".to_string()),
+            serde_json::json!(50),
+        );
+        let pending_only_facts = CommitFacts::from_commit(&pending_only, &HashMap::new());
+        let err = explain_no_valid_transition(&literal_model, &current_states, &pending_only_facts);
+
+        assert!(
+            err.contains("missing +amount_in_range(/invoice/amount.num, 10, 100)"),
+            "{err}"
+        );
+        assert!(
+            err.contains(
+                "accepted state number at /invoice/amount.num is not in inclusive range [10, 100]"
+            ),
+            "{err}"
+        );
+
+        let bounded_model = parse_content_lalrpop(
+            r#"
+model AmountInRangePaths {
+  initial active
+  active --> active: +POST +amount_in_range(/invoice/amount.num, /limits/min.num, /limits/max.num)
+}
+            "#,
+        )
+        .unwrap();
+        state.insert("limits/min.num".to_string(), serde_json::json!(10));
+        state.insert("limits/max.num".to_string(), serde_json::json!(100));
+        let facts = CommitFacts::from_commit(&commit, &state);
+
+        assert!(
+            has_valid_transition(&bounded_model, &current_states, &facts),
+            "accepted-state numbers should satisfy path-bound amount_in_range"
         );
     }
 

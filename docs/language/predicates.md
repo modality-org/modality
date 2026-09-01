@@ -7,8 +7,8 @@ title: Predicates
 
 This page names the language vocabulary. The currently verified local
 first-contract path is narrower: method labels, `signed_by`, `any_signed`,
-`all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property`, and
-`text_eq` are enforced from replayable commit artifacts. See the
+`all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property`,
+`text_eq`, and `amount_in_range` are enforced from replayable commit artifacts. See the
 [standard predicate evidence matrix](../reference/standard-predicates.md) for
 the exact source of each fact.
 
@@ -63,6 +63,10 @@ first-contract path, not proof that external facts were checked.
 // Text comparisons
 +text_eq(/path/a.text, /path/b.text)
 +text_contains(/path/a.text, "substring")
+
+// Accepted-state numeric range
++amount_in_range(/invoice/amount.num, "10", "100")
++amount_in_range(/invoice/amount.num, /limits/min.num, /limits/max.num)
 
 // Boolean
 +bool_true(/path/flag.bool)
