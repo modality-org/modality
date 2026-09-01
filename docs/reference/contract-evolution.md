@@ -129,3 +129,10 @@ Terms that should expire need explicit language support, such as an
 Until that path is runnable in the contract CLI, examples should say that old
 rules keep accumulating and should not imply that a later rule deletes an older
 one.
+
+Do not promote a bounded-term example into onboarding until a contract CLI smoke
+can append the bounded rule, show the guarded move rejected before the boundary,
+show the same move accepted after the explicit completion or expiry evidence,
+and still show that unrelated older rules remain accumulated. A parser-only
+`until(...)` example is useful language evidence, but it is not contract
+evolution evidence by itself.

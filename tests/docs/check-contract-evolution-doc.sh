@@ -33,6 +33,13 @@ required_patterns=(
   "missing +all_signed(/members)"
   "Until that path is runnable in the contract CLI"
   "rules keep accumulating"
+  "Do not promote a bounded-term example into onboarding"
+  "append the bounded rule"
+  "show the guarded move rejected before the boundary"
+  "accepted after the explicit completion or expiry evidence"
+  "unrelated older rules remain accumulated"
+  "A parser-only"
+  "evolution evidence by itself"
 )
 
 for pattern in "${required_patterns[@]}"; do
