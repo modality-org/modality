@@ -1270,6 +1270,10 @@ impl CommitFacts {
                 (Some(path), Some(property_path)) => self.has_state_property(path, property_path),
                 _ => false,
             },
+            "text_eq" => match (args.first(), args.get(1)) {
+                (Some(path), Some(expected)) => self.state_text_eq(path, expected),
+                _ => false,
+            },
             _ => false,
         }
     }
@@ -1308,6 +1312,15 @@ impl CommitFacts {
             if let (Some(path), Some(property_path)) = (args.first(), args.get(1)) {
                 return format!(
                     "missing {formatted} (accepted state at {path} does not contain property {property_path})"
+                );
+            }
+        }
+
+        if property.name == "text_eq" {
+            let args = predicate_args(property);
+            if let (Some(path), Some(expected)) = (args.first(), args.get(1)) {
+                return format!(
+                    "missing {formatted} (accepted state text at {path} does not equal {expected})"
                 );
             }
         }
@@ -1398,6 +1411,26 @@ impl CommitFacts {
         }
 
         true
+    }
+
+    fn state_text_eq(&self, path: &str, expected: &str) -> bool {
+        let Some(actual) = self
+            .state
+            .get(&normalize_path(path))
+            .and_then(Value::as_str)
+        else {
+            return false;
+        };
+
+        let expected = if expected.starts_with('/') {
+            self.state
+                .get(&normalize_path(expected))
+                .and_then(Value::as_str)
+        } else {
+            Some(expected)
+        };
+
+        expected.map(|expected| actual == expected).unwrap_or(false)
     }
 }
 
@@ -2015,6 +2048,77 @@ model HasProperty {
         assert!(
             err.contains("missing +has_property(/profiles/alice.json, contact.email)"),
             "{err}"
+        );
+    }
+
+    #[test]
+    fn enforces_text_eq_against_accepted_state_strings() {
+        let literal_model = parse_content_lalrpop(
+            r#"
+model TextEqLiteral {
+  initial active
+  active --> active: +POST +text_eq(/status.text, "approved")
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("active".to_string());
+        let mut state = HashMap::new();
+        state.insert(
+            "status.text".to_string(),
+            Value::String("approved".to_string()),
+        );
+
+        let mut commit = CommitFile::new();
+        commit.add_action(
+            "post".to_string(),
+            Some("/notes/next.text".to_string()),
+            Value::String("ok".to_string()),
+        );
+        let facts = CommitFacts::from_commit(&commit, &state);
+
+        assert!(
+            has_valid_transition(&literal_model, &current_states, &facts),
+            "accepted-state text should satisfy literal text_eq"
+        );
+
+        let mut pending_only = CommitFile::new();
+        pending_only.add_action(
+            "post".to_string(),
+            Some("/status.text".to_string()),
+            Value::String("approved".to_string()),
+        );
+        let pending_only_facts = CommitFacts::from_commit(&pending_only, &HashMap::new());
+        let err = explain_no_valid_transition(&literal_model, &current_states, &pending_only_facts);
+
+        assert!(
+            err.contains("missing +text_eq(/status.text, approved)"),
+            "{err}"
+        );
+        assert!(
+            err.contains("accepted state text at /status.text does not equal approved"),
+            "{err}"
+        );
+
+        let path_model = parse_content_lalrpop(
+            r#"
+model TextEqPath {
+  initial active
+  active --> active: +POST +text_eq(/status.text, /expected/status.text)
+}
+            "#,
+        )
+        .unwrap();
+        state.insert(
+            "expected/status.text".to_string(),
+            Value::String("approved".to_string()),
+        );
+        let facts = CommitFacts::from_commit(&commit, &state);
+
+        assert!(
+            has_valid_transition(&path_model, &current_states, &facts),
+            "accepted-state text should satisfy path-to-path text_eq"
         );
     }
 

@@ -25,6 +25,7 @@ local validator path.
 | `modifies(/path)` | Pending commit body paths | Matches `/path` itself or descendants such as `/path/alice.id` |
 | `post_to_path(/path)` | Pending commit body methods and paths | Matches a `POST` action to `/path` itself or a descendant |
 | `has_property(/path, "a.b")` | Accepted-state JSON at `/path` | Reads previously committed JSON and follows dot-separated object keys |
+| `text_eq(/path, "value")` or `text_eq(/left, /right)` | Accepted-state text | Compares previously committed string values or a committed string to a literal |
 
 Other reference predicates below describe the intended standard vocabulary.
 Treat them as requiring predicate-specific implementation and tests before
@@ -38,9 +39,9 @@ currently enforced by the local first-contract validator.
 | Predicate family | Local first-contract validator | Notes |
 |------------------|--------------------------------|-------|
 | Method labels such as `+POST` and `+MODEL` | Enforced | Derived from pending commit body methods |
-| `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, and accepted-state JSON |
+| `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property`, `text_eq` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state JSON, and accepted-state text |
 | `timestamp_valid` | Unit-tested extension module only | Implemented in `modal-wasm-validation`; not yet replay evidence for the local first-contract validator |
-| `before`, `after`, state predicates, hash predicates, `oracle_attests`, and `wasm` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |
+| `before`, `after`, other state predicates, hash predicates, `oracle_attests`, and `wasm` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |
 
 ## Path Predicates
 
@@ -192,11 +193,21 @@ by the same pending commit.
 has_property(/profiles/alice.json, "contact.email")
 ```
 
+The local validator also derives `text_eq` from accepted contract state. It
+compares the previously committed string at the first path with either a
+literal string or the previously committed string at a second path. It does not
+see text written by the same pending commit.
+
+```modality
+text_eq(/status.text, "approved")
+text_eq(/actual/status.text, /expected/status.text)
+```
+
 The `modal-wasm-validation` crate also has unit-tested state-inspection modules,
-but only the `has_property` binding above is first-contract-local replay
-evidence today. Treat other state predicate inputs as explicit JSON
-predicate-test data until a contract-log validator path documents how the JSON
-is derived from replayed commits and accepted state.
+but only the `has_property` and `text_eq` bindings above are
+first-contract-local replay evidence today. Treat other state predicate inputs
+as explicit JSON predicate-test data until a contract-log validator path
+documents how the JSON is derived from replayed commits and accepted state.
 
 ### bool_true / bool_false
 
@@ -290,9 +301,10 @@ pending -> executed [+threshold("2", /treasury/signers)]
 WASM predicates are intended custom predicate modules. They are not part of the
 current local first-contract validator evidence matrix unless the predicate is
 explicitly listed above. The local validator now derives `post_to_path(/path)`
-from the pending commit body directly and `has_property(/path, "a.b")` from
-accepted-state JSON directly; other WASM-style predicate-test inputs remain
-explicit JSON until a validator path documents their replay binding.
+from the pending commit body directly, `has_property(/path, "a.b")` from
+accepted-state JSON directly, and `text_eq` from accepted-state strings; other
+WASM-style predicate-test inputs remain explicit JSON until a validator path
+documents their replay binding.
 
 ```bash
 modal predicate create --name my_predicate --output ./predicates/
