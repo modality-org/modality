@@ -129,4 +129,6 @@ Prefer explicit boolean form for conditional rules:
 
 The parser still accepts implication syntax in some contexts, but docs and
 onboarding examples avoid it so temporal steps and proof implication are not
-conflated.
+conflated. `modality model lint <file>` reports signed-rule uses as
+`modality/implication-sugar`; rewrite them to explicit Boolean form before
+signing.

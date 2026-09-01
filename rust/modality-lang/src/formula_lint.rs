@@ -2,6 +2,7 @@
 //!
 //! Catches common mistakes that parse and model-checking may miss:
 //! - `[+ACTION] true` vacuous box guards
+//! - implication sugar that hides the preferred explicit Boolean form
 //! - bare identifiers that refer to opaque witness LTS node ids
 //! - witness node names leaking from bundled models into formulas
 
@@ -26,6 +27,8 @@ pub enum LintCode {
     WitnessNodeLeak,
     /// `[<+LATER>] -> eventually(<+EARLIER>)` uses forward reachability, not prior occurrence.
     BackwardEventuallyOrdering,
+    /// Formula implication sugar is accepted by the parser but discouraged for signed rules.
+    ImplicationSugar,
 }
 
 impl LintCode {
@@ -35,6 +38,7 @@ impl LintCode {
             LintCode::BareWitnessProp => "modality/bare-witness-prop",
             LintCode::WitnessNodeLeak => "modality/witness-node-leak",
             LintCode::BackwardEventuallyOrdering => "modality/backward-eventually-ordering",
+            LintCode::ImplicationSugar => "modality/implication-sugar",
         }
     }
 }
@@ -336,7 +340,7 @@ fn walk_expr(expr: &FormulaExpr, ctx: &mut LintContext<'_>) {
                 )
             };
             let suggestion = Some(
-                "use a phase gate: `always(<+LATER> true -> !<+EARLIER> true)` — when LATER \
+                "use a phase gate: `always(!<+LATER> true | !<+EARLIER> true)` — when LATER \
                  is enabled, EARLIER must not still be enabled"
                     .to_string(),
             );
@@ -386,6 +390,19 @@ fn walk_expr(expr: &FormulaExpr, ctx: &mut LintContext<'_>) {
             walk_expr(inner, ctx);
         }
         FormulaExpr::Implies(l, r) => {
+            ctx.diags.push(FormulaLintDiagnostic {
+                code: LintCode::ImplicationSugar,
+                severity: LintSeverity::Warning,
+                message: "formula implication sugar is accepted for compatibility, but signed \
+                     rules should use explicit Boolean form"
+                    .to_string(),
+                suggestion: Some(
+                    "rewrite `A -> B` or `A implies B` as `!A | B` / `not A or B` before signing"
+                        .to_string(),
+                ),
+                span: None,
+                highlight: Some("->".to_string()),
+            });
             if let Some(highlight) = backward_eventually_ordering_highlight(l, r) {
                 ctx.diags.push(FormulaLintDiagnostic {
                     code: LintCode::BackwardEventuallyOrdering,
@@ -395,7 +412,7 @@ fn walk_expr(expr: &FormulaExpr, ctx: &mut LintContext<'_>) {
                               reachability on the LTS, not \"ACTION already occurred on the trace\""
                             .to_string(),
                     suggestion: Some(
-                        "use `always(<+LATER> true -> !<+EARLIER> true)` instead of \
+                        "use `always(!<+LATER> true | !<+EARLIER> true)` instead of \
                          `eventually(<+EARLIER> true)` under a LATER guard"
                             .to_string(),
                     ),
@@ -515,6 +532,7 @@ mod tests {
             "always([+FINALIZE_ORDER] true -> eventually(<+VALIDATE_AUTHORIZATION> true))",
         );
         assert!(has_code(&diags, LintCode::VacuousBoxGuard));
+        assert!(has_code(&diags, LintCode::ImplicationSugar));
     }
 
     #[test]
@@ -523,18 +541,27 @@ mod tests {
             "always([<+FINALIZE_ORDER>] true -> eventually(<+VALIDATE_AUTHORIZATION> true))",
         );
         assert!(has_code(&diags, LintCode::BackwardEventuallyOrdering));
+        assert!(has_code(&diags, LintCode::ImplicationSugar));
+    }
+
+    #[test]
+    fn warns_implication_sugar() {
+        let diags = lint_expr(
+            "always(<+CREATE_ORDER> true implies <+signed_by(/users/account_holder.id)> true)",
+        );
+        assert!(has_code(&diags, LintCode::ImplicationSugar));
     }
 
     #[test]
     fn accepts_phase_gate_ordering() {
-        let diags = lint_expr("always(<+FINALIZE_ORDER> true -> !<+VALIDATE_AUTHORIZATION> true)");
+        let diags = lint_expr("always(!<+FINALIZE_ORDER> true | !<+VALIDATE_AUTHORIZATION> true)");
         assert!(!has_code(&diags, LintCode::BackwardEventuallyOrdering));
         assert!(diags.is_empty());
     }
 
     #[test]
     fn accepts_diamondbox_ordering_guard() {
-        let diags = lint_expr("always(<+FINALIZE_ORDER> true -> !<+VALIDATE_AUTHORIZATION> true)");
+        let diags = lint_expr("always(!<+FINALIZE_ORDER> true | !<+VALIDATE_AUTHORIZATION> true)");
         assert!(!has_code(&diags, LintCode::VacuousBoxGuard));
         assert!(!has_code(&diags, LintCode::BareWitnessProp));
     }
@@ -569,7 +596,7 @@ mod tests {
     #[test]
     fn accepts_authorization_formula() {
         let diags = lint_expr(
-            "always(<+CREATE_ORDER> true -> <+signed_by(/users/account_holder.id)> true)",
+            "always(!<+CREATE_ORDER> true | <+signed_by(/users/account_holder.id)> true)",
         );
         assert!(diags.is_empty());
     }

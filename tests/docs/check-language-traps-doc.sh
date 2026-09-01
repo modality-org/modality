@@ -14,6 +14,8 @@ required_patterns=(
   "\`PAY\` is committed"
   "Run \`modality model lint <file>\`"
   "\`modality/vacuous-box-guard\`"
+  "\`modality/implication-sugar\`"
+  "rewrite them to explicit Boolean form"
   "Prefer explicit boolean form for conditional rules:"
   "!+modifies(/members) | +all_signed(/members)"
   "onboarding examples avoid it"

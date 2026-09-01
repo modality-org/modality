@@ -28,10 +28,12 @@ BAD_FORMULA="$TMP_DIR/vacuous-box.modality"
 GOOD_FORMULA="$TMP_DIR/enabled-pay.modality"
 BAD_RULE="$TMP_DIR/vacuous-box-rule.modality"
 GOOD_RULE="$TMP_DIR/enabled-pay-rule.modality"
+IMPLICATION_RULE="$TMP_DIR/implication-rule.modality"
 BAD_OUT="$TMP_DIR/vacuous-box.out"
 GOOD_OUT="$TMP_DIR/enabled-pay.out"
 BAD_RULE_OUT="$TMP_DIR/vacuous-box-rule.out"
 GOOD_RULE_OUT="$TMP_DIR/enabled-pay-rule.out"
+IMPLICATION_OUT="$TMP_DIR/implication-rule.out"
 
 cat >"$BAD_FORMULA" <<'EOF'
 formula vacuous_pay_guard {
@@ -58,6 +60,14 @@ export default rule {
   starting_at $PARENT
   formula {
     always(<+PAY> true)
+  }
+}
+EOF
+
+cat >"$IMPLICATION_RULE" <<'EOF'
+rule implication_payment_rule {
+  formula {
+    always(<+PAY> true implies <+signed_by(/parties/alice.id)> true)
   }
 }
 EOF
@@ -116,5 +126,25 @@ if ! grep -Fq "1 formula(s) lint-clean" "$GOOD_RULE_OUT"; then
   cat "$GOOD_RULE_OUT" >&2
   exit 1
 fi
+
+if "$MODALITY_BIN" model lint "$IMPLICATION_RULE" >"$IMPLICATION_OUT" 2>&1; then
+  echo "model lint should reject implication sugar before signing rules" >&2
+  exit 1
+fi
+
+required_implication_patterns=(
+  'modality/implication-sugar'
+  'formula implication sugar is accepted for compatibility'
+  'rewrite `A -> B` or `A implies B` as `!A | B` / `not A or B` before signing'
+  'Formula lint failed with 1 finding'
+)
+
+for pattern in "${required_implication_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$IMPLICATION_OUT"; then
+    echo "model lint implication output is missing: $pattern" >&2
+    cat "$IMPLICATION_OUT" >&2
+    exit 1
+  fi
+done
 
 echo "model lint CLI smoke passed"
