@@ -124,15 +124,30 @@ Bob can then append an ordinary note, Alice alone cannot replace the witness mod
 
 ## Bounded Terms
 
-Terms that should expire need explicit language support, such as an
-`until`-bounded formula, before they are safe to teach as mutable commitments.
-Until that path is runnable in the contract CLI, examples should say that old
-rules keep accumulating and should not imply that a later rule deletes an older
-one.
+Terms that should expire need explicit language support. The first runnable
+contract CLI smoke now covers a small `active until expired` pattern:
 
-Do not promote a bounded-term example into onboarding until a contract CLI smoke
-can append the bounded rule, show the guarded move rejected before the boundary,
-show the same move accepted after the explicit completion or expiry evidence,
-and still show that unrelated older rules remain accumulated. A parser-only
-`until(...)` example is useful language evidence, but it is not contract
-evolution evidence by itself.
+```modality
+export default rule {
+  starting_at $PARENT
+  formula {
+    active until expired
+  }
+}
+```
+
+In that smoke, the current model keeps signed ordinary updates in the `active`
+state, moves to `expired` only after previously accepted
+`/terms/delivery_complete.bool` evidence satisfies
+`+bool_true(/terms/delivery_complete.bool)`, and then allows unsigned ordinary
+updates in `expired`. The run proves the bounded term by appending the bounded
+rule, rejecting the guarded move before completion evidence, accepting the same
+move after completion evidence, and ending replay in the `expired` witness
+state.
+
+The same smoke also appends an older `eventually(expired)` rule first, then
+rejects a later witness replacement that removes the expiry state. That keeps
+the evolution lesson honest: bounded terms can make a commitment expire, but
+unrelated older rules still accumulate and continue constraining replacement
+models. A parser-only `until(...)` example is useful language evidence, but it
+is not contract evolution evidence by itself.

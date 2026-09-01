@@ -302,4 +302,154 @@ grep -q '"message": "Alice and Bob replace model"' "$TMP_DIR/members-log.json"
 grep -q "$ALICE_ID" "$TMP_DIR/members-log.json"
 grep -q "$BOB_ID" "$TMP_DIR/members-log.json"
 
+BOUNDED_CONTRACT_DIR="$TMP_DIR/bounded-term-contract"
+
+"$MODAL_BIN" contract create --dir "$BOUNDED_CONTRACT_DIR" --output json >/dev/null
+
+"$MODAL_BIN" c checkout --dir "$BOUNDED_CONTRACT_DIR" >/dev/null
+"$MODAL_BIN" c set-named-id /parties/alice.id "$ALICE_PASSFILE" --dir "$BOUNDED_CONTRACT_DIR" >/dev/null
+
+cat >"$BOUNDED_CONTRACT_DIR/model/default.modality" <<'EOF'
+export default model {
+  initial q0
+
+  q0 -> active [+POST +MODEL]
+  active -> active [+POST +signed_by(/parties/alice.id)]
+  active -> active [+RULE +signed_by(/parties/alice.id)]
+  active -> active [+MODEL +signed_by(/parties/alice.id)]
+  active -> expired [+POST +bool_true(/terms/delivery_complete.bool)]
+  expired -> expired [+POST]
+  expired -> expired [+RULE +signed_by(/parties/alice.id)]
+  expired -> expired [+MODEL +signed_by(/parties/alice.id)]
+}
+EOF
+
+"$MODAL_BIN" c commit \
+  --all \
+  --dir "$BOUNDED_CONTRACT_DIR" \
+  --sign "$ALICE_PASSFILE" \
+  --output json \
+  --message "Bounded term setup" >"$TMP_DIR/bounded-setup.json"
+
+grep -q '"status": "committed"' "$TMP_DIR/bounded-setup.json"
+
+mkdir -p "$BOUNDED_CONTRACT_DIR/rules"
+cat >"$BOUNDED_CONTRACT_DIR/rules/must-retain-expiry-state.modality" <<'EOF'
+export default rule {
+  starting_at $PARENT
+  formula {
+    eventually(expired)
+  }
+}
+EOF
+
+"$MODAL_BIN" c commit \
+  --all \
+  --dir "$BOUNDED_CONTRACT_DIR" \
+  --sign "$ALICE_PASSFILE" \
+  --output json \
+  --message "Add accumulated expiry-shape rule" >"$TMP_DIR/add-expiry-shape-rule.json"
+
+grep -q '"status": "committed"' "$TMP_DIR/add-expiry-shape-rule.json"
+
+cat >"$BOUNDED_CONTRACT_DIR/rules/delivery-bounded.modality" <<'EOF'
+export default rule {
+  starting_at $PARENT
+  formula {
+    active until expired
+  }
+}
+EOF
+
+"$MODAL_BIN" c commit \
+  --all \
+  --dir "$BOUNDED_CONTRACT_DIR" \
+  --sign "$ALICE_PASSFILE" \
+  --output json \
+  --message "Add delivery bounded term" >"$TMP_DIR/add-delivery-bounded-rule.json"
+
+grep -q '"status": "committed"' "$TMP_DIR/add-delivery-bounded-rule.json"
+grep -q 'active until expired' "$BOUNDED_CONTRACT_DIR/rules/delivery-bounded.modality"
+
+if "$MODAL_BIN" c commit \
+  --path /notes/release-before-completion.text \
+  --value "release before completion" \
+  --dir "$BOUNDED_CONTRACT_DIR" \
+  --output json \
+  --message "Unsigned release before completion" >"$TMP_DIR/unsigned-release-before-completion.json" 2>"$TMP_DIR/unsigned-release-before-completion.err"; then
+  echo "expected unsigned bounded-term move to fail before completion evidence" >&2
+  exit 1
+fi
+
+grep -q "missing +signed_by(/parties/alice.id)" "$TMP_DIR/unsigned-release-before-completion.err"
+grep -q "missing +bool_true(/terms/delivery_complete.bool)" "$TMP_DIR/unsigned-release-before-completion.err"
+
+cat >"$BOUNDED_CONTRACT_DIR/model/default.modality" <<'EOF'
+export default model {
+  initial q0
+
+  q0 -> active [+POST +MODEL]
+  active -> active [+POST +signed_by(/parties/alice.id)]
+  active -> active [+RULE +signed_by(/parties/alice.id)]
+  active -> active [+MODEL +signed_by(/parties/alice.id)]
+}
+EOF
+
+if "$MODAL_BIN" c commit \
+  --all \
+  --dir "$BOUNDED_CONTRACT_DIR" \
+  --sign "$ALICE_PASSFILE" \
+  --output json \
+  --message "Remove expiry state" >"$TMP_DIR/remove-expiry-state.json" 2>"$TMP_DIR/remove-expiry-state.err"; then
+  echo "expected model replacement without accumulated expiry state to fail" >&2
+  exit 1
+fi
+
+grep -q "Model violates rule" "$TMP_DIR/remove-expiry-state.err"
+grep -q "formula: eventually(expired)" "$TMP_DIR/remove-expiry-state.err"
+
+cat >"$BOUNDED_CONTRACT_DIR/model/default.modality" <<'EOF'
+export default model {
+  initial q0
+
+  q0 -> active [+POST +MODEL]
+  active -> active [+POST +signed_by(/parties/alice.id)]
+  active -> active [+RULE +signed_by(/parties/alice.id)]
+  active -> active [+MODEL +signed_by(/parties/alice.id)]
+  active -> expired [+POST +bool_true(/terms/delivery_complete.bool)]
+  expired -> expired [+POST]
+  expired -> expired [+RULE +signed_by(/parties/alice.id)]
+  expired -> expired [+MODEL +signed_by(/parties/alice.id)]
+}
+EOF
+
+"$MODAL_BIN" c commit \
+  --path /terms/delivery_complete.bool \
+  --value true \
+  --dir "$BOUNDED_CONTRACT_DIR" \
+  --sign "$ALICE_PASSFILE" \
+  --output json \
+  --message "Record completion evidence" >"$TMP_DIR/record-completion-evidence.json"
+
+grep -q '"status": "committed"' "$TMP_DIR/record-completion-evidence.json"
+
+"$MODAL_BIN" c commit \
+  --path /notes/release-after-completion.text \
+  --value "release after completion" \
+  --dir "$BOUNDED_CONTRACT_DIR" \
+  --output json \
+  --message "Unsigned release after completion" >"$TMP_DIR/unsigned-release-after-completion.json"
+
+grep -q '"status": "committed"' "$TMP_DIR/unsigned-release-after-completion.json"
+
+"$MODAL_BIN" c status --dir "$BOUNDED_CONTRACT_DIR" --output json >"$TMP_DIR/bounded-status.json"
+"$MODAL_BIN" c log --dir "$BOUNDED_CONTRACT_DIR" --output json >"$TMP_DIR/bounded-log.json"
+
+grep -q '"total_commits": 6' "$TMP_DIR/bounded-status.json"
+grep -q '"model_state": "expired"' "$TMP_DIR/bounded-status.json"
+grep -q '"message": "Add accumulated expiry-shape rule"' "$TMP_DIR/bounded-log.json"
+grep -q '"message": "Add delivery bounded term"' "$TMP_DIR/bounded-log.json"
+grep -q '"message": "Record completion evidence"' "$TMP_DIR/bounded-log.json"
+grep -q '"message": "Unsigned release after completion"' "$TMP_DIR/bounded-log.json"
+
 echo "contract evolution CLI smoke passed"
