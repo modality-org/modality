@@ -25,7 +25,10 @@ required_patterns=(
   "Alice alone can"
   "add Bob while she is the only accepted member"
   "Bob can then append an ordinary"
+  "Alice alone cannot replace the witness model after Bob is accepted"
   "Alice alone cannot add \`/members/carol.id\`"
+  "Both rejected"
+  "missing +all_signed(/members)"
   "Until that path is runnable in the contract CLI"
   "rules keep accumulating"
 )

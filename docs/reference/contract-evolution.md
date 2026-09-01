@@ -121,7 +121,9 @@ use the same membership authority.
 The contract evolution CLI smoke runs this pattern end to end using the current
 single-signer commit command: Alice alone can append an ordinary note, Alice can
 add Bob while she is the only accepted member, Bob can then append an ordinary
-note, and Alice alone cannot add `/members/carol.id` after Bob is accepted.
+note, Alice alone cannot replace the witness model after Bob is accepted, and
+Alice alone cannot add `/members/carol.id` after Bob is accepted. Both rejected
+commits report `missing +all_signed(/members)`.
 
 ## Bounded Terms
 

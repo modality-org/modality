@@ -231,6 +231,41 @@ grep -q '"status": "committed"' "$TMP_DIR/alice-adds-bob.json"
 
 grep -q '"status": "committed"' "$TMP_DIR/bob-ordinary-update.json"
 
+cat >"$MEMBERS_CONTRACT_DIR/model/default.modality" <<'EOF'
+export default model {
+  initial q0
+
+  q0 -> active [+POST +MODEL]
+  active -> active [+POST +any_signed(/members) -modifies(/members)]
+  active -> active [+POST +modifies(/members) +all_signed(/members)]
+  active -> active [+POST +signed_by(/members/bob.id) -modifies(/members)]
+  active -> active [+MODEL +all_signed(/members)]
+}
+EOF
+
+if "$MODAL_BIN" c commit \
+  --all \
+  --dir "$MEMBERS_CONTRACT_DIR" \
+  --sign "$ALICE_PASSFILE" \
+  --output json \
+  --message "Alice-only model replacement" >"$TMP_DIR/alice-only-model-replacement.json" 2>"$TMP_DIR/alice-only-model-replacement.err"; then
+  echo "expected one-signer model replacement to fail after Bob is accepted" >&2
+  exit 1
+fi
+
+grep -q "missing +all_signed(/members)" "$TMP_DIR/alice-only-model-replacement.err"
+
+cat >"$MEMBERS_CONTRACT_DIR/model/default.modality" <<'EOF'
+export default model {
+  initial q0
+
+  q0 -> active [+POST +MODEL]
+  active -> active [+POST +any_signed(/members) -modifies(/members)]
+  active -> active [+POST +modifies(/members) +all_signed(/members)]
+  active -> active [+MODEL +all_signed(/members)]
+}
+EOF
+
 "$MODAL_BIN" c set-named-id /members/carol.id "$CAROL_PASSFILE" --dir "$MEMBERS_CONTRACT_DIR" >/dev/null
 
 if "$MODAL_BIN" c commit \
