@@ -45,6 +45,20 @@ currently enforced by the local first-contract validator.
 | `timestamp_valid` | Unit-tested extension module only | Implemented in `modal-wasm-validation`; not yet replay evidence for the local first-contract validator |
 | `before`, `after`, other state predicates, hash predicates, `oracle_attests`, and `wasm` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |
 
+## Checkpoint Review Scope
+
+For first-contract checkpoint review, the local validator evidence surface now
+covers method labels, pending signatures, accepted-state identity paths,
+segment-aware pending write paths, accepted-state JSON properties,
+accepted-state text comparisons, accepted-state numeric ranges, and
+accepted-state boolean checks. That is enough to review local log conformance
+for the current onboarding access-control and state-guard examples without
+depending on clocks, oracles, hash preimages, or custom WASM execution.
+
+Keep deadline, oracle, hash, and broader WASM predicates out of first-contract
+claims until the validator path documents the replay artifact format, trust
+root, and negative tests for each evidence source.
+
 ## Path Predicates
 
 ### modifies
