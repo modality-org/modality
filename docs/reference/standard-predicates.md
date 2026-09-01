@@ -27,6 +27,7 @@ local validator path.
 | `has_property(/path, "a.b")` | Accepted-state JSON at `/path` | Reads previously committed JSON and follows dot-separated object keys |
 | `text_eq(/path, "value")` or `text_eq(/left, /right)` | Accepted-state text | Compares previously committed string values or a committed string to a literal |
 | `amount_in_range(/path, "min", "max")` | Accepted-state number | Compares a previously committed number to inclusive quoted numeric or accepted-state numeric bounds |
+| `bool_true(/path)` and `bool_false(/path)` | Accepted-state boolean | Checks a previously committed boolean value |
 
 Other reference predicates below describe the intended standard vocabulary.
 Treat them as requiring predicate-specific implementation and tests before
@@ -40,7 +41,7 @@ currently enforced by the local first-contract validator.
 | Predicate family | Local first-contract validator | Notes |
 |------------------|--------------------------------|-------|
 | Method labels such as `+POST` and `+MODEL` | Enforced | Derived from pending commit body methods |
-| `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property`, `text_eq`, `amount_in_range` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state JSON, accepted-state text, and accepted-state numbers |
+| `signed_by`, `any_signed`, `all_signed`, `threshold`, `modifies`, `post_to_path`, `has_property`, `text_eq`, `amount_in_range`, `bool_true`, `bool_false` | Enforced | Derived from pending signatures, accepted state, pending methods, pending paths, accepted-state JSON, accepted-state text, accepted-state numbers, and accepted-state booleans |
 | `timestamp_valid` | Unit-tested extension module only | Implemented in `modal-wasm-validation`; not yet replay evidence for the local first-contract validator |
 | `before`, `after`, other state predicates, hash predicates, `oracle_attests`, and `wasm` | Not first-contract-local yet | Intended extension vocabulary; treat as external or future predicate checks unless a validator path explicitly documents support |
 
@@ -205,16 +206,19 @@ text_eq(/actual/status.text, /expected/status.text)
 ```
 
 The `modal-wasm-validation` crate also has unit-tested state-inspection modules.
-The `has_property`, `text_eq`, and `amount_in_range` bindings above are
+The `has_property`, `text_eq`, `amount_in_range`, `bool_true`, and `bool_false`
+bindings above are
 first-contract-local replay evidence today. They read only accepted state; they
-do not see JSON, text, or numbers written by the same pending commit. Treat
-other state predicate inputs as explicit JSON predicate-test data until a
+do not see JSON, text, numbers, or booleans written by the same pending commit.
+Treat other state predicate inputs as explicit JSON predicate-test data until a
 contract-log validator path documents how the JSON is derived from replayed
 commits and accepted state.
 
 ### bool_true / bool_false
 
-Intended predicates for checking boolean state values.
+Checks accepted-state boolean values. The local validator looks up the
+previously committed value at the path and requires it to be a JSON boolean.
+It does not see booleans written by the same pending commit.
 
 ```modality
 bool_true(/status/delivered.bool)
@@ -315,9 +319,10 @@ WASM predicates are intended custom predicate modules. They are not part of the
 current local first-contract validator evidence matrix unless the predicate is
 explicitly listed above. The local validator now derives `post_to_path(/path)`
 from the pending commit body directly, `has_property(/path, "a.b")` from
-accepted-state JSON directly, and `text_eq` from accepted-state strings; other
-WASM-style predicate-test inputs remain explicit JSON until a validator path
-documents their replay binding.
+accepted-state JSON directly, `text_eq` from accepted-state strings, and
+`bool_true`/`bool_false` from accepted-state booleans; other WASM-style
+predicate-test inputs remain explicit JSON until a validator path documents
+their replay binding.
 
 ```bash
 modal predicate create --name my_predicate --output ./predicates/

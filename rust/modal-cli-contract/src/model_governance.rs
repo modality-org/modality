@@ -1278,6 +1278,14 @@ impl CommitFacts {
                 (Some(path), Some(min), Some(max)) => self.amount_in_range(path, min, max),
                 _ => false,
             },
+            "bool_true" => args
+                .first()
+                .map(|path| self.state_bool(path) == Some(true))
+                .unwrap_or(false),
+            "bool_false" => args
+                .first()
+                .map(|path| self.state_bool(path) == Some(false))
+                .unwrap_or(false),
             _ => false,
         }
     }
@@ -1334,6 +1342,19 @@ impl CommitFacts {
             if let (Some(path), Some(min), Some(max)) = (args.first(), args.get(1), args.get(2)) {
                 return format!(
                     "missing {formatted} (accepted state number at {path} is not in inclusive range [{min}, {max}])"
+                );
+            }
+        }
+
+        if property.name == "bool_true" || property.name == "bool_false" {
+            if let Some(path) = predicate_args(property).first() {
+                let expected = if property.name == "bool_true" {
+                    "true"
+                } else {
+                    "false"
+                };
+                return format!(
+                    "missing {formatted} (accepted state boolean at {path} is not {expected})"
                 );
             }
         }
@@ -1472,6 +1493,12 @@ impl CommitFacts {
         self.state
             .get(&normalize_path(path))
             .and_then(Value::as_f64)
+    }
+
+    fn state_bool(&self, path: &str) -> Option<bool> {
+        self.state
+            .get(&normalize_path(path))
+            .and_then(Value::as_bool)
     }
 }
 
@@ -2237,6 +2264,82 @@ model AmountInRangePaths {
         assert!(
             has_valid_transition(&bounded_model, &current_states, &facts),
             "accepted-state numbers should satisfy path-bound amount_in_range"
+        );
+    }
+
+    #[test]
+    fn enforces_bool_predicates_against_accepted_state() {
+        let true_model = parse_content_lalrpop(
+            r#"
+model BoolTrue {
+  initial active
+  active --> active: +POST +bool_true(/flags/approved.bool)
+}
+            "#,
+        )
+        .unwrap();
+        let false_model = parse_content_lalrpop(
+            r#"
+model BoolFalse {
+  initial active
+  active --> active: +POST +bool_false(/flags/cancelled.bool)
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("active".to_string());
+        let mut state = HashMap::new();
+        state.insert("flags/approved.bool".to_string(), serde_json::json!(true));
+        state.insert("flags/cancelled.bool".to_string(), serde_json::json!(false));
+
+        let mut commit = CommitFile::new();
+        commit.add_action(
+            "post".to_string(),
+            Some("/notes/next.text".to_string()),
+            Value::String("ok".to_string()),
+        );
+        let facts = CommitFacts::from_commit(&commit, &state);
+
+        assert!(
+            has_valid_transition(&true_model, &current_states, &facts),
+            "accepted-state true should satisfy bool_true"
+        );
+        assert!(
+            has_valid_transition(&false_model, &current_states, &facts),
+            "accepted-state false should satisfy bool_false"
+        );
+
+        let mut pending_only = CommitFile::new();
+        pending_only.add_action(
+            "post".to_string(),
+            Some("/flags/approved.bool".to_string()),
+            serde_json::json!(true),
+        );
+        let pending_only_facts = CommitFacts::from_commit(&pending_only, &HashMap::new());
+        let err = explain_no_valid_transition(&true_model, &current_states, &pending_only_facts);
+
+        assert!(
+            err.contains("missing +bool_true(/flags/approved.bool)"),
+            "{err}"
+        );
+        assert!(
+            err.contains("accepted state boolean at /flags/approved.bool is not true"),
+            "{err}"
+        );
+
+        let wrong_state =
+            HashMap::from([("flags/cancelled.bool".to_string(), serde_json::json!(true))]);
+        let wrong_facts = CommitFacts::from_commit(&commit, &wrong_state);
+        let err = explain_no_valid_transition(&false_model, &current_states, &wrong_facts);
+
+        assert!(
+            err.contains("missing +bool_false(/flags/cancelled.bool)"),
+            "{err}"
+        );
+        assert!(
+            err.contains("accepted state boolean at /flags/cancelled.bool is not false"),
+            "{err}"
         );
     }
 
