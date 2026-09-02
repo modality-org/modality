@@ -9,6 +9,9 @@ JS_SDK_HUB_TUTORIAL="$ROOT_DIR/docs/tutorials/js-sdk-hub.md"
 MULTISIG_TREASURY_TUTORIAL="$ROOT_DIR/docs/tutorials/multisig-treasury.md"
 ORACLE_ESCROW_TUTORIAL="$ROOT_DIR/docs/tutorials/oracle-escrow.md"
 FAQ_DOC="$ROOT_DIR/docs/faq.md"
+HUB_REST_API_DOC="$ROOT_DIR/docs/reference/hub-rest-api.md"
+IETF_METHODOLOGY_DOC="$ROOT_DIR/experiments/ietf-autoformalization/methodology.md"
+ACME_SYNTHESIS_NOTES="$ROOT_DIR/experiments/ietf-autoformalization/rfc8555-acme/synthesis-notes.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -141,6 +144,58 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$FAQ_DOC"; then
   echo "FAQ should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+hub_rest_api_required_patterns=(
+  "always(![<+signed_by(/users/alice.id)>] true | eventually(<+RELEASE> true))"
+)
+
+for pattern in "${hub_rest_api_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$HUB_REST_API_DOC"; then
+    echo "hub REST API reference is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$HUB_REST_API_DOC"; then
+  echo "hub REST API reference should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+ietf_methodology_required_patterns=(
+  'always(!<+sets(/path, "later")> true | !<+sets(/path, "earlier")> true)'
+  'always(!<+sets(/path, "value")> true | <+signed_by(/users/p.id)> true)'
+  'always(!<+sets(/token/status.text, "issued")> true | <+signed_by(/users/authorization_server.id)> true)'
+)
+
+for pattern in "${ietf_methodology_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$IETF_METHODOLOGY_DOC"; then
+    echo "IETF methodology is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$IETF_METHODOLOGY_DOC"; then
+  echo "IETF methodology should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+acme_synthesis_required_patterns=(
+  '!<+sets(/order/status.text, "processing")> true | !<+sets(/order/status.text, "pending")>'
+  '!<+sets(..., "valid")> true | <+signed_by(CA)>'
+  '!(<+sets(..., "invalid")> true \| <+sets(/certificate/revoked.text, "true")> true) \| always([-sets(/certificate/in_use.text, "true")])'
+)
+
+for pattern in "${acme_synthesis_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$ACME_SYNTHESIS_NOTES"; then
+    echo "ACME synthesis notes are missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$ACME_SYNTHESIS_NOTES"; then
+  echo "ACME synthesis notes should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

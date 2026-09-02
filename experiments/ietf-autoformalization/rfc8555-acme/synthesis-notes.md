@@ -9,18 +9,18 @@ Nine obligations were adopted from [normative-core.md](./normative-core.md) and 
 
 | Rule | RFC basis | Formula pattern |
 |---|---|---|
-| `finalize_requires_authorization` | §7.4 | `<+sets(/order/status.text, "processing")> true -> !<+sets(/order/status.text, "pending")>` |
-| `finalize_requires_ready` | §7.4 | `<+sets(..., "processing")> true -> !<+sets(..., "ready")>` |
-| `issuance_requires_finalize` | §8 | `<+sets(/order/status.text, "valid")> true -> !<+sets(/order/status.text, "ready")>` |
-| `only_ca_issues_certificate` | §8 | `<+sets(..., "valid")> true -> <+signed_by(CA)>` |
-| `valid_excludes_invalid` | §7.1.6 | `<+sets(..., "valid")> true -> !<+sets(..., "invalid")>` |
-| `only_ca_marks_order_invalid` | §7.1.6 / §7.4 | `<+sets(..., "invalid") +signed_by(holder)> true -> false` |
-| `authorization_requires_challenge` | §7.5 | `<+sets(..., "ready")> true -> !<+sets(/challenge/status.text, "pending")>` |
-| `revocation_blocks_use` | §7.6 / §7.1.6 | `(<+sets(..., "invalid")> \| <+sets(/certificate/revoked.text, "true")>) -> always([-sets(/certificate/in_use.text, "true")])` |
-| `only_holder_creates_order` | §7.1.4 | `<+sets(..., "pending")> true -> <+signed_by(holder)>` |
-| `only_holder_finalizes` | §7.4 | `<+sets(..., "processing")> true -> <+signed_by(holder)>` |
-| `finalize_requires_order` | §7.1.4 | `<+sets(..., "processing")> true -> !<+sets(/challenge/status.text, "pending")>` |
-| `only_ca_validates_authorization` | §7.1.5 | `<+sets(/challenge/..., "valid")> -> <+signed_by(CA)>` |
+| `finalize_requires_authorization` | §7.4 | `!<+sets(/order/status.text, "processing")> true | !<+sets(/order/status.text, "pending")>` |
+| `finalize_requires_ready` | §7.4 | `!<+sets(..., "processing")> true | !<+sets(..., "ready")>` |
+| `issuance_requires_finalize` | §8 | `!<+sets(/order/status.text, "valid")> true | !<+sets(/order/status.text, "ready")>` |
+| `only_ca_issues_certificate` | §8 | `!<+sets(..., "valid")> true | <+signed_by(CA)>` |
+| `valid_excludes_invalid` | §7.1.6 | `!<+sets(..., "valid")> true | !<+sets(..., "invalid")>` |
+| `only_ca_marks_order_invalid` | §7.1.6 / §7.4 | `!<+sets(..., "invalid") +signed_by(holder)> true` |
+| `authorization_requires_challenge` | §7.5 | `!<+sets(..., "ready")> true | !<+sets(/challenge/status.text, "pending")>` |
+| `revocation_blocks_use` | §7.6 / §7.1.6 | `!(<+sets(..., "invalid")> true \| <+sets(/certificate/revoked.text, "true")> true) \| always([-sets(/certificate/in_use.text, "true")])` |
+| `only_holder_creates_order` | §7.1.4 | `!<+sets(..., "pending")> true | <+signed_by(holder)>` |
+| `only_holder_finalizes` | §7.4 | `!<+sets(..., "processing")> true | <+signed_by(holder)>` |
+| `finalize_requires_order` | §7.1.4 | `!<+sets(..., "processing")> true | !<+sets(/challenge/status.text, "pending")>` |
+| `only_ca_validates_authorization` | §7.1.5 | `!<+sets(/challenge/..., "valid")> true | <+signed_by(CA)>` |
 | `order_status_values` | §7.1.6 | `always([-sets(/order/status.text, A)] false \| …)` |
 | `challenge_status_values` | §7.1.6 | `always([-sets(/challenge/status.text, A)] false \| …)` |
 
