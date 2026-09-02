@@ -43,7 +43,7 @@ Rules are added via the RULE method and accumulate permanently:
 
 ```bash
 modal contract commit --method rule \
-  --value 'rule admin_only { formula { always([+CHANGE_CONFIG] true -> <+signed_by(/admin.id)> true) } }'
+  --value 'rule admin_only { formula { always(!<+CHANGE_CONFIG> true | <+CHANGE_CONFIG +signed_by(/admin.id)> true) } }'
 ```
 
 Once added, this rule:
@@ -86,11 +86,11 @@ Multiple rules combine with AND semantics. A commit must satisfy ALL rules:
 
 ```modality
 rule members_can_post {
-  formula { always([+CHANGE_DATA] true -> <+any_signed(/members)> true) }
+  formula { always(!<+CHANGE_DATA> true | <+CHANGE_DATA +any_signed(/members)> true) }
 }
 
 rule admins_change_members {
-  formula { always([+CHANGE_MEMBERS] true -> <+signed_by(/admin.id)> true) }
+  formula { always(!<+CHANGE_MEMBERS> true | <+CHANGE_MEMBERS +signed_by(/admin.id)> true) }
 }
 
 rule no_delete_history {
@@ -115,7 +115,7 @@ modal contract commit --method post --path /admin.id --value "$MY_KEY" --sign me
 
 # 3. IMMEDIATELY add protection rules
 modal contract commit --method rule \
-  --value 'rule admin_only { formula { always([+CHANGE_CONFIG] true -> <+signed_by(/admin.id)> true) } }' \
+  --value 'rule admin_only { formula { always(!<+CHANGE_CONFIG> true | <+CHANGE_CONFIG +signed_by(/admin.id)> true) } }' \
   --sign me
 
 # Now the contract is protected
@@ -127,11 +127,11 @@ Members control their own expansion:
 
 ```modality
 rule members_required {
-  formula { always([+CHANGE_DATA] true -> <+any_signed(/members)> true) }
+  formula { always(!<+CHANGE_DATA> true | <+CHANGE_DATA +any_signed(/members)> true) }
 }
 
 rule members_unanimous {
-  formula { always([+CHANGE_MEMBERS] true -> <+all_signed(/members)> true) }
+  formula { always(!<+CHANGE_MEMBERS> true | <+CHANGE_MEMBERS +all_signed(/members)> true) }
 }
 ```
 
@@ -141,15 +141,15 @@ Different paths, different requirements:
 
 ```modality
 rule public_data {
-  formula { always([+CHANGE_PUBLIC] true -> <+any_signed(/members)> true) }
+  formula { always(!<+CHANGE_PUBLIC> true | <+CHANGE_PUBLIC +any_signed(/members)> true) }
 }
 
 rule private_data {
-  formula { always([+CHANGE_PRIVATE] true -> <+all_signed(/members)> true) }
+  formula { always(!<+CHANGE_PRIVATE> true | <+CHANGE_PRIVATE +all_signed(/members)> true) }
 }
 
 rule config_admin_only {
-  formula { always([+CHANGE_CONFIG] true -> <+signed_by(/admin.id)> true) }
+  formula { always(!<+CHANGE_CONFIG> true | <+CHANGE_CONFIG +signed_by(/admin.id)> true) }
 }
 ```
 
@@ -178,11 +178,12 @@ Combined with logic:
 
 | Operator | Meaning |
 |----------|---------|
-| `->` | IF left THEN right must hold |
 | `&` | Both must hold |
 | `\|` | Either must hold |
 | `[-ACTION]` | No transition with ACTION |
 | `always` | Must hold for all commits |
+
+Prefer explicit Boolean form for conditional rules: `!<+CHANGE_CONFIG> true | <+CHANGE_CONFIG +signed_by(/admin.id)> true`. Formula implication sugar is parser-accepted today, but onboarding examples avoid it because it is easy to confuse with model transition arrows.
 
 ## Security Checklist
 

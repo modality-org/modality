@@ -12,6 +12,7 @@ FAQ_DOC="$ROOT_DIR/docs/faq.md"
 HUB_REST_API_DOC="$ROOT_DIR/docs/reference/hub-rest-api.md"
 IETF_METHODOLOGY_DOC="$ROOT_DIR/experiments/ietf-autoformalization/methodology.md"
 ACME_SYNTHESIS_NOTES="$ROOT_DIR/experiments/ietf-autoformalization/rfc8555-acme/synthesis-notes.md"
+MODELS_VS_RULES_DOC="$ROOT_DIR/docs/concepts/models-vs-rules.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -196,6 +197,27 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$ACME_SYNTHESIS_NOTES"; then
   echo "ACME synthesis notes should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+models_vs_rules_required_patterns=(
+  "always(!<+CHANGE_CONFIG> true | <+CHANGE_CONFIG +signed_by(/admin.id)> true)"
+  "always(!<+CHANGE_DATA> true | <+CHANGE_DATA +any_signed(/members)> true)"
+  "always(!<+CHANGE_MEMBERS> true | <+CHANGE_MEMBERS +all_signed(/members)> true)"
+  "always(!<+CHANGE_PUBLIC> true | <+CHANGE_PUBLIC +any_signed(/members)> true)"
+  "always(!<+CHANGE_PRIVATE> true | <+CHANGE_PRIVATE +all_signed(/members)> true)"
+  "Prefer explicit Boolean form for conditional rules:"
+)
+
+for pattern in "${models_vs_rules_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$MODELS_VS_RULES_DOC"; then
+    echo "models-vs-rules concept doc is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$MODELS_VS_RULES_DOC"; then
+  echo "models-vs-rules concept doc should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
