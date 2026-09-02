@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/language/rule-syntax.md"
+GOTCHAS_DOC="$ROOT_DIR/docs/reference/gotchas.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -30,6 +31,26 @@ done
 
 if grep -Eq -- 'φ[[:space:]]*->[[:space:]]*ψ| implies ' "$DOC"; then
   echo "rule syntax reference should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+gotchas_required_patterns=(
+  "always(!<+ADD_MEMBER> true | <+ADD_MEMBER +all_signed(/members)> true)"
+  "always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)"
+  "\`modality/implication-sugar\`"
+  "always(!<+modifies(/x)> true | <+modifies(/x) +signed_by(/admin.id)> true)"
+  "always(!<+modifies(/path)> true | <+modifies(/path) +all_signed(/members)> true)"
+)
+
+for pattern in "${gotchas_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$GOTCHAS_DOC"; then
+    echo "gotchas reference is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$GOTCHAS_DOC"; then
+  echo "gotchas reference should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

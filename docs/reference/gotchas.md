@@ -12,16 +12,19 @@ Common mistakes when writing Modality contracts.
 **Wrong:** Referencing model action labels in rules
 ```modality
 // DON'T DO THIS
-always([+ADD_MEMBER] true -> <+all_signed(/members)> true)
+always(!<+ADD_MEMBER> true | <+ADD_MEMBER +all_signed(/members)> true)
 ```
 
 **Right:** Use predicates that describe the effect
 ```modality
 // DO THIS
-always([+modifies(/members)] true -> <+all_signed(/members)> true)
+always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)
 ```
 
-Rules should describe *what* a commit does (modifies paths, requires signatures), not *how* it's labeled in the model.
+Rules should describe *what* a commit does (modifies paths, requires
+signatures), not *how* it is labeled in the model. The explicit Boolean form
+also avoids formula implication sugar, which `modality model lint` reports as
+`modality/implication-sugar`.
 
 ## 2. Negative Predicates Are Required for Exclusion
 
@@ -77,7 +80,7 @@ model foo { active -> active [] }  // Can be replaced with anything!
 
 // Rules make protections permanent
 rule protect {
-  formula { always([+modifies(/x)] true -> <+signed_by(/admin.id)> true) }
+  formula { always(!<+modifies(/x)> true | <+modifies(/x) +signed_by(/admin.id)> true) }
 }
 ```
 
@@ -92,7 +95,7 @@ Predicates in formulas need the `+` prefix:
 ```modality
 // In formulas
 always(<+any_signed(/members)> true)                    // ✓
-always([+modifies(/path)] true -> <+all_signed(/members)> true)  // ✓
+always(!<+modifies(/path)> true | <+modifies(/path) +all_signed(/members)> true)  // ✓
 
 // In transition labels  
 active -> active [+any_signed(/members) -modifies(/members)]  // ✓ + for required, - for prohibited
