@@ -67,10 +67,10 @@ export default rule {
   formula {
     // Withdrawals require one of the 2-of-3 signer pairs.
     // The generated model can enforce the same policy with threshold(...).
-    always([+WITHDRAW] true -> (
-      <+signed_by(/treasury/alice.id) +signed_by(/treasury/bob.id)> true |
-      <+signed_by(/treasury/alice.id) +signed_by(/treasury/carol.id)> true |
-      <+signed_by(/treasury/bob.id) +signed_by(/treasury/carol.id)> true
+    always(!<+WITHDRAW> true | (
+      <+WITHDRAW +signed_by(/treasury/alice.id) +signed_by(/treasury/bob.id)> true |
+      <+WITHDRAW +signed_by(/treasury/alice.id) +signed_by(/treasury/carol.id)> true |
+      <+WITHDRAW +signed_by(/treasury/bob.id) +signed_by(/treasury/carol.id)> true
     ))
   }
 }

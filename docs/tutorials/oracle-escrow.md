@@ -70,7 +70,7 @@ export default rule {
   starting_at $PARENT
   formula {
     // Release requires prior delivery attestation
-    always([+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true)
+    always(!<+RELEASE> true | <+RELEASE +oracle_attests(/oracles/delivery.id, "delivered", "true")> true)
   }
 }
 ```

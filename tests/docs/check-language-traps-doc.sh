@@ -6,6 +6,8 @@ DOC="$ROOT_DIR/docs/language/rule-syntax.md"
 GOTCHAS_DOC="$ROOT_DIR/docs/reference/gotchas.md"
 MEMBERS_ONLY_TUTORIAL="$ROOT_DIR/docs/tutorials/members-only-contract.md"
 JS_SDK_HUB_TUTORIAL="$ROOT_DIR/docs/tutorials/js-sdk-hub.md"
+MULTISIG_TREASURY_TUTORIAL="$ROOT_DIR/docs/tutorials/multisig-treasury.md"
+ORACLE_ESCROW_TUTORIAL="$ROOT_DIR/docs/tutorials/oracle-escrow.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -86,6 +88,41 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$JS_SDK_HUB_TUTORIAL"; then
   echo "JS SDK hub tutorial should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+multisig_treasury_required_patterns=(
+  "always(!<+WITHDRAW> true | ("
+  "<+WITHDRAW +signed_by(/treasury/alice.id) +signed_by(/treasury/bob.id)> true"
+  "<+WITHDRAW +signed_by(/treasury/alice.id) +signed_by(/treasury/carol.id)> true"
+  "<+WITHDRAW +signed_by(/treasury/bob.id) +signed_by(/treasury/carol.id)> true"
+)
+
+for pattern in "${multisig_treasury_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$MULTISIG_TREASURY_TUTORIAL"; then
+    echo "multisig treasury tutorial is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$MULTISIG_TREASURY_TUTORIAL"; then
+  echo "multisig treasury tutorial should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+oracle_escrow_required_patterns=(
+  "always(!<+RELEASE> true | <+RELEASE +oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true)"
+)
+
+for pattern in "${oracle_escrow_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$ORACLE_ESCROW_TUTORIAL"; then
+    echo "oracle escrow tutorial is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$ORACLE_ESCROW_TUTORIAL"; then
+  echo "oracle escrow tutorial should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
