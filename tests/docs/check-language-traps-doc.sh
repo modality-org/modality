@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/language/rule-syntax.md"
 GOTCHAS_DOC="$ROOT_DIR/docs/reference/gotchas.md"
 MEMBERS_ONLY_TUTORIAL="$ROOT_DIR/docs/tutorials/members-only-contract.md"
+JS_SDK_HUB_TUTORIAL="$ROOT_DIR/docs/tutorials/js-sdk-hub.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -69,6 +70,22 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$MEMBERS_ONLY_TUTORIAL"; then
   echo "members-only tutorial should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+js_sdk_hub_required_patterns=(
+  "always(!<+RELEASE> true | <+RELEASE +signed_by(/parties/bob.id)> true)"
+)
+
+for pattern in "${js_sdk_hub_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$JS_SDK_HUB_TUTORIAL"; then
+    echo "JS SDK hub tutorial is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$JS_SDK_HUB_TUTORIAL"; then
+  echo "JS SDK hub tutorial should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
