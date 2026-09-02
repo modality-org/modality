@@ -15,11 +15,11 @@ You want a shared contract where:
 Rules are permanent formulas over predicates. They do not validate commits directly; instead, each governing model must satisfy the accumulated rules. Commits are accepted or rejected by matching the current governing model's transition predicates.
 
 ```modality
-// WRONG - references model structure
-always ([+ADD_MEMBER] implies +all_signed(/members))
+// WRONG - references a model-specific action label
+always(!<+ADD_MEMBER> true | <+ADD_MEMBER +all_signed(/members)> true)
 
 // RIGHT - constrains acceptable witness models with predicates
-always([+modifies(/members)] true -> <+all_signed(/members)> true)
+always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)
 ```
 
 ### Dynamic Membership
@@ -78,7 +78,7 @@ rule member_required {
 // Modifying /members/ requires ALL current members
 rule membership_unanimous {
   formula {
-    always([+modifies(/members)] true -> <+all_signed(/members)> true)
+    always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)
   }
 }
 ```
@@ -126,10 +126,10 @@ modal c commit \
   --sign alice.key
 
 # Rule: modifying members requires unanimous consent
-# Witness must show the implication is satisfiable
+# Witness must show the membership guard is satisfiable
 modal c commit \
   --method rule \
-  --rule 'rule membership_unanimous { formula { always([+modifies(/members)] true -> <+all_signed(/members)> true) } }' \
+  --rule 'rule membership_unanimous { formula { always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true) } }' \
   --model 'model witness { initial s; s -> s [+any_signed(/members) -modifies(/members)]; s -> s [+modifies(/members) +all_signed(/members)] }' \
   --sign alice.key
 ```
@@ -240,7 +240,7 @@ rule admin_bypass {
 ```modality
 rule config_protected {
   formula {
-    always([+modifies(/config)] true -> <+signed_by(/admin.id)> true)
+    always(!<+modifies(/config)> true | <+modifies(/config) +signed_by(/admin.id)> true)
   }
 }
 ```

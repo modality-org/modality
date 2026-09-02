@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/language/rule-syntax.md"
 GOTCHAS_DOC="$ROOT_DIR/docs/reference/gotchas.md"
+MEMBERS_ONLY_TUTORIAL="$ROOT_DIR/docs/tutorials/members-only-contract.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -51,6 +52,23 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$GOTCHAS_DOC"; then
   echo "gotchas reference should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+members_only_required_patterns=(
+  "always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)"
+  "always(!<+modifies(/config)> true | <+modifies(/config) +signed_by(/admin.id)> true)"
+)
+
+for pattern in "${members_only_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$MEMBERS_ONLY_TUTORIAL"; then
+    echo "members-only tutorial is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$MEMBERS_ONLY_TUTORIAL"; then
+  echo "members-only tutorial should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
