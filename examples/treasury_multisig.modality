@@ -25,9 +25,7 @@ model treasury {
 rule withdrawal_protection {
   starting_at $PARENT
   formula {
-    always (
-      [+EXECUTE] implies threshold(2, /treasury/signers)
-    )
+    always(!<+EXECUTE> true | <+EXECUTE +threshold("2", /treasury/signers)> true)
   }
 }
 
@@ -36,8 +34,8 @@ rule signer_change_protection {
   starting_at $PARENT
   formula {
     always (
-      [+PROPOSE_SIGNER_CHANGE] implies threshold(3, /treasury/signers) &
-      [+CONFIRM_SIGNER_CHANGE] implies threshold(3, /treasury/signers)
+      (!<+PROPOSE_SIGNER_CHANGE> true | <+PROPOSE_SIGNER_CHANGE +threshold("3", /treasury/signers)> true) &
+      (!<+CONFIRM_SIGNER_CHANGE> true | <+CONFIRM_SIGNER_CHANGE +threshold("3", /treasury/signers)> true)
     )
   }
 }
@@ -46,8 +44,6 @@ rule signer_change_protection {
 rule cancel_protection {
   starting_at $PARENT
   formula {
-    always (
-      [+CANCEL] implies signed_by(/treasury/proposer.id)
-    )
+    always(!<+CANCEL> true | <+CANCEL +signed_by(/treasury/proposer.id)> true)
   }
 }

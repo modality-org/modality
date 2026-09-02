@@ -24,7 +24,7 @@ model members_only {
 // and checks if at least one has signed this commit.
 rule member_required {
   formula {
-    always (+any_signed(/members))
+    always(<+any_signed(/members)> true)
   }
 }
 
@@ -39,7 +39,7 @@ rule member_required {
 // The RULE never changes, but its INTERPRETATION does based on state.
 rule membership_change_unanimous {
   formula {
-    always (+modifies(/members) implies +all_signed(/members))
+    always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)
   }
 }
 
@@ -55,12 +55,12 @@ rule membership_change_unanimous {
 //
 // 2. Add rules WITH satisfying model (model witnesses rule satisfiability):
 //    modal c commit --method rule \
-//      --rule "rule member_required { formula { always (+any_signed(/members)) } }" \
+//      --rule "rule member_required { formula { always(<+any_signed(/members)> true) } }" \
 //      --model "model members_only { initial active; active -> active [] }" \
 //      --sign alice.key
 //
 //    modal c commit --method rule \
-//      --rule "rule membership_unanimous { formula { always (+modifies(/members) implies +all_signed(/members)) } }" \
+//      --rule "rule membership_unanimous { formula { always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true) } }" \
 //      --model "model members_only { initial active; active -> active [] }" \
 //      --sign alice.key
 //

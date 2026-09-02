@@ -13,6 +13,9 @@ HUB_REST_API_DOC="$ROOT_DIR/docs/reference/hub-rest-api.md"
 IETF_METHODOLOGY_DOC="$ROOT_DIR/experiments/ietf-autoformalization/methodology.md"
 ACME_SYNTHESIS_NOTES="$ROOT_DIR/experiments/ietf-autoformalization/rfc8555-acme/synthesis-notes.md"
 MODELS_VS_RULES_DOC="$ROOT_DIR/docs/concepts/models-vs-rules.md"
+MEMBERS_ONLY_EXAMPLE="$ROOT_DIR/examples/members_only.modality"
+TREASURY_MULTISIG_EXAMPLE="$ROOT_DIR/examples/treasury_multisig.modality"
+ORACLE_ESCROW_EXAMPLE="$ROOT_DIR/examples/oracle_escrow.modality"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -218,6 +221,61 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$MODELS_VS_RULES_DOC"; then
   echo "models-vs-rules concept doc should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+members_only_example_required_patterns=(
+  "always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)"
+)
+
+for pattern in "${members_only_example_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$MEMBERS_ONLY_EXAMPLE"; then
+    echo "members-only example is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$MEMBERS_ONLY_EXAMPLE"; then
+  echo "members-only example should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+treasury_multisig_example_required_patterns=(
+  "always(!<+EXECUTE> true | <+EXECUTE +threshold(\"2\", /treasury/signers)> true)"
+  "!<+PROPOSE_SIGNER_CHANGE> true | <+PROPOSE_SIGNER_CHANGE +threshold(\"3\", /treasury/signers)> true"
+  "!<+CONFIRM_SIGNER_CHANGE> true | <+CONFIRM_SIGNER_CHANGE +threshold(\"3\", /treasury/signers)> true"
+  "always(!<+CANCEL> true | <+CANCEL +signed_by(/treasury/proposer.id)> true)"
+)
+
+for pattern in "${treasury_multisig_example_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$TREASURY_MULTISIG_EXAMPLE"; then
+    echo "treasury multisig example is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$TREASURY_MULTISIG_EXAMPLE"; then
+  echo "treasury multisig example should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+oracle_escrow_example_required_patterns=(
+  "always(!<+RELEASE> true | <+RELEASE +oracle_attests(/oracles/delivery, \"delivered\", \"true\")> true)"
+  "!<+REFUND> true | <+REFUND +oracle_attests(/oracles/delivery, \"delivered\", \"false\")> true"
+  "!<+TIMEOUT_REFUND> true | <+TIMEOUT_REFUND +signed_by(/users/buyer.id) +after(/escrow/deadline)> true"
+  "always(!<+DEPOSIT> true | <+DEPOSIT +signed_by(/users/buyer.id)> true)"
+  "always(!<+SHIP> true | <+SHIP +signed_by(/users/seller.id)> true)"
+)
+
+for pattern in "${oracle_escrow_example_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$ORACLE_ESCROW_EXAMPLE"; then
+    echo "oracle escrow example is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$ORACLE_ESCROW_EXAMPLE"; then
+  echo "oracle escrow example should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

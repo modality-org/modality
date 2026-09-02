@@ -33,9 +33,7 @@ model oracle_escrow {
 rule release_requires_oracle {
   starting_at $PARENT
   formula {
-    always (
-      [+RELEASE] implies oracle_attests(/oracles/delivery, "delivered", "true")
-    )
+    always(!<+RELEASE> true | <+RELEASE +oracle_attests(/oracles/delivery, "delivered", "true")> true)
   }
 }
 
@@ -44,8 +42,8 @@ rule refund_conditions {
   starting_at $PARENT
   formula {
     always (
-      [+REFUND] implies oracle_attests(/oracles/delivery, "delivered", "false") |
-      [+TIMEOUT_REFUND] implies (signed_by(/users/buyer.id) & after(/escrow/deadline))
+      (!<+REFUND> true | <+REFUND +oracle_attests(/oracles/delivery, "delivered", "false")> true) &
+      (!<+TIMEOUT_REFUND> true | <+TIMEOUT_REFUND +signed_by(/users/buyer.id) +after(/escrow/deadline)> true)
     )
   }
 }
@@ -54,9 +52,7 @@ rule refund_conditions {
 rule deposit_protection {
   starting_at $PARENT
   formula {
-    always (
-      [+DEPOSIT] implies signed_by(/users/buyer.id)
-    )
+    always(!<+DEPOSIT> true | <+DEPOSIT +signed_by(/users/buyer.id)> true)
   }
 }
 
@@ -64,8 +60,6 @@ rule deposit_protection {
 rule ship_protection {
   starting_at $PARENT
   formula {
-    always (
-      [+SHIP] implies signed_by(/users/seller.id)
-    )
+    always(!<+SHIP> true | <+SHIP +signed_by(/users/seller.id)> true)
   }
 }
