@@ -8,6 +8,7 @@ MEMBERS_ONLY_TUTORIAL="$ROOT_DIR/docs/tutorials/members-only-contract.md"
 JS_SDK_HUB_TUTORIAL="$ROOT_DIR/docs/tutorials/js-sdk-hub.md"
 MULTISIG_TREASURY_TUTORIAL="$ROOT_DIR/docs/tutorials/multisig-treasury.md"
 ORACLE_ESCROW_TUTORIAL="$ROOT_DIR/docs/tutorials/oracle-escrow.md"
+FAQ_DOC="$ROOT_DIR/docs/faq.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -123,6 +124,23 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$ORACLE_ESCROW_TUTORIAL"; then
   echo "oracle escrow tutorial should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+faq_required_patterns=(
+  "always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)"
+  "always(!<+RELEASE> true | <+RELEASE +after(/deadlines/expiry.datetime) +signed_by(/users/buyer.id)> true)"
+)
+
+for pattern in "${faq_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$FAQ_DOC"; then
+    echo "FAQ is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$FAQ_DOC"; then
+  echo "FAQ should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

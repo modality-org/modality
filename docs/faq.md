@@ -56,10 +56,10 @@ Modality rules constrain who can commit based on signatures and state. They use 
 always(<+signed_by(/users/alice.id)> true | <+signed_by(/users/bob.id)> true)
 
 // Membership changes require every member signature
-always([+modifies(/members)] true -> <+all_signed(/members)> true)
+always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)
 
 // Time-gated: only after deadline
-always(<+after(/deadlines/expiry.datetime)> true -> <+signed_by(/users/buyer.id)> true)
+always(!<+RELEASE> true | <+RELEASE +after(/deadlines/expiry.datetime) +signed_by(/users/buyer.id)> true)
 ```
 
 For fixed quorum examples, use explicit signer combinations in formulas. Governing models can use predicate guards such as `+threshold("2", /treasury/signers.json)` on transitions.
