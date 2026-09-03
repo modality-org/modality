@@ -97,7 +97,7 @@ model treasury {
 }
 
 rule owner_only_transfers {
-  formula { always (+modifies(/transfer) implies +signed_by(/owner.id)) }
+  formula { always (!<+modifies(/transfer)> true | <+modifies(/transfer) +signed_by(/owner.id)> true) }
 }
 
 rule balance_protected {

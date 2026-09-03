@@ -19,6 +19,7 @@ ORACLE_ESCROW_EXAMPLE="$ROOT_DIR/examples/oracle_escrow.modality"
 HUB_MEMBERS_ONLY_SCENARIO="$ROOT_DIR/examples/hub-scenarios/members-only.md"
 HUB_BANK_DEPOSITS_SCENARIO="$ROOT_DIR/examples/hub-scenarios/bank-deposits.md"
 BANK_DEPOSITS_JS_EXAMPLE="$ROOT_DIR/examples/bank_deposits.js"
+UNBREAKABLE_TREASURY_RFC="$ROOT_DIR/docs/rfcs/RFC-002-UNBREAKABLE-TREASURY.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -326,6 +327,22 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$BANK_DEPOSITS_JS_EXAMPLE"; then
   echo "bank deposits JS example should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+unbreakable_treasury_rfc_required_patterns=(
+  "always (!<+modifies(/transfer)> true | <+modifies(/transfer) +signed_by(/owner.id)> true)"
+)
+
+for pattern in "${unbreakable_treasury_rfc_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$UNBREAKABLE_TREASURY_RFC"; then
+    echo "unbreakable treasury RFC is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$UNBREAKABLE_TREASURY_RFC"; then
+  echo "unbreakable treasury RFC should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
