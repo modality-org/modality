@@ -21,7 +21,7 @@ rule member_required {
 }
 
 rule add_member_unanimous {
-  formula { always ([+ADD_MEMBER] implies all_signed(/members)) }
+  formula { always(!<+ADD_MEMBER> true | <+ADD_MEMBER +all_signed(/members)> true) }
 }
 ```
 
@@ -51,7 +51,7 @@ modal contract commit --method rule \
   --sign alice
 
 modal contract commit --method rule \
-  --value 'rule add_member_unanimous { formula { always ([+ADD_MEMBER] implies all_signed(/members)) } }' \
+  --value 'rule add_member_unanimous { formula { always(!<+ADD_MEMBER> true | <+ADD_MEMBER +all_signed(/members)> true) } }' \
   --sign alice
 
 modal contract push
@@ -153,4 +153,4 @@ resolve_path_as_strings(state, "/members")
 2. **Directory pattern** - `/members/*.id` not `/members.json`
 3. **Hub enforces** - evaluates all rules on every commit
 4. **Dynamic membership** - formula resolves current state each time
-5. **Unanimous add** - `[+ADD_MEMBER] implies all_signed(/members)`
+5. **Unanimous add** - `always(!<+ADD_MEMBER> true | <+ADD_MEMBER +all_signed(/members)> true)`

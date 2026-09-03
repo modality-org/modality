@@ -16,6 +16,7 @@ MODELS_VS_RULES_DOC="$ROOT_DIR/docs/concepts/models-vs-rules.md"
 MEMBERS_ONLY_EXAMPLE="$ROOT_DIR/examples/members_only.modality"
 TREASURY_MULTISIG_EXAMPLE="$ROOT_DIR/examples/treasury_multisig.modality"
 ORACLE_ESCROW_EXAMPLE="$ROOT_DIR/examples/oracle_escrow.modality"
+HUB_MEMBERS_ONLY_SCENARIO="$ROOT_DIR/examples/hub-scenarios/members-only.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -276,6 +277,22 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$ORACLE_ESCROW_EXAMPLE"; then
   echo "oracle escrow example should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+hub_members_only_scenario_required_patterns=(
+  "always(!<+ADD_MEMBER> true | <+ADD_MEMBER +all_signed(/members)> true)"
+)
+
+for pattern in "${hub_members_only_scenario_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$HUB_MEMBERS_ONLY_SCENARIO"; then
+    echo "hub members-only scenario is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$HUB_MEMBERS_ONLY_SCENARIO"; then
+  echo "hub members-only scenario should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
