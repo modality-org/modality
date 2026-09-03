@@ -80,7 +80,7 @@ Checks if the commit writes to a path itself or a descendant path.
 **Example:**
 ```modality
 // Only allow membership changes if all members sign
-always(![+modifies(/members)] true | <+all_signed(/members)> true)
+always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)
 ```
 
 ### post_to_path

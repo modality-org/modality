@@ -22,6 +22,7 @@ BANK_DEPOSITS_JS_EXAMPLE="$ROOT_DIR/examples/bank_deposits.js"
 UNBREAKABLE_TREASURY_RFC="$ROOT_DIR/docs/rfcs/RFC-002-UNBREAKABLE-TREASURY.md"
 IETF_AUTOFORMALIZATION_PLAN="$ROOT_DIR/docs/progress/IETF_AUTOFORMALIZATION_PLAN.md"
 RFC_0001_RESOURCE="$ROOT_DIR/docs/resources/rfc-0001.md"
+STANDARD_PREDICATES_DOC="$ROOT_DIR/docs/reference/standard-predicates.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -381,6 +382,22 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$RFC_0001_RESOURCE"; then
   echo "RFC-0001 resource should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+standard_predicates_required_patterns=(
+  "always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)"
+)
+
+for pattern in "${standard_predicates_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$STANDARD_PREDICATES_DOC"; then
+    echo "standard predicates reference is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$STANDARD_PREDICATES_DOC"; then
+  echo "standard predicates reference should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
