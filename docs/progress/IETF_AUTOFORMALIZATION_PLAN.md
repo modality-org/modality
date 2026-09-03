@@ -23,7 +23,7 @@ Modality's existing two-step pipeline (NL → formulas → model → verify) map
 |---|---|
 | Defined roles (client, issuer, arbiter…) | `/users/*.id`, `signed_by` predicates |
 | Documented state machine | governing `model` |
-| MUST/SHALL ordering ("authorize before issue") | `always([+X] true -> eventually(<+Y> true))` |
+| MUST/SHALL ordering ("authorize before issue") | `always(!<+X> true | eventually(<+Y> true))` |
 | Irrevocable commitments | `[<+ACTION>]` (diamondbox) |
 | External evidence (attestation, deadline) | `oracle_attests` |
 | Append-only audit trail | contract commit log (native) |
@@ -77,9 +77,9 @@ LLM-assisted conversion using patterns in [rust/modality-lang/src/llm_synthesis.
 Example patterns:
 
 ```modality
-always([+FINALIZE] true -> eventually(<+COMPLETE_AUTHORIZATION> true))
-always([+FINALIZE] true -> <+signed_by(/users/account_holder.id)> true)
-always([+REVOKE] true -> always([-USE_CERTIFICATE] true))
+always(!<+FINALIZE> true | eventually(<+COMPLETE_AUTHORIZATION> true))
+always(!<+FINALIZE> true | <+FINALIZE +signed_by(/users/account_holder.id)> true)
+always(!<+REVOKE> true | always([-USE_CERTIFICATE] true))
 ```
 
 ### Step 4: Synthesize model

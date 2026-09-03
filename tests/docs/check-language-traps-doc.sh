@@ -20,6 +20,7 @@ HUB_MEMBERS_ONLY_SCENARIO="$ROOT_DIR/examples/hub-scenarios/members-only.md"
 HUB_BANK_DEPOSITS_SCENARIO="$ROOT_DIR/examples/hub-scenarios/bank-deposits.md"
 BANK_DEPOSITS_JS_EXAMPLE="$ROOT_DIR/examples/bank_deposits.js"
 UNBREAKABLE_TREASURY_RFC="$ROOT_DIR/docs/rfcs/RFC-002-UNBREAKABLE-TREASURY.md"
+IETF_AUTOFORMALIZATION_PLAN="$ROOT_DIR/docs/progress/IETF_AUTOFORMALIZATION_PLAN.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -343,6 +344,25 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$UNBREAKABLE_TREASURY_RFC"; then
   echo "unbreakable treasury RFC should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+ietf_autoformalization_plan_required_patterns=(
+  'always(!<+X> true | eventually(<+Y> true))'
+  'always(!<+FINALIZE> true | eventually(<+COMPLETE_AUTHORIZATION> true))'
+  'always(!<+FINALIZE> true | <+FINALIZE +signed_by(/users/account_holder.id)> true)'
+  'always(!<+REVOKE> true | always([-USE_CERTIFICATE] true))'
+)
+
+for pattern in "${ietf_autoformalization_plan_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$IETF_AUTOFORMALIZATION_PLAN"; then
+    echo "IETF autoformalization plan is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$IETF_AUTOFORMALIZATION_PLAN"; then
+  echo "IETF autoformalization plan should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
