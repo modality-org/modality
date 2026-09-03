@@ -17,6 +17,8 @@ MEMBERS_ONLY_EXAMPLE="$ROOT_DIR/examples/members_only.modality"
 TREASURY_MULTISIG_EXAMPLE="$ROOT_DIR/examples/treasury_multisig.modality"
 ORACLE_ESCROW_EXAMPLE="$ROOT_DIR/examples/oracle_escrow.modality"
 HUB_MEMBERS_ONLY_SCENARIO="$ROOT_DIR/examples/hub-scenarios/members-only.md"
+HUB_BANK_DEPOSITS_SCENARIO="$ROOT_DIR/examples/hub-scenarios/bank-deposits.md"
+BANK_DEPOSITS_JS_EXAMPLE="$ROOT_DIR/examples/bank_deposits.js"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -293,6 +295,37 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$HUB_MEMBERS_ONLY_SCENARIO"; then
   echo "hub members-only scenario should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+hub_bank_deposits_scenario_required_patterns=(
+  "!<+WITHDRAW> true |"
+  "+WITHDRAW"
+  "+signed_by(/action/account.id)"
+  "+balance_sufficient("
+)
+
+for pattern in "${hub_bank_deposits_scenario_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$HUB_BANK_DEPOSITS_SCENARIO"; then
+    echo "hub bank-deposits scenario is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$HUB_BANK_DEPOSITS_SCENARIO"; then
+  echo "hub bank-deposits scenario should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+for pattern in "${hub_bank_deposits_scenario_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$BANK_DEPOSITS_JS_EXAMPLE"; then
+    echo "bank deposits JS example is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$BANK_DEPOSITS_JS_EXAMPLE"; then
+  echo "bank deposits JS example should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

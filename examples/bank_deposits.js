@@ -51,13 +51,13 @@ async function main() {
       starting_at $PARENT
       formula {
         always (
-          [+WITHDRAW] implies (
-            signed_by(/action/account.id) &
-            balance_sufficient(
-              /bank/accounts/{/action/account_id}.json:balance,
-              /action/amount
-            )
-          )
+          !<+WITHDRAW> true |
+            <+WITHDRAW
+              +signed_by(/action/account.id)
+              +balance_sufficient(
+                "/bank/accounts/{/action/account_id}.json:balance",
+                /action/amount
+            )> true
         )
       }
     }
