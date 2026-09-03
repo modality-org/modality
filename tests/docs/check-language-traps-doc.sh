@@ -21,6 +21,7 @@ HUB_BANK_DEPOSITS_SCENARIO="$ROOT_DIR/examples/hub-scenarios/bank-deposits.md"
 BANK_DEPOSITS_JS_EXAMPLE="$ROOT_DIR/examples/bank_deposits.js"
 UNBREAKABLE_TREASURY_RFC="$ROOT_DIR/docs/rfcs/RFC-002-UNBREAKABLE-TREASURY.md"
 IETF_AUTOFORMALIZATION_PLAN="$ROOT_DIR/docs/progress/IETF_AUTOFORMALIZATION_PLAN.md"
+RFC_0001_RESOURCE="$ROOT_DIR/docs/resources/rfc-0001.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -363,6 +364,23 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$IETF_AUTOFORMALIZATION_PLAN"; then
   echo "IETF autoformalization plan should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+rfc_0001_required_patterns=(
+  "!<+RELEASE> true | <+DELIVER> true"
+  "explicit Boolean form for the conditional"
+)
+
+for pattern in "${rfc_0001_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$RFC_0001_RESOURCE"; then
+    echo "RFC-0001 resource is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$RFC_0001_RESOURCE"; then
+  echo "RFC-0001 resource should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
