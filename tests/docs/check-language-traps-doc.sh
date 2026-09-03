@@ -24,6 +24,7 @@ UNBREAKABLE_TREASURY_RFC="$ROOT_DIR/docs/rfcs/RFC-002-UNBREAKABLE-TREASURY.md"
 IETF_AUTOFORMALIZATION_PLAN="$ROOT_DIR/docs/progress/IETF_AUTOFORMALIZATION_PLAN.md"
 RFC_0001_RESOURCE="$ROOT_DIR/docs/resources/rfc-0001.md"
 STANDARD_PREDICATES_DOC="$ROOT_DIR/docs/reference/standard-predicates.md"
+LLM_SYNTHESIS_GUIDE="$ROOT_DIR/experiments/llm-synthesizer/SYNTHESIS_GUIDE.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -417,6 +418,26 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$STANDARD_PREDICATES_DOC"; then
   echo "standard predicates reference should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+llm_synthesis_guide_required_patterns=(
+  "Status: archived experiment notes."
+  "formula implication sugar such as \`A -> B\`"
+  "use explicit Boolean conditionals"
+  "always(!<+RELEASE> true | eventually(<+DELIVER> true))"
+  "\`!<+A> true | Q\` — if action A happens, Q must hold"
+)
+
+for pattern in "${llm_synthesis_guide_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$LLM_SYNTHESIS_GUIDE"; then
+    echo "LLM synthesis guide is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$LLM_SYNTHESIS_GUIDE"; then
+  echo "LLM synthesis guide should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

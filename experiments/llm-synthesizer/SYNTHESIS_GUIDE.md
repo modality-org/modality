@@ -1,5 +1,9 @@
 # LLM-Enhanced Contract Synthesis Guide
 
+Status: archived experiment notes. The current onboarding teaching path avoids
+formula implication sugar such as `A -> B`; use explicit Boolean conditionals
+such as `!A | B` when lifting any pattern from this experiment.
+
 This document captures the approach for using LLMs to synthesize Modality contracts from natural language descriptions.
 
 ## Overview
@@ -78,14 +82,14 @@ Rules use temporal modal logic:
 export default rule {
   starting_at $PARENT
   formula {
-    always([+RELEASE] true -> eventually(<+DELIVER> true))
+    always(!<+RELEASE> true | eventually(<+DELIVER> true))
   }
 }
 ```
 
 Common patterns:
 - `always(P)` — invariant, P holds forever
-- `[+A] true -> Q` — if action A happens, Q must hold
+- `!<+A> true | Q` — if action A happens, Q must hold
 - `eventually(<+A> true)` — action A has happened at some point
 - `[<+A>] true` — committed to A (can do A, cannot refuse)
 
