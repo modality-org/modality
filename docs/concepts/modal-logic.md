@@ -51,10 +51,14 @@ lfp(X, target | <>X)
 φ & ψ           // Conjunction (and)
 φ | ψ           // Disjunction (or)
 !φ              // Negation (not)
-φ -> ψ          // Implication
+!φ | ψ          // Conditional rule: if φ, then ψ
 true            // Always true
 false           // Always false
 ```
+
+Prefer explicit Boolean conditionals in examples. The parser may accept
+formula-level implication sugar, but `!φ | ψ` keeps temporal steps visually
+separate from proof implication.
 
 ## State Predicates in Formulas
 
@@ -67,11 +71,12 @@ bool_true(/status/delivered.bool)
 // Check text value
 text_eq(/status.text, "delivered")
 
-// Authorization based on state
-!bool_true(/status/delivered.bool) -> signed_by(/parties/buyer.id)
+// Authorization based on state plus signature evidence
+!<+RELEASE> true | <+RELEASE +signed_by(/parties/buyer.id)> true
 
 // Committed to sign (diamondbox with predicate)
 [<+signed_by(/parties/seller.id)>] true
 ```
 
-Rules don't reference action names — the model determines valid actions. Rules gate *who* can commit based on state.
+Rules gate *who* can commit and which labelled transitions are allowed based on
+state, signatures, and other evidence.

@@ -13,6 +13,7 @@ HUB_REST_API_DOC="$ROOT_DIR/docs/reference/hub-rest-api.md"
 IETF_METHODOLOGY_DOC="$ROOT_DIR/experiments/ietf-autoformalization/methodology.md"
 ACME_SYNTHESIS_NOTES="$ROOT_DIR/experiments/ietf-autoformalization/rfc8555-acme/synthesis-notes.md"
 MODELS_VS_RULES_DOC="$ROOT_DIR/docs/concepts/models-vs-rules.md"
+MODAL_LOGIC_DOC="$ROOT_DIR/docs/concepts/modal-logic.md"
 MEMBERS_ONLY_EXAMPLE="$ROOT_DIR/examples/members_only.modality"
 TREASURY_MULTISIG_EXAMPLE="$ROOT_DIR/examples/treasury_multisig.modality"
 ORACLE_ESCROW_EXAMPLE="$ROOT_DIR/examples/oracle_escrow.modality"
@@ -228,6 +229,24 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$MODELS_VS_RULES_DOC"; then
   echo "models-vs-rules concept doc should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+modal_logic_required_patterns=(
+  "!φ | ψ          // Conditional rule: if φ, then ψ"
+  "Prefer explicit Boolean conditionals in examples."
+  "!<+RELEASE> true | <+RELEASE +signed_by(/parties/buyer.id)> true"
+)
+
+for pattern in "${modal_logic_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$MODAL_LOGIC_DOC"; then
+    echo "modal logic concept doc is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- 'φ[[:space:]]*->[[:space:]]*ψ| true[[:space:]]*->| implies ' "$MODAL_LOGIC_DOC"; then
+  echo "modal logic concept doc should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
