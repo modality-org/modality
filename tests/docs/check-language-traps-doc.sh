@@ -30,6 +30,7 @@ LLM_MODEL_SYNTHESIS_DOC="$ROOT_DIR/experiments/llm-synthesizer/model-synthesis.m
 LLM_PREDICATE_DESIGN_DOC="$ROOT_DIR/experiments/llm-synthesizer/predicate-design.md"
 LLM_PIPELINE_DOC="$ROOT_DIR/experiments/llm-synthesizer/pipeline.md"
 LLM_EXPERIMENT_LOG="$ROOT_DIR/experiments/llm-synthesizer/experiment-log.md"
+LLM_ESCROW_PIPELINE_EXAMPLE="$ROOT_DIR/experiments/llm-synthesizer/examples/escrow_pipeline.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -558,6 +559,30 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$LLM_EXPERIMENT_LOG"; then
   echo "LLM experiment log should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+llm_escrow_pipeline_example_required_patterns=(
+  "Status: archived experiment notes."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "F1: always(!<+RELEASE> true | eventually(<+DELIVER> true))"
+  "F3: always(!<+DEPOSIT> true | <+DEPOSIT +signed_by(/users/alice.id)> true)"
+  "F4: always(!<+DELIVER> true | <+DELIVER +signed_by(/users/bob.id)> true)"
+  "F5: always(!<+RELEASE> true | <+RELEASE +signed_by(/users/alice.id)> true)"
+  "Historic ordering approximation"
+  "same-transition signature evidence"
+)
+
+for pattern in "${llm_escrow_pipeline_example_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$LLM_ESCROW_PIPELINE_EXAMPLE"; then
+    echo "LLM escrow pipeline example is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$LLM_ESCROW_PIPELINE_EXAMPLE"; then
+  echo "LLM escrow pipeline example should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
