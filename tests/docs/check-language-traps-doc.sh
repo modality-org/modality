@@ -32,6 +32,7 @@ LLM_PIPELINE_DOC="$ROOT_DIR/experiments/llm-synthesizer/pipeline.md"
 LLM_EXPERIMENT_LOG="$ROOT_DIR/experiments/llm-synthesizer/experiment-log.md"
 LLM_ESCROW_PIPELINE_EXAMPLE="$ROOT_DIR/experiments/llm-synthesizer/examples/escrow_pipeline.md"
 SYNTHESIS_V1_EXPERIMENT="$ROOT_DIR/experiments/synthesis-v1.md"
+IETF_SCIM_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc7644-scim/rules.modality.stub"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -605,6 +606,30 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$SYNTHESIS_V1_EXPERIMENT"; then
   echo "synthesis v1 experiment should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+ietf_scim_stub_required_patterns=(
+  "Status: archived experiment notes."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as \`!A | B\`"
+  "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "always(!<+UPDATE_USER> true | eventually(<+CREATE_USER> true))"
+  "always(!<+CREATE_USER> true | <+CREATE_USER +signed_by(/users/identity_provider.id)> true)"
+  "always(!<+DELETE_USER> true | eventually(<+DEPROVISION_USER> true))"
+  "always(!<+DELETE_USER> true | <+DELETE_USER +signed_by(/users/provisioning_admin.id)> true)"
+  "always(!<+SUSPEND_USER> true | always([-REACTIVATE_USER] true))"
+)
+
+for pattern in "${ietf_scim_stub_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$IETF_SCIM_STUB"; then
+    echo "IETF SCIM stub is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$IETF_SCIM_STUB"; then
+  echo "IETF SCIM stub should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
