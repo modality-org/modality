@@ -1,5 +1,7 @@
 # Model Synthesis Experiments
 
+Status: archived experiment notes. Current onboarding examples avoid formula implication sugar such as `A -> B`, use explicit Boolean conditionals such as `!<+ACTION> true | REQUIRED_FORMULA`, and avoid `[+ACTION] true` as a conditional antecedent.
+
 ## The Problem
 
 Given a rule (temporal modal formula), generate a governing model (LTS) that satisfies it.
@@ -60,7 +62,7 @@ model AlternatingTurns:
 ```
 
 ### Pattern 5: Exclusive actions (only Alice can do X)
-`always([+DO_X] true -> <+signed_by(/users/alice.id)> true)`
+`always(!<+DO_X> true | <+DO_X +signed_by(/users/alice.id)> true)`
 
 **Synthesis:** Any transition with +DO_X must also have +signed_by(/users/alice.id).
 ```modality
@@ -101,7 +103,7 @@ model Test2:
 ```
 
 ### Test 3: Conditional obligation
-Rule: `[+RECEIVED_PAYMENT] true -> always([<+DELIVER>] true)`
+Rule: `always(!<+RECEIVED_PAYMENT> true | always([<+DELIVER>] true))`
 Expected model: State machine with PENDING -> PAID -> DELIVERED
 
 ## Next Steps

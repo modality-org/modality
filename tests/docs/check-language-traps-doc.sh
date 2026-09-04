@@ -31,6 +31,7 @@ LLM_PREDICATE_DESIGN_DOC="$ROOT_DIR/experiments/llm-synthesizer/predicate-design
 LLM_PIPELINE_DOC="$ROOT_DIR/experiments/llm-synthesizer/pipeline.md"
 LLM_EXPERIMENT_LOG="$ROOT_DIR/experiments/llm-synthesizer/experiment-log.md"
 LLM_ESCROW_PIPELINE_EXAMPLE="$ROOT_DIR/experiments/llm-synthesizer/examples/escrow_pipeline.md"
+SYNTHESIS_V1_EXPERIMENT="$ROOT_DIR/experiments/synthesis-v1.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -583,6 +584,27 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$LLM_ESCROW_PIPELINE_EXAMPLE"; then
   echo "LLM escrow pipeline example should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+synthesis_v1_required_patterns=(
+  "Status: archived experiment notes."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "use explicit Boolean conditionals"
+  "avoid \`[+ACTION] true\` as a"
+  "always(!<+DO_X> true | <+DO_X +signed_by(/users/alice.id)> true)"
+  "always(!<+RECEIVED_PAYMENT> true | always([<+DELIVER>] true))"
+)
+
+for pattern in "${synthesis_v1_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$SYNTHESIS_V1_EXPERIMENT"; then
+    echo "synthesis v1 experiment is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$SYNTHESIS_V1_EXPERIMENT"; then
+  echo "synthesis v1 experiment should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
