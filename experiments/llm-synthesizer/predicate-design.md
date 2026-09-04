@@ -2,6 +2,11 @@
 
 Thinking through predicates needed for practical contract synthesis.
 
+Status: archived experiment notes. Current onboarding examples avoid formula
+implication sugar and named implication operators; use explicit Boolean
+conditionals of the form `!A | B`. They also avoid `[+ACTION] true` as a guard
+antecedent because a box over `true` can hide vacuous modal mistakes.
+
 ## Current Predicates
 
 ### `signed_by(path)`
@@ -24,10 +29,10 @@ Many contracts need deadlines:
 
 ```modality
 // Delivery must happen before deadline
-always([+DELIVER] true -> <+before(/state/deadline.datetime)> true)
+always(!<+DELIVER> true | <+DELIVER +before(/state/deadline.datetime)> true)
 
 // Refund only after deadline
-always([+REFUND] true -> <+after(/state/deadline.datetime)> true)
+always(!<+REFUND> true | <+REFUND +after(/state/deadline.datetime)> true)
 ```
 
 **Implementation consideration:** How to get current time trustlessly?
@@ -43,10 +48,10 @@ Payment verification:
 
 ```modality
 // Exact payment
-always([+DEPOSIT] true -> <+amount_equals(/state/price.json)> true)
+always(!<+DEPOSIT> true | <+DEPOSIT +amount_equals(/state/price.json)> true)
 
 // Minimum payment
-always([+PAY] true -> <+amount_gte(/state/minimum.json)> true)
+always(!<+PAY> true | <+PAY +amount_gte(/state/minimum.json)> true)
 ```
 
 **Implementation consideration:** What's the value source?
@@ -61,10 +66,10 @@ Atomic swaps need hash-locked commitments:
 
 ```modality
 // Reveal phase
-always([+REVEAL_A] true -> <+preimage_of(/state/commitment_a.hash)> true)
+always(!<+REVEAL_A> true | <+REVEAL_A +preimage_of(/state/commitment_a.hash)> true)
 
 // Hash time-locked contracts
-always([+CLAIM] true -> <+hash_matches(/state/secret.hash)> true)
+always(!<+CLAIM> true | <+CLAIM +hash_matches(/state/secret.hash)> true)
 ```
 
 **Implementation:** SHA256 or Blake3, committed value in state
@@ -77,10 +82,10 @@ External verification:
 
 ```modality
 // Oracle attestation
-always([+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true)
+always(!<+RELEASE> true | <+RELEASE +oracle_attests(/oracles/delivery.id, "delivered", "true")> true)
 
 // Reputation check
-always([+PROCEED] true -> <+oracle_attests(/oracles/reputation.id, "reputation_ok", "true")> true)
+always(!<+PROCEED> true | <+PROCEED +oracle_attests(/oracles/reputation.id, "reputation_ok", "true")> true)
 ```
 
 **Implementation consideration:** 
@@ -94,7 +99,7 @@ N-of-M multisig without enumerating all combinations:
 
 ```modality
 // 2-of-3 multisig
-always([+EXECUTE] true -> <+threshold(2, /users)> true)
+always(!<+EXECUTE> true | <+EXECUTE +threshold("2", /users)> true)
 ```
 
 **Implementation:** Count valid signatures, check >= n
@@ -110,8 +115,8 @@ Check contract state:
 - "Require escrow balance exists"
 
 ```modality
-always([+RELEASE] true -> <+state_equals(/state/status.text, "approved")> true)
-always([+CLAIM] true -> <+state_exists(/state/escrow.json)> true)
+always(!<+RELEASE> true | <+RELEASE +state_equals(/state/status.text, "approved")> true)
+always(!<+CLAIM> true | <+CLAIM +state_exists(/state/escrow.json)> true)
 ```
 
 ---
@@ -122,9 +127,9 @@ Predicates should compose with formula operators:
 
 ```modality
 // Time-locked multisig: 2-of-3 OR 1 after deadline
-always([+EXECUTE] true -> (
-  <+threshold(2, /users)> true |
-  (<+signed_by(/users/a.id)> true & <+after(/state/deadline.datetime)> true)
+always(!<+EXECUTE> true | (
+  <+EXECUTE +threshold("2", /users)> true |
+  <+EXECUTE +signed_by(/users/a.id) +after(/state/deadline.datetime)> true
 ))
 ```
 
@@ -160,7 +165,7 @@ threshold = "wasm/threshold.wasm"
 When synthesizing from formulas, predicates translate to transition requirements:
 
 ```
-Formula: always([+PAY] true -> <+amount_gte(100) +signed_by(/users/buyer.id)> true)
+Formula: always(!<+PAY> true | <+PAY +amount_gte(100) +signed_by(/users/buyer.id)> true)
     ↓
 Transition: state --> paid: +PAY +amount_gte(100) +signed_by(/users/buyer.id)
 ```

@@ -27,6 +27,7 @@ STANDARD_PREDICATES_DOC="$ROOT_DIR/docs/reference/standard-predicates.md"
 LLM_SYNTHESIS_GUIDE="$ROOT_DIR/experiments/llm-synthesizer/SYNTHESIS_GUIDE.md"
 LLM_RULE_GENERATION_DOC="$ROOT_DIR/experiments/llm-synthesizer/rule-generation.md"
 LLM_MODEL_SYNTHESIS_DOC="$ROOT_DIR/experiments/llm-synthesizer/model-synthesis.md"
+LLM_PREDICATE_DESIGN_DOC="$ROOT_DIR/experiments/llm-synthesizer/predicate-design.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -486,6 +487,29 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$LLM_MODEL_SYNTHESIS_DOC"; then
   echo "LLM model-synthesis notes should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+llm_predicate_design_required_patterns=(
+  "Status: archived experiment notes."
+  "avoid formula"
+  "use explicit Boolean"
+  "avoid \`[+ACTION] true\` as a guard"
+  "always(!<+DELIVER> true | <+DELIVER +before(/state/deadline.datetime)> true)"
+  "always(!<+PAY> true | <+PAY +amount_gte(/state/minimum.json)> true)"
+  "always(!<+EXECUTE> true | <+EXECUTE +threshold(\"2\", /users)> true)"
+  "always(!<+RELEASE> true | <+RELEASE +oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true)"
+)
+
+for pattern in "${llm_predicate_design_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$LLM_PREDICATE_DESIGN_DOC"; then
+    echo "LLM predicate-design notes are missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$LLM_PREDICATE_DESIGN_DOC"; then
+  echo "LLM predicate-design notes should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
