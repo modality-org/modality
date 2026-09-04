@@ -1,5 +1,12 @@
 # Two-Step Synthesis Pipeline
 
+Status: archived experiment notes.
+
+Current onboarding examples avoid formula implication sugar such as `A -> B`
+and avoid `[+ACTION] true` as a conditional antecedent. Use explicit Boolean
+conditionals such as `!<+ACTION> true | REQUIRED_FORMULA` when adapting this
+pipeline sketch for current docs or demos.
+
 ## Architecture
 
 ```
@@ -16,8 +23,9 @@
 │  NL → Temporal Modal Logic Formulas                             │
 │                                                                 │
 │  Output:                                                        │
-│    F1: always([+RELEASE] true -> eventually(<+DELIVER> true))   │
-│    F2: always([+RELEASE] true -> <+signed_by(/users/alice.id)> true) │
+│    F1: always(!<+RELEASE> true | eventually(<+DELIVER> true))   │
+│    F2: always(!<+RELEASE> true |                                │
+│      <+RELEASE +signed_by(/users/alice.id)> true)               │
 └─────────────────────────────┬───────────────────────────────────┘
                               │
                               ▼

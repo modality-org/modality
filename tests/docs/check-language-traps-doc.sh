@@ -28,6 +28,7 @@ LLM_SYNTHESIS_GUIDE="$ROOT_DIR/experiments/llm-synthesizer/SYNTHESIS_GUIDE.md"
 LLM_RULE_GENERATION_DOC="$ROOT_DIR/experiments/llm-synthesizer/rule-generation.md"
 LLM_MODEL_SYNTHESIS_DOC="$ROOT_DIR/experiments/llm-synthesizer/model-synthesis.md"
 LLM_PREDICATE_DESIGN_DOC="$ROOT_DIR/experiments/llm-synthesizer/predicate-design.md"
+LLM_PIPELINE_DOC="$ROOT_DIR/experiments/llm-synthesizer/pipeline.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -510,6 +511,28 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$LLM_PREDICATE_DESIGN_DOC"; then
   echo "LLM predicate-design notes should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+llm_pipeline_required_patterns=(
+  "Status: archived experiment notes."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "conditionals such as \`!<+ACTION> true | REQUIRED_FORMULA\`"
+  "F1: always(!<+RELEASE> true | eventually(<+DELIVER> true))"
+  "F2: always(!<+RELEASE> true |"
+  "<+RELEASE +signed_by(/users/alice.id)> true)"
+)
+
+for pattern in "${llm_pipeline_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$LLM_PIPELINE_DOC"; then
+    echo "LLM pipeline notes are missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$LLM_PIPELINE_DOC"; then
+  echo "LLM pipeline notes should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
