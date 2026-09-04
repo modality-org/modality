@@ -26,6 +26,7 @@ RFC_0001_RESOURCE="$ROOT_DIR/docs/resources/rfc-0001.md"
 STANDARD_PREDICATES_DOC="$ROOT_DIR/docs/reference/standard-predicates.md"
 LLM_SYNTHESIS_GUIDE="$ROOT_DIR/experiments/llm-synthesizer/SYNTHESIS_GUIDE.md"
 LLM_RULE_GENERATION_DOC="$ROOT_DIR/experiments/llm-synthesizer/rule-generation.md"
+LLM_MODEL_SYNTHESIS_DOC="$ROOT_DIR/experiments/llm-synthesizer/model-synthesis.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -462,6 +463,29 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$LLM_RULE_GENERATION_DOC"; then
   echo "LLM rule-generation notes should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+llm_model_synthesis_required_patterns=(
+  "Status: archived experiment notes."
+  "Current teaching examples avoid formula"
+  "use explicit Boolean conditionals"
+  "avoid \`[+ACTION] true\` as a"
+  "always(!<+RELEASE> true | eventually(<+DELIVER> true))"
+  "!<+RELEASE> true | <+RELEASE +signed_by(/users/alice.id)> true"
+  "!<+EXECUTE> true | <+EXECUTE +threshold(2, /signers)> true"
+  "!<+RELEASE> true | <+RELEASE +oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true"
+)
+
+for pattern in "${llm_model_synthesis_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$LLM_MODEL_SYNTHESIS_DOC"; then
+    echo "LLM model-synthesis notes are missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$LLM_MODEL_SYNTHESIS_DOC"; then
+  echo "LLM model-synthesis notes should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

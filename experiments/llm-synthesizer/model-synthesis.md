@@ -1,5 +1,11 @@
 # Step 2: Model Synthesis (Formulas → Model)
 
+Status: archived experiment notes. These examples are kept as synthesis design
+notes, not as current onboarding syntax. Current teaching examples avoid formula
+arrow sugar and named implication operators; use explicit Boolean conditionals
+of the form `!A | B`. They also avoid `[+ACTION] true` as a
+guard antecedent because box-over-`true` can hide vacuous modal mistakes.
+
 Given temporal modal logic formulas, synthesize a state machine that satisfies them.
 
 ## The Synthesis Problem
@@ -11,13 +17,13 @@ Given temporal modal logic formulas, synthesize a state machine that satisfies t
 
 ### Heuristic 1: Ordering Constraints
 
-Formula: `[+X] true -> eventually(<+Y> true)`
+Formula: `!<+X> true | eventually(<+Y> true)`
 (X can only happen after Y has happened)
 
 **Synthesis:** Create linear states where Y precedes X.
 
 ```
-Input:  [+RELEASE] true -> eventually(<+DELIVER> true)
+Input:  !<+RELEASE> true | eventually(<+DELIVER> true)
 Output:
   init --> delivered: +DELIVER
   delivered --> released: +RELEASE
@@ -26,31 +32,31 @@ Output:
 
 ### Heuristic 2: Authorization Constraints
 
-Formula: `[+X] true -> <+signed_by(/users/a.id)> true`
+Formula: `!<+X> true | <+X +signed_by(/users/a.id)> true`
 (X requires A's signature)
 
 **Synthesis:** Add signature requirement to all X transitions.
 
 ```
-Input:  [+RELEASE] true -> <+signed_by(/users/alice.id)> true
+Input:  !<+RELEASE> true | <+RELEASE +signed_by(/users/alice.id)> true
 Output:
   state --> state: +RELEASE +signed_by(/users/alice.id)
 ```
 
 The same extraction path handles other positive predicate requirements, such as
 oracle attestations. A formula like
-`[+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true`
+`!<+RELEASE> true | <+RELEASE +oracle_attests(/oracles/delivery.id, "delivered", "true")> true`
 adds the oracle predicate to every synthesized `+RELEASE` transition.
 
 ### Heuristic 3: Mutual Commitment
 
-Formula: `[+X] true -> (eventually(<+A> true) & eventually(<+B> true))`
+Formula: `!<+X> true | (eventually(<+A> true) & eventually(<+B> true))`
 (X requires both A and B to have happened)
 
 **Synthesis:** Create convergent paths.
 
 ```
-Input:  [+ACTIVATE] true -> (eventually(<+SIGN_A> true) & eventually(<+SIGN_B> true))
+Input:  !<+ACTIVATE> true | (eventually(<+SIGN_A> true) & eventually(<+SIGN_B> true))
 Output:
   init --> a_signed: +SIGN_A
   init --> b_signed: +SIGN_B
@@ -62,13 +68,13 @@ Output:
 
 ### Heuristic 4: Forbidden After
 
-Formula: `[+X] true -> always([-Y] true)`
+Formula: `!<+X> true | always([-Y] true)`
 (Once X happens, Y is forbidden forever)
 
 **Synthesis:** Create absorbing state after X where Y is impossible.
 
 ```
-Input:  [+COMMIT] true -> always([-DEFECT] true)
+Input:  !<+COMMIT> true | always([-DEFECT] true)
 Output:
   init --> init: +DEFECT -COMMIT
   init --> committed: +COMMIT -DEFECT
@@ -77,13 +83,13 @@ Output:
 
 ### Heuristic 5: Disjunctive Requirements
 
-Formula: `[+X] true -> (<+A> true | <+B> true)`
+Formula: `!<+X> true | (<+A> true | <+B> true)`
 (X requires A or B)
 
 **Synthesis:** Create branching paths that converge.
 
 ```
-Input:  [+PROCEED] true -> (<+APPROVE> true | <+OVERRIDE> true)
+Input:  !<+PROCEED> true | (<+APPROVE> true | <+OVERRIDE> true)
 Output:
   init --> approved: +APPROVE
   init --> overridden: +OVERRIDE
@@ -99,7 +105,7 @@ def synthesize(formulas: List[Formula]) -> Model:
     # 1. Extract all actions mentioned in formulas
     actions = extract_actions(formulas)
     
-    # 2. Build ordering graph from implies constraints
+    # 2. Build ordering graph from conditional constraints
     ordering = build_ordering_graph(formulas)
     
     # 3. Create states based on ordering (topological sort)
@@ -133,11 +139,11 @@ def synthesize(formulas: List[Formula]) -> Model:
 
 ```modality
 // From NL: "Escrow where buyer deposits, seller delivers, buyer releases"
-F1: [+RELEASE] true -> eventually(<+DELIVER> true)
-F2: [+DELIVER] true -> eventually(<+DEPOSIT> true)
-F3: [+DEPOSIT] true -> <+signed_by(/users/buyer.id)> true
-F4: [+DELIVER] true -> <+signed_by(/users/seller.id)> true
-F5: [+RELEASE] true -> <+signed_by(/users/buyer.id)> true
+F1: !<+RELEASE> true | eventually(<+DELIVER> true)
+F2: !<+DELIVER> true | eventually(<+DEPOSIT> true)
+F3: !<+DEPOSIT> true | <+DEPOSIT +signed_by(/users/buyer.id)> true
+F4: !<+DELIVER> true | <+DELIVER +signed_by(/users/seller.id)> true
+F5: !<+RELEASE> true | <+RELEASE +signed_by(/users/buyer.id)> true
 ```
 
 ### Synthesis Steps
@@ -188,7 +194,7 @@ model_check(Escrow, F5) ✓
 The synthesized model should be verified:
 
 ```bash
-modality model check escrow.modality --formula "always([+RELEASE] true -> eventually(<+DELIVER> true))"
+modality model check escrow.modality --formula "always(!<+RELEASE> true | eventually(<+DELIVER> true))"
 ```
 
 If verification fails, the synthesizer refines the model.
@@ -197,13 +203,13 @@ If verification fails, the synthesizer refines the model.
 
 ### Heuristic 8: Threshold (n-of-m Multisig, Planned)
 
-Formula: `[+X] true -> <+threshold(n, /signers)> true`
+Formula: `!<+X> true | <+X +threshold(n, /signers)> true`
 (X requires n signatures from the list)
 
 **Synthesis:** Create collecting states for signatures.
 
 ```
-Input:  [+EXECUTE] true -> <+threshold(2, /signers)> true
+Input:  !<+EXECUTE> true | <+EXECUTE +threshold(2, /signers)> true
 Output:
   init --> init: +PROPOSE
   init --> one_sig_a: +APPROVE_A +signed_by(/users/a.id)
@@ -229,21 +235,21 @@ as an implemented heuristic.
 
 ### Heuristic 9: Oracle Attestation
 
-Formula: `[+X] true -> <+oracle_attests(O, claim, value)> true`
+Formula: `!<+X> true | <+X +oracle_attests(O, claim, value)> true`
 (X requires oracle attestation)
 
 **Synthesis:** Add oracle requirement to transition.
 
 ```
-Input:  [+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true
+Input:  !<+RELEASE> true | <+RELEASE +oracle_attests(/oracles/delivery.id, "delivered", "true")> true
 Output:
   pending --> released: +RELEASE +oracle_attests(/oracles/delivery.id, delivered, true)
 ```
 
 **With timeout fallback:**
 ```
-Input:  ([+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true) &
-        ([+TIMEOUT_REFUND] true -> (<+after(/state/deadline.datetime)> true & <+signed_by(/users/buyer.id)> true))
+Input:  (!<+RELEASE> true | <+RELEASE +oracle_attests(/oracles/delivery.id, "delivered", "true")> true) &
+        (!<+TIMEOUT_REFUND> true | <+TIMEOUT_REFUND +after(/state/deadline.datetime) +signed_by(/users/buyer.id)> true)
 Output:
   pending --> released: +RELEASE +oracle_attests(/oracles/delivery.id, delivered, true)
   pending --> refunded: +TIMEOUT_REFUND +after(/state/deadline.datetime) +signed_by(/users/buyer.id)
@@ -251,9 +257,9 @@ Output:
 
 ### Heuristic 10: Graduated Thresholds (Planned)
 
-Formula: `([+LOW_RISK_ACTION] true -> <+threshold(1, /treasury/signers)> true) &
-         ([+HIGH_RISK_ACTION] true -> <+threshold(2, /treasury/signers)> true) &
-         ([+CRITICAL_ACTION] true -> <+threshold(3, /treasury/signers)> true)`
+Formula: `(!<+LOW_RISK_ACTION> true | <+LOW_RISK_ACTION +threshold(1, /treasury/signers)> true) &
+         (!<+HIGH_RISK_ACTION> true | <+HIGH_RISK_ACTION +threshold(2, /treasury/signers)> true) &
+         (!<+CRITICAL_ACTION> true | <+CRITICAL_ACTION +threshold(3, /treasury/signers)> true)`
 
 **Synthesis:** Different actions have different threshold requirements.
 
