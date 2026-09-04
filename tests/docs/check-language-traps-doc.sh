@@ -25,6 +25,7 @@ IETF_AUTOFORMALIZATION_PLAN="$ROOT_DIR/docs/progress/IETF_AUTOFORMALIZATION_PLAN
 RFC_0001_RESOURCE="$ROOT_DIR/docs/resources/rfc-0001.md"
 STANDARD_PREDICATES_DOC="$ROOT_DIR/docs/reference/standard-predicates.md"
 LLM_SYNTHESIS_GUIDE="$ROOT_DIR/experiments/llm-synthesizer/SYNTHESIS_GUIDE.md"
+LLM_RULE_GENERATION_DOC="$ROOT_DIR/experiments/llm-synthesizer/rule-generation.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -438,6 +439,29 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$LLM_SYNTHESIS_GUIDE"; then
   echo "LLM synthesis guide should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+llm_rule_generation_required_patterns=(
+  "Archived experiment notes for translating natural-language contract requirements"
+  "Current onboarding examples avoid formula implication sugar."
+  "conditionals: \`!A | B\`."
+  "avoid \`[+ACTION] true\` as an antecedent"
+  "always(!<+RELEASE> true | eventually(<+DELIVER> true))"
+  "always(!<+RELEASE> true | <+RELEASE +signed_by(/users/alice.id)> true)"
+  "always(!<+DELEGATE> true | <+DELEGATE +signed_by(/users/principal.id)> true)"
+  "Do not use \`->\`, \`implies\`, or \`[+A] true\`"
+)
+
+for pattern in "${llm_rule_generation_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$LLM_RULE_GENERATION_DOC"; then
+    echo "LLM rule-generation notes are missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$LLM_RULE_GENERATION_DOC"; then
+  echo "LLM rule-generation notes should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
