@@ -29,6 +29,7 @@ LLM_RULE_GENERATION_DOC="$ROOT_DIR/experiments/llm-synthesizer/rule-generation.m
 LLM_MODEL_SYNTHESIS_DOC="$ROOT_DIR/experiments/llm-synthesizer/model-synthesis.md"
 LLM_PREDICATE_DESIGN_DOC="$ROOT_DIR/experiments/llm-synthesizer/predicate-design.md"
 LLM_PIPELINE_DOC="$ROOT_DIR/experiments/llm-synthesizer/pipeline.md"
+LLM_EXPERIMENT_LOG="$ROOT_DIR/experiments/llm-synthesizer/experiment-log.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -533,6 +534,30 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$LLM_PIPELINE_DOC"; then
   echo "LLM pipeline notes should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+llm_experiment_log_required_patterns=(
+  "Status: archived experiment notes."
+  "avoid formula"
+  "use explicit Boolean conditionals"
+  "avoid \`[+ACTION] true\` as a guard"
+  "always(!<+RELEASE> true | <+DELIVER> true)"
+  "always(!<+REVEAL_A> true | ("
+  "always(!<+DELEGATE> true | <+DELEGATE +signed_by(/users/agent_a.id)> true)"
+  "<+EXECUTE +signed_by(/users/member1.id) +signed_by(/users/member2.id)> true"
+  "always(!<+PAY_DESIGN> true | <+DELIVER_DESIGN> true)"
+)
+
+for pattern in "${llm_experiment_log_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$LLM_EXPERIMENT_LOG"; then
+    echo "LLM experiment log is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$LLM_EXPERIMENT_LOG"; then
+  echo "LLM experiment log should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

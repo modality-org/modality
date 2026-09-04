@@ -1,5 +1,9 @@
 # LLM Synthesizer Experiment Log
 
+Status: archived experiment notes. Current onboarding examples avoid formula
+implication sugar such as `A -> B`; use explicit Boolean conditionals such as
+`!<+ACTION> true | REQUIRED_FORMULA` and avoid `[+ACTION] true` as a guard.
+
 ## Session: 2026-01-31 23:35 UTC
 
 ### Approach
@@ -33,7 +37,7 @@ model SimpleEscrow {
 export default rule {
   starting_at $PARENT
   formula {
-    always([+RELEASE] true -> <+DELIVER> true)
+    always(!<+RELEASE> true | <+DELIVER> true)
   }
 }
 ```
@@ -44,7 +48,7 @@ export default rule {
 export default rule {
   starting_at $PARENT
   formula {
-    always([+DELIVER] true -> <+DEPOSIT> true)
+    always(!<+DELIVER> true | <+DEPOSIT> true)
   }
 }
 ```
@@ -88,10 +92,10 @@ model AtomicDataExchange {
 export default rule {
   starting_at $PARENT
   formula {
-    always([+REVEAL_A] true -> (
+    always(!<+REVEAL_A> true | (
         <+COMMIT_A> true & <+COMMIT_B> true
       )
-    ) & always([+REVEAL_B] true -> (
+    ) & always(!<+REVEAL_B> true | (
         <+COMMIT_A> true & <+COMMIT_B> true
       )
     )
@@ -133,10 +137,10 @@ model Delegation {
 export default rule {
   starting_at $PARENT
   formula {
-    always([+DELEGATE] true -> <+signed_by(/users/agent_a.id)> true) &
-    always([+ACT_ON_BEHALF] true -> <+signed_by(/users/agent_b.id)> true) &
-    always([+REVOKE] true -> <+signed_by(/users/agent_a.id)> true) &
-    always([+REVOKE] true -> always([-ACT_ON_BEHALF] true))
+    always(!<+DELEGATE> true | <+DELEGATE +signed_by(/users/agent_a.id)> true) &
+    always(!<+ACT_ON_BEHALF> true | <+ACT_ON_BEHALF +signed_by(/users/agent_b.id)> true) &
+    always(!<+REVOKE> true | <+REVOKE +signed_by(/users/agent_a.id)> true) &
+    always(!<+REVOKE> true | always([-ACT_ON_BEHALF] true))
   }
 }
 ```
@@ -182,10 +186,10 @@ model Multisig2of3 {
 export default rule {
   starting_at $PARENT
   formula {
-    always([+EXECUTE] true -> (
-        (<+signed_by(/users/member1.id)> true & <+signed_by(/users/member2.id)> true) |
-        (<+signed_by(/users/member1.id)> true & <+signed_by(/users/member3.id)> true) |
-        (<+signed_by(/users/member2.id)> true & <+signed_by(/users/member3.id)> true)
+    always(!<+EXECUTE> true | (
+        <+EXECUTE +signed_by(/users/member1.id) +signed_by(/users/member2.id)> true |
+        <+EXECUTE +signed_by(/users/member1.id) +signed_by(/users/member3.id)> true |
+        <+EXECUTE +signed_by(/users/member2.id) +signed_by(/users/member3.id)> true
       )
     )
   }
@@ -228,9 +232,9 @@ model MilestoneProject {
 export default rule {
   starting_at $PARENT
   formula {
-    always([+PAY_DESIGN] true -> <+DELIVER_DESIGN> true) &
-    always([+PAY_BUILD] true -> <+DELIVER_BUILD> true) &
-    always([+PAY_TEST] true -> <+DELIVER_TEST> true)
+    always(!<+PAY_DESIGN> true | <+DELIVER_DESIGN> true) &
+    always(!<+PAY_BUILD> true | <+DELIVER_BUILD> true) &
+    always(!<+PAY_TEST> true | <+DELIVER_TEST> true)
   }
 }
 ```
@@ -247,7 +251,7 @@ export default rule {
 
 2. **Atomic operations need commitment phases** - any "both or neither" requirement needs explicit commit-before-reveal patterns.
 
-3. **Formulas express invariants** - `always(P -> Q)` is the workhorse for conditional requirements.
+3. **Formulas express invariants** - `always(!P | Q)` is the preferred explicit Boolean shape for conditional requirements.
 
 4. **Signature requirements attach to transitions** - `+signed_by(path)` is how you specify who can take an action.
 
