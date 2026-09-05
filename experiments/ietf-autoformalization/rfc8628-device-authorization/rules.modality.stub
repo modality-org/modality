@@ -1,5 +1,8 @@
 // RFC 8628 — Device Authorization Grant
 // Status: STUB — replace with rules/*.modality in Phase 1
+// Status: archived experiment notes. Keep examples aligned with the current
+// teaching path: avoid formula implication sugar such as `A -> B`, use
+// explicit Boolean conditionals such as `!A | B`, and avoid `[+ACTION] true` as a conditional antecedent.
 //
 // Parties:
 //   /users/client.id
@@ -7,16 +10,16 @@
 //   /users/resource_owner.id
 //
 // TODO F1: Token issuance requires prior authorization
-//   always([+ISSUE_TOKEN] true -> eventually(<+AUTHORIZE> true))
+//   always(!<+ISSUE_TOKEN> true | eventually(<+AUTHORIZE> true))
 //
 // TODO F2: Only authorization server may issue tokens
-//   always([+ISSUE_TOKEN] true -> <+signed_by(/users/authorization_server.id)> true)
+//   always(!<+ISSUE_TOKEN> true | <+ISSUE_TOKEN +signed_by(/users/authorization_server.id)> true)
 //
 // TODO F3: Denial blocks token issuance
-//   always([+DENY] true -> always([-ISSUE_TOKEN] true))
+//   always(!<+DENY> true | always([-ISSUE_TOKEN] true))
 //
 // TODO F4: Expiry blocks token issuance
-//   always([+EXPIRE] true -> always([-ISSUE_TOKEN] true))
+//   always(!<+EXPIRE> true | always([-ISSUE_TOKEN] true))
 //
 // TODO F5: Device code request precedes polling
-//   always([+POLL_TOKEN] true -> eventually(<+REQUEST_DEVICE_CODE> true))
+//   always(!<+POLL_TOKEN> true | eventually(<+REQUEST_DEVICE_CODE> true))

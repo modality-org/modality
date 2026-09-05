@@ -34,6 +34,7 @@ LLM_ESCROW_PIPELINE_EXAMPLE="$ROOT_DIR/experiments/llm-synthesizer/examples/escr
 SYNTHESIS_V1_EXPERIMENT="$ROOT_DIR/experiments/synthesis-v1.md"
 IETF_SCIM_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc7644-scim/rules.modality.stub"
 IETF_TOKEN_EXCHANGE_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc8693-token-exchange/rules.modality.stub"
+IETF_DEVICE_AUTHORIZATION_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc8628-device-authorization/rules.modality.stub"
 IETF_RATS_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc9334-rats/rules.modality.stub"
 IETF_HTTP_MESSAGE_SIGNATURES_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc9421-http-message-signatures/rules.modality.stub"
 
@@ -657,6 +658,30 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$IETF_TOKEN_EXCHANGE_STUB"; then
   echo "IETF token exchange stub should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+ietf_device_authorization_stub_required_patterns=(
+  "Status: archived experiment notes."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as \`!A | B\`"
+  "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "always(!<+ISSUE_TOKEN> true | eventually(<+AUTHORIZE> true))"
+  "always(!<+ISSUE_TOKEN> true | <+ISSUE_TOKEN +signed_by(/users/authorization_server.id)> true)"
+  "always(!<+DENY> true | always([-ISSUE_TOKEN] true))"
+  "always(!<+EXPIRE> true | always([-ISSUE_TOKEN] true))"
+  "always(!<+POLL_TOKEN> true | eventually(<+REQUEST_DEVICE_CODE> true))"
+)
+
+for pattern in "${ietf_device_authorization_stub_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$IETF_DEVICE_AUTHORIZATION_STUB"; then
+    echo "IETF device authorization stub is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$IETF_DEVICE_AUTHORIZATION_STUB"; then
+  echo "IETF device authorization stub should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
