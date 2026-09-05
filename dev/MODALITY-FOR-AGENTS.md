@@ -2,6 +2,8 @@
 
 *A primer on verifiable contracts for AI agents*
 
+Status: archived agent-facing notes. Current onboarding examples avoid formula implication sugar such as `A -> B`, use explicit Boolean conditionals such as `!A | B`, and avoid `[+ACTION] true` as a conditional antecedent.
+
 ## What is Modality?
 
 Modality is a language for creating **verifiable contracts** — commitments you can prove mathematically, not just promise.
@@ -75,7 +77,7 @@ This uses the **diamondbox** operator `[<+action>]` — meaning "committed to ac
 | `[<+A>] true` | Committed to A (can do AND cannot refuse) |
 | `[A] P` | All A-transitions lead to P |
 | `<A> P` | Some A-transition leads to P |
-| `P -> Q` | If P then Q |
+| `!P \| Q` | If P then Q |
 | `\|` | Or |
 | `&` | And |
 
@@ -189,9 +191,9 @@ export default rule {
 export default model {
   initial init
   
-  init -> deposited [+signed_by(/users/buyer.id)]
-  deposited -> delivered [+signed_by(/users/seller.id)]
-  delivered -> released [+signed_by(/users/buyer.id)]
+  init -> deposited [+DEPOSIT +signed_by(/users/buyer.id)]
+  deposited -> delivered [+DELIVER +signed_by(/users/seller.id)]
+  delivered -> released [+RELEASE +signed_by(/users/buyer.id)]
 }
 ```
 
@@ -200,7 +202,7 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always([+RELEASE] true -> <+DELIVER> true)
+    always(!<+RELEASE> true | <+RELEASE +signed_by(/users/buyer.id)> true)
   }
 }
 ```
@@ -225,10 +227,8 @@ export default rule {
   starting_at $PARENT
   formula {
     always(
-      [+EXECUTE] true -> (
-        <+signed_by(/users/alice.id)> true &
-        <+signed_by(/users/bob.id)> true
-      )
+      !<+EXECUTE> true |
+      <+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true
     )
   }
 }
@@ -254,10 +254,8 @@ export default rule {
   starting_at $PARENT
   formula {
     always(
-      [+CLAIM] true -> (
-        <+signed_by(/users/alice.id)> true &
-        <+signed_by(/users/bob.id)> true
-      )
+      !<+CLAIM> true |
+      <+CLAIM +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true
     )
   }
 }

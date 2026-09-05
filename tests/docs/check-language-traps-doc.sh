@@ -40,6 +40,7 @@ IETF_HTTP_MESSAGE_SIGNATURES_STUB="$ROOT_DIR/experiments/ietf-autoformalization/
 AGENT_COOPERATION_ROADMAP="$ROOT_DIR/ROADMAP-AGENT-COOPERATION.md"
 DEV_FORMULA_SYNTAX_DOC="$ROOT_DIR/dev/FORMULA_SYNTAX.md"
 DEV_FOR_AGENTS_DOC="$ROOT_DIR/dev/FOR_AGENTS.md"
+DEV_MODALITY_FOR_AGENTS_DOC="$ROOT_DIR/dev/MODALITY-FOR-AGENTS.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -799,6 +800,32 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_FOR_AGENTS_DOC"; then
   echo "developer agents doc should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+dev_modality_for_agents_required_patterns=(
+  "Status: archived agent-facing notes."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as"
+  "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "| \`!P \\| Q\` | If P then Q |"
+  "init -> deposited [+DEPOSIT +signed_by(/users/buyer.id)]"
+  "deposited -> delivered [+DELIVER +signed_by(/users/seller.id)]"
+  "delivered -> released [+RELEASE +signed_by(/users/buyer.id)]"
+  "always(!<+RELEASE> true | <+RELEASE +signed_by(/users/buyer.id)> true)"
+  "<+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"
+  "<+CLAIM +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"
+)
+
+for pattern in "${dev_modality_for_agents_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_MODALITY_FOR_AGENTS_DOC"; then
+    echo "developer modality-for-agents doc is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_MODALITY_FOR_AGENTS_DOC"; then
+  echo "developer modality-for-agents doc should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
