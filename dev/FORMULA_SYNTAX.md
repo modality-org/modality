@@ -2,13 +2,18 @@
 
 Complete reference for temporal modal logic formulas in Modality.
 
+Status: archived developer reference. Current onboarding examples avoid formula
+implication sugar such as `A -> B`, use explicit Boolean conditionals such as
+`!A | B`, and avoid `[+ACTION] true` as a conditional antecedent because a box
+over `true` can hide vacuous modal mistakes.
+
 ---
 
 ## Overview
 
 Modality formulas are based on **modal mu-calculus** — a powerful logic for expressing properties over state machines. The syntax supports:
 
-- Boolean operators (and, or, not, implies)
+- Boolean operators (and, or, not)
 - Modal operators (box, diamond, diamondbox)
 - Temporal operators (always, eventually, until, next)
 - Fixed point operators (lfp, gfp)
@@ -25,7 +30,7 @@ Modality formulas are based on **modal mu-calculus** — a powerful logic for ex
 | `P & Q` or `P and Q` | Both P and Q hold |
 | `P \| Q` or `P or Q` | Either P or Q holds |
 | `!P` or `not P` | P does not hold |
-| `P -> Q` or `P implies Q` | If P then Q |
+| `!P \| Q` or `not P or Q` | Conditional rule: if P, then Q |
 | `(P)` | Parentheses for grouping |
 
 ---
@@ -93,7 +98,7 @@ Temporal operators reason about **paths** through the state machine.
 
 ```modality
 always(safe)           // Safety invariant: always safe
-always([+EXECUTE] true -> <+signed_by(/users/alice.id)> true)  // Execute requires Alice's signature
+always(!<+EXECUTE> true | <+EXECUTE +signed_by(/users/alice.id)> true)
 ```
 
 **Semantics:** `always(f) ≡ gfp(X, []X & f)` (greatest fixed point)
@@ -196,10 +201,8 @@ export default rule {
   starting_at $PARENT
   formula {
     always(
-      [+EXECUTE] true -> (
-        <+signed_by(/users/alice.id)> true &
-        <+signed_by(/users/bob.id)> true
-      )
+      !<+EXECUTE> true |
+      <+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true
     )
   }
 }
@@ -230,7 +233,7 @@ formula {
 
 ```modality
 formula {
-  always([+RELEASE] true -> <+DELIVER> true)
+  always(!<+RELEASE> true | <+DELIVER> true)
 }
 ```
 
@@ -241,10 +244,8 @@ formula {
 ```modality
 formula {
   always(
-    [+EXECUTE] true -> (
-      <+signed_by(/users/alice.id)> true &
-      <+signed_by(/users/bob.id)> true
-    )
+    !<+EXECUTE> true |
+    <+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true
   )
 }
 ```
@@ -280,7 +281,7 @@ From highest to lowest:
 4. `always`, `eventually`, `next`, `lfp`, `gfp` — temporal/fixed point
 5. `&`, `and` — conjunction
 6. `|`, `or` — disjunction
-7. `->`, `implies` — implication
+7. `!P | Q` — explicit Boolean conditional
 8. `until` — temporal until
 
 ---

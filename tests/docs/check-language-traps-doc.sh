@@ -38,6 +38,7 @@ IETF_DEVICE_AUTHORIZATION_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc
 IETF_RATS_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc9334-rats/rules.modality.stub"
 IETF_HTTP_MESSAGE_SIGNATURES_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc9421-http-message-signatures/rules.modality.stub"
 AGENT_COOPERATION_ROADMAP="$ROOT_DIR/ROADMAP-AGENT-COOPERATION.md"
+DEV_FORMULA_SYNTAX_DOC="$ROOT_DIR/dev/FORMULA_SYNTAX.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -753,6 +754,27 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$AGENT_COOPERATION_ROADMAP"; then
   echo "agent cooperation roadmap should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+dev_formula_syntax_required_patterns=(
+  "Status: archived developer reference."
+  "explicit Boolean conditionals such as"
+  "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "always(!<+EXECUTE> true | <+EXECUTE +signed_by(/users/alice.id)> true)"
+  "<+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"
+  "always(!<+RELEASE> true | <+DELIVER> true)"
+)
+
+for pattern in "${dev_formula_syntax_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_FORMULA_SYNTAX_DOC"; then
+    echo "developer formula syntax doc is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_FORMULA_SYNTAX_DOC"; then
+  echo "developer formula syntax doc should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
