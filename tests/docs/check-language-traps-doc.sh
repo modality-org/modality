@@ -33,6 +33,7 @@ LLM_EXPERIMENT_LOG="$ROOT_DIR/experiments/llm-synthesizer/experiment-log.md"
 LLM_ESCROW_PIPELINE_EXAMPLE="$ROOT_DIR/experiments/llm-synthesizer/examples/escrow_pipeline.md"
 SYNTHESIS_V1_EXPERIMENT="$ROOT_DIR/experiments/synthesis-v1.md"
 IETF_SCIM_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc7644-scim/rules.modality.stub"
+IETF_TOKEN_EXCHANGE_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc8693-token-exchange/rules.modality.stub"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -630,6 +631,30 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$IETF_SCIM_STUB"; then
   echo "IETF SCIM stub should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+ietf_token_exchange_stub_required_patterns=(
+  "Status: archived experiment notes."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as \`!A | B\`"
+  "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "always(!<+ISSUE_EXCHANGED_TOKEN> true | eventually(<+VALIDATE_EXCHANGE> true))"
+  "always(!<+ISSUE_EXCHANGED_TOKEN> true | <+ISSUE_EXCHANGED_TOKEN +signed_by(/users/authorization_server.id)> true)"
+  "always(!<+ISSUE_EXCHANGED_TOKEN> true | eventually(<+DELEGATE> true))"
+  "always(!<+DENY_EXCHANGE> true | always([-ISSUE_EXCHANGED_TOKEN] true))"
+  "always(!<+DELEGATE> true | <+DELEGATE +signed_by(/users/subject.id)> true)"
+)
+
+for pattern in "${ietf_token_exchange_stub_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$IETF_TOKEN_EXCHANGE_STUB"; then
+    echo "IETF token exchange stub is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$IETF_TOKEN_EXCHANGE_STUB"; then
+  echo "IETF token exchange stub should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

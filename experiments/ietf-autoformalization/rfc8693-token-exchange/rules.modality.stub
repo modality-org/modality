@@ -1,5 +1,8 @@
 // RFC 8693 — OAuth 2.0 Token Exchange
 // Status: STUB — replace with rules/*.modality in Phase 3
+// Status: archived experiment notes. Keep examples aligned with the current
+// teaching path: avoid formula implication sugar such as `A -> B`, use
+// explicit Boolean conditionals such as `!A | B`, and avoid `[+ACTION] true` as a conditional antecedent.
 //
 // Parties:
 //   /users/requesting_client.id
@@ -8,16 +11,16 @@
 //   /users/actor.id
 //
 // TODO F1: Exchange requires valid subject authorization
-//   always([+ISSUE_EXCHANGED_TOKEN] true -> eventually(<+VALIDATE_EXCHANGE> true))
+//   always(!<+ISSUE_EXCHANGED_TOKEN> true | eventually(<+VALIDATE_EXCHANGE> true))
 //
 // TODO F2: Only authorization server may issue exchanged token
-//   always([+ISSUE_EXCHANGED_TOKEN] true -> <+signed_by(/users/authorization_server.id)> true)
+//   always(!<+ISSUE_EXCHANGED_TOKEN> true | <+ISSUE_EXCHANGED_TOKEN +signed_by(/users/authorization_server.id)> true)
 //
 // TODO F3: Delegation required when actor acts for subject
-//   always([+ISSUE_EXCHANGED_TOKEN] true -> eventually(<+DELEGATE> true))
+//   always(!<+ISSUE_EXCHANGED_TOKEN> true | eventually(<+DELEGATE> true))
 //
 // TODO F4: Denial blocks token issuance
-//   always([+DENY_EXCHANGE] true -> always([-ISSUE_EXCHANGED_TOKEN] true))
+//   always(!<+DENY_EXCHANGE> true | always([-ISSUE_EXCHANGED_TOKEN] true))
 //
 // TODO F5: Subject must authorize delegation
-//   always([+DELEGATE] true -> <+signed_by(/users/subject.id)> true)
+//   always(!<+DELEGATE> true | <+DELEGATE +signed_by(/users/subject.id)> true)
