@@ -35,6 +35,7 @@ SYNTHESIS_V1_EXPERIMENT="$ROOT_DIR/experiments/synthesis-v1.md"
 IETF_SCIM_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc7644-scim/rules.modality.stub"
 IETF_TOKEN_EXCHANGE_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc8693-token-exchange/rules.modality.stub"
 IETF_RATS_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc9334-rats/rules.modality.stub"
+IETF_HTTP_MESSAGE_SIGNATURES_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc9421-http-message-signatures/rules.modality.stub"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -680,6 +681,30 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$IETF_RATS_STUB"; then
   echo "IETF RATS stub should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+ietf_http_message_signatures_stub_required_patterns=(
+  "Status: archived experiment notes."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as \`!A | B\`"
+  "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "always(!<+ACCEPT_REQUEST> true | eventually(<+VERIFY_SIGNATURE> true))"
+  "always(!<+ACCEPT_REQUEST> true | eventually(<+SIGN_REQUEST> true))"
+  "always(!<+SIGN_REQUEST> true | <+SIGN_REQUEST +signed_by(/users/signer.id)> true)"
+  "always(!<+ROTATE_SIGNING_KEY> true | <+ROTATE_SIGNING_KEY +signed_by(/users/policy_authority.id)> true)"
+  "always(!<+REJECT_REQUEST> true | always([-ACCEPT_REQUEST] true))"
+)
+
+for pattern in "${ietf_http_message_signatures_stub_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$IETF_HTTP_MESSAGE_SIGNATURES_STUB"; then
+    echo "IETF HTTP message signatures stub is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$IETF_HTTP_MESSAGE_SIGNATURES_STUB"; then
+  echo "IETF HTTP message signatures stub should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
