@@ -37,6 +37,7 @@ IETF_TOKEN_EXCHANGE_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc8693-t
 IETF_DEVICE_AUTHORIZATION_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc8628-device-authorization/rules.modality.stub"
 IETF_RATS_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc9334-rats/rules.modality.stub"
 IETF_HTTP_MESSAGE_SIGNATURES_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc9421-http-message-signatures/rules.modality.stub"
+AGENT_COOPERATION_ROADMAP="$ROOT_DIR/ROADMAP-AGENT-COOPERATION.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -730,6 +731,28 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$IETF_HTTP_MESSAGE_SIGNATURES_STUB"; then
   echo "IETF HTTP message signatures stub should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+agent_cooperation_roadmap_required_patterns=(
+  "Status: archived planning notes."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as"
+  "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/alice.id)> true)"
+  "always(!<+A> true | <+A +signed_by(/users/alice.id)> true)"
+  "always(!<+COOPERATE> true | <+COOPERATE> true)"
+)
+
+for pattern in "${agent_cooperation_roadmap_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$AGENT_COOPERATION_ROADMAP"; then
+    echo "agent cooperation roadmap is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$AGENT_COOPERATION_ROADMAP"; then
+  echo "agent cooperation roadmap should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

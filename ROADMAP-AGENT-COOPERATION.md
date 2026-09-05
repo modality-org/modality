@@ -2,6 +2,8 @@
 
 *Building verifiable commitments for AI agent negotiation*
 
+Status: archived planning notes. Current onboarding examples avoid formula implication sugar such as `A -> B`, use explicit Boolean conditionals such as `!A | B`, and avoid `[+ACTION] true` as a conditional antecedent.
+
 ## Vision
 
 Agents need to negotiate cooperation without trust. Modality enables:
@@ -30,7 +32,7 @@ The Prisoner's Dilemma is solved when both prisoners can read each other's sourc
    
 2. **`modality synthesize` command**
    ```bash
-   modality model synthesize --formulas "always([+APPROVE] true -> <+signed_by(/users/alice.id)> true)" --verify
+   modality model synthesize --formulas "always(!<+APPROVE> true | <+APPROVE +signed_by(/users/alice.id)> true)" --verify
    # Outputs candidate governing model
    ```
 
@@ -49,7 +51,7 @@ The Prisoner's Dilemma is solved when both prisoners can read each other's sourc
 | `[<+A>] true` (once) | Linear: start → after | 2 |
 | `<+A> true` | Permissive (neutral) | 1 |
 | Alternating | Cycle between parties | 2 |
-| `always([+A] true -> <+signed_by(/users/alice.id)> true)` | +A requires `+signed_by(/users/alice.id)` | 1 |
+| `always(!<+A> true | <+A +signed_by(/users/alice.id)> true)` | +A requires the same transition to carry `+signed_by(/users/alice.id)` | 1 |
 | Sequential | Linear progression | N |
 | Conditional | Branching | N |
 
@@ -150,7 +152,7 @@ model Turns:
 3. **`modality propose "<natural language>"`** — NL → rules
    ```bash
    modality propose "I will cooperate if you cooperate"
-   # Generates: formula MutualCoop: always([+COOPERATE] true -> <+COOPERATE> true)
+   # Generates: formula MutualCoop: always(!<+COOPERATE> true | <+COOPERATE> true)
    ```
 
 4. **OpenClaw/Moltbook skill** — agents can use Modality as a tool
