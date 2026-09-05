@@ -34,6 +34,7 @@ LLM_ESCROW_PIPELINE_EXAMPLE="$ROOT_DIR/experiments/llm-synthesizer/examples/escr
 SYNTHESIS_V1_EXPERIMENT="$ROOT_DIR/experiments/synthesis-v1.md"
 IETF_SCIM_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc7644-scim/rules.modality.stub"
 IETF_TOKEN_EXCHANGE_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc8693-token-exchange/rules.modality.stub"
+IETF_RATS_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc9334-rats/rules.modality.stub"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -655,6 +656,30 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$IETF_TOKEN_EXCHANGE_STUB"; then
   echo "IETF token exchange stub should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+ietf_rats_stub_required_patterns=(
+  "Status: archived experiment notes."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as \`!A | B\`"
+  "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "always(!<+APPRAISE> true | eventually(<+SUBMIT_EVIDENCE> true))"
+  "always(!<+GRANT_ACCESS> true | eventually(<+ATTEST_PASS> true))"
+  "always(!<+GRANT_ACCESS> true | <+GRANT_ACCESS +oracle_attests(/oracles/verifier.id, \"appraisal\", \"pass\")> true)"
+  "always(!<+ATTEST_FAIL> true | always([-GRANT_ACCESS] true))"
+  "always(!<+SUBMIT_EVIDENCE> true | <+SUBMIT_EVIDENCE +signed_by(/users/attester.id)> true)"
+)
+
+for pattern in "${ietf_rats_stub_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$IETF_RATS_STUB"; then
+    echo "IETF RATS stub is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$IETF_RATS_STUB"; then
+  echo "IETF RATS stub should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

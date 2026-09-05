@@ -1,5 +1,8 @@
 // RFC 9334 — Remote Attestation Procedures (RATS)
 // Status: STUB — replace with rules/*.modality in Phase 4
+// Status: archived experiment notes. Keep examples aligned with the current
+// teaching path: avoid formula implication sugar such as `A -> B`, use
+// explicit Boolean conditionals such as `!A | B`, and avoid `[+ACTION] true` as a conditional antecedent.
 //
 // Parties:
 //   /users/attester.id
@@ -7,16 +10,16 @@
 //   /users/relying_party.id
 //
 // TODO F1: Appraisal requires prior evidence submission
-//   always([+APPRAISE] true -> eventually(<+SUBMIT_EVIDENCE> true))
+//   always(!<+APPRAISE> true | eventually(<+SUBMIT_EVIDENCE> true))
 //
 // TODO F2: Access grant requires successful appraisal
-//   always([+GRANT_ACCESS] true -> eventually(<+ATTEST_PASS> true))
+//   always(!<+GRANT_ACCESS> true | eventually(<+ATTEST_PASS> true))
 //
 // TODO F3: Grant requires verifier attestation oracle
-//   always([+GRANT_ACCESS] true -> <+oracle_attests(/oracles/verifier.id, "appraisal", "pass")> true)
+//   always(!<+GRANT_ACCESS> true | <+GRANT_ACCESS +oracle_attests(/oracles/verifier.id, "appraisal", "pass")> true)
 //
 // TODO F4: Failed attestation blocks access
-//   always([+ATTEST_FAIL] true -> always([-GRANT_ACCESS] true))
+//   always(!<+ATTEST_FAIL> true | always([-GRANT_ACCESS] true))
 //
 // TODO F5: Only attester may submit evidence
-//   always([+SUBMIT_EVIDENCE] true -> <+signed_by(/users/attester.id)> true)
+//   always(!<+SUBMIT_EVIDENCE> true | <+SUBMIT_EVIDENCE +signed_by(/users/attester.id)> true)
