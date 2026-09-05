@@ -39,6 +39,7 @@ IETF_RATS_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc9334-rats/rules.
 IETF_HTTP_MESSAGE_SIGNATURES_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc9421-http-message-signatures/rules.modality.stub"
 AGENT_COOPERATION_ROADMAP="$ROOT_DIR/ROADMAP-AGENT-COOPERATION.md"
 DEV_FORMULA_SYNTAX_DOC="$ROOT_DIR/dev/FORMULA_SYNTAX.md"
+DEV_FOR_AGENTS_DOC="$ROOT_DIR/dev/FOR_AGENTS.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -775,6 +776,29 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_FORMULA_SYNTAX_DOC"; then
   echo "developer formula syntax doc should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+dev_for_agents_required_patterns=(
+  "Status: archived agent-facing notes."
+  "explicit Boolean conditionals such as"
+  "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "always(!<+RELEASE> true | <+DELIVER> true)"
+  "always(!<+PAY> true | <+DELIVER> true)"
+  "<+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"
+  "<+CLAIM +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"
+  "<+EXECUTE +signed_by(/treasury/alice.id) +signed_by(/treasury/bob.id)> true"
+)
+
+for pattern in "${dev_for_agents_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_FOR_AGENTS_DOC"; then
+    echo "developer agents doc is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_FOR_AGENTS_DOC"; then
+  echo "developer agents doc should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

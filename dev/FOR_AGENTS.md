@@ -2,6 +2,10 @@
 
 *A verification language for AI agent cooperation*
 
+Status: archived agent-facing notes. Current onboarding examples avoid formula
+implication sugar such as `A -> B`, use explicit Boolean conditionals such as
+`!A | B`, and avoid `[+ACTION] true` as a conditional antecedent.
+
 ---
 
 ## The Problem You Have
@@ -73,7 +77,7 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always([+RELEASE] true -> <+DELIVER> true)
+    always(!<+RELEASE> true | <+DELIVER> true)
   }
 }
 ```
@@ -133,7 +137,7 @@ export default model {
 export default rule {
   starting_at $PARENT
   formula {
-    always([+PAY] true -> <+DELIVER> true)
+    always(!<+PAY> true | <+DELIVER> true)
   }
 }
 ```
@@ -156,10 +160,8 @@ export default rule {
   starting_at $PARENT
   formula {
     always(
-      [+EXECUTE] true -> (
-        <+signed_by(/users/alice.id)> true &
-        <+signed_by(/users/bob.id)> true
-      )
+      !<+EXECUTE> true |
+      <+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true
     )
   }
 }
@@ -183,10 +185,8 @@ export default rule {
   starting_at $PARENT
   formula {
     always(
-      [+CLAIM] true -> (
-        <+signed_by(/users/alice.id)> true &
-        <+signed_by(/users/bob.id)> true
-      )
+      !<+CLAIM> true |
+      <+CLAIM +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true
     )
   }
 }
@@ -270,10 +270,10 @@ rule withdrawal_requires_quorum {
   starting_at $PARENT
   formula {
     always(
-      [+EXECUTE] true -> (
-        (<+signed_by(/treasury/alice.id)> true & <+signed_by(/treasury/bob.id)> true) |
-        (<+signed_by(/treasury/alice.id)> true & <+signed_by(/treasury/carol.id)> true) |
-        (<+signed_by(/treasury/bob.id)> true & <+signed_by(/treasury/carol.id)> true)
+      !<+EXECUTE> true | (
+        <+EXECUTE +signed_by(/treasury/alice.id) +signed_by(/treasury/bob.id)> true |
+        <+EXECUTE +signed_by(/treasury/alice.id) +signed_by(/treasury/carol.id)> true |
+        <+EXECUTE +signed_by(/treasury/bob.id) +signed_by(/treasury/carol.id)> true
       )
     )
   }
