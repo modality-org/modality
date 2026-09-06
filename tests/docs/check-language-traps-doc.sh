@@ -40,6 +40,7 @@ IETF_HTTP_MESSAGE_SIGNATURES_STUB="$ROOT_DIR/experiments/ietf-autoformalization/
 AGENT_COOPERATION_ROADMAP="$ROOT_DIR/ROADMAP-AGENT-COOPERATION.md"
 AGENT_COOPERATION_EXPERIMENT="$ROOT_DIR/experiments/agent-cooperation-v1.modality"
 AGENT_MARKETPLACE_EXPERIMENT="$ROOT_DIR/experiments/agent-marketplace.modality"
+AGENT_TRADE_EXPERIMENT="$ROOT_DIR/experiments/agent-trade.modality"
 DEV_FORMULA_SYNTAX_DOC="$ROOT_DIR/dev/FORMULA_SYNTAX.md"
 DEV_FOR_AGENTS_DOC="$ROOT_DIR/dev/FOR_AGENTS.md"
 DEV_MODALITY_FOR_AGENTS_DOC="$ROOT_DIR/dev/MODALITY-FOR-AGENTS.md"
@@ -806,6 +807,30 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$AGENT_MARKETPLACE_EXPERIMENT"; then
   echo "agent marketplace experiment should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+agent_trade_experiment_required_patterns=(
+  "Status: archived experiment notes."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as"
+  "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "Bind signature evidence to the same transition that carries the commitment label."
+  "always(!<+DEFECT> true)"
+  "!<+COMMIT_API> true | <+COMMIT_API +SIGNED_BY_A> true"
+  "!<+COMMIT_COMPUTE> true | <+COMMIT_COMPUTE +SIGNED_BY_B> true"
+  "always(!<+COMMIT_API +COMMIT_COMPUTE> true | eventually(<+DELIVER_API> <+DELIVER_COMPUTE> true))"
+)
+
+for pattern in "${agent_trade_experiment_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$AGENT_TRADE_EXPERIMENT"; then
+    echo "agent trade experiment is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$AGENT_TRADE_EXPERIMENT"; then
+  echo "agent trade experiment should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

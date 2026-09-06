@@ -1,5 +1,9 @@
 // Agent Trade: API Credits for Compute Time
 //
+// Status: archived experiment notes.
+// Current onboarding examples avoid formula implication sugar such as `A -> B`,
+// use explicit Boolean conditionals such as `!A | B`, and avoid `[+ACTION] true` as a conditional antecedent.
+//
 // Scenario: Agent A has API credits, Agent B has compute.
 // They want to swap without trusting each other.
 //
@@ -8,32 +12,41 @@
 model APIComputeTrade {
   part exchange {
     // Initial state - trade proposed
-    init --> a_committed: +COMMIT_API +SIGNED_BY_A
-    init --> b_committed: +COMMIT_COMPUTE +SIGNED_BY_B
+    init --> a_committed: +COMMIT_API +SIGNED_BY_A -DEFECT
+    init --> b_committed: +COMMIT_COMPUTE +SIGNED_BY_B -DEFECT
     
     // One party committed, waiting for other
-    a_committed --> both_committed: +COMMIT_COMPUTE +SIGNED_BY_B
-    b_committed --> both_committed: +COMMIT_API +SIGNED_BY_A
+    a_committed --> both_committed: +COMMIT_COMPUTE +SIGNED_BY_B -DEFECT
+    b_committed --> both_committed: +COMMIT_API +SIGNED_BY_A -DEFECT
     
     // Both committed - now deliver
-    both_committed --> a_delivered: +DELIVER_API +SIGNED_BY_A
-    both_committed --> b_delivered: +DELIVER_COMPUTE +SIGNED_BY_B
+    both_committed --> a_delivered: +DELIVER_API +SIGNED_BY_A -DEFECT
+    both_committed --> b_delivered: +DELIVER_COMPUTE +SIGNED_BY_B -DEFECT
     
     // One delivered, waiting for other
-    a_delivered --> complete: +DELIVER_COMPUTE +SIGNED_BY_B
-    b_delivered --> complete: +DELIVER_API +SIGNED_BY_A
+    a_delivered --> complete: +DELIVER_COMPUTE +SIGNED_BY_B -DEFECT
+    b_delivered --> complete: +DELIVER_API +SIGNED_BY_A -DEFECT
     
     // Trade complete
     complete --> complete
   }
 }
 
-// Rule: Once both commit, neither can defect
+// Rule: Both commitment moves require the matching party's signature.
+// Bind signature evidence to the same transition that carries the commitment label.
+formula CommitmentsRequireSignatures {
+  always(
+    (!<+COMMIT_API> true | <+COMMIT_API +SIGNED_BY_A> true)
+    & (!<+COMMIT_COMPUTE> true | <+COMMIT_COMPUTE +SIGNED_BY_B> true)
+  )
+}
+
+// Rule: Neither party can defect during the trade path.
 formula NoDefectionAfterCommit {
-  [+COMMIT_API +COMMIT_COMPUTE] always [-DEFECT] true
+  always(!<+DEFECT> true)
 }
 
 // Rule: Both must eventually deliver (no timeout enforcement yet)
 formula EventualDelivery {
-  <+COMMIT_API +COMMIT_COMPUTE> eventually <+DELIVER_API> <+DELIVER_COMPUTE> true
+  always(!<+COMMIT_API +COMMIT_COMPUTE> true | eventually(<+DELIVER_API> <+DELIVER_COMPUTE> true))
 }
