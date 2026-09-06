@@ -38,6 +38,7 @@ IETF_DEVICE_AUTHORIZATION_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc
 IETF_RATS_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc9334-rats/rules.modality.stub"
 IETF_HTTP_MESSAGE_SIGNATURES_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc9421-http-message-signatures/rules.modality.stub"
 AGENT_COOPERATION_ROADMAP="$ROOT_DIR/ROADMAP-AGENT-COOPERATION.md"
+AGENT_COOPERATION_EXPERIMENT="$ROOT_DIR/experiments/agent-cooperation-v1.modality"
 DEV_FORMULA_SYNTAX_DOC="$ROOT_DIR/dev/FORMULA_SYNTAX.md"
 DEV_FOR_AGENTS_DOC="$ROOT_DIR/dev/FOR_AGENTS.md"
 DEV_MODALITY_FOR_AGENTS_DOC="$ROOT_DIR/dev/MODALITY-FOR-AGENTS.md"
@@ -760,6 +761,28 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$AGENT_COOPERATION_ROADMAP"; then
   echo "agent cooperation roadmap should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+agent_cooperation_experiment_required_patterns=(
+  "Status: archived experiment notes."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as"
+  "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "Bind the signature predicate to the same transition that carries +COMMIT."
+  "always(!<+COMMIT> true | (<+COMMIT +SIGNED_BY_ALICE> true | <+COMMIT +SIGNED_BY_BOB> true))"
+  "always(!<+DEFECT> true)"
+)
+
+for pattern in "${agent_cooperation_experiment_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$AGENT_COOPERATION_EXPERIMENT"; then
+    echo "agent cooperation experiment is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$AGENT_COOPERATION_EXPERIMENT"; then
+  echo "agent cooperation experiment should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

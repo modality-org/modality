@@ -1,4 +1,8 @@
 // Agent Cooperation Contract: Mutual Non-Defection
+//
+// Status: archived experiment notes.
+// Current onboarding examples avoid formula implication sugar such as `A -> B`,
+// use explicit Boolean conditionals such as `!A | B`, and avoid `[+ACTION] true` as a conditional antecedent.
 // 
 // Scenario: Alice and Bob agree to cooperate. Neither can defect.
 // Each commit must be signed by either party.
@@ -8,30 +12,30 @@
 model MutualCooperation {
   part contract {
     // Both parties can commit, but neither can defect
-    active --> active: +SIGNED_BY_ALICE -DEFECT
-    active --> active: +SIGNED_BY_BOB -DEFECT
+    active --> active: +COMMIT +SIGNED_BY_ALICE -DEFECT
+    active --> active: +COMMIT +SIGNED_BY_BOB -DEFECT
     // If someone cooperates explicitly, that's also valid
-    active --> active: +SIGNED_BY_ALICE +COOPERATE -DEFECT
-    active --> active: +SIGNED_BY_BOB +COOPERATE -DEFECT
+    active --> active: +COMMIT +SIGNED_BY_ALICE +COOPERATE -DEFECT
+    active --> active: +COMMIT +SIGNED_BY_BOB +COOPERATE -DEFECT
   }
 }
 
 // Rule: All commits must be signed by Alice or Bob
-// Uses diamondbox [<+action>] = "can do AND cannot refuse" (commitment)
+// Bind the signature predicate to the same transition that carries +COMMIT.
 formula RequireSignature {
-  always ([<+SIGNED_BY_ALICE>] true | [<+SIGNED_BY_BOB>] true)
+  always(!<+COMMIT> true | (<+COMMIT +SIGNED_BY_ALICE> true | <+COMMIT +SIGNED_BY_BOB> true))
 }
 
 // Rule: Defection is never allowed
 formula NoDefection {
-  always [-DEFECT] true
+  always(!<+DEFECT> true)
 }
 
 // Combined rule (what the contract enforces)
 formula ContractRules {
   always (
-    ([<+SIGNED_BY_ALICE>] true | [<+SIGNED_BY_BOB>] true) 
-    & [-DEFECT] true
+    (!<+COMMIT> true | (<+COMMIT +SIGNED_BY_ALICE> true | <+COMMIT +SIGNED_BY_BOB> true))
+    & !<+DEFECT> true
   )
 }
 
