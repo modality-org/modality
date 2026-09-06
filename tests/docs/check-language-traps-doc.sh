@@ -42,6 +42,7 @@ DEV_FORMULA_SYNTAX_DOC="$ROOT_DIR/dev/FORMULA_SYNTAX.md"
 DEV_FOR_AGENTS_DOC="$ROOT_DIR/dev/FOR_AGENTS.md"
 DEV_MODALITY_FOR_AGENTS_DOC="$ROOT_DIR/dev/MODALITY-FOR-AGENTS.md"
 DEV_RFC_0001_DOC="$ROOT_DIR/dev/RFC-0001-MODAL-CONTRACTS.md"
+DEV_GETTING_STARTED_DOC="$ROOT_DIR/dev/getting-started/README.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -848,6 +849,27 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_RFC_0001_DOC"; then
   echo "developer RFC-0001 doc should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+dev_getting_started_required_patterns=(
+  "Status: archived getting-started notes."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as"
+  "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "always(!<+RELEASE> true | <+DELIVER> true)"
+  "It uses explicit Boolean form for the conditional"
+)
+
+for pattern in "${dev_getting_started_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_GETTING_STARTED_DOC"; then
+    echo "developer getting-started doc is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_GETTING_STARTED_DOC"; then
+  echo "developer getting-started doc should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

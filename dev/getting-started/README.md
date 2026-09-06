@@ -1,5 +1,7 @@
 # Getting Started with Modality
 
+Status: archived getting-started notes. Current onboarding examples avoid formula implication sugar such as `A -> B`, use explicit Boolean conditionals such as `!A | B`, and avoid `[+ACTION] true` as a conditional antecedent.
+
 Modality is a verification language for AI agent cooperation. It lets agents define cooperation protocols as state machines with temporal modal formulas that constrain behavior.
 
 ## Why Modality?
@@ -93,12 +95,12 @@ Create `rules/alice-protection.modality`:
 export default rule {
   starting_at $PARENT
   formula {
-    always([+RELEASE] true -> <+DELIVER> true)
+    always(!<+RELEASE> true | <+DELIVER> true)
   }
 }
 ```
 
-This rule says: Alice can only release funds if delivery has happened.
+This rule says: if release is possible, delivery must also be possible. It uses explicit Boolean form for the conditional instead of formula implication sugar.
 
 ### 6. Commit and Verify
 
