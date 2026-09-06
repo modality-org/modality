@@ -48,6 +48,7 @@ DEV_RFC_0001_DOC="$ROOT_DIR/dev/RFC-0001-MODAL-CONTRACTS.md"
 DEV_GETTING_STARTED_DOC="$ROOT_DIR/dev/getting-started/README.md"
 DEV_CONCEPTS_DOC="$ROOT_DIR/dev/concepts/README.md"
 DEV_MODEL_SYNTHESIS_TUTORIAL="$ROOT_DIR/dev/tutorials/MODEL_SYNTHESIS.md"
+DEV_QUICKSTART_DOC="$ROOT_DIR/dev/QUICKSTART.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -989,6 +990,31 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_MODEL_SYNTHESIS_TUTORIAL"; then
   echo "developer model synthesis tutorial should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+dev_quickstart_required_patterns=(
+  "Status: archived quickstart notes."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as"
+  "\`[+ACTION] true\` as a conditional antecedent"
+  "idle -> committed [+COMMIT +signed_by(/users/alice.id)]"
+  "committed -> committed [+COMMIT +signed_by(/users/bob.id)]"
+  "!<+COMMIT> true |"
+  "<+COMMIT +signed_by(/users/alice.id)> true |"
+  "<+COMMIT +signed_by(/users/bob.id)> true"
+  "evidence on that same transition"
+)
+
+for pattern in "${dev_quickstart_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_QUICKSTART_DOC"; then
+    echo "developer quickstart doc is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_QUICKSTART_DOC"; then
+  echo "developer quickstart doc should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

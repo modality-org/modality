@@ -1,5 +1,13 @@
 # Modality Quickstart
 
+Status: archived quickstart notes. The maintained first-contract onboarding path
+lives in `docs/getting-started/first-contract.md`.
+
+Current onboarding examples avoid formula implication sugar such as `A -> B`;
+use explicit Boolean conditionals such as `!A | B` instead. They also avoid
+`[+ACTION] true` as a conditional antecedent because a box over no matching
+successors is vacuously true.
+
 Get from zero to verified contract in 5 minutes.
 
 ---
@@ -52,10 +60,10 @@ Create **model/default.modality** — proves the rules can be satisfied:
 export default model {
   initial idle
   
-  idle -> committed [+signed_by(/users/alice.id)]
-  idle -> committed [+signed_by(/users/bob.id)]
-  committed -> committed [+signed_by(/users/alice.id)]
-  committed -> committed [+signed_by(/users/bob.id)]
+  idle -> committed [+COMMIT +signed_by(/users/alice.id)]
+  idle -> committed [+COMMIT +signed_by(/users/bob.id)]
+  committed -> committed [+COMMIT +signed_by(/users/alice.id)]
+  committed -> committed [+COMMIT +signed_by(/users/bob.id)]
 }
 ```
 
@@ -65,13 +73,16 @@ export default rule {
   starting_at $PARENT
   formula {
     always(
-      [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
+      !<+COMMIT> true |
+      <+COMMIT +signed_by(/users/alice.id)> true |
+      <+COMMIT +signed_by(/users/bob.id)> true
     )
   }
 }
 ```
 
-This uses the **diamondbox** operator `[<+action>]` which means "can do action AND cannot refuse" — expressing commitment.
+This rule says any `+COMMIT` transition must carry Alice's or Bob's signature
+evidence on that same transition.
 
 ### 3. Commit (Signed)
 
