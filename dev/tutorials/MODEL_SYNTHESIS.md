@@ -1,5 +1,12 @@
 # Model Synthesis Tutorial
 
+Status: archived synthesis tutorial.
+
+Current onboarding examples avoid formula implication sugar such as `A -> B`; use
+explicit Boolean conditionals such as `!A | B` instead. They also avoid
+`[+ACTION] true` as a conditional antecedent because that boxed form is often
+vacuous when the matching action is absent.
+
 Create a contract where you write the rules first, then synthesize a model that satisfies them.
 
 ## The Idea
@@ -37,7 +44,8 @@ export default rule {
   starting_at $PARENT
   formula {
     always(
-      [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
+      !<+COMMIT> true |
+      (<+COMMIT +signed_by(/users/alice.id)> true | <+COMMIT +signed_by(/users/bob.id)> true)
     )
   }
 }
@@ -60,13 +68,13 @@ The synthesizer analyzes the formula and generates:
 export default model {
   initial idle
   
-  idle -> idle [+signed_by(/users/alice.id)]
-  idle -> idle [+signed_by(/users/bob.id)]
+  idle -> idle [+COMMIT +signed_by(/users/alice.id)]
+  idle -> idle [+COMMIT +signed_by(/users/bob.id)]
 }
 ```
 
 **How it works:**
-- `always(A | B)` → need transitions with A or B from every reachable state
+- `always(!A | B)` means that when A is present, B must also be present
 - Simplest satisfying model: single state with self-loops for each alternative
 
 ## Step 4: Review & Refine
@@ -78,10 +86,10 @@ cat > model/default.modality << 'EOF'
 export default model {
   initial idle
   
-  idle -> active [+signed_by(/users/alice.id)]
-  idle -> active [+signed_by(/users/bob.id)]
-  active -> active [+signed_by(/users/alice.id)]
-  active -> active [+signed_by(/users/bob.id)]
+  idle -> active [+COMMIT +signed_by(/users/alice.id)]
+  idle -> active [+COMMIT +signed_by(/users/bob.id)]
+  active -> active [+COMMIT +signed_by(/users/alice.id)]
+  active -> active [+COMMIT +signed_by(/users/bob.id)]
 }
 EOF
 ```
@@ -106,9 +114,9 @@ The synthesizer recognizes common patterns:
 
 | Rule Pattern | Generated Model |
 |--------------|-----------------|
-| `always([<+A>] true)` | Self-loop requiring +A |
-| `[<+A>] true` | Linear: start → after with +A |
-| `[+B] true -> <+A> true` | A precedes B |
+| `always(!<+A> true | <+A +required> true)` | Self-loop requiring +required on +A |
+| `<+A> true` | Linear: start -> after with +A |
+| `!<+B> true | <+A> true` | A precedes B |
 | `eventually(<+A> true)` | Path to state with +A |
 | Alternating parties | Cycle between parties |
 
@@ -119,7 +127,7 @@ The synthesizer recognizes common patterns:
 export default rule {
   starting_at $PARENT
   formula {
-    [+RELEASE] true -> <+DELIVER> true
+    !<+RELEASE> true | <+DELIVER> true
   }
 }
 ```
@@ -144,10 +152,8 @@ The synthesizer infers: release requires deliver to have happened first → sequ
 export default rule {
   starting_at $PARENT
   formula {
-    [+EXECUTE] true -> (
-      [<+signed_by(/users/alice.id)>] true &
-      [<+signed_by(/users/bob.id)>] true
-    )
+    !<+EXECUTE> true |
+      <+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true
   }
 }
 ```
@@ -229,7 +235,8 @@ export default rule {
   starting_at $PARENT
   formula {
     always(
-      [<+signed_by(/users/alice.id)>] true | [<+signed_by(/users/bob.id)>] true
+      !<+COMMIT> true |
+      (<+COMMIT +signed_by(/users/alice.id)> true | <+COMMIT +signed_by(/users/bob.id)> true)
     )
   }
 }
