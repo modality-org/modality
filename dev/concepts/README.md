@@ -1,5 +1,7 @@
 # Core Concepts
 
+Status: archived concept notes. Current onboarding examples avoid formula implication sugar such as `A -> B`, use explicit Boolean conditionals such as `!A | B`, and avoid `[+ACTION] true` as a conditional antecedent.
+
 This guide explains the fundamental concepts behind Modality.
 
 ## Table of Contents
@@ -93,10 +95,13 @@ Rules express constraints using **modal mu-calculus** — a logic that reasons a
 rule buyer_protection {
   starting_at $PARENT
   formula {
-    always([+RELEASE] true -> <+DELIVER> true)
+    always(!<+RELEASE> true | <+DELIVER> true)
   }
 }
 ```
+
+This uses explicit Boolean form for the conditional: if `RELEASE` is possible,
+then `DELIVER` must also be possible from the same point in the contract.
 
 ### Modal Operators
 
