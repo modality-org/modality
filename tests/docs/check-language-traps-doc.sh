@@ -41,6 +41,7 @@ AGENT_COOPERATION_ROADMAP="$ROOT_DIR/ROADMAP-AGENT-COOPERATION.md"
 DEV_FORMULA_SYNTAX_DOC="$ROOT_DIR/dev/FORMULA_SYNTAX.md"
 DEV_FOR_AGENTS_DOC="$ROOT_DIR/dev/FOR_AGENTS.md"
 DEV_MODALITY_FOR_AGENTS_DOC="$ROOT_DIR/dev/MODALITY-FOR-AGENTS.md"
+DEV_RFC_0001_DOC="$ROOT_DIR/dev/RFC-0001-MODAL-CONTRACTS.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -826,6 +827,27 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_MODALITY_FOR_AGENTS_DOC"; then
   echo "developer modality-for-agents doc should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+dev_rfc_0001_required_patterns=(
+  "Status note: archived draft."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as"
+  "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "!<+RELEASE> true | <+DELIVER> true"
+  "This rule uses explicit Boolean form for the conditional"
+)
+
+for pattern in "${dev_rfc_0001_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_RFC_0001_DOC"; then
+    echo "developer RFC-0001 doc is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_RFC_0001_DOC"; then
+  echo "developer RFC-0001 doc should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

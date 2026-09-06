@@ -5,6 +5,8 @@
 **Created:** 2026-02-01  
 **Version:** 0.1.0
 
+Status note: archived draft. Current onboarding examples avoid formula implication sugar such as `A -> B`, use explicit Boolean conditionals such as `!A | B`, and avoid `[+ACTION] true` as a conditional antecedent.
+
 ---
 
 ## Abstract
@@ -214,13 +216,14 @@ export default rule {
   starting_at $PARENT
   formula {
     always (
-      [+RELEASE] implies <+DELIVER> true
+      !<+RELEASE> true | <+DELIVER> true
     )
   }
 }
 ```
 
-This rule ensures: **Release can NEVER happen without prior delivery.**
+This rule uses explicit Boolean form for the conditional: **if `RELEASE` is
+possible, then `DELIVER` must also be possible from the same point.**
 
 ---
 
@@ -414,7 +417,7 @@ export default rule {
   starting_at $PARENT
   formula {
     always (
-      [+RELEASE] implies <+DELIVER> true
+      !<+RELEASE> true | <+DELIVER> true
     )
   }
 }
