@@ -1,5 +1,9 @@
 // Agent Marketplace: Service Exchange
 //
+// Status: archived experiment notes.
+// Current onboarding examples avoid formula implication sugar such as `A -> B`,
+// use explicit Boolean conditionals such as `!A | B`, and avoid `[+ACTION] true` as a conditional antecedent.
+//
 // Scenario: Agents offer services, others can purchase.
 // Escrow ensures fair exchange.
 //
@@ -28,11 +32,11 @@ model ServiceMarketplace {
     delivered --> disputed: +DISPUTE +SIGNED_BY_BUYER
     
     // Payment released to seller
-    confirmed --> complete: +RELEASE_PAYMENT
+    confirmed --> complete: +RELEASE_PAYMENT +CONFIRM -SIGNED_BY_SELLER
     
     // Dispute resolution (simplified: buyer wins or seller wins)
     disputed --> refunded: +REFUND +SIGNED_BY_ARBITER
-    disputed --> complete: +RELEASE_PAYMENT +SIGNED_BY_ARBITER
+    disputed --> complete: +RELEASE_PAYMENT +SIGNED_BY_ARBITER -SIGNED_BY_SELLER
     
     // Terminal states
     complete --> complete
@@ -42,17 +46,18 @@ model ServiceMarketplace {
 
 // Rule: Deposit required before delivery
 formula DepositBeforeDelivery {
-  [+DELIVER] <+DEPOSIT> true
+  always(!<+DELIVER> true | <+DEPOSIT> true)
 }
 
 // Rule: No release without confirmation or arbitration
+// Bind approval evidence to the same transition that carries +RELEASE_PAYMENT.
 formula PaymentProtection {
-  [+RELEASE_PAYMENT] (<+CONFIRM> true or <+SIGNED_BY_ARBITER> true)
+  always(!<+RELEASE_PAYMENT> true | (<+RELEASE_PAYMENT +CONFIRM> true | <+RELEASE_PAYMENT +SIGNED_BY_ARBITER> true))
 }
 
 // Rule: Seller can't release payment to self
 formula SellerCantSelfPay {
-  always ([-RELEASE_PAYMENT +SIGNED_BY_SELLER] true)
+  always(!<+RELEASE_PAYMENT +SIGNED_BY_SELLER> true)
 }
 
 // Rule: Buyer gets refund if dispute succeeds

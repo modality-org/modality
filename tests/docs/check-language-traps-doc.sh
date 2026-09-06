@@ -39,6 +39,7 @@ IETF_RATS_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc9334-rats/rules.
 IETF_HTTP_MESSAGE_SIGNATURES_STUB="$ROOT_DIR/experiments/ietf-autoformalization/rfc9421-http-message-signatures/rules.modality.stub"
 AGENT_COOPERATION_ROADMAP="$ROOT_DIR/ROADMAP-AGENT-COOPERATION.md"
 AGENT_COOPERATION_EXPERIMENT="$ROOT_DIR/experiments/agent-cooperation-v1.modality"
+AGENT_MARKETPLACE_EXPERIMENT="$ROOT_DIR/experiments/agent-marketplace.modality"
 DEV_FORMULA_SYNTAX_DOC="$ROOT_DIR/dev/FORMULA_SYNTAX.md"
 DEV_FOR_AGENTS_DOC="$ROOT_DIR/dev/FOR_AGENTS.md"
 DEV_MODALITY_FOR_AGENTS_DOC="$ROOT_DIR/dev/MODALITY-FOR-AGENTS.md"
@@ -783,6 +784,28 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$AGENT_COOPERATION_EXPERIMENT"; then
   echo "agent cooperation experiment should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+agent_marketplace_experiment_required_patterns=(
+  "Status: archived experiment notes."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as"
+  "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "Bind approval evidence to the same transition that carries +RELEASE_PAYMENT."
+  "always(!<+RELEASE_PAYMENT> true | (<+RELEASE_PAYMENT +CONFIRM> true | <+RELEASE_PAYMENT +SIGNED_BY_ARBITER> true))"
+  "always(!<+RELEASE_PAYMENT +SIGNED_BY_SELLER> true)"
+)
+
+for pattern in "${agent_marketplace_experiment_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$AGENT_MARKETPLACE_EXPERIMENT"; then
+    echo "agent marketplace experiment is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$AGENT_MARKETPLACE_EXPERIMENT"; then
+  echo "agent marketplace experiment should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
