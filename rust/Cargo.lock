@@ -4679,6 +4679,7 @@ dependencies = [
  "modal-datastore",
  "modal-node",
  "modality-lang",
+ "modality-synthesizer",
  "reqwest",
  "rpassword",
  "self-replace",
@@ -4726,7 +4727,6 @@ name = "modality-synthesizer"
 version = "0.1.7"
 dependencies = [
  "modality-lang",
- "serde_json",
 ]
 
 [[package]]

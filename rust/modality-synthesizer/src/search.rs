@@ -1,4 +1,6 @@
-use crate::alphabet::{candidate_labels, extract_alphabet, is_top_level_false};
+use crate::alphabet::{
+    candidate_labels, extract_alphabet, formulas_skip_first_step, is_top_level_false,
+};
 use crate::verify::formulas_satisfied;
 use crate::{SynthesisOptions, SynthesisResult};
 use modality_lang::{FormulaExpr, Model, Part, Property, Transition};
@@ -23,6 +25,7 @@ pub fn synthesize(formulas: &[FormulaExpr], opts: SynthesisOptions) -> Synthesis
     let max_states = opts.max_states.max(1);
     let max_transitions = opts.max_transitions.max(1);
     let labels = candidate_labels(&extract_alphabet(formulas));
+    let skip_first_step = formulas_skip_first_step(formulas);
     let mut last_candidate = None;
 
     for n in 1..=max_states {
@@ -31,6 +34,9 @@ pub fn synthesize(formulas: &[FormulaExpr], opts: SynthesisOptions) -> Synthesis
                 continue;
             }
             for labeled in label_skeleton(&skeleton, &labels) {
+                if skip_first_step && !initial_step_unlabeled(&labeled) {
+                    continue;
+                }
                 let model = build_model(&opts.name, n, &labeled);
                 last_candidate = Some(model.clone());
                 if formulas_satisfied(&model, formulas) {
@@ -47,6 +53,11 @@ pub fn synthesize(formulas: &[FormulaExpr], opts: SynthesisOptions) -> Synthesis
         ),
         last_candidate,
     }
+}
+
+fn initial_step_unlabeled(edges: &[(usize, usize, Vec<Property>)]) -> bool {
+    let outgoing: Vec<_> = edges.iter().filter(|(from, _, _)| *from == 0).collect();
+    !outgoing.is_empty() && outgoing.iter().all(|(_, _, label)| label.is_empty())
 }
 
 type Edge = (usize, usize);

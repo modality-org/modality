@@ -110,6 +110,7 @@ grep -q "All properties are predicates or commit method labels (verifier-observe
   >"$TMP_DIR/synthesized-model-mermaid.out"
 grep -q "stateDiagram-v2" "$TMP_DIR/synthesized-model-mermaid.out"
 grep -q "q0 --> q1" "$TMP_DIR/synthesized-model-mermaid.out"
+grep -q "q1 --> q1" "$TMP_DIR/synthesized-model-mermaid.out"
 grep -q '"+signed_by(/parties/alice.id)"' "$TMP_DIR/synthesized-model-mermaid.out"
 if grep -q "+POST" "$TMP_DIR/synthesized-model-mermaid.out"; then
   echo "synthesized first-contract witness mermaid still includes +POST" >&2
@@ -152,7 +153,6 @@ rm -f "$VIEW_HTML"
 "$MODAL_BIN" commit \
   --all \
   --dir "$CONTRACT_DIR" \
-  --sign "$ALICE_PASSFILE" \
   --output json \
   --message "Initial contract setup" >/dev/null
 
@@ -168,11 +168,9 @@ grep -q '"model_state": "q1"' "$TMP_DIR/status.json"
 grep -q "Model state: q1" "$TMP_DIR/status.txt"
 grep -q '"commits":' "$TMP_DIR/log.json"
 grep -q '"message": "Initial contract setup"' "$TMP_DIR/log.json"
-grep -Eq '"signature_count": 1' "$TMP_DIR/log.json"
-grep -q "$ALICE_ID" "$TMP_DIR/log.json"
+grep -Eq '"signature_count": 0' "$TMP_DIR/log.json"
 grep -q "Message: Initial contract setup" "$TMP_DIR/log.txt"
-grep -q "Signatures: 1" "$TMP_DIR/log.txt"
-grep -q "$ALICE_ID" "$TMP_DIR/log.txt"
+grep -q "Signatures: 0" "$TMP_DIR/log.txt"
 grep -q '\[\] always' "$CONTRACT_DIR/rules/authorized.modality"
 grep -q 'q0 --> q1' "$CONTRACT_DIR/model/default.modality"
 grep -q 'q1 --> q1: +signed_by(/parties/alice.id)' "$CONTRACT_DIR/model/default.modality"
@@ -285,25 +283,27 @@ if grep -q "Message: Unsigned update" "$TMP_DIR/rejected-log.txt"; then
 fi
 
 if "$MODAL_BIN" commit \
-  --method model \
-  --path /model/default.modality \
-  --value "$(cat "$CONTRACT_DIR/model/default.modality")" \
   --dir "$CONTRACT_DIR" \
   --sign "$BOB_PASSFILE" \
   --output json \
-  --message "Bob tries to replace the witness" \
-  >"$TMP_DIR/bob-same-model.json" 2>"$TMP_DIR/bob-same-model.err"; then
-  echo "expected Bob MODEL replacement of the current witness to fail" >&2
-  cat "$TMP_DIR/bob-same-model.json" >&2
+  --message "Bob tries to commit" \
+  >"$TMP_DIR/bob-empty-commit.json" 2>"$TMP_DIR/bob-empty-commit.err"; then
+  echo "expected Bob's empty signed commit to fail against the Alice-only witness" >&2
+  cat "$TMP_DIR/bob-empty-commit.json" >&2
   exit 1
 fi
 
-grep -q 'current states {"q1"}' "$TMP_DIR/bob-same-model.err"
-grep -q "missing +signed_by(/parties/alice.id)" "$TMP_DIR/bob-same-model.err"
-grep -q "+signed_by(/parties/alice.id)" "$TMP_DIR/bob-same-model.err"
-if grep -q "+POST" "$TMP_DIR/bob-same-model.err"; then
-  echo "Bob's rejected MODEL commit still mentions +POST" >&2
-  cat "$TMP_DIR/bob-same-model.err" >&2
+grep -q 'current states {"q1"}' "$TMP_DIR/bob-empty-commit.err"
+grep -q "missing +signed_by(/parties/alice.id)" "$TMP_DIR/bob-empty-commit.err"
+grep -q "+signed_by(/parties/alice.id)" "$TMP_DIR/bob-empty-commit.err"
+if grep -q "+POST" "$TMP_DIR/bob-empty-commit.err"; then
+  echo "Bob's rejected empty commit still mentions +POST" >&2
+  cat "$TMP_DIR/bob-empty-commit.err" >&2
+  exit 1
+fi
+if grep -q "+MODEL" "$TMP_DIR/bob-empty-commit.err"; then
+  echo "Bob's rejected empty commit still mentions +MODEL" >&2
+  cat "$TMP_DIR/bob-empty-commit.err" >&2
   exit 1
 fi
 
@@ -317,6 +317,8 @@ model Contract {
 }
 EOF
 
+grep -q "q0 --> q1" \
+  "$CONTRACT_DIR/model/default.modality"
 grep -q "q1 --> q1: +signed_by(/parties/alice.id)" \
   "$CONTRACT_DIR/model/default.modality"
 grep -q "q1 --> q1: +signed_by(/parties/bob.id)" \

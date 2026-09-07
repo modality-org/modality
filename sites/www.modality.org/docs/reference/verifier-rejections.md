@@ -18,16 +18,17 @@ When no transition matches the pending commit, the explanation should include:
 
 For the first-contract path, an unsigned steady-state update after bootstrap
 should fail at `q1`. The useful rejection is not just "commit rejected"; it
-points at the two signed `+POST` candidates and reports the missing signatures:
+points at the accepted Alice-only steady-state witness transition and reports
+the missing signature evidence:
 
 ```text
 current states {"q1"}
-Closest candidate transition: candidate from current state q1: q1 to q1 [+POST +signed_by(/parties/alice.id)]; failed predicates: missing +signed_by(/parties/alice.id)
-candidate from current state q1: q1 to q1 [+POST +signed_by(/parties/bob.id)]; failed predicates: missing +signed_by(/parties/bob.id)
+Closest candidate transition: candidate from current state q1: q1 to q1 [+signed_by(/parties/alice.id)]; failed predicates: missing +signed_by(/parties/alice.id)
 ```
 
-That tells the user both where replay landed and what evidence would have made
-the commit valid.
+That tells the user where replay landed and what evidence would have made the
+commit valid, without suggesting Bob is authorized before the later model
+evolution installs a Bob-signed transition.
 
 When replay lands in a state with no matching action at all, the useful
 fallback is a ranked list of similar transitions from other states. For example,
@@ -68,13 +69,16 @@ The onboarding smoke preserves the first-contract rejection surface in
 post-bootstrap update:
 
 - Replays to `q1`.
-- Reports a closest signed `+POST` candidate.
+- Reports a closest signed transition candidate.
 - Reports diagnostics in current-state, closest-candidate, ranked-section, then
-  alternate-candidate order.
-- Lists the second signed `+POST` candidate.
-- Names the missing `signed_by` predicates for Alice and Bob.
+  missing-predicate order.
+- Names the missing `signed_by` predicate for Alice.
+- Asserts the unsigned Alice-only rejection does not mention Bob or `+POST`,
+  because that would imply broader authority than the current witness grants.
 
-The contract evolution smoke preserves the same shape after model replacement.
+The contract evolution smoke preserves the same shape after model replacement,
+including `missing +signed_by(/parties/bob.id)` once the accepted replacement
+model has installed a Bob-authorized transition.
 Focused local model-governance regressions cover the same explanation classes:
 
 - `explains_similar_transitions_when_current_state_has_no_candidates` preserves

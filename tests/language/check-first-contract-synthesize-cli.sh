@@ -156,6 +156,7 @@ done
 required_mermaid_patterns=(
   "stateDiagram-v2"
   "q0 --> q1"
+  "q1 --> q1"
   '"+signed_by(/parties/alice.id)"'
 )
 

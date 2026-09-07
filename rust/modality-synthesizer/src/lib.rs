@@ -62,7 +62,7 @@ impl SynthesisResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use modality_lang::{FormulaExpr, Property, PropertySign};
+    use modality_lang::{FormulaExpr, PropertySign};
 
     fn parse_formula(text: &str) -> FormulaExpr {
         let wrapped = format!("formula generated {{\n{text}\n}}");
@@ -138,10 +138,22 @@ mod tests {
             SynthesisResult::Unsat { reason, .. } => panic!("expected witness: {reason}"),
         };
         assert!(formulas_satisfied(&model, &[formula]));
+        let printed = modality_lang::print_model(&model);
+        assert!(
+            printed.contains("q0 --> q1"),
+            "[] should keep an unlabeled first step: {printed}"
+        );
+        assert!(
+            printed.contains("q1 --> q1: +signed_by(/parties/alice.id)"),
+            "steady-state witness should mention Alice: {printed}"
+        );
+        assert!(
+            !printed.contains("q0 --> q0"),
+            "signed self-loop on q0 would force the bootstrap to be signed: {printed}"
+        );
         assert!(
             has_signed_by(&model, "/parties/alice.id") || has_signed_by(&model, "/parties/bob.id"),
-            "witness should mention Alice or Bob: {}",
-            modality_lang::print_model(&model)
+            "witness should mention Alice or Bob: {printed}"
         );
     }
 

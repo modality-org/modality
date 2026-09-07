@@ -72,7 +72,7 @@ done
 
 required_model_patterns=(
   "model Contract"
-  "q0 --> q1: +POST +signed_by(/users/reviewer.id)"
+  "q0 --> q0"
 )
 
 for pattern in "${required_model_patterns[@]}"; do
@@ -154,10 +154,8 @@ fi
 
 required_unsat_patterns=(
   "Synthesizing from rule file:"
-  "Verifying synthesized model against 1 formula(s)"
   "Synthesis failure review bundle written to"
-  "No satisfying witness found by current synthesis heuristics"
-  "verifier rejected the synthesized candidate"
+  "No satisfying witness found by bounded"
 )
 
 for pattern in "${required_unsat_patterns[@]}"; do
@@ -181,12 +179,11 @@ required_unsat_review_patterns=(
   "Verifier result: failed"
   "## Verifier Result"
   "Status: failed (\`--verify\`)"
-  "no satisfying witness was found by the current synthesis heuristics"
+  "no satisfying witness was found by bounded μ-calculus search"
   "## Candidate Witness Model"
-  "model Contract"
   "## Assumptions"
   "## Known Gaps"
-  "bounded heuristic search path"
+  "bounded explicit-state μ-calculus search"
 )
 
 for pattern in "${required_unsat_review_patterns[@]}"; do

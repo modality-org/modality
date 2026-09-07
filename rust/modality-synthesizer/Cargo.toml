@@ -9,4 +9,3 @@ homepage = "https://www.modality.org"
 
 [dependencies]
 modality-lang = { path = "../modality-lang", version = "0.1.7" }
-serde_json = "1.0"

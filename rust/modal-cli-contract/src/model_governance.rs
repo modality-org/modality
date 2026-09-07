@@ -1938,9 +1938,6 @@ export default rule {
             Some("/rules/authorized.modality".to_string()),
             Value::String(bootstrap_rule.to_string()),
         );
-        bootstrap.head.signatures = Some(serde_json::json!({
-            "alice_key": "sig"
-        }));
         store.save_commit("bootstrap", &bootstrap)?;
         store.set_head("bootstrap")?;
 
@@ -1956,18 +1953,13 @@ export default rule {
         store.save_commit("signed-post", &signed_post)?;
         store.set_head("signed-post")?;
 
-        let mut bob_same_model = CommitFile::with_parent("signed-post".to_string());
-        bob_same_model.add_action(
-            "model".to_string(),
-            Some("/model/default.modality".to_string()),
-            Value::String(accepted_model.to_string()),
-        );
-        bob_same_model.head.signatures = Some(serde_json::json!({
+        let mut bob_empty = CommitFile::with_parent("signed-post".to_string());
+        bob_empty.head.signatures = Some(serde_json::json!({
             "bob_key": "sig"
         }));
 
-        let err = validate_pending_commit(accepted_model, &store, &bob_same_model)
-            .expect_err("current witness should reject Bob's MODEL replacement");
+        let err = validate_pending_commit(accepted_model, &store, &bob_empty)
+            .expect_err("current witness should reject Bob's empty signed commit");
 
         assert!(err.to_string().contains("current states {\"q1\"}"), "{err}");
         assert!(

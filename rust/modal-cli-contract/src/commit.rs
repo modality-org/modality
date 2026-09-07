@@ -188,7 +188,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         });
 
         commit.add_action(method, opts.path.clone(), value);
-    } else {
+    } else if !is_empty_commit(opts) {
         // Single action commit (original behavior)
         let value = match opts.method.as_str() {
             "create" => build_create_value(opts)?,
@@ -293,6 +293,22 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn is_empty_commit(opts: &Opts) -> bool {
+    // `modal commit --sign ...` with no path, value, or --all is a signed
+    // empty commit: a signature and optional message, no actions.
+    opts.path.is_none()
+        && opts.value.is_none()
+        && opts.action.is_none()
+        && !opts.all
+        && opts.method.eq_ignore_ascii_case("post")
+        && opts.asset_id.is_none()
+        && opts.quantity.is_none()
+        && opts.divisibility.is_none()
+        && opts.to_contract.is_none()
+        && opts.amount.is_none()
+        && opts.send_commit_id.is_none()
 }
 
 fn accepted_model_content(store: &ContractStore) -> Result<Option<String>> {

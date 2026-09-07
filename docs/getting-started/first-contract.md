@@ -175,8 +175,8 @@ Run 'modal commit --all' to commit this rule.
 
 The `[]` prefix is why the bootstrap still works. Plain `always(...)` would
 constrain the current step too. `[] always(...)` skips that first commit so
-Alice can install identities and the model, then every later step has to be
-signed.
+you can install identities and the model without a signature, then every later
+step has to be signed.
 
 ## 5. Synthesize a Witness Model
 
@@ -266,19 +266,21 @@ stateDiagram-v2
 `model/default.modality`. `modality model view` opens the rendered diagram in
 your default browser.
 
-`q0` is the start; `q1` is "the rule is live." The first arrow is the bootstrap
-commit that installs identities and the first model. After that, only Alice
-can sign.
+The synthesizer returns a smallest satisfying witness: an unlabeled first step,
+then Alice's signature on the self-loop. That proves the rule is possible. It
+does not have to mention Bob. After this model is installed, the first commit
+can be unsigned. After that, only Alice can sign.
 
 You may have noticed something off about the witness model. We'll come back
 to that.
 
 ## 6. Commit and Verify
 
-Alice signs the first real commit: identities, the rule, and the witness model.
+The first real commit is unsigned: identities, the rule, and the witness model.
+That's the bootstrap `[]` skipped. After it lands, you're in `q1`.
 
 ```bash
-modal commit --all --sign example/alice -m "Initial contract setup"
+modal commit --all -m "Initial contract setup"
 ```
 
 ```output
@@ -325,9 +327,7 @@ Commits: 2
 commit 8f1c2a9b12ab (8f1c2a9b...)
 Parent: 436d6c47eef4...
 Message: Initial contract setup
-Signatures: 1
-Signers:
-  12D3KooW…
+Signatures: 0
 Actions:
   post /parties/alice.id
   post /parties/bob.id
@@ -480,8 +480,8 @@ only says later commits must be signed by Alice or Bob:
 ```
 
 It does not mention `POST` or `MODEL`, and it does not lock the witness to
-Alice. The matching witness is one signed Alice transition and an alternative
-signed Bob transition:
+Alice. The matching witness keeps the unlabeled bootstrap, then one signed
+Alice transition and an alternative signed Bob transition:
 
 ```bash
 cat > model/default.modality <<'EOF'

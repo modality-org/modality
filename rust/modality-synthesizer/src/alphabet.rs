@@ -86,23 +86,24 @@ fn bags_eq(left: &[Property], right: &[Property]) -> bool {
     left.len() == right.len() && left.iter().zip(right.iter()).all(|(a, b)| a == b)
 }
 
-pub(crate) fn property_key(property: &Property) -> String {
-    let sign = match property.sign {
-        PropertySign::Plus => "+",
-        PropertySign::Minus => "-",
-    };
-    let source = property
-        .source
-        .as_ref()
-        .map(|source| serde_json::to_string(source).unwrap_or_default())
-        .unwrap_or_default();
-    format!("{}:{}:{}", sign, property.name, source)
-}
-
 pub(crate) fn is_top_level_false(expr: &FormulaExpr) -> bool {
     match expr {
         FormulaExpr::False => true,
         FormulaExpr::Paren(inner) => is_top_level_false(inner),
         _ => false,
     }
+}
+
+/// `[] φ` and `next(φ)` constrain successors, not the starting state's current step.
+pub(crate) fn is_top_level_skip_first(expr: &FormulaExpr) -> bool {
+    match expr {
+        FormulaExpr::Next(_) => true,
+        FormulaExpr::Box(props, _) if props.is_empty() => true,
+        FormulaExpr::Paren(inner) => is_top_level_skip_first(inner),
+        _ => false,
+    }
+}
+
+pub(crate) fn formulas_skip_first_step(formulas: &[FormulaExpr]) -> bool {
+    !formulas.is_empty() && formulas.iter().all(is_top_level_skip_first)
 }

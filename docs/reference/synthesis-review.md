@@ -57,13 +57,13 @@ with `Prompt-to-facts trace: not automatic`.
 
 ## No-Witness Bundle
 
-If `--verify` rejects the synthesized candidate, the CLI should say that no satisfying witness was found by the current synthesis heuristics. With `--review-bundle`, it should still write a failed bundle containing:
+If `--verify` rejects the synthesized candidate, the CLI should say that no satisfying witness was found by bounded μ-calculus search. With `--review-bundle`, it should still write a failed bundle containing:
 
 - The rule file and parser-backed extracted facts.
 - A Review Checklist with `Verifier result: failed`.
 - The verifier error.
 - The candidate witness model that failed verification.
-- Assumptions and known gaps, including the bounded heuristic search path.
+- Assumptions and known gaps, including the bounded explicit-state μ-calculus search.
 
 This is not a contract approval. It is a review artifact that says the current
 tooling did not find a satisfying witness. Revise the rule, supply a witness
@@ -77,7 +77,7 @@ useful only when it preserves enough evidence to diagnose the gap:
   predicates.
 - Read the verifier error before changing the rule; it may point at an
   unsupported synthesis pattern instead of an impossible contract.
-- Inspect the candidate witness model to see which move the heuristic tried.
+- Inspect the candidate witness model to see which candidate the search tried.
 - Keep the known gaps attached to the review record when the next revision is
   proposed.
 
@@ -92,8 +92,8 @@ rule impossible_contract {
 ```
 
 a failed bundle should preserve the rule source, state that `--verify` failed,
-include the rejected candidate witness model, and name the bounded heuristic
-search path as a known gap. That is a useful negative result: it tells reviewers
+include the rejected candidate witness model, and name the bounded explicit-state
+μ-calculus search as a known gap. That is a useful negative result: it tells reviewers
 the tool found no current witness instead of quietly presenting a model as if it
 proved the rule.
 
