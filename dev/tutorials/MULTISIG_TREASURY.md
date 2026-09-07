@@ -1,5 +1,10 @@
 # Building a Multisig Treasury Contract
 
+Status: archived tutorial. Current onboarding examples avoid formula implication
+sugar such as `A -> B`, use explicit Boolean conditionals such as `!A | B`, and
+avoid `[+ACTION] true` as a conditional antecedent because that boxed form can
+be vacuous when no matching transition exists.
+
 Learn to create a 2-of-3 multisig treasury using the `threshold` predicate.
 
 ---
@@ -82,11 +87,11 @@ export default rule {
   starting_at $PARENT
   formula {
     // Withdrawals require one of the 2-of-3 signer pairs.
-    // The governing model can enforce the same policy with threshold(...).
-    always([+EXECUTE] true -> (
-      <+signed_by(/treasury/alice.id) +signed_by(/treasury/bob.id)> true |
-      <+signed_by(/treasury/alice.id) +signed_by(/treasury/carol.id)> true |
-      <+signed_by(/treasury/bob.id) +signed_by(/treasury/carol.id)> true
+    // Bind the signatures to the same +EXECUTE transition being authorized.
+    always(!<+EXECUTE> true | (
+      <+EXECUTE +signed_by(/treasury/alice.id) +signed_by(/treasury/bob.id)> true |
+      <+EXECUTE +signed_by(/treasury/alice.id) +signed_by(/treasury/carol.id)> true |
+      <+EXECUTE +signed_by(/treasury/bob.id) +signed_by(/treasury/carol.id)> true
     ))
   }
 }

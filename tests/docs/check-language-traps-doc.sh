@@ -50,6 +50,7 @@ DEV_CONCEPTS_DOC="$ROOT_DIR/dev/concepts/README.md"
 DEV_MODEL_SYNTHESIS_TUTORIAL="$ROOT_DIR/dev/tutorials/MODEL_SYNTHESIS.md"
 DEV_QUICKSTART_DOC="$ROOT_DIR/dev/QUICKSTART.md"
 DEV_STANDARD_PREDICATES_DOC="$ROOT_DIR/dev/standard-predicates.md"
+DEV_MULTISIG_TREASURY_TUTORIAL="$ROOT_DIR/dev/tutorials/MULTISIG_TREASURY.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1039,6 +1040,31 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_STANDARD_PREDICATES_DOC"; then
   echo "developer standard predicates doc should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+dev_multisig_treasury_required_patterns=(
+  "Status: archived tutorial."
+  "avoid formula implication"
+  "sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as"
+  "\`[+ACTION] true\` as a conditional antecedent"
+  "!<+EXECUTE> true |"
+  "<+EXECUTE +signed_by(/treasury/alice.id) +signed_by(/treasury/bob.id)> true"
+  "<+EXECUTE +signed_by(/treasury/alice.id) +signed_by(/treasury/carol.id)> true"
+  "<+EXECUTE +signed_by(/treasury/bob.id) +signed_by(/treasury/carol.id)> true"
+  "same +EXECUTE transition being authorized"
+)
+
+for pattern in "${dev_multisig_treasury_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_MULTISIG_TREASURY_TUTORIAL"; then
+    echo "developer multisig treasury tutorial is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_MULTISIG_TREASURY_TUTORIAL"; then
+  echo "developer multisig treasury tutorial should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
