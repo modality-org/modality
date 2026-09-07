@@ -21,6 +21,14 @@ pub struct SuggestRuleOpts {
     /// Contract directory used to include known identity paths
     #[clap(long)]
     dir: Option<PathBuf>,
+
+    /// Non-interactive cursor-agent print mode (the default)
+    #[clap(long, conflicts_with = "interactive")]
+    print: bool,
+
+    /// Interactive cursor-agent session in the contract directory
+    #[clap(long, conflicts_with = "print")]
+    interactive: bool,
 }
 
 pub async fn run(command: &Commands) -> Result<()> {
@@ -34,10 +42,21 @@ async fn suggest_rule(opts: &SuggestRuleOpts) -> Result<()> {
         .dir
         .clone()
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-    let formula =
-        modal_cli_ai::suggest_rule(&opts.prompt, opts.api_key.as_deref(), Some(dir.as_path()))
-            .await?;
-    println!("{formula}");
+    let print_mode = if opts.interactive {
+        modal_cli_ai::SuggestPrintMode::Interactive
+    } else {
+        modal_cli_ai::SuggestPrintMode::Print
+    };
+    let formula = modal_cli_ai::suggest_rule_mode(
+        &opts.prompt,
+        opts.api_key.as_deref(),
+        Some(dir.as_path()),
+        print_mode,
+    )
+    .await?;
+    if !formula.is_empty() {
+        println!("{formula}");
+    }
     Ok(())
 }
 
@@ -56,5 +75,26 @@ mod tests {
             opts.prompt,
             "after this commit either alice or bob must sign"
         );
+        assert!(!opts.print);
+        assert!(!opts.interactive);
+    }
+
+    #[test]
+    fn parses_print_and_interactive_flags() {
+        let print = SuggestRuleOpts::parse_from(["suggest-rule", "--print", "must sign"]);
+        assert!(print.print);
+        assert!(!print.interactive);
+
+        let interactive =
+            SuggestRuleOpts::parse_from(["suggest-rule", "--interactive", "must sign"]);
+        assert!(interactive.interactive);
+        assert!(!interactive.print);
+    }
+
+    #[test]
+    fn default_is_print_unless_interactive() {
+        let opts = SuggestRuleOpts::parse_from(["suggest-rule", "must sign"]);
+        assert!(!opts.interactive);
+        assert!(!opts.print);
     }
 }

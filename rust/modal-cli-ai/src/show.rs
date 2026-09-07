@@ -28,9 +28,12 @@ pub fn format_show(config: &AiConfig) -> Result<String> {
     }
     match config.resolve_api_key(None)? {
         Some(key) => out.push_str(&format!("API key: {}\n", config::redact_key(&key))),
-        None if provider == Provider::Ollama || provider == Provider::Bedrock => {
-            out.push_str("API key: (not required)\n");
-        }
+        None if !provider.requires_api_key() => match provider {
+            Provider::CursorAgent => {
+                out.push_str("API key: (not required; `agent login` or CURSOR_API_KEY)\n");
+            }
+            _ => out.push_str("API key: (not required)\n"),
+        },
         None => out.push_str("API key: (not set; use env or --api-key)\n"),
     }
     Ok(out)

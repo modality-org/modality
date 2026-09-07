@@ -1968,18 +1968,11 @@ export default rule {
             "{err}"
         );
         assert!(
-            err.to_string()
-                .contains("+signed_by(/parties/alice.id)"),
+            err.to_string().contains("+signed_by(/parties/alice.id)"),
             "{err}"
         );
-        assert!(
-            !err.to_string().contains("missing +POST"),
-            "{err}"
-        );
-        assert!(
-            !err.to_string().contains("/parties/bob.id"),
-            "{err}"
-        );
+        assert!(!err.to_string().contains("missing +POST"), "{err}");
+        assert!(!err.to_string().contains("/parties/bob.id"), "{err}");
 
         let fairer_model = r#"
 model Contract {

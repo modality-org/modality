@@ -33,6 +33,11 @@ pub struct Opts {
 }
 
 pub fn run(opts: &Opts) -> Result<()> {
+    if opts.save_key && opts.provider == Provider::CursorAgent {
+        anyhow::bail!(
+            "--save-key is not supported for cursor-agent. Run `agent login` or set CURSOR_API_KEY."
+        );
+    }
     if opts.save_key && (opts.provider == Provider::Bedrock || opts.provider == Provider::Ollama) {
         anyhow::bail!(
             "--save-key is only supported for openai, anthropic, and grok. Bedrock uses the AWS credential chain; Ollama does not need an API key."
@@ -73,6 +78,9 @@ fn print_set_summary(config: &AiConfig, path: &PathBuf, saved_key: bool) {
     }
     if config.provider == Some(Provider::Bedrock) {
         println!("   Region: {}", config.region());
+    }
+    if config.provider == Some(Provider::CursorAgent) {
+        println!("   CLI: agent (or cursor-agent); set MODAL_AI_CURSOR_AGENT to override");
     }
     if saved_key {
         println!("   API key: saved");

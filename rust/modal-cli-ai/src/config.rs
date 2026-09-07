@@ -12,6 +12,9 @@ pub enum Provider {
     Grok,
     Bedrock,
     Ollama,
+    #[serde(rename = "cursor-agent")]
+    #[value(name = "cursor-agent")]
+    CursorAgent,
 }
 
 impl Provider {
@@ -22,6 +25,7 @@ impl Provider {
             Provider::Grok => "grok",
             Provider::Bedrock => "bedrock",
             Provider::Ollama => "ollama",
+            Provider::CursorAgent => "cursor-agent",
         }
     }
 
@@ -32,6 +36,7 @@ impl Provider {
             Provider::Grok => "grok-3",
             Provider::Bedrock => "anthropic.claude-sonnet-4-20250514-v1:0",
             Provider::Ollama => "llama3.2",
+            Provider::CursorAgent => "auto",
         }
     }
 
@@ -42,6 +47,7 @@ impl Provider {
             Provider::Grok => Some("https://api.x.ai"),
             Provider::Bedrock => None,
             Provider::Ollama => Some("http://127.0.0.1:11434"),
+            Provider::CursorAgent => None,
         }
     }
 
@@ -50,10 +56,20 @@ impl Provider {
             Provider::Openai => Some("OPENAI_API_KEY"),
             Provider::Anthropic => Some("ANTHROPIC_API_KEY"),
             Provider::Grok => Some("XAI_API_KEY"),
+            Provider::CursorAgent => Some("CURSOR_API_KEY"),
             Provider::Bedrock | Provider::Ollama => None,
         }
     }
+
+    pub fn requires_api_key(self) -> bool {
+        !matches!(
+            self,
+            Provider::Bedrock | Provider::Ollama | Provider::CursorAgent
+        )
+    }
 }
+
+pub const PROVIDER_CHOICE_HINT: &str = "openai|anthropic|grok|bedrock|ollama|cursor-agent";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AiConfig {
@@ -137,7 +153,7 @@ impl AiConfig {
 
 pub fn unconfigured_error() -> anyhow::Error {
     anyhow::anyhow!(
-        "No AI provider configured. Run `modal ai set --provider openai|anthropic|grok|bedrock|ollama`."
+        "No AI provider configured. Run `modal ai set --provider {PROVIDER_CHOICE_HINT}`."
     )
 }
 

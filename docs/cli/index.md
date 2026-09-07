@@ -141,3 +141,5 @@ modal predicate test signed_by --data '{"path":"/alice.id","signature":"..."}'
 | `OPENAI_API_KEY` | OpenAI API key | — |
 | `ANTHROPIC_API_KEY` | Anthropic API key | — |
 | `XAI_API_KEY` | xAI / Grok API key | — |
+| `CURSOR_API_KEY` | Cursor Agent API key | — |
+| `MODAL_AI_CURSOR_AGENT` | Path to the Cursor `agent` CLI | `agent` or `cursor-agent` on `PATH` |

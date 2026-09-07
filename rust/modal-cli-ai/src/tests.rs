@@ -117,6 +117,8 @@ fn with_isolated_home<T>(f: impl FnOnce(&TempDir) -> T) -> T {
         "AWS_SESSION_TOKEN",
         "AWS_REGION",
         "AWS_DEFAULT_REGION",
+        "CURSOR_API_KEY",
+        "MODAL_AI_CURSOR_AGENT",
     ]);
     for key in [
         "MODAL_AI_API_KEY",
@@ -128,6 +130,8 @@ fn with_isolated_home<T>(f: impl FnOnce(&TempDir) -> T) -> T {
         "AWS_SESSION_TOKEN",
         "AWS_REGION",
         "AWS_DEFAULT_REGION",
+        "CURSOR_API_KEY",
+        "MODAL_AI_CURSOR_AGENT",
     ] {
         std::env::remove_var(key);
     }
@@ -205,7 +209,7 @@ fn unconfigured_error_points_at_modal_ai_set() {
         let err = config::load_required().expect_err("unconfigured");
         let message = format!("{err:#}");
         assert!(message.contains("modal ai set"));
-        assert!(message.contains("openai|anthropic|grok|bedrock|ollama"));
+        assert!(message.contains("openai|anthropic|grok|bedrock|ollama|cursor-agent"));
     });
 }
 
@@ -247,9 +251,8 @@ fn api_key_resolution_order() {
 #[test]
 fn suggest_rule_prompt_includes_first_contract_or_signers_example() {
     let prompt = providers::suggest_rule_system_prompt();
-    assert!(prompt.contains(
-        "[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)"
-    ));
+    assert!(prompt
+        .contains("[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)"));
     assert!(prompt.contains("Do not invent action names"));
     assert!(prompt.contains("[] φ` constrains successors of the current state"));
     assert!(
@@ -424,6 +427,17 @@ fn save_key_rejected_for_bedrock_and_ollama() {
         ]);
         let err = set::run(&ollama).unwrap_err();
         assert!(format!("{err:#}").contains("--save-key"));
+
+        let cursor = set::Opts::parse_from([
+            "set",
+            "--provider",
+            "cursor-agent",
+            "--save-key",
+            "--api-key",
+            "secret",
+        ]);
+        let err = set::run(&cursor).unwrap_err();
+        assert!(format!("{err:#}").contains("cursor-agent"));
     });
 }
 
@@ -451,5 +465,102 @@ fn set_persists_openai_key_only_with_save_key() {
         let shown = show::format_show(&loaded).expect("show");
         assert!(!shown.contains(SECRET_KEY));
         assert!(shown.contains(&config::redact_key(SECRET_KEY)));
+    });
+}
+
+#[test]
+fn set_persists_cursor_agent_without_key() {
+    with_isolated_home(|_| {
+        let opts = set::Opts::parse_from(["set", "--provider", "cursor-agent"]);
+        set::run(&opts).expect("set");
+        let loaded = config::load_required().expect("load");
+        assert_eq!(loaded.provider, Some(Provider::CursorAgent));
+        assert_eq!(loaded.api_key, None);
+        let shown = show::format_show(&loaded).expect("show");
+        assert!(shown.contains("Provider: cursor-agent"));
+        assert!(shown.contains("agent login"));
+    });
+}
+
+#[test]
+fn cursor_agent_print_invocation_trusts_workspace_and_skips_auto_model() {
+    with_isolated_home(|home| {
+        std::env::set_var("MODAL_AI_CURSOR_AGENT", home.path().join("fake-agent"));
+        let config = AiConfig {
+            provider: Some(Provider::CursorAgent),
+            ..Default::default()
+        };
+        let inv = crate::cursor_agent::invocation(
+            &config,
+            "after this commit either alice or bob must sign",
+            None,
+            Some(home.path()),
+            crate::cursor_agent::SuggestPrintMode::Print,
+        )
+        .expect("invocation");
+        assert!(inv.capture);
+        assert!(inv.args.contains(&"-p".to_string()));
+        assert!(inv.args.contains(&"--trust".to_string()));
+        assert!(inv.args.contains(&"--mode".to_string()));
+        assert!(inv.args.contains(&"ask".to_string()));
+        assert!(!inv.args.contains(&"--model".to_string()));
+        assert_eq!(inv.args[inv.args.len() - 2], "--");
+        assert!(inv.args.last().unwrap().contains("after this commit"));
+        let workspace = inv
+            .args
+            .windows(2)
+            .find(|pair| pair[0] == "--workspace")
+            .map(|pair| pair[1].clone())
+            .expect("workspace");
+        assert_eq!(
+            std::path::PathBuf::from(workspace),
+            home.path().canonicalize().unwrap()
+        );
+    });
+}
+
+#[test]
+fn cursor_agent_interactive_invocation_omits_print_flags() {
+    with_isolated_home(|home| {
+        std::env::set_var("MODAL_AI_CURSOR_AGENT", home.path().join("fake-agent"));
+        let config = AiConfig {
+            provider: Some(Provider::CursorAgent),
+            ..Default::default()
+        };
+        let inv = crate::cursor_agent::invocation(
+            &config,
+            "after this commit either alice or bob must sign",
+            None,
+            Some(home.path()),
+            crate::cursor_agent::SuggestPrintMode::Interactive,
+        )
+        .expect("invocation");
+        assert!(!inv.capture);
+        assert!(!inv.args.contains(&"-p".to_string()));
+        assert!(!inv.args.contains(&"--trust".to_string()));
+        assert!(inv.args.contains(&"--workspace".to_string()));
+    });
+}
+
+#[cfg(unix)]
+#[test]
+fn cursor_agent_print_mode_extracts_formula() {
+    with_isolated_home(|home| {
+        let bin = home.path().join("fake-agent");
+        std::fs::write(&bin, format!("#!/bin/sh\necho '{FORMULA}'\n")).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::env::set_var("MODAL_AI_CURSOR_AGENT", &bin);
+
+        let opts = set::Opts::parse_from(["set", "--provider", "cursor-agent"]);
+        set::run(&opts).expect("set");
+        let formula = block_on(crate::suggest_rule_mode(
+            "after this commit either alice or bob must sign",
+            None,
+            Some(home.path()),
+            crate::cursor_agent::SuggestPrintMode::Print,
+        ))
+        .expect("suggest");
+        assert_eq!(formula, FORMULA);
     });
 }

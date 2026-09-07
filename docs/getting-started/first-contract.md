@@ -140,7 +140,8 @@ Bob. You still get one bootstrap commit that installs their identities and the
 first model. After that, unsigned updates are refused.
 
 You don't need to know Modality syntax yet. Point Modal at your choice of AI
-first — OpenAI, Anthropic, Grok, AWS Bedrock, or a local Ollama model. See
+first — OpenAI, Anthropic, Grok, AWS Bedrock, a local Ollama model, or the
+Cursor Agent CLI in this contract directory. See
 [AI Commands](/docs/cli/ai-commands) for `modal ai set`. Then ask the CLI to
 suggest a rule:
 

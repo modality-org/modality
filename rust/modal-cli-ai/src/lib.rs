@@ -2,6 +2,7 @@
 
 pub mod complete;
 pub mod config;
+pub mod cursor_agent;
 pub mod providers;
 pub mod set;
 pub mod show;
@@ -28,8 +29,9 @@ pub async fn run(command: &Commands) -> Result<()> {
     }
 }
 
-pub use complete::{suggest_rule, suggest_rule_with};
+pub use complete::{suggest_rule, suggest_rule_mode, suggest_rule_with};
 pub use config::{unconfigured_error, AiConfig, Provider};
+pub use cursor_agent::SuggestPrintMode;
 
 #[cfg(test)]
 mod tests;

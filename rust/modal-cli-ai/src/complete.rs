@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::path::Path;
 
 use crate::config::{self, AiConfig};
+use crate::cursor_agent::{self, SuggestPrintMode};
 use crate::providers::{self, JsonPoster, ReqwestPoster};
 
 pub async fn suggest_rule(
@@ -9,7 +10,21 @@ pub async fn suggest_rule(
     api_key: Option<&str>,
     contract_dir: Option<&Path>,
 ) -> Result<String> {
+    suggest_rule_mode(prompt, api_key, contract_dir, SuggestPrintMode::Print).await
+}
+
+pub async fn suggest_rule_mode(
+    prompt: &str,
+    api_key: Option<&str>,
+    contract_dir: Option<&Path>,
+    print_mode: SuggestPrintMode,
+) -> Result<String> {
     let config = config::load_required()?;
+    if config.provider()? == crate::config::Provider::CursorAgent {
+        let ids = contract_dir.map(collect_id_paths).unwrap_or_default();
+        return cursor_agent::suggest(&config, prompt, api_key, contract_dir, &ids, print_mode)
+            .await;
+    }
     let poster = ReqwestPoster::new()?;
     suggest_rule_with(&config, prompt, api_key, contract_dir, &poster).await
 }
@@ -45,7 +60,7 @@ fn build_user_prompt(prompt: &str, contract_dir: Option<&Path>) -> String {
     out
 }
 
-fn collect_id_paths(contract_dir: &Path) -> Vec<String> {
+pub(crate) fn collect_id_paths(contract_dir: &Path) -> Vec<String> {
     let state_dir = contract_dir.join("state");
     let mut paths = Vec::new();
     collect_id_paths_from(&state_dir, &state_dir, &mut paths);
