@@ -205,10 +205,8 @@ modality model synthesize \
 
 model Contract {
   part flow {
-    q0 --> q1: +POST +MODEL
-    q1 --> q1: +POST +signed_by(/parties/alice.id)
-    q1 --> q1: +POST +signed_by(/parties/bob.id)
-    q1 --> q1: +MODEL +signed_by(/parties/alice.id)
+    q0 --> q1
+    q1 --> q1: +signed_by(/parties/alice.id)
   }
 }
 ```
@@ -233,7 +231,7 @@ modality model validate model/default.modality --verbose
 
 📋 Model: Contract
    Parts: 1
-   Transitions: 4
+   Transitions: 2
 
 ✅ Contract is valid!
    All properties are predicates or commit method labels (verifier-observed).
@@ -245,10 +243,8 @@ modality model mermaid model/default.modality
 
 ```output
 stateDiagram-v2
-    q0 --> q1 : +POST +MODEL
-    q1 --> q1 : "+POST +signed_by(/parties/alice.id)"
-    q1 --> q1 : "+POST +signed_by(/parties/bob.id)"
-    q1 --> q1 : "+MODEL +signed_by(/parties/alice.id)"
+    q0 --> q1
+    q1 --> q1 : "+signed_by(/parties/alice.id)"
 ```
 
 ```bash
@@ -262,10 +258,8 @@ Same picture, different view. The same witness as a state diagram:
 
 ```mermaid
 stateDiagram-v2
-    q0 --> q1 : +POST +MODEL
-    q1 --> q1 : "+POST +signed_by(/parties/alice.id)"
-    q1 --> q1 : "+POST +signed_by(/parties/bob.id)"
-    q1 --> q1 : "+MODEL +signed_by(/parties/alice.id)"
+    q0 --> q1
+    q1 --> q1 : "+signed_by(/parties/alice.id)"
 ```
 
 `modality model mermaid` prints that Mermaid `stateDiagram-v2` source from
@@ -273,8 +267,8 @@ stateDiagram-v2
 your default browser.
 
 `q0` is the start; `q1` is "the rule is live." The first arrow is the bootstrap
-commit that installs identities and the first model. After that, only signed
-`POST` and `MODEL` moves are allowed.
+commit that installs identities and the first model. After that, only Alice
+can sign.
 
 You may have noticed something off about the witness model. We'll come back
 to that.
@@ -401,9 +395,9 @@ modal commit \
 
 ```output
 Error: No valid transition for local commit from current states {"q1"}
-Closest candidate transition: candidate from current state q1: q1 --> q1 [+POST +signed_by(/parties/alice.id)]; failed predicates: missing +signed_by(/parties/alice.id)
+Closest candidate transition: candidate from current state q1: q1 --> q1 [+signed_by(/parties/alice.id)]; failed predicates: missing +signed_by(/parties/alice.id)
 Candidate transitions ranked by predicate distance:
-candidate from current state q1: q1 --> q1 [+POST +signed_by(/parties/bob.id)]; failed predicates: missing +signed_by(/parties/bob.id)
+candidate from current state q1: q1 --> q1 [+signed_by(/parties/alice.id)]; failed predicates: missing +signed_by(/parties/alice.id)
 ```
 
 That's the rule doing its job from `rules/authorized.modality`. The unsigned
@@ -460,12 +454,12 @@ holding its shape.
 
 ## 8. Let Bob Replace the Witness
 
-That something off from step 5: Bob can `POST`, but only Alice can `MODEL`.
-The synthesizer found one machine that satisfies the rule, not every move the
-rule allows.
+That something off from step 5: the synthesized witness only lets Alice sign.
+The rule names Alice or Bob. Bob can sign updates, but this machine has no
+arrow for him.
 
-Ask Bob to replace the current witness with itself. The rule should be fine
-with his signature. The witness is what gets in the way:
+Have Bob try a `MODEL` commit of the current witness. The rule should accept
+his signature. The witness is what gets in the way:
 
 ```bash
 modal commit \
@@ -478,32 +472,29 @@ modal commit \
 
 ```output
 Error: No valid transition for local commit from current states {"q1"}
-Closest candidate transition: candidate from current state q1: q1 --> q1 [+POST +signed_by(/parties/bob.id)]; failed predicates: missing +POST
+Closest candidate transition: candidate from current state q1: q1 --> q1 [+signed_by(/parties/alice.id)]; failed predicates: missing +signed_by(/parties/alice.id)
 Candidate transitions ranked by predicate distance:
-candidate from current state q1: q1 --> q1 [+POST +signed_by(/parties/bob.id)]; failed predicates: missing +POST
-candidate from current state q1: q1 --> q1 [+MODEL +signed_by(/parties/alice.id)]; failed predicates: missing +signed_by(/parties/alice.id)
+candidate from current state q1: q1 --> q1 [+signed_by(/parties/alice.id)]; failed predicates: missing +signed_by(/parties/alice.id)
 ```
 
-The closest door Bob has is a `POST` door. Alice's `MODEL` arrow is in the
-list, but it wants Alice's signature. The rule itself does let him. It only
-says later commits must be signed by Alice or Bob:
+The closest candidate is Alice's arrow. The rule itself does let him. It
+only says later commits must be signed by Alice or Bob:
 
 ```
 [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
 ```
 
-It does not care whether the commit is a `POST` or a `MODEL`. Add Bob's missing
-`MODEL` arrow to `model/default.modality`:
+It does not mention `POST` or `MODEL`, and it does not lock the witness to
+Alice. The matching witness is one signed Alice transition and an alternative
+signed Bob transition:
 
 ```bash
 cat > model/default.modality <<'EOF'
 model Contract {
   part flow {
-    q0 --> q1: +POST +MODEL
-    q1 --> q1: +POST +signed_by(/parties/alice.id)
-    q1 --> q1: +POST +signed_by(/parties/bob.id)
-    q1 --> q1: +MODEL +signed_by(/parties/alice.id)
-    q1 --> q1: +MODEL +signed_by(/parties/bob.id)
+    q0 --> q1
+    q1 --> q1: +signed_by(/parties/alice.id)
+    q1 --> q1: +signed_by(/parties/bob.id)
   }
 }
 EOF
@@ -516,20 +507,18 @@ modality model validate model/default.modality --verbose
 ```output
 📋 Model: Contract
    Parts: 1
-   Transitions: 5
+   Transitions: 3
 
 ✅ Contract is valid!
 ```
 
-The same witness as a state diagram, now with Bob's `MODEL` move:
+The same witness as a state diagram, now with a signed Alice move or a signed
+Bob move:
 
 ```mermaid
 stateDiagram-v2
-    q0 --> q1 : +POST +MODEL
-    q1 --> q1 : "+POST +signed_by(/parties/alice.id)"
-    q1 --> q1 : "+POST +signed_by(/parties/bob.id)"
-    q1 --> q1 : "+MODEL +signed_by(/parties/alice.id)"
-    q1 --> q1 : "+MODEL +signed_by(/parties/bob.id)"
+    q0 --> q1
+    q1 --> q1 : "+signed_by(/parties/alice.id) or +signed_by(/parties/bob.id)"
 ```
 
 ```bash
@@ -564,9 +553,9 @@ Actions:
 ```
 
 That replacement landed because the candidate model can replay the accepted
-history, still satisfies the rule, and now has a `+MODEL` move Bob can take.
-The old witness was a proof that the rule is possible, not a lock that only
-Alice may change the machine. The rule stayed put. Bob replaced the witness.
+history, still satisfies the rule, and now has a signed Alice transition or a
+signed Bob transition from `q1`. The old witness was a proof that the rule is
+possible, not a lock on Alice. The rule stayed put. Bob replaced the witness.
 
 ## What's Next?
 

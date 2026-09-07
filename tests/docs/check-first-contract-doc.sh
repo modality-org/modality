@@ -41,6 +41,7 @@ required_patterns=(
   "something off about the witness model"
   "1 formula(s) lint-clean"
   "Contract is valid!"
+  "Transitions: 2"
   "Transitions: 3"
   "review"
   "the synthesized candidate"
@@ -63,7 +64,7 @@ required_patterns=(
   "\`review/authorized.md\` files should also be"
   "## 8. Let Bob Replace the Witness"
   "Bob tries to replace the witness"
-  "missing +POST"
+  "only lets Alice sign"
   "The rule itself does let him"
   "q1 --> q1: +signed_by(/parties/alice.id)"
   "q1 --> q1: +signed_by(/parties/bob.id)"
@@ -121,12 +122,11 @@ first_contract_smoke_patterns=(
   "## Witness Model"
   "synthesized-model-validate.out"
   "Contract is valid!"
-  "Transitions: 3"
+  "Transitions: 2"
   "synthesized-model-mermaid.out"
   "stateDiagram-v2"
-  'q0 --> q1 : +POST'
-  '"+POST +signed_by(/parties/alice.id)"'
-  '"+POST +signed_by(/parties/bob.id)"'
+  'q0 --> q1'
+  '"+signed_by(/parties/alice.id)"'
   "synthesized-model-view.out"
   "model view"
   "--no-open"
@@ -154,10 +154,10 @@ first_contract_smoke_patterns=(
   '[[ -e "$CONTRACT_DIR/state/unsigned.text" ]]'
   "Bob tries to replace the witness"
   "bob-same-model.err"
-  "missing +POST"
   "q1 --> q1: +signed_by(/parties/alice.id)"
   "q1 --> q1: +signed_by(/parties/bob.id)"
   "replaced-model-validate.out"
+  "Transitions: 3"
   "Let Bob replace the witness"
   '"total_commits": 4'
   "bob-model-replacement.json"
@@ -183,6 +183,11 @@ done
 
 if grep -Fq "+MODEL" "$DOC"; then
   echo "first-contract guide should not put +MODEL on witness transitions" >&2
+  exit 1
+fi
+
+if grep -Fq "+POST" "$DOC"; then
+  echo "first-contract guide should not put +POST on witness transitions" >&2
   exit 1
 fi
 

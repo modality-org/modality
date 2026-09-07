@@ -1903,9 +1903,8 @@ export default rule {
         let accepted_model = r#"
 model Contract {
   part flow {
-    q0 --> q1: +POST
-    q1 --> q1: +POST +signed_by(/parties/alice.id)
-    q1 --> q1: +POST +signed_by(/parties/bob.id)
+    q0 --> q1
+    q1 --> q1: +signed_by(/parties/alice.id)
   }
 }
         "#;
@@ -1971,17 +1970,29 @@ export default rule {
             .expect_err("current witness should reject Bob's MODEL replacement");
 
         assert!(err.to_string().contains("current states {\"q1\"}"), "{err}");
-        assert!(err.to_string().contains("missing +POST"), "{err}");
         assert!(
             err.to_string()
-                .contains("+POST +signed_by(/parties/bob.id)"),
+                .contains("missing +signed_by(/parties/alice.id)"),
+            "{err}"
+        );
+        assert!(
+            err.to_string()
+                .contains("+signed_by(/parties/alice.id)"),
+            "{err}"
+        );
+        assert!(
+            !err.to_string().contains("missing +POST"),
+            "{err}"
+        );
+        assert!(
+            !err.to_string().contains("/parties/bob.id"),
             "{err}"
         );
 
         let fairer_model = r#"
 model Contract {
   part flow {
-    q0 --> q1: +POST
+    q0 --> q1
     q1 --> q1: +signed_by(/parties/alice.id)
     q1 --> q1: +signed_by(/parties/bob.id)
   }

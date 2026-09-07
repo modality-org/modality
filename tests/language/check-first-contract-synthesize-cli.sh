@@ -69,9 +69,8 @@ done
 
 required_model_patterns=(
   "model Contract"
-  "q0 --> q1: +POST"
-  "q1 --> q1: +POST +signed_by(/parties/alice.id)"
-  "q1 --> q1: +POST +signed_by(/parties/bob.id)"
+  "q0 --> q1"
+  "q1 --> q1: +signed_by(/parties/alice.id)"
 )
 
 for pattern in "${required_model_patterns[@]}"; do
@@ -82,8 +81,20 @@ for pattern in "${required_model_patterns[@]}"; do
   fi
 done
 
+if grep -Fq "+POST" "$MODEL"; then
+  echo "first-contract synthesized witness still includes +POST" >&2
+  cat "$MODEL" >&2
+  exit 1
+fi
+
 if grep -Fq "+MODEL" "$MODEL"; then
   echo "first-contract synthesized witness still includes +MODEL" >&2
+  cat "$MODEL" >&2
+  exit 1
+fi
+
+if grep -Fq "/parties/bob.id" "$MODEL"; then
+  echo "first-contract synthesized witness still includes Bob" >&2
   cat "$MODEL" >&2
   exit 1
 fi
@@ -98,9 +109,8 @@ required_review_patterns=(
   "## Verifier Result"
   "Status: passed (\`--verify\`)"
   "## Witness Model"
-  "q0 --> q1: +POST"
-  "q1 --> q1: +POST +signed_by(/parties/alice.id)"
-  "q1 --> q1: +POST +signed_by(/parties/bob.id)"
+  "q0 --> q1"
+  "q1 --> q1: +signed_by(/parties/alice.id)"
   "## Assumptions"
   "## Known Gaps"
 )
@@ -113,12 +123,24 @@ for pattern in "${required_review_patterns[@]}"; do
   fi
 done
 
+if grep -Fq "+POST" "$REVIEW_BUNDLE"; then
+  echo "first-contract synthesis review bundle still includes +POST" >&2
+  cat "$REVIEW_BUNDLE" >&2
+  exit 1
+fi
+
+if grep -Fq "q1 --> q1: +signed_by(/parties/bob.id)" "$REVIEW_BUNDLE"; then
+  echo "first-contract synthesis review bundle still includes Bob's live transition" >&2
+  cat "$REVIEW_BUNDLE" >&2
+  exit 1
+fi
+
 "$MODALITY_BIN" model validate "$MODEL" --verbose >"$VALIDATE_OUT" 2>&1
 
 required_validation_patterns=(
   "Contract is valid!"
   "All properties are predicates or commit method labels (verifier-observed)."
-  "Transitions: 3"
+  "Transitions: 2"
 )
 
 for pattern in "${required_validation_patterns[@]}"; do
@@ -133,9 +155,8 @@ done
 
 required_mermaid_patterns=(
   "stateDiagram-v2"
-  "q0 --> q1 : +POST"
-  '"+POST +signed_by(/parties/alice.id)"'
-  '"+POST +signed_by(/parties/bob.id)"'
+  "q0 --> q1"
+  '"+signed_by(/parties/alice.id)"'
 )
 
 for pattern in "${required_mermaid_patterns[@]}"; do
@@ -146,8 +167,20 @@ for pattern in "${required_mermaid_patterns[@]}"; do
   fi
 done
 
+if grep -Fq "+POST" "$MERMAID_OUT"; then
+  echo "first-contract synthesized witness mermaid still includes +POST" >&2
+  cat "$MERMAID_OUT" >&2
+  exit 1
+fi
+
 if grep -Fq "+MODEL" "$MERMAID_OUT"; then
   echo "first-contract synthesized witness mermaid still includes +MODEL" >&2
+  cat "$MERMAID_OUT" >&2
+  exit 1
+fi
+
+if grep -Fq "/parties/bob.id" "$MERMAID_OUT"; then
+  echo "first-contract synthesized witness mermaid still includes Bob" >&2
   cat "$MERMAID_OUT" >&2
   exit 1
 fi
@@ -164,9 +197,8 @@ required_view_patterns=(
   "mermaid.min.js"
   "stateDiagram-v2"
   "part flow"
-  "q0 --&gt; q1: +POST"
+  "q0 --&gt; q1"
   "+signed_by(/parties/alice.id)"
-  "+signed_by(/parties/bob.id)"
 )
 for pattern in "${required_view_patterns[@]}"; do
   if ! grep -Fq "$pattern" "$VIEW_HTML"; then
@@ -175,6 +207,16 @@ for pattern in "${required_view_patterns[@]}"; do
     exit 1
   fi
 done
+if grep -Fq "+POST" "$VIEW_HTML"; then
+  echo "first-contract model view HTML still includes +POST" >&2
+  cat "$VIEW_HTML" >&2
+  exit 1
+fi
+if grep -Fq "/parties/bob.id" "$VIEW_HTML"; then
+  echo "first-contract model view HTML still includes Bob" >&2
+  cat "$VIEW_HTML" >&2
+  exit 1
+fi
 rm -f "$VIEW_HTML"
 
 echo "first-contract synthesize CLI smoke passed"

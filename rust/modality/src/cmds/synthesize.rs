@@ -4040,25 +4040,17 @@ fn synthesize_first_contract_authorization_model(
     }
 
     let mut transitions = Vec::new();
-    let mut bootstrap = modality_lang::Transition::new("q0".to_string(), "q1".to_string());
-    bootstrap.add_property(modality_lang::Property::new(
-        modality_lang::PropertySign::Plus,
-        "POST".to_string(),
+    transitions.push(modality_lang::Transition::new(
+        "q0".to_string(),
+        "q1".to_string(),
     ));
-    transitions.push(bootstrap);
 
-    for signer in &signers {
-        let mut post = modality_lang::Transition::new("q1".to_string(), "q1".to_string());
-        post.add_property(modality_lang::Property::new(
-            modality_lang::PropertySign::Plus,
-            "POST".to_string(),
-        ));
-        post.add_property(modality_lang::Property::new_predicate_from_call(
-            "signed_by".to_string(),
-            signer.clone(),
-        ));
-        transitions.push(post);
-    }
+    let mut live = modality_lang::Transition::new("q1".to_string(), "q1".to_string());
+    live.add_property(modality_lang::Property::new_predicate_from_call(
+        "signed_by".to_string(),
+        signers[0].clone(),
+    ));
+    transitions.push(live);
 
     let mut part = modality_lang::Part::new("flow".to_string());
     for transition in transitions {
@@ -38157,21 +38149,27 @@ export default rule {
 
         assert_eq!(model.parts.len(), 1);
         let transitions = &model.parts[0].transitions;
-        assert_eq!(transitions.len(), 3);
+        assert_eq!(transitions.len(), 2);
         assert!(transitions.iter().any(|transition| {
             transition.from == "q0"
                 && transition.to == "q1"
-                && transition.properties.iter().any(|prop| prop.name == "POST")
-                && transition
-                    .properties
-                    .iter()
-                    .all(|prop| prop.name != "MODEL")
+                && transition.properties.is_empty()
+        }));
+        assert!(transitions.iter().any(|transition| {
+            transition.from == "q1"
+                && transition.to == "q1"
+                && transition.properties.len() == 1
+                && transition.properties.iter().any(|prop| {
+                    prop.name == "signed_by"
+                        && super::predicate_arg(prop).as_deref() == Some("/parties/alice.id")
+                })
         }));
         assert!(transitions.iter().all(|transition| {
-            transition
-                .properties
-                .iter()
-                .all(|prop| prop.name != "MODEL")
+            transition.properties.iter().all(|prop| {
+                prop.name != "POST"
+                    && prop.name != "MODEL"
+                    && super::predicate_arg(prop).as_deref() != Some("/parties/bob.id")
+            })
         }));
         verify_synthesized_model(&model, &parsed.formulas).unwrap();
     }

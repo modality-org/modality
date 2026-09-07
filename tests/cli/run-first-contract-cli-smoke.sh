@@ -103,17 +103,26 @@ grep -q "## Witness Model" "$CONTRACT_DIR/review/authorized.md"
 "$MODALITY_BIN" model validate "$CONTRACT_DIR/model/default.modality" \
   --verbose >"$TMP_DIR/synthesized-model-validate.out" 2>&1
 grep -q "Contract is valid!" "$TMP_DIR/synthesized-model-validate.out"
-grep -q "Transitions: 3" "$TMP_DIR/synthesized-model-validate.out"
+grep -q "Transitions: 2" "$TMP_DIR/synthesized-model-validate.out"
 grep -q "All properties are predicates or commit method labels (verifier-observed)." \
   "$TMP_DIR/synthesized-model-validate.out"
 "$MODALITY_BIN" model mermaid "$CONTRACT_DIR/model/default.modality" \
   >"$TMP_DIR/synthesized-model-mermaid.out"
 grep -q "stateDiagram-v2" "$TMP_DIR/synthesized-model-mermaid.out"
-grep -q "q0 --> q1 : +POST" "$TMP_DIR/synthesized-model-mermaid.out"
-grep -q '"+POST +signed_by(/parties/alice.id)"' "$TMP_DIR/synthesized-model-mermaid.out"
-grep -q '"+POST +signed_by(/parties/bob.id)"' "$TMP_DIR/synthesized-model-mermaid.out"
+grep -q "q0 --> q1" "$TMP_DIR/synthesized-model-mermaid.out"
+grep -q '"+signed_by(/parties/alice.id)"' "$TMP_DIR/synthesized-model-mermaid.out"
+if grep -q "+POST" "$TMP_DIR/synthesized-model-mermaid.out"; then
+  echo "synthesized first-contract witness mermaid still includes +POST" >&2
+  cat "$TMP_DIR/synthesized-model-mermaid.out" >&2
+  exit 1
+fi
 if grep -q "+MODEL" "$TMP_DIR/synthesized-model-mermaid.out"; then
   echo "synthesized first-contract witness mermaid still includes +MODEL" >&2
+  cat "$TMP_DIR/synthesized-model-mermaid.out" >&2
+  exit 1
+fi
+if grep -q "/parties/bob.id" "$TMP_DIR/synthesized-model-mermaid.out"; then
+  echo "synthesized first-contract witness mermaid still includes Bob" >&2
   cat "$TMP_DIR/synthesized-model-mermaid.out" >&2
   exit 1
 fi
@@ -124,9 +133,18 @@ VIEW_HTML="$(sed -n 's/^Wrote //p' "$TMP_DIR/synthesized-model-view.out")"
 grep -q "mermaid.min.js" "$VIEW_HTML"
 grep -q "stateDiagram-v2" "$VIEW_HTML"
 grep -q "part flow" "$VIEW_HTML"
-grep -q "q0 --&gt; q1: +POST" "$VIEW_HTML"
+grep -q "q0 --&gt; q1" "$VIEW_HTML"
 grep -q "+signed_by(/parties/alice.id)" "$VIEW_HTML"
-grep -q "+signed_by(/parties/bob.id)" "$VIEW_HTML"
+if grep -q "+POST" "$VIEW_HTML"; then
+  echo "synthesized first-contract witness view still includes +POST" >&2
+  cat "$VIEW_HTML" >&2
+  exit 1
+fi
+if grep -q "/parties/bob.id" "$VIEW_HTML"; then
+  echo "synthesized first-contract witness view still includes Bob" >&2
+  cat "$VIEW_HTML" >&2
+  exit 1
+fi
 rm -f "$VIEW_HTML"
 
 "$MODAL_BIN" commit \
@@ -154,9 +172,18 @@ grep -q "Message: Initial contract setup" "$TMP_DIR/log.txt"
 grep -q "Signatures: 1" "$TMP_DIR/log.txt"
 grep -q "$ALICE_ID" "$TMP_DIR/log.txt"
 grep -q '\[\] always' "$CONTRACT_DIR/rules/authorized.modality"
-grep -q 'q0 .* q1.*+POST' "$CONTRACT_DIR/model/default.modality"
-grep -q 'q1 .* q1.*+POST.*+signed_by(/parties/alice.id)' "$CONTRACT_DIR/model/default.modality"
-grep -q 'q1 .* q1.*+POST.*+signed_by(/parties/bob.id)' "$CONTRACT_DIR/model/default.modality"
+grep -q 'q0 --> q1' "$CONTRACT_DIR/model/default.modality"
+grep -q 'q1 --> q1: +signed_by(/parties/alice.id)' "$CONTRACT_DIR/model/default.modality"
+if grep -q '/parties/bob.id' "$CONTRACT_DIR/model/default.modality"; then
+  echo "synthesized first-contract witness still includes Bob" >&2
+  cat "$CONTRACT_DIR/model/default.modality" >&2
+  exit 1
+fi
+if grep -q '+POST' "$CONTRACT_DIR/model/default.modality"; then
+  echo "synthesized first-contract witness still includes +POST" >&2
+  cat "$CONTRACT_DIR/model/default.modality" >&2
+  exit 1
+fi
 if grep -q '+MODEL' "$CONTRACT_DIR/model/default.modality"; then
   echo "synthesized first-contract witness still includes +MODEL" >&2
   cat "$CONTRACT_DIR/model/default.modality" >&2
@@ -206,14 +233,22 @@ if "$MODAL_BIN" commit \
 fi
 
 grep -q 'current states {"q1"}' "$TMP_DIR/unsigned-post.err"
-grep -Eq "Closest candidate transition: (part flow )?candidate from current state q1: q1 -+> q1 \[\\+POST \\+signed_by\\(/parties/alice.id\\)\]; failed predicates: missing \\+signed_by\\(/parties/alice.id\\)" "$TMP_DIR/unsigned-post.err"
+grep -Eq "Closest candidate transition: (part flow )?candidate from current state q1: q1 -+> q1 \[\\+signed_by\\(/parties/alice.id\\)\]; failed predicates: missing \\+signed_by\\(/parties/alice.id\\)" "$TMP_DIR/unsigned-post.err"
 grep -q "Candidate transitions ranked by predicate distance:" "$TMP_DIR/unsigned-post.err"
-grep -Eq "(part flow )?candidate from current state q1: q1 -+> q1 \[\\+POST \\+signed_by\\(/parties/bob.id\\)\]; failed predicates: missing \\+signed_by\\(/parties/bob.id\\)" "$TMP_DIR/unsigned-post.err"
 grep -q "missing +signed_by(/parties/alice.id)" "$TMP_DIR/unsigned-post.err"
-grep -q "missing +signed_by(/parties/bob.id)" "$TMP_DIR/unsigned-post.err"
+if grep -q "/parties/bob.id" "$TMP_DIR/unsigned-post.err"; then
+  echo "unsigned rejection still mentions Bob on the Alice-only witness" >&2
+  cat "$TMP_DIR/unsigned-post.err" >&2
+  exit 1
+fi
+if grep -q "+POST" "$TMP_DIR/unsigned-post.err"; then
+  echo "unsigned rejection still mentions +POST" >&2
+  cat "$TMP_DIR/unsigned-post.err" >&2
+  exit 1
+fi
 diagnostic_order="$(tr '\n' ' ' <"$TMP_DIR/unsigned-post.err")"
-if [[ "$diagnostic_order" != *'current states {"q1"}'*'Closest candidate transition:'*'Candidate transitions ranked by predicate distance:'*'missing +signed_by(/parties/bob.id)'* ]]; then
-  echo "unsigned rejection diagnostics are not in current-state, closest, ranked, alternate order" >&2
+if [[ "$diagnostic_order" != *'current states {"q1"}'*'Closest candidate transition:'*'Candidate transitions ranked by predicate distance:'*'missing +signed_by(/parties/alice.id)'* ]]; then
+  echo "unsigned rejection diagnostics are not in current-state, closest, ranked order" >&2
   cat "$TMP_DIR/unsigned-post.err" >&2
   exit 1
 fi
@@ -262,13 +297,18 @@ if "$MODAL_BIN" commit \
 fi
 
 grep -q 'current states {"q1"}' "$TMP_DIR/bob-same-model.err"
-grep -q "missing +POST" "$TMP_DIR/bob-same-model.err"
-grep -q "+POST +signed_by(/parties/bob.id)" "$TMP_DIR/bob-same-model.err"
+grep -q "missing +signed_by(/parties/alice.id)" "$TMP_DIR/bob-same-model.err"
+grep -q "+signed_by(/parties/alice.id)" "$TMP_DIR/bob-same-model.err"
+if grep -q "+POST" "$TMP_DIR/bob-same-model.err"; then
+  echo "Bob's rejected MODEL commit still mentions +POST" >&2
+  cat "$TMP_DIR/bob-same-model.err" >&2
+  exit 1
+fi
 
 cat >"$CONTRACT_DIR/model/default.modality" <<'EOF'
 model Contract {
   part flow {
-    q0 --> q1: +POST
+    q0 --> q1
     q1 --> q1: +signed_by(/parties/alice.id)
     q1 --> q1: +signed_by(/parties/bob.id)
   }
@@ -279,6 +319,11 @@ grep -q "q1 --> q1: +signed_by(/parties/alice.id)" \
   "$CONTRACT_DIR/model/default.modality"
 grep -q "q1 --> q1: +signed_by(/parties/bob.id)" \
   "$CONTRACT_DIR/model/default.modality"
+if grep -q '+POST' "$CONTRACT_DIR/model/default.modality"; then
+  echo "Bob's replacement witness still includes +POST" >&2
+  cat "$CONTRACT_DIR/model/default.modality" >&2
+  exit 1
+fi
 if grep -q '+MODEL' "$CONTRACT_DIR/model/default.modality"; then
   echo "Bob's replacement witness still includes +MODEL" >&2
   cat "$CONTRACT_DIR/model/default.modality" >&2
