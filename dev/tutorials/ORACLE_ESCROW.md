@@ -1,5 +1,10 @@
 # Building an Oracle-Verified Escrow
 
+Status: archived tutorial. Current onboarding examples avoid formula implication
+sugar such as `A -> B`, use explicit Boolean conditionals such as `!A | B`, and
+avoid `[+ACTION] true` as a conditional antecedent because that boxed form can
+be vacuous when no matching transition exists.
+
 Learn to create an escrow contract with external delivery verification using the `oracle_attests` predicate.
 
 ---
@@ -65,10 +70,10 @@ model oracle_escrow {
   funded -> shipped [+SHIP +signed_by(/users/seller.id)]
   
   // Oracle confirms delivery -> release to seller
-  shipped -> completed [+RELEASE +oracle_attests(/oracles/delivery, "delivered", "true")]
+  shipped -> completed [+RELEASE +oracle_attests(/oracles/delivery.id, "delivered", "true")]
   
   // Oracle denies delivery -> refund buyer
-  shipped -> refunded [+DISPUTE_REFUND +oracle_attests(/oracles/delivery, "delivered", "false")]
+  shipped -> refunded [+DISPUTE_REFUND +oracle_attests(/oracles/delivery.id, "delivered", "false")]
   
   // Timeout: buyer can reclaim after deadline if no oracle response
   shipped -> refunded [+TIMEOUT_REFUND +signed_by(/users/buyer.id) +after(/escrow/timeout)]
@@ -89,14 +94,14 @@ Create **rules/escrow_protection.modality**:
 export default rule {
   starting_at $PARENT
   formula {
-    // Release requires oracle confirmation
-    always([+RELEASE] true -> <+oracle_attests(/oracles/delivery, "delivered", "true")> true) &
+    // Release requires oracle confirmation on the same +RELEASE transition.
+    always(!<+RELEASE> true | <+RELEASE +oracle_attests(/oracles/delivery.id, "delivered", "true")> true) &
     
-    // Dispute refund requires oracle denial
-    always([+DISPUTE_REFUND] true -> <+oracle_attests(/oracles/delivery, "delivered", "false")> true) &
+    // Dispute refund requires oracle denial on the same +DISPUTE_REFUND transition.
+    always(!<+DISPUTE_REFUND> true | <+DISPUTE_REFUND +oracle_attests(/oracles/delivery.id, "delivered", "false")> true) &
     
-    // Timeout refund requires deadline passed + buyer signature
-    always([+TIMEOUT_REFUND] true -> (<+signed_by(/users/buyer.id)> true & <+after(/escrow/timeout)> true))
+    // Timeout refund requires deadline evidence and buyer signature on the same transition.
+    always(!<+TIMEOUT_REFUND> true | <+TIMEOUT_REFUND +signed_by(/users/buyer.id) +after(/escrow/timeout)> true)
   }
 }
 ```
@@ -215,4 +220,4 @@ appeal -> refunded [+CONFIRM_DENIAL +oracle_attests(/oracles/backup, "override",
 
 ---
 
-*Questions? Open a GitHub issue or ask on Discord.* 🔐
+*Questions? Open a GitHub issue or ask on Discord.*

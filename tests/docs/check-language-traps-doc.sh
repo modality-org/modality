@@ -51,6 +51,7 @@ DEV_MODEL_SYNTHESIS_TUTORIAL="$ROOT_DIR/dev/tutorials/MODEL_SYNTHESIS.md"
 DEV_QUICKSTART_DOC="$ROOT_DIR/dev/QUICKSTART.md"
 DEV_STANDARD_PREDICATES_DOC="$ROOT_DIR/dev/standard-predicates.md"
 DEV_MULTISIG_TREASURY_TUTORIAL="$ROOT_DIR/dev/tutorials/MULTISIG_TREASURY.md"
+DEV_ORACLE_ESCROW_TUTORIAL="$ROOT_DIR/dev/tutorials/ORACLE_ESCROW.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1065,6 +1066,32 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_MULTISIG_TREASURY_TUTORIAL"; then
   echo "developer multisig treasury tutorial should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+dev_oracle_escrow_required_patterns=(
+  "Status: archived tutorial."
+  "avoid formula implication"
+  "sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as"
+  "\`[+ACTION] true\` as a conditional antecedent"
+  "<+RELEASE +oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true"
+  "<+DISPUTE_REFUND +oracle_attests(/oracles/delivery.id, \"delivered\", \"false\")> true"
+  "<+TIMEOUT_REFUND +signed_by(/users/buyer.id) +after(/escrow/timeout)> true"
+  "same +RELEASE transition"
+  "same +DISPUTE_REFUND transition"
+  "same transition"
+)
+
+for pattern in "${dev_oracle_escrow_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_ORACLE_ESCROW_TUTORIAL"; then
+    echo "developer oracle escrow tutorial is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_ORACLE_ESCROW_TUTORIAL"; then
+  echo "developer oracle escrow tutorial should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
