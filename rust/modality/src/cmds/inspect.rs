@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use std::path::PathBuf;
+use modal_datastore::DatastoreManager;
 use modal_node::config::Config;
 use modal_node::inspection::{InspectionData, InspectionLevel, NodeStatus};
-use modal_datastore::DatastoreManager;
+use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 #[command(about = "Inspect a Modality node's state")]
@@ -31,12 +31,14 @@ pub struct Opts {
 
 pub async fn run(opts: &Opts) -> Result<()> {
     // Parse inspection level
-    let level: InspectionLevel = opts.level.parse()
+    let level: InspectionLevel = opts
+        .level
+        .parse()
         .map_err(|e: String| anyhow::anyhow!("{}", e))?;
 
     // Load node config
-    let config = Config::from_filepath(&opts.config)
-        .context("Failed to load node configuration")?;
+    let config =
+        Config::from_filepath(&opts.config).context("Failed to load node configuration")?;
 
     let mut inspection_data: Option<InspectionData> = None;
 
@@ -48,7 +50,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
                     inspection_data = Some(data);
                 }
                 Err(e) => {
-                    log::debug!("Reqres inspection failed: {}, falling back to offline mode", e);
+                    log::debug!(
+                        "Reqres inspection failed: {}, falling back to offline mode",
+                        e
+                    );
                 }
             }
         }
@@ -83,7 +88,8 @@ async fn try_reqres_inspect(
     // Create a temporary node for making the request
     let mut node = Node::from_config(config.clone()).await?;
 
-    let ma = target.parse::<Multiaddr>()
+    let ma = target
+        .parse::<Multiaddr>()
         .context("Invalid multiaddr format")?;
 
     let Some(libp2p::multiaddr::Protocol::P2p(target_peer_id)) = ma.iter().last() else {
@@ -96,11 +102,13 @@ async fn try_reqres_inspect(
         "level": level.to_string()
     });
 
-    let res = node.send_request(
-        target_peer_id,
-        "/inspect".to_string(),
-        serde_json::to_string(&request_data)?,
-    ).await?;
+    let res = node
+        .send_request(
+            target_peer_id,
+            "/inspect".to_string(),
+            serde_json::to_string(&request_data)?,
+        )
+        .await?;
 
     node.disconnect_from_peer_id(target_peer_id).await?;
 
@@ -120,16 +128,18 @@ async fn query_datastore_directly(
     level: InspectionLevel,
 ) -> Result<InspectionData> {
     // Use data_dir if available, otherwise fall back to storage_path
-    let data_dir = config.data_dir.as_ref()
+    let data_dir = config
+        .data_dir
+        .as_ref()
         .or(config.storage_path.as_ref())
         .ok_or_else(|| anyhow::anyhow!("No data_dir or storage_path configured in node config"))?;
 
-    let datastore_manager = DatastoreManager::open(data_dir)
-        .context("Failed to open datastore")?;
+    let datastore_manager = DatastoreManager::open(data_dir).context("Failed to open datastore")?;
     let mgr_guard = tokio::sync::Mutex::new(datastore_manager);
     let mgr = mgr_guard.lock().await;
 
-    let inspection_data = modal_node::reqres::inspect::get_datastore_inspection(&mgr, level).await?;
+    let inspection_data =
+        modal_node::reqres::inspect::get_datastore_inspection(&mgr, level).await?;
 
     // Get peer ID from config if available
     let peer_id = if let Ok(keypair) = config.get_libp2p_keypair().await {
@@ -157,10 +167,13 @@ fn print_pretty(data: &InspectionData) {
     println!("📋 Basic Information");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("  Peer ID: {}", data.peer_id);
-    println!("  Status: {}", match data.status {
-        NodeStatus::Running => "🟢 Running",
-        NodeStatus::Offline => "🔴 Offline",
-    });
+    println!(
+        "  Status: {}",
+        match data.status {
+            NodeStatus::Running => "🟢 Running",
+            NodeStatus::Offline => "🔴 Offline",
+        }
+    );
     println!();
 
     // Datastore info
@@ -175,7 +188,11 @@ fn print_pretty(data: &InspectionData) {
             println!("  Chain Tip Height: {}", height);
         }
         if let Some(ref hash) = ds.chain_tip_hash {
-            println!("  Chain Tip Hash: {}...{}", &hash[0..8.min(hash.len())], &hash[hash.len().saturating_sub(8)..]);
+            println!(
+                "  Chain Tip Hash: {}...{}",
+                &hash[0..8.min(hash.len())],
+                &hash[hash.len().saturating_sub(8)..]
+            );
         }
         if let Some(epochs) = ds.epochs {
             println!("  Epochs: {}", epochs);
@@ -212,7 +229,10 @@ fn print_pretty(data: &InspectionData) {
     if let Some(ref mining) = data.mining {
         println!("⛏️  Mining");
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        println!("  Is Mining: {}", if mining.is_mining { "Yes" } else { "No" });
+        println!(
+            "  Is Mining: {}",
+            if mining.is_mining { "Yes" } else { "No" }
+        );
         if let Some(ref nominees) = mining.nominees {
             println!("  Nominees: {}", nominees.len());
             for nominee in nominees {
@@ -230,4 +250,3 @@ fn print_pretty(data: &InspectionData) {
 
     println!("✅ Inspection complete!");
 }
-

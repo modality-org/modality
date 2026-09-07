@@ -1,13 +1,13 @@
-use std::str::FromStr;
-use anyhow::{Result, Error};
-use regex::Regex;
+use anyhow::{Error, Result};
 use hickory_resolver::{
     config::{ResolverConfig, ResolverOpts},
     TokioAsyncResolver,
 };
+use multiaddr::Multiaddr;
+use regex::Regex;
 use reqwest;
 use serde_json::Value;
-use multiaddr::Multiaddr;
+use std::str::FromStr;
 
 async fn remove_quotes(s: &str) -> String {
     let re = Regex::new(r#""(.+)""#).unwrap();
@@ -30,7 +30,7 @@ async fn resolve_via_cloudflare_dns(name: &str, type_: &str) -> Result<Vec<Strin
         "https://cloudflare-dns.com/dns-query?name={}&type={}",
         name, type_
     );
-    
+
     let response = client
         .get(&url)
         .header("accept", "application/dns-json")
@@ -57,10 +57,7 @@ async fn resolve_via_dns(name: &str, type_: &str) -> Result<Vec<String>, Error> 
     match type_ {
         "A" => {
             let response = resolver.lookup_ip(name).await?;
-            Ok(response
-                .iter()
-                .map(|ip| ip.to_string())
-                .collect())
+            Ok(response.iter().map(|ip| ip.to_string()).collect())
         }
         "TXT" => {
             let response = resolver.txt_lookup(name).await?;
@@ -82,7 +79,7 @@ async fn resolve_via_dns(name: &str, type_: &str) -> Result<Vec<String>, Error> 
 
 pub async fn resolve_dns_entries(entries: Vec<String>) -> Result<Vec<String>, Error> {
     let mut results = Vec::new();
-    
+
     // Pre-compile regexes outside the loop
     let p2p_re = Regex::new(r"/p2p/(.+)$").unwrap();
     let dns_re = Regex::new(r"^/dns/([A-Za-z0-9-.]+)(.*)").unwrap();
@@ -101,7 +98,8 @@ pub async fn resolve_dns_entries(entries: Vec<String>) -> Result<Vec<String>, Er
 
                 for address in answers {
                     let ans = format!("/ip4/{}{}", address, rest);
-                    if peer_id.is_none() || matches_peer_id_suffix(&ans, peer_id.as_ref().unwrap()) {
+                    if peer_id.is_none() || matches_peer_id_suffix(&ans, peer_id.as_ref().unwrap())
+                    {
                         results.push(ans);
                     }
                 }
@@ -111,12 +109,14 @@ pub async fn resolve_dns_entries(entries: Vec<String>) -> Result<Vec<String>, Er
                 let name = format!("_dnsaddr.{}", &caps[1]);
                 let mut answers = resolve_via_dns(&name, "TXT").await?;
                 let peer_id = p2p_match.as_ref().map(|m| m[1].to_string());
-                
+
                 for answer in &mut answers {
                     *answer = remove_quotes(answer).await;
                     if let Some(ans_caps) = dnsaddr_value_re.captures(answer) {
                         let ans = &ans_caps[1];
-                        if peer_id.is_none() || matches_peer_id_suffix(ans, peer_id.as_ref().unwrap()) {
+                        if peer_id.is_none()
+                            || matches_peer_id_suffix(ans, peer_id.as_ref().unwrap())
+                        {
                             results.push(ans.to_string());
                         }
                     }
@@ -133,7 +133,10 @@ pub async fn resolve_dns_entries(entries: Vec<String>) -> Result<Vec<String>, Er
 pub async fn resolve_dns_multiaddrs(multiaddrs: Vec<Multiaddr>) -> Result<Vec<Multiaddr>, Error> {
     let entries: Vec<String> = multiaddrs.iter().map(|addr| addr.to_string()).collect();
     let resolved_entries = resolve_dns_entries(entries).await?;
-    let resolved_multiaddrs = resolved_entries.into_iter().filter_map(|entry| Multiaddr::from_str(&entry).ok()).collect();
+    let resolved_multiaddrs = resolved_entries
+        .into_iter()
+        .filter_map(|entry| Multiaddr::from_str(&entry).ok())
+        .collect();
     Ok(resolved_multiaddrs)
 }
 
@@ -143,19 +146,20 @@ mod tests {
     use tokio;
 
     #[tokio::test]
-    async fn test_dns_resolution() { 
+    async fn test_dns_resolution() {
         let entries = vec![
-            "/dns/example.com/tcp/80/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd".to_string()
+            "/dns/example.com/tcp/80/ws/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd"
+                .to_string(),
         ];
-        
+
         let result = resolve_dns_entries(entries).await.unwrap();
         assert!(result[0].starts_with("/ip4/"));
-        
+
         let entries = vec!["/dnsaddr/devnet3.modality.network".to_string()];
         let result = resolve_dns_entries(entries).await.unwrap();
         assert_eq!(result.len(), 3);
         assert!(result[0].starts_with("/ip4/"));
-        
+
         let entries = vec![
             "/dnsaddr/devnet3.modality.network/p2p/12D3KooW9pte76rpnggcLYkFaawuTEs5DC5axHkg3cK3cewGxxHd".to_string()
         ];

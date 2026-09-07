@@ -32,4 +32,3 @@ fn main() {
     let expected: Vec<usize> = (0..100).collect();
     println!("Is it a valid permutation? {}", sorted == expected);
 }
-

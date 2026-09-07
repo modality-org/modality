@@ -3,7 +3,7 @@ use clap::Parser;
 use serde_json::Value;
 use std::path::PathBuf;
 
-use modal_common::contract_store::{ContractStore, CommitFile};
+use modal_common::contract_store::{CommitFile, ContractStore};
 use modal_common::keypair::Keypair;
 
 #[derive(Debug, Parser)]
@@ -12,63 +12,63 @@ pub struct Opts {
     /// Path in the contract (e.g., /data or /settings/rate)
     #[clap(long)]
     path: Option<String>,
-    
+
     /// Value to post (can be string, number, or JSON)
     #[clap(long)]
     value: Option<String>,
-    
+
     /// Method (default: post)
     #[clap(long, default_value = "post")]
     method: String,
-    
+
     /// Contract directory (defaults to current directory)
     #[clap(long)]
     dir: Option<PathBuf>,
-    
+
     /// Output format (json or text)
     #[clap(long, default_value = "text")]
     output: String,
-    
+
     // CREATE action fields
     /// Asset ID to create (for CREATE method)
     #[clap(long)]
     asset_id: Option<String>,
-    
+
     /// Asset quantity (for CREATE method)
     #[clap(long)]
     quantity: Option<u64>,
-    
+
     /// Asset divisibility (for CREATE method)
     #[clap(long)]
     divisibility: Option<u64>,
-    
+
     // SEND action fields
     /// Destination contract ID (for SEND method)
     #[clap(long)]
     to_contract: Option<String>,
-    
+
     /// Amount to send (for SEND method)
     #[clap(long)]
     amount: Option<u64>,
-    
+
     // RECV action fields
     /// SEND commit ID to receive from (for RECV method)
     #[clap(long)]
     send_commit_id: Option<String>,
-    
+
     // Signing
-    /// Path to passfile for signing the commit; repeat to attach multiple signatures
+    /// Passfile path or identity name for signing the commit; repeat to attach multiple signatures
     #[clap(long)]
-    sign: Vec<PathBuf>,
-    
+    sign: Vec<String>,
+
     /// Commit all changes from state directory
     #[clap(short = 'a', long)]
     all: bool,
-    
+
     /// Commit message (optional, stored in commit)
     #[clap(short = 'm', long)]
     message: Option<String>,
-    
+
     /// ACTION commit (JSON or path to JSON file)
     /// Format: {"method":"ACTION","action":"DO_THING","data":{...}}
     #[clap(long)]
@@ -104,28 +104,34 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let state_files = store.list_state_files()?;
         let rules_files = store.list_rules_files()?;
         let accepted_model = accepted_model_content(&store)?;
-        
+
         let mut changes = 0;
-        
+
         // Add/modify state files
         for path in &state_files {
             if let Some(current_value) = store.read_state(path)? {
                 let is_new = !committed.contains_key(path);
-                let is_modified = committed.get(path).map(|v| v != &current_value).unwrap_or(false);
-                
+                let is_modified = committed
+                    .get(path)
+                    .map(|v| v != &current_value)
+                    .unwrap_or(false);
+
                 if is_new || is_modified {
                     commit.add_action("post".to_string(), Some(path.clone()), current_value);
                     changes += 1;
                 }
             }
         }
-        
+
         // Add/modify rule files
         for path in &rules_files {
             if let Some(current_value) = store.read_rule(path)? {
                 let is_new = !committed.contains_key(path);
-                let is_modified = committed.get(path).map(|v| v != &current_value).unwrap_or(false);
-                
+                let is_modified = committed
+                    .get(path)
+                    .map(|v| v != &current_value)
+                    .unwrap_or(false);
+
                 if is_new || is_modified {
                     commit.add_action("rule".to_string(), Some(path.clone()), current_value);
                     changes += 1;
@@ -145,7 +151,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 changes += 1;
             }
         }
-        
+
         if changes == 0 {
             println!("Nothing to commit (working directories match committed state).");
             return Ok(());
@@ -160,25 +166,27 @@ pub async fn run(opts: &Opts) -> Result<()> {
             // Parse as inline JSON
             serde_json::from_str(action_input)?
         };
-        
+
         // Extract fields from action JSON
-        let method = action_json.get("method")
+        let method = action_json
+            .get("method")
             .and_then(|v| v.as_str())
             .unwrap_or("ACTION")
             .to_string();
-        
-        let action_name = action_json.get("action")
+
+        let action_name = action_json
+            .get("action")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
-        
+
         let data = action_json.get("data").cloned();
-        
+
         // Build the action value
         let value = serde_json::json!({
             "action": action_name,
             "data": data
         });
-        
+
         commit.add_action(method, opts.path.clone(), value);
     } else {
         // Single action commit (original behavior)
@@ -200,11 +208,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         };
 
         // Add action
-        commit.add_action(
-            opts.method.clone(),
-            opts.path.clone(),
-            value
-        );
+        commit.add_action(opts.method.clone(), opts.path.clone(), value);
     }
 
     // Sign the commit once per supplied passfile.
@@ -212,9 +216,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let mut sig_obj = serde_json::Map::new();
         let body_json = serde_json::to_string(&commit.body)?;
 
-        for passfile_path in &opts.sign {
-            let passfile_str = passfile_path.to_string_lossy();
-            let keypair = load_signing_key(&passfile_str)?;
+        for passfile_ref in &opts.sign {
+            let passfile_path = modal_common::passfile::resolve_passfile_path(passfile_ref)?;
+            let passfile_str = passfile_path.to_str().ok_or_else(|| {
+                anyhow::anyhow!("Invalid passfile path: {}", passfile_path.display())
+            })?;
+            let keypair = load_signing_key(passfile_str)?;
             let public_key = keypair.public_key_as_base58_identity();
             let signature = keypair.sign_string_as_base64_pad(&body_json)?;
             sig_obj.insert(public_key, Value::String(signature));
@@ -240,12 +247,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 if let Value::String(s) = &action.value {
                     if s.contains("$PARENT") {
                         let replaced = s.replace("$PARENT", parent);
-                        
+
                         // Also update the local rule file so it matches
                         if let Some(path) = &action.path {
                             let _ = store.write_rule(path, &Value::String(replaced.clone()));
                         }
-                        
+
                         action.value = Value::String(replaced);
                     }
                 }
@@ -263,12 +270,15 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Output
     if opts.output == "json" {
-        println!("{}", serde_json::to_string_pretty(&serde_json::json!({
-            "contract_id": config.contract_id,
-            "commit_id": commit_id,
-            "parent": parent_id,
-            "status": "committed",
-        }))?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "contract_id": config.contract_id,
+                "commit_id": commit_id,
+                "parent": parent_id,
+                "status": "committed",
+            }))?
+        );
     } else {
         println!("✅ Commit created successfully!");
         println!("   Contract ID: {}", config.contract_id);
@@ -330,11 +340,15 @@ fn validate_commit_against_model(
 }
 
 fn build_create_value(opts: &Opts) -> Result<Value> {
-    let asset_id = opts.asset_id.as_ref()
+    let asset_id = opts
+        .asset_id
+        .as_ref()
         .ok_or_else(|| anyhow::anyhow!("--asset-id is required for CREATE method"))?;
-    let quantity = opts.quantity
+    let quantity = opts
+        .quantity
         .ok_or_else(|| anyhow::anyhow!("--quantity is required for CREATE method"))?;
-    let divisibility = opts.divisibility
+    let divisibility = opts
+        .divisibility
         .ok_or_else(|| anyhow::anyhow!("--divisibility is required for CREATE method"))?;
 
     Ok(serde_json::json!({
@@ -345,11 +359,16 @@ fn build_create_value(opts: &Opts) -> Result<Value> {
 }
 
 fn build_send_value(opts: &Opts) -> Result<Value> {
-    let asset_id = opts.asset_id.as_ref()
+    let asset_id = opts
+        .asset_id
+        .as_ref()
         .ok_or_else(|| anyhow::anyhow!("--asset-id is required for SEND method"))?;
-    let to_contract = opts.to_contract.as_ref()
+    let to_contract = opts
+        .to_contract
+        .as_ref()
         .ok_or_else(|| anyhow::anyhow!("--to-contract is required for SEND method"))?;
-    let amount = opts.amount
+    let amount = opts
+        .amount
         .ok_or_else(|| anyhow::anyhow!("--amount is required for SEND method"))?;
 
     Ok(serde_json::json!({
@@ -361,7 +380,9 @@ fn build_send_value(opts: &Opts) -> Result<Value> {
 }
 
 fn build_recv_value(opts: &Opts) -> Result<Value> {
-    let send_commit_id = opts.send_commit_id.as_ref()
+    let send_commit_id = opts
+        .send_commit_id
+        .as_ref()
         .ok_or_else(|| anyhow::anyhow!("--send-commit-id is required for RECV method"))?;
 
     Ok(serde_json::json!({
@@ -380,12 +401,12 @@ fn build_invoke_value(opts: &Opts) -> Result<Value> {
         // Parse the value as JSON
         let value: Value = serde_json::from_str(value_str)
             .map_err(|e| anyhow::anyhow!("INVOKE value must be valid JSON: {}", e))?;
-        
+
         // Ensure it has an args field
         if !value.is_object() || !value.as_object().unwrap().contains_key("args") {
             anyhow::bail!("INVOKE value must be an object with 'args' field");
         }
-        
+
         Ok(value)
     } else {
         anyhow::bail!("--value is required for INVOKE method (must contain {{\"args\": {{...}}}})");

@@ -4256,10 +4256,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
- "chrono",
  "clap",
  "colored",
- "dirs",
  "hex",
  "modal-cli-common",
  "modal-common",
@@ -4379,6 +4377,7 @@ dependencies = [
  "base64ct",
  "bip39",
  "ctrlc",
+ "dirs",
  "ed25519-dalek 1.0.1",
  "hex",
  "hickory-resolver",
@@ -4400,6 +4399,7 @@ dependencies = [
  "serde_json",
  "sha1",
  "sha2 0.10.9",
+ "tempfile",
  "tokio",
  "zeroize",
 ]
@@ -4651,7 +4651,6 @@ version = "0.1.7"
 dependencies = [
  "anyhow",
  "clap",
- "dirs",
  "libp2p",
  "log",
  "modal-common",

@@ -19,37 +19,37 @@ enum Commands {
     Add {
         /// Remote name (e.g., origin, hub, chain)
         name: String,
-        
+
         /// Remote URL (http://... for hub, /ip4/... for chain)
         url: String,
-        
+
         /// Contract directory
         #[clap(long)]
         dir: Option<PathBuf>,
     },
-    
+
     /// Remove a remote
     Remove {
         /// Remote name
         name: String,
-        
+
         /// Contract directory
         #[clap(long)]
         dir: Option<PathBuf>,
     },
-    
+
     /// List remotes
     List {
         /// Contract directory
         #[clap(long)]
         dir: Option<PathBuf>,
     },
-    
+
     /// Show remote URL
     Get {
         /// Remote name
         name: String,
-        
+
         /// Contract directory
         #[clap(long)]
         dir: Option<PathBuf>,
@@ -64,24 +64,24 @@ pub async fn run(opts: &Opts) -> Result<()> {
             let contract_dir = dir.clone().unwrap_or(std::env::current_dir()?);
             let store = ContractStore::open(&contract_dir)?;
             let mut config = store.load_config()?;
-            
+
             let remote_type = if url.starts_with("http://") || url.starts_with("https://") {
                 "hub"
             } else {
                 "chain"
             };
-            
+
             config.add_remote(name.clone(), url.clone());
             store.save_config(&config)?;
-            
+
             println!("✅ Added remote '{}' ({}) -> {}", name, remote_type, url);
         }
-        
+
         Commands::Remove { name, dir } => {
             let contract_dir = dir.clone().unwrap_or(std::env::current_dir()?);
             let store = ContractStore::open(&contract_dir)?;
             let mut config = store.load_config()?;
-            
+
             if config.get_remote(name).is_some() {
                 config.remove_remote(name);
                 store.save_config(&config)?;
@@ -90,12 +90,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 println!("⚠️  Remote '{}' not found", name);
             }
         }
-        
+
         Commands::List { dir } => {
             let contract_dir = dir.clone().unwrap_or(std::env::current_dir()?);
             let store = ContractStore::open(&contract_dir)?;
             let config = store.load_config()?;
-            
+
             let remotes = config.list_remotes();
             if remotes.is_empty() {
                 println!("No remotes configured");
@@ -105,17 +105,21 @@ pub async fn run(opts: &Opts) -> Result<()> {
             } else {
                 println!("Remotes:");
                 for remote in remotes {
-                    let remote_type = if remote.url.starts_with("http") { "hub" } else { "chain" };
+                    let remote_type = if remote.url.starts_with("http") {
+                        "hub"
+                    } else {
+                        "chain"
+                    };
                     println!("  {} ({}) -> {}", remote.name, remote_type, remote.url);
                 }
             }
         }
-        
+
         Commands::Get { name, dir } => {
             let contract_dir = dir.clone().unwrap_or(std::env::current_dir()?);
             let store = ContractStore::open(&contract_dir)?;
             let config = store.load_config()?;
-            
+
             if let Some(remote) = config.get_remote(name) {
                 println!("{}", remote.url);
             } else {
@@ -123,6 +127,6 @@ pub async fn run(opts: &Opts) -> Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }

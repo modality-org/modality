@@ -22,7 +22,12 @@ const config: Config = {
 
   markdown: {
     format: 'md',
+    mermaid: true,
   },
+
+  themes: ['@docusaurus/theme-mermaid'],
+
+  clientModules: ['./src/clientModules/cmdOutputStack.ts'],
 
   i18n: {
     defaultLocale: 'en',
@@ -138,6 +143,9 @@ const config: Config = {
         },
       ],
       copyright: `Copyright © ${new Date().getFullYear()} Modality. Inspired by <a href="https://scholar.google.com/citations?user=kXVBr20AAAAJ&hl=en&oi=ao" target="_blank">Bud Mishra</a>'s work on formal verification.`,
+    },
+    mermaid: {
+      theme: {light: 'neutral', dark: 'dark'},
     },
     prism: {
       theme: prismThemes.github,

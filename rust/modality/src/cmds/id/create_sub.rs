@@ -17,7 +17,7 @@ pub struct Opts {
     /// Mutually exclusive with --mnemonic
     #[clap(long, conflicts_with = "mnemonic")]
     master_passfile: Option<PathBuf>,
-    
+
     /// Password for encrypted master passfile (will prompt if needed)
     #[clap(long)]
     password: Option<String>,
@@ -69,12 +69,15 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Load or derive the base keypair
     let base_keypair = if let Some(master_passfile_path) = &opts.master_passfile {
         // Load from master passfile
-        println!("   Loading master keypair from: {}", master_passfile_path.display());
-        
-        let passfile_str = master_passfile_path.to_str().ok_or_else(|| {
-            anyhow::anyhow!("Invalid master passfile path")
-        })?;
-        
+        println!(
+            "   Loading master keypair from: {}",
+            master_passfile_path.display()
+        );
+
+        let passfile_str = master_passfile_path
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("Invalid master passfile path"))?;
+
         // Try to load the keypair (handles both encrypted and unencrypted)
         let keypair = if let Ok(kp) = Keypair::from_json_file(passfile_str) {
             kp
@@ -86,11 +89,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 println!("🔐 Master passfile is encrypted. Enter password:");
                 read_password()?
             };
-            
+
             Keypair::from_encrypted_json_file(passfile_str, &password)
                 .context("Failed to load master keypair from passfile")?
         };
-        
+
         keypair
     } else {
         // Derive from mnemonic (existing logic)
@@ -111,30 +114,20 @@ pub async fn run(opts: &Opts) -> Result<()> {
     };
 
     // Now derive the child keypair from the seed
-    let keypair = base_keypair.derive_from_seed(&opts.seed)
+    let keypair = base_keypair
+        .derive_from_seed(&opts.seed)
         .context("Failed to derive sub-keypair from seed")?;
 
     let address = keypair.as_public_address();
 
-    // Create path using proper path handling
-    let filepath = if opts.path.is_some() {
-        opts.path.clone().unwrap()
+    let filepath = if let Some(path) = &opts.path {
+        path.clone()
     } else {
         let filename = opts
             .name
             .clone()
             .unwrap_or_else(|| opts.seed.replace([':', '/', '\\'], "-"));
-        let default_dir = if let Some(home) = dirs::home_dir() {
-            let home_dot_modality = home.join(".modality");
-            std::fs::create_dir_all(&home_dot_modality).expect("Failed to create directory");
-            home_dot_modality
-        } else {
-            PathBuf::from(".")
-        };
-        opts.dir
-            .clone()
-            .unwrap_or(default_dir)
-            .join(format!("{}.mod_passfile", filename))
+        modal_common::passfile::named_passfile_create_path(&filename, opts.dir.as_deref())?
     };
 
     // Check if file already exists
@@ -145,9 +138,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         ));
     }
 
-    let filepath_str = filepath.to_str().ok_or_else(|| {
-        anyhow::anyhow!("Invalid file path: contains non-Unicode characters")
-    })?;
+    let filepath_str = filepath
+        .to_str()
+        .ok_or_else(|| anyhow::anyhow!("Invalid file path: contains non-Unicode characters"))?;
 
     let mnemonic_to_store = if opts.store_mnemonic && opts.mnemonic.is_some() {
         opts.mnemonic.clone()
@@ -183,6 +176,14 @@ pub async fn run(opts: &Opts) -> Result<()> {
     println!("📍 Modality ID: {}", address);
     println!("🏷️  Seed Derivation: seed:{}", opts.seed);
     println!("💾 Modality Passfile saved to: {}", filepath.display());
+    if opts.path.is_none() {
+        let name = opts
+            .name
+            .clone()
+            .unwrap_or_else(|| opts.seed.replace([':', '/', '\\'], "-"));
+        let id_path = modal_common::passfile::write_named_public_id(&name, &address)?;
+        println!("🪪 Public ID saved to: {}", id_path.display());
+    }
 
     if mnemonic_to_store.is_some() {
         if opts.encrypt {
@@ -194,10 +195,14 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     println!("\n💡 TIP: You can create more sub-keypairs from the same master:");
     if let Some(master_path) = &opts.master_passfile {
-        println!("   modal id create-sub --master-passfile {} --seed validator", 
-            master_path.display());
-        println!("   modal id create-sub --master-passfile {} --seed treasury", 
-            master_path.display());
+        println!(
+            "   modal id create-sub --master-passfile {} --seed validator",
+            master_path.display()
+        );
+        println!(
+            "   modal id create-sub --master-passfile {} --seed treasury",
+            master_path.display()
+        );
     } else {
         println!("   modal id create-sub --mnemonic \"...\" --seed validator");
         println!("   modal id create-sub --mnemonic \"...\" --seed treasury");
@@ -225,4 +230,3 @@ fn get_password() -> Result<String> {
 
     Ok(password)
 }
-

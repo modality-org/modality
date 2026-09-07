@@ -25,7 +25,6 @@ serde_json = "1.0.116"
 modal-common = { path = "../modal-common", version = "0.1.7", optional = true }
 modal-node = { path = "../modal-node", optional = true }
 modal-datastore = { path = "../modal-datastore", optional = true }
-dirs = { version = "5.0", optional = true }
 libp2p = { version = "0.54.1", optional = true }
 log = { version = "0.4.17", optional = true }
 reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false, optional = true }
@@ -36,7 +35,7 @@ serde = { version = "1.0.200", features = ["derive"], optional = true }
 [features]
 default = []
 contract = ["dep:modal-common"]
-identity = ["dep:dirs", "dep:modal-common", "dep:rpassword"]
+identity = ["dep:modal-common", "dep:rpassword"]
 node = ["dep:libp2p", "dep:log", "dep:modal-datastore", "dep:modal-node"]
 passfile = ["dep:modal-common", "dep:rpassword"]
 upgrade = ["dep:reqwest", "dep:self-replace", "dep:serde"]

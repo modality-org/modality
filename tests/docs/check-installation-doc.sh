@@ -18,6 +18,8 @@ required_patterns=(
   "\`modality model synthesize\`"
   "\`modality model validate\`"
   "\`modality model lint\`"
+  "\`modality model mermaid\`"
+  "\`modality model view\`"
   "A successful onboarding install should make both command surfaces visible"
   "Git URL installs are measured by"
   "tests/cli/check-modal-git-install-readiness.sh"

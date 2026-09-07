@@ -10,11 +10,11 @@ use zip::ZipArchive;
 pub struct Opts {
     /// Input .contract file path
     input: PathBuf,
-    
+
     /// Output directory (defaults to filename without .contract extension)
     #[clap(short, long)]
     output: Option<PathBuf>,
-    
+
     /// Overwrite existing directory
     #[clap(long)]
     force: bool,
@@ -25,17 +25,19 @@ pub async fn run(opts: &Opts) -> Result<()> {
     if !opts.input.exists() {
         anyhow::bail!("File not found: {}", opts.input.display());
     }
-    
+
     // Determine output directory
     let output = if let Some(out) = &opts.output {
         out.clone()
     } else {
-        let stem = opts.input.file_stem()
+        let stem = opts
+            .input
+            .file_stem()
             .and_then(|n| n.to_str())
             .unwrap_or("contract");
         PathBuf::from(stem)
     };
-    
+
     // Check if output exists
     if output.exists() && !opts.force {
         anyhow::bail!(
@@ -43,19 +45,19 @@ pub async fn run(opts: &Opts) -> Result<()> {
             output.display()
         );
     }
-    
+
     // Create output directory
     std::fs::create_dir_all(&output)?;
-    
+
     // Open and extract zip
     let file = File::open(&opts.input)?;
     let mut archive = ZipArchive::new(file)?;
-    
+
     let mut file_count = 0;
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
         let outpath = output.join(file.name());
-        
+
         if file.name().ends_with('/') {
             std::fs::create_dir_all(&outpath)?;
         } else {
@@ -69,8 +71,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
             file_count += 1;
         }
     }
-    
+
     println!("✅ Unpacked {} files to {}", file_count, output.display());
-    
+
     Ok(())
 }

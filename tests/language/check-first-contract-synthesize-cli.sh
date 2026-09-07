@@ -30,6 +30,8 @@ REVIEW_BUNDLE="$TMP_DIR/authorized-review.md"
 LINT_OUT="$TMP_DIR/lint.out"
 SYNTH_OUT="$TMP_DIR/synthesize.out"
 VALIDATE_OUT="$TMP_DIR/validate.out"
+MERMAID_OUT="$TMP_DIR/mermaid.out"
+VIEW_OUT="$TMP_DIR/view.out"
 
 cat >"$RULE" <<'EOF'
 export default rule {
@@ -121,5 +123,46 @@ for pattern in "${required_validation_patterns[@]}"; do
     exit 1
   fi
 done
+
+"$MODALITY_BIN" model mermaid "$MODEL" >"$MERMAID_OUT" 2>&1
+
+required_mermaid_patterns=(
+  "stateDiagram-v2"
+  "q0 --> q1 : +POST +MODEL"
+  '"+POST +signed_by(/parties/alice.id)"'
+  '"+POST +signed_by(/parties/bob.id)"'
+  '"+MODEL +signed_by(/parties/alice.id)"'
+)
+
+for pattern in "${required_mermaid_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$MERMAID_OUT"; then
+    echo "first-contract synthesized witness mermaid output is missing: $pattern" >&2
+    cat "$MERMAID_OUT" >&2
+    exit 1
+  fi
+done
+
+"$MODALITY_BIN" model view "$MODEL" --no-open >"$VIEW_OUT" 2>&1
+
+if ! grep -q "^Wrote " "$VIEW_OUT"; then
+  echo "first-contract model view did not write a temp HTML file" >&2
+  cat "$VIEW_OUT" >&2
+  exit 1
+fi
+VIEW_HTML="$(sed -n 's/^Wrote //p' "$VIEW_OUT")"
+required_view_patterns=(
+  "mermaid.min.js"
+  "stateDiagram-v2"
+  "+signed_by(/parties/alice.id)"
+  "+signed_by(/parties/bob.id)"
+)
+for pattern in "${required_view_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$VIEW_HTML"; then
+    echo "first-contract model view HTML is missing: $pattern" >&2
+    cat "$VIEW_HTML" >&2
+    exit 1
+  fi
+done
+rm -f "$VIEW_HTML"
 
 echo "first-contract synthesize CLI smoke passed"

@@ -3,8 +3,8 @@ use clap::Parser;
 use serde_json::json;
 use std::path::PathBuf;
 
-use modal_common::contract_store::{ContractStore, CommitFile};
-use modal_common::hub_client::{HubClient, HubCredentials, is_hub_url};
+use modal_common::contract_store::{CommitFile, ContractStore};
+use modal_common::hub_client::{is_hub_url, HubClient, HubCredentials};
 
 #[cfg(feature = "p2p")]
 use modal_node::actions::request;
@@ -21,23 +21,23 @@ pub struct Opts {
     /// Target node multiaddress or hub URL (http://...)
     #[clap(long)]
     remote: Option<String>,
-    
+
     /// Remote name (default: origin)
     #[clap(long, default_value = "origin")]
     remote_name: String,
-    
+
     /// Contract directory (defaults to current directory)
     #[clap(long)]
     dir: Option<PathBuf>,
-    
+
     /// Node directory for config (optional, for identity)
     #[clap(long)]
     node_dir: Option<PathBuf>,
-    
+
     /// Hub credentials file (for HTTP hub remotes)
     #[clap(long)]
     hub_creds: Option<PathBuf>,
-    
+
     /// Output format (json or text)
     #[clap(long, default_value = "text")]
     output: String,
@@ -64,9 +64,16 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let remote_url = if let Some(url) = &opts.remote {
         url.clone()
     } else {
-        config.get_remote(&opts.remote_name)
-            .ok_or_else(|| anyhow::anyhow!("Remote '{}' not found. Use --remote to specify.", opts.remote_name))?
-            .url.clone()
+        config
+            .get_remote(&opts.remote_name)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Remote '{}' not found. Use --remote to specify.",
+                    opts.remote_name
+                )
+            })?
+            .url
+            .clone()
     };
 
     // Get current remote HEAD (what we last pulled)
@@ -75,67 +82,75 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Fetch commits based on remote type
     let commits: Vec<serde_json::Value> = if is_hub_url(&remote_url) {
         // HTTP Hub pull
-        let creds_path = opts.hub_creds.clone()
+        let creds_path = opts
+            .hub_creds
+            .clone()
             .unwrap_or_else(|| contract_dir.join(".modal-hub/credentials.json"));
-        
+
         if !creds_path.exists() {
             anyhow::bail!(
                 "Hub credentials not found at {:?}\nRun: modal hub register",
                 creds_path
             );
         }
-        
+
         let creds = HubCredentials::load(&creds_path)?;
         let hub = HubClient::new(&creds)?;
-        
-        let (_head, commits) = hub.pull(&config.contract_id, since_commit.as_deref()).await?;
+
+        let (_head, commits) = hub
+            .pull(&config.contract_id, since_commit.as_deref())
+            .await?;
         commits
     } else {
         #[cfg(feature = "p2p")]
         {
-        // P2P node pull
-        let node_config = if let Some(node_dir) = &opts.node_dir {
-            let config_path = node_dir.join("config.json");
-            if config_path.exists() {
-                let config_json = std::fs::read_to_string(&config_path)?;
-                let mut config: modal_node::config::Config = serde_json::from_str(&config_json)?;
-                config.storage_path = None;
-                config.logs_path = None;
-                let passfile_path = node_dir.join("node.modal_passfile");
-                if passfile_path.exists() {
-                    config.passfile_path = Some(passfile_path);
+            // P2P node pull
+            let node_config = if let Some(node_dir) = &opts.node_dir {
+                let config_path = node_dir.join("config.json");
+                if config_path.exists() {
+                    let config_json = std::fs::read_to_string(&config_path)?;
+                    let mut config: modal_node::config::Config =
+                        serde_json::from_str(&config_json)?;
+                    config.storage_path = None;
+                    config.logs_path = None;
+                    let passfile_path = node_dir.join("node.modal_passfile");
+                    if passfile_path.exists() {
+                        config.passfile_path = Some(passfile_path);
+                    }
+                    config
+                } else {
+                    modal_node::config::Config::default()
                 }
-                config
             } else {
                 modal_node::config::Config::default()
+            };
+
+            let mut node = Node::from_config(node_config).await?;
+
+            let request_data = json!({
+                "contract_id": config.contract_id,
+                "since_commit_id": since_commit,
+            });
+
+            let response = request::run(
+                &mut node,
+                remote_url.clone(),
+                "/contract/pull".to_string(),
+                serde_json::to_string(&request_data)?,
+            )
+            .await?;
+
+            if !response.ok {
+                anyhow::bail!("Failed to pull commits: {:?}", response.errors);
             }
-        } else {
-            modal_node::config::Config::default()
-        };
 
-        let mut node = Node::from_config(node_config).await?;
-
-        let request_data = json!({
-            "contract_id": config.contract_id,
-            "since_commit_id": since_commit,
-        });
-
-        let response = request::run(
-            &mut node,
-            remote_url.clone(),
-            "/contract/pull".to_string(),
-            serde_json::to_string(&request_data)?,
-        ).await?;
-
-        if !response.ok {
-            anyhow::bail!("Failed to pull commits: {:?}", response.errors);
-        }
-
-        let data = response.data.ok_or_else(|| anyhow::anyhow!("No data in response"))?;
-        data.get("commits")
-            .and_then(|c| c.as_array())
-            .cloned()
-            .ok_or_else(|| anyhow::anyhow!("Invalid response format"))?
+            let data = response
+                .data
+                .ok_or_else(|| anyhow::anyhow!("No data in response"))?;
+            data.get("commits")
+                .and_then(|c| c.as_array())
+                .cloned()
+                .ok_or_else(|| anyhow::anyhow!("Invalid response format"))?
         }
         #[cfg(not(feature = "p2p"))]
         {
@@ -147,10 +162,13 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     if commits.is_empty() {
         if opts.output == "json" {
-            println!("{}", serde_json::to_string_pretty(&json!({
-                "status": "up-to-date",
-                "pulled_count": 0,
-            }))?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "status": "up-to-date",
+                    "pulled_count": 0,
+                }))?
+            );
         } else {
             println!("✅ Already up-to-date. Nothing to pull.");
         }
@@ -163,22 +181,26 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     for commit_data in &commits {
         // Handle both hub format (hash/data/parent) and p2p format (commit_id/body/head)
-        let commit_id = commit_data.get("hash")
+        let commit_id = commit_data
+            .get("hash")
             .or_else(|| commit_data.get("commit_id"))
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing commit id (hash or commit_id)"))?;
-        
+
         // For hub format, reconstruct body/head from data/parent
         let (body, head) = if let Some(data) = commit_data.get("data") {
-            let parent = commit_data.get("parent")
+            let parent = commit_data
+                .get("parent")
                 .and_then(|p| p.as_str())
                 .map(|s| s.to_string());
             (data.clone(), json!({ "parent": parent }))
         } else {
-            let body = commit_data.get("body")
+            let body = commit_data
+                .get("body")
                 .ok_or_else(|| anyhow::anyhow!("Missing body"))?
                 .clone();
-            let head = commit_data.get("head")
+            let head = commit_data
+                .get("head")
                 .ok_or_else(|| anyhow::anyhow!("Missing head"))?
                 .clone();
             (body, head)
@@ -202,7 +224,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Update remote HEAD
     if let Some(latest) = latest_commit_id {
         store.set_remote_head(&opts.remote_name, &latest)?;
-        
+
         // If local HEAD is not set or is behind, update it
         let local_head = store.get_head()?;
         if local_head.is_none() {
@@ -216,11 +238,14 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     if opts.output == "json" {
-        println!("{}", serde_json::to_string_pretty(&json!({
-            "status": "pulled",
-            "pulled_count": pulled_ids.len(),
-            "commits": pulled_ids,
-        }))?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "status": "pulled",
+                "pulled_count": pulled_ids.len(),
+                "commits": pulled_ids,
+            }))?
+        );
     } else {
         println!("✅ Successfully pulled {} commit(s)!", pulled_ids.len());
         println!("   Contract ID: {}", config.contract_id);
@@ -241,10 +266,13 @@ pub async fn run(opts: &Opts) -> Result<()> {
 /// Creates a local directory and pulls all commits via the public /log endpoint.
 async fn clone_from_url(url: &str, opts: &Opts) -> Result<()> {
     // Parse URL: expect https://host/contracts/<contract_id>
-    let contracts_idx = url.find("/contracts/")
+    let contracts_idx = url
+        .find("/contracts/")
         .ok_or_else(|| anyhow::anyhow!("URL must contain /contracts/<id>"))?;
     let hub_base = url[..contracts_idx].to_string();
-    let contract_id = url[contracts_idx + "/contracts/".len()..].trim_matches('/').to_string();
+    let contract_id = url[contracts_idx + "/contracts/".len()..]
+        .trim_matches('/')
+        .to_string();
     if contract_id.is_empty() {
         anyhow::bail!("URL must be in format https://host/contracts/<id>");
     }
@@ -263,16 +291,18 @@ async fn clone_from_url(url: &str, opts: &Opts) -> Result<()> {
     let client = reqwest::Client::new();
     let log_url = format!("{}/contracts/{}/log", hub_base, contract_id);
     let resp = client.get(&log_url).send().await?;
-    
+
     if !resp.status().is_success() {
         anyhow::bail!("Failed to fetch contract: HTTP {}", resp.status());
     }
 
     let log_data: serde_json::Value = resp.json().await?;
-    let commits = log_data.get("commits")
+    let commits = log_data
+        .get("commits")
         .and_then(|c| c.as_array())
         .ok_or_else(|| anyhow::anyhow!("Invalid response: missing commits array"))?;
-    let head = log_data.get("head")
+    let head = log_data
+        .get("head")
         .and_then(|h| h.as_str())
         .ok_or_else(|| anyhow::anyhow!("Invalid response: missing head"))?;
 
@@ -283,21 +313,28 @@ async fn clone_from_url(url: &str, opts: &Opts) -> Result<()> {
     // Create contract directory and store
     std::fs::create_dir_all(&contract_dir)?;
     let store = ContractStore::init(&contract_dir, contract_id.clone())?;
-    
+
     // Save remote in config
     let mut config = store.load_config()?;
-    config.add_remote(opts.remote_name.clone(), format!("{}/contracts/{}", hub_base, contract_id));
+    config.add_remote(
+        opts.remote_name.clone(),
+        format!("{}/contracts/{}", hub_base, contract_id),
+    );
     config.save(&store.contract_dir().join("config.json"))?;
 
     // Save commits
     let mut count = 0;
     for commit_data in commits {
-        let commit_id = commit_data.get("hash")
+        let commit_id = commit_data
+            .get("hash")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("Commit missing hash"))?;
 
         let data = commit_data.get("data").cloned().unwrap_or(json!({}));
-        let parent = commit_data.get("parent").and_then(|p| p.as_str()).map(|s| s.to_string());
+        let parent = commit_data
+            .get("parent")
+            .and_then(|p| p.as_str())
+            .map(|s| s.to_string());
         let signature = commit_data.get("signature").cloned();
 
         let mut head_obj = json!({ "parent": parent });
@@ -321,7 +358,11 @@ async fn clone_from_url(url: &str, opts: &Opts) -> Result<()> {
             arr
         } else {
             // Single action object with method/path/body
-            let method = data.get("method").and_then(|v| v.as_str()).unwrap_or("post").to_lowercase();
+            let method = data
+                .get("method")
+                .and_then(|v| v.as_str())
+                .unwrap_or("post")
+                .to_lowercase();
             vec![json!({
                 "method": method,
                 "path": data.get("path"),
@@ -348,21 +389,26 @@ async fn clone_from_url(url: &str, opts: &Opts) -> Result<()> {
     store.checkout_state()?;
 
     if opts.output == "json" {
-        println!("{}", serde_json::to_string_pretty(&json!({
-            "status": "cloned",
-            "contract_id": contract_id,
-            "directory": contract_dir.display().to_string(),
-            "pulled_count": count,
-            "head": head,
-        }))?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "status": "cloned",
+                "contract_id": contract_id,
+                "directory": contract_dir.display().to_string(),
+                "pulled_count": count,
+                "head": head,
+            }))?
+        );
     } else {
         println!("✅ Cloned contract into '{}'", contract_dir.display());
         println!("   Contract ID: {}", contract_id);
         println!("   Commits: {}", count);
         println!("   Head: {}", head);
-        println!("   Remote: {} ({}/contracts/{})", opts.remote_name, hub_base, contract_id);
+        println!(
+            "   Remote: {} ({}/contracts/{})",
+            opts.remote_name, hub_base, contract_id
+        );
     }
 
     Ok(())
 }
-

@@ -3114,7 +3114,9 @@ fn synthesis_list_text() -> String {
     output.push_str("Available templates:\n\n");
     output.push_str("  escrow              Two-party escrow with deposit/deliver/release\n");
     output.push_str("  handshake           Mutual agreement requiring both signatures\n");
-    output.push_str("  mutual_cooperation  Cooperation game - both must cooperate, defection blocked\n");
+    output.push_str(
+        "  mutual_cooperation  Cooperation game - both must cooperate, defection blocked\n",
+    );
     output.push_str("  atomic_swap         Both parties commit before either can claim\n");
     output.push_str("  multisig            N-of-M signature approval pattern\n");
     output.push_str("  turn_taking         Alternating two-party turn cycle\n");
@@ -3124,12 +3126,14 @@ fn synthesis_list_text() -> String {
     output.push_str("  subscription        Recurring payment for service access\n");
     output.push_str("  milestone           Multi-phase project with payments\n");
     output.push_str("\nUsage:\n");
-    output.push_str("  modality model synthesize --template escrow --party-a Buyer --party-b Seller\n");
-    output.push_str("\nOr describe in natural language:\n");
     output.push_str(
-        "  modality model synthesize --describe \"escrow where buyer deposits funds\"\n",
+        "  modality model synthesize --template escrow --party-a Buyer --party-b Seller\n",
     );
-    output.push_str("  modality model synthesize --describe \"Alice and Bob take turns signing\"\n");
+    output.push_str("\nOr describe in natural language:\n");
+    output
+        .push_str("  modality model synthesize --describe \"escrow where buyer deposits funds\"\n");
+    output
+        .push_str("  modality model synthesize --describe \"Alice and Bob take turns signing\"\n");
     output.push_str("\nOr evolve an existing model with a proposed rule:\n");
     output.push_str(
         "  modality model synthesize --existing-model contract.modality --proposed-rule amendment.modality --output candidate.modality\n",
@@ -3675,18 +3679,16 @@ fn run_existing_model_synthesis(opts: &Opts) -> Result<()> {
             failed.len(),
             failed.join(", ")
         );
-        println!("🔧 Synthesizing a local replacement candidate from existing plus proposed formulas\n");
+        println!(
+            "🔧 Synthesizing a local replacement candidate from existing plus proposed formulas\n"
+        );
 
         let candidate_name = replacement_candidate_name(&existing_input.model);
         let candidate = modality_lang::formula_synthesis::synthesize_from_formulas(
             &candidate_name,
             &candidate_formulas,
         );
-        verify_synthesized_model_with_labels(
-            &candidate,
-            &candidate_formulas,
-            &candidate_labels,
-        )?;
+        verify_synthesized_model_with_labels(&candidate, &candidate_formulas, &candidate_labels)?;
         println!();
         candidate
     };
@@ -4099,9 +4101,7 @@ fn first_contract_always_unsigned_false_signers(
     expr: &modality_lang::FormulaExpr,
 ) -> Option<Vec<String>> {
     match expr {
-        modality_lang::FormulaExpr::Always(inner) => {
-            first_contract_unsigned_false_signers(inner)
-        }
+        modality_lang::FormulaExpr::Always(inner) => first_contract_unsigned_false_signers(inner),
         modality_lang::FormulaExpr::Paren(inner) => {
             first_contract_always_unsigned_false_signers(inner)
         }
@@ -4241,7 +4241,10 @@ fn parse_formula_strings(formulas: &[String]) -> Vec<modality_lang::FormulaExpr>
     parse_formula_inputs(formulas).formulas
 }
 
-fn parse_formula_string(index: usize, formula: &str) -> Result<Vec<modality_lang::Formula>, String> {
+fn parse_formula_string(
+    index: usize,
+    formula: &str,
+) -> Result<Vec<modality_lang::Formula>, String> {
     match modality_lang::parse_all_formulas_content_lalrpop(formula) {
         Ok(parsed) if !parsed.is_empty() => return Ok(parsed),
         Ok(_) => {}
@@ -4256,12 +4259,10 @@ fn parse_formula_string(index: usize, formula: &str) -> Result<Vec<modality_lang
             return match modality_lang::parse_all_formulas_content_lalrpop(&wrapped) {
                 Ok(parsed) if !parsed.is_empty() => Ok(parsed),
                 Ok(_) => Err("wrapped expression parse produced no formulas".to_string()),
-                Err(wrapped_err) => Err(
-                    format!(
-                        "declared formula parse failed: {}; wrapped expression parse failed: {}",
-                        err, wrapped_err
-                    ),
-                ),
+                Err(wrapped_err) => Err(format!(
+                    "declared formula parse failed: {}; wrapped expression parse failed: {}",
+                    err, wrapped_err
+                )),
             };
         }
     }
@@ -4274,7 +4275,9 @@ fn parse_formula_string(index: usize, formula: &str) -> Result<Vec<modality_lang
     }
 }
 
-fn parse_rule_formula_blocks_for_synthesis(content: &str) -> Result<Vec<modality_lang::Formula>, String> {
+fn parse_rule_formula_blocks_for_synthesis(
+    content: &str,
+) -> Result<Vec<modality_lang::Formula>, String> {
     let content = strip_line_comments(content);
     let mut formulas = Vec::new();
     let mut cursor = 0usize;
@@ -4576,7 +4579,12 @@ fn is_path_arg(value: &str) -> bool {
 fn is_external_evidence_predicate(name: &str) -> bool {
     !matches!(
         name,
-        "signed_by" | "any_signed" | "all_signed" | "threshold" | "modifies" | "adds_rule"
+        "signed_by"
+            | "any_signed"
+            | "all_signed"
+            | "threshold"
+            | "modifies"
+            | "adds_rule"
             | "post_to"
     )
 }
@@ -5097,7 +5105,9 @@ fn format_synthesis_review_bundle(
     output.push_str("\n```\n\n");
 
     output.push_str("## Extracted Facts\n\n");
-    output.push_str("- Extraction source: parser-backed formula AST, not inferred natural language.\n");
+    output.push_str(
+        "- Extraction source: parser-backed formula AST, not inferred natural language.\n",
+    );
     output.push_str(
         "- These facts summarize the modal actions, predicates, and opaque atoms that drive the witness search.\n\n",
     );
@@ -5173,7 +5183,9 @@ fn write_source_clause_trace(
     formula_count: usize,
 ) {
     let Some(review_source) = review_source else {
-        output.push_str("- No original source was supplied, so no source-clause trace is available.\n\n");
+        output.push_str(
+            "- No original source was supplied, so no source-clause trace is available.\n\n",
+        );
         return;
     };
 
@@ -5219,7 +5231,11 @@ fn write_review_checklist(
     verifier_passed: bool,
 ) {
     output.push_str("- Original source captured: ");
-    output.push_str(if review_source.is_some() { "yes\n" } else { "no\n" });
+    output.push_str(if review_source.is_some() {
+        "yes\n"
+    } else {
+        "no\n"
+    });
 
     output.push_str("- Source-clause trace present: ");
     let trace_present = review_source
@@ -5469,8 +5485,7 @@ mod tests {
 
         assert_eq!(parsed.len(), 2);
 
-        let model =
-            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &parsed);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &parsed);
         let transitions = &model.parts[0].transitions;
         assert!(transitions
             .iter()
@@ -5501,8 +5516,7 @@ mod tests {
 
     #[test]
     fn parse_formula_strings_accepts_multiple_declarations_from_one_input() {
-        let formulas = vec![
-            r#"
+        let formulas = vec![r#"
 formula approval_required {
 always([<+APPROVE>] true)
 }
@@ -5511,14 +5525,12 @@ formula approval_signed {
 [+APPROVE] true -> <+signed_by(/users/reviewer.id)> true
 }
 "#
-            .to_string(),
-        ];
+        .to_string()];
 
         let parsed = parse_formula_strings(&formulas);
         assert_eq!(parsed.len(), 2);
 
-        let model =
-            modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &parsed);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &parsed);
 
         verify_synthesized_model(&model, &parsed).unwrap();
     }
@@ -5602,10 +5614,9 @@ formula approval_signed {
 
         let err = run(&opts).await.unwrap_err();
 
-        assert!(
-            err.to_string()
-                .contains("--rule cannot be combined with other synthesis modes: --milestones")
-        );
+        assert!(err
+            .to_string()
+            .contains("--rule cannot be combined with other synthesis modes: --milestones"));
     }
 
     #[tokio::test]
@@ -5626,9 +5637,8 @@ formula approval_signed {
         let err = run(&opts).await.unwrap_err();
 
         let message = err.to_string();
-        assert!(message.contains(
-            "--rule cannot be combined with other synthesis modes: --llm-response-file"
-        ));
+        assert!(message
+            .contains("--rule cannot be combined with other synthesis modes: --llm-response-file"));
         assert!(!message.contains(&missing_rule_path.display().to_string()));
         assert!(!message.contains(&missing_response_path.display().to_string()));
     }
@@ -5941,9 +5951,9 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
         let err = run(&opts).await.unwrap_err();
 
-        assert!(err.to_string().contains(
-            "--generate-prompt cannot be combined with other synthesis modes: --verify"
-        ));
+        assert!(err
+            .to_string()
+            .contains("--generate-prompt cannot be combined with other synthesis modes: --verify"));
     }
 
     #[tokio::test]
@@ -6011,9 +6021,9 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
         let err = run(&opts).await.unwrap_err();
 
-        assert!(err.to_string().contains(
-            "--list cannot be combined with other synthesis modes: --verify"
-        ));
+        assert!(err
+            .to_string()
+            .contains("--list cannot be combined with other synthesis modes: --verify"));
     }
 
     #[tokio::test]
@@ -6030,9 +6040,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         let err = run(&opts).await.unwrap_err();
 
         let message = err.to_string();
-        assert!(message.contains(
-            "--list cannot be combined with other synthesis modes: --llm-response-file"
-        ));
+        assert!(message
+            .contains("--list cannot be combined with other synthesis modes: --llm-response-file"));
         assert!(!message.contains(&missing_response_path.display().to_string()));
     }
 
@@ -6095,10 +6104,9 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
         let err = run(&opts).await.unwrap_err();
 
-        assert!(
-            err.to_string()
-                .contains("--template cannot be combined with other synthesis modes: --verify")
-        );
+        assert!(err
+            .to_string()
+            .contains("--template cannot be combined with other synthesis modes: --verify"));
     }
 
     #[tokio::test]
@@ -6109,10 +6117,9 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
         let err = run(&opts).await.unwrap_err();
 
-        assert!(
-            err.to_string()
-                .contains("--milestones can only be used with --template milestone")
-        );
+        assert!(err
+            .to_string()
+            .contains("--milestones can only be used with --template milestone"));
     }
 
     #[tokio::test]
@@ -6160,10 +6167,9 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
         let err = run(&opts).await.unwrap_err();
 
-        assert!(
-            err.to_string()
-                .contains("--party-b must contain only letters")
-        );
+        assert!(err
+            .to_string()
+            .contains("--party-b must contain only letters"));
     }
 
     #[tokio::test]
@@ -6205,10 +6211,9 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
         let err = run(&opts).await.unwrap_err();
 
-        assert!(
-            err.to_string()
-                .contains("--milestones requires non-empty comma-separated names")
-        );
+        assert!(err
+            .to_string()
+            .contains("--milestones requires non-empty comma-separated names"));
     }
 
     #[tokio::test]
@@ -6232,10 +6237,9 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
         let err = run(&opts).await.unwrap_err();
 
-        assert!(
-            err.to_string()
-                .contains("must start with a letter or underscore")
-        );
+        assert!(err
+            .to_string()
+            .contains("must start with a letter or underscore"));
     }
 
     #[tokio::test]
@@ -6246,7 +6250,9 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
         let err = run(&opts).await.unwrap_err();
 
-        assert!(err.to_string().contains("--milestones names must be unique"));
+        assert!(err
+            .to_string()
+            .contains("--milestones names must be unique"));
     }
 
     #[tokio::test]
@@ -6311,10 +6317,9 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
         let err = run(&opts).await.unwrap_err();
 
-        assert!(
-            err.to_string()
-                .contains("--formulas cannot be combined with other synthesis modes: --rule")
-        );
+        assert!(err
+            .to_string()
+            .contains("--formulas cannot be combined with other synthesis modes: --rule"));
     }
 
     #[tokio::test]
@@ -6357,10 +6362,9 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
         let err = run(&opts).await.unwrap_err();
 
-        assert!(
-            err.to_string()
-                .contains("--rule cannot be combined with other synthesis modes: --llm-response")
-        );
+        assert!(err
+            .to_string()
+            .contains("--rule cannot be combined with other synthesis modes: --llm-response"));
     }
 
     #[tokio::test]
@@ -6377,9 +6381,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         let err = run(&opts).await.unwrap_err();
 
         let message = err.to_string();
-        assert!(message.contains(
-            "--rule cannot be combined with other synthesis modes: --llm-response-file"
-        ));
+        assert!(message
+            .contains("--rule cannot be combined with other synthesis modes: --llm-response-file"));
         assert!(!message.contains(&missing_response_path.display().to_string()));
     }
 
@@ -6498,15 +6501,13 @@ F2: formula generated_2 {
             .iter()
             .find(|transition| {
                 transition.properties.iter().any(|property| {
-                    property.sign == modality_lang::PropertySign::Plus
-                        && property.name == "RELEASE"
+                    property.sign == modality_lang::PropertySign::Plus && property.name == "RELEASE"
                 })
             })
             .expect("synthesized model should contain a RELEASE transition");
 
         assert!(release_transition.properties.iter().any(|property| {
-            property.sign == modality_lang::PropertySign::Plus
-                && property.name == "oracle_attests"
+            property.sign == modality_lang::PropertySign::Plus && property.name == "oracle_attests"
         }));
 
         verify_synthesized_model(&model, &formulas).unwrap();
@@ -7104,9 +7105,8 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     #[test]
     fn format_synthesized_model_with_formulas_preserves_json_declarations() {
         let model = modality_lang::Model::new("Contract".to_string());
-        let declarations = vec![
-            "formula proposed_rule {\nalways([<+APPROVE>] true)\n}".to_string(),
-        ];
+        let declarations =
+            vec!["formula proposed_rule {\nalways([<+APPROVE>] true)\n}".to_string()];
 
         let json = format_synthesized_model_with_formulas(&model, "json", &declarations).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -7130,12 +7130,8 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     fn synthesis_list_includes_agent_coordination_prompt_examples() {
         let output = synthesis_list_text();
 
-        assert!(output.contains(
-            "always([+AGENT_A_TURN] true -> eventually(<+AGENT_B_TURN> true))"
-        ));
-        assert!(output.contains(
-            "always([+AGENT_B_TURN] true -> eventually(<+AGENT_A_TURN> true))"
-        ));
+        assert!(output.contains("always([+AGENT_A_TURN] true -> eventually(<+AGENT_B_TURN> true))"));
+        assert!(output.contains("always([+AGENT_B_TURN] true -> eventually(<+AGENT_A_TURN> true))"));
         assert!(output.contains(
             "always([+ASSIGN_TASK] true -> <+signed_by(/users/task_requester.id) +signed_by(/users/worker_agent.id)> true)"
         ));
@@ -7148,9 +7144,7 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     fn synthesis_list_includes_conditional_branching_prompt_examples() {
         let output = synthesis_list_text();
 
-        assert!(output.contains(
-            "always([+ASSESS] true -> (<+APPROVE> true | <+ESCALATE> true))"
-        ));
+        assert!(output.contains("always([+ASSESS] true -> (<+APPROVE> true | <+ESCALATE> true))"));
         assert!(output.contains(
             "always([+ESCALATE] true -> (<+ASSIGN_REVIEWER> true | <+REQUEST_MORE_EVIDENCE> true))"
         ));
@@ -7172,12 +7166,8 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     fn synthesis_list_includes_revision_loop_prompt_examples() {
         let output = synthesis_list_text();
 
-        assert!(output.contains(
-            "always([+REJECT] true -> (<+REVISE> true | <+CANCEL> true))"
-        ));
-        assert!(output.contains(
-            "always([+REVISE] true -> eventually(<+RESUBMIT> true))"
-        ));
+        assert!(output.contains("always([+REJECT] true -> (<+REVISE> true | <+CANCEL> true))"));
+        assert!(output.contains("always([+REVISE] true -> eventually(<+RESUBMIT> true))"));
     }
 
     #[test]
@@ -7187,9 +7177,9 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+PAYMENT_FAILED] true -> (<+RETRY_PAYMENT> true | <+CANCEL_ORDER> true))"
         ));
-        assert!(output.contains(
-            "always([+RETRY_PAYMENT] true -> eventually(<+CAPTURE_PAYMENT> true))"
-        ));
+        assert!(
+            output.contains("always([+RETRY_PAYMENT] true -> eventually(<+CAPTURE_PAYMENT> true))")
+        );
     }
 
     #[test]
@@ -7199,9 +7189,7 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+OUT_OF_STOCK] true -> (<+BACKORDER> true | <+CANCEL_ORDER> true))"
         ));
-        assert!(output.contains(
-            "always([+BACKORDER] true -> eventually(<+FULFILL_ORDER> true))"
-        ));
+        assert!(output.contains("always([+BACKORDER] true -> eventually(<+FULFILL_ORDER> true))"));
     }
 
     #[test]
@@ -7211,9 +7199,8 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+SHIPMENT_DELAYED] true -> (<+EXPEDITE_SHIPMENT> true | <+OFFER_REFUND> true))"
         ));
-        assert!(output.contains(
-            "always([+EXPEDITE_SHIPMENT] true -> eventually(<+CONFIRM_DELIVERY> true))"
-        ));
+        assert!(output
+            .contains("always([+EXPEDITE_SHIPMENT] true -> eventually(<+CONFIRM_DELIVERY> true))"));
     }
 
     #[test]
@@ -7223,9 +7210,8 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+RETURN_REQUESTED] true -> (<+AUTHORIZE_RETURN> true | <+DENY_RETURN> true))"
         ));
-        assert!(output.contains(
-            "always([+AUTHORIZE_RETURN] true -> eventually(<+RECEIVE_RETURN> true))"
-        ));
+        assert!(output
+            .contains("always([+AUTHORIZE_RETURN] true -> eventually(<+RECEIVE_RETURN> true))"));
     }
 
     #[test]
@@ -7235,9 +7221,9 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+WARRANTY_CLAIMED] true -> (<+REPLACE_ITEM> true | <+REPAIR_ITEM> true))"
         ));
-        assert!(output.contains(
-            "always([+REPLACE_ITEM] true -> eventually(<+SHIP_REPLACEMENT> true))"
-        ));
+        assert!(
+            output.contains("always([+REPLACE_ITEM] true -> eventually(<+SHIP_REPLACEMENT> true))")
+        );
     }
 
     #[test]
@@ -7259,9 +7245,8 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+ACCOUNT_FLAGGED] true -> (<+FREEZE_ACCOUNT> true | <+REQUEST_KYC_REVIEW> true))"
         ));
-        assert!(output.contains(
-            "always([+FREEZE_ACCOUNT] true -> eventually(<+NOTIFY_CUSTOMER> true))"
-        ));
+        assert!(output
+            .contains("always([+FREEZE_ACCOUNT] true -> eventually(<+NOTIFY_CUSTOMER> true))"));
     }
 
     #[test]
@@ -7271,9 +7256,8 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+OUTAGE_REPORTED] true -> (<+FAILOVER_SERVICE> true | <+ISSUE_STATUS_UPDATE> true))"
         ));
-        assert!(output.contains(
-            "always([+FAILOVER_SERVICE] true -> eventually(<+RESTORE_SERVICE> true))"
-        ));
+        assert!(output
+            .contains("always([+FAILOVER_SERVICE] true -> eventually(<+RESTORE_SERVICE> true))"));
     }
 
     #[test]
@@ -7283,9 +7267,8 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+CONTENT_REPORTED] true -> (<+QUARANTINE_CONTENT> true | <+ESCALATE_MODERATION> true))"
         ));
-        assert!(output.contains(
-            "always([+QUARANTINE_CONTENT] true -> eventually(<+REVIEW_CONTENT> true))"
-        ));
+        assert!(output
+            .contains("always([+QUARANTINE_CONTENT] true -> eventually(<+REVIEW_CONTENT> true))"));
     }
 
     #[test]
@@ -7307,9 +7290,8 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+DEVICE_LOST] true -> (<+REVOKE_SESSION> true | <+REQUIRE_MFA_RESET> true))"
         ));
-        assert!(output.contains(
-            "always([+REVOKE_SESSION] true -> eventually(<+ROTATE_CREDENTIALS> true))"
-        ));
+        assert!(output
+            .contains("always([+REVOKE_SESSION] true -> eventually(<+ROTATE_CREDENTIALS> true))"));
     }
 
     #[test]
@@ -7391,9 +7373,8 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+SSH_PRIVATE_KEY_COMPROMISED] true -> (<+REVOKE_SSH_KEY> true | <+DISABLE_SSH_ACCESS> true))"
         ));
-        assert!(output.contains(
-            "always([+REVOKE_SSH_KEY] true -> eventually(<+NOTIFY_SYSTEM_OWNER> true))"
-        ));
+        assert!(output
+            .contains("always([+REVOKE_SSH_KEY] true -> eventually(<+NOTIFY_SYSTEM_OWNER> true))"));
     }
 
     #[test]
@@ -10232,24 +10213,19 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     fn synthesis_list_includes_escrow_progression_prompt_examples() {
         let output = synthesis_list_text();
 
-        assert!(output.contains(
-            "always([+DELIVER] true -> eventually(<+DEPOSIT> true))"
-        ));
-        assert!(output.contains(
-            "always([+RELEASE] true -> eventually(<+DELIVER> true))"
-        ));
+        assert!(output.contains("always([+DELIVER] true -> eventually(<+DEPOSIT> true))"));
+        assert!(output.contains("always([+RELEASE] true -> eventually(<+DELIVER> true))"));
     }
 
     #[test]
     fn synthesis_list_includes_compound_escrow_goal_examples() {
         let output = synthesis_list_text();
 
-        assert!(output.contains(
-            "[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))"
-        ));
-        assert!(output.contains(
-            "[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"
-        ));
+        assert!(
+            output.contains("[+RELEASE] true -> eventually((<+DEPOSIT> true & <+DELIVER> true))")
+        );
+        assert!(output
+            .contains("[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"));
         assert!(output.contains(
             "[+RELEASE] true -> (eventually(<+DEPOSIT> true) & eventually(<+DELIVER> true))"
         ));
@@ -10262,12 +10238,8 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     fn synthesis_list_includes_review_publication_ordering_examples() {
         let output = synthesis_list_text();
 
-        assert!(
-            output.contains("always([+SUBMIT] true -> eventually(<+REVIEW> true))")
-        );
-        assert!(
-            output.contains("always([+APPROVE] true -> eventually(<+PUBLISH> true))")
-        );
+        assert!(output.contains("always([+SUBMIT] true -> eventually(<+REVIEW> true))"));
+        assert!(output.contains("always([+APPROVE] true -> eventually(<+PUBLISH> true))"));
         assert!(output.contains("always([+MERGE] true -> eventually(<+DEPLOY> true))"));
     }
 
@@ -10293,8 +10265,12 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     fn synthesis_list_includes_procurement_ordering_examples() {
         let output = synthesis_list_text();
 
-        assert!(output.contains("always([+CREATE_ORDER] true -> eventually(<+APPROVE_ORDER> true))"));
-        assert!(output.contains("always([+APPROVE_ORDER] true -> eventually(<+FULFILL_ORDER> true))"));
+        assert!(
+            output.contains("always([+CREATE_ORDER] true -> eventually(<+APPROVE_ORDER> true))")
+        );
+        assert!(
+            output.contains("always([+APPROVE_ORDER] true -> eventually(<+FULFILL_ORDER> true))")
+        );
         assert!(output.contains("always([+FULFILL_ORDER] true -> eventually(<+PAY_INVOICE> true))"));
     }
 
@@ -10303,17 +10279,25 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         let output = synthesis_list_text();
 
         assert!(output.contains("always([+INGEST_DATA] true -> eventually(<+VALIDATE_DATA> true))"));
-        assert!(output.contains("always([+VALIDATE_DATA] true -> eventually(<+TRANSFORM_DATA> true))"));
-        assert!(output.contains("always([+TRANSFORM_DATA] true -> eventually(<+PUBLISH_DATASET> true))"));
+        assert!(
+            output.contains("always([+VALIDATE_DATA] true -> eventually(<+TRANSFORM_DATA> true))")
+        );
+        assert!(output
+            .contains("always([+TRANSFORM_DATA] true -> eventually(<+PUBLISH_DATASET> true))"));
     }
 
     #[test]
     fn synthesis_list_includes_member_onboarding_ordering_examples() {
         let output = synthesis_list_text();
 
-        assert!(output.contains("always([+INVITE_MEMBER] true -> eventually(<+ACCEPT_INVITE> true))"));
-        assert!(output.contains("always([+ACCEPT_INVITE] true -> eventually(<+PROVISION_ACCESS> true))"));
-        assert!(output.contains("always([+PROVISION_ACCESS] true -> eventually(<+COMPLETE_ONBOARDING> true))"));
+        assert!(
+            output.contains("always([+INVITE_MEMBER] true -> eventually(<+ACCEPT_INVITE> true))")
+        );
+        assert!(output
+            .contains("always([+ACCEPT_INVITE] true -> eventually(<+PROVISION_ACCESS> true))"));
+        assert!(output.contains(
+            "always([+PROVISION_ACCESS] true -> eventually(<+COMPLETE_ONBOARDING> true))"
+        ));
     }
 
     #[test]
@@ -10321,8 +10305,11 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         let output = synthesis_list_text();
 
         assert!(output.contains("always([+PLAN_RELEASE] true -> eventually(<+APPROVE_QA> true))"));
-        assert!(output.contains("always([+APPROVE_QA] true -> eventually(<+ROLLOUT_RELEASE> true))"));
-        assert!(output.contains("always([+ROLLOUT_RELEASE] true -> eventually(<+MONITOR_RELEASE> true))"));
+        assert!(
+            output.contains("always([+APPROVE_QA] true -> eventually(<+ROLLOUT_RELEASE> true))")
+        );
+        assert!(output
+            .contains("always([+ROLLOUT_RELEASE] true -> eventually(<+MONITOR_RELEASE> true))"));
     }
 
     #[test]
@@ -10330,53 +10317,78 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         let output = synthesis_list_text();
 
         assert!(output.contains("always([+OPEN_TICKET] true -> eventually(<+ASSIGN_AGENT> true))"));
-        assert!(output.contains("always([+ASSIGN_AGENT] true -> eventually(<+RESPOND_TICKET> true))"));
-        assert!(output.contains("always([+RESPOND_TICKET] true -> eventually(<+RESOLVE_TICKET> true))"));
+        assert!(
+            output.contains("always([+ASSIGN_AGENT] true -> eventually(<+RESPOND_TICKET> true))")
+        );
+        assert!(
+            output.contains("always([+RESPOND_TICKET] true -> eventually(<+RESOLVE_TICKET> true))")
+        );
     }
 
     #[test]
     fn synthesis_list_includes_audit_ordering_examples() {
         let output = synthesis_list_text();
 
-        assert!(output.contains("always([+START_AUDIT] true -> eventually(<+COLLECT_EVIDENCE> true))"));
-        assert!(output.contains("always([+COLLECT_EVIDENCE] true -> eventually(<+REVIEW_EVIDENCE> true))"));
-        assert!(output.contains("always([+REVIEW_EVIDENCE] true -> eventually(<+CLOSE_AUDIT> true))"));
+        assert!(
+            output.contains("always([+START_AUDIT] true -> eventually(<+COLLECT_EVIDENCE> true))")
+        );
+        assert!(output
+            .contains("always([+COLLECT_EVIDENCE] true -> eventually(<+REVIEW_EVIDENCE> true))"));
+        assert!(
+            output.contains("always([+REVIEW_EVIDENCE] true -> eventually(<+CLOSE_AUDIT> true))")
+        );
     }
 
     #[test]
     fn synthesis_list_includes_expense_reimbursement_ordering_examples() {
         let output = synthesis_list_text();
 
-        assert!(output.contains("always([+SUBMIT_EXPENSE] true -> eventually(<+APPROVE_EXPENSE> true))"));
-        assert!(output.contains("always([+APPROVE_EXPENSE] true -> eventually(<+REIMBURSE_EXPENSE> true))"));
-        assert!(output.contains("always([+REIMBURSE_EXPENSE] true -> eventually(<+CLOSE_EXPENSE> true))"));
+        assert!(output
+            .contains("always([+SUBMIT_EXPENSE] true -> eventually(<+APPROVE_EXPENSE> true))"));
+        assert!(output
+            .contains("always([+APPROVE_EXPENSE] true -> eventually(<+REIMBURSE_EXPENSE> true))"));
+        assert!(output
+            .contains("always([+REIMBURSE_EXPENSE] true -> eventually(<+CLOSE_EXPENSE> true))"));
     }
 
     #[test]
     fn synthesis_list_includes_training_certification_ordering_examples() {
         let output = synthesis_list_text();
 
-        assert!(output.contains("always([+ENROLL_TRAINING] true -> eventually(<+COMPLETE_TRAINING> true))"));
-        assert!(output.contains("always([+COMPLETE_TRAINING] true -> eventually(<+PASS_ASSESSMENT> true))"));
-        assert!(output.contains("always([+PASS_ASSESSMENT] true -> eventually(<+ISSUE_CERTIFICATE> true))"));
+        assert!(output
+            .contains("always([+ENROLL_TRAINING] true -> eventually(<+COMPLETE_TRAINING> true))"));
+        assert!(output
+            .contains("always([+COMPLETE_TRAINING] true -> eventually(<+PASS_ASSESSMENT> true))"));
+        assert!(output
+            .contains("always([+PASS_ASSESSMENT] true -> eventually(<+ISSUE_CERTIFICATE> true))"));
     }
 
     #[test]
     fn synthesis_list_includes_asset_maintenance_ordering_examples() {
         let output = synthesis_list_text();
 
-        assert!(output.contains("always([+SCHEDULE_MAINTENANCE] true -> eventually(<+PERFORM_MAINTENANCE> true))"));
-        assert!(output.contains("always([+PERFORM_MAINTENANCE] true -> eventually(<+VERIFY_MAINTENANCE> true))"));
-        assert!(output.contains("always([+VERIFY_MAINTENANCE] true -> eventually(<+CLOSE_MAINTENANCE> true))"));
+        assert!(output.contains(
+            "always([+SCHEDULE_MAINTENANCE] true -> eventually(<+PERFORM_MAINTENANCE> true))"
+        ));
+        assert!(output.contains(
+            "always([+PERFORM_MAINTENANCE] true -> eventually(<+VERIFY_MAINTENANCE> true))"
+        ));
+        assert!(output.contains(
+            "always([+VERIFY_MAINTENANCE] true -> eventually(<+CLOSE_MAINTENANCE> true))"
+        ));
     }
 
     #[test]
     fn synthesis_list_includes_backup_retention_ordering_examples() {
         let output = synthesis_list_text();
 
-        assert!(output.contains("always([+SCHEDULE_BACKUP] true -> eventually(<+RUN_BACKUP> true))"));
+        assert!(
+            output.contains("always([+SCHEDULE_BACKUP] true -> eventually(<+RUN_BACKUP> true))")
+        );
         assert!(output.contains("always([+RUN_BACKUP] true -> eventually(<+VERIFY_BACKUP> true))"));
-        assert!(output.contains("always([+VERIFY_BACKUP] true -> eventually(<+ARCHIVE_BACKUP> true))"));
+        assert!(
+            output.contains("always([+VERIFY_BACKUP] true -> eventually(<+ARCHIVE_BACKUP> true))")
+        );
     }
 
     #[test]
@@ -10402,24 +10414,20 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(
             output.contains("always([+REVIEW_TERMS] true -> eventually(<+APPROVE_RENEWAL> true))")
         );
-        assert!(output.contains(
-            "always([+APPROVE_RENEWAL] true -> eventually(<+EXECUTE_RENEWAL> true))"
-        ));
+        assert!(output
+            .contains("always([+APPROVE_RENEWAL] true -> eventually(<+EXECUTE_RENEWAL> true))"));
     }
 
     #[test]
     fn synthesis_list_includes_credential_issuance_ordering_examples() {
         let output = synthesis_list_text();
 
-        assert!(output.contains(
-            "always([+REQUEST_CREDENTIAL] true -> eventually(<+VERIFY_IDENTITY> true))"
-        ));
-        assert!(output.contains(
-            "always([+VERIFY_IDENTITY] true -> eventually(<+ISSUE_CREDENTIAL> true))"
-        ));
-        assert!(output.contains(
-            "always([+ISSUE_CREDENTIAL] true -> eventually(<+ACCEPT_CREDENTIAL> true))"
-        ));
+        assert!(output
+            .contains("always([+REQUEST_CREDENTIAL] true -> eventually(<+VERIFY_IDENTITY> true))"));
+        assert!(output
+            .contains("always([+VERIFY_IDENTITY] true -> eventually(<+ISSUE_CREDENTIAL> true))"));
+        assert!(output
+            .contains("always([+ISSUE_CREDENTIAL] true -> eventually(<+ACCEPT_CREDENTIAL> true))"));
     }
 
     #[test]
@@ -10441,13 +10449,11 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     fn synthesis_list_includes_claim_adjudication_ordering_examples() {
         let output = synthesis_list_text();
 
-        assert!(output
-            .contains("always([+SUBMIT_CLAIM] true -> eventually(<+REVIEW_CLAIM> true))"));
-        assert!(output
-            .contains("always([+REVIEW_CLAIM] true -> eventually(<+APPROVE_CLAIM> true))"));
+        assert!(output.contains("always([+SUBMIT_CLAIM] true -> eventually(<+REVIEW_CLAIM> true))"));
         assert!(
-            output.contains("always([+APPROVE_CLAIM] true -> eventually(<+PAY_CLAIM> true))")
+            output.contains("always([+REVIEW_CLAIM] true -> eventually(<+APPROVE_CLAIM> true))")
         );
+        assert!(output.contains("always([+APPROVE_CLAIM] true -> eventually(<+PAY_CLAIM> true))"));
     }
 
     #[test]
@@ -10475,9 +10481,8 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+CHECK_RETENTION_POLICY] true -> eventually(<+DELETE_RECORDS> true))"
         ));
-        assert!(output.contains(
-            "always([+DELETE_RECORDS] true -> eventually(<+CONFIRM_DELETION> true))"
-        ));
+        assert!(output
+            .contains("always([+DELETE_RECORDS] true -> eventually(<+CONFIRM_DELETION> true))"));
     }
 
     #[test]
@@ -12002,12 +12007,9 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+REPORT_VULNERABILITY] true -> eventually(<+TRIAGE_VULNERABILITY> true))"
         ));
-        assert!(output.contains(
-            "always([+TRIAGE_VULNERABILITY] true -> eventually(<+APPLY_PATCH> true))"
-        ));
-        assert!(output.contains(
-            "always([+APPLY_PATCH] true -> eventually(<+VERIFY_PATCH> true))"
-        ));
+        assert!(output
+            .contains("always([+TRIAGE_VULNERABILITY] true -> eventually(<+APPLY_PATCH> true))"));
+        assert!(output.contains("always([+APPLY_PATCH] true -> eventually(<+VERIFY_PATCH> true))"));
     }
 
     #[test]
@@ -12034,9 +12036,8 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+COLLECT_VENDOR_QUESTIONNAIRE] true -> eventually(<+ASSESS_VENDOR_RISK> true))"
         ));
-        assert!(output.contains(
-            "always([+ASSESS_VENDOR_RISK] true -> eventually(<+APPROVE_VENDOR> true))"
-        ));
+        assert!(output
+            .contains("always([+ASSESS_VENDOR_RISK] true -> eventually(<+APPROVE_VENDOR> true))"));
     }
 
     #[test]
@@ -12092,8 +12093,9 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
             .contains("always([+REQUEST_DATA_USE] true -> eventually(<+REVIEW_USE_LIMITS> true))"));
         assert!(output
             .contains("always([+REVIEW_USE_LIMITS] true -> eventually(<+APPROVE_DATA_USE> true))"));
-        assert!(output
-            .contains("always([+APPROVE_DATA_USE] true -> eventually(<+LOG_DATA_USE> true))"));
+        assert!(
+            output.contains("always([+APPROVE_DATA_USE] true -> eventually(<+LOG_DATA_USE> true))")
+        );
     }
 
     #[test]
@@ -12115,8 +12117,9 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     fn synthesis_list_includes_data_minimization_ordering_examples() {
         let output = synthesis_list_text();
 
-        assert!(output
-            .contains("always([+COLLECT_DATA] true -> eventually(<+MINIMIZE_DATASET> true))"));
+        assert!(
+            output.contains("always([+COLLECT_DATA] true -> eventually(<+MINIMIZE_DATASET> true))")
+        );
         assert!(output.contains(
             "always([+MINIMIZE_DATASET] true -> eventually(<+APPROVE_MINIMIZED_DATA> true))"
         ));
@@ -12218,14 +12221,11 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     fn synthesis_list_includes_dpia_ordering_examples() {
         let output = synthesis_list_text();
 
-        assert!(
-            output.contains("always([+START_DPIA] true -> eventually(<+ASSESS_PRIVACY_RISK> true))")
-        );
-        assert!(output.contains(
-            "always([+ASSESS_PRIVACY_RISK] true -> eventually(<+APPROVE_DPIA> true))"
-        ));
         assert!(output
-            .contains("always([+APPROVE_DPIA] true -> eventually(<+RECORD_DPIA> true))"));
+            .contains("always([+START_DPIA] true -> eventually(<+ASSESS_PRIVACY_RISK> true))"));
+        assert!(output
+            .contains("always([+ASSESS_PRIVACY_RISK] true -> eventually(<+APPROVE_DPIA> true))"));
+        assert!(output.contains("always([+APPROVE_DPIA] true -> eventually(<+RECORD_DPIA> true))"));
     }
 
     #[test]
@@ -18352,21 +18352,13 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     fn synthesis_list_includes_authorization_signed_action_examples() {
         let output = synthesis_list_text();
 
-        assert!(output.contains(
-            "always([+CANCEL] true -> <+signed_by(/users/requester.id)> true)"
-        ));
-        assert!(
-            output.contains("always([+REFUND] true -> <+signed_by(/users/seller.id)> true)")
-        );
-        assert!(
-            output.contains("always([+ESCALATE] true -> <+signed_by(/users/manager.id)> true)")
-        );
+        assert!(output.contains("always([+CANCEL] true -> <+signed_by(/users/requester.id)> true)"));
+        assert!(output.contains("always([+REFUND] true -> <+signed_by(/users/seller.id)> true)"));
+        assert!(output.contains("always([+ESCALATE] true -> <+signed_by(/users/manager.id)> true)"));
         assert!(
             output.contains("always([+WITHDRAW] true -> <+signed_by(/users/depositor.id)> true)")
         );
-        assert!(
-            output.contains("always([+APPEAL] true -> <+signed_by(/users/appellant.id)> true)")
-        );
+        assert!(output.contains("always([+APPEAL] true -> <+signed_by(/users/appellant.id)> true)"));
         assert!(output.contains("always([+REVOKE] true -> <+signed_by(/users/issuer.id)> true)"));
     }
 
@@ -18374,22 +18366,15 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     fn synthesis_list_includes_authorization_lifecycle_signed_examples() {
         let output = synthesis_list_text();
 
-        assert!(output.contains(
-            "always([+SUSPEND] true -> <+signed_by(/users/administrator.id)> true)"
-        ));
-        assert!(output.contains(
-            "always([+REINSTATE] true -> <+signed_by(/users/administrator.id)> true)"
-        ));
-        assert!(
-            output.contains("always([+RENEW] true -> <+signed_by(/users/holder.id)> true)")
-        );
-        assert!(output.contains(
-            "always([+TERMINATE] true -> <+signed_by(/users/counterparty.id)> true)"
-        ));
+        assert!(output
+            .contains("always([+SUSPEND] true -> <+signed_by(/users/administrator.id)> true)"));
+        assert!(output
+            .contains("always([+REINSTATE] true -> <+signed_by(/users/administrator.id)> true)"));
+        assert!(output.contains("always([+RENEW] true -> <+signed_by(/users/holder.id)> true)"));
+        assert!(output
+            .contains("always([+TERMINATE] true -> <+signed_by(/users/counterparty.id)> true)"));
         assert!(output.contains("always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)"));
-        assert!(
-            output.contains("always([+ASSIGN] true -> <+signed_by(/users/assigner.id)> true)")
-        );
+        assert!(output.contains("always([+ASSIGN] true -> <+signed_by(/users/assigner.id)> true)"));
     }
 
     #[test]
@@ -18398,15 +18383,12 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
 
         assert!(output.contains("always([+CERTIFY] true -> <+signed_by(/users/auditor.id)> true)"));
         assert!(output.contains("always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)"));
-        assert!(output.contains(
-            "always([+REGISTER] true -> <+signed_by(/users/registrar.id)> true)"
-        ));
         assert!(
-            output.contains("always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)")
+            output.contains("always([+REGISTER] true -> <+signed_by(/users/registrar.id)> true)")
         );
-        assert!(output.contains(
-            "always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)"
-        ));
+        assert!(output.contains("always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)"));
+        assert!(output
+            .contains("always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)"));
         assert!(output.contains(
             "always([+CONFIRM_DELIVERY] true -> <+signed_by(/users/recipient.id)> true)"
         ));
@@ -18416,12 +18398,10 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     fn synthesis_list_includes_authorization_business_signed_examples() {
         let output = synthesis_list_text();
 
-        assert!(
-            output.contains("always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)")
-        );
-        assert!(output.contains(
-            "always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)"
-        ));
+        assert!(output
+            .contains("always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)"));
+        assert!(output
+            .contains("always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)"));
         assert!(output.contains(
             "always([+APPROVE_INSPECTION] true -> <+signed_by(/users/inspector.id)> true)"
         ));
@@ -18431,9 +18411,8 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+APPROVE_SAFETY] true -> <+signed_by(/users/safety_reviewer.id)> true)"
         ));
-        assert!(
-            output.contains("always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)")
-        );
+        assert!(output
+            .contains("always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)"));
         assert!(output.contains(
             "always([+CLOSE_INCIDENT] true -> <+signed_by(/users/incident_commander.id)> true)"
         ));
@@ -18461,9 +18440,9 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+GRANT_ACCESS] true -> <+signed_by(/users/security_administrator.id)> true)"
         ));
-        assert!(output.contains(
-            "always([+CLOSE_AUDIT] true -> <+signed_by(/users/auditor.id)> true)"
-        ));
+        assert!(
+            output.contains("always([+CLOSE_AUDIT] true -> <+signed_by(/users/auditor.id)> true)")
+        );
         assert!(output.contains(
             "always([+ONBOARD_VENDOR] true -> <+signed_by(/users/procurement_officer.id)> true)"
         ));
@@ -18621,9 +18600,8 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     fn synthesis_list_includes_raw_guarded_branch_before_committed_goal_example() {
         let output = synthesis_list_text();
 
-        assert!(output.contains(
-            "lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>X)) | ([<+APPROVE>] true))"
-        ));
+        assert!(output
+            .contains("lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>X)) | ([<+APPROVE>] true))"));
     }
 
     #[test]
@@ -18639,18 +18617,16 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     fn synthesis_list_includes_raw_guarded_branch_before_goal_example() {
         let output = synthesis_list_text();
 
-        assert!(output.contains(
-            "lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>X)) | (<+APPROVE> true))"
-        ));
+        assert!(output
+            .contains("lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>X)) | (<+APPROVE> true))"));
     }
 
     #[test]
     fn synthesis_list_includes_parenthesized_guarded_branch_before_goal_example() {
         let output = synthesis_list_text();
 
-        assert!(output.contains(
-            "lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>(X))) | (<+APPROVE> true))"
-        ));
+        assert!(output
+            .contains("lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>(X))) | (<+APPROVE> true))"));
     }
 
     #[test]
@@ -18732,52 +18708,33 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     fn synthesis_list_includes_lifecycle_action_prompt_examples() {
         let output = synthesis_list_text();
 
-        assert!(output.contains(
-            "always([+CANCEL] true -> <+signed_by(/users/requester.id)> true)"
-        ));
-        assert!(output.contains(
-            "always([+CANCEL] true -> always([-DELIVER] true))"
-        ));
-        assert!(output
-            .contains("always([+REFUND] true -> <+signed_by(/users/seller.id)> true)"));
+        assert!(output.contains("always([+CANCEL] true -> <+signed_by(/users/requester.id)> true)"));
+        assert!(output.contains("always([+CANCEL] true -> always([-DELIVER] true))"));
+        assert!(output.contains("always([+REFUND] true -> <+signed_by(/users/seller.id)> true)"));
         assert!(output.contains("always([+REFUND] true -> always([-RELEASE] true))"));
-        assert!(output
-            .contains("always([+APPEAL] true -> <+signed_by(/users/appellant.id)> true)"));
+        assert!(output.contains("always([+APPEAL] true -> <+signed_by(/users/appellant.id)> true)"));
         assert!(output.contains("always([+APPEAL] true -> always([-ENFORCE] true))"));
-        assert!(
-            output.contains("always([+RENEW] true -> <+signed_by(/users/holder.id)> true)")
-        );
+        assert!(output.contains("always([+RENEW] true -> <+signed_by(/users/holder.id)> true)"));
         assert!(output.contains("always([+RENEW] true -> always([-EXPIRE] true))"));
-        assert!(output.contains(
-            "always([+TERMINATE] true -> <+signed_by(/users/counterparty.id)> true)"
-        ));
-        assert!(output.contains("always([+TERMINATE] true -> always([-RENEW] true))"));
-        assert!(
-            output.contains("always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)")
-        );
-        assert!(output.contains("always([+EXTEND] true -> always([-TERMINATE] true))"));
-        assert!(
-            output.contains("always([+ASSIGN] true -> <+signed_by(/users/assigner.id)> true)")
-        );
-        assert!(output.contains("always([+ASSIGN] true -> always([-REASSIGN] true))"));
-        assert!(
-            output.contains("always([+CERTIFY] true -> <+signed_by(/users/auditor.id)> true)")
-        );
-        assert!(output.contains("always([+CERTIFY] true -> always([-DEPLOY] true))"));
-        assert!(
-            output.contains("always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)")
-        );
-        assert!(output.contains("always([+PUBLISH] true -> always([-EMBARGO] true))"));
         assert!(output
-            .contains("always([+REGISTER] true -> <+signed_by(/users/registrar.id)> true)"));
-        assert!(output.contains("always([+REGISTER] true -> always([-DELETE] true))"));
+            .contains("always([+TERMINATE] true -> <+signed_by(/users/counterparty.id)> true)"));
+        assert!(output.contains("always([+TERMINATE] true -> always([-RENEW] true))"));
+        assert!(output.contains("always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)"));
+        assert!(output.contains("always([+EXTEND] true -> always([-TERMINATE] true))"));
+        assert!(output.contains("always([+ASSIGN] true -> <+signed_by(/users/assigner.id)> true)"));
+        assert!(output.contains("always([+ASSIGN] true -> always([-REASSIGN] true))"));
+        assert!(output.contains("always([+CERTIFY] true -> <+signed_by(/users/auditor.id)> true)"));
+        assert!(output.contains("always([+CERTIFY] true -> always([-DEPLOY] true))"));
+        assert!(output.contains("always([+PUBLISH] true -> <+signed_by(/users/editor.id)> true)"));
+        assert!(output.contains("always([+PUBLISH] true -> always([-EMBARGO] true))"));
         assert!(
-            output.contains("always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)")
+            output.contains("always([+REGISTER] true -> <+signed_by(/users/registrar.id)> true)")
         );
+        assert!(output.contains("always([+REGISTER] true -> always([-DELETE] true))"));
+        assert!(output.contains("always([+ACCEPT] true -> <+signed_by(/users/recipient.id)> true)"));
         assert!(output.contains("always([+ACCEPT] true -> always([-REJECT] true))"));
-        assert!(output.contains(
-            "always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)"
-        ));
+        assert!(output
+            .contains("always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)"));
         assert!(output.contains("always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))"));
     }
 
@@ -18789,19 +18746,18 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
             "always([+CONFIRM_DELIVERY] true -> <+signed_by(/users/recipient.id)> true)"
         ));
         assert!(output.contains("always([+CONFIRM_DELIVERY] true -> always([-REFUND] true))"));
-        assert!(
-            output.contains("always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)")
-        );
+        assert!(output
+            .contains("always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)"));
         assert!(output.contains("always([+APPROVE_INVOICE] true -> always([-CHARGEBACK] true))"));
-        assert!(output.contains(
-            "always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)"
-        ));
+        assert!(output
+            .contains("always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)"));
         assert!(output.contains("always([+ACCEPT_MILESTONE] true -> always([-REWORK] true))"));
         assert!(output.contains(
             "always([+APPROVE_INSPECTION] true -> <+signed_by(/users/inspector.id)> true)"
         ));
-        assert!(output
-            .contains("always([+APPROVE_INSPECTION] true -> always([-DEFECT_CLAIM] true))"));
+        assert!(
+            output.contains("always([+APPROVE_INSPECTION] true -> always([-DEFECT_CLAIM] true))")
+        );
         assert!(output.contains(
             "always([+ATTEST_COMPLIANCE] true -> <+signed_by(/users/compliance_officer.id)> true)"
         ));
@@ -18811,19 +18767,20 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+APPROVE_SAFETY] true -> <+signed_by(/users/safety_reviewer.id)> true)"
         ));
-        assert!(output
-            .contains("always([+APPROVE_SAFETY] true -> always([-UNSAFE_DEPLOYMENT] true))"));
         assert!(
-            output.contains("always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)")
+            output.contains("always([+APPROVE_SAFETY] true -> always([-UNSAFE_DEPLOYMENT] true))")
         );
+        assert!(output
+            .contains("always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)"));
         assert!(
             output.contains("always([+ACCEPT_RISK] true -> always([-UNMITIGATED_EXPOSURE] true))")
         );
         assert!(output.contains(
             "always([+CLOSE_INCIDENT] true -> <+signed_by(/users/incident_commander.id)> true)"
         ));
-        assert!(output
-            .contains("always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))"));
+        assert!(
+            output.contains("always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))")
+        );
         assert!(output.contains(
             "always([+FREEZE_CHANGE] true -> <+signed_by(/users/release_manager.id)> true)"
         ));
@@ -19483,21 +19440,23 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
     fn synthesis_list_includes_forbidden_lifecycle_guard_examples() {
         let output = synthesis_list_text();
 
-        assert!(output
-            .contains("always([+APPROVE_INVOICE] true -> always([-CHARGEBACK] true))"));
-        assert!(output
-            .contains("always([+ACCEPT_MILESTONE] true -> always([-REWORK] true))"));
-        assert!(output
-            .contains("always([+APPROVE_INSPECTION] true -> always([-DEFECT_CLAIM] true))"));
+        assert!(output.contains("always([+APPROVE_INVOICE] true -> always([-CHARGEBACK] true))"));
+        assert!(output.contains("always([+ACCEPT_MILESTONE] true -> always([-REWORK] true))"));
+        assert!(
+            output.contains("always([+APPROVE_INSPECTION] true -> always([-DEFECT_CLAIM] true))")
+        );
         assert!(output.contains(
             "always([+ATTEST_COMPLIANCE] true -> always([-NONCOMPLIANCE_FINDING] true))"
         ));
-        assert!(output
-            .contains("always([+APPROVE_SAFETY] true -> always([-UNSAFE_DEPLOYMENT] true))"));
-        assert!(output
-            .contains("always([+ACCEPT_RISK] true -> always([-UNMITIGATED_EXPOSURE] true))"));
-        assert!(output
-            .contains("always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))"));
+        assert!(
+            output.contains("always([+APPROVE_SAFETY] true -> always([-UNSAFE_DEPLOYMENT] true))")
+        );
+        assert!(
+            output.contains("always([+ACCEPT_RISK] true -> always([-UNMITIGATED_EXPOSURE] true))")
+        );
+        assert!(
+            output.contains("always([+CLOSE_INCIDENT] true -> always([-REOPEN_INCIDENT] true))")
+        );
         assert!(output.contains("always([+FREEZE_CHANGE] true -> always([-DEPLOY] true))"));
     }
 
@@ -19547,18 +19506,15 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+APPROVE_UNDERWRITING_EXCEPTION] true -> always([-UNPRICED_RISK_BINDING] true))"
         ));
-        assert!(output.contains(
-            "always([+RELEASE_SHIPMENT] true -> always([-UNAUTHORIZED_SHIPMENT] true))"
-        ));
-        assert!(output.contains(
-            "always([+ACCEPT_RECEIVING] true -> always([-INVENTORY_DISCREPANCY] true))"
-        ));
+        assert!(output
+            .contains("always([+RELEASE_SHIPMENT] true -> always([-UNAUTHORIZED_SHIPMENT] true))"));
+        assert!(output
+            .contains("always([+ACCEPT_RECEIVING] true -> always([-INVENTORY_DISCREPANCY] true))"));
         assert!(output.contains(
             "always([+APPROVE_GRID_INTERCONNECTION] true -> always([-UNSAFE_ENERGIZATION] true))"
         ));
-        assert!(output.contains(
-            "always([+ISSUE_MAINTENANCE_CLEARANCE] true -> always([-LIVE_WORK] true))"
-        ));
+        assert!(output
+            .contains("always([+ISSUE_MAINTENANCE_CLEARANCE] true -> always([-LIVE_WORK] true))"));
     }
 
     #[test]
@@ -19568,18 +19524,13 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+RELEASE_STUDENT_RECORD] true -> always([-UNAUTHORIZED_DISCLOSURE] true))"
         ));
-        assert!(output.contains(
-            "always([+APPROVE_GRANT_AWARD] true -> always([-CONFLICT_AWARD] true))"
-        ));
-        assert!(
-            output.contains("always([+ISSUE_PERMIT] true -> always([-UNPERMITTED_WORK] true))")
-        );
-        assert!(output.contains(
-            "always([+CLOSE_LEGAL_MATTER] true -> always([-UNRESOLVED_CLAIM] true))"
-        ));
-        assert!(output.contains(
-            "always([+PROMOTE_RELEASE] true -> always([-UNREVIEWED_DEPLOYMENT] true))"
-        ));
+        assert!(output
+            .contains("always([+APPROVE_GRANT_AWARD] true -> always([-CONFLICT_AWARD] true))"));
+        assert!(output.contains("always([+ISSUE_PERMIT] true -> always([-UNPERMITTED_WORK] true))"));
+        assert!(output
+            .contains("always([+CLOSE_LEGAL_MATTER] true -> always([-UNRESOLVED_CLAIM] true))"));
+        assert!(output
+            .contains("always([+PROMOTE_RELEASE] true -> always([-UNREVIEWED_DEPLOYMENT] true))"));
         assert!(output.contains(
             "always([+APPROVE_MODEL_DEPLOYMENT] true -> always([-UNVALIDATED_MODEL_USE] true))"
         ));
@@ -19616,9 +19567,8 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains(
             "always([+APPROVE_TRAVEL_ITINERARY] true -> always([-UNAUTHORIZED_BOOKING] true))"
         ));
-        assert!(
-            output.contains("always([+RELEASE_ROOM_BLOCK] true -> always([-OVERBOOKED_ROOMS] true))")
-        );
+        assert!(output
+            .contains("always([+RELEASE_ROOM_BLOCK] true -> always([-OVERBOOKED_ROOMS] true))"));
     }
 
     #[test]
@@ -19783,9 +19733,7 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains("always([+REGISTER] true -> always([-DELETE] true))"));
         assert!(output.contains("always([+ACCEPT] true -> always([-REJECT] true))"));
         assert!(output.contains("always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))"));
-        assert!(
-            output.contains("always([+CONFIRM_DELIVERY] true -> always([-REFUND] true))")
-        );
+        assert!(output.contains("always([+CONFIRM_DELIVERY] true -> always([-REFUND] true))"));
     }
 
     #[test]
@@ -19802,9 +19750,7 @@ response formula: Formula 2: [+APPROVE_MODEL_CARD] true -> eventually(<+PUBLISH_
         assert!(output.contains("always([<+REGISTER>] true -> always([-DELETE] true))"));
         assert!(output.contains("always([<+ACCEPT>] true -> always([-REJECT] true))"));
         assert!(output.contains("always([<+ACKNOWLEDGE>] true -> always([-DISPUTE] true))"));
-        assert!(
-            output.contains("always([<+CONFIRM_DELIVERY>] true -> always([-REFUND] true))")
-        );
+        assert!(output.contains("always([<+CONFIRM_DELIVERY>] true -> always([-REFUND] true))"));
     }
 
     #[test]
@@ -21082,7 +21028,10 @@ F3: [+APPROVE] true -> <+oracle_attests(/oracles/review.id, "reviewed", "true")>
 
         assert!(bundle.contains("# Modality Synthesis Review Bundle"));
         assert!(bundle.contains("## Original Source"));
-        assert!(bundle.contains(&format!("- Input: `--source-file {}`", source_path.display())));
+        assert!(bundle.contains(&format!(
+            "- Input: `--source-file {}`",
+            source_path.display()
+        )));
         assert!(bundle.contains("require reviewer signature"));
         assert!(bundle.contains("## LLM Response"));
         assert!(bundle.contains("## Extracted Facts"));
@@ -21097,8 +21046,12 @@ F3: [+APPROVE] true -> <+oracle_attests(/oracles/review.id, "reviewed", "true")>
         assert!(bundle.contains("## Source Clause Trace"));
         assert!(bundle.contains("- Trace source: reviewer-authored formula labels"));
         assert!(bundle.contains("- F1 source clause: The contract must expose an approval move."));
-        assert!(bundle.contains("- F2 source clause: When an approval is recorded, require reviewer signature."));
-        assert!(bundle.contains("- F3 source clause: When an approval is recorded, require review oracle evidence."));
+        assert!(bundle.contains(
+            "- F2 source clause: When an approval is recorded, require reviewer signature."
+        ));
+        assert!(bundle.contains(
+            "- F3 source clause: When an approval is recorded, require review oracle evidence."
+        ));
         assert!(bundle.contains("## Review Checklist"));
         assert!(bundle.contains("- Original source captured: yes"));
         assert!(bundle.contains("- Source-clause trace present: yes"));
@@ -21165,9 +21118,8 @@ rule post_requires_reviewer {
         assert!(bundle.contains("# Modality Synthesis Review Bundle"));
         assert!(bundle.contains("## Original Source"));
         assert!(bundle.contains(&source_input));
-        assert!(bundle.contains(
-            "Every accepted post move must have reviewer signature evidence attached."
-        ));
+        assert!(bundle
+            .contains("Every accepted post move must have reviewer signature evidence attached."));
         assert!(bundle.contains("## Rule File"));
         assert!(bundle.contains(&rule_input));
         assert!(bundle.contains("post_requires_reviewer"));
@@ -21211,7 +21163,9 @@ rule post_requires_reviewer {
         opts.review_bundle = Some(PathBuf::from("review.md"));
 
         let err = run(&opts).await.unwrap_err();
-        assert!(err.to_string().contains("--review-bundle requires --verify"));
+        assert!(err
+            .to_string()
+            .contains("--review-bundle requires --verify"));
     }
 
     #[test]
@@ -21937,8 +21891,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     #[test]
     fn verify_synthesized_model_accepts_compound_eventual_body_committed_actions() {
         let formulas = parse_formula_strings(&[
-            "[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))"
-                .to_string(),
+            "[+RELEASE] true -> eventually(([<+DEPOSIT>] true & [<+DELIVER>] true))".to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
@@ -21957,8 +21910,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
     #[test]
     fn verify_synthesized_model_accepts_until_temporal_candidate_actions() {
-        let formulas =
-            parse_formula_strings(&["<+WAIT> true until <+APPROVE> true".to_string()]);
+        let formulas = parse_formula_strings(&["<+WAIT> true until <+APPROVE> true".to_string()]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
 
@@ -21967,8 +21919,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
     #[test]
     fn verify_synthesized_model_accepts_mixed_permissive_committed_alternatives() {
-        let formulas =
-            parse_formula_strings(&["<+APPROVE> true | [<+REJECT>] true".to_string()]);
+        let formulas = parse_formula_strings(&["<+APPROVE> true | [<+REJECT>] true".to_string()]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("Contract", &formulas);
 
@@ -22073,10 +22024,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+EXPEDITE_SHIPMENT] true -> eventually(<+CONFIRM_DELIVERY> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "ShipmentDelay",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("ShipmentDelay", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -22086,8 +22035,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         let formulas = parse_formula_strings(&[
             "always([+RETURN_REQUESTED] true -> (<+AUTHORIZE_RETURN> true | <+DENY_RETURN> true))"
                 .to_string(),
-            "always([+AUTHORIZE_RETURN] true -> eventually(<+RECEIVE_RETURN> true))"
-                .to_string(),
+            "always([+AUTHORIZE_RETURN] true -> eventually(<+RECEIVE_RETURN> true))".to_string(),
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ReturnAuthorization",
@@ -22102,13 +22050,10 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         let formulas = parse_formula_strings(&[
             "always([+WARRANTY_CLAIMED] true -> (<+REPLACE_ITEM> true | <+REPAIR_ITEM> true))"
                 .to_string(),
-            "always([+REPLACE_ITEM] true -> eventually(<+SHIP_REPLACEMENT> true))"
-                .to_string(),
+            "always([+REPLACE_ITEM] true -> eventually(<+SHIP_REPLACEMENT> true))".to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "WarrantyClaim",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("WarrantyClaim", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -22191,8 +22136,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         let formulas = parse_formula_strings(&[
             "always([+DEVICE_LOST] true -> (<+REVOKE_SESSION> true | <+REQUIRE_MFA_RESET> true))"
                 .to_string(),
-            "always([+REVOKE_SESSION] true -> eventually(<+ROTATE_CREDENTIALS> true))"
-                .to_string(),
+            "always([+REVOKE_SESSION] true -> eventually(<+ROTATE_CREDENTIALS> true))".to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("LostDevice", &formulas);
@@ -22428,10 +22372,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+REVOKE_VAULT_TOKEN] true -> eventually(<+NOTIFY_SECRETS_OWNER> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "VaultTokenLeak",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("VaultTokenLeak", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -23318,8 +23260,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_confidential_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_confidential_message_secret_leak_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_CONFIDENTIAL_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_CONFIDENTIAL_MESSAGES> true | <+REVOKE_CONFIDENTIAL_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -23639,7 +23580,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_anonymization_message_secret_leak_prompt_examples() {
+    fn verify_synthesized_model_accepts_support_anonymization_message_secret_leak_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_ANONYMIZATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_ANONYMIZATION_MESSAGES> true | <+REVOKE_ANONYMIZATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -23801,8 +23743,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_rotation_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_rotation_message_secret_leak_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_ROTATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_ROTATION_MESSAGES> true | <+REVOKE_KEY_ROTATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -23885,8 +23826,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_recovery_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_recovery_message_secret_leak_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_RECOVERY_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_RECOVERY_MESSAGES> true | <+REVOKE_KEY_RECOVERY_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24050,8 +23990,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_confirmation_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_confirmation_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_CONFIRMATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_CONFIRMATION_MESSAGES> true | <+REVOKE_KEY_CONFIRMATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24067,8 +24007,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_verification_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_verification_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_VERIFICATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_VERIFICATION_MESSAGES> true | <+REVOKE_KEY_VERIFICATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24101,8 +24041,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_authentication_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_authentication_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_AUTHENTICATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_AUTHENTICATION_MESSAGES> true | <+REVOKE_KEY_AUTHENTICATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24118,8 +24058,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_authorization_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_authorization_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_AUTHORIZATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_AUTHORIZATION_MESSAGES> true | <+REVOKE_KEY_AUTHORIZATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24135,8 +24075,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_attestation_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_attestation_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_ATTESTATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_ATTESTATION_MESSAGES> true | <+REVOKE_KEY_ATTESTATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24152,8 +24092,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_certification_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_certification_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_CERTIFICATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_CERTIFICATION_MESSAGES> true | <+REVOKE_KEY_CERTIFICATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24169,8 +24109,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_accreditation_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_accreditation_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_ACCREDITATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_ACCREDITATION_MESSAGES> true | <+REVOKE_KEY_ACCREDITATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24186,8 +24126,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_endorsement_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_endorsement_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_ENDORSEMENT_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_ENDORSEMENT_MESSAGES> true | <+REVOKE_KEY_ENDORSEMENT_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24203,8 +24143,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_approval_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_approval_message_secret_leak_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_APPROVAL_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_APPROVAL_MESSAGES> true | <+REVOKE_KEY_APPROVAL_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24220,8 +24159,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_consent_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_consent_message_secret_leak_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_CONSENT_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_CONSENT_MESSAGES> true | <+REVOKE_KEY_CONSENT_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24320,8 +24258,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_association_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_association_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_ASSOCIATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_ASSOCIATION_MESSAGES> true | <+REVOKE_KEY_ASSOCIATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24386,8 +24324,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_relationship_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_relationship_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_RELATIONSHIP_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_RELATIONSHIP_MESSAGES> true | <+REVOKE_KEY_RELATIONSHIP_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24483,8 +24421,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_unification_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_unification_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_UNIFICATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_UNIFICATION_MESSAGES> true | <+REVOKE_KEY_UNIFICATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24500,8 +24438,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_integration_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_integration_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_INTEGRATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_INTEGRATION_MESSAGES> true | <+REVOKE_KEY_INTEGRATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24517,8 +24455,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_consolidation_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_consolidation_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_CONSOLIDATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_CONSOLIDATION_MESSAGES> true | <+REVOKE_KEY_CONSOLIDATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24551,8 +24489,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_coordination_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_coordination_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_COORDINATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_COORDINATION_MESSAGES> true | <+REVOKE_KEY_COORDINATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24568,8 +24506,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_synchronization_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_synchronization_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_SYNCHRONIZATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_SYNCHRONIZATION_MESSAGES> true | <+REVOKE_KEY_SYNCHRONIZATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24602,8 +24540,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_orchestration_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_orchestration_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_ORCHESTRATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_ORCHESTRATION_MESSAGES> true | <+REVOKE_KEY_ORCHESTRATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24619,8 +24557,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_choreography_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_choreography_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_CHOREOGRAPHY_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_CHOREOGRAPHY_MESSAGES> true | <+REVOKE_KEY_CHOREOGRAPHY_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24670,8 +24608,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_planning_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_planning_message_secret_leak_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_PLANNING_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_PLANNING_MESSAGES> true | <+REVOKE_KEY_PLANNING_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24687,8 +24624,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_ordering_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_ordering_message_secret_leak_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_ORDERING_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_ORDERING_MESSAGES> true | <+REVOKE_KEY_ORDERING_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24720,8 +24656,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_dispatch_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_dispatch_message_secret_leak_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_DISPATCH_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_DISPATCH_MESSAGES> true | <+REVOKE_KEY_DISPATCH_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24737,8 +24672,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_delivery_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_delivery_message_secret_leak_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_DELIVERY_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_DELIVERY_MESSAGES> true | <+REVOKE_KEY_DELIVERY_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24770,8 +24704,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_acknowledgement_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_acknowledgement_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_ACKNOWLEDGEMENT_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_ACKNOWLEDGEMENT_MESSAGES> true | <+REVOKE_KEY_ACKNOWLEDGEMENT_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24804,8 +24738,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_adoption_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_adoption_message_secret_leak_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_ADOPTION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_ADOPTION_MESSAGES> true | <+REVOKE_KEY_ADOPTION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24889,8 +24822,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_provisioning_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_provisioning_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_PROVISIONING_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_PROVISIONING_MESSAGES> true | <+REVOKE_KEY_PROVISIONING_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24906,8 +24839,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_configuration_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_configuration_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_CONFIGURATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_CONFIGURATION_MESSAGES> true | <+REVOKE_KEY_CONFIGURATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -24923,8 +24856,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_installation_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_installation_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_INSTALLATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_INSTALLATION_MESSAGES> true | <+REVOKE_KEY_INSTALLATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25005,8 +24938,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_cutover_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_cutover_message_secret_leak_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_CUTOVER_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_CUTOVER_MESSAGES> true | <+REVOKE_KEY_CUTOVER_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25222,8 +25154,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_recreation_message_secret_leak_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_support_key_recreation_message_secret_leak_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_RECREATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_RECREATION_MESSAGES> true | <+REVOKE_KEY_RECREATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25339,8 +25271,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_mitigation_message_secret_leak_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_support_key_mitigation_message_secret_leak_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_MITIGATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_MITIGATION_MESSAGES> true | <+REVOKE_KEY_MITIGATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25356,8 +25288,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_correction_message_secret_leak_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_support_key_correction_message_secret_leak_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_CORRECTION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_CORRECTION_MESSAGES> true | <+REVOKE_KEY_CORRECTION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25373,8 +25305,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_resolution_message_secret_leak_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_support_key_resolution_message_secret_leak_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_RESOLUTION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_RESOLUTION_MESSAGES> true | <+REVOKE_KEY_RESOLUTION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25390,8 +25322,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_settlement_message_secret_leak_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_support_key_settlement_message_secret_leak_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_SETTLEMENT_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_SETTLEMENT_MESSAGES> true | <+REVOKE_KEY_SETTLEMENT_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25423,8 +25355,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_completion_message_secret_leak_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_support_key_completion_message_secret_leak_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_COMPLETION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_COMPLETION_MESSAGES> true | <+REVOKE_KEY_COMPLETION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25457,8 +25389,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_conclusion_message_secret_leak_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_support_key_conclusion_message_secret_leak_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_CONCLUSION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_CONCLUSION_MESSAGES> true | <+REVOKE_KEY_CONCLUSION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25491,8 +25423,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_retirement_message_secret_leak_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_support_key_retirement_message_secret_leak_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_RETIREMENT_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_RETIREMENT_MESSAGES> true | <+REVOKE_KEY_RETIREMENT_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25643,8 +25575,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_extinction_message_secret_leak_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_support_key_extinction_message_secret_leak_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_EXTINCTION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_EXTINCTION_MESSAGES> true | <+REVOKE_KEY_EXTINCTION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25660,8 +25592,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_abolition_message_secret_leak_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_support_key_abolition_message_secret_leak_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_ABOLITION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_ABOLITION_MESSAGES> true | <+REVOKE_KEY_ABOLITION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25711,8 +25643,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_separation_message_secret_leak_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_support_key_separation_message_secret_leak_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_SEPARATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_SEPARATION_MESSAGES> true | <+REVOKE_KEY_SEPARATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25795,8 +25727,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_sharding_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_sharding_message_secret_leak_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_SHARDING_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_SHARDING_MESSAGES> true | <+REVOKE_KEY_SHARDING_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25812,8 +25743,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_splitting_message_secret_leak_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_support_key_splitting_message_secret_leak_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_SPLITTING_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_SPLITTING_MESSAGES> true | <+REVOKE_KEY_SPLITTING_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25862,8 +25793,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_aggregation_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_aggregation_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_AGGREGATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_AGGREGATION_MESSAGES> true | <+REVOKE_KEY_AGGREGATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25895,8 +25826,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_amalgamation_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_amalgamation_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_AMALGAMATION_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_AMALGAMATION_MESSAGES> true | <+REVOKE_KEY_AMALGAMATION_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25912,8 +25843,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_coalescence_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_coalescence_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_COALESCENCE_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_COALESCENCE_MESSAGES> true | <+REVOKE_KEY_COALESCENCE_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -25993,8 +25924,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_commingling_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_commingling_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_COMMINGLING_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_COMMINGLING_MESSAGES> true | <+REVOKE_KEY_COMMINGLING_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -26010,8 +25941,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_intermixing_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_intermixing_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_INTERMIXING_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_INTERMIXING_MESSAGES> true | <+REVOKE_KEY_INTERMIXING_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -26027,8 +25958,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_interweaving_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_interweaving_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_INTERWEAVING_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_INTERWEAVING_MESSAGES> true | <+REVOKE_KEY_INTERWEAVING_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -26044,8 +25975,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_intertwining_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_intertwining_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_INTERTWINING_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_INTERTWINING_MESSAGES> true | <+REVOKE_KEY_INTERTWINING_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -26077,8 +26008,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_entanglement_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_entanglement_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_ENTANGLEMENT_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_ENTANGLEMENT_MESSAGES> true | <+REVOKE_KEY_ENTANGLEMENT_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -26111,8 +26042,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_interlacing_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_interlacing_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_INTERLACING_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_INTERLACING_MESSAGES> true | <+REVOKE_KEY_INTERLACING_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -26128,8 +26059,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_interlocking_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_interlocking_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_INTERLOCKING_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_INTERLOCKING_MESSAGES> true | <+REVOKE_KEY_INTERLOCKING_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -26145,8 +26076,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_support_key_cross_linking_message_secret_leak_prompt_examples()
-    {
+    fn verify_synthesized_model_accepts_support_key_cross_linking_message_secret_leak_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+SUPPORT_KEY_CROSS_LINKING_MESSAGE_SECRET_LEAKED] true -> (<+PURGE_SUPPORT_KEY_CROSS_LINKING_MESSAGES> true | <+REVOKE_KEY_CROSS_LINKING_MESSAGE_EXPOSED_CREDENTIALS> true))"
                 .to_string(),
@@ -26791,49 +26722,45 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         assert!(output.contains(
             "+SETTLE_ESCROW +modifies(/escrow) +oracle_attests(/oracles/delivery.id, delivered, true)"
         ));
-        assert!(output.contains(
-            "+ROTATE_KEY +signed_by(/users/security_admin.id) +modifies(/keys)"
-        ));
+        assert!(
+            output.contains("+ROTATE_KEY +signed_by(/users/security_admin.id) +modifies(/keys)")
+        );
         assert!(output.contains("+UPDATE_PROFILE +any_signed(/members) -modifies(/members)"));
         assert!(output.contains("+CHANGE_MEMBERS +modifies(/members) +all_signed(/members)"));
         assert!(output.contains("+CHANGE_CONFIG +signed_by(/users/admin.id) +modifies(/config)"));
         assert!(output.contains("+CHANGE_PRIVATE +modifies(/private) +all_signed(/members)"));
-        assert!(output
-            .contains("+EXECUTE_TREASURY +modifies(/treasury) +threshold(\"2\", /treasury/signers)"));
+        assert!(output.contains(
+            "+EXECUTE_TREASURY +modifies(/treasury) +threshold(\"2\", /treasury/signers)"
+        ));
         assert!(output.contains(
             "+PUBLISH_AUDIT +signed_by(/users/auditor.id) +modifies(/audit) +oracle_attests(/oracles/audit.id, passed, true)"
         ));
+        assert!(output.contains(
+            "+CLOSE_INCIDENT +signed_by(/users/incident_commander.id) +modifies(/incidents)"
+        ));
         assert!(output
-            .contains("+CLOSE_INCIDENT +signed_by(/users/incident_commander.id) +modifies(/incidents)"));
-        assert!(output.contains(
-            "+FREEZE_CHANGE +signed_by(/users/release_manager.id) +modifies(/releases)"
-        ));
+            .contains("+FREEZE_CHANGE +signed_by(/users/release_manager.id) +modifies(/releases)"));
         assert!(output.contains("+ACCEPT_RISK +signed_by(/users/risk_owner.id) +modifies(/risk)"));
-        assert!(output.contains(
-            "+APPROVE_SAFETY +signed_by(/users/safety_reviewer.id) +modifies(/safety)"
-        ));
+        assert!(output
+            .contains("+APPROVE_SAFETY +signed_by(/users/safety_reviewer.id) +modifies(/safety)"));
         assert!(output.contains(
             "+ATTEST_COMPLIANCE +signed_by(/users/compliance_officer.id) +modifies(/compliance)"
         ));
-        assert!(output.contains(
-            "+CONFIRM_DELIVERY +signed_by(/users/recipient.id) +modifies(/delivery)"
-        ));
+        assert!(output
+            .contains("+CONFIRM_DELIVERY +signed_by(/users/recipient.id) +modifies(/delivery)"));
         assert!(
             output.contains("+APPROVE_INVOICE +signed_by(/users/payer.id) +modifies(/invoices)")
         );
-        assert!(output.contains(
-            "+APPROVE_BUDGET +signed_by(/users/budget_owner.id) +modifies(/budgets)"
-        ));
+        assert!(output
+            .contains("+APPROVE_BUDGET +signed_by(/users/budget_owner.id) +modifies(/budgets)"));
         assert!(output.contains(
             "+APPROVE_PURCHASE_ORDER +signed_by(/users/procurement_manager.id) +modifies(/purchase_orders)"
         ));
         assert!(output.contains(
             "+APPROVE_CONTRACT +signed_by(/users/legal_reviewer.id) +modifies(/contracts)"
         ));
-        assert!(
-            output
-                .contains("+ONBOARD_VENDOR +signed_by(/users/vendor_manager.id) +modifies(/vendors)")
-        );
+        assert!(output
+            .contains("+ONBOARD_VENDOR +signed_by(/users/vendor_manager.id) +modifies(/vendors)"));
         assert!(
             output.contains("+APPROVE_TIME_OFF +signed_by(/users/manager.id) +modifies(/time_off)")
         );
@@ -26843,18 +26770,15 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         assert!(output.contains(
             "+APPROVE_EXPENSE +signed_by(/users/finance_manager.id) +modifies(/expenses)"
         ));
-        assert!(output.contains(
-            "+APPROVE_TRAVEL +signed_by(/users/travel_manager.id) +modifies(/travel)"
-        ));
+        assert!(output
+            .contains("+APPROVE_TRAVEL +signed_by(/users/travel_manager.id) +modifies(/travel)"));
         assert!(output.contains(
             "+APPROVE_REIMBURSEMENT +signed_by(/users/payroll_manager.id) +modifies(/reimbursements)"
         ));
-        assert!(output.contains(
-            "+APPROVE_REFUND +signed_by(/users/refund_manager.id) +modifies(/refunds)"
-        ));
-        assert!(output.contains(
-            "+APPROVE_CREDIT +signed_by(/users/credit_manager.id) +modifies(/credits)"
-        ));
+        assert!(output
+            .contains("+APPROVE_REFUND +signed_by(/users/refund_manager.id) +modifies(/refunds)"));
+        assert!(output
+            .contains("+APPROVE_CREDIT +signed_by(/users/credit_manager.id) +modifies(/credits)"));
         assert!(output.contains(
             "+APPROVE_ADJUSTMENT +signed_by(/users/controller.id) +modifies(/adjustments)"
         ));
@@ -26907,9 +26831,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         assert!(output.contains(
             "+APPROVE_RETENTION +signed_by(/users/records_counsel.id) +modifies(/retention)"
         ));
-        assert!(output.contains(
-            "+APPROVE_POLICY +signed_by(/users/policy_owner.id) +modifies(/policies)"
-        ));
+        assert!(output
+            .contains("+APPROVE_POLICY +signed_by(/users/policy_owner.id) +modifies(/policies)"));
         assert!(output.contains(
             "+APPROVE_CERTIFICATION +signed_by(/users/certification_manager.id) +modifies(/certifications)"
         ));
@@ -26940,15 +26863,14 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         assert!(output.contains(
             "+APPROVE_APPENDIX +signed_by(/users/appendix_owner.id) +modifies(/appendices)"
         ));
-        assert!(output.contains(
-            "+APPROVE_RIDER +signed_by(/users/rider_owner.id) +modifies(/riders)"
-        ));
+        assert!(
+            output.contains("+APPROVE_RIDER +signed_by(/users/rider_owner.id) +modifies(/riders)")
+        );
         assert!(output.contains(
             "+APPROVE_ENDORSEMENT +signed_by(/users/endorsement_owner.id) +modifies(/endorsements)"
         ));
-        assert!(output.contains(
-            "+APPROVE_EXHIBIT +signed_by(/users/exhibit_owner.id) +modifies(/exhibits)"
-        ));
+        assert!(output
+            .contains("+APPROVE_EXHIBIT +signed_by(/users/exhibit_owner.id) +modifies(/exhibits)"));
         assert!(output.contains(
             "+APPROVE_SCHEDULE +signed_by(/users/schedule_owner.id) +modifies(/schedules)"
         ));
@@ -26961,33 +26883,23 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         assert!(output.contains(
             "+APPROVE_ENCLOSURE +signed_by(/users/enclosure_owner.id) +modifies(/enclosures)"
         ));
-        assert!(output.contains(
-            "+APPROVE_PACKAGE +signed_by(/users/package_owner.id) +modifies(/packages)"
-        ));
-        assert!(output.contains(
-            "+APPROVE_BUNDLE +signed_by(/users/bundle_owner.id) +modifies(/bundles)"
-        ));
-        assert!(output.contains(
-            "+APPROVE_DOSSIER +signed_by(/users/dossier_owner.id) +modifies(/dossiers)"
-        ));
-        assert!(output.contains(
-            "+APPROVE_FILE +signed_by(/users/file_owner.id) +modifies(/files)"
-        ));
-        assert!(output.contains(
-            "+APPROVE_RECORD +signed_by(/users/record_owner.id) +modifies(/records)"
-        ));
-        assert!(
-            output.contains("+APPROVE_CASE +signed_by(/users/case_owner.id) +modifies(/cases)")
-        );
-        assert!(output.contains(
-            "+APPROVE_TICKET +signed_by(/users/ticket_owner.id) +modifies(/tickets)"
-        ));
+        assert!(output
+            .contains("+APPROVE_PACKAGE +signed_by(/users/package_owner.id) +modifies(/packages)"));
+        assert!(output
+            .contains("+APPROVE_BUNDLE +signed_by(/users/bundle_owner.id) +modifies(/bundles)"));
+        assert!(output
+            .contains("+APPROVE_DOSSIER +signed_by(/users/dossier_owner.id) +modifies(/dossiers)"));
+        assert!(output.contains("+APPROVE_FILE +signed_by(/users/file_owner.id) +modifies(/files)"));
+        assert!(output
+            .contains("+APPROVE_RECORD +signed_by(/users/record_owner.id) +modifies(/records)"));
+        assert!(output.contains("+APPROVE_CASE +signed_by(/users/case_owner.id) +modifies(/cases)"));
+        assert!(output
+            .contains("+APPROVE_TICKET +signed_by(/users/ticket_owner.id) +modifies(/tickets)"));
         assert!(output.contains(
             "+APPROVE_PROPOSAL +signed_by(/users/proposal_owner.id) +modifies(/proposals)"
         ));
-        assert!(output.contains(
-            "+APPROVE_REQUEST +signed_by(/users/request_owner.id) +modifies(/requests)"
-        ));
+        assert!(output
+            .contains("+APPROVE_REQUEST +signed_by(/users/request_owner.id) +modifies(/requests)"));
         assert!(output.contains(
             "+APPROVE_APPLICATION +signed_by(/users/application_owner.id) +modifies(/applications)"
         ));
@@ -26999,38 +26911,29 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ));
         assert!(output
             .contains("+APPROVE_REPORT +signed_by(/users/report_owner.id) +modifies(/reports)"));
-        assert!(
-            output.contains("+APPROVE_MEMO +signed_by(/users/memo_owner.id) +modifies(/memos)")
-        );
-        assert!(
-            output.contains("+APPROVE_NOTE +signed_by(/users/note_owner.id) +modifies(/notes)")
-        );
-        assert!(output.contains(
-            "+APPROVE_COMMENT +signed_by(/users/comment_owner.id) +modifies(/comments)"
-        ));
+        assert!(output.contains("+APPROVE_MEMO +signed_by(/users/memo_owner.id) +modifies(/memos)"));
+        assert!(output.contains("+APPROVE_NOTE +signed_by(/users/note_owner.id) +modifies(/notes)"));
         assert!(output
-            .contains("+APPROVE_REPLY +signed_by(/users/reply_owner.id) +modifies(/replies)"));
+            .contains("+APPROVE_COMMENT +signed_by(/users/comment_owner.id) +modifies(/comments)"));
+        assert!(
+            output.contains("+APPROVE_REPLY +signed_by(/users/reply_owner.id) +modifies(/replies)")
+        );
         assert!(output.contains(
             "+APPROVE_FEEDBACK +signed_by(/users/feedback_owner.id) +modifies(/feedback)"
         ));
-        assert!(
-            output.contains("+APPROVE_RATING +signed_by(/users/rating_owner.id) +modifies(/ratings)")
-        );
-        assert!(
-            output.contains("+APPROVE_REVIEW +signed_by(/users/review_owner.id) +modifies(/reviews)")
-        );
-        assert!(
-            output.contains("+APPROVE_SURVEY +signed_by(/users/survey_owner.id) +modifies(/surveys)")
-        );
+        assert!(output
+            .contains("+APPROVE_RATING +signed_by(/users/rating_owner.id) +modifies(/ratings)"));
+        assert!(output
+            .contains("+APPROVE_REVIEW +signed_by(/users/review_owner.id) +modifies(/reviews)"));
+        assert!(output
+            .contains("+APPROVE_SURVEY +signed_by(/users/survey_owner.id) +modifies(/surveys)"));
         assert!(output.contains(
             "+APPROVE_RESPONSE +signed_by(/users/response_owner.id) +modifies(/responses)"
         ));
-        assert!(
-            output.contains("+APPROVE_RESULT +signed_by(/users/result_owner.id) +modifies(/results)")
-        );
-        assert!(output.contains(
-            "+APPROVE_OUTCOME +signed_by(/users/outcome_owner.id) +modifies(/outcomes)"
-        ));
+        assert!(output
+            .contains("+APPROVE_RESULT +signed_by(/users/result_owner.id) +modifies(/results)"));
+        assert!(output
+            .contains("+APPROVE_OUTCOME +signed_by(/users/outcome_owner.id) +modifies(/outcomes)"));
         assert!(output.contains(
             "+APPROVE_DECISION +signed_by(/users/decision_owner.id) +modifies(/decisions)"
         ));
@@ -27043,51 +26946,40 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         ));
         assert!(output
             .contains("+APPROVE_TARGET +signed_by(/users/target_owner.id) +modifies(/targets)"));
-        assert!(
-            output.contains("+APPROVE_GOAL +signed_by(/users/goal_owner.id) +modifies(/goals)")
-        );
+        assert!(output.contains("+APPROVE_GOAL +signed_by(/users/goal_owner.id) +modifies(/goals)"));
         assert!(output.contains("+APPROVE_KPI +signed_by(/users/kpi_owner.id) +modifies(/kpis)"));
-        assert!(
-            output.contains("+APPROVE_METRIC +signed_by(/users/metric_owner.id) +modifies(/metrics)")
-        );
+        assert!(output
+            .contains("+APPROVE_METRIC +signed_by(/users/metric_owner.id) +modifies(/metrics)"));
         assert!(output.contains("+APPROVE_OKR +signed_by(/users/okr_owner.id) +modifies(/okrs)"));
         assert!(output.contains(
             "+APPROVE_INITIATIVE +signed_by(/users/initiative_owner.id) +modifies(/initiatives)"
         ));
-        assert!(
-            output.contains("+APPROVE_EPIC +signed_by(/users/epic_owner.id) +modifies(/epics)")
-        );
+        assert!(output.contains("+APPROVE_EPIC +signed_by(/users/epic_owner.id) +modifies(/epics)"));
         assert!(
             output.contains("+APPROVE_STORY +signed_by(/users/story_owner.id) +modifies(/stories)")
         );
-        assert!(
-            output.contains("+APPROVE_TASK +signed_by(/users/task_owner.id) +modifies(/tasks)")
-        );
+        assert!(output.contains("+APPROVE_TASK +signed_by(/users/task_owner.id) +modifies(/tasks)"));
         assert!(output.contains("+APPROVE_BUG +signed_by(/users/bug_owner.id) +modifies(/bugs)"));
         assert!(
             output.contains("+APPROVE_ISSUE +signed_by(/users/issue_owner.id) +modifies(/issues)")
         );
-        assert!(
-            output.contains("+APPROVE_DEFECT +signed_by(/users/defect_owner.id) +modifies(/defects)")
-        );
+        assert!(output
+            .contains("+APPROVE_DEFECT +signed_by(/users/defect_owner.id) +modifies(/defects)"));
         assert!(
             output.contains("+APPROVE_PATCH +signed_by(/users/patch_owner.id) +modifies(/patches)")
         );
-        assert!(
-            output.contains("+APPROVE_HOTFIX +signed_by(/users/hotfix_owner.id) +modifies(/hotfixes)")
-        );
+        assert!(output
+            .contains("+APPROVE_HOTFIX +signed_by(/users/hotfix_owner.id) +modifies(/hotfixes)"));
         assert!(output.contains(
             "+APPROVE_RELEASE_CANDIDATE +signed_by(/users/release_manager.id) +modifies(/release_candidates)"
         ));
         assert!(output.contains(
             "+APPROVE_DEPLOYMENT +signed_by(/users/deployment_owner.id) +modifies(/deployments)"
         ));
-        assert!(output.contains(
-            "+APPROVE_ROLLOUT +signed_by(/users/rollout_owner.id) +modifies(/rollouts)"
-        ));
-        assert!(output.contains(
-            "+APPROVE_LAUNCH +signed_by(/users/launch_owner.id) +modifies(/launches)"
-        ));
+        assert!(output
+            .contains("+APPROVE_ROLLOUT +signed_by(/users/rollout_owner.id) +modifies(/rollouts)"));
+        assert!(output
+            .contains("+APPROVE_LAUNCH +signed_by(/users/launch_owner.id) +modifies(/launches)"));
         assert!(output.contains(
             "+APPROVE_GENERAL_AVAILABILITY +signed_by(/users/ga_owner.id) +modifies(/general_availability)"
         ));
@@ -27100,9 +26992,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         assert!(output.contains(
             "+APPROVE_MAINTENANCE +signed_by(/users/maintenance_owner.id) +modifies(/maintenance)"
         ));
-        assert!(
-            output.contains("+APPROVE_SUPPORT +signed_by(/users/support_owner.id) +modifies(/support)")
-        );
+        assert!(output
+            .contains("+APPROVE_SUPPORT +signed_by(/users/support_owner.id) +modifies(/support)"));
         assert!(output.contains(
             "+APPROVE_TRAINING +signed_by(/users/training_owner.id) +modifies(/training)"
         ));
@@ -27659,8 +27550,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+DELIVER] true -> eventually(<+DEPOSIT> true))".to_string(),
             "always([+RELEASE] true -> eventually(<+DELIVER> true))".to_string(),
         ]);
-        let model =
-            modality_lang::formula_synthesis::synthesize_from_formulas("Escrow", &formulas);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas("Escrow", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -27741,10 +27631,13 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         let formulas = parse_formula_strings(&[
             "always([+INVITE_MEMBER] true -> eventually(<+ACCEPT_INVITE> true))".to_string(),
             "always([+ACCEPT_INVITE] true -> eventually(<+PROVISION_ACCESS> true))".to_string(),
-            "always([+PROVISION_ACCESS] true -> eventually(<+COMPLETE_ONBOARDING> true))".to_string(),
+            "always([+PROVISION_ACCESS] true -> eventually(<+COMPLETE_ONBOARDING> true))"
+                .to_string(),
         ]);
-        let model =
-            modality_lang::formula_synthesis::synthesize_from_formulas("MemberOnboarding", &formulas);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "MemberOnboarding",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -27821,9 +27714,12 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     #[test]
     fn verify_synthesized_model_accepts_asset_maintenance_ordering_prompt_examples() {
         let formulas = parse_formula_strings(&[
-            "always([+SCHEDULE_MAINTENANCE] true -> eventually(<+PERFORM_MAINTENANCE> true))".to_string(),
-            "always([+PERFORM_MAINTENANCE] true -> eventually(<+VERIFY_MAINTENANCE> true))".to_string(),
-            "always([+VERIFY_MAINTENANCE] true -> eventually(<+CLOSE_MAINTENANCE> true))".to_string(),
+            "always([+SCHEDULE_MAINTENANCE] true -> eventually(<+PERFORM_MAINTENANCE> true))"
+                .to_string(),
+            "always([+PERFORM_MAINTENANCE] true -> eventually(<+VERIFY_MAINTENANCE> true))"
+                .to_string(),
+            "always([+VERIFY_MAINTENANCE] true -> eventually(<+CLOSE_MAINTENANCE> true))"
+                .to_string(),
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "AssetMaintenance",
@@ -27867,8 +27763,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         let formulas = parse_formula_strings(&[
             "always([+NOTICE_RENEWAL] true -> eventually(<+REVIEW_TERMS> true))".to_string(),
             "always([+REVIEW_TERMS] true -> eventually(<+APPROVE_RENEWAL> true))".to_string(),
-            "always([+APPROVE_RENEWAL] true -> eventually(<+EXECUTE_RENEWAL> true))"
-                .to_string(),
+            "always([+APPROVE_RENEWAL] true -> eventually(<+EXECUTE_RENEWAL> true))".to_string(),
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ContractRenewal",
@@ -27881,12 +27776,9 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     #[test]
     fn verify_synthesized_model_accepts_credential_issuance_ordering_prompt_examples() {
         let formulas = parse_formula_strings(&[
-            "always([+REQUEST_CREDENTIAL] true -> eventually(<+VERIFY_IDENTITY> true))"
-                .to_string(),
-            "always([+VERIFY_IDENTITY] true -> eventually(<+ISSUE_CREDENTIAL> true))"
-                .to_string(),
-            "always([+ISSUE_CREDENTIAL] true -> eventually(<+ACCEPT_CREDENTIAL> true))"
-                .to_string(),
+            "always([+REQUEST_CREDENTIAL] true -> eventually(<+VERIFY_IDENTITY> true))".to_string(),
+            "always([+VERIFY_IDENTITY] true -> eventually(<+ISSUE_CREDENTIAL> true))".to_string(),
+            "always([+ISSUE_CREDENTIAL] true -> eventually(<+ACCEPT_CREDENTIAL> true))".to_string(),
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "CredentialIssuance",
@@ -27906,10 +27798,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_ACCESS_REVIEW] true -> eventually(<+REMEDIATE_ACCESS> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "AccessReview",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AccessReview", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -27939,10 +27829,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+FULFILL_PRIVACY_REQUEST] true -> eventually(<+CLOSE_PRIVACY_REQUEST> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "PrivacyRequest",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("PrivacyRequest", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -28062,10 +27950,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+UPDATE_AGENT_POLICY] true -> eventually(<+ACKNOWLEDGE_AGENT_FEEDBACK> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "AgentFeedback",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AgentFeedback", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -28080,10 +27966,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+INCORPORATE_AGENT_LEARNING] true -> eventually(<+PUBLISH_AGENT_LEARNING_NOTE> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "AgentLearning",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AgentLearning", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -29783,8 +29667,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         let formulas = parse_formula_strings(&[
             "always([+REPORT_VULNERABILITY] true -> eventually(<+TRIAGE_VULNERABILITY> true))"
                 .to_string(),
-            "always([+TRIAGE_VULNERABILITY] true -> eventually(<+APPLY_PATCH> true))"
-                .to_string(),
+            "always([+TRIAGE_VULNERABILITY] true -> eventually(<+APPLY_PATCH> true))".to_string(),
             "always([+APPLY_PATCH] true -> eventually(<+VERIFY_PATCH> true))".to_string(),
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
@@ -29798,8 +29681,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     #[test]
     fn verify_synthesized_model_accepts_breach_notification_ordering_prompt_examples() {
         let formulas = parse_formula_strings(&[
-            "always([+DETECT_BREACH] true -> eventually(<+ASSESS_BREACH_SCOPE> true))"
-                .to_string(),
+            "always([+DETECT_BREACH] true -> eventually(<+ASSESS_BREACH_SCOPE> true))".to_string(),
             "always([+ASSESS_BREACH_SCOPE] true -> eventually(<+NOTIFY_AFFECTED_PARTIES> true))"
                 .to_string(),
             "always([+NOTIFY_AFFECTED_PARTIES] true -> eventually(<+COMPLETE_BREACH_REVIEW> true))"
@@ -29880,10 +29762,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     #[test]
     fn verify_synthesized_model_accepts_data_use_ordering_prompt_examples() {
         let formulas = parse_formula_strings(&[
-            "always([+REQUEST_DATA_USE] true -> eventually(<+REVIEW_USE_LIMITS> true))"
-                .to_string(),
-            "always([+REVIEW_USE_LIMITS] true -> eventually(<+APPROVE_DATA_USE> true))"
-                .to_string(),
+            "always([+REQUEST_DATA_USE] true -> eventually(<+REVIEW_USE_LIMITS> true))".to_string(),
+            "always([+REVIEW_USE_LIMITS] true -> eventually(<+APPROVE_DATA_USE> true))".to_string(),
             "always([+APPROVE_DATA_USE] true -> eventually(<+LOG_DATA_USE> true))".to_string(),
         ]);
         let model =
@@ -29955,10 +29835,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_PURPOSE_CHANGE] true -> eventually(<+RECORD_PURPOSE_CHANGE> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "PurposeChange",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("PurposeChange", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -29973,10 +29851,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_PROCESSING_BASIS] true -> eventually(<+RECORD_PROCESSING_BASIS> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "LawfulBasis",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("LawfulBasis", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -29991,10 +29867,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+VERIFY_PROVENANCE] true -> eventually(<+APPROVE_PROVENANCE_RECORD> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "DataProvenance",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DataProvenance", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -30037,8 +29911,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     fn verify_synthesized_model_accepts_dpia_ordering_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+START_DPIA] true -> eventually(<+ASSESS_PRIVACY_RISK> true))".to_string(),
-            "always([+ASSESS_PRIVACY_RISK] true -> eventually(<+APPROVE_DPIA> true))"
-                .to_string(),
+            "always([+ASSESS_PRIVACY_RISK] true -> eventually(<+APPROVE_DPIA> true))".to_string(),
             "always([+APPROVE_DPIA] true -> eventually(<+RECORD_DPIA> true))".to_string(),
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas("Dpia", &formulas);
@@ -30378,10 +30251,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_MODEL_ROLLBACK_PLAN] true -> eventually(<+EXECUTE_MODEL_ROLLBACK> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "ModelRollback",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("ModelRollback", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -30396,10 +30267,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_MODEL_EXCEPTION] true -> eventually(<+RECORD_MODEL_EXCEPTION> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "ModelException",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("ModelException", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -30516,10 +30385,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_TOOL_PERMISSION] true -> eventually(<+GRANT_TOOL_PERMISSION> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "ToolPermission",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("ToolPermission", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -30568,10 +30435,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+GRANT_SANDBOX_SESSION] true -> eventually(<+RECORD_SANDBOX_AUDIT> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "SandboxSession",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("SandboxSession", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -30918,10 +30783,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_AGENT_ROLLBACK] true -> eventually(<+ROLLBACK_AGENT_STATE> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "AgentRollback",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AgentRollback", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -31204,10 +31067,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_AGENT_RATE_LIMIT_CHANGE] true -> eventually(<+APPLY_AGENT_RATE_LIMIT> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "AgentRateLimit",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AgentRateLimit", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -31256,10 +31117,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_AGENT_EVALUATOR_CHANGE] true -> eventually(<+APPLY_AGENT_EVALUATOR> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "AgentEvaluator",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AgentEvaluator", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -31274,10 +31133,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_AGENT_RUBRIC_CHANGE] true -> eventually(<+APPLY_AGENT_RUBRIC> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "AgentRubric",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AgentRubric", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -31292,10 +31149,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_AGENT_BENCHMARK_CHANGE] true -> eventually(<+APPLY_AGENT_BENCHMARK> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "AgentBenchmark",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AgentBenchmark", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -31346,10 +31201,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_AGENT_ALERT_RULE_CHANGE] true -> eventually(<+APPLY_AGENT_ALERT_RULE> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "AgentAlertRule",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("AgentAlertRule", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -31632,10 +31485,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_DECISION_AUDIT] true -> eventually(<+RECORD_DECISION_AUDIT> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "DecisionAudit",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DecisionAudit", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -31812,10 +31663,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_DECISION_BIAS_REMEDIATION] true -> eventually(<+RECORD_DECISION_BIAS_REMEDIATION> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "DecisionBias",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DecisionBias", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -32010,10 +31859,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_DECISION_DRIFT_REMEDIATION] true -> eventually(<+RECORD_DECISION_DRIFT_REVIEW> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "DecisionDrift",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DecisionDrift", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -32742,10 +32589,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_DECISION_SCOPE_REPORT] true -> eventually(<+PUBLISH_DECISION_SCOPE_REPORT> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "DecisionScope",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DecisionScope", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -32760,10 +32605,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_DECISION_RANGE_REPORT] true -> eventually(<+PUBLISH_DECISION_RANGE_REPORT> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "DecisionRange",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DecisionRange", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -32778,10 +32621,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_DECISION_BOUNDS_REPORT] true -> eventually(<+PUBLISH_DECISION_BOUNDS_REPORT> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "DecisionBounds",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DecisionBounds", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -32850,10 +32691,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_DECISION_LIMITS_REPORT] true -> eventually(<+PUBLISH_DECISION_LIMITS_REPORT> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "DecisionLimits",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DecisionLimits", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -33326,10 +33165,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_DECISION_LEDGER] true -> eventually(<+PUBLISH_DECISION_LEDGER> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "DecisionLedger",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DecisionLedger", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -33432,10 +33269,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_DECISION_DOCKET] true -> eventually(<+PUBLISH_DECISION_DOCKET> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "DecisionDocket",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DecisionDocket", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -33450,10 +33285,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_DECISION_AGENDA] true -> eventually(<+PUBLISH_DECISION_AGENDA> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "DecisionAgenda",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DecisionAgenda", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -33540,10 +33373,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_DECISION_PLAN] true -> eventually(<+PUBLISH_DECISION_PLAN> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "DecisionPlan",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DecisionPlan", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -33576,10 +33407,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_DECISION_TACTIC] true -> eventually(<+PUBLISH_DECISION_TACTIC> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "DecisionTactic",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DecisionTactic", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -33720,10 +33549,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_DECISION_LAUNCH] true -> eventually(<+PUBLISH_DECISION_LAUNCH> true))"
                 .to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "DecisionLaunch",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("DecisionLaunch", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -35584,7 +35411,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_decision_orchestration_readiness_ordering_prompt_examples() {
+    fn verify_synthesized_model_accepts_decision_orchestration_readiness_ordering_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+REQUEST_DECISION_ORCHESTRATION_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_ORCHESTRATION_READINESS> true))"
                 .to_string(),
@@ -35620,7 +35448,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_decision_collaboration_readiness_ordering_prompt_examples() {
+    fn verify_synthesized_model_accepts_decision_collaboration_readiness_ordering_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+REQUEST_DECISION_COLLABORATION_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_COLLABORATION_READINESS> true))"
                 .to_string(),
@@ -35675,7 +35504,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_decision_compatibility_readiness_ordering_prompt_examples() {
+    fn verify_synthesized_model_accepts_decision_compatibility_readiness_ordering_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+REQUEST_DECISION_COMPATIBILITY_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_COMPATIBILITY_READINESS> true))"
                 .to_string(),
@@ -35730,8 +35560,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_decision_assignability_readiness_ordering_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_decision_assignability_readiness_ordering_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+REQUEST_DECISION_ASSIGNABILITY_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_ASSIGNABILITY_READINESS> true))"
                 .to_string(),
@@ -35950,8 +35780,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_decision_observability_readiness_ordering_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_decision_observability_readiness_ordering_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+REQUEST_DECISION_OBSERVABILITY_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_OBSERVABILITY_READINESS> true))"
                 .to_string(),
@@ -35969,8 +35799,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_decision_diagnosability_readiness_ordering_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_decision_diagnosability_readiness_ordering_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+REQUEST_DECISION_DIAGNOSABILITY_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_DIAGNOSABILITY_READINESS> true))"
                 .to_string(),
@@ -35988,8 +35818,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_decision_inspectability_readiness_ordering_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_decision_inspectability_readiness_ordering_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+REQUEST_DECISION_INSPECTABILITY_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_INSPECTABILITY_READINESS> true))"
                 .to_string(),
@@ -36007,8 +35837,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_decision_explainability_readiness_ordering_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_decision_explainability_readiness_ordering_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+REQUEST_DECISION_EXPLAINABILITY_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_EXPLAINABILITY_READINESS> true))"
                 .to_string(),
@@ -36063,8 +35893,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_decision_accountability_readiness_ordering_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_decision_accountability_readiness_ordering_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+REQUEST_DECISION_ACCOUNTABILITY_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_ACCOUNTABILITY_READINESS> true))"
                 .to_string(),
@@ -36082,8 +35912,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_decision_transparency_readiness_ordering_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_decision_transparency_readiness_ordering_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+REQUEST_DECISION_TRANSPARENCY_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_TRANSPARENCY_READINESS> true))"
                 .to_string(),
@@ -36101,8 +35930,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_decision_auditability_readiness_ordering_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_decision_auditability_readiness_ordering_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+REQUEST_DECISION_AUDITABILITY_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_AUDITABILITY_READINESS> true))"
                 .to_string(),
@@ -36120,8 +35948,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_decision_verifiability_readiness_ordering_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_decision_verifiability_readiness_ordering_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+REQUEST_DECISION_VERIFIABILITY_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_VERIFIABILITY_READINESS> true))"
                 .to_string(),
@@ -36139,8 +35967,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_decision_provability_readiness_ordering_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_decision_provability_readiness_ordering_prompt_examples() {
         let formulas = parse_formula_strings(&[
             "always([+REQUEST_DECISION_PROVABILITY_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_PROVABILITY_READINESS> true))"
                 .to_string(),
@@ -36158,8 +35985,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_decision_confirmability_readiness_ordering_prompt_examples(
-    ) {
+    fn verify_synthesized_model_accepts_decision_confirmability_readiness_ordering_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+REQUEST_DECISION_CONFIRMABILITY_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_CONFIRMABILITY_READINESS> true))"
                 .to_string(),
@@ -36828,7 +36655,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_decision_autocorrelation_readiness_ordering_prompt_examples() {
+    fn verify_synthesized_model_accepts_decision_autocorrelation_readiness_ordering_prompt_examples(
+    ) {
         let formulas = parse_formula_strings(&[
             "always([+REQUEST_DECISION_AUTOCORRELATION_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_AUTOCORRELATION_READINESS> true))"
                 .to_string(),
@@ -37224,7 +37052,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_decision_manufacturing_readiness_ordering_prompt_examples() {
+    fn verify_synthesized_model_accepts_decision_manufacturing_readiness_ordering_prompt_examples()
+    {
         let formulas = parse_formula_strings(&[
             "always([+REQUEST_DECISION_MANUFACTURING_READINESS_REVIEW] true -> eventually(<+MEASURE_DECISION_MANUFACTURING_READINESS> true))"
                 .to_string(),
@@ -37336,8 +37165,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
         let formulas = parse_formula_strings(&[
             "always([+DISPUTE] true -> (always([-RELEASE] true) & always([-REFUND] true)))"
                 .to_string(),
-            "always([+RESOLVE_DISPUTE] true -> <+signed_by(/users/arbiter.id)> true)"
-                .to_string(),
+            "always([+RESOLVE_DISPUTE] true -> <+signed_by(/users/arbiter.id)> true)".to_string(),
         ]);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("Dispute", &formulas);
@@ -37363,8 +37191,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+REFUND] true -> <+signed_by(/users/seller.id)> true)".to_string(),
             "always([+REFUND] true -> always([-RELEASE] true))".to_string(),
         ]);
-        let model =
-            modality_lang::formula_synthesis::synthesize_from_formulas("Refund", &formulas);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas("Refund", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -37387,8 +37214,10 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+REJECT] true -> <+signed_by(/users/reviewer.id)> true)".to_string(),
             "always([+REJECT] true -> always([-APPROVE] true))".to_string(),
         ]);
-        let model =
-            modality_lang::formula_synthesis::synthesize_from_formulas("ReviewRejection", &formulas);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "ReviewRejection",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -37436,8 +37265,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPEAL] true -> <+signed_by(/users/appellant.id)> true)".to_string(),
             "always([+APPEAL] true -> always([-ENFORCE] true))".to_string(),
         ]);
-        let model =
-            modality_lang::formula_synthesis::synthesize_from_formulas("Appeal", &formulas);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas("Appeal", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -37484,7 +37312,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+RENEW] true -> <+signed_by(/users/holder.id)> true)".to_string(),
             "always([+RENEW] true -> always([-EXPIRE] true))".to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas("Renewal", &formulas);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Renewal", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -37507,7 +37336,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+EXTEND] true -> <+signed_by(/users/owner.id)> true)".to_string(),
             "always([+EXTEND] true -> always([-TERMINATE] true))".to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas("Extension", &formulas);
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("Extension", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -37578,8 +37408,10 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+ACKNOWLEDGE] true -> <+signed_by(/users/recipient.id)> true)".to_string(),
             "always([+ACKNOWLEDGE] true -> always([-DISPUTE] true))".to_string(),
         ]);
-        let model =
-            modality_lang::formula_synthesis::synthesize_from_formulas("Acknowledgement", &formulas);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "Acknowledgement",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -37605,8 +37437,10 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
             "always([+APPROVE_INVOICE] true -> <+signed_by(/users/payer.id)> true)".to_string(),
             "always([+APPROVE_INVOICE] true -> always([-CHARGEBACK] true))".to_string(),
         ]);
-        let model =
-            modality_lang::formula_synthesis::synthesize_from_formulas("InvoiceApproval", &formulas);
+        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
+            "InvoiceApproval",
+            &formulas,
+        );
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -37614,8 +37448,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     #[test]
     fn verify_synthesized_model_accepts_milestone_acceptance_prompt_example() {
         let formulas = parse_formula_strings(&[
-            "always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)"
-                .to_string(),
+            "always([+ACCEPT_MILESTONE] true -> <+signed_by(/users/verifier.id)> true)".to_string(),
             "always([+ACCEPT_MILESTONE] true -> always([-REWORK] true))".to_string(),
         ]);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
@@ -37664,10 +37497,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
                 .to_string(),
             "always([+APPROVE_SAFETY] true -> always([-UNSAFE_DEPLOYMENT] true))".to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "SafetyApproval",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("SafetyApproval", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -37675,14 +37506,11 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     #[test]
     fn verify_synthesized_model_accepts_risk_acceptance_prompt_example() {
         let formulas = parse_formula_strings(&[
-            "always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)"
-                .to_string(),
+            "always([+ACCEPT_RISK] true -> <+signed_by(/users/risk_owner.id)> true)".to_string(),
             "always([+ACCEPT_RISK] true -> always([-UNMITIGATED_EXPOSURE] true))".to_string(),
         ]);
-        let model = modality_lang::formula_synthesis::synthesize_from_formulas(
-            "RiskAcceptance",
-            &formulas,
-        );
+        let model =
+            modality_lang::formula_synthesis::synthesize_from_formulas("RiskAcceptance", &formulas);
 
         verify_synthesized_model(&model, &formulas).unwrap();
     }
@@ -37761,8 +37589,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     #[test]
     fn verify_synthesized_model_accepts_parenthesized_recursive_nested_until_guard() {
         let formulas = parse_formula_strings(&[
-            "lfp(X, (<+APPROVE> true) | ((<+REVIEW> true) & ((<+WAIT> true) & <>(X))))"
-                .to_string(),
+            "lfp(X, (<+APPROVE> true) | ((<+REVIEW> true) & ((<+WAIT> true) & <>(X))))".to_string(),
         ]);
         assert_eq!(formulas.len(), 1);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
@@ -37776,8 +37603,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     #[test]
     fn verify_synthesized_model_accepts_guarded_recursive_branch_before_goal() {
         let formulas = parse_formula_strings(&[
-            "lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>(X))) | (<+APPROVE> true))"
-                .to_string(),
+            "lfp(X, ((<+REVIEW> true) & ((<+WAIT> true) & <>(X))) | (<+APPROVE> true))".to_string(),
         ]);
         assert_eq!(formulas.len(), 1);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
@@ -37899,8 +37725,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
     #[test]
     fn verify_synthesized_model_accepts_committed_recursive_lfp_eventual_goal() {
-        let formulas =
-            parse_formula_strings(&["lfp(X, ([<+APPROVE>] true) | [<>]X)".to_string()]);
+        let formulas = parse_formula_strings(&["lfp(X, ([<+APPROVE>] true) | [<>]X)".to_string()]);
         assert_eq!(formulas.len(), 1);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "CommittedRecursiveLfpEventualGoal",
@@ -37937,8 +37762,8 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
     }
 
     #[test]
-    fn verify_synthesized_model_accepts_nested_parenthesized_unlabeled_lfp_recursion_before_availability()
-    {
+    fn verify_synthesized_model_accepts_nested_parenthesized_unlabeled_lfp_recursion_before_availability(
+    ) {
         let formulas =
             parse_formula_strings(&["lfp(X, [<>]((X)) | ([<+APPROVE>] true))".to_string()]);
         assert_eq!(formulas.len(), 1);
@@ -37952,8 +37777,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
     #[test]
     fn verify_synthesized_model_accepts_parenthesized_committed_lfp_eventual_goal() {
-        let formulas =
-            parse_formula_strings(&["lfp(X, ([<+APPROVE>] true) | <>(X))".to_string()]);
+        let formulas = parse_formula_strings(&["lfp(X, ([<+APPROVE>] true) | <>(X))".to_string()]);
         assert_eq!(formulas.len(), 1);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ParenthesizedCommittedLfpEventualGoal",
@@ -37978,8 +37802,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
     #[test]
     fn verify_synthesized_model_accepts_nested_parenthesized_lfp_eventual_goal() {
-        let formulas =
-            parse_formula_strings(&["lfp(X, (<+APPROVE> true) | <>((X)))".to_string()]);
+        let formulas = parse_formula_strings(&["lfp(X, (<+APPROVE> true) | <>((X)))".to_string()]);
         assert_eq!(formulas.len(), 1);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "NestedParenthesizedLfpEventualGoal",
@@ -37991,8 +37814,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
     #[test]
     fn verify_synthesized_model_accepts_parsed_gfp_recursion() {
-        let formulas =
-            parse_formula_strings(&["gfp(X, ([<+APPROVE>] true) & [](X))".to_string()]);
+        let formulas = parse_formula_strings(&["gfp(X, ([<+APPROVE>] true) & [](X))".to_string()]);
         assert_eq!(formulas.len(), 1);
         let model =
             modality_lang::formula_synthesis::synthesize_from_formulas("ParsedGfp", &formulas);
@@ -38090,8 +37912,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
     #[test]
     fn verify_synthesized_model_accepts_parenthesized_committed_gfp_branch_order() {
-        let formulas =
-            parse_formula_strings(&["gfp(X, [](X) & ([<+APPROVE>] true))".to_string()]);
+        let formulas = parse_formula_strings(&["gfp(X, [](X) & ([<+APPROVE>] true))".to_string()]);
         assert_eq!(formulas.len(), 1);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ParenthesizedCommittedGfpBranchOrder",
@@ -38166,8 +37987,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
     #[test]
     fn verify_synthesized_model_accepts_parenthesized_gfp_recursion_before_availability() {
-        let formulas =
-            parse_formula_strings(&["gfp(X, []((X)) & (<+APPROVE> true))".to_string()]);
+        let formulas = parse_formula_strings(&["gfp(X, []((X)) & (<+APPROVE> true))".to_string()]);
         assert_eq!(formulas.len(), 1);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ParenthesizedGfpRecursionBeforeAvailability",
@@ -38179,8 +37999,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
     #[test]
     fn verify_synthesized_model_accepts_parenthesized_permissive_parsed_gfp_recursion() {
-        let formulas =
-            parse_formula_strings(&["gfp(X, (<+APPROVE> true) & []((X)))".to_string()]);
+        let formulas = parse_formula_strings(&["gfp(X, (<+APPROVE> true) & []((X)))".to_string()]);
         assert_eq!(formulas.len(), 1);
         let model = modality_lang::formula_synthesis::synthesize_from_formulas(
             "ParenthesizedPermissiveParsedGfp",
@@ -38285,8 +38104,7 @@ gfp(X, []((X)) & ([<+ARCHIVE>] true))
 
     #[test]
     fn parsed_formula_labels_number_multiple_declarations_from_one_input() {
-        let formulas = vec![
-            r#"
+        let formulas = vec![r#"
 formula Approval {
 always([<+APPROVE>] true)
 }
@@ -38295,8 +38113,7 @@ formula ApprovalSigner {
 [+APPROVE] true -> <+signed_by(/users/reviewer.id)> true
 }
 "#
-            .to_string(),
-        ];
+        .to_string()];
 
         let labels = parsed_formula_string_labels(&formulas);
 
@@ -38305,8 +38122,7 @@ formula ApprovalSigner {
 
     #[test]
     fn parsed_formula_labels_include_rule_formula_blocks() {
-        let formulas = vec![
-            r#"
+        let formulas = vec![r#"
 export default rule {
   starting_at $PARENT
   formula {
@@ -38314,8 +38130,7 @@ export default rule {
   }
 }
 "#
-            .to_string(),
-        ];
+        .to_string()];
 
         let parsed = parse_formula_inputs(&formulas);
 
@@ -38326,16 +38141,14 @@ export default rule {
 
     #[test]
     fn named_rule_formula_blocks_keep_rule_name_for_review_labels() {
-        let formulas = vec![
-            r#"
+        let formulas = vec![r#"
 rule authorized_posts {
   formula {
     [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
   }
 }
 "#
-            .to_string(),
-        ];
+        .to_string()];
 
         let labels = parsed_formula_string_labels(&formulas);
 
@@ -38344,8 +38157,7 @@ rule authorized_posts {
 
     #[test]
     fn first_contract_authorization_rule_synthesizes_bootstrap_witness() {
-        let formulas = vec![
-            r#"
+        let formulas = vec![r#"
 export default rule {
   starting_at $PARENT
   formula {
@@ -38353,8 +38165,7 @@ export default rule {
   }
 }
 "#
-            .to_string(),
-        ];
+        .to_string()];
         let parsed = parse_formula_inputs(&formulas);
 
         let model = synthesize_model_from_parsed_formulas(&parsed.formulas);
@@ -38365,10 +38176,7 @@ export default rule {
         assert!(transitions.iter().any(|transition| {
             transition.from == "q0"
                 && transition.to == "q1"
-                && transition
-                    .properties
-                    .iter()
-                    .any(|prop| prop.name == "POST")
+                && transition.properties.iter().any(|prop| prop.name == "POST")
                 && transition
                     .properties
                     .iter()

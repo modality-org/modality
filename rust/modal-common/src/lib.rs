@@ -2,16 +2,16 @@
 #[macro_use]
 extern crate lazy_static;
 
+pub mod contract_store;
+pub mod encrypted_text;
 pub mod hash_tax;
+pub mod hub_client;
 pub mod json_stringify_deterministic;
 pub mod keypair;
-pub mod mnemonic;
-pub mod passfile;
-pub mod encrypted_text;
 pub mod libp2p_identity_keypair;
-pub mod multiaddr_list;
-pub mod shuffle;
 pub mod merkle;
-pub mod contract_store;
-pub mod hub_client;
+pub mod mnemonic;
 pub mod model_diagnostics;
+pub mod multiaddr_list;
+pub mod passfile;
+pub mod shuffle;

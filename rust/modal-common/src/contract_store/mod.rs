@@ -1,7 +1,7 @@
-pub mod config;
 pub mod commit_file;
-pub mod refs;
+pub mod config;
 pub mod one_step_rule;
+pub mod refs;
 
 #[cfg(test)]
 mod tests;
@@ -9,14 +9,13 @@ mod tests;
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 
-pub use config::ContractConfig;
 pub use commit_file::{CommitFile, RuleForThisCommit};
-pub use refs::Refs;
+pub use config::ContractConfig;
 pub use one_step_rule::{
-    CommitSignature, CommitRuleFormula,
-    parse_formula, parse_signatures,
-    evaluate_formula, validate_rule_for_this_commit,
+    evaluate_formula, parse_formula, parse_signatures, validate_rule_for_this_commit,
+    CommitRuleFormula, CommitSignature,
 };
+pub use refs::Refs;
 
 /// Parse a repost path in format $contract_id:/remote/path
 /// Returns (contract_id, remote_path)
@@ -24,21 +23,22 @@ pub fn parse_repost_path(path: &str) -> Result<(&str, &str)> {
     if !path.starts_with('$') {
         anyhow::bail!("Repost path must start with '$', got: {}", path);
     }
-    
-    let colon_pos = path.find(":/")
+
+    let colon_pos = path
+        .find(":/")
         .ok_or_else(|| anyhow::anyhow!("Repost path must contain ':/', got: {}", path))?;
-    
+
     let contract_id = &path[1..colon_pos];
     let remote_path = &path[colon_pos + 1..];
-    
+
     if contract_id.is_empty() {
         anyhow::bail!("Repost path has empty contract_id");
     }
-    
+
     if remote_path.is_empty() || !remote_path.starts_with('/') {
         anyhow::bail!("Repost remote path must start with '/'");
     }
-    
+
     Ok((contract_id, remote_path))
 }
 
@@ -53,15 +53,16 @@ impl ContractStore {
         let mut current = dir.to_path_buf();
         loop {
             if current.join(".contract").exists() {
-                return Ok(Self {
-                    root_dir: current,
-                });
+                return Ok(Self { root_dir: current });
             }
             if !current.pop() {
                 break;
             }
         }
-        anyhow::bail!("Not a contract directory (no .contract found in {} or any parent)", dir.display());
+        anyhow::bail!(
+            "Not a contract directory (no .contract found in {} or any parent)",
+            dir.display()
+        );
     }
 
     /// Initialize a new contract store
@@ -121,19 +122,28 @@ impl ContractStore {
 
     /// Save a commit
     pub fn save_commit(&self, commit_id: &str, commit: &CommitFile) -> Result<()> {
-        let commit_path = self.contract_dir().join("commits").join(format!("{}.json", commit_id));
+        let commit_path = self
+            .contract_dir()
+            .join("commits")
+            .join(format!("{}.json", commit_id));
         commit.save(&commit_path)
     }
 
     /// Load a commit
     pub fn load_commit(&self, commit_id: &str) -> Result<CommitFile> {
-        let commit_path = self.contract_dir().join("commits").join(format!("{}.json", commit_id));
+        let commit_path = self
+            .contract_dir()
+            .join("commits")
+            .join(format!("{}.json", commit_id));
         CommitFile::load(&commit_path)
     }
 
     /// Check if a commit exists
     pub fn has_commit(&self, commit_id: &str) -> bool {
-        let commit_path = self.contract_dir().join("commits").join(format!("{}.json", commit_id));
+        let commit_path = self
+            .contract_dir()
+            .join("commits")
+            .join(format!("{}.json", commit_id));
         commit_path.exists()
     }
 
@@ -206,12 +216,12 @@ impl ContractStore {
     /// Write a value to the state directory
     pub fn write_state(&self, path: &str, value: &serde_json::Value) -> Result<()> {
         let file_path = self.state_dir().join(path.trim_start_matches('/'));
-        
+
         // Create parent directories if needed
         if let Some(parent) = file_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        
+
         // Write the value (as JSON for complex types, raw for simple)
         let content = match value {
             serde_json::Value::String(s) => s.clone(),
@@ -219,7 +229,7 @@ impl ContractStore {
             serde_json::Value::Number(n) => n.to_string(),
             _ => serde_json::to_string_pretty(value)?,
         };
-        
+
         std::fs::write(&file_path, content)?;
         Ok(())
     }
@@ -228,17 +238,17 @@ impl ContractStore {
     #[allow(clippy::unnecessary_lazy_evaluations)]
     pub fn read_state(&self, path: &str) -> Result<Option<serde_json::Value>> {
         let file_path = self.state_dir().join(path.trim_start_matches('/'));
-        
+
         if !file_path.exists() {
             return Ok(None);
         }
-        
+
         let content = std::fs::read_to_string(&file_path)?;
-        
+
         // Try to parse as JSON, fallback to string
-        let value = serde_json::from_str(&content)
-            .unwrap_or_else(|_| serde_json::Value::String(content));
-        
+        let value =
+            serde_json::from_str(&content).unwrap_or_else(|_| serde_json::Value::String(content));
+
         Ok(Some(value))
     }
 
@@ -248,7 +258,7 @@ impl ContractStore {
         if !state_dir.exists() {
             return Ok(Vec::new());
         }
-        
+
         let mut files = Vec::new();
         self.collect_files(&state_dir, &state_dir, "", &mut files)?;
         Ok(files)
@@ -260,7 +270,7 @@ impl ContractStore {
         if !rules_dir.exists() {
             return Ok(Vec::new());
         }
-        
+
         let mut files = Vec::new();
         self.collect_files(&rules_dir, &rules_dir, "/rules", &mut files)?;
         Ok(files)
@@ -271,11 +281,11 @@ impl ContractStore {
         // path is like /rules/auth.modality, strip the /rules prefix
         let relative = path.trim_start_matches("/rules/");
         let file_path = self.rules_dir().join(relative);
-        
+
         if !file_path.exists() {
             return Ok(None);
         }
-        
+
         let content = std::fs::read_to_string(&file_path)?;
         Ok(Some(serde_json::Value::String(content)))
     }
@@ -284,26 +294,32 @@ impl ContractStore {
     pub fn write_rule(&self, path: &str, value: &serde_json::Value) -> Result<()> {
         let relative = path.trim_start_matches("/rules/");
         let file_path = self.rules_dir().join(relative);
-        
+
         // Create parent directories if needed
         if let Some(parent) = file_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        
+
         let content = match value {
             serde_json::Value::String(s) => s.clone(),
             _ => serde_json::to_string_pretty(value)?,
         };
-        
+
         std::fs::write(&file_path, content)?;
         Ok(())
     }
 
-    fn collect_files(&self, base: &Path, dir: &Path, prefix: &str, files: &mut Vec<String>) -> Result<()> {
+    fn collect_files(
+        &self,
+        base: &Path,
+        dir: &Path,
+        prefix: &str,
+        files: &mut Vec<String>,
+    ) -> Result<()> {
         for entry in std::fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
-            
+
             if path.is_dir() {
                 self.collect_files(base, &path, prefix, files)?;
             } else if path.is_file() {
@@ -315,17 +331,19 @@ impl ContractStore {
     }
 
     /// Build current state by replaying all commits
-    pub fn build_state_from_commits(&self) -> Result<std::collections::HashMap<String, serde_json::Value>> {
+    pub fn build_state_from_commits(
+        &self,
+    ) -> Result<std::collections::HashMap<String, serde_json::Value>> {
         use std::collections::HashMap;
-        
+
         let mut state: HashMap<String, serde_json::Value> = HashMap::new();
-        
+
         // Get all commits in order (oldest first)
         let head = self.get_head()?;
         if head.is_none() {
             return Ok(state);
         }
-        
+
         // Collect commits from HEAD to genesis
         let mut commits = Vec::new();
         let mut current = head;
@@ -334,7 +352,7 @@ impl ContractStore {
             commits.push(commit.clone());
             current = commit.head.parent;
         }
-        
+
         // Replay in order (oldest first)
         commits.reverse();
         for commit in commits {
@@ -351,7 +369,7 @@ impl ContractStore {
                 }
             }
         }
-        
+
         Ok(state)
     }
 
@@ -359,9 +377,9 @@ impl ContractStore {
     pub fn checkout_state(&self) -> Result<()> {
         self.init_state_dir()?;
         self.init_rules_dir()?;
-        
+
         let state = self.build_state_from_commits()?;
-        
+
         for (path, value) in state {
             if path.starts_with("/rules/") {
                 self.write_rule(&path, &value)?;
@@ -372,7 +390,7 @@ impl ContractStore {
                 self.write_state(&path, &value)?;
             }
         }
-        
+
         Ok(())
     }
 
@@ -395,20 +413,21 @@ impl ContractStore {
     /// Stored at: reposts/{contract_id}/remote/path.ext
     pub fn write_repost(&self, path: &str, value: &serde_json::Value) -> Result<()> {
         self.init_reposts_dir()?;
-        
+
         // Parse $contract_id:/remote/path
         let (contract_id, remote_path) = parse_repost_path(path)?;
-        
+
         // Build local file path: reposts/{contract_id}{remote_path}
-        let file_path = self.reposts_dir()
+        let file_path = self
+            .reposts_dir()
             .join(contract_id)
             .join(remote_path.trim_start_matches('/'));
-        
+
         // Create parent directories if needed
         if let Some(parent) = file_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        
+
         // Write the value
         let content = match value {
             serde_json::Value::String(s) => s.clone(),
@@ -416,7 +435,7 @@ impl ContractStore {
             serde_json::Value::Number(n) => n.to_string(),
             _ => serde_json::to_string_pretty(value)?,
         };
-        
+
         std::fs::write(&file_path, content)?;
         Ok(())
     }
@@ -425,21 +444,22 @@ impl ContractStore {
     #[allow(clippy::unnecessary_lazy_evaluations)]
     pub fn read_repost(&self, path: &str) -> Result<Option<serde_json::Value>> {
         let (contract_id, remote_path) = parse_repost_path(path)?;
-        
-        let file_path = self.reposts_dir()
+
+        let file_path = self
+            .reposts_dir()
             .join(contract_id)
             .join(remote_path.trim_start_matches('/'));
-        
+
         if !file_path.exists() {
             return Ok(None);
         }
-        
+
         let content = std::fs::read_to_string(&file_path)?;
-        
+
         // Try to parse as JSON, fallback to string
-        let value = serde_json::from_str(&content)
-            .unwrap_or_else(|_| serde_json::Value::String(content));
-        
+        let value =
+            serde_json::from_str(&content).unwrap_or_else(|_| serde_json::Value::String(content));
+
         Ok(Some(value))
     }
 
@@ -449,28 +469,33 @@ impl ContractStore {
         if !reposts_dir.exists() {
             return Ok(Vec::new());
         }
-        
+
         let mut files = Vec::new();
-        
+
         // Iterate over contract_id directories
         for entry in std::fs::read_dir(&reposts_dir)? {
             let entry = entry?;
             let contract_id = entry.file_name().to_string_lossy().to_string();
             let contract_dir = entry.path();
-            
+
             if contract_dir.is_dir() {
                 self.collect_repost_files(&contract_dir, &contract_id, &mut files)?;
             }
         }
-        
+
         Ok(files)
     }
 
-    fn collect_repost_files(&self, dir: &Path, contract_id: &str, files: &mut Vec<String>) -> Result<()> {
+    fn collect_repost_files(
+        &self,
+        dir: &Path,
+        contract_id: &str,
+        files: &mut Vec<String>,
+    ) -> Result<()> {
         for entry in std::fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
-            
+
             if path.is_dir() {
                 self.collect_repost_files(&path, contract_id, files)?;
             } else if path.is_file() {
@@ -482,49 +507,49 @@ impl ContractStore {
     }
 
     /// Validate a commit against all accumulated contract rules
-    /// 
+    ///
     /// Loads all rules from commit history, builds current state,
     /// and evaluates each rule's predicates against the pending commit.
     pub fn validate_commit_against_rules(&self, commit: &CommitFile) -> Result<()> {
         use crate::contract_store::one_step_rule::EvalContext;
-        
+
         // Build current state and collect rules
         let (state, rules) = self.build_state_and_rules()?;
-        
+
         if rules.is_empty() {
             return Ok(()); // No rules to validate against
         }
-        
+
         // Extract signers from commit head
         let signers = self.extract_signers_from_commit(commit);
-        
+
         // Build commit body as Value for EvalContext
         let body_value = serde_json::to_value(&commit.body)?;
-        
+
         // Create evaluation context
         let ctx = EvalContext::new(&signers, &state, &body_value);
-        
+
         // Validate each rule
         for rule_content in &rules {
             self.validate_single_rule(rule_content, &ctx)?;
         }
-        
+
         Ok(())
     }
-    
+
     /// Build current state and collect all rules from commits
     fn build_state_and_rules(&self) -> Result<(serde_json::Value, Vec<String>)> {
         use std::collections::HashMap;
-        
+
         let mut state: HashMap<String, serde_json::Value> = HashMap::new();
         let mut rules: Vec<String> = Vec::new();
-        
+
         // Get all commits in order (oldest first)
         let head = self.get_head()?;
         if head.is_none() {
             return Ok((serde_json::json!({}), rules));
         }
-        
+
         // Collect commits from HEAD to genesis
         let mut commits = Vec::new();
         let mut current = head;
@@ -533,7 +558,7 @@ impl ContractStore {
             commits.push(commit.clone());
             current = commit.head.parent;
         }
-        
+
         // Replay in order (oldest first)
         commits.reverse();
         for commit in commits {
@@ -555,14 +580,14 @@ impl ContractStore {
                 }
             }
         }
-        
+
         Ok((serde_json::json!(state), rules))
     }
-    
+
     /// Extract signer identities from commit signatures
     fn extract_signers_from_commit(&self, commit: &CommitFile) -> Vec<String> {
         let mut signers = Vec::new();
-        
+
         if let Some(sigs) = &commit.head.signatures {
             if let Some(obj) = sigs.as_object() {
                 // Format: { "pubkey": "signature" }
@@ -571,33 +596,33 @@ impl ContractStore {
                 }
             }
         }
-        
+
         signers
     }
-    
+
     /// Validate a single rule against the evaluation context
     fn validate_single_rule(
-        &self, 
-        rule_content: &str, 
+        &self,
+        rule_content: &str,
         ctx: &one_step_rule::EvalContext,
     ) -> Result<()> {
         use crate::contract_store::one_step_rule::{
             evaluate_formula_full, explain_formula_failures, parse_formula,
         };
-        
+
         // Extract the formula from rule syntax
         // Format: rule name { formula { <expression> } }
         let formula_str = match self.extract_formula_from_rule(rule_content) {
             Some(f) => f,
             None => return Ok(()), // Can't parse, skip (might be a different rule format)
         };
-        
+
         // Handle temporal operators and implications
         // "always (+any_signed(/members))" -> evaluate any_signed(/members)
         // "always (+modifies(/members) implies +all_signed(/members))" -> conditional check
-        
+
         let formula_str = formula_str.trim();
-        
+
         // Strip "always" wrapper if present
         let inner = if formula_str.starts_with("always") {
             self.extract_inner_formula(formula_str, "always")
@@ -605,15 +630,15 @@ impl ContractStore {
         } else {
             formula_str.to_string()
         };
-        
+
         // Handle implication: "A implies B" means "if A then B"
         if inner.contains(" implies ") {
             return self.validate_implication(&inner, ctx);
         }
-        
+
         // Strip + prefix from predicates for parsing
         let formula_normalized = self.normalize_predicate_syntax(&inner);
-        
+
         // Parse and evaluate
         match parse_formula(&formula_normalized) {
             Ok(formula) => {
@@ -635,17 +660,17 @@ impl ContractStore {
             }
         }
     }
-    
+
     /// Extract formula expression from rule declaration
     fn extract_formula_from_rule(&self, rule_content: &str) -> Option<String> {
         // Find "formula" keyword and extract content
         let formula_start = rule_content.find("formula")?;
         let after_formula = &rule_content[formula_start..];
-        
+
         // Find first { after formula
         let brace_start = after_formula.find('{')?;
         let content_start = formula_start + brace_start + 1;
-        
+
         // Find matching closing brace
         let mut depth = 1;
         let mut end = content_start;
@@ -662,19 +687,19 @@ impl ContractStore {
                 _ => {}
             }
         }
-        
+
         Some(rule_content[content_start..end].trim().to_string())
     }
-    
+
     /// Extract inner formula from temporal operator
     fn extract_inner_formula(&self, formula: &str, operator: &str) -> Option<String> {
         let trimmed = formula.trim();
         if !trimmed.starts_with(operator) {
             return None;
         }
-        
+
         let after_op = &trimmed[operator.len()..].trim_start();
-        
+
         // Handle both "always (expr)" and "always expr"
         if after_op.starts_with('(') {
             // Find matching paren
@@ -698,7 +723,7 @@ impl ContractStore {
             Some(after_op.to_string())
         }
     }
-    
+
     /// Normalize predicate syntax: "+any_signed(x)" -> "any_signed(x)"
     fn normalize_predicate_syntax(&self, formula: &str) -> String {
         formula
@@ -708,43 +733,39 @@ impl ContractStore {
             .replace("+signed_by", "signed_by")
             .replace("-modifies", "!modifies") // Negative predicate
     }
-    
+
     /// Validate an implication: "A implies B" means if A is true, B must be true
-    fn validate_implication(
-        &self,
-        formula: &str,
-        ctx: &one_step_rule::EvalContext,
-    ) -> Result<()> {
+    fn validate_implication(&self, formula: &str, ctx: &one_step_rule::EvalContext) -> Result<()> {
         use crate::contract_store::one_step_rule::{
             evaluate_formula_full, explain_formula_failures, parse_formula,
         };
-        
+
         // Split on "implies"
         let parts: Vec<&str> = formula.split(" implies ").collect();
         if parts.len() != 2 {
             return Ok(()); // Can't parse, skip
         }
-        
+
         let antecedent = self.normalize_predicate_syntax(parts[0].trim());
         let consequent = self.normalize_predicate_syntax(parts[1].trim());
-        
+
         // Parse antecedent
         let antecedent_formula = match parse_formula(&antecedent) {
             Ok(f) => f,
             Err(_) => return Ok(()), // Can't parse, skip
         };
-        
+
         // If antecedent is false, implication is satisfied
         if !evaluate_formula_full(&antecedent_formula, ctx) {
             return Ok(());
         }
-        
+
         // Antecedent is true, so consequent must also be true
         let consequent_formula = match parse_formula(&consequent) {
             Ok(f) => f,
             Err(_) => return Ok(()), // Can't parse, skip
         };
-        
+
         if !evaluate_formula_full(&consequent_formula, ctx) {
             let failures = explain_formula_failures(&consequent_formula, ctx);
             anyhow::bail!(
@@ -755,7 +776,7 @@ impl ContractStore {
                 ctx.signers
             );
         }
-        
+
         Ok(())
     }
 

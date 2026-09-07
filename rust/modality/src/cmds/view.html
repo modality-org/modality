@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <script src="{{MERMAID_JS}}"></script>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 24px;
+      line-height: 1.4;
+    }
+    header { margin-bottom: 20px; }
+    h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    .path { opacity: 0.7; font-size: 0.9rem; }
+    .diagram {
+      background: #fff;
+      border-radius: 8px;
+      padding: 24px;
+      overflow: auto;
+    }
+    .error {
+      color: #b00020;
+      white-space: pre-wrap;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #111; color: #eee; }
+      .diagram { background: #1b1b1b; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{TITLE}}</h1>
+    <div class="path">{{SOURCE_PATH}}</div>
+  </header>
+  <pre id="source" hidden>{{MERMAID}}</pre>
+  <div class="diagram" id="diagram"></div>
+  <script>
+    const source = document.getElementById('source').textContent;
+    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: dark ? 'dark' : 'neutral',
+      securityLevel: 'strict'
+    });
+    mermaid.render('modality-view', source).then(({ svg }) => {
+      document.getElementById('diagram').innerHTML = svg;
+    }).catch((err) => {
+      const el = document.createElement('div');
+      el.className = 'error';
+      el.textContent = err && err.message ? err.message : String(err);
+      document.getElementById('diagram').appendChild(el);
+    });
+  </script>
+</body>
+</html>

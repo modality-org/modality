@@ -26,27 +26,30 @@ impl Refs {
             .join("remotes")
             .join(remote_name)
             .join("HEAD");
-        
+
         if !remote_head_path.exists() {
             return Ok(None);
         }
-        
+
         let content = std::fs::read_to_string(remote_head_path)?;
         Ok(Some(content.trim().to_string()))
     }
 
-    pub fn write_remote_head(contract_dir: &Path, remote_name: &str, commit_id: &str) -> Result<()> {
+    pub fn write_remote_head(
+        contract_dir: &Path,
+        remote_name: &str,
+        commit_id: &str,
+    ) -> Result<()> {
         let remote_dir = contract_dir
             .join(".contract")
             .join("refs")
             .join("remotes")
             .join(remote_name);
-        
+
         std::fs::create_dir_all(&remote_dir)?;
-        
+
         let remote_head_path = remote_dir.join("HEAD");
         std::fs::write(remote_head_path, commit_id)?;
         Ok(())
     }
 }
-

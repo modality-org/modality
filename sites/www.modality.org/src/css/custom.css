@@ -28,3 +28,169 @@
   --ifm-color-primary-lightest: #4fddbf;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
+
+/* Terminal output fences (`output`): keep copy on command (`bash`) blocks only. */
+.theme-code-block.language-output button[aria-label="Copy code to clipboard"],
+.theme-code-block.language-output button[aria-label="Copied"],
+.theme-code-block.language-output button[title="Copy"],
+.theme-code-block.language-output button[title="Copied"],
+.theme-code-block:has(.language-output) button[aria-label="Copy code to clipboard"],
+.theme-code-block:has(.language-output) button[aria-label="Copied"],
+.theme-code-block:has(.language-output) button[title="Copy"],
+.theme-code-block:has(.language-output) button[title="Copied"] {
+  display: none;
+}
+
+/* Command + output stack: chevron to the left, output layered under the command. */
+.cmd-expand {
+  --cmd-expand-height: calc(var(--ifm-pre-padding) * 2 + 1.4em);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 2rem;
+  height: var(--cmd-expand-height);
+  margin: 0 0 calc(-1 * var(--cmd-expand-height)) 0.15rem;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ifm-color-emphasis-600);
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+}
+
+.cmd-expand__hit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.cmd-expand:hover,
+.cmd-expand:focus-visible {
+  color: var(--ifm-color-emphasis-800);
+  background: var(--ifm-hover-overlay);
+}
+
+.cmd-expand:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 1px;
+}
+
+.cmd-expand__icon {
+  display: block;
+  width: 0.7rem;
+  height: 0.7rem;
+  transform-origin: 50% 50%;
+  transition: transform 0.16s ease;
+}
+
+.cmd-expand[aria-expanded='true'] .cmd-expand__icon {
+  transform: rotate(90deg);
+}
+
+.theme-code-block.cmd-has-output pre > code {
+  padding-left: 2.15rem;
+}
+
+.theme-code-block.cmd-has-output {
+  position: relative;
+  z-index: 1;
+}
+
+.theme-code-block.cmd-has-output.cmd-expanded {
+  margin-bottom: 0;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.14);
+}
+
+.theme-code-block.language-bash + .theme-code-block.language-output {
+  display: none;
+}
+
+.theme-code-block.language-bash + .theme-code-block.language-output.cmd-expanded {
+  display: block;
+  position: relative;
+  z-index: 0;
+  margin-top: -0.7rem;
+  padding-top: 0.85rem;
+  margin-left: 0.75rem;
+  margin-right: 0.75rem;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  background: color-mix(in srgb, var(--prism-background-color) 72%, var(--ifm-background-color));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme='dark'] .theme-code-block.cmd-has-output.cmd-expanded {
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme='dark'] .theme-code-block.language-output.cmd-expanded {
+  background: color-mix(in srgb, var(--prism-background-color) 82%, #000);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Copy stays visible on screens wider than a phone; hover-only on mobile. */
+.theme-code-block:not(.language-output) button[aria-label="Copy code to clipboard"],
+.theme-code-block:not(.language-output) button[aria-label="Copied"],
+.theme-code-block:not(.language-output) button[title="Copy"],
+.theme-code-block:not(.language-output) button[title="Copied"] {
+  color: var(--ifm-color-emphasis-600);
+  border-color: var(--ifm-color-emphasis-200);
+  background: transparent;
+}
+
+.theme-code-block:not(.language-output) button[aria-label="Copy code to clipboard"] svg,
+.theme-code-block:not(.language-output) button[aria-label="Copied"] svg,
+.theme-code-block:not(.language-output) button[title="Copy"] svg,
+.theme-code-block:not(.language-output) button[title="Copied"] svg,
+.theme-code-block:not(.language-output) button[aria-label="Copy code to clipboard"] path,
+.theme-code-block:not(.language-output) button[aria-label="Copied"] path,
+.theme-code-block:not(.language-output) button[title="Copy"] path,
+.theme-code-block:not(.language-output) button[title="Copied"] path {
+  fill: currentColor;
+  color: inherit;
+}
+
+.theme-code-block:not(.language-output) button[aria-label="Copy code to clipboard"]:hover,
+.theme-code-block:not(.language-output) button[aria-label="Copied"]:hover,
+.theme-code-block:not(.language-output) button[title="Copy"]:hover,
+.theme-code-block:not(.language-output) button[title="Copied"]:hover,
+.theme-code-block:not(.language-output) button[aria-label="Copy code to clipboard"]:focus-visible,
+.theme-code-block:not(.language-output) button[aria-label="Copied"]:focus-visible,
+.theme-code-block:not(.language-output) button[title="Copy"]:focus-visible,
+.theme-code-block:not(.language-output) button[title="Copied"]:focus-visible {
+  color: var(--ifm-color-emphasis-800);
+  border-color: var(--ifm-color-emphasis-400);
+}
+
+@media (min-width: 768px) {
+  .theme-code-block:not(.language-output) button[aria-label="Copy code to clipboard"],
+  .theme-code-block:not(.language-output) button[aria-label="Copied"],
+  .theme-code-block:not(.language-output) button[title="Copy"],
+  .theme-code-block:not(.language-output) button[title="Copied"] {
+    opacity: 0.45 !important;
+  }
+
+  .theme-code-block:not(.language-output):hover button[aria-label="Copy code to clipboard"],
+  .theme-code-block:not(.language-output):hover button[aria-label="Copied"],
+  .theme-code-block:not(.language-output):hover button[title="Copy"],
+  .theme-code-block:not(.language-output):hover button[title="Copied"],
+  .theme-code-block:not(.language-output) button[aria-label="Copy code to clipboard"]:hover,
+  .theme-code-block:not(.language-output) button[aria-label="Copied"]:hover,
+  .theme-code-block:not(.language-output) button[title="Copy"]:hover,
+  .theme-code-block:not(.language-output) button[title="Copied"]:hover,
+  .theme-code-block:not(.language-output) button[aria-label="Copy code to clipboard"]:focus-visible,
+  .theme-code-block:not(.language-output) button[aria-label="Copied"]:focus-visible,
+  .theme-code-block:not(.language-output) button[title="Copy"]:focus-visible,
+  .theme-code-block:not(.language-output) button[title="Copied"]:focus-visible {
+    opacity: 0.9 !important;
+  }
+
+  .theme-code-block:not(.language-output) pre > code {
+    padding-right: 2.75rem;
+  }
+}

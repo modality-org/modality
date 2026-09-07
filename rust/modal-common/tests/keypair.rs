@@ -53,12 +53,13 @@ mod tests {
         let keypair = Keypair::generate()?;
         let message = "Hello, world!";
         let signature = keypair.sign_string_as_base64_pad(message)?;
-        
+
         let verification_result = keypair.verify_signature_for_string(&signature, message)?;
         assert!(verification_result);
 
         let wrong_message = "Hello, World!";
-        let wrong_verification_result = keypair.verify_signature_for_string(&signature, wrong_message)?;
+        let wrong_verification_result =
+            keypair.verify_signature_for_string(&signature, wrong_message)?;
         assert!(!wrong_verification_result);
 
         Ok(())
@@ -73,7 +74,7 @@ mod tests {
         });
 
         let signature = keypair.sign_json(&json_data)?;
-        
+
         let verification_result = keypair.verify_json(&signature, &json_data)?;
         assert!(verification_result);
 
@@ -91,14 +92,14 @@ mod tests {
     fn test_from_and_to_json_string() -> Result<()> {
         let original_keypair = Keypair::generate()?;
         let json_string = original_keypair.as_json_string()?;
-        
+
         let recovered_keypair = Keypair::from_json_string(&json_string)?;
-        
+
         assert_eq!(
             original_keypair.public_key_as_base58_identity(),
             recovered_keypair.public_key_as_base58_identity()
         );
-        
+
         // Verify that the recovered keypair can sign and verify correctly
         let message = "Test message";
         let signature = recovered_keypair.sign_string_as_base64_pad(message)?;
@@ -138,7 +139,8 @@ mod tests {
         keypair.sign_json_as_key(&mut json_data, "signature")?;
 
         assert!(json_data["signature"].is_string());
-        let verification_result = keypair.verify_json_with_signature_key(&json_data, "signature")?;
+        let verification_result =
+            keypair.verify_json_with_signature_key(&json_data, "signature")?;
         assert!(verification_result);
 
         Ok(())
@@ -148,7 +150,7 @@ mod tests {
     fn test_from_public_multiaddress() -> Result<()> {
         let multiaddr = "/ed25519-pub/12D3KooW9pypLnRn67EFjiWgEiDdqo8YizaPn8yKe5cNJd3PGnMB";
         let keypair = Keypair::from_public_multiaddress(multiaddr)?;
-        
+
         assert_eq!(keypair.public_key_to_multiaddr_string(), multiaddr);
 
         Ok(())

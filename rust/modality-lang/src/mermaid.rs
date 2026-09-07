@@ -1,6 +1,35 @@
 #![allow(clippy::collapsible_match)]
 
-use crate::ast::{Model, PropertySign};
+use crate::ast::{Model, Property};
+
+fn mermaid_edge_label(properties: &[Property]) -> String {
+    if properties.is_empty() {
+        return String::new();
+    }
+    let label = properties
+        .iter()
+        .map(crate::printer::print_property)
+        .collect::<Vec<_>>()
+        .join(" ");
+    if mermaid_label_needs_quotes(&label) {
+        format!(" : \"{}\"", mermaid_escape_label(&label))
+    } else {
+        format!(" : {}", label)
+    }
+}
+
+fn mermaid_label_needs_quotes(label: &str) -> bool {
+    label.chars().any(|c| {
+        matches!(
+            c,
+            '(' | ')' | '/' | ':' | '"' | '[' | ']' | '{' | '}' | ',' | '#' | '&' | '<' | '>'
+        )
+    })
+}
+
+fn mermaid_escape_label(label: &str) -> String {
+    label.replace('\\', "\\\\").replace('"', "#quot;")
+}
 
 /// Generate a Mermaid state diagram from a Modality model
 pub fn generate_mermaid_diagram(model: &Model) -> String {
@@ -27,24 +56,7 @@ pub fn generate_mermaid_diagram(model: &Model) -> String {
         
         // Add transitions
         for transition in &model.transitions {
-            let edge_label = if transition.properties.is_empty() {
-                String::new()
-            } else {
-                let props: Vec<String> = transition.properties.iter()
-                    .map(|p| {
-                        let sign = if p.sign == PropertySign::Plus { "+" } else { "-" };
-                        if let Some(source) = &p.source {
-                            if let crate::ast::PropertySource::Predicate { args, .. } = source {
-                                if let Some(arg) = args.get("arg") {
-                                    return format!("{}{}({})", sign, p.name, arg.as_str().unwrap_or(""));
-                                }
-                            }
-                        }
-                        format!("{}{}", sign, p.name)
-                    })
-                    .collect();
-                format!(": {}", props.join(" "))
-            };
+            let edge_label = mermaid_edge_label(&transition.properties);
             
             diagram.push_str(&format!("    {} --> {}{}\n", 
                 transition.from, transition.to, edge_label));
@@ -74,14 +86,7 @@ pub fn generate_mermaid_diagram(model: &Model) -> String {
         
         // Add all transitions within this part only
         for transition in &part.transitions {
-            let edge_label = if transition.properties.is_empty() {
-                String::new()
-            } else {
-                let props: Vec<String> = transition.properties.iter()
-                    .map(|p| format!("{}{}", if p.sign == PropertySign::Plus { "+" } else { "-" }, p.name))
-                    .collect();
-                format!(" : {}", props.join(" "))
-            };
+            let edge_label = mermaid_edge_label(&transition.properties);
             
             if model.parts.len() > 1 {
                 diagram.push_str(&format!("        {}.{} --> {}.{}{}\n", 
@@ -149,14 +154,7 @@ pub fn generate_mermaid_diagram_with_styling(model: &Model) -> String {
         
         // Add all transitions within this part only
         for transition in &part.transitions {
-            let edge_label = if transition.properties.is_empty() {
-                String::new()
-            } else {
-                let props: Vec<String> = transition.properties.iter()
-                    .map(|p| format!("{}{}", if p.sign == PropertySign::Plus { "+" } else { "-" }, p.name))
-                    .collect();
-                format!(" : {}", props.join(" "))
-            };
+            let edge_label = mermaid_edge_label(&transition.properties);
             
             if model.parts.len() > 1 {
                 diagram.push_str(&format!("        {}.{} --> {}.{}{}\n", 
@@ -225,14 +223,7 @@ pub fn generate_mermaid_diagram_with_state(model: &Model) -> String {
         
         // Add all transitions within this part only
         for transition in &part.transitions {
-            let edge_label = if transition.properties.is_empty() {
-                String::new()
-            } else {
-                let props: Vec<String> = transition.properties.iter()
-                    .map(|p| format!("{}{}", if p.sign == PropertySign::Plus { "+" } else { "-" }, p.name))
-                    .collect();
-                format!(" : {}", props.join(" "))
-            };
+            let edge_label = mermaid_edge_label(&transition.properties);
             
             if model.parts.len() > 1 {
                 diagram.push_str(&format!("        {}.{} --> {}.{}{}\n", 
@@ -490,5 +481,27 @@ mod tests {
         assert!(diagram.contains("class p2.a current"));
         // p2.b should not have current styling since it's not in the current state
         assert!(!diagram.contains("class p2.b current"));
+    }
+
+    #[test]
+    fn test_first_contract_witness_keeps_signed_by_args() {
+        let content = r#"
+model Contract {
+  part flow {
+    q0 --> q1: +POST +MODEL
+    q1 --> q1: +POST +signed_by(/parties/alice.id)
+    q1 --> q1: +POST +signed_by(/parties/bob.id)
+    q1 --> q1: +MODEL +signed_by(/parties/alice.id)
+  }
+}
+"#;
+        let models = crate::parse_all_models_content_lalrpop(content).expect("parse first-contract witness");
+        let diagram = generate_mermaid_diagram(&models[0]);
+
+        assert!(diagram.contains("stateDiagram-v2"));
+        assert!(diagram.contains("q0 --> q1 : +POST +MODEL"));
+        assert!(diagram.contains("q1 --> q1 : \"+POST +signed_by(/parties/alice.id)\""));
+        assert!(diagram.contains("q1 --> q1 : \"+POST +signed_by(/parties/bob.id)\""));
+        assert!(diagram.contains("q1 --> q1 : \"+MODEL +signed_by(/parties/alice.id)\""));
     }
 } 

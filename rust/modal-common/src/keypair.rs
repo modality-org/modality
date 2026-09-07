@@ -90,14 +90,15 @@ impl Keypair {
         passphrase: Option<&str>,
     ) -> Result<Self> {
         let mnemonic = Mnemonic::from_phrase(mnemonic_phrase)?;
-        let ed25519_keypair = mnemonic.derive_ed25519_keypair(account, change, index, passphrase)?;
-        
+        let ed25519_keypair =
+            mnemonic.derive_ed25519_keypair(account, change, index, passphrase)?;
+
         // Convert ed25519-dalek keypair to libp2p keypair
         let libp2p_ed25519_keypair = ed25519::Keypair::from(
             ed25519::SecretKey::try_from_bytes(ed25519_keypair.secret.to_bytes())
                 .map_err(|e| anyhow!("Failed to create libp2p secret key: {:?}", e))?,
         );
-        
+
         let libp2p_keypair = Libp2pKeypair::from(libp2p_ed25519_keypair);
         Ok(Self::new(KeypairOrPublicKey::Keypair(libp2p_keypair)))
     }
@@ -118,19 +119,19 @@ impl Keypair {
     }
 
     /// Derive a child keypair from this keypair using a seed string
-    /// 
+    ///
     /// This uses HMAC-SHA512 derivation (similar to Solana's approach) to create
     /// deterministic child keypairs from semantic strings instead of numeric indices.
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use modal_common::keypair::Keypair;
-    /// 
+    ///
     /// let master = Keypair::generate().unwrap();
     /// let miner = master.derive_from_seed("miner").unwrap();
     /// let validator = master.derive_from_seed("validator").unwrap();
-    /// 
+    ///
     /// // Same seed always produces the same child
     /// let miner2 = master.derive_from_seed("miner").unwrap();
     /// assert_eq!(
@@ -141,7 +142,7 @@ impl Keypair {
     pub fn derive_from_seed(&self, seed: &str) -> Result<Self> {
         use hmac::{Hmac, Mac};
         use sha2::Sha512;
-        
+
         // Get the base secret key bytes
         let base_secret = match &self.inner {
             KeypairOrPublicKey::Keypair(k) => {
@@ -153,39 +154,39 @@ impl Keypair {
                 return Err(anyhow!("Cannot derive from public key only"));
             }
         };
-        
+
         // Derive child key using HMAC-SHA512
         type HmacSha512 = Hmac<Sha512>;
-        let mut mac = HmacSha512::new_from_slice(&base_secret)
-            .map_err(|e| anyhow!("HMAC error: {}", e))?;
+        let mut mac =
+            HmacSha512::new_from_slice(&base_secret).map_err(|e| anyhow!("HMAC error: {}", e))?;
         mac.update(seed.as_bytes());
         let result = mac.finalize().into_bytes();
-        
+
         // Take first 32 bytes as the new secret key
         let mut secret_bytes = [0u8; 32];
         secret_bytes.copy_from_slice(&result[0..32]);
-        
+
         let derived_secret = ed25519::SecretKey::try_from_bytes(secret_bytes)
             .map_err(|e| anyhow!("Invalid derived secret key: {:?}", e))?;
-        
+
         let ed_keypair = ed25519::Keypair::from(derived_secret);
         let libp2p_keypair = Libp2pKeypair::from(ed_keypair);
-        
+
         Ok(Self::new(KeypairOrPublicKey::Keypair(libp2p_keypair)))
     }
-    
+
     /// Derive a child keypair from a mnemonic using a seed string
-    /// 
+    ///
     /// This combines mnemonic derivation with seed-based child derivation,
     /// allowing you to use semantic strings instead of numeric BIP44 indices.
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use modal_common::keypair::Keypair;
-    /// 
+    ///
     /// let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-    /// 
+    ///
     /// let miner = Keypair::from_mnemonic_with_seed(mnemonic, "miner", None).unwrap();
     /// let validator = Keypair::from_mnemonic_with_seed(mnemonic, "validator", None).unwrap();
     /// let treasury = Keypair::from_mnemonic_with_seed(mnemonic, "treasury", None).unwrap();
@@ -197,25 +198,26 @@ impl Keypair {
     ) -> Result<Self> {
         // First derive base keypair from mnemonic (account 0, change 0, index 0)
         let base_keypair = Self::from_mnemonic(mnemonic_phrase, 0, 0, 0, passphrase)?;
-        
+
         // Then derive child from seed string
         base_keypair.derive_from_seed(seed)
     }
-    
+
     /// Derive multiple child keypairs from seed strings
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use modal_common::keypair::Keypair;
-    /// 
+    ///
     /// let master = Keypair::generate().unwrap();
     /// let children = master.derive_from_seeds(&["miner", "validator", "treasury"]).unwrap();
-    /// 
+    ///
     /// assert_eq!(children.len(), 3);
     /// ```
     pub fn derive_from_seeds(&self, seeds: &[&str]) -> Result<Vec<Self>> {
-        seeds.iter()
+        seeds
+            .iter()
             .map(|seed| self.derive_from_seed(seed))
             .collect()
     }
@@ -349,7 +351,7 @@ impl Keypair {
             let decrypted_mnemonic = json
                 .encrypted_mnemonic()
                 .and_then(|m| EncryptedText::decrypt(m, password).ok());
-            
+
             let decrypted_json = KeypairJSON {
                 id: json.id().to_string(),
                 public_key: json.public_key().to_string(),
@@ -607,50 +609,38 @@ mod tests {
     #[test]
     fn test_derive_from_seed() {
         let master = Keypair::generate().unwrap();
-        
+
         // Derive child keypairs from different seeds
         let miner = master.derive_from_seed("miner").unwrap();
         let validator = master.derive_from_seed("validator").unwrap();
         let treasury = master.derive_from_seed("treasury").unwrap();
-        
+
         // Different seeds should produce different keypairs
-        assert_ne!(
-            miner.as_public_address(),
-            validator.as_public_address()
-        );
-        assert_ne!(
-            miner.as_public_address(),
-            treasury.as_public_address()
-        );
-        assert_ne!(
-            validator.as_public_address(),
-            treasury.as_public_address()
-        );
+        assert_ne!(miner.as_public_address(), validator.as_public_address());
+        assert_ne!(miner.as_public_address(), treasury.as_public_address());
+        assert_ne!(validator.as_public_address(), treasury.as_public_address());
     }
 
     #[test]
     fn test_derive_from_seed_deterministic() {
         let master = Keypair::generate().unwrap();
-        
+
         // Same seed should always produce the same child
         let child1 = master.derive_from_seed("test-seed").unwrap();
         let child2 = master.derive_from_seed("test-seed").unwrap();
-        
-        assert_eq!(
-            child1.as_public_address(),
-            child2.as_public_address()
-        );
+
+        assert_eq!(child1.as_public_address(), child2.as_public_address());
     }
 
     #[test]
     fn test_derive_from_seeds_batch() {
         let master = Keypair::generate().unwrap();
-        
+
         let seeds = vec!["miner", "validator", "treasury"];
         let children = master.derive_from_seeds(&seeds).unwrap();
-        
+
         assert_eq!(children.len(), 3);
-        
+
         // Verify each child matches individual derivation
         for (i, seed) in seeds.iter().enumerate() {
             let individual = master.derive_from_seed(seed).unwrap();
@@ -664,34 +654,28 @@ mod tests {
     #[test]
     fn test_from_mnemonic_with_seed() {
         let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-        
+
         // Derive different roles from the same mnemonic
         let miner = Keypair::from_mnemonic_with_seed(mnemonic, "miner", None).unwrap();
         let validator = Keypair::from_mnemonic_with_seed(mnemonic, "validator", None).unwrap();
-        
+
         // Different seeds should produce different keypairs
-        assert_ne!(
-            miner.as_public_address(),
-            validator.as_public_address()
-        );
-        
+        assert_ne!(miner.as_public_address(), validator.as_public_address());
+
         // Same seed should be deterministic
         let miner2 = Keypair::from_mnemonic_with_seed(mnemonic, "miner", None).unwrap();
-        assert_eq!(
-            miner.as_public_address(),
-            miner2.as_public_address()
-        );
+        assert_eq!(miner.as_public_address(), miner2.as_public_address());
     }
 
     #[test]
     fn test_hierarchical_seed_derivation() {
         let master = Keypair::generate().unwrap();
-        
+
         // Can use hierarchical naming
         let prod_miner = master.derive_from_seed("production:miner").unwrap();
         let test_miner = master.derive_from_seed("testing:miner").unwrap();
         let dev_miner = master.derive_from_seed("development:miner").unwrap();
-        
+
         // All should be different
         assert_ne!(
             prod_miner.as_public_address(),
@@ -710,20 +694,14 @@ mod tests {
     #[test]
     fn test_seed_derivation_with_special_characters() {
         let master = Keypair::generate().unwrap();
-        
+
         // Should work with various string formats
         let child1 = master.derive_from_seed("role:miner:v1").unwrap();
         let child2 = master.derive_from_seed("node-123").unwrap();
         let child3 = master.derive_from_seed("validator_mainnet").unwrap();
-        
+
         // All should be valid and different
-        assert_ne!(
-            child1.as_public_address(),
-            child2.as_public_address()
-        );
-        assert_ne!(
-            child2.as_public_address(),
-            child3.as_public_address()
-        );
+        assert_ne!(child1.as_public_address(), child2.as_public_address());
+        assert_ne!(child2.as_public_address(), child3.as_public_address());
     }
 }

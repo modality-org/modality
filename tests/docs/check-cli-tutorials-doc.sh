@@ -10,20 +10,20 @@ docs=(
 )
 
 required_patterns=(
-  "modal c set-named-id /users/buyer.id ~/.modality/buyer.mod_passfile"
-  "modal c set-named-id /users/seller.id ~/.modality/seller.mod_passfile"
-  "modal c set-named-id /oracles/delivery.id ~/.modality/delivery_oracle.mod_passfile"
-  "modal c set-named-id /users/alice.id ~/.modality/alice.mod_passfile"
-  "modal c set-named-id /users/bob.id ~/.modality/bob.mod_passfile"
-  "modal c set-named-id /treasury/alice.id ~/.modality/alice.mod_passfile"
-  "modal c set-named-id /treasury/bob.id ~/.modality/bob.mod_passfile"
-  "modal c set-named-id /treasury/carol.id ~/.modality/carol.mod_passfile"
-  "modal c commit --all --sign ~/.modality/buyer.mod_passfile"
-  "modal c commit --all --sign ~/.modality/seller.mod_passfile"
-  "modal c commit --all --sign ~/.modality/delivery_oracle.mod_passfile"
-  "modal c commit --all --sign ~/.modality/alice.mod_passfile"
-  "modal c commit --all --sign ~/.modality/bob.mod_passfile"
-  "modal c commit --all --sign ~/.modality/carol.mod_passfile"
+  "modal c set-named-id /users/buyer.id buyer"
+  "modal c set-named-id /users/seller.id seller"
+  "modal c set-named-id /oracles/delivery.id delivery_oracle"
+  "modal c set-named-id /users/alice.id alice"
+  "modal c set-named-id /users/bob.id bob"
+  "modal c set-named-id /treasury/alice.id alice"
+  "modal c set-named-id /treasury/bob.id bob"
+  "modal c set-named-id /treasury/carol.id carol"
+  "modal c commit --all --sign buyer"
+  "modal c commit --all --sign seller"
+  "modal c commit --all --sign delivery_oracle"
+  "modal c commit --all --sign alice"
+  "modal c commit --all --sign bob"
+  "modal c commit --all --sign carol"
 )
 
 for pattern in "${required_patterns[@]}"; do
@@ -47,8 +47,8 @@ for doc in "${docs[@]}"; do
     exit 1
   fi
 
-  if grep -Eq -- 'modal c commit .*--sign (alice|bob|carol|buyer|seller|delivery_oracle)( |$)' "$doc"; then
-    echo "CLI tutorial still signs with a bare identity name instead of a passfile path: $doc" >&2
+  if grep -Eq -- 'modal c (set-named-id|commit) .*~/.modality/' "$doc"; then
+    echo "CLI tutorial still uses a home passfile path instead of an identity name: $doc" >&2
     exit 1
   fi
 done

@@ -23,21 +23,20 @@ pub struct Opts {
 }
 
 pub async fn encrypt_passfile_file(path: &Path, password: &str) -> Result<()> {
-    let keypair = Keypair::from_json_file(path.to_str().ok_or_else(|| {
-        anyhow::anyhow!("Invalid file path: contains non-Unicode characters")
-    })?)
-    .map_err(|e| {
-        eprintln!("Failed to read keypair from file {}: {}", path.display(), e);
-        e
-    })?;
+    let keypair =
+        Keypair::from_json_file(path.to_str().ok_or_else(|| {
+            anyhow::anyhow!("Invalid file path: contains non-Unicode characters")
+        })?)
+        .map_err(|e| {
+            eprintln!("Failed to read keypair from file {}: {}", path.display(), e);
+            e
+        })?;
 
     // Encrypt and save back to same file
     keypair
         .as_encrypted_json_file(
             path.to_str().ok_or_else(|| {
-                anyhow::anyhow!(
-                    "Invalid file path: contains non-Unicode characters"
-                )
+                anyhow::anyhow!("Invalid file path: contains non-Unicode characters")
             })?,
             password,
         )

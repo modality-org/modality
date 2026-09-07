@@ -5,7 +5,7 @@ fn main() {
     // Try to get git info from environment variables first (set by build script)
     // If not available, try to get from git commands
     // Finally fall back to "unknown"
-    
+
     let commit = env::var("MODALITY_GIT_COMMIT").ok().unwrap_or_else(|| {
         Command::new("git")
             .args(["rev-parse", "--short", "HEAD"])

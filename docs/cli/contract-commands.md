@@ -47,7 +47,7 @@ or an inline domain action.
 | `--method <METHOD>` | Commit method for the single-path commit (default: `post`) |
 | `--dir <DIR>` | Contract directory (defaults to current directory) |
 | `--output <FORMAT>` | Output format: `text` or `json` |
-| `--sign <PASSFILE>` | Sign commit with a passfile; repeat to attach multiple signatures |
+| `--sign <PASSFILE>` | Sign with a passfile path or identity name; repeat to attach multiple signatures |
 | `--all`, `-a` | Commit all changed `state/`, `rules/`, and `model/default.modality` files |
 | `--message`, `-m <MSG>` | Commit message |
 | `--action <JSON>` | Commit an inline JSON domain action or read it from a `.json` file path |
@@ -61,16 +61,16 @@ or an inline domain action.
 **Examples:**
 ```bash
 # Commit all changes with signature
-modal c commit --all --sign alice.passfile -m "Add escrow rules"
+modal c commit --all --sign alice -m "Add escrow rules"
 
 # Commit all changes with multiple member signatures
-modal c commit --all --sign alice.passfile --sign bob.passfile -m "Replace witness"
+modal c commit --all --sign alice --sign bob -m "Replace witness"
 
 # Commit one state file
-modal c commit --path /notes.text --value "signed update" --sign alice.passfile
+modal c commit --path /notes.text --value "signed update" --sign alice
 
 # Commit a domain action
-modal c commit --action '{"type":"DEPOSIT","amount":100}' --sign alice.passfile
+modal c commit --action '{"type":"DEPOSIT","amount":100}' --sign alice
 ```
 
 ## Checkout
@@ -163,6 +163,47 @@ modal c set /config/name.text "My Contract"
 modal c set /flags/active.bool true
 ```
 
+## Add Rule
+
+```bash
+modal c add-rule --name <NAME> [OPTIONS] <FORMULA>
+```
+
+Write a named rule file under `rules/`. The command creates `rules/` if needed
+and wraps the formula as `export default rule { starting_at $PARENT ... }`.
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--name <NAME>` | Rule name written as `rules/<name>.modality` |
+| `--starting-at <ANCHOR>` | Rule anchor (default: `$PARENT`) |
+| `--dir <DIR>` | Contract directory (defaults to current directory) |
+
+```bash
+modal c add-rule --name authorized \
+  '[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)'
+```
+
+Existing rule files are not overwritten. Run `modal c commit --all` after adding
+a rule.
+
+## AI
+
+```bash
+modal c ai suggest-rule <PROMPT>
+```
+
+Suggest a Modality rule formula from a plain-language prompt. Use the printed
+formula with `modal c add-rule`.
+
+```bash
+modal c ai suggest-rule "after this commit either alice or bob must sign"
+```
+
+```
+[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+```
+
 ## Set Named ID
 
 ```bash
@@ -178,7 +219,8 @@ standard passfile locations.
 | `--dir <DIR>` | Contract directory (defaults to current directory) |
 
 ```bash
-modal c set-named-id /parties/alice.id alice.passfile
+modal c set-named-id /parties/alice.id alice
+modal c set-named-id /parties/alice.id example/alice
 ```
 
 ## Get

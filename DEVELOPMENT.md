@@ -29,7 +29,8 @@ corepack prepare pnpm@9.3.0 --activate
 - `js/` JavaScript monorepo: network, node, datastore, viewer, CLI, etc.
 - `examples/` runnable examples (language, network, mining)
 - `fixtures/` sample configs and passfiles
-- `docs/` reference and design docs
+- `docs/` reference and design docs (source of truth for the public docs site)
+- `sites/www.modality.org/` Docusaurus website that publishes `docs/`
 - `scripts/` release/build helpers
 
 ---
@@ -119,6 +120,35 @@ Notes:
 ```bash
 pnpm --filter @modality-dev/network-node run build
 pnpm --filter @modality-dev/network-node run test
+```
+
+---
+
+## Documentation site
+
+Edit markdown in repo-root `docs/`. That tree is what GitHub Pages publishes: CI copies it into `sites/www.modality.org/docs` before building. Do not treat `sites/www.modality.org/docs/` as the source of truth; deploy overwrites it from `docs/`.
+
+Preview locally with:
+
+```bash
+./scripts/run-site.sh
+```
+
+The script requires Node.js ≥ 20. It copies `docs/` into the Docusaurus site (same as CI), installs npm dependencies if needed, and starts the dev server. Open http://localhost:3000 (first contract: http://localhost:3000/docs/getting-started/first-contract).
+
+While reviewing and changing docs:
+
+1. Edit files under `docs/` (for example `docs/getting-started/first-contract.md`).
+2. Re-run `./scripts/run-site.sh` so the copy is fresh, then reload the browser. The copy happens at startup, so a running server will not see new `docs/` edits until you restart it.
+3. Site chrome (sidebar, theme, blog, `docusaurus.config.ts`) lives in `sites/www.modality.org/`. Those files live-reload. If the server is already running and you are only changing chrome, restart with `./scripts/run-site.sh --no-sync` to skip another docs copy.
+4. Commit content changes in `docs/`. Commit sidebar or theme changes in `sites/www.modality.org/` (not a one-off copy under `sites/www.modality.org/docs/`).
+
+Useful flags (passed through to Docusaurus unless noted):
+
+```bash
+./scripts/run-site.sh --help
+./scripts/run-site.sh --port 3001
+./scripts/run-site.sh --no-sync          # skip copying docs/
 ```
 
 ---
@@ -227,6 +257,7 @@ pnpm run test
 ## Useful Links
 
 - Root README: `README.md`
+- Local docs preview: `./scripts/run-site.sh` (see [Documentation site](#documentation-site))
 - Developer Guide (architecture/extension): `docs/developer-guide.md`
 - Quick Reference: `docs/quick-reference.md`
 - Language semantics: `docs/modality-semantics.md`

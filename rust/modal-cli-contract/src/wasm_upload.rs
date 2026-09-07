@@ -1,9 +1,9 @@
-use clap::Parser;
 use anyhow::Result;
-use std::path::PathBuf;
-use modal_common::contract_store::ContractStore;
+use clap::Parser;
 use modal_common::contract_store::CommitFile;
+use modal_common::contract_store::ContractStore;
 use serde_json::Value;
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 pub struct Opts {
@@ -50,7 +50,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     validate_wasm_module(&wasm_bytes)?;
 
     // Encode as base64
-    use base64::{Engine as _, engine::general_purpose};
+    use base64::{engine::general_purpose, Engine as _};
     let wasm_base64 = general_purpose::STANDARD.encode(&wasm_bytes);
 
     // Get current HEAD
@@ -87,11 +87,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     };
 
     // Add POST action with .wasm path
-    commit.add_action(
-        "post".to_string(),
-        Some(path.clone()),
-        value
-    );
+    commit.add_action("post".to_string(), Some(path.clone()), value);
 
     // Validate the commit
     commit.validate()?;
@@ -130,7 +126,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("  Gas limit:   {}", opts.gas_limit);
         println!();
         println!("Next steps:");
-        println!("  1. Push this commit to the network: modal contract push --dir {:?}", dir);
+        println!(
+            "  1. Push this commit to the network: modal contract push --dir {:?}",
+            dir
+        );
         println!("  2. The WASM module will be validated by consensus nodes");
         println!("  3. Once confirmed, the module will be used for validation");
     }
@@ -147,8 +146,6 @@ fn validate_wasm_module(wasm_bytes: &[u8]) -> Result<()> {
     #[cfg(not(feature = "wasm"))]
     {
         let _ = wasm_bytes;
-        anyhow::bail!(
-            "WASM validation requires the `wasm` feature. Rebuild with full features."
-        );
+        anyhow::bail!("WASM validation requires the `wasm` feature. Rebuild with full features.");
     }
 }

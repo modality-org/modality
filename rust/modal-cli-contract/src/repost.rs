@@ -32,16 +32,20 @@ fn parse_source(source: &str) -> Result<(String, String)> {
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
-    let dir = opts.dir.clone().unwrap_or_else(|| std::env::current_dir().unwrap());
+    let dir = opts
+        .dir
+        .clone()
+        .unwrap_or_else(|| std::env::current_dir().unwrap());
     let store = ContractStore::open(&dir)?;
     let config = store.load_config()?;
 
     let (source_contract_id, source_path) = parse_source(&opts.source)?;
 
     // Get the remote URL to determine the hub base
-    let remote = config.get_remote("origin")
-        .ok_or_else(|| anyhow::anyhow!("No 'origin' remote configured. Need hub URL to fetch from."))?;
-    
+    let remote = config.get_remote("origin").ok_or_else(|| {
+        anyhow::anyhow!("No 'origin' remote configured. Need hub URL to fetch from.")
+    })?;
+
     // Extract hub base from remote URL (e.g. https://api.modalhub.com/contracts/abc -> https://api.modalhub.com)
     let hub_base = if let Some(idx) = remote.url.find("/contracts/") {
         &remote.url[..idx]
@@ -50,24 +54,33 @@ pub async fn run(opts: &Opts) -> Result<()> {
     };
 
     // Fetch source contract state
-    println!("Fetching /{} from contract {}...", source_path.trim_start_matches('/'), &source_contract_id[..12.min(source_contract_id.len())]);
-    
+    println!(
+        "Fetching /{} from contract {}...",
+        source_path.trim_start_matches('/'),
+        &source_contract_id[..12.min(source_contract_id.len())]
+    );
+
     let client = reqwest::Client::new();
     let state_url = format!("{}/contracts/{}/state", hub_base, source_contract_id);
     let resp = client.get(&state_url).send().await?;
-    
+
     if !resp.status().is_success() {
         anyhow::bail!("Failed to fetch contract state: HTTP {}", resp.status());
     }
 
     let state_data: serde_json::Value = resp.json().await?;
     let state = state_data.get("state").unwrap_or(&state_data);
-    
-    let value = state.get(&source_path)
+
+    let value = state
+        .get(&source_path)
         .or_else(|| state.get(source_path.trim_start_matches('/')))
-        .ok_or_else(|| anyhow::anyhow!(
-            "Path '{}' not found in contract {}", source_path, source_contract_id
-        ))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "Path '{}' not found in contract {}",
+                source_path,
+                source_contract_id
+            )
+        })?;
 
     // Write to state/<contract_id>.contract/<path>
     let dest_path = format!("/{}.contract{}", source_contract_id, source_path);

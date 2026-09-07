@@ -92,6 +92,9 @@ enum ModelCommands {
     #[command(about = "Generate a Mermaid diagram from a Modality file")]
     Mermaid(cmds::mermaid::Opts),
 
+    #[command(about = "Open a Mermaid rendering of a model in the default web browser")]
+    View(cmds::view::Opts),
+
     #[command(about = "Check a formula against a model")]
     Check(cmds::check::Opts),
 
@@ -133,6 +136,7 @@ async fn main() -> Result<()> {
         },
         Commands::Model { command } => match command {
             ModelCommands::Mermaid(opts) => cmds::mermaid::run(opts).await?,
+            ModelCommands::View(opts) => cmds::view::run(opts).await?,
             ModelCommands::Check(opts) => cmds::check::run(opts).await?,
             ModelCommands::Create(opts) => cmds::model_create::run(opts).await?,
             ModelCommands::Synthesize(opts) => cmds::synthesize::run(opts).await?,

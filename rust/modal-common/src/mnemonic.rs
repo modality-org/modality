@@ -21,9 +21,9 @@ impl Mnemonic {
     /// Generate a new random mnemonic with the specified word count
     /// Valid word counts: 12, 15, 18, 21, 24
     pub fn generate(word_count: usize) -> Result<Self> {
-        use rand::RngCore;
         use rand::rngs::OsRng;
-        
+        use rand::RngCore;
+
         // Calculate entropy length based on word count
         // 12 words = 128 bits = 16 bytes
         // 15 words = 160 bits = 20 bytes
@@ -90,25 +90,21 @@ impl Mnemonic {
         passphrase: Option<&str>,
     ) -> Result<ed25519_dalek::Keypair> {
         let seed = self.to_seed(passphrase);
-        
+
         // Derive using BIP44 path: m/44'/501'/account'/change'/index'
         let path = format!(
             "m/{}'/{}'/{}'/{}'/{}'",
-            MODALITY_BIP44_PURPOSE,
-            MODALITY_BIP44_COIN_TYPE,
-            account,
-            change,
-            index
+            MODALITY_BIP44_PURPOSE, MODALITY_BIP44_COIN_TYPE, account, change, index
         );
 
         // For Ed25519, we use SLIP-0010 derivation
         let derived_key = derive_ed25519_from_seed(&seed, &path)?;
-        
+
         let secret = ed25519_dalek::SecretKey::from_bytes(&derived_key)
             .map_err(|e| anyhow!("Failed to create Ed25519 secret key: {}", e))?;
-        
+
         let public = ed25519_dalek::PublicKey::from(&secret);
-        
+
         Ok(ed25519_dalek::Keypair { secret, public })
     }
 
@@ -116,11 +112,7 @@ impl Mnemonic {
     pub fn default_derivation_path(account: u32, change: u32, index: u32) -> String {
         format!(
             "m/{}'/{}'/{}'/{}'/{}'",
-            MODALITY_BIP44_PURPOSE,
-            MODALITY_BIP44_COIN_TYPE,
-            account,
-            change,
-            index
+            MODALITY_BIP44_PURPOSE, MODALITY_BIP44_COIN_TYPE, account, change, index
         )
     }
 }
@@ -130,34 +122,33 @@ impl Mnemonic {
 fn derive_ed25519_from_seed(seed: &[u8; 64], path: &str) -> Result<[u8; 32]> {
     // Parse the path
     let components: Vec<&str> = path.trim_start_matches("m/").split('/').collect();
-    
+
     let mut key = [0u8; 32];
     key.copy_from_slice(&seed[0..32]);
-    
+
     // For each component in the path
     for component in components {
         let component = component.trim_end_matches('\'');
         let index: u32 = component
             .parse()
             .map_err(|_| anyhow!("Invalid path component: {}", component))?;
-        
+
         // For hardened derivation (indicated by ')
         let hardened_index = index | 0x80000000;
-        
+
         // Use HMAC-SHA512 for derivation
-        let mut hmac =
-            Hmac::<Sha512>::new_from_slice(b"ed25519 seed")
-                .map_err(|e| anyhow!("Failed to create HMAC: {}", e))?;
-        
+        let mut hmac = Hmac::<Sha512>::new_from_slice(b"ed25519 seed")
+            .map_err(|e| anyhow!("Failed to create HMAC: {}", e))?;
+
         use hmac::Mac;
         hmac.update(&[0u8]); // 0x00 for hardened
         hmac.update(&key);
         hmac.update(&hardened_index.to_be_bytes());
-        
+
         let result = hmac.finalize().into_bytes();
         key.copy_from_slice(&result[0..32]);
     }
-    
+
     Ok(key)
 }
 
@@ -169,7 +160,7 @@ mod tests {
     fn test_generate_mnemonic() {
         let mnemonic = Mnemonic::generate(12).unwrap();
         assert_eq!(mnemonic.word_count(), 12);
-        
+
         let phrase = mnemonic.phrase();
         assert!(phrase.split_whitespace().count() == 12);
     }
@@ -185,13 +176,13 @@ mod tests {
     fn test_derive_keypair() {
         let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
         let mnemonic = Mnemonic::from_phrase(phrase).unwrap();
-        
+
         let keypair1 = mnemonic.derive_ed25519_keypair(0, 0, 0, None).unwrap();
         let keypair2 = mnemonic.derive_ed25519_keypair(0, 0, 0, None).unwrap();
-        
+
         // Same path should produce same keypair
         assert_eq!(keypair1.secret.as_bytes(), keypair2.secret.as_bytes());
-        
+
         // Different index should produce different keypair
         let keypair3 = mnemonic.derive_ed25519_keypair(0, 0, 1, None).unwrap();
         assert_ne!(keypair1.secret.as_bytes(), keypair3.secret.as_bytes());

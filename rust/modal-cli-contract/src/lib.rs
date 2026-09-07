@@ -1,6 +1,7 @@
 //! Contract management commands for Modal CLI.
 
 pub mod add_rule;
+pub mod ai;
 pub mod assets;
 pub mod checkout;
 pub mod commit;
@@ -54,11 +55,8 @@ mod tests {
         assert!(contract_dir.join(".contract/config.json").exists());
         assert!(contract_dir.join("model/default.modality").exists());
 
-        let checkout_opts = crate::checkout::Opts::parse_from([
-            "checkout",
-            "--dir",
-            contract_dir_arg.as_str(),
-        ]);
+        let checkout_opts =
+            crate::checkout::Opts::parse_from(["checkout", "--dir", contract_dir_arg.as_str()]);
         crate::checkout::run(&checkout_opts).await?;
         assert!(contract_dir.join("state").exists());
         assert!(contract_dir.join("rules").exists());
@@ -102,17 +100,11 @@ mod tests {
         );
         assert_eq!(store.list_commits()?.len(), 2);
         assert_eq!(
-            store
-                .build_state_from_commits()?
-                .get("/parties/alice.id"),
+            store.build_state_from_commits()?.get("/parties/alice.id"),
             Some(&Value::String(contract_id))
         );
 
-        let id_opts = crate::id::Opts::parse_from([
-            "id",
-            "--dir",
-            contract_dir_arg.as_str(),
-        ]);
+        let id_opts = crate::id::Opts::parse_from(["id", "--dir", contract_dir_arg.as_str()]);
         crate::id::run(&id_opts).await?;
 
         let status_opts = crate::status::Opts::parse_from([

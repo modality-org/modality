@@ -1,13 +1,13 @@
-use sha1::{Sha1, Digest};
-use sha2::{Sha256, Sha384, Sha512};
-use std::collections::HashMap;
-use std::error::Error;
 use num_bigint::BigUint;
 use num_bigint::ToBigUint;
 use num_traits::{Num, Zero};
 use randomx_rs::{RandomXFlag, RandomXVM};
-use serde::{Deserialize};
+use serde::Deserialize;
+use sha1::{Digest, Sha1};
+use sha2::{Sha256, Sha384, Sha512};
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::error::Error;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -21,7 +21,7 @@ const RANDOMX_KEY: &[u8] = b"modality-network-randomx-key";
 /// RandomX-specific hashing parameters
 #[derive(Debug, Clone, Deserialize)]
 pub struct RandomXParams {
-    pub key: Option<String>,  // Custom key (default: "modality-network-randomx-key")
+    pub key: Option<String>, // Custom key (default: "modality-network-randomx-key")
     pub flags: Option<String>, // "recommended", "light", "full", or comma-separated flags
 }
 
@@ -35,7 +35,7 @@ lazy_static::lazy_static! {
         map.insert("randomx", 64);  // RandomX outputs 256 bits = 64 hex chars
         map
     };
-    
+
     /// Global flag to signal mining should stop
     /// This is controlled by the node's shutdown handler, NOT by a Ctrl-C handler here
     /// (having multiple Ctrl-C handlers conflicts with tokio::signal::ctrl_c)
@@ -56,7 +56,7 @@ thread_local! {
     /// Thread-local RandomX VM instance that is initialized once per thread and reused
     /// This avoids the expensive initialization cost (2-3 seconds) for every hash
     static RANDOMX_VM: RefCell<Option<RandomXVM>> = const { RefCell::new(None) };
-    
+
     /// Thread-local RandomX parameters for custom configuration
     static RANDOMX_PARAMS: RefCell<Option<RandomXParams>> = const { RefCell::new(None) };
 }
@@ -65,7 +65,10 @@ thread_local! {
 fn parse_randomx_flags(flags_str: &str) -> RandomXFlag {
     // For now, always use recommended flags
     // The randomx-rs crate may not expose individual flag constants
-    log::debug!("Using RandomX recommended flags (custom flags not yet supported: {})", flags_str);
+    log::debug!(
+        "Using RandomX recommended flags (custom flags not yet supported: {})",
+        flags_str
+    );
     RandomXFlag::get_recommended_flags()
 }
 
@@ -86,7 +89,6 @@ pub fn set_randomx_params_from_json(params_json: Option<&serde_json::Value>) {
     set_randomx_params(params);
 }
 
-
 /// Get or create the thread-local RandomX VM instance
 fn with_randomx_vm<F, R>(f: F) -> Result<R, Box<dyn Error>>
 where
@@ -94,13 +96,13 @@ where
 {
     RANDOMX_VM.with(|vm_cell| {
         let mut vm_opt = vm_cell.borrow_mut();
-        
+
         if vm_opt.is_none() {
             log::info!("🔧 Initializing RandomX VM (one-time setup)...");
-            
+
             // Get custom params if available
             let params = RANDOMX_PARAMS.with(|p| p.borrow().clone());
-            
+
             // Determine flags
             let flags = if let Some(ref p) = params {
                 if let Some(ref flags_str) = p.flags {
@@ -112,7 +114,7 @@ where
             } else {
                 RandomXFlag::get_recommended_flags()
             };
-            
+
             // Determine key
             let key = if let Some(ref p) = params {
                 if let Some(ref custom_key) = p.key {
@@ -124,7 +126,7 @@ where
             } else {
                 RANDOMX_KEY
             };
-            
+
             log::debug!("🔧 Creating RandomX cache with key...");
             let cache = randomx_rs::RandomXCache::new(flags, key)
                 .map_err(|e| format!("Failed to create RandomX cache: {}", e))?;
@@ -134,7 +136,7 @@ where
             log::info!("✅ RandomX VM initialized successfully (ready for mining)");
             *vm_opt = Some(vm);
         }
-        
+
         let vm = vm_opt.as_ref().unwrap();
         f(vm)
     })
@@ -143,7 +145,8 @@ where
 /// Hash data using RandomX (uses thread-local VM for efficiency)
 fn hash_with_randomx(data: &str) -> Result<String, Box<dyn Error>> {
     with_randomx_vm(|vm| {
-        let hash_bytes = vm.calculate_hash(data.as_bytes())
+        let hash_bytes = vm
+            .calculate_hash(data.as_bytes())
             .map_err(|e| format!("RandomX hashing failed: {}", e))?;
         Ok(hex::encode(hash_bytes))
     })
@@ -174,8 +177,7 @@ pub fn mine(
     max_tries: Option<u128>,
     hash_func_name: Option<&str>,
 ) -> Result<u128, Box<dyn Error>> {
-    mine_with_stats(data, difficulty, max_tries, hash_func_name, None)
-        .map(|result| result.nonce)
+    mine_with_stats(data, difficulty, max_tries, hash_func_name, None).map(|result| result.nonce)
 }
 
 /// Mine with detailed statistics
@@ -191,10 +193,17 @@ pub fn mine_with_stats(
     let hash_func_name = hash_func_name.unwrap_or(DEFAULT_HASH_FUNC_NAME);
     let mining_delay = mining_delay_ms.unwrap_or(0);
 
-    log::info!("⛏️  Starting mining with {} algorithm (difficulty: {})", hash_func_name, difficulty);
-    
+    log::info!(
+        "⛏️  Starting mining with {} algorithm (difficulty: {})",
+        hash_func_name,
+        difficulty
+    );
+
     if mining_delay > 0 {
-        log::info!("🐌 Mining slowdown enabled: {}ms delay per attempt (for testing)", mining_delay);
+        log::info!(
+            "🐌 Mining slowdown enabled: {}ms delay per attempt (for testing)",
+            mining_delay
+        );
     }
 
     let start_time = std::time::Instant::now();
@@ -207,31 +216,42 @@ pub fn mine_with_stats(
     while try_count < max_tries {
         // Check if we should stop mining (e.g., Ctrl-C was pressed)
         if MINING_SHOULD_STOP.load(Ordering::Relaxed) {
-            log::info!("🛑 Mining stopped by shutdown signal after {} attempts", try_count);
+            log::info!(
+                "🛑 Mining stopped by shutdown signal after {} attempts",
+                try_count
+            );
             return Err("Mining interrupted by shutdown signal".into());
         }
-        
+
         try_count += 1;
-        
+
         // Add artificial delay for testing race conditions
         if mining_delay > 0 {
             std::thread::sleep(std::time::Duration::from_millis(mining_delay));
         }
-        
+
         // Log periodic status updates (only if we're doing a lot of attempts)
         if try_count > 1000 && last_status_log.elapsed() >= status_interval {
             let attempts_since_last = try_count - last_try_count;
             let hash_rate = attempts_since_last as f64 / last_status_log.elapsed().as_secs_f64();
-            log::info!("⛏️  Mining status: tried {} nonces, hash rate: {:.2} H/s, current nonce: {}", 
-                try_count, hash_rate, nonce);
+            log::info!(
+                "⛏️  Mining status: tried {} nonces, hash rate: {:.2} H/s, current nonce: {}",
+                try_count,
+                hash_rate,
+                nonce
+            );
             last_status_log = std::time::Instant::now();
             last_try_count = try_count;
         }
-        
+
         let hash = hash_with_nonce(data, nonce, hash_func_name)?;
         if is_hash_acceptable(&hash, difficulty, hash_func_name) {
             let duration = start_time.elapsed();
-            log::info!("✅ Found valid nonce {} after {} attempts", nonce, try_count);
+            log::info!(
+                "✅ Found valid nonce {} after {} attempts",
+                nonce,
+                try_count
+            );
             return Ok(MiningResult {
                 nonce,
                 attempts: try_count,
@@ -245,7 +265,11 @@ pub fn mine_with_stats(
 }
 
 #[allow(dead_code)]
-pub fn hash_with_nonce(data: &str, nonce: u128, hash_func_name: &str) -> Result<String, Box<dyn Error>> {
+pub fn hash_with_nonce(
+    data: &str,
+    nonce: u128,
+    hash_func_name: &str,
+) -> Result<String, Box<dyn Error>> {
     let hash = match hash_func_name {
         "sha1" => {
             let mut hasher = Sha1::new();
@@ -291,47 +315,58 @@ pub fn difficulty_to_target_hash(
 }
 
 pub fn is_hash_acceptable(hash: &str, difficulty: u128, hash_func_name: &str) -> bool {
-    let target_hash = difficulty_to_target_hash(difficulty, hash_func_name, DEFAULT_DIFFICULTY_COEFFICIENT, DEFAULT_DIFFICULTY_EXPONENT, DEFAULT_DIFFICULTY_BASE);
+    let target_hash = difficulty_to_target_hash(
+        difficulty,
+        hash_func_name,
+        DEFAULT_DIFFICULTY_COEFFICIENT,
+        DEFAULT_DIFFICULTY_EXPONENT,
+        DEFAULT_DIFFICULTY_BASE,
+    );
     let hash_big_int = BigUint::from_str_radix(hash, 16).unwrap();
     let target_big_int = BigUint::from_str_radix(&target_hash, 16).unwrap();
     hash_big_int < target_big_int
 }
 
 #[allow(dead_code)]
-pub fn validate_nonce(data: &str, nonce: u128, difficulty: u128, hash_func_name: &str) -> Result<bool, Box<dyn Error>> {
+pub fn validate_nonce(
+    data: &str,
+    nonce: u128,
+    difficulty: u128,
+    hash_func_name: &str,
+) -> Result<bool, Box<dyn Error>> {
     let hash = hash_with_nonce(data, nonce, hash_func_name)?;
     Ok(is_hash_acceptable(&hash, difficulty, hash_func_name))
 }
 
 /// Calculate the actualized (realized) difficulty from a hash value
-/// 
+///
 /// This represents the actual computational work done, not just the target threshold.
 /// A lower hash value indicates more work was performed.
-/// 
+///
 /// Formula: actualized_difficulty = max_target / hash_value
-/// 
+///
 /// # Arguments
 /// * `hash` - The hex-encoded hash string
-/// 
+///
 /// # Returns
 /// The actualized difficulty as u128, or an error if parsing fails
 #[allow(dead_code)]
 pub fn hash_to_actualized_difficulty(hash: &str) -> Result<u128, Box<dyn Error>> {
     use num_traits::ToPrimitive;
-    
-    let max_target = DEFAULT_DIFFICULTY_COEFFICIENT.to_biguint().unwrap() 
+
+    let max_target = DEFAULT_DIFFICULTY_COEFFICIENT.to_biguint().unwrap()
         << (DEFAULT_DIFFICULTY_EXPONENT * DEFAULT_DIFFICULTY_BASE);
-    
+
     let hash_big_int = BigUint::from_str_radix(hash, 16)
         .map_err(|e| format!("Failed to parse hash as hex: {}", e))?;
-    
+
     if hash_big_int.is_zero() {
         // Perfect hash (all zeros) has maximum possible difficulty
         return Ok(u128::MAX);
     }
-    
+
     let actualized = &max_target / &hash_big_int;
-    
+
     // Convert to u128, clamping to max if overflow
     Ok(actualized.to_u128().unwrap_or(u128::MAX))
 }
@@ -363,28 +398,34 @@ mod tests {
         let nonce = mine(&data, 500, None, Some("sha256")).unwrap();
         assert_eq!(nonce, 2401); // Known value for SHA256
     }
-    
+
     #[test]
     fn test_hash_to_actualized_difficulty() {
         // A hash with more leading zeros should have higher actualized difficulty
         let easy_hash = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
         let hard_hash = "0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
-        
+
         let easy_diff = hash_to_actualized_difficulty(easy_hash).unwrap();
         let hard_diff = hash_to_actualized_difficulty(hard_hash).unwrap();
-        
-        assert!(hard_diff > easy_diff, "Hash with more leading zeros should have higher actualized difficulty");
+
+        assert!(
+            hard_diff > easy_diff,
+            "Hash with more leading zeros should have higher actualized difficulty"
+        );
     }
-    
+
     #[test]
     fn test_hash_to_actualized_difficulty_ordering() {
         // Test that lower hash values yield higher difficulties
         let hash_a = "0001000000000000000000000000000000000000000000000000000000000000";
         let hash_b = "0010000000000000000000000000000000000000000000000000000000000000";
-        
+
         let diff_a = hash_to_actualized_difficulty(hash_a).unwrap();
         let diff_b = hash_to_actualized_difficulty(hash_b).unwrap();
-        
-        assert!(diff_a > diff_b, "Lower hash should have higher actualized difficulty");
+
+        assert!(
+            diff_a > diff_b,
+            "Lower hash should have higher actualized difficulty"
+        );
     }
 }

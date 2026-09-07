@@ -1,6 +1,6 @@
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use ring::{aead, pbkdf2, rand, hkdf};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use ring::rand::SecureRandom;
+use ring::{aead, hkdf, pbkdf2, rand};
 use std::num::NonZeroU32;
 
 pub struct EncryptedText;
@@ -23,13 +23,12 @@ impl EncryptedText {
         let hkdf_salt = hkdf::Salt::new(hkdf::HKDF_SHA256, salt);
         let prk = hkdf_salt.extract(&pbkdf2_output);
         let mut final_key = [0u8; 32];
-        
+
         // Use expand and fill with a fixed length
         prk.expand(&[b"aes-256-gcm"], hkdf::HKDF_SHA256)
             .map_err(|_| "HKDF expand failed")?
             .fill(&mut final_key)
             .map_err(|_| "HKDF fill failed")?;
-
 
         Ok(final_key)
     }
@@ -46,9 +45,10 @@ impl EncryptedText {
         let key = aead::LessSafeKey::new(unbound_key);
 
         let mut nonce_bytes = vec![0u8; 12];
-        rng.fill(&mut nonce_bytes).map_err(|_| "Failed to generate nonce")?;
-        let nonce = aead::Nonce::try_assume_unique_for_key(&nonce_bytes)
-            .map_err(|_| "Invalid nonce")?;
+        rng.fill(&mut nonce_bytes)
+            .map_err(|_| "Failed to generate nonce")?;
+        let nonce =
+            aead::Nonce::try_assume_unique_for_key(&nonce_bytes).map_err(|_| "Invalid nonce")?;
 
         let mut in_out = text.as_bytes().to_vec();
         key.seal_in_place_append_tag(nonce, aead::Aad::empty(), &mut in_out)
@@ -63,7 +63,8 @@ impl EncryptedText {
     }
 
     pub fn decrypt(encrypted_base64: &str, password: &str) -> Result<String, &'static str> {
-        let combined = BASE64.decode(encrypted_base64)
+        let combined = BASE64
+            .decode(encrypted_base64)
             .map_err(|_| "Invalid base64 data")?;
 
         if combined.len() < 28 {
@@ -80,19 +81,19 @@ impl EncryptedText {
             .map_err(|_| "Failed to create key")?;
         let key = aead::LessSafeKey::new(unbound_key);
 
-        let nonce = aead::Nonce::try_assume_unique_for_key(nonce_bytes)
-            .map_err(|_| "Invalid nonce")?;
+        let nonce =
+            aead::Nonce::try_assume_unique_for_key(nonce_bytes).map_err(|_| "Invalid nonce")?;
 
         let mut decrypted = ciphertext.to_vec();
-        let decrypted_len = key.open_in_place(nonce, aead::Aad::empty(), &mut decrypted)
+        let decrypted_len = key
+            .open_in_place(nonce, aead::Aad::empty(), &mut decrypted)
             .map_err(|_| "Decryption failed - invalid password or corrupted data")?
             .len();
 
         // Truncate to the actual decrypted length (excluding auth tag)
         decrypted.truncate(decrypted_len);
 
-        String::from_utf8(decrypted)
-            .map_err(|_| "Invalid UTF-8 in decrypted data")
+        String::from_utf8(decrypted).map_err(|_| "Invalid UTF-8 in decrypted data")
     }
 }
 
@@ -119,7 +120,7 @@ mod tests {
         let text = "Test message";
 
         let encrypted = EncryptedText::encrypt(text, password).unwrap();
-        
+
         let combined = BASE64.decode(&encrypted).unwrap();
 
         // Corrupt authenticated payload bytes directly. Mutating arbitrary
@@ -146,7 +147,7 @@ mod tests {
             "a",
             "hello",
             "This is a longer test message with spaces and !@#$ symbols",
-            "🦀 Rust with Unicode 🔐"
+            "🦀 Rust with Unicode 🔐",
         ];
 
         for text in texts {
@@ -155,13 +156,13 @@ mod tests {
             assert_eq!(text, decrypted);
         }
     }
-    
+
     #[test]
     fn test_known_string() {
         const KNOWN_PASSWORD: &str = "test_password_123";
         const KNOWN_MESSAGE: &str = "Hello, Cross-Platform Encryption!";
         const KNOWN_ENCRYPTED: &str = "1G73otj9BTJ5i3djZyuemijZnGkMb8XawInJVUqLqiNTIRPrBrs8MxL0y+cJWTcxGcxkS7H+/BltKwxqS0dd5TYTN81cOWaHmO7SJR0=";
-    
+
         // Test decryption of known string
         let decrypted = EncryptedText::decrypt(KNOWN_ENCRYPTED, KNOWN_PASSWORD).unwrap();
         assert_eq!(decrypted, KNOWN_MESSAGE);

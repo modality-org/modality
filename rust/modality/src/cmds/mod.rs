@@ -5,6 +5,7 @@ pub mod contract;
 pub mod id;
 #[cfg(feature = "node")]
 pub mod inspect;
+pub mod lint;
 pub mod mermaid;
 pub mod model_create;
 #[cfg(feature = "passfile")]
@@ -12,5 +13,5 @@ pub mod passfile;
 pub mod synthesize;
 #[cfg(feature = "upgrade")]
 pub mod upgrade;
-pub mod lint;
 pub mod validate;
+pub mod view;

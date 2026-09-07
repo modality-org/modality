@@ -59,7 +59,7 @@ fn print_properties(props: &[Property]) -> String {
 }
 
 /// Print a single property, handling predicates
-fn print_property(prop: &Property) -> String {
+pub fn print_property(prop: &Property) -> String {
     let sign = match prop.sign {
         PropertySign::Plus => "+",
         PropertySign::Minus => "-",

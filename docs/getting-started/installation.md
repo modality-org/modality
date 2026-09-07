@@ -107,7 +107,8 @@ modality model --help
 
 Use `modal` for contract logs, identities, commits, status, and the first-contract
 local flow. Use `modality` for model and rule authoring tasks such as
-`modality model synthesize`, `modality model validate`, and `modality model lint`.
+`modality model synthesize`, `modality model validate`, `modality model lint`,
+`modality model mermaid`, and `modality model view`.
 A successful onboarding install should make both command surfaces visible before
 you start the first-contract guide.
 

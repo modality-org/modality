@@ -82,22 +82,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     let address = keypair.as_public_address();
 
-    // Create path using proper path handling
-    let filepath = if opts.path.is_some() {
-        opts.path.clone().unwrap()
+    let filepath = if let Some(path) = &opts.path {
+        path.clone()
     } else {
         let filename = opts.name.clone().unwrap_or_else(|| address.clone());
-        let default_dir = if let Some(home) = dirs::home_dir() {
-            let home_dot_modality = home.join(".modality");
-            std::fs::create_dir_all(&home_dot_modality).expect("Failed to create directory");
-            home_dot_modality
-        } else {
-            PathBuf::from(".")
-        };
-        opts.dir
-            .clone()
-            .unwrap_or(default_dir)
-            .join(format!("{}.mod_passfile", filename))
+        modal_common::passfile::named_passfile_create_path(&filename, opts.dir.as_deref())?
     };
 
     // Check if file already exists
@@ -108,9 +97,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         ));
     }
 
-    let filepath_str = filepath.to_str().ok_or_else(|| {
-        anyhow::anyhow!("Invalid file path: contains non-Unicode characters")
-    })?;
+    let filepath_str = filepath
+        .to_str()
+        .ok_or_else(|| anyhow::anyhow!("Invalid file path: contains non-Unicode characters"))?;
 
     let mnemonic_to_store = if opts.store_mnemonic {
         Some(mnemonic)
@@ -143,7 +132,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
     println!("📍 Modality ID: {}", address);
     println!("🔑 BIP44 Derivation Path: {}", derivation_path);
     println!("💾 Modality Passfile saved to: {}", filepath.display());
-    
+    if opts.path.is_none() {
+        let name = opts.name.as_deref().unwrap_or(&address);
+        let id_path = modal_common::passfile::write_named_public_id(name, &address)?;
+        println!("🪪 Public ID saved to: {}", id_path.display());
+    }
+
     if opts.store_mnemonic {
         if opts.encrypt {
             println!("🔐 Mnemonic stored encrypted in the passfile");
@@ -153,7 +147,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     } else {
         println!("ℹ️  Mnemonic NOT stored in the passfile");
     }
-    
+
     println!("\n🚨🚨🚨  IMPORTANT: Keep your passfile secure and never share it! 🚨🚨🚨");
 
     Ok(())
@@ -176,4 +170,3 @@ fn get_password() -> Result<String> {
 
     Ok(password)
 }
-

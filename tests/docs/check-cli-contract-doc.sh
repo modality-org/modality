@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/cli/contract-commands.md"
 MODAL_MAIN="$ROOT_DIR/rust/modal/src/main.rs"
 COMMIT_SOURCE="$ROOT_DIR/rust/modal-cli-contract/src/commit.rs"
+ADD_RULE_SOURCE="$ROOT_DIR/rust/modal-cli-contract/src/add_rule.rs"
+AI_SOURCE="$ROOT_DIR/rust/modal-cli-contract/src/ai.rs"
 DIFF_SOURCE="$ROOT_DIR/rust/modal-cli-contract/src/diff.rs"
 PUSH_SOURCE="$ROOT_DIR/rust/modal-cli-contract/src/push.rs"
 PULL_SOURCE="$ROOT_DIR/rust/modal-cli-contract/src/pull.rs"
@@ -21,18 +23,24 @@ required_patterns=(
   "modal c set [OPTIONS] <PATH> <VALUE>"
   "modal c set-named-id [OPTIONS] <PATH> <NAME>"
   "passfile path or a passfile name"
-  "modal c set-named-id /parties/alice.id alice.passfile"
+  "modal c set-named-id /parties/alice.id alice"
+  "modal c add-rule --name <NAME> [OPTIONS] <FORMULA>"
+  "\`--name <NAME>\` | Rule name written as \`rules/<name>.modality\`"
+  "\`--starting-at <ANCHOR>\` | Rule anchor (default: \`\$PARENT\`)"
+  "modal c add-rule --name authorized"
+  "modal c ai suggest-rule <PROMPT>"
+  "modal c ai suggest-rule \"after this commit either alice or bob must sign\""
   "Create a new commit from the contract working directories, a single state path,"
   "\`--path <PATH>\` | State path to write for a single \`POST\`-style commit"
   "\`--value <VALUE>\` | Value for the single-path commit"
   "\`--method <METHOD>\` | Commit method for the single-path commit"
-  "\`--sign <PASSFILE>\` | Sign commit with a passfile; repeat to attach multiple signatures"
+  "\`--sign <PASSFILE>\` | Sign with a passfile path or identity name; repeat to attach multiple signatures"
   "\`--all\`, \`-a\` | Commit all changed \`state/\`, \`rules/\`, and \`model/default.modality\` files"
   "\`--asset-id <ASSET_ID>\` | Asset ID for \`CREATE\` commits"
   "\`--to-contract <TO_CONTRACT>\` | Destination contract ID for \`SEND\` commits"
   "\`--send-commit-id <SEND_COMMIT_ID>\` | Source \`SEND\` commit ID for \`RECV\` commits"
-  "modal c commit --path /notes.text --value \"signed update\" --sign alice.passfile"
-  "modal c commit --all --sign alice.passfile --sign bob.passfile"
+  "modal c commit --path /notes.text --value \"signed update\" --sign alice"
+  "modal c commit --all --sign alice --sign bob"
   "\`--remote <URL>\` | Target node multiaddress or hub URL; also saves it under the remote name"
   "\`--remote-name <NAME>\` | Remote name (default: \`origin\`)"
   "\`--hub-creds <FILE>\` | Hub credentials file for HTTP hub remotes"
@@ -82,7 +90,7 @@ for source_guard in \
   'to_contract: Option<String>' \
   'amount: Option<u64>' \
   'send_commit_id: Option<String>' \
-  'sign: Vec<PathBuf>' \
+  'sign: Vec<String>' \
   'all: bool' \
   'message: Option<String>' \
   'action: Option<String>'; do
@@ -98,6 +106,32 @@ for stale_source_flag in \
   'model: bool'; do
   if grep -Fq -- "$stale_source_flag" "$COMMIT_SOURCE"; then
     echo "contract commit source grew a flag that should be documented deliberately: $stale_source_flag" >&2
+    exit 1
+  fi
+done
+
+for source_guard in \
+  'formula: String' \
+  'name: String' \
+  'starting_at: String' \
+  'dir: Option<PathBuf>'; do
+  if ! grep -Fq -- "$source_guard" "$ADD_RULE_SOURCE"; then
+    echo "contract add-rule source no longer exposes documented option: $source_guard" >&2
+    exit 1
+  fi
+done
+
+if grep -Fq -- 'name: Option<String>' "$ADD_RULE_SOURCE"; then
+  echo "contract add-rule source still treats --name as optional" >&2
+  exit 1
+fi
+
+for source_guard in \
+  'prompt: String' \
+  '#[command(name = "suggest-rule")]' \
+  'FIRST_CONTRACT_FORMULA'; do
+  if ! grep -Fq -- "$source_guard" "$AI_SOURCE"; then
+    echo "contract ai source no longer exposes documented option: $source_guard" >&2
     exit 1
   fi
 done
@@ -163,7 +197,9 @@ for command_variant in \
   "Push(modal_cli_contract::push::Opts)" \
   "Pull(modal_cli_contract::pull::Opts)" \
   "Pack(modal_cli_contract::pack::Opts)" \
-  "Unpack(modal_cli_contract::unpack::Opts)"; do
+  "Unpack(modal_cli_contract::unpack::Opts)" \
+  "AddRule(modal_cli_contract::add_rule::Opts)" \
+  "modal_cli_contract::ai::Commands"; do
   if ! grep -Fq -- "$command_variant" "$MODAL_MAIN"; then
     echo "modal wrapper no longer wires documented contract command: $command_variant" >&2
     exit 1

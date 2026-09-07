@@ -27,8 +27,8 @@ runtime-heavy hub, node, network, predicate, program, chain, local, run,
 
 Build the full wrapper with `cargo build --release -p modal` when you need those
 broader command groups. Use `modality` for model and rule authoring tasks such
-as `modality model lint`, `modality model synthesize`, and
-`modality model validate`.
+as `modality model lint`, `modality model synthesize`,
+`modality model validate`, `modality model mermaid`, and `modality model view`.
 
 ## Command Groups
 
@@ -70,7 +70,8 @@ modal diff
 modal repost source-contract-id /source/path /local/path
 
 # Add a rule to the current contract
-modal add-rule rules/member-protection.modality
+modal add-rule --name authorized \
+  '[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)'
 
 # Download a packed contract file
 modal download http://hub.example.com/contracts/my-contract.pack
@@ -86,13 +87,13 @@ modal upgrade
 
 ```bash
 # Identity
-modal id create --path alice.passfile
-modal id get --path alice.passfile
+modal id create --name example/alice
+modal id get --name example/alice
 
 # Contract workflow
 modal c create
-modal c set-named-id /parties/alice.id alice.passfile
-modal c commit --all --sign alice.passfile -m "Initial setup"
+modal c set-named-id /parties/alice.id example/alice
+modal c commit --all --sign example/alice -m "Initial setup"
 modal c status
 modal c log
 

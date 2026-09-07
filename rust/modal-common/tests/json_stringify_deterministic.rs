@@ -1,5 +1,5 @@
-use serde_json::json;
 use modal_common::json_stringify_deterministic::stringify_deterministic;
+use serde_json::json;
 
 #[cfg(test)]
 mod tests {
@@ -54,19 +54,13 @@ mod tests {
                 "a": 3,
                 "z": ""
             });
-            assert_eq!(
-                stringify_deterministic(&obj, None),
-                r#"{"a":3,"z":""}"#
-            );
+            assert_eq!(stringify_deterministic(&obj, None), r#"{"a":3,"z":""}"#);
         }
 
         #[test]
         fn in_array() {
             let obj = json!([4, "", 6]);
-            assert_eq!(
-                stringify_deterministic(&obj, None),
-                r#"[4,"",6]"#
-            );
+            assert_eq!(stringify_deterministic(&obj, None), r#"[4,"",6]"#);
         }
     }
 
@@ -87,7 +81,7 @@ mod tests {
 
         #[test]
         fn in_array() {
-            let obj = json!([4, null, "/foobar/"]);  // We use null for undefined and a string for regex
+            let obj = json!([4, null, "/foobar/"]); // We use null for undefined and a string for regex
             assert_eq!(
                 stringify_deterministic(&obj, None),
                 r#"[4,null,"/foobar/"]"#

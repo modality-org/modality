@@ -2,52 +2,30 @@ use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
 
-use modal_common::keypair::Keypair;
+use modal_common::passfile::{public_id_from_file, resolve_public_id};
 
 #[derive(Debug, Parser)]
-#[command(about = "Get the public ID from a passfile by name or path")]
+#[command(about = "Get the public ID from a passfile or named identity")]
 pub struct Opts {
-    /// Name of identity in ~/.modality/<name>.modal_passfile
+    /// Name of identity in ~/.modality/ids/<name>.id
     #[clap(long)]
     name: Option<String>,
-    
-    /// Path to passfile
+
+    /// Path to passfile or public ID file
     #[clap(long)]
     path: Option<PathBuf>,
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
-    let keypair = if let Some(name) = &opts.name {
-        // Look up from ~/.modality/<name>.modal_passfile
-        let home = dirs::home_dir()
-            .ok_or_else(|| anyhow::anyhow!("Cannot find home directory"))?;
-        
-        // Try ~/.modality/<name>.modal_passfile
-        let passfile_path = home.join(".modality").join(format!("{}.modal_passfile", name));
-        if passfile_path.exists() {
-            Keypair::from_json_file(passfile_path.to_str().unwrap())?
-        } else {
-            // Try current directory
-            let local_path = PathBuf::from(format!("{}.modal_passfile", name));
-            if local_path.exists() {
-                Keypair::from_json_file(local_path.to_str().unwrap())?
-            } else {
-                anyhow::bail!(
-                    "Identity '{}' not found. Looked in:\n  - {}\n  - {}",
-                    name,
-                    passfile_path.display(),
-                    local_path.display()
-                );
-            }
-        }
+    let id = if let Some(name) = &opts.name {
+        resolve_public_id(name)?
     } else if let Some(path) = &opts.path {
-        Keypair::from_json_file(path.to_str().unwrap())?
+        public_id_from_file(path)?
     } else {
         anyhow::bail!("Must specify --name or --path");
     };
-    
-    // Output just the ID
-    println!("{}", keypair.as_public_address());
-    
+
+    println!("{}", id);
+
     Ok(())
 }

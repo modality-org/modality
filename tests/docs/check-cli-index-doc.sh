@@ -21,14 +21,16 @@ required_patterns=(
   "\`modality model lint\`"
   "\`modality model synthesize\`"
   "\`modality model validate\`"
+  "\`modality model mermaid\`"
+  "\`modality model view\`"
   "full wrapper only"
   "modal c create"
-  "modal c set-named-id /parties/alice.id alice.passfile"
-  "modal c commit --all --sign alice.passfile"
+  "modal c set-named-id /parties/alice.id example/alice"
+  "modal c commit --all --sign example/alice"
   "modal pull http://hub.example.com/contracts/my-contract"
   "modal diff"
   "modal repost source-contract-id /source/path /local/path"
-  "modal add-rule rules/member-protection.modality"
+  "modal add-rule --name authorized"
   "modal download http://hub.example.com/contracts/my-contract.pack"
   "\`modal contract pull\` | \`modal pull\`"
   "\`modal contract commit\` | \`modal commit\`"
@@ -58,6 +60,7 @@ lean_source_patterns=(
   'Set(modal_cli_contract::set::Opts)'
   'Repost(modal_cli_contract::repost::Opts)'
   'AddRule(modal_cli_contract::add_rule::Opts)'
+  'modal_cli_contract::ai::Commands'
   'Download(modal_cli_contract::download::Opts)'
 )
 
@@ -91,7 +94,8 @@ done
 for forbidden_pattern in \
   "curl -fsSL https://get.modality.org | sh" \
   "cd rust && cargo build --release" \
-  "modal c set /parties/alice.id --named alice"; do
+  "modal c set /parties/alice.id --named alice" \
+  "modal add-rule rules/member-protection.modality"; do
   if grep -Fq -- "$forbidden_pattern" "$DOC"; then
     echo "CLI index still contains stale install text: $forbidden_pattern" >&2
     exit 1

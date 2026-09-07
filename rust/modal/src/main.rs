@@ -315,6 +315,12 @@ enum ContractCommands {
     #[command(name = "add-rule", about = "Add a rule to the contract")]
     AddRule(modal_cli_contract::add_rule::Opts),
 
+    #[command(about = "AI helpers for contract authoring")]
+    Ai {
+        #[command(subcommand)]
+        command: modal_cli_contract::ai::Commands,
+    },
+
     #[command(about = "Download a packed contract file")]
     Download(modal_cli_contract::download::Opts),
 }
@@ -459,6 +465,7 @@ async fn main() -> Result<()> {
             ContractCommands::Unpack(opts) => modal_cli_contract::unpack::run(opts).await?,
             ContractCommands::Repost(opts) => modal_cli_contract::repost::run(opts).await?,
             ContractCommands::AddRule(opts) => modal_cli_contract::add_rule::run(opts).await?,
+            ContractCommands::Ai { command } => modal_cli_contract::ai::run(command).await?,
             ContractCommands::Download(opts) => modal_cli_contract::download::run(opts).await?,
         },
         #[cfg(feature = "full")]
@@ -730,6 +737,123 @@ mod tests {
             "json",
         ]);
         modal_cli_contract::log::run(&log_opts).await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn named_example_identities_resolve_outside_contract_dir() -> anyhow::Result<()> {
+        static MODALITY_HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _lock = MODALITY_HOME_LOCK.lock().expect("MODALITY_HOME lock");
+        let previous_home = std::env::var("MODALITY_HOME").ok();
+        struct RestoreHome(Option<String>);
+        impl Drop for RestoreHome {
+            fn drop(&mut self) {
+                match &self.0 {
+                    Some(value) => std::env::set_var("MODALITY_HOME", value),
+                    None => std::env::remove_var("MODALITY_HOME"),
+                }
+            }
+        }
+        let _restore = RestoreHome(previous_home);
+
+        let home = TempDir::new()?;
+        std::env::set_var("MODALITY_HOME", home.path());
+
+        let contract_dir = home.path().join("first-contract");
+        let contract_dir_arg = contract_dir.to_string_lossy().to_string();
+
+        let create_opts = modal_cli_contract::create::Opts::parse_from([
+            "create",
+            "--dir",
+            contract_dir_arg.as_str(),
+            "--output",
+            "json",
+        ]);
+        modal_cli_contract::create::run(&create_opts).await?;
+
+        let alice_create_opts =
+            modality::cmds::id::create::Opts::parse_from(["id-create", "--name", "example/alice"]);
+        modality::cmds::id::create::run(&alice_create_opts).await?;
+        let bob_create_opts =
+            modality::cmds::id::create::Opts::parse_from(["id-create", "--name", "example/bob"]);
+        modality::cmds::id::create::run(&bob_create_opts).await?;
+
+        let alice_passfile = home
+            .path()
+            .join(".modality/passfiles/example/alice.mod_passfile");
+        let bob_passfile = home
+            .path()
+            .join(".modality/passfiles/example/bob.mod_passfile");
+        let alice_id_file = home.path().join(".modality/ids/example/alice.id");
+        let bob_id_file = home.path().join(".modality/ids/example/bob.id");
+        assert!(
+            alice_passfile.is_file(),
+            "expected namespaced passfile at {}",
+            alice_passfile.display()
+        );
+        assert!(bob_passfile.is_file());
+        assert!(alice_id_file.is_file());
+        assert!(bob_id_file.is_file());
+        assert!(!contract_dir.join("alice.mod_passfile").exists());
+        assert!(!contract_dir.join("example").exists());
+        assert!(!home.path().join(".modality/example").exists());
+
+        let alice_id =
+            Keypair::from_json_file(alice_passfile.to_str().unwrap())?.as_public_address();
+        let bob_id = Keypair::from_json_file(bob_passfile.to_str().unwrap())?.as_public_address();
+        assert_eq!(std::fs::read_to_string(&alice_id_file)?.trim(), alice_id);
+        assert_eq!(std::fs::read_to_string(&bob_id_file)?.trim(), bob_id);
+
+        let checkout_opts = modal_cli_contract::checkout::Opts::parse_from([
+            "checkout",
+            "--dir",
+            contract_dir_arg.as_str(),
+        ]);
+        modal_cli_contract::checkout::run(&checkout_opts).await?;
+
+        let set_alice_opts = modal_cli_contract::set_named_id::Opts::parse_from([
+            "set-named-id",
+            "/parties/alice.id",
+            "example/alice",
+            "--dir",
+            contract_dir_arg.as_str(),
+        ]);
+        modal_cli_contract::set_named_id::run(&set_alice_opts).await?;
+
+        let set_bob_opts = modal_cli_contract::set_named_id::Opts::parse_from([
+            "set-named-id",
+            "/parties/bob.id",
+            "example/bob",
+            "--dir",
+            contract_dir_arg.as_str(),
+        ]);
+        modal_cli_contract::set_named_id::run(&set_bob_opts).await?;
+
+        let commit_opts = modal_cli_contract::commit::Opts::parse_from([
+            "commit",
+            "--all",
+            "--dir",
+            contract_dir_arg.as_str(),
+            "--sign",
+            "example/alice",
+            "--output",
+            "json",
+            "--message",
+            "Initial contract setup",
+        ]);
+        modal_cli_contract::commit::run(&commit_opts).await?;
+
+        let store = ContractStore::open(&contract_dir)?;
+        assert_eq!(store.list_commits()?.len(), 2);
+        assert_eq!(
+            store.build_state_from_commits()?.get("/parties/alice.id"),
+            Some(&Value::String(alice_id))
+        );
+        assert_eq!(
+            store.build_state_from_commits()?.get("/parties/bob.id"),
+            Some(&Value::String(bob_id))
+        );
 
         Ok(())
     }

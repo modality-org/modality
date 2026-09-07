@@ -3,7 +3,7 @@
 //! This module provides a simple binary Merkle tree implementation
 //! for computing roots over a list of block hashes.
 
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 /// Compute the SHA-256 hash of two concatenated hashes
 fn hash_pair(left: &[u8], right: &[u8]) -> Vec<u8> {
@@ -38,11 +38,11 @@ pub fn compute_merkle_root(hashes: &[&str]) -> String {
     if hashes.is_empty() {
         return String::new();
     }
-    
+
     if hashes.len() == 1 {
         return hashes[0].to_string();
     }
-    
+
     // Convert hex strings to bytes
     let mut level: Vec<Vec<u8>> = hashes
         .iter()
@@ -56,11 +56,11 @@ pub fn compute_merkle_root(hashes: &[&str]) -> String {
             })
         })
         .collect();
-    
+
     // Build tree bottom-up
     while level.len() > 1 {
         let mut next_level = Vec::new();
-        
+
         // Process pairs
         let mut i = 0;
         while i < level.len() {
@@ -71,14 +71,14 @@ pub fn compute_merkle_root(hashes: &[&str]) -> String {
             } else {
                 &level[i]
             };
-            
+
             next_level.push(hash_pair(left, right));
             i += 2;
         }
-        
+
         level = next_level;
     }
-    
+
     hex::encode(&level[0])
 }
 
@@ -97,30 +97,26 @@ pub fn compute_merkle_root_owned(hashes: &[String]) -> String {
 ///
 /// # Returns
 /// * true if the proof is valid, false otherwise
-pub fn verify_merkle_proof(
-    hash: &str,
-    root: &str,
-    proof: &[(String, bool)],
-) -> bool {
+pub fn verify_merkle_proof(hash: &str, root: &str, proof: &[(String, bool)]) -> bool {
     let mut current = hex::decode(hash).unwrap_or_else(|_| {
         let mut hasher = Sha256::new();
         hasher.update(hash.as_bytes());
         hasher.finalize().to_vec()
     });
-    
+
     for (sibling_hex, is_left) in proof {
         let sibling = match hex::decode(sibling_hex) {
             Ok(bytes) => bytes,
             Err(_) => return false,
         };
-        
+
         current = if *is_left {
             hash_pair(&sibling, &current)
         } else {
             hash_pair(&current, &sibling)
         };
     }
-    
+
     hex::encode(&current) == root
 }
 
@@ -138,11 +134,11 @@ pub fn generate_merkle_proof(hashes: &[&str], index: usize) -> Option<Vec<(Strin
     if index >= hashes.len() || hashes.is_empty() {
         return None;
     }
-    
+
     if hashes.len() == 1 {
         return Some(vec![]);
     }
-    
+
     // Convert hex strings to bytes
     let mut level: Vec<Vec<u8>> = hashes
         .iter()
@@ -154,14 +150,14 @@ pub fn generate_merkle_proof(hashes: &[&str], index: usize) -> Option<Vec<(Strin
             })
         })
         .collect();
-    
+
     let mut proof = Vec::new();
     let mut current_index = index;
-    
+
     // Build proof bottom-up
     while level.len() > 1 {
         let mut next_level = Vec::new();
-        
+
         // Find sibling and add to proof
         let sibling_index = if current_index % 2 == 0 {
             // Current is left, sibling is right
@@ -174,10 +170,10 @@ pub fn generate_merkle_proof(hashes: &[&str], index: usize) -> Option<Vec<(Strin
             // Current is right, sibling is left
             current_index - 1
         };
-        
+
         let is_left = sibling_index < current_index;
         proof.push((hex::encode(&level[sibling_index]), is_left));
-        
+
         // Build next level
         let mut i = 0;
         while i < level.len() {
@@ -190,11 +186,11 @@ pub fn generate_merkle_proof(hashes: &[&str], index: usize) -> Option<Vec<(Strin
             next_level.push(hash_pair(left, right));
             i += 2;
         }
-        
+
         level = next_level;
         current_index /= 2;
     }
-    
+
     Some(proof)
 }
 
@@ -267,7 +263,7 @@ mod tests {
     fn test_proof_generation_and_verification() {
         let hashes = vec!["a", "b", "c", "d"];
         let root = compute_merkle_root(&hashes);
-        
+
         // Generate and verify proof for each hash
         for i in 0..hashes.len() {
             let proof = generate_merkle_proof(&hashes, i).unwrap();
@@ -279,7 +275,7 @@ mod tests {
     fn test_invalid_proof() {
         let hashes = vec!["a", "b", "c", "d"];
         let root = compute_merkle_root(&hashes);
-        
+
         // Proof for "a" should not verify "b"
         let proof = generate_merkle_proof(&hashes, 0).unwrap();
         assert!(!verify_merkle_proof("b", &root, &proof));
@@ -301,4 +297,3 @@ mod tests {
         assert_eq!(root, "a");
     }
 }
-

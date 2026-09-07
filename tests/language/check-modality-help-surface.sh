@@ -30,6 +30,7 @@ MODEL_HELP="$TMP_DIR/modality-model-help.txt"
 SYNTHESIZE_HELP="$TMP_DIR/modality-model-synthesize-help.txt"
 VALIDATE_HELP="$TMP_DIR/modality-model-validate-help.txt"
 LINT_HELP="$TMP_DIR/modality-model-lint-help.txt"
+VIEW_HELP="$TMP_DIR/modality-model-view-help.txt"
 
 "$MODALITY_BIN" --version >"$VERSION"
 "$MODALITY_BIN" --help >"$HELP"
@@ -37,6 +38,7 @@ LINT_HELP="$TMP_DIR/modality-model-lint-help.txt"
 "$MODALITY_BIN" model synthesize --help >"$SYNTHESIZE_HELP"
 "$MODALITY_BIN" model validate --help >"$VALIDATE_HELP"
 "$MODALITY_BIN" model lint --help >"$LINT_HELP"
+"$MODALITY_BIN" model view --help >"$VIEW_HELP"
 
 require_command() {
   local command_name="$1"
@@ -71,7 +73,7 @@ require_help_pattern() {
 require_help_pattern "^modality[[:space:]]+[0-9]" "$VERSION"
 require_command model "$HELP"
 
-for command_name in mermaid check create synthesize validate lint; do
+for command_name in mermaid view check create synthesize validate lint; do
   require_command "$command_name" "$MODEL_HELP"
 done
 
@@ -85,5 +87,7 @@ done
 
 require_help_pattern "Validate a contract model" "$VALIDATE_HELP"
 require_help_pattern "Lint governance formulas" "$LINT_HELP"
+require_help_pattern "default web browser" "$VIEW_HELP"
+require_help_pattern "(^|[[:space:]])--no-open([[:space:]]|$)" "$VIEW_HELP"
 
 echo "modality help surface check passed"

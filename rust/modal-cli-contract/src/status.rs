@@ -11,11 +11,11 @@ pub struct Opts {
     /// Contract directory (defaults to current directory)
     #[clap(long)]
     dir: Option<PathBuf>,
-    
+
     /// Remote name to compare with (default: origin)
     #[clap(long, default_value = "origin")]
     remote: String,
-    
+
     /// Output format (json or text)
     #[clap(long, default_value = "text")]
     output: String,
@@ -73,17 +73,17 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let committed = store.build_state_from_commits()?;
     let state_files = store.list_state_files()?;
     let rules_files = store.list_rules_files()?;
-    
+
     let mut all_working_files: std::collections::HashSet<String> = std::collections::HashSet::new();
     all_working_files.extend(state_files.iter().cloned());
     all_working_files.extend(rules_files.iter().cloned());
-    
+
     let committed_paths: std::collections::HashSet<_> = committed.keys().cloned().collect();
-    
+
     let mut added: Vec<String> = Vec::new();
     let mut modified: Vec<String> = Vec::new();
     let mut deleted: Vec<String> = Vec::new();
-    
+
     // Normalize a value to its on-disk representation for comparison
     fn normalize(v: &serde_json::Value) -> String {
         match v {
@@ -106,7 +106,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             }
         }
     }
-    
+
     // Check for added and modified rule files
     for path in &rules_files {
         if let Some(current_value) = store.read_rule(path)? {
@@ -119,34 +119,37 @@ pub async fn run(opts: &Opts) -> Result<()> {
             }
         }
     }
-    
+
     // Check for deleted files
     for path in &committed_paths {
         if !all_working_files.contains(path) {
             deleted.push(path.clone());
         }
     }
-    
+
     let has_changes = !added.is_empty() || !modified.is_empty() || !deleted.is_empty();
 
     if opts.output == "json" {
-        println!("{}", serde_json::to_string_pretty(&json!({
-            "contract_id": config.contract_id,
-            "directory": contract_dir.display().to_string(),
-            "model_state": current_model_state,
-            "local_head": local_head,
-            "remote_head": remote_head,
-            "remote_name": opts.remote,
-            "remote_url": remote_url,
-            "total_commits": all_commits.len(),
-            "unpushed_commits": unpushed.len(),
-            "unpushed": unpushed,
-            "state_changes": {
-                "added": added,
-                "modified": modified,
-                "deleted": deleted,
-            },
-        }))?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "contract_id": config.contract_id,
+                "directory": contract_dir.display().to_string(),
+                "model_state": current_model_state,
+                "local_head": local_head,
+                "remote_head": remote_head,
+                "remote_name": opts.remote,
+                "remote_url": remote_url,
+                "total_commits": all_commits.len(),
+                "unpushed_commits": unpushed.len(),
+                "unpushed": unpushed,
+                "state_changes": {
+                    "added": added,
+                    "modified": modified,
+                    "deleted": deleted,
+                },
+            }))?
+        );
     } else {
         println!("Contract Status");
         println!("═══════════════");
@@ -157,21 +160,25 @@ pub async fn run(opts: &Opts) -> Result<()> {
             println!("  Model state: {}", state);
         }
         println!();
-        println!("  Local HEAD:  {}", local_head.as_deref().unwrap_or("(none)"));
-        println!("  Remote HEAD: {} [{}]", 
+        println!(
+            "  Local HEAD:  {}",
+            local_head.as_deref().unwrap_or("(none)")
+        );
+        println!(
+            "  Remote HEAD: {} [{}]",
             remote_head.as_deref().unwrap_or("(none)"),
             opts.remote
         );
-        
+
         if let Some(url) = remote_url {
             println!("  Remote URL:  {}", url);
         } else {
             println!("  Remote URL:  (not configured)");
         }
-        
+
         println!();
         println!("  Total commits: {}", all_commits.len());
-        
+
         if !unpushed.is_empty() {
             println!();
             println!("  ⚠️  {} unpushed commit(s):", unpushed.len());
@@ -187,7 +194,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             println!();
             println!("  Run 'modal contract push --remote <url>' to set up remote.");
         }
-        
+
         // Show state directory changes
         if state_files.is_empty() && committed.is_empty() {
             // No state directory yet

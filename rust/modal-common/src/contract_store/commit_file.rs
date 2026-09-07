@@ -73,7 +73,11 @@ impl CommitFile {
     }
 
     pub fn add_action(&mut self, method: String, path: Option<String>, value: Value) {
-        self.body.push(CommitAction { method, path, value });
+        self.body.push(CommitAction {
+            method,
+            path,
+            value,
+        });
     }
 
     pub fn compute_id(&self) -> Result<String> {
@@ -106,15 +110,15 @@ impl CommitFile {
 
 /// Known path extensions (Modality types)
 const KNOWN_EXTENSIONS: &[&str] = &[
-    ".bool",      // Boolean
-    ".text",      // Text string
-    ".date",      // Date
-    ".datetime",  // Date and time
-    ".json",      // JSON data
-    ".md",        // Markdown
-    ".id",        // Modality ID (peer ID)
-    ".wasm",      // WebAssembly programs
-    ".modality",  // Modality rules/formulas
+    ".bool",     // Boolean
+    ".text",     // Text string
+    ".date",     // Date
+    ".datetime", // Date and time
+    ".json",     // JSON data
+    ".md",       // Markdown
+    ".id",       // Modality ID (peer ID)
+    ".wasm",     // WebAssembly programs
+    ".modality", // Modality rules/formulas
 ];
 
 impl CommitAction {
@@ -133,7 +137,7 @@ impl CommitAction {
             _ => Err(anyhow::anyhow!("Unknown method: {}", self.method)),
         }
     }
-    
+
     /// Validate path has a known extension
     fn validate_path_extension(&self) -> Result<()> {
         if let Some(path) = &self.path {
@@ -149,33 +153,44 @@ impl CommitAction {
         }
         Ok(())
     }
-    
+
     fn validate_post(&self) -> Result<()> {
         self.validate_path_extension()?;
         self.validate_value_for_type()
     }
-    
+
     /// Validate value matches the type indicated by path extension
     fn validate_value_for_type(&self) -> Result<()> {
         let path = match &self.path {
             Some(p) => p,
             None => return Ok(()),
         };
-        
+
         if path.ends_with(".bool") {
             // Must be a boolean
             if !self.value.is_boolean() {
-                anyhow::bail!("Value for .bool path must be true or false, got: {}", self.value);
+                anyhow::bail!(
+                    "Value for .bool path must be true or false, got: {}",
+                    self.value
+                );
             }
         } else if path.ends_with(".text") || path.ends_with(".md") {
             // Must be a string
             if !self.value.is_string() {
-                anyhow::bail!("Value for {} path must be a string", if path.ends_with(".text") { ".text" } else { ".md" });
+                anyhow::bail!(
+                    "Value for {} path must be a string",
+                    if path.ends_with(".text") {
+                        ".text"
+                    } else {
+                        ".md"
+                    }
+                );
             }
         } else if path.ends_with(".date") {
             // Must be a string in YYYY-MM-DD format
-            let date_str = self.value.as_str()
-                .ok_or_else(|| anyhow::anyhow!("Value for .date path must be a string in YYYY-MM-DD format"))?;
+            let date_str = self.value.as_str().ok_or_else(|| {
+                anyhow::anyhow!("Value for .date path must be a string in YYYY-MM-DD format")
+            })?;
             if !is_valid_date(date_str) {
                 anyhow::bail!("Invalid date format '{}', expected YYYY-MM-DD", date_str);
             }
@@ -193,14 +208,21 @@ impl CommitAction {
                         anyhow::bail!("Datetime as number must be a Unix timestamp");
                     }
                 }
-                _ => anyhow::bail!("Value for .datetime must be an ISO 8601 string or Unix timestamp"),
+                _ => anyhow::bail!(
+                    "Value for .datetime must be an ISO 8601 string or Unix timestamp"
+                ),
             }
         } else if path.ends_with(".id") {
             // Must be a string starting with "12D3KooW" (Modality ID / libp2p peer ID format)
-            let id_str = self.value.as_str()
+            let id_str = self
+                .value
+                .as_str()
                 .ok_or_else(|| anyhow::anyhow!("Value for .id path must be a string"))?;
             if !id_str.starts_with("12D3KooW") {
-                anyhow::bail!("Invalid Modality ID format '{}', expected peer ID (starts with 12D3KooW)", id_str);
+                anyhow::bail!(
+                    "Invalid Modality ID format '{}', expected peer ID (starts with 12D3KooW)",
+                    id_str
+                );
             }
         } else if path.ends_with(".json") {
             // Any valid JSON is fine (already parsed)
@@ -211,10 +233,10 @@ impl CommitAction {
                 anyhow::bail!("Value for .wasm path must be a base64-encoded string");
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn validate_rule(&self) -> Result<()> {
         // Rules should end in .modality
         if let Some(path) = &self.path {
@@ -228,10 +250,7 @@ impl CommitAction {
     fn validate_model(&self) -> Result<()> {
         if let Some(path) = &self.path {
             if path != "/model/default.modality" {
-                anyhow::bail!(
-                    "Model path must be /model/default.modality, got: {}",
-                    path
-                );
+                anyhow::bail!("Model path must be /model/default.modality, got: {}", path);
             }
         }
 
@@ -246,9 +265,11 @@ impl CommitAction {
         // REPOST copies data from another contract into a local namespace
         // Path format: $contract_id:/path/to/data.ext
         // Example: $abc123def456:/announcements/latest.text
-        let path = self.path.as_ref()
+        let path = self
+            .path
+            .as_ref()
             .ok_or_else(|| anyhow::anyhow!("REPOST action requires a path"))?;
-        
+
         // Must start with $ to indicate external contract namespace
         if !path.starts_with('$') {
             anyhow::bail!(
@@ -256,28 +277,34 @@ impl CommitAction {
                 path
             );
         }
-        
+
         // Must contain :/ separator between contract_id and path
-        let colon_pos = path.find(":/")
-            .ok_or_else(|| anyhow::anyhow!(
+        let colon_pos = path.find(":/").ok_or_else(|| {
+            anyhow::anyhow!(
                 "REPOST path must be in format $contract_id:/path, got: {}",
                 path
-            ))?;
-        
+            )
+        })?;
+
         // Extract and validate contract_id (between $ and :)
         let contract_id = &path[1..colon_pos];
         if contract_id.is_empty() {
             anyhow::bail!("REPOST path has empty contract_id");
         }
-        
+
         // Extract and validate the remote path (after :)
         let remote_path = &path[colon_pos + 1..];
         if remote_path.is_empty() || !remote_path.starts_with('/') {
-            anyhow::bail!("REPOST remote path must start with '/', got: {}", remote_path);
+            anyhow::bail!(
+                "REPOST remote path must start with '/', got: {}",
+                remote_path
+            );
         }
-        
+
         // Validate the remote path has a known extension
-        let has_known_ext = KNOWN_EXTENSIONS.iter().any(|ext| remote_path.ends_with(ext));
+        let has_known_ext = KNOWN_EXTENSIONS
+            .iter()
+            .any(|ext| remote_path.ends_with(ext));
         if !has_known_ext {
             anyhow::bail!(
                 "REPOST remote path '{}' must end with a known extension: {}",
@@ -285,16 +312,19 @@ impl CommitAction {
                 KNOWN_EXTENSIONS.join(", ")
             );
         }
-        
+
         Ok(())
     }
 
     fn validate_create(&self) -> Result<()> {
         // Validate CREATE action has required fields
-        let value_obj = self.value.as_object()
+        let value_obj = self
+            .value
+            .as_object()
             .ok_or_else(|| anyhow::anyhow!("CREATE action value must be an object"))?;
 
-        let asset_id = value_obj.get("asset_id")
+        let asset_id = value_obj
+            .get("asset_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("CREATE action missing 'asset_id'"))?;
 
@@ -302,7 +332,8 @@ impl CommitAction {
             anyhow::bail!("asset_id cannot be empty");
         }
 
-        let quantity = value_obj.get("quantity")
+        let quantity = value_obj
+            .get("quantity")
             .and_then(|v| v.as_u64())
             .ok_or_else(|| anyhow::anyhow!("CREATE action missing or invalid 'quantity'"))?;
 
@@ -310,7 +341,8 @@ impl CommitAction {
             anyhow::bail!("quantity must be greater than 0");
         }
 
-        let divisibility = value_obj.get("divisibility")
+        let divisibility = value_obj
+            .get("divisibility")
             .and_then(|v| v.as_u64())
             .ok_or_else(|| anyhow::anyhow!("CREATE action missing or invalid 'divisibility'"))?;
 
@@ -323,10 +355,13 @@ impl CommitAction {
 
     fn validate_send(&self) -> Result<()> {
         // Validate SEND action structure
-        let value_obj = self.value.as_object()
+        let value_obj = self
+            .value
+            .as_object()
             .ok_or_else(|| anyhow::anyhow!("SEND action value must be an object"))?;
 
-        let asset_id = value_obj.get("asset_id")
+        let asset_id = value_obj
+            .get("asset_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("SEND action missing 'asset_id'"))?;
 
@@ -334,7 +369,8 @@ impl CommitAction {
             anyhow::bail!("asset_id cannot be empty");
         }
 
-        let to_contract = value_obj.get("to_contract")
+        let to_contract = value_obj
+            .get("to_contract")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("SEND action missing 'to_contract'"))?;
 
@@ -342,7 +378,8 @@ impl CommitAction {
             anyhow::bail!("to_contract cannot be empty");
         }
 
-        let amount = value_obj.get("amount")
+        let amount = value_obj
+            .get("amount")
             .and_then(|v| v.as_u64())
             .ok_or_else(|| anyhow::anyhow!("SEND action missing or invalid 'amount'"))?;
 
@@ -355,10 +392,13 @@ impl CommitAction {
 
     fn validate_recv(&self) -> Result<()> {
         // Validate RECV action references valid SEND
-        let value_obj = self.value.as_object()
+        let value_obj = self
+            .value
+            .as_object()
             .ok_or_else(|| anyhow::anyhow!("RECV action value must be an object"))?;
 
-        let send_commit_id = value_obj.get("send_commit_id")
+        let send_commit_id = value_obj
+            .get("send_commit_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("RECV action missing 'send_commit_id'"))?;
 
@@ -374,7 +414,9 @@ impl CommitAction {
 
     fn validate_invoke(&self) -> Result<()> {
         // Validate INVOKE action has required fields
-        let path = self.path.as_ref()
+        let path = self
+            .path
+            .as_ref()
             .ok_or_else(|| anyhow::anyhow!("INVOKE action requires a path to the program"))?;
 
         // Validate path points to a program
@@ -383,7 +425,9 @@ impl CommitAction {
         }
 
         // Validate value contains args
-        let value_obj = self.value.as_object()
+        let value_obj = self
+            .value
+            .as_object()
             .ok_or_else(|| anyhow::anyhow!("INVOKE action value must be an object"))?;
 
         if !value_obj.contains_key("args") {
@@ -412,7 +456,7 @@ fn is_valid_date(s: &str) -> bool {
     let year = parts[0].parse::<u32>().ok();
     let month = parts[1].parse::<u32>().ok();
     let day = parts[2].parse::<u32>().ok();
-    
+
     match (year, month, day) {
         (Some(y), Some(m), Some(d)) => {
             (1970..=9999).contains(&y) && (1..=12).contains(&m) && (1..=31).contains(&d)
@@ -430,11 +474,11 @@ fn is_valid_datetime(s: &str) -> bool {
     // Check basic structure: YYYY-MM-DDTHH:MM:SS
     let has_t = s.chars().nth(10) == Some('T');
     let has_colons = s.chars().nth(13) == Some(':') && s.chars().nth(16) == Some(':');
-    
+
     if !has_t || !has_colons {
         return false;
     }
-    
+
     // Validate the date part
     is_valid_date(&s[..10])
 }

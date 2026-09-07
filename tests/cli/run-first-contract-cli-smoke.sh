@@ -59,16 +59,27 @@ BOB_ID="$("$MODAL_BIN" id get --path "$BOB_PASSFILE")"
 "$MODAL_BIN" c set-named-id /parties/alice.id "$ALICE_PASSFILE" --dir "$CONTRACT_DIR" >/dev/null
 "$MODAL_BIN" c set-named-id /parties/bob.id "$BOB_PASSFILE" --dir "$CONTRACT_DIR" >/dev/null
 
-mkdir -p "$CONTRACT_DIR/rules"
-mkdir -p "$CONTRACT_DIR/review"
-cat >"$CONTRACT_DIR/rules/authorized.modality" <<'EOF'
-export default rule {
-  starting_at $PARENT
-  formula {
-    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
-  }
-}
-EOF
+"$MODAL_BIN" c status --dir "$CONTRACT_DIR" --output json >"$TMP_DIR/identity-status.json"
+"$MODAL_BIN" c status --dir "$CONTRACT_DIR" >"$TMP_DIR/identity-status.txt"
+grep -q "$ALICE_ID" "$CONTRACT_DIR/state/parties/alice.id"
+grep -q "$BOB_ID" "$CONTRACT_DIR/state/parties/bob.id"
+grep -q "/parties/alice.id" "$TMP_DIR/identity-status.json"
+grep -q "/parties/bob.id" "$TMP_DIR/identity-status.json"
+grep -q "Changes in state/" "$TMP_DIR/identity-status.txt"
+grep -q "+ /parties/alice.id" "$TMP_DIR/identity-status.txt"
+grep -q "+ /parties/bob.id" "$TMP_DIR/identity-status.txt"
+
+"$MODAL_BIN" c ai suggest-rule \
+  "after this commit either alice or bob must sign" \
+  >"$TMP_DIR/suggested-rule.out"
+grep -Fq '[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)' \
+  "$TMP_DIR/suggested-rule.out"
+
+"$MODAL_BIN" c add-rule --name authorized \
+  --dir "$CONTRACT_DIR" \
+  '[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)' >/dev/null
+grep -Fq '[] always' "$CONTRACT_DIR/rules/authorized.modality"
+grep -Fq 'starting_at $PARENT' "$CONTRACT_DIR/rules/authorized.modality"
 
 "$MODALITY_BIN" model lint "$CONTRACT_DIR/rules/authorized.modality" \
   >"$TMP_DIR/authorized-rule-lint.out" 2>&1
@@ -89,6 +100,21 @@ grep -q "Contract is valid!" "$TMP_DIR/synthesized-model-validate.out"
 grep -q "Transitions: 4" "$TMP_DIR/synthesized-model-validate.out"
 grep -q "All properties are predicates or commit method labels (verifier-observed)." \
   "$TMP_DIR/synthesized-model-validate.out"
+"$MODALITY_BIN" model mermaid "$CONTRACT_DIR/model/default.modality" \
+  >"$TMP_DIR/synthesized-model-mermaid.out"
+grep -q "stateDiagram-v2" "$TMP_DIR/synthesized-model-mermaid.out"
+grep -q "q0 --> q1 : +POST +MODEL" "$TMP_DIR/synthesized-model-mermaid.out"
+grep -q '"+POST +signed_by(/parties/alice.id)"' "$TMP_DIR/synthesized-model-mermaid.out"
+grep -q '"+POST +signed_by(/parties/bob.id)"' "$TMP_DIR/synthesized-model-mermaid.out"
+"$MODALITY_BIN" model view "$CONTRACT_DIR/model/default.modality" --no-open \
+  >"$TMP_DIR/synthesized-model-view.out"
+grep -q "^Wrote " "$TMP_DIR/synthesized-model-view.out"
+VIEW_HTML="$(sed -n 's/^Wrote //p' "$TMP_DIR/synthesized-model-view.out")"
+grep -q "mermaid.min.js" "$VIEW_HTML"
+grep -q "stateDiagram-v2" "$VIEW_HTML"
+grep -q "+signed_by(/parties/alice.id)" "$VIEW_HTML"
+grep -q "+signed_by(/parties/bob.id)" "$VIEW_HTML"
+rm -f "$VIEW_HTML"
 
 "$MODAL_BIN" c commit \
   --all \
