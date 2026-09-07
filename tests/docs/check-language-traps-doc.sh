@@ -53,6 +53,7 @@ DEV_STANDARD_PREDICATES_DOC="$ROOT_DIR/dev/standard-predicates.md"
 DEV_MULTISIG_TREASURY_TUTORIAL="$ROOT_DIR/dev/tutorials/MULTISIG_TREASURY.md"
 DEV_ORACLE_ESCROW_TUTORIAL="$ROOT_DIR/dev/tutorials/ORACLE_ESCROW.md"
 DEV_COMBINING_PREDICATES_TUTORIAL="$ROOT_DIR/dev/predicates/tutorials/02-combining-predicates.md"
+DEV_MULTISIG_TREASURY_HTML="$ROOT_DIR/dev/tutorials/multisig-treasury.html"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1117,6 +1118,31 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_COMBINING_PREDICATES_TUTORIAL"; then
   echo "developer combining predicates tutorial should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+dev_multisig_treasury_html_required_patterns=(
+  "Status:</strong> archived tutorial."
+  "avoid formula implication"
+  "sugar such as <code>A -&gt; B</code>"
+  "explicit Boolean conditionals such as"
+  "<code>[+ACTION] true</code> as a conditional"
+  "!&lt;+EXECUTE&gt; true |"
+  "&lt;+EXECUTE +signed_by(/treasury/alice.id) +signed_by(/treasury/bob.id)&gt; true"
+  "&lt;+EXECUTE +signed_by(/treasury/alice.id) +signed_by(/treasury/carol.id)&gt; true"
+  "&lt;+EXECUTE +signed_by(/treasury/bob.id) +signed_by(/treasury/carol.id)&gt; true"
+  "same +EXECUTE transition being authorized"
+)
+
+for pattern in "${dev_multisig_treasury_html_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_MULTISIG_TREASURY_HTML"; then
+    echo "developer multisig treasury HTML tutorial is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_MULTISIG_TREASURY_HTML"; then
+  echo "developer multisig treasury HTML tutorial should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

@@ -85,6 +85,10 @@
     
     <main class="markdown-body">
         <h1>Building a Multisig Treasury Contract</h1>
+        <p><strong>Status:</strong> archived tutorial. Current onboarding examples avoid formula implication
+        sugar such as <code>A -&gt; B</code>, use explicit Boolean conditionals such as
+        <code>!A | B</code>, and avoid <code>[+ACTION] true</code> as a conditional
+        antecedent because that boxed form can be vacuous when no matching transition exists.</p>
         <p>Learn to create a 2-of-3 multisig treasury using the <code>threshold</code> predicate.</p>
 
         <h2>What We're Building</h2>
@@ -146,8 +150,13 @@ echo '{"signers": ["/treasury/alice.id", "/treasury/bob.id", "/treasury/carol.id
 <pre><code>export default rule {
   starting_at $PARENT
   formula {
-    // Withdrawals require 2-of-3 approval
-    always ([+EXECUTE] implies threshold(2, /treasury/signers))
+    // Withdrawals require one of the 2-of-3 signer pairs.
+    // Bind the signatures to the same +EXECUTE transition being authorized.
+    always(!&lt;+EXECUTE&gt; true | (
+      &lt;+EXECUTE +signed_by(/treasury/alice.id) +signed_by(/treasury/bob.id)&gt; true |
+      &lt;+EXECUTE +signed_by(/treasury/alice.id) +signed_by(/treasury/carol.id)&gt; true |
+      &lt;+EXECUTE +signed_by(/treasury/bob.id) +signed_by(/treasury/carol.id)&gt; true
+    ))
   }
 }</code></pre>
 
