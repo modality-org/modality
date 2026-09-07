@@ -3,8 +3,9 @@
 //! The engine enumerates small labeled transition systems and keeps the first
 //! model that the existing [`modality_lang::ModelChecker`] accepts. Vacuous
 //! witnesses (for example a silent self-loop that satisfies an implication
-//! whose antecedent never fires) are allowed. Extra rules are how a caller
-//! grounds necessity.
+//! whose antecedent never fires) are allowed as a fallback. When possible, the
+//! search first tries a grounded one-step witness carrying the positive formula
+//! vocabulary so review bundles do not hide the rule surface.
 
 mod alphabet;
 mod search;
@@ -166,6 +167,32 @@ mod tests {
             SynthesisResult::Unsat { reason, .. } => panic!("expected witness: {reason}"),
         };
         assert!(formulas_satisfied(&model, &[formula]));
+    }
+
+    #[test]
+    fn boolean_authorization_guards_prefer_grounded_witness() {
+        let formulas = [
+            parse_formula(
+                "always(!<+ACME_FINALIZE_ORDER> true | <+ACME_FINALIZE_ORDER +signed_by(/users/account_holder.id)> true)",
+            ),
+            parse_formula(
+                "always(!<+ACME_ISSUE_CERTIFICATE> true | <+ACME_ISSUE_CERTIFICATE +signed_by(/users/certificate_authority.id)> true)",
+            ),
+        ];
+        let model = match synthesize(&formulas, SynthesisOptions::default()) {
+            SynthesisResult::Witness(model) => model,
+            SynthesisResult::Unsat { reason, .. } => panic!("expected witness: {reason}"),
+        };
+        assert!(formulas_satisfied(&model, &formulas));
+        let printed = modality_lang::print_model(&model);
+        assert!(
+            printed.contains("+ACME_FINALIZE_ORDER +signed_by(/users/account_holder.id)"),
+            "review witness should expose account-holder authorization: {printed}"
+        );
+        assert!(
+            printed.contains("+ACME_ISSUE_CERTIFICATE +signed_by(/users/certificate_authority.id)"),
+            "review witness should expose CA authorization: {printed}"
+        );
     }
 
     #[test]

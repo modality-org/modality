@@ -42,9 +42,9 @@ modal id create --path oracle.passfile
 modal c checkout
 
 # Add identities
-modal c set /users/buyer.id $(modal id get --path ./buyer.passfile)
-modal c set /users/seller.id $(modal id get --path ./seller.passfile)
-modal c set /oracles/delivery.id $(modal id get --path ./oracle.passfile)
+modal c set-named-id /users/buyer.id buyer.passfile
+modal c set-named-id /users/seller.id seller.passfile
+modal c set-named-id /oracles/delivery.id oracle.passfile
 
 # Set escrow terms
 echo '{"price": 100, "currency": "USDC"}' > state/escrow/terms.json

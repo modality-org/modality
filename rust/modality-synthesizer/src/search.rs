@@ -24,9 +24,18 @@ pub fn synthesize(formulas: &[FormulaExpr], opts: SynthesisOptions) -> Synthesis
 
     let max_states = opts.max_states.max(1);
     let max_transitions = opts.max_transitions.max(1);
-    let labels = candidate_labels(&extract_alphabet(formulas));
+    let alphabet = extract_alphabet(formulas);
+    let labels = candidate_labels(&alphabet);
     let skip_first_step = formulas_skip_first_step(formulas);
     let mut last_candidate = None;
+
+    if !skip_first_step {
+        if let Some(model) =
+            grounded_single_step_witness(&opts.name, &alphabet.properties, formulas)
+        {
+            return SynthesisResult::Witness(model);
+        }
+    }
 
     for n in 1..=max_states {
         for skeleton in skeletons(n) {
@@ -53,6 +62,33 @@ pub fn synthesize(formulas: &[FormulaExpr], opts: SynthesisOptions) -> Synthesis
         ),
         last_candidate,
     }
+}
+
+fn grounded_single_step_witness(
+    name: &str,
+    properties: &[Property],
+    formulas: &[FormulaExpr],
+) -> Option<Model> {
+    let label = positive_label_union(properties);
+    if label.is_empty() {
+        return None;
+    }
+
+    let model = build_model(name, 1, &[(0, 0, label)]);
+    formulas_satisfied(&model, formulas).then_some(model)
+}
+
+fn positive_label_union(properties: &[Property]) -> Vec<Property> {
+    let mut label = Vec::new();
+    for property in properties {
+        if property.sign != modality_lang::PropertySign::Plus {
+            continue;
+        }
+        if !label.iter().any(|existing| existing == property) {
+            label.push(property.clone());
+        }
+    }
+    label
 }
 
 fn initial_step_unlabeled(edges: &[(usize, usize, Vec<Property>)]) -> bool {
@@ -86,7 +122,10 @@ fn skeletons(n: usize) -> Vec<Vec<Edge>> {
     graphs
 }
 
-fn label_skeleton(skeleton: &[Edge], labels: &[Vec<Property>]) -> Vec<Vec<(usize, usize, Vec<Property>)>> {
+fn label_skeleton(
+    skeleton: &[Edge],
+    labels: &[Vec<Property>],
+) -> Vec<Vec<(usize, usize, Vec<Property>)>> {
     if skeleton.is_empty() {
         return Vec::new();
     }
@@ -101,7 +140,11 @@ fn label_skeleton(skeleton: &[Edge], labels: &[Vec<Property>]) -> Vec<Vec<(usize
     }
 
     // All edges empty, then one distinguished edge labeled, rest empty.
-    push_assignment(&mut labeled_graphs, skeleton, &vec![Vec::new(); skeleton.len()]);
+    push_assignment(
+        &mut labeled_graphs,
+        skeleton,
+        &vec![Vec::new(); skeleton.len()],
+    );
     for edge_index in 0..skeleton.len() {
         for label in labels.iter().filter(|label| !label.is_empty()) {
             let mut assignment = vec![Vec::new(); skeleton.len()];
@@ -120,7 +163,11 @@ fn label_skeleton(skeleton: &[Edge], labels: &[Vec<Property>]) -> Vec<Vec<(usize
     if skeleton.len() == 2 && labels.len() <= 16 {
         for left in labels {
             for right in labels {
-                push_assignment(&mut labeled_graphs, skeleton, &[left.clone(), right.clone()]);
+                push_assignment(
+                    &mut labeled_graphs,
+                    skeleton,
+                    &[left.clone(), right.clone()],
+                );
             }
         }
     }

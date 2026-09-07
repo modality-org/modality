@@ -85,6 +85,10 @@
     
     <main class="markdown-body">
         <h1>Building an Oracle-Verified Escrow</h1>
+        <p><strong>Status:</strong> archived tutorial. Current onboarding examples avoid formula implication
+        sugar such as <code>A -&gt; B</code>, use explicit Boolean conditionals such as
+        <code>!A | B</code>, and avoid <code>[+ACTION] true</code> as a conditional
+        antecedent because that boxed form can be vacuous when no matching transition exists.</p>
         <p>Learn to create an escrow contract with external delivery verification using the <code>oracle_attests</code> predicate.</p>
 
         <h2>What We're Building</h2>
@@ -114,9 +118,9 @@ modal id create --path oracle.passfile</code></pre>
 <pre><code>modal c checkout
 
 # Add identities
-modal c set /users/buyer.id $(modal id get --path ./buyer.passfile)
-modal c set /users/seller.id $(modal id get --path ./seller.passfile)
-modal c set /oracles/delivery.id $(modal id get --path ./oracle.passfile)
+modal c set-named-id /users/buyer.id buyer.passfile
+modal c set-named-id /users/seller.id seller.passfile
+modal c set-named-id /oracles/delivery.id oracle.passfile
 
 # Set escrow terms
 echo '{"price": 100, "currency": "USDC"}' > state/escrow/terms.json
@@ -138,10 +142,10 @@ echo '{"deadline": 1770000000}' > state/escrow/timeout.json</code></pre>
   funded -> shipped [+SHIP +signed_by(/users/seller.id)]
   
   // Oracle confirms delivery -> release to seller
-  shipped -> completed [+RELEASE +oracle_attests(/oracles/delivery, "delivered", "true")]
+  shipped -> completed [+RELEASE +oracle_attests(/oracles/delivery.id, "delivered", "true")]
   
   // Oracle denies delivery -> refund buyer
-  shipped -> refunded [+DISPUTE_REFUND +oracle_attests(/oracles/delivery, "delivered", "false")]
+  shipped -> refunded [+DISPUTE_REFUND +oracle_attests(/oracles/delivery.id, "delivered", "false")]
   
   // Timeout: buyer can reclaim after deadline
   shipped -> refunded [+TIMEOUT_REFUND +signed_by(/users/buyer.id) +after(/escrow/timeout)]
@@ -153,7 +157,25 @@ echo '{"deadline": 1770000000}' > state/escrow/timeout.json</code></pre>
 
         <hr>
 
-        <h2>Step 4: Execute the Contract</h2>
+        <h2>Step 4: Define Protection Rules</h2>
+        <p>Create <code>rules/escrow_protection.modality</code>:</p>
+<pre><code>export default rule {
+  starting_at $PARENT
+  formula {
+    // Release requires oracle confirmation on the same +RELEASE transition.
+    always(!&lt;+RELEASE&gt; true | &lt;+RELEASE +oracle_attests(/oracles/delivery.id, "delivered", "true")&gt; true) &amp;
+
+    // Dispute refund requires oracle denial on the same +DISPUTE_REFUND transition.
+    always(!&lt;+DISPUTE_REFUND&gt; true | &lt;+DISPUTE_REFUND +oracle_attests(/oracles/delivery.id, "delivered", "false")&gt; true) &amp;
+
+    // Timeout refund requires deadline evidence and buyer signature on the same transition.
+    always(!&lt;+TIMEOUT_REFUND&gt; true | &lt;+TIMEOUT_REFUND +signed_by(/users/buyer.id) +after(/escrow/timeout)&gt; true)
+  }
+}</code></pre>
+
+        <hr>
+
+        <h2>Step 5: Execute the Contract</h2>
 
         <h3>Happy Path: Delivery Confirmed</h3>
 <pre><code># 1. Buyer deposits

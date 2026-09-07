@@ -56,6 +56,7 @@ DEV_MULTISIG_TREASURY_TUTORIAL="$ROOT_DIR/dev/tutorials/MULTISIG_TREASURY.md"
 DEV_ORACLE_ESCROW_TUTORIAL="$ROOT_DIR/dev/tutorials/ORACLE_ESCROW.md"
 DEV_COMBINING_PREDICATES_TUTORIAL="$ROOT_DIR/dev/predicates/tutorials/02-combining-predicates.md"
 DEV_MULTISIG_TREASURY_HTML="$ROOT_DIR/dev/tutorials/multisig-treasury.html"
+DEV_ORACLE_ESCROW_HTML="$ROOT_DIR/dev/tutorials/oracle-escrow.html"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1126,6 +1127,9 @@ dev_oracle_escrow_required_patterns=(
   "sugar such as \`A -> B\`"
   "explicit Boolean conditionals such as"
   "\`[+ACTION] true\` as a conditional antecedent"
+  "modal c set-named-id /users/buyer.id buyer.passfile"
+  "modal c set-named-id /users/seller.id seller.passfile"
+  "modal c set-named-id /oracles/delivery.id oracle.passfile"
   "<+RELEASE +oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true"
   "<+DISPUTE_REFUND +oracle_attests(/oracles/delivery.id, \"delivered\", \"false\")> true"
   "<+TIMEOUT_REFUND +signed_by(/users/buyer.id) +after(/escrow/timeout)> true"
@@ -1141,8 +1145,8 @@ for pattern in "${dev_oracle_escrow_required_patterns[@]}"; do
   fi
 done
 
-if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_ORACLE_ESCROW_TUTORIAL"; then
-  echo "developer oracle escrow tutorial should not present formula implication sugar as the teaching path" >&2
+if grep -Eq -- ' true[[:space:]]*->| implies |modal c set /users/.+modal id get' "$DEV_ORACLE_ESCROW_TUTORIAL"; then
+  echo "developer oracle escrow tutorial should not present formula implication sugar or stale raw identity setup as the teaching path" >&2
   exit 1
 fi
 
@@ -1192,6 +1196,38 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_MULTISIG_TREASURY_HTML"; then
   echo "developer multisig treasury HTML tutorial should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+dev_oracle_escrow_html_required_patterns=(
+  "Status:</strong> archived tutorial."
+  "avoid formula implication"
+  "sugar such as <code>A -&gt; B</code>"
+  "explicit Boolean conditionals such as"
+  "<code>[+ACTION] true</code> as a conditional"
+  "modal c set-named-id /users/buyer.id buyer.passfile"
+  "modal c set-named-id /users/seller.id seller.passfile"
+  "modal c set-named-id /oracles/delivery.id oracle.passfile"
+  "+oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")"
+  "+oracle_attests(/oracles/delivery.id, \"delivered\", \"false\")"
+  "!&lt;+RELEASE&gt; true |"
+  "&lt;+RELEASE +oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")&gt; true"
+  "&lt;+DISPUTE_REFUND +oracle_attests(/oracles/delivery.id, \"delivered\", \"false\")&gt; true"
+  "&lt;+TIMEOUT_REFUND +signed_by(/users/buyer.id) +after(/escrow/timeout)&gt; true"
+  "same +RELEASE transition"
+  "same +DISPUTE_REFUND transition"
+  "same transition"
+)
+
+for pattern in "${dev_oracle_escrow_html_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_ORACLE_ESCROW_HTML"; then
+    echo "developer oracle escrow HTML tutorial is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies |modal c set /users/.+modal id get' "$DEV_ORACLE_ESCROW_HTML"; then
+  echo "developer oracle escrow HTML tutorial should not present formula implication sugar or stale raw identity setup as the teaching path" >&2
   exit 1
 fi
 
