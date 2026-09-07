@@ -1,5 +1,7 @@
 # Tutorial 2: Combining Predicates
 
+Status: archived predicate tutorial. Current onboarding examples avoid formula implication sugar such as `A -> B`, use explicit Boolean conditionals such as `!A | B`, and avoid `[+ACTION] true` as a conditional antecedent.
+
 This tutorial explains how predicates interact and how Modality detects contradictions.
 
 ## The Problem: Conflicting Rules
@@ -63,14 +65,14 @@ Correlate output:
 ```json
 {
   "formulas": [
-    "text_equals($path, \"hello\") -> text_length_eq($path, 5)"
+    "!text_equals($path, \"hello\") | text_length_eq($path, 5)"
   ],
   "satisfiable": true,
   "gas_used": 20
 }
 ```
 
-These are **compatible** because `"hello"` has exactly 5 characters. The formula `A -> B` means A implies B - if the text equals "hello", it will automatically satisfy the length requirement.
+These are **compatible** because `"hello"` has exactly 5 characters. The formula uses explicit Boolean form for the conditional: either the text is not `"hello"`, or it satisfies the length requirement.
 
 ## Constraining Rules
 
@@ -82,14 +84,14 @@ Some rules don't contradict but add constraints:
 ```json
 {
   "formulas": [
-    "text_starts_with($path, \"foo\") & text_ends_with($path, \"bar\") -> text_length_gt($path, 5)"
+    "!(text_starts_with($path, \"foo\") & text_ends_with($path, \"bar\")) | text_length_gt($path, 5)"
   ],
   "satisfiable": true,
   "gas_used": 15
 }
 ```
 
-The combined rules imply the text must be at least 6 characters (to fit both "foo" and "bar").
+The combined rules entail that the text must be at least 6 characters (to fit both "foo" and "bar").
 
 ## Real Example: User Registration
 
@@ -116,7 +118,7 @@ rule username_format {
 ```
 
 Running correlate on these:
-- `text_not_empty` + `text_length_gt(2)` → compatible (gt implies not_empty)
+- `text_not_empty` + `text_length_gt(2)` → compatible (`gt` entails `not_empty`)
 - `text_starts_with("user_")` + `text_length_gt(2)` → compatible ("user_" is 5 chars)
 - `text_starts_with("user_")` + `text_length_lt(20)` → compatible (prefix fits)
 
@@ -163,9 +165,9 @@ Instead of waiting for a transaction to fail, you can:
 
 | Relationship | Formula | satisfiable |
 |--------------|---------|-------------|
-| Compatible | `A -> B` | true |
+| Compatible | `!A \| B` | true |
 | Equivalent | `A <-> B` | true |
-| Constrains | `A & B -> C` | true |
+| Constrains | `!(A & B) \| C` | true |
 | Contradiction | `!(A & B)` | false |
 
 ## Next Steps

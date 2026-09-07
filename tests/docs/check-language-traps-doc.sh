@@ -52,6 +52,7 @@ DEV_QUICKSTART_DOC="$ROOT_DIR/dev/QUICKSTART.md"
 DEV_STANDARD_PREDICATES_DOC="$ROOT_DIR/dev/standard-predicates.md"
 DEV_MULTISIG_TREASURY_TUTORIAL="$ROOT_DIR/dev/tutorials/MULTISIG_TREASURY.md"
 DEV_ORACLE_ESCROW_TUTORIAL="$ROOT_DIR/dev/tutorials/ORACLE_ESCROW.md"
+DEV_COMBINING_PREDICATES_TUTORIAL="$ROOT_DIR/dev/predicates/tutorials/02-combining-predicates.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1092,6 +1093,30 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_ORACLE_ESCROW_TUTORIAL"; then
   echo "developer oracle escrow tutorial should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+dev_combining_predicates_required_patterns=(
+  "Status: archived predicate tutorial."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as"
+  "\`[+ACTION] true\` as a conditional antecedent"
+  "!text_equals(\$path, \\\"hello\\\") | text_length_eq(\$path, 5)"
+  "!(text_starts_with(\$path, \\\"foo\\\") & text_ends_with(\$path, \\\"bar\\\")) | text_length_gt(\$path, 5)"
+  "uses explicit Boolean form for the conditional"
+  "| Compatible | \`!A \\| B\` | true |"
+  "| Constrains | \`!(A & B) \\| C\` | true |"
+)
+
+for pattern in "${dev_combining_predicates_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_COMBINING_PREDICATES_TUTORIAL"; then
+    echo "developer combining predicates tutorial is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_COMBINING_PREDICATES_TUTORIAL"; then
+  echo "developer combining predicates tutorial should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
