@@ -85,6 +85,11 @@
     
     <main class="markdown-body">
         <h1>Multi-Party Contract Tutorial</h1>
+        <p><strong>Status:</strong> archived tutorial. Current onboarding examples use
+        <code>set-named-id</code> for identity evidence, avoid formula implication
+        sugar such as <code>A -&gt; B</code>, use explicit Boolean conditionals such as
+        <code>!A | B</code>, and avoid <code>[+ACTION] true</code> as a conditional
+        antecedent.</p>
         <p>Create a contract where only Alice or Bob can make commits.</p>
 
         <h2>Step 1: Create Contract & Identities</h2>
@@ -100,11 +105,11 @@ modal id create --path bob.passfile</code></pre>
         <h2>Step 2: Set Up Users, Model & Authorization Rule</h2>
 <pre><code># Initialize directories
 modal c checkout
-mkdir -p rules
+mkdir -p model rules
 
 # Add user IDs
-modal c set /users/alice.id $(modal id get --path ./alice.passfile)
-modal c set /users/bob.id $(modal id get --path ./bob.passfile)</code></pre>
+modal c set-named-id /users/alice.id ./alice.passfile
+modal c set-named-id /users/bob.id ./bob.passfile</code></pre>
 
         <p>Create <code>model/default.modality</code>:</p>
 <pre><code>export default model {

@@ -1,5 +1,10 @@
 # Multi-Party Contract Tutorial
 
+Status: archived tutorial. Current onboarding examples use `set-named-id` for
+identity evidence, avoid formula implication sugar such as `A -> B`, use
+explicit Boolean conditionals such as `!A | B`, and avoid `[+ACTION] true` as a
+conditional antecedent.
+
 Create a contract where only Alice or Bob can make commits.
 
 ## Step 1: Create Contract & Identities
@@ -23,8 +28,8 @@ modal c checkout
 mkdir -p model rules
 
 # Add user IDs
-modal c set /users/alice.id $(modal id get --path ./alice.passfile)
-modal c set /users/bob.id $(modal id get --path ./bob.passfile)
+modal c set-named-id /users/alice.id ./alice.passfile
+modal c set-named-id /users/bob.id ./bob.passfile
 
 # Add the model (proves the rule is satisfiable)
 cat > model/default.modality << 'EOF'
@@ -151,8 +156,8 @@ modal c checkout
 mkdir -p state/data model rules
 
 # Alice sets up users, model, and authorization rule
-modal c set /users/alice.id $(modal id get --path ./alice.passfile)
-modal c set /users/bob.id $(modal id get --path ./bob.passfile)
+modal c set-named-id /users/alice.id ./alice.passfile
+modal c set-named-id /users/bob.id ./bob.passfile
 
 cat > model/default.modality << 'EOF'
 export default model {
