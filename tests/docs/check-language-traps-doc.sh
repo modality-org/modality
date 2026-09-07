@@ -49,6 +49,7 @@ DEV_GETTING_STARTED_DOC="$ROOT_DIR/dev/getting-started/README.md"
 DEV_CONCEPTS_DOC="$ROOT_DIR/dev/concepts/README.md"
 DEV_MODEL_SYNTHESIS_TUTORIAL="$ROOT_DIR/dev/tutorials/MODEL_SYNTHESIS.md"
 DEV_QUICKSTART_DOC="$ROOT_DIR/dev/QUICKSTART.md"
+DEV_STANDARD_PREDICATES_DOC="$ROOT_DIR/dev/standard-predicates.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1015,6 +1016,29 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_QUICKSTART_DOC"; then
   echo "developer quickstart doc should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+dev_standard_predicates_required_patterns=(
+  "Status: archived predicate notes."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as"
+  "bind authorization predicates to the same transition label"
+  "!<+EXECUTE> true |"
+  "<+EXECUTE +threshold(\"2\", /treasury/signers)> true"
+  "!<+RELEASE> true |"
+  "<+RELEASE +oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true"
+)
+
+for pattern in "${dev_standard_predicates_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_STANDARD_PREDICATES_DOC"; then
+    echo "developer standard predicates doc is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_STANDARD_PREDICATES_DOC"; then
+  echo "developer standard predicates doc should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

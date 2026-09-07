@@ -1,5 +1,7 @@
 # Standard Predicates in Network Genesis
 
+Status: archived predicate notes. Current onboarding examples avoid formula implication sugar such as `A -> B`, use explicit Boolean conditionals such as `!A | B`, and bind authorization predicates to the same transition label.
+
 ## Overview
 
 The network genesis contract includes standard predicates available to all contracts at `/_code/modal/*.wasm`.
@@ -175,13 +177,9 @@ const result = await executor.evaluate_predicate(
 **Modality syntax**:
 ```modality
 // Fixed 2-of-3 multisig on EXECUTE action.
-// Expand signer pairs for parser-backed model synthesis today.
 always(
-  [+EXECUTE] true -> (
-    (<+signed_by(/treasury/alice.id)> true & <+signed_by(/treasury/bob.id)> true) |
-    (<+signed_by(/treasury/alice.id)> true & <+signed_by(/treasury/carol.id)> true) |
-    (<+signed_by(/treasury/bob.id)> true & <+signed_by(/treasury/carol.id)> true)
-  )
+  !<+EXECUTE> true |
+  <+EXECUTE +threshold("2", /treasury/signers)> true
 )
 ```
 
@@ -221,7 +219,10 @@ const result = await executor.evaluate_predicate(
 **Modality syntax**:
 ```modality
 // Release requires oracle confirmation of delivery
-always([+RELEASE] true -> <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true)
+always(
+  !<+RELEASE> true |
+  <+RELEASE +oracle_attests(/oracles/delivery.id, "delivered", "true")> true
+)
 ```
 
 **Security features**:
