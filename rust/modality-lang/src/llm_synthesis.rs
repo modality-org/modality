@@ -10401,9 +10401,9 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
     fn test_prompt_includes_subsequent_or_signer_pattern() {
         let prompt = generate_prompt("after this commit either alice or bob must sign");
 
-        assert!(prompt.contains(
-            "[] always([-signed_by(/users/a.id) -signed_by(/users/b.id)] false)"
-        ));
+        assert!(
+            prompt.contains("[] always([-signed_by(/users/a.id) -signed_by(/users/b.id)] false)")
+        );
         assert!(prompt.contains("[] always([-signed_by(/users/a.id)] false)"));
         assert!(prompt.contains(
             "`[] φ` — φ holds of every successor of the current state (skips the current/bootstrap step)"

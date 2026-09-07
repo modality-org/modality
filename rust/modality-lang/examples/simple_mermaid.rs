@@ -1,4 +1,4 @@
-use modality_lang::{parse_content_lalrpop, generate_mermaid_diagram};
+use modality_lang::{generate_mermaid_diagram, parse_content_lalrpop};
 
 fn main() -> Result<(), String> {
     // Define a simple model
@@ -14,19 +14,19 @@ model SimpleModel:
 
     // Parse the model
     let model = parse_content_lalrpop(model_content)?;
-    
+
     println!("Model: {}", model.name);
     println!("Parts: {}", model.parts.len());
-    
+
     // Generate and display the Mermaid diagram
     let diagram = generate_mermaid_diagram(&model);
-    
+
     println!("\nGenerated Mermaid Diagram:");
     println!("```mermaid");
     println!("{}", diagram);
     println!("```");
-    
+
     println!("\nYou can copy this diagram into any Mermaid-compatible viewer!");
-    
+
     Ok(())
-} 
+}

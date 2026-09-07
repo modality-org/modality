@@ -17,8 +17,8 @@
 //! ## 3. Fork (Divergent Evolution)
 //! Create a new model that diverges from the original while maintaining history.
 
-use crate::ast::{Model, Part, Transition, Property, PropertySign, Formula, FormulaExpr};
-use serde::{Serialize, Deserialize};
+use crate::ast::{Formula, FormulaExpr, Model, Part, Property, PropertySign, Transition};
+use serde::{Deserialize, Serialize};
 
 /// Represents a proposed change to a model
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -66,7 +66,7 @@ pub struct Approval {
     pub signer: String,
     pub signature: Option<Vec<u8>>,
     pub timestamp: u64,
-    pub approve: bool,  // true = approve, false = reject
+    pub approve: bool, // true = approve, false = reject
 }
 
 /// A proposal to evolve a contract
@@ -127,7 +127,12 @@ impl EvolvableContract {
     }
 
     /// Propose an amendment to the contract
-    pub fn propose(&mut self, proposer: String, description: String, amendment: Amendment) -> String {
+    pub fn propose(
+        &mut self,
+        proposer: String,
+        description: String,
+        amendment: Amendment,
+    ) -> String {
         let id = format!("prop-{}-{}", self.version, self.proposals.len() + 1);
         let proposal = Proposal {
             id: id.clone(),
@@ -147,8 +152,16 @@ impl EvolvableContract {
     }
 
     /// Sign (approve or reject) a proposal
-    pub fn sign(&mut self, proposal_id: &str, signer: &str, approve: bool, signature: Option<Vec<u8>>) -> Result<(), String> {
-        let proposal = self.proposals.iter_mut()
+    pub fn sign(
+        &mut self,
+        proposal_id: &str,
+        signer: &str,
+        approve: bool,
+        signature: Option<Vec<u8>>,
+    ) -> Result<(), String> {
+        let proposal = self
+            .proposals
+            .iter_mut()
             .find(|p| p.id == proposal_id)
             .ok_or_else(|| format!("Proposal not found: {}", proposal_id))?;
 
@@ -189,7 +202,9 @@ impl EvolvableContract {
 
     /// Execute an approved proposal
     pub fn execute(&mut self, proposal_id: &str) -> Result<(), String> {
-        let proposal = self.proposals.iter_mut()
+        let proposal = self
+            .proposals
+            .iter_mut()
             .find(|p| p.id == proposal_id)
             .ok_or_else(|| format!("Proposal not found: {}", proposal_id))?;
 
@@ -198,20 +213,34 @@ impl EvolvableContract {
         }
 
         let old_hash = format!("{:?}", self.current_model); // Simplified hash
-        
+
         // Apply the amendment
         match &proposal.amendment {
-            Amendment::AddTransition { part_name, transition } => {
-                let part = self.current_model.parts.iter_mut()
+            Amendment::AddTransition {
+                part_name,
+                transition,
+            } => {
+                let part = self
+                    .current_model
+                    .parts
+                    .iter_mut()
                     .find(|p| p.name == *part_name)
                     .ok_or_else(|| format!("Part not found: {}", part_name))?;
                 part.transitions.push(transition.clone());
             }
-            Amendment::RemoveTransition { part_name, from, to } => {
-                let part = self.current_model.parts.iter_mut()
+            Amendment::RemoveTransition {
+                part_name,
+                from,
+                to,
+            } => {
+                let part = self
+                    .current_model
+                    .parts
+                    .iter_mut()
                     .find(|p| p.name == *part_name)
                     .ok_or_else(|| format!("Part not found: {}", part_name))?;
-                part.transitions.retain(|t| !(t.from == *from && t.to == *to));
+                part.transitions
+                    .retain(|t| !(t.from == *from && t.to == *to));
             }
             Amendment::AddPart { part } => {
                 self.current_model.parts.push(part.clone());
@@ -219,11 +248,21 @@ impl EvolvableContract {
             Amendment::RemovePart { part_name } => {
                 self.current_model.parts.retain(|p| p.name != *part_name);
             }
-            Amendment::ModifyTransition { part_name, from, to, new_properties } => {
-                let part = self.current_model.parts.iter_mut()
+            Amendment::ModifyTransition {
+                part_name,
+                from,
+                to,
+                new_properties,
+            } => {
+                let part = self
+                    .current_model
+                    .parts
+                    .iter_mut()
                     .find(|p| p.name == *part_name)
                     .ok_or_else(|| format!("Part not found: {}", part_name))?;
-                let transition = part.transitions.iter_mut()
+                let transition = part
+                    .transitions
+                    .iter_mut()
                     .find(|t| t.from == *from && t.to == *to)
                     .ok_or_else(|| format!("Transition not found: {} -> {}", from, to))?;
                 transition.properties = new_properties.clone();
@@ -237,7 +276,7 @@ impl EvolvableContract {
         }
 
         let new_hash = format!("{:?}", self.current_model);
-        
+
         // Record the evolution
         self.history.push(EvolutionRecord {
             version: self.version,
@@ -264,7 +303,8 @@ impl EvolvableContract {
 
     /// Check if a proposal is approved
     pub fn is_approved(&self, proposal_id: &str) -> bool {
-        self.proposals.iter()
+        self.proposals
+            .iter()
             .find(|p| p.id == proposal_id)
             .map(|p| p.status == ProposalStatus::Approved)
             .unwrap_or(false)
@@ -274,7 +314,7 @@ impl EvolvableContract {
 /// Generate an evolvable governance model with built-in amendment process
 pub mod templates {
     use super::*;
-    
+
     /// DAO-style governance with proposal/vote/execute cycle
     pub fn dao_governance(founders: &[&str], threshold: usize) -> EvolvableContract {
         let mut model = Model::new("DAOGovernance".to_string());
@@ -283,7 +323,10 @@ pub mod templates {
         // active --> proposing: +PROPOSE +SIGNED_BY_MEMBER
         let mut t1 = Transition::new("active".to_string(), "proposing".to_string());
         t1.add_property(Property::new(PropertySign::Plus, "PROPOSE".to_string()));
-        t1.add_property(Property::new(PropertySign::Plus, "SIGNED_BY_MEMBER".to_string()));
+        t1.add_property(Property::new(
+            PropertySign::Plus,
+            "SIGNED_BY_MEMBER".to_string(),
+        ));
         part.add_transition(t1);
 
         // proposing --> voting: +OPEN_VOTE
@@ -294,17 +337,26 @@ pub mod templates {
         // voting --> voting: +VOTE +SIGNED_BY_MEMBER
         let mut t3 = Transition::new("voting".to_string(), "voting".to_string());
         t3.add_property(Property::new(PropertySign::Plus, "VOTE".to_string()));
-        t3.add_property(Property::new(PropertySign::Plus, "SIGNED_BY_MEMBER".to_string()));
+        t3.add_property(Property::new(
+            PropertySign::Plus,
+            "SIGNED_BY_MEMBER".to_string(),
+        ));
         part.add_transition(t3);
 
         // voting --> approved: +THRESHOLD_MET
         let mut t4 = Transition::new("voting".to_string(), "approved".to_string());
-        t4.add_property(Property::new(PropertySign::Plus, "THRESHOLD_MET".to_string()));
+        t4.add_property(Property::new(
+            PropertySign::Plus,
+            "THRESHOLD_MET".to_string(),
+        ));
         part.add_transition(t4);
 
         // voting --> rejected: +THRESHOLD_NOT_MET
         let mut t5 = Transition::new("voting".to_string(), "rejected".to_string());
-        t5.add_property(Property::new(PropertySign::Plus, "THRESHOLD_NOT_MET".to_string()));
+        t5.add_property(Property::new(
+            PropertySign::Plus,
+            "THRESHOLD_NOT_MET".to_string(),
+        ));
         part.add_transition(t5);
 
         // approved --> executed: +EXECUTE
@@ -313,8 +365,14 @@ pub mod templates {
         part.add_transition(t6);
 
         // Return to active after execution or rejection
-        part.add_transition(Transition::new("executed".to_string(), "active".to_string()));
-        part.add_transition(Transition::new("rejected".to_string(), "active".to_string()));
+        part.add_transition(Transition::new(
+            "executed".to_string(),
+            "active".to_string(),
+        ));
+        part.add_transition(Transition::new(
+            "rejected".to_string(),
+            "active".to_string(),
+        ));
 
         model.add_part(part);
 
@@ -325,39 +383,54 @@ pub mod templates {
     /// Constitutional governance: some rules can't be changed
     pub fn constitutional_governance(founders: &[&str]) -> EvolvableContract {
         let mut model = Model::new("ConstitutionalGovernance".to_string());
-        
+
         // Core constitutional part (immutable rules)
         let mut constitution = Part::new("constitution".to_string());
         let mut t1 = Transition::new("active".to_string(), "active".to_string());
-        t1.add_property(Property::new(PropertySign::Minus, "VIOLATE_CONSTITUTION".to_string()));
+        t1.add_property(Property::new(
+            PropertySign::Minus,
+            "VIOLATE_CONSTITUTION".to_string(),
+        ));
         constitution.add_transition(t1);
         model.add_part(constitution);
 
         // Amendable bylaws part
         let mut bylaws = Part::new("bylaws".to_string());
         let mut t2 = Transition::new("active".to_string(), "active".to_string());
-        t2.add_property(Property::new(PropertySign::Plus, "BYLAW_ACTION".to_string()));
+        t2.add_property(Property::new(
+            PropertySign::Plus,
+            "BYLAW_ACTION".to_string(),
+        ));
         bylaws.add_transition(t2);
         model.add_part(bylaws);
 
         // Amendment process
         let mut amendment = Part::new("amendment".to_string());
-        
+
         // Propose amendment
         let mut t3 = Transition::new("idle".to_string(), "proposed".to_string());
-        t3.add_property(Property::new(PropertySign::Plus, "PROPOSE_AMENDMENT".to_string()));
+        t3.add_property(Property::new(
+            PropertySign::Plus,
+            "PROPOSE_AMENDMENT".to_string(),
+        ));
         amendment.add_transition(t3);
-        
+
         // Supermajority approval required
         let mut t4 = Transition::new("proposed".to_string(), "ratified".to_string());
-        t4.add_property(Property::new(PropertySign::Plus, "SUPERMAJORITY".to_string()));
+        t4.add_property(Property::new(
+            PropertySign::Plus,
+            "SUPERMAJORITY".to_string(),
+        ));
         amendment.add_transition(t4);
-        
+
         // Apply amendment
         let mut t5 = Transition::new("ratified".to_string(), "idle".to_string());
-        t5.add_property(Property::new(PropertySign::Plus, "APPLY_AMENDMENT".to_string()));
+        t5.add_property(Property::new(
+            PropertySign::Plus,
+            "APPLY_AMENDMENT".to_string(),
+        ));
         amendment.add_transition(t5);
-        
+
         model.add_part(amendment);
 
         let governors: Vec<String> = founders.iter().map(|s| s.to_string()).collect();
@@ -378,27 +451,45 @@ pub mod templates {
 
         // Propose upgrade
         let mut t2 = Transition::new("active".to_string(), "upgrade_proposed".to_string());
-        t2.add_property(Property::new(PropertySign::Plus, "PROPOSE_UPGRADE".to_string()));
+        t2.add_property(Property::new(
+            PropertySign::Plus,
+            "PROPOSE_UPGRADE".to_string(),
+        ));
         part.add_transition(t2);
 
         // Approve upgrade (requires all parties)
-        let mut t3 = Transition::new("upgrade_proposed".to_string(), "upgrade_approved".to_string());
-        t3.add_property(Property::new(PropertySign::Plus, "UNANIMOUS_APPROVAL".to_string()));
+        let mut t3 = Transition::new(
+            "upgrade_proposed".to_string(),
+            "upgrade_approved".to_string(),
+        );
+        t3.add_property(Property::new(
+            PropertySign::Plus,
+            "UNANIMOUS_APPROVAL".to_string(),
+        ));
         part.add_transition(t3);
 
         // Execute upgrade
         let mut t4 = Transition::new("upgrade_approved".to_string(), "upgrading".to_string());
-        t4.add_property(Property::new(PropertySign::Plus, "EXECUTE_UPGRADE".to_string()));
+        t4.add_property(Property::new(
+            PropertySign::Plus,
+            "EXECUTE_UPGRADE".to_string(),
+        ));
         part.add_transition(t4);
 
         // Complete upgrade (model is replaced)
         let mut t5 = Transition::new("upgrading".to_string(), "active".to_string());
-        t5.add_property(Property::new(PropertySign::Plus, "UPGRADE_COMPLETE".to_string()));
+        t5.add_property(Property::new(
+            PropertySign::Plus,
+            "UPGRADE_COMPLETE".to_string(),
+        ));
         part.add_transition(t5);
 
         // Cancel upgrade
         let mut t6 = Transition::new("upgrade_proposed".to_string(), "active".to_string());
-        t6.add_property(Property::new(PropertySign::Plus, "CANCEL_UPGRADE".to_string()));
+        t6.add_property(Property::new(
+            PropertySign::Plus,
+            "CANCEL_UPGRADE".to_string(),
+        ));
         part.add_transition(t6);
 
         model.add_part(part);
@@ -419,7 +510,10 @@ pub mod templates {
 
         // Propose fork
         let mut t2 = Transition::new("active".to_string(), "fork_proposed".to_string());
-        t2.add_property(Property::new(PropertySign::Plus, "PROPOSE_FORK".to_string()));
+        t2.add_property(Property::new(
+            PropertySign::Plus,
+            "PROPOSE_FORK".to_string(),
+        ));
         part.add_transition(t2);
 
         // Accept fork (creates two independent contracts)
@@ -446,11 +540,14 @@ mod tests {
     #[test]
     fn test_propose_and_approve() {
         let mut contract = templates::dao_governance(&["Alice", "Bob", "Carol"], 2);
-        
+
         // Propose adding a new transition
         let mut new_transition = Transition::new("active".to_string(), "special".to_string());
-        new_transition.add_property(Property::new(PropertySign::Plus, "SPECIAL_ACTION".to_string()));
-        
+        new_transition.add_property(Property::new(
+            PropertySign::Plus,
+            "SPECIAL_ACTION".to_string(),
+        ));
+
         let proposal_id = contract.propose(
             "Alice".to_string(),
             "Add special action state".to_string(),
@@ -475,13 +572,13 @@ mod tests {
     #[test]
     fn test_execute_amendment() {
         let mut contract = templates::upgradeable_contract(&["Alice", "Bob"]);
-        
+
         let initial_transitions = contract.current_model.parts[0].transitions.len();
-        
+
         // Propose and approve
         let mut new_transition = Transition::new("active".to_string(), "paused".to_string());
         new_transition.add_property(Property::new(PropertySign::Plus, "PAUSE".to_string()));
-        
+
         let proposal_id = contract.propose(
             "Alice".to_string(),
             "Add pause functionality".to_string(),
@@ -493,12 +590,15 @@ mod tests {
 
         contract.sign(&proposal_id, "Alice", true, None).unwrap();
         contract.sign(&proposal_id, "Bob", true, None).unwrap();
-        
+
         // Execute
         contract.execute(&proposal_id).unwrap();
-        
+
         assert_eq!(contract.proposals[0].status, ProposalStatus::Executed);
-        assert_eq!(contract.current_model.parts[0].transitions.len(), initial_transitions + 1);
+        assert_eq!(
+            contract.current_model.parts[0].transitions.len(),
+            initial_transitions + 1
+        );
         assert_eq!(contract.version, 2);
         assert_eq!(contract.history.len(), 1);
     }
@@ -506,7 +606,7 @@ mod tests {
     #[test]
     fn test_replace_model() {
         let mut contract = templates::upgradeable_contract(&["Alice", "Bob"]);
-        
+
         // Create a completely new model
         let mut new_model = Model::new("UpgradeableContractV2".to_string());
         let mut part = Part::new("main".to_string());
@@ -518,7 +618,9 @@ mod tests {
         let proposal_id = contract.propose(
             "Alice".to_string(),
             "Upgrade to v2".to_string(),
-            Amendment::ReplaceModel { new_model: new_model.clone() },
+            Amendment::ReplaceModel {
+                new_model: new_model.clone(),
+            },
         );
 
         contract.sign(&proposal_id, "Alice", true, None).unwrap();
@@ -531,11 +633,13 @@ mod tests {
     #[test]
     fn test_rejection() {
         let mut contract = templates::dao_governance(&["Alice", "Bob", "Carol"], 2);
-        
+
         let proposal_id = contract.propose(
             "Alice".to_string(),
             "Bad proposal".to_string(),
-            Amendment::RemovePart { part_name: "governance".to_string() },
+            Amendment::RemovePart {
+                part_name: "governance".to_string(),
+            },
         );
 
         // Bob and Carol reject
@@ -548,22 +652,34 @@ mod tests {
     #[test]
     fn test_constitutional_governance() {
         let contract = templates::constitutional_governance(&["Founder1", "Founder2", "Founder3"]);
-        
+
         assert_eq!(contract.current_model.parts.len(), 3);
-        assert!(contract.current_model.parts.iter().any(|p| p.name == "constitution"));
-        assert!(contract.current_model.parts.iter().any(|p| p.name == "bylaws"));
-        assert!(contract.current_model.parts.iter().any(|p| p.name == "amendment"));
+        assert!(contract
+            .current_model
+            .parts
+            .iter()
+            .any(|p| p.name == "constitution"));
+        assert!(contract
+            .current_model
+            .parts
+            .iter()
+            .any(|p| p.name == "bylaws"));
+        assert!(contract
+            .current_model
+            .parts
+            .iter()
+            .any(|p| p.name == "amendment"));
     }
 
     #[test]
     fn test_evolution_history() {
         let mut contract = templates::upgradeable_contract(&["Alice", "Bob"]);
-        
+
         // Make two amendments
         for i in 0..2 {
             let mut t = Transition::new("active".to_string(), format!("state_{}", i));
             t.add_property(Property::new(PropertySign::Plus, format!("ACTION_{}", i)));
-            
+
             let proposal_id = contract.propose(
                 "Alice".to_string(),
                 format!("Amendment {}", i),
@@ -572,7 +688,7 @@ mod tests {
                     transition: t,
                 },
             );
-            
+
             contract.sign(&proposal_id, "Alice", true, None).unwrap();
             contract.sign(&proposal_id, "Bob", true, None).unwrap();
             contract.execute(&proposal_id).unwrap();

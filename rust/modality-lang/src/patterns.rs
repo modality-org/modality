@@ -8,7 +8,7 @@
 //!
 //! These patterns can be composed to build complex contracts.
 
-use crate::ast::{Model, Part, Transition, Property, PropertySign};
+use crate::ast::{Model, Part, Property, PropertySign, Transition};
 
 /// Generate a dispute resolution flow
 ///
@@ -21,7 +21,9 @@ pub fn add_dispute_resolution(
     parties: &[&str],
     arbitrator: &str,
 ) {
-    let part = model.parts.iter_mut()
+    let part = model
+        .parts
+        .iter_mut()
         .find(|p| p.name == part_name)
         .expect("Part not found");
 
@@ -29,20 +31,36 @@ pub fn add_dispute_resolution(
     for party in parties {
         let mut t = Transition::new(from_state.to_string(), "disputed".to_string());
         t.add_property(Property::new(PropertySign::Plus, "DISPUTE".to_string()));
-        t.add_property(Property::new(PropertySign::Plus, format!("SIGNED_BY_{}", party.to_uppercase())));
+        t.add_property(Property::new(
+            PropertySign::Plus,
+            format!("SIGNED_BY_{}", party.to_uppercase()),
+        ));
         part.add_transition(t);
     }
 
     // Request arbitration
     let mut t = Transition::new("disputed".to_string(), "arbitration".to_string());
-    t.add_property(Property::new(PropertySign::Plus, "REQUEST_ARBITRATION".to_string()));
+    t.add_property(Property::new(
+        PropertySign::Plus,
+        "REQUEST_ARBITRATION".to_string(),
+    ));
     part.add_transition(t);
 
     // Arbitrator rulings
-    for (outcome, next_state) in &[("FAVOR_A", "resolved_a"), ("FAVOR_B", "resolved_b"), ("SPLIT", "resolved_split")] {
+    for (outcome, next_state) in &[
+        ("FAVOR_A", "resolved_a"),
+        ("FAVOR_B", "resolved_b"),
+        ("SPLIT", "resolved_split"),
+    ] {
         let mut t = Transition::new("arbitration".to_string(), next_state.to_string());
-        t.add_property(Property::new(PropertySign::Plus, format!("RULING_{}", outcome)));
-        t.add_property(Property::new(PropertySign::Plus, format!("SIGNED_BY_{}", arbitrator.to_uppercase())));
+        t.add_property(Property::new(
+            PropertySign::Plus,
+            format!("RULING_{}", outcome),
+        ));
+        t.add_property(Property::new(
+            PropertySign::Plus,
+            format!("SIGNED_BY_{}", arbitrator.to_uppercase()),
+        ));
         part.add_transition(t);
     }
 }
@@ -57,12 +75,17 @@ pub fn add_timeout_transition(
     to_state: &str,
     timeout_name: &str,
 ) {
-    let part = model.parts.iter_mut()
+    let part = model
+        .parts
+        .iter_mut()
         .find(|p| p.name == part_name)
         .expect("Part not found");
 
     let mut t = Transition::new(from_state.to_string(), to_state.to_string());
-    t.add_property(Property::new(PropertySign::Plus, format!("{}_ELAPSED", timeout_name.to_uppercase())));
+    t.add_property(Property::new(
+        PropertySign::Plus,
+        format!("{}_ELAPSED", timeout_name.to_uppercase()),
+    ));
     part.add_transition(t);
 }
 
@@ -71,9 +94,11 @@ pub fn add_cancellation(
     model: &mut Model,
     part_name: &str,
     cancellable_states: &[&str],
-    parties_required: &[&str],  // All must sign to cancel
+    parties_required: &[&str], // All must sign to cancel
 ) {
-    let part = model.parts.iter_mut()
+    let part = model
+        .parts
+        .iter_mut()
         .find(|p| p.name == part_name)
         .expect("Part not found");
 
@@ -81,7 +106,10 @@ pub fn add_cancellation(
         let mut t = Transition::new(state.to_string(), "cancelled".to_string());
         t.add_property(Property::new(PropertySign::Plus, "CANCEL".to_string()));
         for party in parties_required {
-            t.add_property(Property::new(PropertySign::Plus, format!("SIGNED_BY_{}", party.to_uppercase())));
+            t.add_property(Property::new(
+                PropertySign::Plus,
+                format!("SIGNED_BY_{}", party.to_uppercase()),
+            ));
         }
         part.add_transition(t);
     }
@@ -121,11 +149,17 @@ pub fn escrow_protected(depositor: &str, deliverer: &str, arbitrator: &str) -> M
     t3.add_property(Property::new(PropertySign::Plus, signer_depositor.clone()));
     part.add_transition(t3);
 
-    part.add_transition(Transition::new("released".to_string(), "complete".to_string()));
+    part.add_transition(Transition::new(
+        "released".to_string(),
+        "complete".to_string(),
+    ));
 
     // Timeout: if deliverer doesn't deliver in time, depositor can reclaim
     let mut t_timeout = Transition::new("deposited".to_string(), "timeout_refund".to_string());
-    t_timeout.add_property(Property::new(PropertySign::Plus, "DELIVERY_TIMEOUT_ELAPSED".to_string()));
+    t_timeout.add_property(Property::new(
+        PropertySign::Plus,
+        "DELIVERY_TIMEOUT_ELAPSED".to_string(),
+    ));
     t_timeout.add_property(Property::new(PropertySign::Plus, signer_depositor.clone()));
     part.add_transition(t_timeout);
 
@@ -141,31 +175,56 @@ pub fn escrow_protected(depositor: &str, deliverer: &str, arbitrator: &str) -> M
 
     // Arbitration
     let mut t_arb = Transition::new("disputed".to_string(), "arbitration".to_string());
-    t_arb.add_property(Property::new(PropertySign::Plus, "REQUEST_ARBITRATION".to_string()));
+    t_arb.add_property(Property::new(
+        PropertySign::Plus,
+        "REQUEST_ARBITRATION".to_string(),
+    ));
     part.add_transition(t_arb);
 
     let signer_arbitrator = format!("SIGNED_BY_{}", arbitrator.to_uppercase());
 
     // Arbitrator outcomes
-    let mut t_favor_depositor = Transition::new("arbitration".to_string(), "refund_depositor".to_string());
-    t_favor_depositor.add_property(Property::new(PropertySign::Plus, "RULING_FAVOR_DEPOSITOR".to_string()));
+    let mut t_favor_depositor =
+        Transition::new("arbitration".to_string(), "refund_depositor".to_string());
+    t_favor_depositor.add_property(Property::new(
+        PropertySign::Plus,
+        "RULING_FAVOR_DEPOSITOR".to_string(),
+    ));
     t_favor_depositor.add_property(Property::new(PropertySign::Plus, signer_arbitrator.clone()));
     part.add_transition(t_favor_depositor);
 
-    let mut t_favor_deliverer = Transition::new("arbitration".to_string(), "release_to_deliverer".to_string());
-    t_favor_deliverer.add_property(Property::new(PropertySign::Plus, "RULING_FAVOR_DELIVERER".to_string()));
+    let mut t_favor_deliverer = Transition::new(
+        "arbitration".to_string(),
+        "release_to_deliverer".to_string(),
+    );
+    t_favor_deliverer.add_property(Property::new(
+        PropertySign::Plus,
+        "RULING_FAVOR_DELIVERER".to_string(),
+    ));
     t_favor_deliverer.add_property(Property::new(PropertySign::Plus, signer_arbitrator.clone()));
     part.add_transition(t_favor_deliverer);
 
     let mut t_split = Transition::new("arbitration".to_string(), "split_funds".to_string());
-    t_split.add_property(Property::new(PropertySign::Plus, "RULING_SPLIT".to_string()));
+    t_split.add_property(Property::new(
+        PropertySign::Plus,
+        "RULING_SPLIT".to_string(),
+    ));
     t_split.add_property(Property::new(PropertySign::Plus, signer_arbitrator.clone()));
     part.add_transition(t_split);
 
     // Resolution states → complete
-    part.add_transition(Transition::new("refund_depositor".to_string(), "complete".to_string()));
-    part.add_transition(Transition::new("release_to_deliverer".to_string(), "complete".to_string()));
-    part.add_transition(Transition::new("split_funds".to_string(), "complete".to_string()));
+    part.add_transition(Transition::new(
+        "refund_depositor".to_string(),
+        "complete".to_string(),
+    ));
+    part.add_transition(Transition::new(
+        "release_to_deliverer".to_string(),
+        "complete".to_string(),
+    ));
+    part.add_transition(Transition::new(
+        "split_funds".to_string(),
+        "complete".to_string(),
+    ));
 
     // Cancellation (mutual) from deposited state
     let mut t_cancel = Transition::new("deposited".to_string(), "cancelled".to_string());
@@ -174,7 +233,10 @@ pub fn escrow_protected(depositor: &str, deliverer: &str, arbitrator: &str) -> M
     t_cancel.add_property(Property::new(PropertySign::Plus, signer_deliverer.clone()));
     part.add_transition(t_cancel);
 
-    part.add_transition(Transition::new("cancelled".to_string(), "complete".to_string()));
+    part.add_transition(Transition::new(
+        "cancelled".to_string(),
+        "complete".to_string(),
+    ));
 
     model.add_part(part);
     model
@@ -199,7 +261,10 @@ pub fn milestone_contract(client: &str, contractor: &str, milestones: usize) -> 
 
     // First milestone deposit
     let mut t_deposit = Transition::new("agreed".to_string(), "milestone_1_funded".to_string());
-    t_deposit.add_property(Property::new(PropertySign::Plus, "DEPOSIT_MILESTONE_1".to_string()));
+    t_deposit.add_property(Property::new(
+        PropertySign::Plus,
+        "DEPOSIT_MILESTONE_1".to_string(),
+    ));
     t_deposit.add_property(Property::new(PropertySign::Plus, signer_client.clone()));
     part.add_transition(t_deposit);
 
@@ -211,13 +276,19 @@ pub fn milestone_contract(client: &str, contractor: &str, milestones: usize) -> 
 
         // Contractor delivers
         let mut t_deliver = Transition::new(funded.clone(), delivered.clone());
-        t_deliver.add_property(Property::new(PropertySign::Plus, format!("DELIVER_MILESTONE_{}", m)));
+        t_deliver.add_property(Property::new(
+            PropertySign::Plus,
+            format!("DELIVER_MILESTONE_{}", m),
+        ));
         t_deliver.add_property(Property::new(PropertySign::Plus, signer_contractor.clone()));
         part.add_transition(t_deliver);
 
         // Client confirms
         let mut t_confirm = Transition::new(delivered.clone(), confirmed.clone());
-        t_confirm.add_property(Property::new(PropertySign::Plus, format!("CONFIRM_MILESTONE_{}", m)));
+        t_confirm.add_property(Property::new(
+            PropertySign::Plus,
+            format!("CONFIRM_MILESTONE_{}", m),
+        ));
         t_confirm.add_property(Property::new(PropertySign::Plus, signer_client.clone()));
         part.add_transition(t_confirm);
 
@@ -225,7 +296,10 @@ pub fn milestone_contract(client: &str, contractor: &str, milestones: usize) -> 
         if m < milestones {
             let next_funded = format!("milestone_{}_funded", m + 1);
             let mut t_fund_next = Transition::new(confirmed.clone(), next_funded);
-            t_fund_next.add_property(Property::new(PropertySign::Plus, format!("DEPOSIT_MILESTONE_{}", m + 1)));
+            t_fund_next.add_property(Property::new(
+                PropertySign::Plus,
+                format!("DEPOSIT_MILESTONE_{}", m + 1),
+            ));
             t_fund_next.add_property(Property::new(PropertySign::Plus, signer_client.clone()));
             part.add_transition(t_fund_next);
         } else {
@@ -257,7 +331,10 @@ pub fn recurring_payment(payer: &str, recipient: &str) -> Model {
 
     // Active: payments cycle
     let mut t_pay = Transition::new("active".to_string(), "payment_due".to_string());
-    t_pay.add_property(Property::new(PropertySign::Plus, "PERIOD_ELAPSED".to_string()));
+    t_pay.add_property(Property::new(
+        PropertySign::Plus,
+        "PERIOD_ELAPSED".to_string(),
+    ));
     part.add_transition(t_pay);
 
     let mut t_paid = Transition::new("payment_due".to_string(), "active".to_string());
@@ -289,7 +366,10 @@ pub fn recurring_payment(payer: &str, recipient: &str) -> Model {
 
     // Payment timeout → suspended
     let mut t_timeout = Transition::new("payment_due".to_string(), "suspended".to_string());
-    t_timeout.add_property(Property::new(PropertySign::Plus, "PAYMENT_TIMEOUT_ELAPSED".to_string()));
+    t_timeout.add_property(Property::new(
+        PropertySign::Plus,
+        "PAYMENT_TIMEOUT_ELAPSED".to_string(),
+    ));
     part.add_transition(t_timeout);
 
     // Recover from suspension
@@ -313,42 +393,66 @@ pub fn auction(seller: &str, min_bidders: usize) -> Model {
 
     // Start auction
     let mut t_start = Transition::new("init".to_string(), "open".to_string());
-    t_start.add_property(Property::new(PropertySign::Plus, "START_AUCTION".to_string()));
+    t_start.add_property(Property::new(
+        PropertySign::Plus,
+        "START_AUCTION".to_string(),
+    ));
     t_start.add_property(Property::new(PropertySign::Plus, signer_seller.clone()));
     part.add_transition(t_start);
 
     // Bidding phase (any number of bids)
     let mut t_bid = Transition::new("open".to_string(), "open".to_string());
     t_bid.add_property(Property::new(PropertySign::Plus, "BID".to_string()));
-    t_bid.add_property(Property::new(PropertySign::Plus, "HIGHER_THAN_CURRENT".to_string()));
+    t_bid.add_property(Property::new(
+        PropertySign::Plus,
+        "HIGHER_THAN_CURRENT".to_string(),
+    ));
     part.add_transition(t_bid);
 
     // Close bidding
     let mut t_close = Transition::new("open".to_string(), "closed".to_string());
-    t_close.add_property(Property::new(PropertySign::Plus, "CLOSE_BIDDING".to_string()));
+    t_close.add_property(Property::new(
+        PropertySign::Plus,
+        "CLOSE_BIDDING".to_string(),
+    ));
     t_close.add_property(Property::new(PropertySign::Plus, signer_seller.clone()));
     part.add_transition(t_close);
 
     // Also allow auto-close via timeout
     let mut t_timeout_close = Transition::new("open".to_string(), "closed".to_string());
-    t_timeout_close.add_property(Property::new(PropertySign::Plus, "AUCTION_TIMEOUT_ELAPSED".to_string()));
+    t_timeout_close.add_property(Property::new(
+        PropertySign::Plus,
+        "AUCTION_TIMEOUT_ELAPSED".to_string(),
+    ));
     part.add_transition(t_timeout_close);
 
     // Determine winner
     let mut t_winner = Transition::new("closed".to_string(), "winner_selected".to_string());
-    t_winner.add_property(Property::new(PropertySign::Plus, "SELECT_WINNER".to_string()));
-    t_winner.add_property(Property::new(PropertySign::Plus, format!("MIN_BIDDERS_{}", min_bidders)));
+    t_winner.add_property(Property::new(
+        PropertySign::Plus,
+        "SELECT_WINNER".to_string(),
+    ));
+    t_winner.add_property(Property::new(
+        PropertySign::Plus,
+        format!("MIN_BIDDERS_{}", min_bidders),
+    ));
     part.add_transition(t_winner);
 
     // No winner (not enough bidders)
     let mut t_no_winner = Transition::new("closed".to_string(), "no_sale".to_string());
-    t_no_winner.add_property(Property::new(PropertySign::Plus, "INSUFFICIENT_BIDDERS".to_string()));
+    t_no_winner.add_property(Property::new(
+        PropertySign::Plus,
+        "INSUFFICIENT_BIDDERS".to_string(),
+    ));
     part.add_transition(t_no_winner);
 
     // Winner pays
     let mut t_pay = Transition::new("winner_selected".to_string(), "paid".to_string());
     t_pay.add_property(Property::new(PropertySign::Plus, "PAY".to_string()));
-    t_pay.add_property(Property::new(PropertySign::Plus, "SIGNED_BY_WINNER".to_string()));
+    t_pay.add_property(Property::new(
+        PropertySign::Plus,
+        "SIGNED_BY_WINNER".to_string(),
+    ));
     part.add_transition(t_pay);
 
     // Seller transfers
@@ -358,7 +462,10 @@ pub fn auction(seller: &str, min_bidders: usize) -> Model {
     part.add_transition(t_transfer);
 
     // No sale ends
-    part.add_transition(Transition::new("no_sale".to_string(), "complete".to_string()));
+    part.add_transition(Transition::new(
+        "no_sale".to_string(),
+        "complete".to_string(),
+    ));
 
     model.add_part(part);
     model
@@ -373,7 +480,7 @@ mod tests {
         let model = escrow_protected("Alice", "Bob", "Arbitrator");
         assert_eq!(model.name, "ProtectedEscrow");
         assert_eq!(model.parts.len(), 1);
-        
+
         let part = &model.parts[0];
         // Should have many transitions for all paths
         assert!(part.transitions.len() >= 10);
@@ -383,7 +490,7 @@ mod tests {
     fn test_milestone_contract() {
         let model = milestone_contract("Client", "Contractor", 3);
         assert_eq!(model.name, "MilestoneContract");
-        
+
         let part = &model.parts[0];
         // Agreement + 3 milestones * 3 transitions each + final
         assert!(part.transitions.len() >= 10);
@@ -393,7 +500,7 @@ mod tests {
     fn test_recurring_payment() {
         let model = recurring_payment("Payer", "Recipient");
         assert_eq!(model.name, "RecurringPayment");
-        
+
         let part = &model.parts[0];
         assert!(part.transitions.len() >= 8);
     }
@@ -402,7 +509,7 @@ mod tests {
     fn test_auction() {
         let model = auction("Seller", 2);
         assert_eq!(model.name, "Auction");
-        
+
         let part = &model.parts[0];
         assert!(part.transitions.len() >= 8);
     }

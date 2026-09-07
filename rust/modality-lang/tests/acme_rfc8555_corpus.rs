@@ -16,8 +16,7 @@ fn load_model() -> modality_lang::ast::Model {
     let path = corpus_dir().join("model/default.modality");
     let content = fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
-    parse_content_lalrpop(&content)
-        .unwrap_or_else(|e| panic!("failed to parse ACME model: {e}"))
+    parse_content_lalrpop(&content).unwrap_or_else(|e| panic!("failed to parse ACME model: {e}"))
 }
 
 fn load_rules() -> Vec<modality_lang::ast::Formula> {
@@ -70,7 +69,6 @@ fn acme_rfc8555_governance_passes_formula_lint() {
     );
 }
 
-
 #[test]
 fn acme_rfc8555_model_satisfies_governance_rules() {
     let model = load_model();
@@ -95,10 +93,12 @@ fn acme_rfc8555_model_satisfies_governance_rules() {
 #[test]
 fn acme_rfc8555_phase_gate_rejects_finalize_while_pending() {
     let mut model = load_model();
-    model.parts[0].transitions.push(modality_lang::Transition::new(
-        "q1".to_string(),
-        "q3".to_string(),
-    ));
+    model.parts[0]
+        .transitions
+        .push(modality_lang::Transition::new(
+            "q1".to_string(),
+            "q3".to_string(),
+        ));
     // Concurrent order status writes: processing while pending still enabled on same step.
     model.parts[0].transitions.last_mut().unwrap().add_property(
         modality_lang::Property::new_predicate_from_call_args(
@@ -133,10 +133,12 @@ fn acme_rfc8555_phase_gate_rejects_finalize_while_pending() {
 #[test]
 fn acme_rfc8555_phase_gate_rejects_finalize_while_ready() {
     let mut model = load_model();
-    model.parts[0].transitions.push(modality_lang::Transition::new(
-        "q2".to_string(),
-        "q3".to_string(),
-    ));
+    model.parts[0]
+        .transitions
+        .push(modality_lang::Transition::new(
+            "q2".to_string(),
+            "q3".to_string(),
+        ));
     model.parts[0].transitions.last_mut().unwrap().add_property(
         modality_lang::Property::new_predicate_from_call_args(
             "sets".to_string(),
@@ -166,10 +168,12 @@ fn acme_rfc8555_phase_gate_rejects_finalize_while_ready() {
 #[test]
 fn acme_rfc8555_only_ca_marks_order_invalid() {
     let mut model = load_model();
-    model.parts[0].transitions.push(modality_lang::Transition::new(
-        "q3".to_string(),
-        "q5".to_string(),
-    ));
+    model.parts[0]
+        .transitions
+        .push(modality_lang::Transition::new(
+            "q3".to_string(),
+            "q5".to_string(),
+        ));
     model.parts[0].transitions.last_mut().unwrap().add_property(
         modality_lang::Property::new_predicate_from_call_args(
             "sets".to_string(),
@@ -199,10 +203,12 @@ fn acme_rfc8555_only_ca_marks_order_invalid() {
 #[test]
 fn acme_rfc8555_status_enum_rejects_unknown_order_value() {
     let mut model = load_model();
-    model.parts[0].transitions.push(modality_lang::Transition::new(
-        "q1".to_string(),
-        "q1".to_string(),
-    ));
+    model.parts[0]
+        .transitions
+        .push(modality_lang::Transition::new(
+            "q1".to_string(),
+            "q1".to_string(),
+        ));
     model.parts[0].transitions.last_mut().unwrap().add_property(
         modality_lang::Property::new_predicate_from_call_args(
             "sets".to_string(),

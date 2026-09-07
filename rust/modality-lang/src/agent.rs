@@ -36,13 +36,15 @@
 //! ```
 
 use crate::ast::{Model, Property, PropertySign};
-use crate::synthesis::templates;
-use crate::patterns;
-use crate::runtime::{ContractInstance, ActionBuilder, RuntimeResult, RuntimeError, AvailableTransition};
-use crate::evolution::{EvolvableContract, Amendment};
 #[cfg(not(target_arch = "wasm32"))]
 use crate::crypto;
-use serde::{Serialize, Deserialize};
+use crate::evolution::{Amendment, EvolvableContract};
+use crate::patterns;
+use crate::runtime::{
+    ActionBuilder, AvailableTransition, ContractInstance, RuntimeError, RuntimeResult,
+};
+use crate::synthesis::templates;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// A high-level contract wrapper for agents
@@ -60,17 +62,20 @@ impl Contract {
     // ==================== Contract Creation ====================
 
     /// Create an empty contract (no model, no parties)
-    /// 
+    ///
     /// Parties can add rules and actions via commits
     pub fn empty() -> Self {
         use crate::ast::{Model, Part};
-        
+
         // Create a minimal model with just an init state
         let mut model = Model::new("Empty".to_string());
         let mut part = Part::new("main".to_string());
-        part.add_transition(crate::ast::Transition::new("init".to_string(), "init".to_string()));
+        part.add_transition(crate::ast::Transition::new(
+            "init".to_string(),
+            "init".to_string(),
+        ));
         model.add_part(part);
-        
+
         Self {
             instance: ContractInstance::new(model, HashMap::new()).unwrap(),
             contract_type: "empty".to_string(),
@@ -84,7 +89,7 @@ impl Contract {
         let mut parties = HashMap::new();
         parties.insert(principal.to_string(), principal.to_string());
         parties.insert(agent.to_string(), agent.to_string());
-        
+
         Self {
             instance: ContractInstance::new(model, parties).unwrap(),
             contract_type: "delegation".to_string(),
@@ -97,7 +102,7 @@ impl Contract {
         let model = templates::auction(seller);
         let mut parties = HashMap::new();
         parties.insert(seller.to_string(), seller.to_string());
-        
+
         Self {
             instance: ContractInstance::new(model, parties).unwrap(),
             contract_type: "auction".to_string(),
@@ -111,7 +116,7 @@ impl Contract {
         let mut parties = HashMap::new();
         parties.insert(provider.to_string(), provider.to_string());
         parties.insert(subscriber.to_string(), subscriber.to_string());
-        
+
         Self {
             instance: ContractInstance::new(model, parties).unwrap(),
             contract_type: "subscription".to_string(),
@@ -120,14 +125,14 @@ impl Contract {
     }
 
     /// Create an escrow contract
-    /// 
+    ///
     /// Flow: depositor deposits → deliverer delivers → depositor releases
     pub fn escrow(depositor: &str, deliverer: &str) -> Self {
         let model = templates::escrow(depositor, deliverer);
         let mut parties = HashMap::new();
         parties.insert(depositor.to_string(), depositor.to_string());
         parties.insert(deliverer.to_string(), deliverer.to_string());
-        
+
         Self {
             instance: ContractInstance::new(model, parties).unwrap(),
             contract_type: "escrow".to_string(),
@@ -141,7 +146,7 @@ impl Contract {
         let mut parties = HashMap::new();
         parties.insert(party_a.to_string(), party_a.to_string());
         parties.insert(party_b.to_string(), party_b.to_string());
-        
+
         Self {
             instance: ContractInstance::new(model, parties).unwrap(),
             contract_type: "handshake".to_string(),
@@ -155,7 +160,7 @@ impl Contract {
         let mut parties = HashMap::new();
         parties.insert(party_a.to_string(), party_a.to_string());
         parties.insert(party_b.to_string(), party_b.to_string());
-        
+
         Self {
             instance: ContractInstance::new(model, parties).unwrap(),
             contract_type: "mutual_cooperation".to_string(),
@@ -169,7 +174,7 @@ impl Contract {
         let mut parties = HashMap::new();
         parties.insert(party_a.to_string(), party_a.to_string());
         parties.insert(party_b.to_string(), party_b.to_string());
-        
+
         Self {
             instance: ContractInstance::new(model, parties).unwrap(),
             contract_type: "atomic_swap".to_string(),
@@ -183,7 +188,7 @@ impl Contract {
         let mut parties = HashMap::new();
         parties.insert(provider.to_string(), provider.to_string());
         parties.insert(consumer.to_string(), consumer.to_string());
-        
+
         Self {
             instance: ContractInstance::new(model, parties).unwrap(),
             contract_type: "service_agreement".to_string(),
@@ -194,10 +199,11 @@ impl Contract {
     /// Create a multisig contract
     pub fn multisig(signers: &[&str], required: usize) -> Self {
         let model = templates::multisig(signers, required);
-        let parties: HashMap<String, String> = signers.iter()
+        let parties: HashMap<String, String> = signers
+            .iter()
             .map(|s| (s.to_string(), s.to_string()))
             .collect();
-        
+
         Self {
             instance: ContractInstance::new(model, parties).unwrap(),
             contract_type: format!("multisig_{}_of_{}", required, signers.len()),
@@ -207,10 +213,11 @@ impl Contract {
 
     /// Create a contract from a custom model
     pub fn custom(model: Model, parties: Vec<&str>) -> Self {
-        let party_map: HashMap<String, String> = parties.iter()
+        let party_map: HashMap<String, String> = parties
+            .iter()
             .map(|p| (p.to_string(), p.to_string()))
             .collect();
-        
+
         Self {
             instance: ContractInstance::new(model.clone(), party_map).unwrap(),
             contract_type: model.name.clone(),
@@ -227,11 +234,15 @@ impl Contract {
         parties.insert(depositor.to_string(), depositor.to_string());
         parties.insert(deliverer.to_string(), deliverer.to_string());
         parties.insert(arbitrator.to_string(), arbitrator.to_string());
-        
+
         Self {
             instance: ContractInstance::new(model, parties).unwrap(),
             contract_type: "escrow_protected".to_string(),
-            party_names: vec![depositor.to_string(), deliverer.to_string(), arbitrator.to_string()],
+            party_names: vec![
+                depositor.to_string(),
+                deliverer.to_string(),
+                arbitrator.to_string(),
+            ],
         }
     }
 
@@ -241,7 +252,7 @@ impl Contract {
         let mut parties = HashMap::new();
         parties.insert(client.to_string(), client.to_string());
         parties.insert(contractor.to_string(), contractor.to_string());
-        
+
         Self {
             instance: ContractInstance::new(model, parties).unwrap(),
             contract_type: format!("milestone_{}", milestones),
@@ -255,21 +266,28 @@ impl Contract {
     pub fn what_can_i_do(&self, agent: &str) -> Vec<AgentAction> {
         let transitions = self.instance.available_transitions();
         let agent_upper = agent.to_uppercase();
-        
-        transitions.iter()
+
+        transitions
+            .iter()
             .filter_map(|t| {
                 // Check if this agent can take this action
-                let requires_my_signature = t.required_properties.iter()
-                    .any(|p| p.sign == PropertySign::Plus && 
-                         p.name.contains(&format!("SIGNED_BY_{}", agent_upper)));
-                
+                let requires_my_signature = t.required_properties.iter().any(|p| {
+                    p.sign == PropertySign::Plus
+                        && p.name.contains(&format!("SIGNED_BY_{}", agent_upper))
+                });
+
                 // Extract the action name (first + property that's not a signature)
-                let action_name = t.required_properties.iter()
+                let action_name = t
+                    .required_properties
+                    .iter()
                     .find(|p| p.sign == PropertySign::Plus && !p.name.starts_with("SIGNED_BY_"))
                     .map(|p| p.name.clone())
-                    .unwrap_or_else(|| t.required_properties.first()
-                        .map(|p| p.name.clone())
-                        .unwrap_or_else(|| format!("{} → {}", t.from, t.to)));
+                    .unwrap_or_else(|| {
+                        t.required_properties
+                            .first()
+                            .map(|p| p.name.clone())
+                            .unwrap_or_else(|| format!("{} → {}", t.from, t.to))
+                    });
 
                 if requires_my_signature || t.required_properties.is_empty() {
                     Some(AgentAction {
@@ -286,20 +304,20 @@ impl Contract {
     }
 
     /// Take an action
-    /// 
+    ///
     /// The action name should match one of the available actions.
     /// This method automatically adds the agent's signature.
     pub fn act(&mut self, agent: &str, action: &str) -> Result<ActionResult, String> {
         let agent_upper = agent.to_uppercase();
         let action_upper = action.to_uppercase();
-        
+
         // Build the action properties
         let signed_action = ActionBuilder::new()
             .with(&action_upper)
             .with(&format!("SIGNED_BY_{}", agent_upper))
             .signed_by(agent)
             .build();
-        
+
         match self.instance.commit(signed_action) {
             Ok(record) => Ok(ActionResult {
                 success: true,
@@ -312,11 +330,15 @@ impl Contract {
     }
 
     /// Take an action with custom properties
-    pub fn act_with(&mut self, agent: &str, properties: Vec<(&str, bool)>) -> Result<ActionResult, String> {
+    pub fn act_with(
+        &mut self,
+        agent: &str,
+        properties: Vec<(&str, bool)>,
+    ) -> Result<ActionResult, String> {
         let agent_upper = agent.to_uppercase();
-        
+
         let mut builder = ActionBuilder::new().signed_by(agent);
-        
+
         for (prop, positive) in properties {
             if positive {
                 builder = builder.with(&prop.to_uppercase());
@@ -324,12 +346,12 @@ impl Contract {
                 builder = builder.without(&prop.to_uppercase());
             }
         }
-        
+
         // Add agent's signature
         builder = builder.with(&format!("SIGNED_BY_{}", agent_upper));
-        
+
         let signed_action = builder.build();
-        
+
         match self.instance.commit(signed_action) {
             Ok(record) => Ok(ActionResult {
                 success: true,
@@ -347,7 +369,7 @@ impl Contract {
     pub fn status(&self) -> ContractStatus {
         let state = self.instance.current_state();
         let history = self.instance.get_history();
-        
+
         ContractStatus {
             contract_type: self.contract_type.clone(),
             parties: self.party_names.clone(),
@@ -362,13 +384,19 @@ impl Contract {
     /// Get a human-readable summary
     pub fn summary(&self) -> String {
         let status = self.status();
-        let actions = if status.action_count == 1 { "action" } else { "actions" };
-        
-        let state_str = status.current_state.iter()
+        let actions = if status.action_count == 1 {
+            "action"
+        } else {
+            "actions"
+        };
+
+        let state_str = status
+            .current_state
+            .iter()
             .map(|(k, v)| format!("{}:{}", k, v))
             .collect::<Vec<_>>()
             .join(", ");
-        
+
         format!(
             "{} contract between {} | State: [{}] | {} {} taken | {}",
             status.contract_type,
@@ -376,26 +404,47 @@ impl Contract {
             state_str,
             status.action_count,
             actions,
-            if status.is_complete { "COMPLETE" } else if status.is_active { "ACTIVE" } else { "TERMINATED" }
+            if status.is_complete {
+                "COMPLETE"
+            } else if status.is_active {
+                "ACTIVE"
+            } else {
+                "TERMINATED"
+            }
         )
     }
 
     /// Get the action history
     pub fn history(&self) -> Vec<HistoryEntry> {
-        self.instance.get_history().iter().map(|r| {
-            let props: Vec<_> = r.action.properties.iter()
-                .map(|p| format!("{}{}", 
-                    if p.sign == PropertySign::Plus { "+" } else { "-" },
-                    p.name.to_lowercase()))
-                .collect();
-            
-            HistoryEntry {
-                sequence: r.seq,
-                action: props.join(" "),
-                by: r.action.signer.clone(),
-                timestamp: r.committed_at,
-            }
-        }).collect()
+        self.instance
+            .get_history()
+            .iter()
+            .map(|r| {
+                let props: Vec<_> = r
+                    .action
+                    .properties
+                    .iter()
+                    .map(|p| {
+                        format!(
+                            "{}{}",
+                            if p.sign == PropertySign::Plus {
+                                "+"
+                            } else {
+                                "-"
+                            },
+                            p.name.to_lowercase()
+                        )
+                    })
+                    .collect();
+
+                HistoryEntry {
+                    sequence: r.seq,
+                    action: props.join(" "),
+                    by: r.action.signer.clone(),
+                    timestamp: r.committed_at,
+                }
+            })
+            .collect()
     }
 
     // ==================== Serialization ====================
@@ -441,17 +490,28 @@ impl Contract {
 
     /// Add to a balance at a path
     pub fn add_balance(&mut self, path: &str, amount: u64) -> Result<u64, String> {
-        self.instance.add_balance(path, amount).map_err(|e| e.to_string())
+        self.instance
+            .add_balance(path, amount)
+            .map_err(|e| e.to_string())
     }
 
     /// Subtract from a balance at a path
     pub fn subtract_balance(&mut self, path: &str, amount: u64) -> Result<u64, String> {
-        self.instance.subtract_balance(path, amount).map_err(|e| e.to_string())
+        self.instance
+            .subtract_balance(path, amount)
+            .map_err(|e| e.to_string())
     }
 
     /// Transfer balance between paths
-    pub fn transfer_balance(&mut self, from: &str, to: &str, amount: u64) -> Result<(u64, u64), String> {
-        self.instance.transfer_balance(from, to, amount).map_err(|e| e.to_string())
+    pub fn transfer_balance(
+        &mut self,
+        from: &str,
+        to: &str,
+        amount: u64,
+    ) -> Result<(u64, u64), String> {
+        self.instance
+            .transfer_balance(from, to, amount)
+            .map_err(|e| e.to_string())
     }
 
     /// Check if balance is sufficient
@@ -468,12 +528,16 @@ impl Contract {
 
     /// Set a deadline at a path
     pub fn set_deadline(&mut self, path: &str, deadline_ms: u64) -> Result<(), String> {
-        self.instance.set_deadline(path, deadline_ms).map_err(|e| e.to_string())
+        self.instance
+            .set_deadline(path, deadline_ms)
+            .map_err(|e| e.to_string())
     }
 
     /// Set a deadline relative to now
     pub fn set_deadline_from_now(&mut self, path: &str, duration_ms: u64) -> Result<u64, String> {
-        self.instance.set_deadline_from_now(path, duration_ms).map_err(|e| e.to_string())
+        self.instance
+            .set_deadline_from_now(path, duration_ms)
+            .map_err(|e| e.to_string())
     }
 
     /// Check if deadline has passed
@@ -496,7 +560,7 @@ impl Contract {
     /// Get a human-readable description of what to do next
     pub fn next_steps(&self) -> Vec<String> {
         let mut steps = Vec::new();
-        
+
         for party in &self.party_names {
             let actions = self.what_can_i_do(party);
             if !actions.is_empty() {
@@ -504,7 +568,7 @@ impl Contract {
                 steps.push(format!("{} can: {}", party, action_names.join(", ")));
             }
         }
-        
+
         if steps.is_empty() {
             if self.status().is_complete {
                 steps.push("Contract is complete.".to_string());
@@ -512,7 +576,7 @@ impl Contract {
                 steps.push("No actions available.".to_string());
             }
         }
-        
+
         steps
     }
 
@@ -523,7 +587,8 @@ impl Contract {
 
     /// Get all parties who can act right now
     pub fn who_can_act(&self) -> Vec<String> {
-        self.party_names.iter()
+        self.party_names
+            .iter()
             .filter(|p| self.is_turn(p))
             .cloned()
             .collect()
@@ -538,7 +603,7 @@ impl Contract {
     // ==================== Cryptographic Actions ====================
 
     /// Take an action with a cryptographic signature
-    /// 
+    ///
     /// The action is signed with the agent's secret key, and the signature
     /// is verified against the agent's public key stored at /members/<agent>.pubkey
     #[cfg(not(target_arch = "wasm32"))]
@@ -550,7 +615,7 @@ impl Contract {
     ) -> Result<ActionResult, String> {
         let agent_upper = agent.to_uppercase();
         let action_upper = action.to_uppercase();
-        
+
         // Build the action JSON
         let action_json = serde_json::json!({
             "action": action_upper,
@@ -562,17 +627,20 @@ impl Contract {
         });
         let action_str = serde_json::to_string(&action_json)
             .map_err(|e| format!("Failed to serialize action: {}", e))?;
-        
+
         // Sign the action
         let signature = crypto::sign_ed25519(secret_key, action_str.as_bytes())
             .map_err(|e| format!("Failed to sign action: {}", e))?;
-        
+
         // Verify against stored pubkey
         let pubkey_path = format!("/members/{}.pubkey", agent.to_lowercase());
-        if !self.instance.verify_action_signature(&pubkey_path, &action_str, &signature) {
+        if !self
+            .instance
+            .verify_action_signature(&pubkey_path, &action_str, &signature)
+        {
             return Err("Signature verification failed - key mismatch".to_string());
         }
-        
+
         // Build and commit the action
         let signed_action = ActionBuilder::new()
             .with(&action_upper)
@@ -580,7 +648,7 @@ impl Contract {
             .signed_by(agent)
             .signature(hex::decode(&signature).unwrap_or_default())
             .build();
-        
+
         match self.instance.commit(signed_action) {
             Ok(record) => Ok(ActionResult {
                 success: true,
@@ -593,16 +661,19 @@ impl Contract {
     }
 
     /// Register a party with their public key
-    /// 
+    ///
     /// Call this to update a party's public key in the contract store.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn register_party(&mut self, party: &str, public_key: &str) -> Result<(), String> {
         let path = format!("/members/{}.pubkey", party.to_lowercase());
-        self.post(&path, crate::paths::PathValue::PubKey(public_key.to_string()))
+        self.post(
+            &path,
+            crate::paths::PathValue::PubKey(public_key.to_string()),
+        )
     }
 
     /// Generate a new keypair for signing
-    /// 
+    ///
     /// Returns (secret_key_hex, public_key_hex)
     #[cfg(not(target_arch = "wasm32"))]
     pub fn generate_keys() -> (String, String) {
@@ -669,7 +740,7 @@ impl ContractProposal {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis() as u64)
             .unwrap_or(0);
-            
+
         Self {
             proposal_type: "escrow".to_string(),
             model: templates::escrow(depositor, deliverer),
@@ -686,7 +757,7 @@ impl ContractProposal {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis() as u64)
             .unwrap_or(0);
-            
+
         Self {
             proposal_type: "service_agreement".to_string(),
             model: templates::service_agreement(provider, consumer),
@@ -699,7 +770,10 @@ impl ContractProposal {
 
     /// Accept the proposal and create a contract
     pub fn accept(self) -> Contract {
-        Contract::custom(self.model, self.parties.iter().map(|s| s.as_str()).collect())
+        Contract::custom(
+            self.model,
+            self.parties.iter().map(|s| s.as_str()).collect(),
+        )
     }
 
     /// Export to JSON for sending to other party
@@ -737,38 +811,42 @@ mod tests {
     #[test]
     fn test_escrow_flow() {
         let mut contract = Contract::escrow("alice", "bob");
-        
+
         // Check initial state
         let status = contract.status();
         assert!(status.is_active);
         assert!(!status.is_complete);
-        
+
         // Alice can deposit
         let actions = contract.what_can_i_do("alice");
         assert!(!actions.is_empty());
-        
+
         // Deposit
         contract.act("alice", "deposit").unwrap();
-        
+
         // Bob delivers
         contract.act("bob", "deliver").unwrap();
-        
+
         // Alice releases
         contract.act("alice", "release").unwrap();
-        
+
         assert_eq!(contract.history().len(), 3);
     }
 
     #[test]
     fn test_handshake_flow() {
         let mut contract = Contract::handshake("alice", "bob");
-        
+
         // Alice signs first
-        contract.act_with("alice", vec![("signed_by_alice", true)]).unwrap();
-        
+        contract
+            .act_with("alice", vec![("signed_by_alice", true)])
+            .unwrap();
+
         // Bob signs
-        contract.act_with("bob", vec![("signed_by_bob", true)]).unwrap();
-        
+        contract
+            .act_with("bob", vec![("signed_by_bob", true)])
+            .unwrap();
+
         // Both have signed
         assert_eq!(contract.history().len(), 2);
     }
@@ -776,10 +854,10 @@ mod tests {
     #[test]
     fn test_what_can_i_do() {
         let contract = Contract::escrow("depositor", "deliverer");
-        
+
         let depositor_actions = contract.what_can_i_do("depositor");
         assert!(!depositor_actions.is_empty());
-        
+
         // Depositor should be able to deposit at start
         let can_deposit = depositor_actions.iter().any(|a| a.name == "deposit");
         assert!(can_deposit);
@@ -789,7 +867,7 @@ mod tests {
     fn test_summary() {
         let contract = Contract::escrow("alice", "bob");
         let summary = contract.summary();
-        
+
         assert!(summary.contains("escrow"));
         assert!(summary.contains("alice"));
         assert!(summary.contains("bob"));
@@ -801,21 +879,22 @@ mod tests {
         let contract = Contract::escrow("alice", "bob");
         let json = contract.to_json().unwrap();
         let restored = Contract::from_json(&json).unwrap();
-        
+
         assert_eq!(contract.contract_type, restored.contract_type);
         assert_eq!(contract.party_names, restored.party_names);
     }
 
     #[test]
     fn test_proposal() {
-        let proposal = ContractProposal::service("provider_agent", "consumer_agent", "10 tokens for analysis");
-        
+        let proposal =
+            ContractProposal::service("provider_agent", "consumer_agent", "10 tokens for analysis");
+
         let json = proposal.to_json().unwrap();
         let restored = ContractProposal::from_json(&json).unwrap();
-        
+
         assert_eq!(restored.proposal_type, "service_agreement");
         assert_eq!(restored.terms, Some("10 tokens for analysis".to_string()));
-        
+
         // Accept and create contract
         let contract = restored.accept();
         assert_eq!(contract.contract_type, "ServiceAgreement");
@@ -826,16 +905,16 @@ mod tests {
         // Agent A proposes
         let proposal = ContractProposal::escrow("agent_a", "agent_b");
         let json = proposal.to_json().unwrap();
-        
+
         // Agent B receives and accepts
         let received = ContractProposal::from_json(&json).unwrap();
         let mut contract = received.accept();
-        
+
         // Execute the contract
         contract.act("agent_a", "deposit").unwrap();
         contract.act("agent_b", "deliver").unwrap();
         contract.act("agent_a", "release").unwrap();
-        
+
         let status = contract.status();
         assert_eq!(status.action_count, 3);
     }
@@ -875,7 +954,9 @@ mod tests {
         let steps = contract.next_steps();
         assert!(!steps.is_empty());
         // Alice should be able to deposit
-        assert!(steps.iter().any(|s| s.contains("alice") || s.contains("Alice")));
+        assert!(steps
+            .iter()
+            .any(|s| s.contains("alice") || s.contains("Alice")));
     }
 
     #[test]
@@ -897,10 +978,12 @@ mod tests {
     #[test]
     fn test_post_and_get() {
         use crate::paths::PathValue;
-        
+
         let mut contract = Contract::escrow("alice", "bob");
-        contract.post("/escrow/amount.balance", PathValue::Balance(500)).unwrap();
-        
+        contract
+            .post("/escrow/amount.balance", PathValue::Balance(500))
+            .unwrap();
+
         assert_eq!(contract.get_balance("/escrow/amount.balance"), Some(500));
         assert!(contract.path_exists("/escrow/amount.balance"));
     }
@@ -918,22 +1001,25 @@ mod tests {
     fn test_register_party() {
         let mut contract = Contract::escrow("alice", "bob");
         let (_, public) = Contract::generate_keys();
-        
+
         contract.register_party("alice", &public).unwrap();
-        
-        assert_eq!(contract.get_pubkey("/members/alice.pubkey"), Some(public.as_str()));
+
+        assert_eq!(
+            contract.get_pubkey("/members/alice.pubkey"),
+            Some(public.as_str())
+        );
     }
 
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
     fn test_act_signed() {
         let (secret, public) = Contract::generate_keys();
-        
+
         let mut contract = Contract::handshake("alice", "bob");
-        
+
         // Register Alice with her real pubkey
         contract.register_party("alice", &public).unwrap();
-        
+
         // Act with signature verification
         let result = contract.act_signed("alice", "signed_by_alice", &secret);
         assert!(result.is_ok(), "Should succeed: {:?}", result);
@@ -942,27 +1028,29 @@ mod tests {
     #[test]
     fn test_contract_balance_operations() {
         use crate::paths::PathValue;
-        
+
         let mut contract = Contract::escrow("alice", "bob");
-        
+
         // Set initial balances
-        contract.post("/balances/alice.balance", PathValue::Balance(1000)).unwrap();
-        contract.post("/balances/bob.balance", PathValue::Balance(0)).unwrap();
-        
+        contract
+            .post("/balances/alice.balance", PathValue::Balance(1000))
+            .unwrap();
+        contract
+            .post("/balances/bob.balance", PathValue::Balance(0))
+            .unwrap();
+
         // Check balance
         assert!(contract.has_sufficient_balance("/balances/alice.balance", 500));
         assert!(!contract.has_sufficient_balance("/balances/alice.balance", 2000));
-        
+
         // Transfer
-        let (from, to) = contract.transfer_balance(
-            "/balances/alice.balance",
-            "/balances/bob.balance",
-            300
-        ).unwrap();
-        
-        assert_eq!(from, 700);  // Alice: 1000 - 300 = 700
-        assert_eq!(to, 300);    // Bob: 0 + 300 = 300
-        
+        let (from, to) = contract
+            .transfer_balance("/balances/alice.balance", "/balances/bob.balance", 300)
+            .unwrap();
+
+        assert_eq!(from, 700); // Alice: 1000 - 300 = 700
+        assert_eq!(to, 300); // Bob: 0 + 300 = 300
+
         // Verify final balances
         assert_eq!(contract.get_balance("/balances/alice.balance"), Some(700));
         assert_eq!(contract.get_balance("/balances/bob.balance"), Some(300));

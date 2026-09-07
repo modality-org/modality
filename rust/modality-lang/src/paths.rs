@@ -22,7 +22,7 @@
 //! | `.list`   | Ordered list |
 //! | `.json`   | Arbitrary JSON |
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -33,7 +33,7 @@ pub enum PathValue {
     Int(i64),
     Bool(bool),
     Balance(u64),
-    PubKey(String),  // Hex-encoded public key
+    PubKey(String), // Hex-encoded public key
     Set(Vec<String>),
     List(Vec<String>),
     Json(serde_json::Value),
@@ -58,13 +58,16 @@ impl PathValue {
     pub fn parse(type_ext: &str, value: &str) -> Result<Self, String> {
         match type_ext {
             "text" | "string" => Ok(PathValue::Text(value.to_string())),
-            "int" | "integer" => value.parse::<i64>()
+            "int" | "integer" => value
+                .parse::<i64>()
                 .map(PathValue::Int)
                 .map_err(|e| format!("Invalid integer: {}", e)),
-            "bool" | "boolean" => value.parse::<bool>()
+            "bool" | "boolean" => value
+                .parse::<bool>()
                 .map(PathValue::Bool)
                 .map_err(|e| format!("Invalid boolean: {}", e)),
-            "balance" | "bal" => value.parse::<u64>()
+            "balance" | "bal" => value
+                .parse::<u64>()
                 .map(PathValue::Balance)
                 .map_err(|e| format!("Invalid balance: {}", e)),
             "pubkey" | "key" => Ok(PathValue::PubKey(value.to_string())),
@@ -115,7 +118,7 @@ impl Path {
         }
 
         let path = &path[1..]; // Remove leading /
-        
+
         if path.is_empty() {
             return Ok(Self {
                 dirs: vec![],
@@ -128,7 +131,7 @@ impl Path {
         if let Some(dot_pos) = path.rfind('.') {
             let before_dot = &path[..dot_pos];
             let ext = &path[dot_pos + 1..];
-            
+
             let parts: Vec<&str> = before_dot.split('/').collect();
             let (dirs, name) = if parts.is_empty() {
                 (vec![], None)
@@ -170,23 +173,23 @@ impl Path {
     /// Get the full path string
     pub fn as_string(&self) -> String {
         let mut result = String::from("/");
-        
+
         if !self.dirs.is_empty() {
             result.push_str(&self.dirs.join("/"));
         }
-        
+
         if let Some(ref name) = self.name {
             if !self.dirs.is_empty() {
                 result.push('/');
             }
             result.push_str(name);
-            
+
             if let Some(ref ext) = self.type_ext {
                 result.push('.');
                 result.push_str(ext);
             }
         }
-        
+
         result
     }
 }
@@ -202,13 +205,13 @@ impl Path {
     pub fn parent_dirs(&self) -> Vec<String> {
         let mut result = vec!["/".to_string()];
         let mut current = String::from("/");
-        
+
         for dir in &self.dirs {
             current.push_str(dir);
             result.push(current.clone());
             current.push('/');
         }
-        
+
         result
     }
 }
@@ -233,7 +236,7 @@ impl ContractStore {
     /// Set a value at a path
     pub fn set(&mut self, path: &str, value: PathValue) -> Result<(), String> {
         let parsed = Path::parse(path)?;
-        
+
         if !parsed.is_file() {
             return Err("Can only set values at file paths".to_string());
         }
@@ -253,7 +256,7 @@ impl ContractStore {
                 ("json", "json") => true,
                 _ => ext == expected,
             };
-            
+
             if !compatible {
                 return Err(format!(
                     "Type mismatch: path expects {}, got {}",
@@ -289,7 +292,8 @@ impl ContractStore {
             format!("{}/", dir_path)
         };
 
-        self.values.keys()
+        self.values
+            .keys()
             .filter(|k| k.starts_with(&dir_prefix))
             .cloned()
             .collect()
@@ -345,7 +349,7 @@ pub fn parse_path_reference(predicate: &str) -> Option<(String, String)> {
     // Match: name(/path/to/value.type)
     let re = regex::Regex::new(r"^([a-zA-Z_][a-zA-Z0-9_]*)\((/[^)]+)\)$").ok()?;
     let caps = re.captures(predicate)?;
-    
+
     Some((
         caps.get(1)?.as_str().to_string(),
         caps.get(2)?.as_str().to_string(),
@@ -379,9 +383,11 @@ mod tests {
     #[test]
     fn test_store_set_get() {
         let mut store = ContractStore::new();
-        
-        store.set("/status/color.text", PathValue::Text("red".to_string())).unwrap();
-        
+
+        store
+            .set("/status/color.text", PathValue::Text("red".to_string()))
+            .unwrap();
+
         let value = store.get("/status/color.text");
         assert_eq!(value, Some(&PathValue::Text("red".to_string())));
     }
@@ -389,26 +395,33 @@ mod tests {
     #[test]
     fn test_store_pubkey() {
         let mut store = ContractStore::new();
-        
+
         let pubkey = "abc123def456";
-        store.set("/members/alice.pubkey", PathValue::PubKey(pubkey.to_string())).unwrap();
-        
+        store
+            .set(
+                "/members/alice.pubkey",
+                PathValue::PubKey(pubkey.to_string()),
+            )
+            .unwrap();
+
         assert_eq!(store.get_pubkey("/members/alice.pubkey"), Some(pubkey));
     }
 
     #[test]
     fn test_store_balance() {
         let mut store = ContractStore::new();
-        
-        store.set("/balances/alice.balance", PathValue::Balance(1000)).unwrap();
-        
+
+        store
+            .set("/balances/alice.balance", PathValue::Balance(1000))
+            .unwrap();
+
         assert_eq!(store.get_balance("/balances/alice.balance"), Some(1000));
     }
 
     #[test]
     fn test_type_mismatch() {
         let mut store = ContractStore::new();
-        
+
         let result = store.set("/value.int", PathValue::Text("not an int".to_string()));
         assert!(result.is_err());
     }
@@ -430,12 +443,22 @@ mod tests {
     #[test]
     fn test_store_serialization() {
         let mut store = ContractStore::new();
-        store.set("/status/active.bool", PathValue::Bool(true)).unwrap();
-        store.set("/members/alice.pubkey", PathValue::PubKey("abc123".to_string())).unwrap();
-        
+        store
+            .set("/status/active.bool", PathValue::Bool(true))
+            .unwrap();
+        store
+            .set(
+                "/members/alice.pubkey",
+                PathValue::PubKey("abc123".to_string()),
+            )
+            .unwrap();
+
         let json = store.to_json().unwrap();
         let restored = ContractStore::from_json(&json).unwrap();
-        
-        assert_eq!(restored.get("/status/active.bool"), Some(&PathValue::Bool(true)));
+
+        assert_eq!(
+            restored.get("/status/active.bool"),
+            Some(&PathValue::Bool(true))
+        );
     }
 }

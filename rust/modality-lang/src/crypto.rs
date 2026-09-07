@@ -2,7 +2,7 @@
 //!
 //! Provides ed25519 signature verification for contract predicates.
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Result of signature verification
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -25,7 +25,7 @@ pub enum VerifyResult {
 /// * `VerifyResult::Error` if inputs are malformed
 #[cfg(not(target_arch = "wasm32"))]
 pub fn verify_ed25519(public_key: &str, message: &[u8], signature: &str) -> VerifyResult {
-    use ed25519_dalek::{Signature, VerifyingKey, Verifier};
+    use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
     // Parse public key from hex
     let pubkey_bytes = match hex::decode(public_key) {
@@ -96,11 +96,11 @@ pub fn verify_ed25519(_public_key: &str, _message: &[u8], _signature: &str) -> V
 /// * `Err(error)` - If signing fails
 #[cfg(not(target_arch = "wasm32"))]
 pub fn sign_ed25519(secret_key: &str, message: &[u8]) -> Result<String, String> {
-    use ed25519_dalek::{SigningKey, Signer};
+    use ed25519_dalek::{Signer, SigningKey};
 
     // Parse secret key from hex
-    let secret_bytes = hex::decode(secret_key)
-        .map_err(|e| format!("Invalid secret key hex: {}", e))?;
+    let secret_bytes =
+        hex::decode(secret_key).map_err(|e| format!("Invalid secret key hex: {}", e))?;
 
     if secret_bytes.len() != 32 {
         return Err(format!(
@@ -109,7 +109,8 @@ pub fn sign_ed25519(secret_key: &str, message: &[u8]) -> Result<String, String> 
         ));
     }
 
-    let secret_array: [u8; 32] = secret_bytes.try_into()
+    let secret_array: [u8; 32] = secret_bytes
+        .try_into()
         .map_err(|_| "Failed to convert secret key")?;
 
     let signing_key = SigningKey::from_bytes(&secret_array);
@@ -151,7 +152,7 @@ pub fn generate_keypair() -> (String, String) {
 /// Hash a message using SHA-256
 #[cfg(not(target_arch = "wasm32"))]
 pub fn sha256(message: &[u8]) -> String {
-    use sha2::{Sha256, Digest};
+    use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(message);
     hex::encode(hasher.finalize())
@@ -171,13 +172,13 @@ mod tests {
     #[cfg(not(target_arch = "wasm32"))]
     fn test_generate_and_sign() {
         let (secret, public) = generate_keypair();
-        
+
         assert_eq!(secret.len(), 64); // 32 bytes hex
         assert_eq!(public.len(), 64); // 32 bytes hex
 
         let message = b"Hello, Modality!";
         let signature = sign_ed25519(&secret, message).unwrap();
-        
+
         assert_eq!(signature.len(), 128); // 64 bytes hex
 
         let result = verify_ed25519(&public, message, &signature);
@@ -189,7 +190,7 @@ mod tests {
     fn test_invalid_signature() {
         let (_, public) = generate_keypair();
         let message = b"Hello, Modality!";
-        
+
         // Wrong signature
         let bad_sig = "00".repeat(64);
         let result = verify_ed25519(&public, message, &bad_sig);
@@ -200,12 +201,12 @@ mod tests {
     #[cfg(not(target_arch = "wasm32"))]
     fn test_wrong_message() {
         let (secret, public) = generate_keypair();
-        
+
         let message1 = b"Hello, Modality!";
         let message2 = b"Different message";
-        
+
         let signature = sign_ed25519(&secret, message1).unwrap();
-        
+
         // Signature for message1 should not verify for message2
         let result = verify_ed25519(&public, message2, &signature);
         assert_eq!(result, VerifyResult::Invalid);
@@ -216,7 +217,10 @@ mod tests {
     fn test_sha256() {
         let hash = sha256(b"hello");
         assert_eq!(hash.len(), 64); // 32 bytes hex
-        // Known hash for "hello"
-        assert_eq!(hash, "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824");
+                                    // Known hash for "hello"
+        assert_eq!(
+            hash,
+            "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+        );
     }
 }

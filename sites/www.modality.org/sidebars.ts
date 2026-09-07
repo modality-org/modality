@@ -30,6 +30,8 @@ const sidebars: SidebarsConfig = {
       label: 'Language Reference',
       items: [
         'language/index',
+        'language/formula-cookbook',
+        'language/model-cookbook',
         'language/model-syntax',
         'language/rule-syntax',
         'language/predicates',

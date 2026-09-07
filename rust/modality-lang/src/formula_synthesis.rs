@@ -944,7 +944,10 @@ fn combine_with_outgoing_positive_action_props(
 
 fn positive_action_props_from_node(transitions: &[Transition], node: &str) -> Vec<Property> {
     let mut props = Vec::new();
-    for transition in transitions.iter().filter(|transition| transition.from == node) {
+    for transition in transitions
+        .iter()
+        .filter(|transition| transition.from == node)
+    {
         for prop in &transition.properties {
             if is_positive_action_property(prop) && !props.contains(prop) {
                 props.push(prop.clone());

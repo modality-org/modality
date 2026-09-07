@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Represents a property with a sign (+ or -)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -91,8 +91,8 @@ pub struct Test {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TestStatement {
     Assignment(String, String), // variable = expression
-    Commit(String), // commit(action)
-    ActionCall(String), // action("+hello")
+    Commit(String),             // commit(action)
+    ActionCall(String),         // action("+hello")
 }
 
 /// Represents a temporal modal formula
@@ -152,65 +152,63 @@ impl FormulaExpr {
     pub fn desugar_must(inner: FormulaExpr) -> FormulaExpr {
         match inner {
             // must (P | Q) → [<+P>] true | [<+Q>] true
-            FormulaExpr::Or(left, right) => {
-                FormulaExpr::Or(
-                    Box::new(Self::desugar_must(*left)),
-                    Box::new(Self::desugar_must(*right)),
-                )
-            }
+            FormulaExpr::Or(left, right) => FormulaExpr::Or(
+                Box::new(Self::desugar_must(*left)),
+                Box::new(Self::desugar_must(*right)),
+            ),
             // must (P & Q) → [<+P>] true & [<+Q>] true
-            FormulaExpr::And(left, right) => {
-                FormulaExpr::And(
-                    Box::new(Self::desugar_must(*left)),
-                    Box::new(Self::desugar_must(*right)),
-                )
-            }
+            FormulaExpr::And(left, right) => FormulaExpr::And(
+                Box::new(Self::desugar_must(*left)),
+                Box::new(Self::desugar_must(*right)),
+            ),
             // must (φ) - unwrap parens
             FormulaExpr::Paren(inner) => Self::desugar_must(*inner),
             // must P where P is a proposition → [<+P>] true
-            FormulaExpr::Prop(name) => {
-                FormulaExpr::DiamondBox(
-                    vec![Property::new(PropertySign::Plus, name)],
-                    Box::new(FormulaExpr::True),
-                )
-            }
+            FormulaExpr::Prop(name) => FormulaExpr::DiamondBox(
+                vec![Property::new(PropertySign::Plus, name)],
+                Box::new(FormulaExpr::True),
+            ),
             // For predicates like signed_by(X), wrap in diamond-box
             // must <+action> φ → [<+action>] φ (already diamond form)
-            FormulaExpr::Diamond(props, phi) => {
-                FormulaExpr::DiamondBox(props, phi)
-            }
+            FormulaExpr::Diamond(props, phi) => FormulaExpr::DiamondBox(props, phi),
             // Other cases: wrap as-is (may need refinement)
             other => other,
         }
     }
-    
+
     /// Expand DiamondBox to its semantic equivalent for model checking
     /// [<+P>] φ → [-P] false & <+P> φ
     pub fn expand_diamond_box(&self) -> FormulaExpr {
         match self {
             FormulaExpr::DiamondBox(props, phi) => {
                 if props.is_empty() {
-                    return FormulaExpr::Diamond(
-                        Vec::new(),
-                        Box::new(phi.expand_diamond_box()),
-                    );
+                    return FormulaExpr::Diamond(Vec::new(), Box::new(phi.expand_diamond_box()));
                 }
 
                 // Negate the properties for the box part
-                let negated_props: Vec<Property> = props.iter().map(|p| {
-                    Property::new(
-                        match p.sign {
-                            PropertySign::Plus => PropertySign::Minus,
-                            PropertySign::Minus => PropertySign::Plus,
-                        },
-                        p.name.clone(),
-                    )
-                }).collect();
-                
+                let negated_props: Vec<Property> = props
+                    .iter()
+                    .map(|p| {
+                        Property::new(
+                            match p.sign {
+                                PropertySign::Plus => PropertySign::Minus,
+                                PropertySign::Minus => PropertySign::Plus,
+                            },
+                            p.name.clone(),
+                        )
+                    })
+                    .collect();
+
                 // [-P] false & <+P> φ
                 FormulaExpr::And(
-                    Box::new(FormulaExpr::Box(negated_props, Box::new(FormulaExpr::False))),
-                    Box::new(FormulaExpr::Diamond(props.clone(), Box::new(phi.expand_diamond_box()))),
+                    Box::new(FormulaExpr::Box(
+                        negated_props,
+                        Box::new(FormulaExpr::False),
+                    )),
+                    Box::new(FormulaExpr::Diamond(
+                        props.clone(),
+                        Box::new(phi.expand_diamond_box()),
+                    )),
                 )
             }
             // Recursively expand in subformulas
@@ -228,15 +226,15 @@ impl FormulaExpr {
                 Box::new(r.expand_diamond_box()),
             ),
             FormulaExpr::Paren(inner) => FormulaExpr::Paren(Box::new(inner.expand_diamond_box())),
-            FormulaExpr::Diamond(props, phi) => FormulaExpr::Diamond(
-                props.clone(),
-                Box::new(phi.expand_diamond_box()),
-            ),
-            FormulaExpr::Box(props, phi) => FormulaExpr::Box(
-                props.clone(),
-                Box::new(phi.expand_diamond_box()),
-            ),
-            FormulaExpr::Eventually(phi) => FormulaExpr::Eventually(Box::new(phi.expand_diamond_box())),
+            FormulaExpr::Diamond(props, phi) => {
+                FormulaExpr::Diamond(props.clone(), Box::new(phi.expand_diamond_box()))
+            }
+            FormulaExpr::Box(props, phi) => {
+                FormulaExpr::Box(props.clone(), Box::new(phi.expand_diamond_box()))
+            }
+            FormulaExpr::Eventually(phi) => {
+                FormulaExpr::Eventually(Box::new(phi.expand_diamond_box()))
+            }
             FormulaExpr::Always(phi) => FormulaExpr::Always(Box::new(phi.expand_diamond_box())),
             FormulaExpr::Until(l, r) => FormulaExpr::Until(
                 Box::new(l.expand_diamond_box()),
@@ -244,13 +242,17 @@ impl FormulaExpr {
             ),
             FormulaExpr::Next(phi) => FormulaExpr::Next(Box::new(phi.expand_diamond_box())),
             // Fixed point operators
-            FormulaExpr::Lfp(var, phi) => FormulaExpr::Lfp(var.clone(), Box::new(phi.expand_diamond_box())),
-            FormulaExpr::Gfp(var, phi) => FormulaExpr::Gfp(var.clone(), Box::new(phi.expand_diamond_box())),
+            FormulaExpr::Lfp(var, phi) => {
+                FormulaExpr::Lfp(var.clone(), Box::new(phi.expand_diamond_box()))
+            }
+            FormulaExpr::Gfp(var, phi) => {
+                FormulaExpr::Gfp(var.clone(), Box::new(phi.expand_diamond_box()))
+            }
             // Literals, props, and vars don't contain DiamondBox
             other => other.clone(),
         }
     }
-    
+
     /// Desugar temporal operators to their fixed point equivalents
     /// always(f) ≡ gfp(X, []X & f)
     /// eventually(f) ≡ lfp(X, <>X | f)
@@ -262,7 +264,10 @@ impl FormulaExpr {
                 FormulaExpr::Gfp(
                     "X".to_string(),
                     Box::new(FormulaExpr::And(
-                        Box::new(FormulaExpr::Box(vec![], Box::new(FormulaExpr::Var("X".to_string())))),
+                        Box::new(FormulaExpr::Box(
+                            vec![],
+                            Box::new(FormulaExpr::Var("X".to_string())),
+                        )),
                         Box::new(inner),
                     )),
                 )
@@ -273,7 +278,10 @@ impl FormulaExpr {
                 FormulaExpr::Lfp(
                     "X".to_string(),
                     Box::new(FormulaExpr::Or(
-                        Box::new(FormulaExpr::Diamond(vec![], Box::new(FormulaExpr::Var("X".to_string())))),
+                        Box::new(FormulaExpr::Diamond(
+                            vec![],
+                            Box::new(FormulaExpr::Var("X".to_string())),
+                        )),
                         Box::new(inner),
                     )),
                 )
@@ -288,7 +296,10 @@ impl FormulaExpr {
                         Box::new(q_inner),
                         Box::new(FormulaExpr::And(
                             Box::new(p_inner),
-                            Box::new(FormulaExpr::Diamond(vec![], Box::new(FormulaExpr::Var("X".to_string())))),
+                            Box::new(FormulaExpr::Diamond(
+                                vec![],
+                                Box::new(FormulaExpr::Var("X".to_string())),
+                            )),
                         )),
                     )),
                 )
@@ -308,21 +319,22 @@ impl FormulaExpr {
                 Box::new(r.desugar_temporal()),
             ),
             FormulaExpr::Paren(inner) => FormulaExpr::Paren(Box::new(inner.desugar_temporal())),
-            FormulaExpr::Diamond(props, phi) => FormulaExpr::Diamond(
-                props.clone(),
-                Box::new(phi.desugar_temporal()),
-            ),
-            FormulaExpr::Box(props, phi) => FormulaExpr::Box(
-                props.clone(),
-                Box::new(phi.desugar_temporal()),
-            ),
-            FormulaExpr::DiamondBox(props, phi) => FormulaExpr::DiamondBox(
-                props.clone(),
-                Box::new(phi.desugar_temporal()),
-            ),
+            FormulaExpr::Diamond(props, phi) => {
+                FormulaExpr::Diamond(props.clone(), Box::new(phi.desugar_temporal()))
+            }
+            FormulaExpr::Box(props, phi) => {
+                FormulaExpr::Box(props.clone(), Box::new(phi.desugar_temporal()))
+            }
+            FormulaExpr::DiamondBox(props, phi) => {
+                FormulaExpr::DiamondBox(props.clone(), Box::new(phi.desugar_temporal()))
+            }
             FormulaExpr::Next(phi) => FormulaExpr::Next(Box::new(phi.desugar_temporal())),
-            FormulaExpr::Lfp(var, phi) => FormulaExpr::Lfp(var.clone(), Box::new(phi.desugar_temporal())),
-            FormulaExpr::Gfp(var, phi) => FormulaExpr::Gfp(var.clone(), Box::new(phi.desugar_temporal())),
+            FormulaExpr::Lfp(var, phi) => {
+                FormulaExpr::Lfp(var.clone(), Box::new(phi.desugar_temporal()))
+            }
+            FormulaExpr::Gfp(var, phi) => {
+                FormulaExpr::Gfp(var.clone(), Box::new(phi.desugar_temporal()))
+            }
             // Literals, props, and vars pass through
             other => other.clone(),
         }
@@ -416,15 +428,20 @@ impl Transition {
 impl Property {
     /// Create a new static property
     pub fn new(sign: PropertySign, name: String) -> Self {
-        Self { 
-            sign, 
+        Self {
+            sign,
             name,
             source: Some(PropertySource::Static),
         }
     }
 
     /// Create a new predicate-based property
-    pub fn new_predicate(sign: PropertySign, name: String, path: String, args: serde_json::Value) -> Self {
+    pub fn new_predicate(
+        sign: PropertySign,
+        name: String,
+        path: String,
+        args: serde_json::Value,
+    ) -> Self {
         Self {
             sign,
             name,
@@ -574,7 +591,10 @@ pub struct RuleForThisCommit {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CommitRuleExpr {
     /// signed_by_n(n, [signer1, signer2, ...]) - threshold signature
-    SignedByN { required: usize, signers: Vec<String> },
+    SignedByN {
+        required: usize,
+        signers: Vec<String>,
+    },
     /// signed_by(path) - single required signature
     SignedBy(String),
     /// Conjunction
@@ -587,13 +607,13 @@ impl RuleForThisCommit {
     pub fn new(expression: CommitRuleExpr) -> Self {
         Self { expression }
     }
-    
+
     pub fn signed_by(signer: String) -> Self {
         Self {
             expression: CommitRuleExpr::SignedBy(signer),
         }
     }
-    
+
     pub fn signed_by_n(required: usize, signers: Vec<String>) -> Self {
         Self {
             expression: CommitRuleExpr::SignedByN { required, signers },
@@ -639,7 +659,10 @@ pub struct ContractCommit {
 /// Statements within a commit
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CommitStatement {
-    SignedBy { party: String, signature: String },
+    SignedBy {
+        party: String,
+        signature: String,
+    },
     Model(Model),
     /// Add a rule (transitions as +ADD_RULE in model)
     AddRule(FormulaExpr),
@@ -654,7 +677,7 @@ impl Contract {
             commits: Vec::new(),
         }
     }
-    
+
     pub fn add_commit(&mut self, commit: ContractCommit) {
         self.commits.push(commit);
     }
@@ -669,7 +692,7 @@ impl ContractCommit {
             statements: Vec::new(),
         }
     }
-    
+
     pub fn with_model(signed_by: String, signature: String, model: Model) -> Self {
         Self {
             signed_by,
@@ -678,7 +701,7 @@ impl ContractCommit {
             statements: Vec::new(),
         }
     }
-    
+
     pub fn add_statement(&mut self, stmt: CommitStatement) {
         self.statements.push(stmt);
     }

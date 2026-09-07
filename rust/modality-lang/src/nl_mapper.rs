@@ -70,100 +70,178 @@ fn get_pattern_keywords() -> Vec<PatternKeywords> {
         PatternKeywords {
             pattern: ContractPattern::Escrow,
             keywords: vec![
-                "escrow", "hold funds", "release payment", "deposit", 
-                "third party holds", "conditional release", "buyer seller",
-                "deliver then pay", "payment protection", "funds held",
-                "secure payment", "goods delivered", "release funds",
-                "payment on delivery", "delivery confirmed"
+                "escrow",
+                "hold funds",
+                "release payment",
+                "deposit",
+                "third party holds",
+                "conditional release",
+                "buyer seller",
+                "deliver then pay",
+                "payment protection",
+                "funds held",
+                "secure payment",
+                "goods delivered",
+                "release funds",
+                "payment on delivery",
+                "delivery confirmed",
             ],
             weight: 1.0,
         },
         PatternKeywords {
             pattern: ContractPattern::Handshake,
             keywords: vec![
-                "handshake", "both sign", "both must sign", "mutual agreement", 
-                "both parties agree", "both parties must", "two signatures", 
-                "joint commitment", "bilateral", "two party agreement"
+                "handshake",
+                "both sign",
+                "both must sign",
+                "mutual agreement",
+                "both parties agree",
+                "both parties must",
+                "two signatures",
+                "joint commitment",
+                "bilateral",
+                "two party agreement",
             ],
             weight: 1.0,
         },
         PatternKeywords {
             pattern: ContractPattern::MutualCooperation,
             keywords: vec![
-                "cooperation", "no defection", "both cooperate", "prisoner",
-                "tit for tat", "mutual benefit", "neither can defect"
+                "cooperation",
+                "no defection",
+                "both cooperate",
+                "prisoner",
+                "tit for tat",
+                "mutual benefit",
+                "neither can defect",
             ],
             weight: 1.0,
         },
         PatternKeywords {
             pattern: ContractPattern::AtomicSwap,
             keywords: vec![
-                "atomic swap", "swap", "exchange", "trade",
-                "both commit", "simultaneous", "cross-chain",
-                "trustless exchange", "token swap", "crypto swap",
-                "asset exchange", "peer to peer exchange"
+                "atomic swap",
+                "swap",
+                "exchange",
+                "trade",
+                "both commit",
+                "simultaneous",
+                "cross-chain",
+                "trustless exchange",
+                "token swap",
+                "crypto swap",
+                "asset exchange",
+                "peer to peer exchange",
             ],
             weight: 1.0,
         },
         PatternKeywords {
             pattern: ContractPattern::Multisig,
             keywords: vec![
-                "multisig", "multi-signature", "n of m", "2 of 3",
-                "multiple signatures", "quorum", "threshold signature"
+                "multisig",
+                "multi-signature",
+                "n of m",
+                "2 of 3",
+                "multiple signatures",
+                "quorum",
+                "threshold signature",
             ],
             weight: 1.0,
         },
         PatternKeywords {
             pattern: ContractPattern::ServiceAgreement,
             keywords: vec![
-                "service", "offer accept", "deliver confirm",
-                "provider consumer", "work for payment", "contract work",
-                "freelance", "gig", "job completion", "task payment",
-                "service rendered", "work delivered", "invoice"
+                "service",
+                "offer accept",
+                "deliver confirm",
+                "provider consumer",
+                "work for payment",
+                "contract work",
+                "freelance",
+                "gig",
+                "job completion",
+                "task payment",
+                "service rendered",
+                "work delivered",
+                "invoice",
             ],
             weight: 1.0,
         },
         PatternKeywords {
             pattern: ContractPattern::Delegation,
             keywords: vec![
-                "delegate", "delegation", "authorize", "on behalf",
-                "proxy", "agent authority", "grant permission", "revoke",
-                "power of attorney", "representative", "empowerment",
-                "act for me", "signing authority", "delegated access"
+                "delegate",
+                "delegation",
+                "authorize",
+                "on behalf",
+                "proxy",
+                "agent authority",
+                "grant permission",
+                "revoke",
+                "power of attorney",
+                "representative",
+                "empowerment",
+                "act for me",
+                "signing authority",
+                "delegated access",
             ],
             weight: 1.0,
         },
         PatternKeywords {
             pattern: ContractPattern::Auction,
             keywords: vec![
-                "auction", "bid", "bidding", "highest bidder",
-                "sell to highest", "listing", "winner pays"
+                "auction",
+                "bid",
+                "bidding",
+                "highest bidder",
+                "sell to highest",
+                "listing",
+                "winner pays",
             ],
             weight: 1.0,
         },
         PatternKeywords {
             pattern: ContractPattern::Subscription,
             keywords: vec![
-                "subscription", "recurring", "monthly", "annual",
-                "renew", "cancel", "access period", "membership"
+                "subscription",
+                "recurring",
+                "monthly",
+                "annual",
+                "renew",
+                "cancel",
+                "access period",
+                "membership",
             ],
             weight: 1.0,
         },
         PatternKeywords {
             pattern: ContractPattern::Milestone,
             keywords: vec![
-                "milestone", "phase", "stage", "deliverable",
-                "partial payment", "progress payment", "project phase"
+                "milestone",
+                "phase",
+                "stage",
+                "deliverable",
+                "partial payment",
+                "progress payment",
+                "project phase",
             ],
             weight: 1.0,
         },
         PatternKeywords {
             pattern: ContractPattern::TurnTaking,
             keywords: vec![
-                "turn taking", "turn-taking", "alternate turns", "alternating turns",
-                "take turns", "round robin", "one after another",
-                "alternate signing", "alternating signing", "alternate signatures",
-                "alternating signatures", "one at a time",
+                "turn taking",
+                "turn-taking",
+                "alternate turns",
+                "alternating turns",
+                "take turns",
+                "round robin",
+                "one after another",
+                "alternate signing",
+                "alternating signing",
+                "alternate signatures",
+                "alternating signatures",
+                "one at a time",
             ],
             weight: 1.0,
         },
@@ -174,7 +252,7 @@ fn get_pattern_keywords() -> Vec<PatternKeywords> {
 fn extract_parties(description: &str) -> Vec<String> {
     let mut parties = Vec::new();
     let lower = description.to_lowercase();
-    
+
     // Common party name patterns (order matters - more specific first)
     let party_patterns = [
         // Specific roles
@@ -402,19 +480,19 @@ fn extract_parties(description: &str) -> Vec<String> {
         ("eve", "Eve"),
         ("frank", "Frank"),
     ];
-    
+
     for (pattern, name) in party_patterns {
         if contains_party_pattern(&lower, pattern) && !parties.contains(&name.to_string()) {
             parties.push(name.to_string());
         }
     }
-    
+
     // If no parties found, use defaults
     if parties.is_empty() {
         parties.push("PartyA".to_string());
         parties.push("PartyB".to_string());
     }
-    
+
     parties
 }
 
@@ -434,12 +512,12 @@ fn is_party_boundary(ch: Option<char>) -> bool {
 pub fn map_nl_to_pattern(description: &str) -> NLMappingResult {
     let lower = description.to_lowercase();
     let patterns = get_pattern_keywords();
-    
+
     // Score each pattern based on keyword matches
     let mut best_pattern = ContractPattern::Unknown;
     let mut best_score = 0.0;
     let mut total_matches = 0;
-    
+
     for pk in &patterns {
         let mut score = 0.0;
         for keyword in &pk.keywords {
@@ -448,26 +526,26 @@ pub fn map_nl_to_pattern(description: &str) -> NLMappingResult {
                 total_matches += 1;
             }
         }
-        
+
         if score > best_score {
             best_score = score;
             best_pattern = pk.pattern.clone();
         }
     }
-    
+
     // Calculate confidence
     let confidence = if total_matches > 0 {
         (best_score / (total_matches as f64 * 0.5)).min(1.0)
     } else {
         0.0
     };
-    
+
     // Extract parties
     let parties = extract_parties(description);
-    
+
     // Generate model if pattern is known
     let model = generate_model(&best_pattern, &parties);
-    
+
     // Generate suggestions
     let suggestions = if best_pattern == ContractPattern::Unknown {
         vec![
@@ -476,13 +554,17 @@ pub fn map_nl_to_pattern(description: &str) -> NLMappingResult {
         ]
     } else if confidence < 0.5 {
         vec![
-            format!("Detected '{}' pattern with low confidence ({:.0}%).", best_pattern.name(), confidence * 100.0),
+            format!(
+                "Detected '{}' pattern with low confidence ({:.0}%).",
+                best_pattern.name(),
+                confidence * 100.0
+            ),
             "Consider adding more specific keywords to improve accuracy.".to_string(),
         ]
     } else {
         vec![]
     };
-    
+
     NLMappingResult {
         pattern: best_pattern,
         parties,
@@ -547,11 +629,21 @@ fn generate_model(pattern: &ContractPattern, parties: &[String]) -> Option<Model
             let client = parties.first().map(|s| s.as_str()).unwrap_or("Client");
             let contractor = parties.get(1).map(|s| s.as_str()).unwrap_or("Contractor");
             // Default milestones if not specified
-            Some(templates::milestone(client, contractor, &["Phase1", "Phase2", "Phase3"]))
+            Some(templates::milestone(
+                client,
+                contractor,
+                &["Phase1", "Phase2", "Phase3"],
+            ))
         }
         ContractPattern::TurnTaking => {
-            let party_a = parties.first().cloned().unwrap_or_else(|| "PartyA".to_string());
-            let party_b = parties.get(1).cloned().unwrap_or_else(|| "PartyB".to_string());
+            let party_a = parties
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "PartyA".to_string());
+            let party_b = parties
+                .get(1)
+                .cloned()
+                .unwrap_or_else(|| "PartyB".to_string());
             let pattern = synthesis::RulePattern::Alternating {
                 parties: vec![party_a, party_b],
             };
@@ -568,7 +660,7 @@ fn generate_model(pattern: &ContractPattern, parties: &[String]) -> Option<Model
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_escrow_detection() {
         let result = map_nl_to_pattern("I want an escrow contract where buyer deposits funds");
@@ -576,35 +668,36 @@ mod tests {
         assert!(result.confidence > 0.3);
         assert!(result.model.is_some());
     }
-    
+
     #[test]
     fn test_handshake_detection() {
         let result = map_nl_to_pattern("Both parties must sign to activate the agreement");
         assert_eq!(result.pattern, ContractPattern::Handshake);
         assert!(result.model.is_some());
     }
-    
+
     #[test]
     fn test_delegation_detection() {
-        let result = map_nl_to_pattern("Principal delegates authority to agent to act on their behalf");
+        let result =
+            map_nl_to_pattern("Principal delegates authority to agent to act on their behalf");
         assert_eq!(result.pattern, ContractPattern::Delegation);
         assert!(result.parties.contains(&"Principal".to_string()));
         assert!(result.parties.contains(&"Agent".to_string()));
     }
-    
+
     #[test]
     fn test_auction_detection() {
         let result = map_nl_to_pattern("Seller lists item, bidders can bid, highest bidder wins");
         assert_eq!(result.pattern, ContractPattern::Auction);
         assert!(result.parties.contains(&"Seller".to_string()));
     }
-    
+
     #[test]
     fn test_subscription_detection() {
         let result = map_nl_to_pattern("Monthly subscription that can be renewed or cancelled");
         assert_eq!(result.pattern, ContractPattern::Subscription);
     }
-    
+
     #[test]
     fn test_milestone_detection() {
         let result = map_nl_to_pattern("Project with milestone payments at each phase");
@@ -632,14 +725,14 @@ mod tests {
         assert!(result.parties.contains(&"Bob".to_string()));
         assert!(result.model.is_some());
     }
-    
+
     #[test]
     fn test_party_extraction() {
         let result = map_nl_to_pattern("Alice and Bob want to cooperate without defection");
         assert!(result.parties.contains(&"Alice".to_string()));
         assert!(result.parties.contains(&"Bob".to_string()));
     }
-    
+
     #[test]
     fn test_unknown_pattern() {
         let result = map_nl_to_pattern("Something completely unrelated to contracts");
@@ -647,7 +740,7 @@ mod tests {
         assert!(result.model.is_none());
         assert!(!result.suggestions.is_empty());
     }
-    
+
     #[test]
     fn test_extended_party_names() {
         let result = map_nl_to_pattern("Customer wants to pay merchant for goods");
@@ -779,8 +872,9 @@ mod tests {
 
     #[test]
     fn test_education_party_roles() {
-        let result =
-            map_nl_to_pattern("Student submits assignment after instructor and institution approve enrollment");
+        let result = map_nl_to_pattern(
+            "Student submits assignment after instructor and institution approve enrollment",
+        );
         assert!(result.parties.contains(&"Student".to_string()));
         assert!(result.parties.contains(&"Instructor".to_string()));
         assert!(result.parties.contains(&"Institution".to_string()));
@@ -788,8 +882,9 @@ mod tests {
 
     #[test]
     fn test_travel_party_roles() {
-        let result =
-            map_nl_to_pattern("Traveler books stay after guest, host, and travel agent confirm itinerary");
+        let result = map_nl_to_pattern(
+            "Traveler books stay after guest, host, and travel agent confirm itinerary",
+        );
         assert!(result.parties.contains(&"Traveler".to_string()));
         assert!(result.parties.contains(&"Guest".to_string()));
         assert!(result.parties.contains(&"Host".to_string()));
@@ -798,8 +893,9 @@ mod tests {
 
     #[test]
     fn test_energy_party_roles() {
-        let result =
-            map_nl_to_pattern("Grid operator dispatches power after utility, generator, and offtaker agree");
+        let result = map_nl_to_pattern(
+            "Grid operator dispatches power after utility, generator, and offtaker agree",
+        );
         assert!(result.parties.contains(&"GridOperator".to_string()));
         assert!(result.parties.contains(&"Utility".to_string()));
         assert!(result.parties.contains(&"Generator".to_string()));
@@ -959,7 +1055,9 @@ mod tests {
         );
         assert!(result.parties.contains(&"PermitHolder".to_string()));
         assert!(result.parties.contains(&"EnvironmentalAgency".to_string()));
-        assert!(result.parties.contains(&"RemediationContractor".to_string()));
+        assert!(result
+            .parties
+            .contains(&"RemediationContractor".to_string()));
         assert!(result.parties.contains(&"MonitoringLab".to_string()));
     }
 
@@ -1162,7 +1260,8 @@ mod tests {
 
     #[test]
     fn test_verification_party_roles() {
-        let result = map_nl_to_pattern("Oracle and reviewer verify delivery before arbiter approval");
+        let result =
+            map_nl_to_pattern("Oracle and reviewer verify delivery before arbiter approval");
         assert!(result.parties.contains(&"Oracle".to_string()));
         assert!(result.parties.contains(&"Reviewer".to_string()));
         assert!(result.parties.contains(&"Arbiter".to_string()));

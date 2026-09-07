@@ -5,6 +5,12 @@ use std::process::{Command, Stdio};
 use crate::config::{AiConfig, Provider};
 use crate::providers;
 
+/// Checked-in formula cookbook. Used when `docs/language/formula-cookbook.md` is not on disk.
+pub const EMBEDDED_FORMULA_COOKBOOK: &str =
+    include_str!("../../../docs/language/formula-cookbook.md");
+
+const COOKBOOK_FILE: &str = "formula-cookbook.md";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SuggestPrintMode {
     Print,
@@ -27,9 +33,10 @@ pub async fn suggest(
     identity_paths: &[String],
     print_mode: SuggestPrintMode,
 ) -> Result<String> {
+    let cookbook = resolve_cookbook(contract_dir);
     let invocation = invocation(
         config,
-        &build_prompt(requirement, identity_paths),
+        &build_prompt(requirement, identity_paths, cookbook.is_some()),
         api_key,
         contract_dir,
         print_mode,
@@ -76,6 +83,12 @@ pub(crate) fn invocation(
     }
     args.push("--workspace".to_string());
     args.push(cwd.to_string_lossy().into_owned());
+    if let Some(cookbook) = resolve_cookbook(contract_dir) {
+        if let Some(language_dir) = cookbook.parent() {
+            args.push("--add-dir".to_string());
+            args.push(language_dir.to_string_lossy().into_owned());
+        }
+    }
     args.push("--mode".to_string());
     args.push("ask".to_string());
     let model = config.model()?;
@@ -97,12 +110,23 @@ pub(crate) fn invocation(
     })
 }
 
-pub fn build_prompt(requirement: &str, identity_paths: &[String]) -> String {
+pub fn build_prompt(
+    requirement: &str,
+    identity_paths: &[String],
+    cookbook_on_disk: bool,
+) -> String {
     let mut out = String::from(
         "You are in a Modality contract directory. Read state/, rules/, and model/ as needed.\n\n",
     );
-    out.push_str(providers::SUGGEST_RULE_INSTRUCTIONS);
-    out.push_str("\n\nRequirement:\n");
+    out.push_str(
+        "Read formula-cookbook.md first. Do not search rust/, experiments/, or node_modules.\n\n",
+    );
+    if !cookbook_on_disk {
+        out.push_str("Formula cookbook:\n\n");
+        out.push_str(EMBEDDED_FORMULA_COOKBOOK);
+        out.push_str("\n\n");
+    }
+    out.push_str("Requirement:\n");
     out.push_str(requirement.trim());
     if !identity_paths.is_empty() {
         out.push_str("\n\nKnown identity paths in this contract:\n");
@@ -114,6 +138,58 @@ pub fn build_prompt(requirement: &str, identity_paths: &[String]) -> String {
     }
     out.push_str("\nWhen you have the answer, put the formula alone on the last line.\n");
     out
+}
+
+pub fn resolve_cookbook(contract_dir: Option<&Path>) -> Option<PathBuf> {
+    if let Ok(docs) = std::env::var("MODALITY_DOCS") {
+        let trimmed = docs.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        return cookbook_from_docs_hint(&PathBuf::from(trimmed));
+    }
+    if let Some(found) = contract_dir
+        .map(Path::to_path_buf)
+        .or_else(|| std::env::current_dir().ok())
+        .and_then(|start| walk_up_for_cookbook(&start))
+    {
+        return Some(found);
+    }
+    walk_up_for_cookbook(Path::new(env!("CARGO_MANIFEST_DIR")))
+}
+
+fn cookbook_from_docs_hint(hint: &Path) -> Option<PathBuf> {
+    if hint.is_file() {
+        let is_cookbook = hint
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name == COOKBOOK_FILE);
+        return is_cookbook.then(|| hint.to_path_buf());
+    }
+    [
+        hint.join(COOKBOOK_FILE),
+        hint.join("language").join(COOKBOOK_FILE),
+        hint.join("docs").join("language").join(COOKBOOK_FILE),
+    ]
+    .into_iter()
+    .find(|path| path.is_file())
+}
+
+fn walk_up_for_cookbook(start: &Path) -> Option<PathBuf> {
+    let mut dir = if start.is_dir() {
+        start.to_path_buf()
+    } else {
+        start.parent()?.to_path_buf()
+    };
+    loop {
+        let candidate = dir.join("docs").join("language").join(COOKBOOK_FILE);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        if !dir.pop() {
+            return None;
+        }
+    }
 }
 
 pub fn resolve_bin() -> Result<PathBuf> {

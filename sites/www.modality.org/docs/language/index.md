@@ -19,6 +19,8 @@ This document covers the complete syntax for Modality's model and rule definitio
 
 ## Quick Links
 
+- [Formula Cookbook](./formula-cookbook) — NL → one rule formula (read this first)
+- [Model Cookbook](./model-cookbook) — Witness LTS recipes
 - [Model Syntax](./model-syntax) — Define labeled transition systems
 - [Rule Syntax](./rule-syntax) — Define temporal constraints
 - [Predicates](./predicates) — Cryptographic conditions

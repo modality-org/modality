@@ -1,0 +1,14 @@
+---
+description: When writing or suggesting Modality formulas and witness models, use the language cookbooks instead of compiler sources.
+alwaysApply: true
+---
+
+# Modality language (for agents)
+
+When writing or suggesting Modality **rule formulas** or **witness models**:
+
+1. Read `docs/language/formula-cookbook.md` and `docs/language/model-cookbook.md` first.
+2. Do not mine `rust/modality-lang/src/llm_synthesis.rs`, synthesizer tests, or other `rust/` sources for examples.
+3. Do not invent action names such as `+SIGN` or `+ALICE_TURN` unless the user named an action.
+
+Prefer identity paths from the contract (`/parties/alice.id`, `/parties/bob.id`) when those names appear.

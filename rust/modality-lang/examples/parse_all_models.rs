@@ -6,7 +6,8 @@ fn main() -> Result<(), String> {
         .map_err(|e| format!("Failed to read file: {}", e))?;
 
     // Parse each model manually
-    let lines: Vec<&str> = content.lines()
+    let lines: Vec<&str> = content
+        .lines()
         .map(|line| line.trim())
         .filter(|line| !line.is_empty() && !line.starts_with("//"))
         .collect();
@@ -27,7 +28,7 @@ fn main() -> Result<(), String> {
 
             println!("Model name: {}", model.name);
             println!("Number of parts: {}", model.parts.len());
-            
+
             for (part_idx, part) in model.parts.iter().enumerate() {
                 println!("  Part {}: {}", part_idx + 1, part.name);
                 println!("    Transitions: {}", part.transitions.len());
@@ -60,7 +61,10 @@ fn main() -> Result<(), String> {
 }
 
 // Helper function to parse a single model
-fn parse_single_model(lines: &[&str], start: usize) -> Result<(modality_lang::Model, usize), String> {
+fn parse_single_model(
+    lines: &[&str],
+    start: usize,
+) -> Result<(modality_lang::Model, usize), String> {
     if start >= lines.len() {
         return Err("Unexpected end of file".to_string());
     }
@@ -94,7 +98,10 @@ fn parse_single_model(lines: &[&str], start: usize) -> Result<(modality_lang::Mo
 }
 
 // Helper function to parse a single graph
-fn parse_single_graph(lines: &[&str], start: usize) -> Result<(modality_lang::Part, usize), String> {
+fn parse_single_graph(
+    lines: &[&str],
+    start: usize,
+) -> Result<(modality_lang::Part, usize), String> {
     if start >= lines.len() {
         return Err("Unexpected end of file".to_string());
     }
@@ -139,7 +146,10 @@ fn parse_single_transition(line: &str) -> Result<modality_lang::Transition, Stri
     if to_and_props.contains(':') {
         let colon_parts: Vec<&str> = to_and_props.split(':').collect();
         if colon_parts.len() != 2 {
-            return Err(format!("Invalid transition format (invalid colon): {}", line));
+            return Err(format!(
+                "Invalid transition format (invalid colon): {}",
+                line
+            ));
         }
 
         let to = colon_parts[0].trim();
@@ -157,7 +167,10 @@ fn parse_single_transition(line: &str) -> Result<modality_lang::Transition, Stri
         Ok(transition)
     } else {
         let to = to_and_props;
-        Ok(modality_lang::Transition::new(from.to_string(), to.to_string()))
+        Ok(modality_lang::Transition::new(
+            from.to_string(),
+            to.to_string(),
+        ))
     }
 }
 
@@ -191,4 +204,4 @@ fn parse_single_property(prop_str: &str) -> Result<modality_lang::Property, Stri
     }
 
     Ok(modality_lang::Property::new(sign, name))
-} 
+}

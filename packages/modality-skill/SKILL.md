@@ -47,6 +47,8 @@ export default rule {
 }
 ```
 
+For natural-language → formula encodings (OR signers, alternating turns, `[]` vs `always`), read [docs/language/formula-cookbook.md](../../docs/language/formula-cookbook.md). For witness models, read [docs/language/model-cookbook.md](../../docs/language/model-cookbook.md). Do not search `rust/` for examples.
+
 Commit: `modal c commit --all --sign buyer.passfile`
 
 ## Contract Patterns

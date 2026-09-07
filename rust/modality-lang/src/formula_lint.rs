@@ -686,4 +686,46 @@ export default rule {
             results[0].1
         );
     }
+
+    #[test]
+    fn lints_formula_cookbook_or_signers_rule() {
+        let content = r#"
+export default rule {
+  starting_at $PARENT
+  formula {
+    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+  }
+}
+"#;
+        let results = lint_formulas_in_content(content, &FormulaLintOptions::default()).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(
+            results[0].1.is_empty(),
+            "formula cookbook OR-signers rule should be lint-clean: {:?}",
+            results[0].1
+        );
+    }
+
+    #[test]
+    fn lints_formula_cookbook_alternating_turns_rule() {
+        let content = r#"
+export default rule {
+  starting_at $PARENT
+  formula {
+    [] always(
+      ([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+      & ([+signed_by(/parties/alice.id)] [-signed_by(/parties/bob.id)] false)
+      & ([+signed_by(/parties/bob.id)] [-signed_by(/parties/alice.id)] false)
+    )
+  }
+}
+"#;
+        let results = lint_formulas_in_content(content, &FormulaLintOptions::default()).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(
+            results[0].1.is_empty(),
+            "formula cookbook alternating-turns rule should be lint-clean: {:?}",
+            results[0].1
+        );
+    }
 }

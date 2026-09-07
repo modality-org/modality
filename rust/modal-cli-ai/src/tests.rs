@@ -119,6 +119,7 @@ fn with_isolated_home<T>(f: impl FnOnce(&TempDir) -> T) -> T {
         "AWS_DEFAULT_REGION",
         "CURSOR_API_KEY",
         "MODAL_AI_CURSOR_AGENT",
+        "MODALITY_DOCS",
     ]);
     for key in [
         "MODAL_AI_API_KEY",
@@ -132,11 +133,14 @@ fn with_isolated_home<T>(f: impl FnOnce(&TempDir) -> T) -> T {
         "AWS_DEFAULT_REGION",
         "CURSOR_API_KEY",
         "MODAL_AI_CURSOR_AGENT",
+        "MODALITY_DOCS",
     ] {
         std::env::remove_var(key);
     }
     let home = TempDir::new().expect("tempdir");
     std::env::set_var("MODALITY_HOME", home.path());
+    // Isolate cursor-agent from this checkout's docs/language/formula-cookbook.md.
+    std::env::set_var("MODALITY_DOCS", home.path());
     f(&home)
 }
 
@@ -516,6 +520,7 @@ fn cursor_agent_print_invocation_trusts_workspace_and_skips_auto_model() {
             std::path::PathBuf::from(workspace),
             home.path().canonicalize().unwrap()
         );
+        assert!(!inv.args.contains(&"--add-dir".to_string()));
     });
 }
 
@@ -539,6 +544,7 @@ fn cursor_agent_interactive_invocation_omits_print_flags() {
         assert!(!inv.args.contains(&"-p".to_string()));
         assert!(!inv.args.contains(&"--trust".to_string()));
         assert!(inv.args.contains(&"--workspace".to_string()));
+        assert!(!inv.args.contains(&"--add-dir".to_string()));
     });
 }
 
@@ -562,5 +568,94 @@ fn cursor_agent_print_mode_extracts_formula() {
         ))
         .expect("suggest");
         assert_eq!(formula, FORMULA);
+    });
+}
+
+#[test]
+fn cursor_agent_prompt_embeds_cookbook_when_file_missing() {
+    let prompt = crate::cursor_agent::build_prompt(
+        "after this commit either alice or bob must sign in alternating turns",
+        &["/parties/alice.id".to_string()],
+        false,
+    );
+    assert!(prompt.contains("Read formula-cookbook.md first"));
+    assert!(prompt.contains("Do not search rust/, experiments/, or node_modules"));
+    assert!(prompt.contains("Formula cookbook:"));
+    assert!(prompt.contains(crate::cursor_agent::EMBEDDED_FORMULA_COOKBOOK));
+    assert!(prompt.contains(
+        "[] always(([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/alice.id)] [-signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/bob.id)] [-signed_by(/parties/alice.id)] false))"
+    ));
+    assert!(prompt.contains("/parties/alice.id"));
+}
+
+#[test]
+fn cursor_agent_prompt_skips_embed_when_cookbook_on_disk() {
+    let prompt = crate::cursor_agent::build_prompt("after this commit", &[], true);
+    assert!(prompt.contains("Read formula-cookbook.md first"));
+    assert!(prompt.contains("Do not search rust/, experiments/, or node_modules"));
+    assert!(!prompt.contains("Formula cookbook:"));
+    assert!(!prompt.contains("Do not invent names such as `+SIGN`"));
+}
+
+#[test]
+fn cursor_agent_invocation_adds_docs_language_dir() {
+    with_isolated_home(|home| {
+        std::env::set_var("MODAL_AI_CURSOR_AGENT", home.path().join("fake-agent"));
+        let language = home.path().join("docs").join("language");
+        std::fs::create_dir_all(&language).unwrap();
+        std::fs::write(language.join("formula-cookbook.md"), "# cookbook\n").unwrap();
+        std::env::set_var("MODALITY_DOCS", &language);
+
+        let config = AiConfig {
+            provider: Some(Provider::CursorAgent),
+            ..Default::default()
+        };
+        let inv = crate::cursor_agent::invocation(
+            &config,
+            "after this commit",
+            None,
+            Some(home.path()),
+            crate::cursor_agent::SuggestPrintMode::Print,
+        )
+        .expect("invocation");
+        let add_dir = inv
+            .args
+            .windows(2)
+            .find(|pair| pair[0] == "--add-dir")
+            .map(|pair| pair[1].clone())
+            .expect("add-dir");
+        assert_eq!(std::path::PathBuf::from(add_dir), language);
+    });
+}
+
+#[test]
+fn cursor_agent_invocation_adds_checkout_docs_when_modality_docs_unset() {
+    with_isolated_home(|home| {
+        std::env::remove_var("MODALITY_DOCS");
+        std::env::set_var("MODAL_AI_CURSOR_AGENT", home.path().join("fake-agent"));
+        let config = AiConfig {
+            provider: Some(Provider::CursorAgent),
+            ..Default::default()
+        };
+        let inv = crate::cursor_agent::invocation(
+            &config,
+            "after this commit",
+            None,
+            Some(home.path()),
+            crate::cursor_agent::SuggestPrintMode::Print,
+        )
+        .expect("invocation");
+        let add_dir = inv
+            .args
+            .windows(2)
+            .find(|pair| pair[0] == "--add-dir")
+            .map(|pair| pair[1].clone())
+            .expect("add-dir from CARGO_MANIFEST_DIR");
+        let cookbook = std::path::PathBuf::from(&add_dir).join("formula-cookbook.md");
+        assert!(
+            cookbook.is_file(),
+            "expected checkout cookbook at {}",
+            cookbook.display()
+        );
     });
 }

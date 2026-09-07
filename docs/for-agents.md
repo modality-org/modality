@@ -43,6 +43,14 @@ my-contract/
 
 When you add a rule, you provide a model that **proves** all rules can be satisfied. No valid model = commit rejected.
 
+## Writing Modality
+
+When writing rules or witness models, read these first. **Do not search `rust/`
+for examples.**
+
+- [Formula cookbook](/docs/language/formula-cookbook) — natural language → one formula
+- [Model cookbook](/docs/language/model-cookbook) — witness labeled transition systems
+
 ---
 
 ## Quick Example: Escrow
@@ -210,6 +218,8 @@ This prevents:
 ## Get Started
 
 - **[Getting Started Guide](/docs/getting-started)** — Install and create your first contract
+- **[Formula cookbook](/docs/language/formula-cookbook)** — Write a rule formula
+- **[Model cookbook](/docs/language/model-cookbook)** — Write a witness model
 - **[Core Concepts](/docs/concepts)** — Understand the theory
 - **[Tutorials](/docs/tutorials/multi-party-contract)** — Step-by-step examples
 - **[GitHub](https://github.com/modality-org/modality)** — Source code
