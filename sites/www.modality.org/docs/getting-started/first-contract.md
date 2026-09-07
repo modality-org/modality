@@ -7,8 +7,8 @@ title: Your First Contract
 
 Let's make a tiny local contract together. You'll create Alice and Bob, put
 them on the contract, and add a rule so later commits have to be signed by one
-of them. If you don't know Modality syntax yet, `modal c ai suggest-rule` can
-write the rule for you.
+of them. If you don't know Modality syntax yet, `modal ai suggest-rule` can
+write the rule for you after you point Modal at [your choice of AI](/docs/cli/ai-commands).
 
 If you only have a `modality` command so far, install `modal` from the
 [installation guide](./installation.md) first.
@@ -33,7 +33,7 @@ Next steps:
   1. cd ./my-first-contract
   2. Edit model/default.modality to define your state machine
   3. Add rules in rules/*.modality
-  4. modal c commit --all --sign your.modal_passfile
+  4. modal commit --all --sign your.modal_passfile
 ```
 
 That created `./my-first-contract` with a `.contract/` directory and a starter
@@ -78,7 +78,7 @@ Now put Alice and Bob on the contract so the rule can name them.
 
 ```bash
 cd my-first-contract
-modal c checkout
+modal checkout
 ```
 
 ```output
@@ -86,7 +86,7 @@ modal c checkout
 ```
 
 ```bash
-modal c set-named-id /parties/alice.id example/alice
+modal set-named-id /parties/alice.id example/alice
 ```
 
 ```output
@@ -95,7 +95,7 @@ modal c set-named-id /parties/alice.id example/alice
 ```
 
 ```bash
-modal c set-named-id /parties/bob.id example/bob
+modal set-named-id /parties/bob.id example/bob
 ```
 
 ```output
@@ -104,7 +104,7 @@ modal c set-named-id /parties/bob.id example/bob
 ```
 
 ```bash
-modal c status
+modal status
 ```
 
 ```output
@@ -122,13 +122,13 @@ Contract Status
   Total commits: 1
   ℹ️  No remote tracking configured.
 
-  Run 'modal contract push --remote <url>' to set up remote.
+  Run 'modal push --remote <url>' to set up remote.
 
 Changes in state/:
   + /parties/alice.id
   + /parties/bob.id
 
-  Run 'modal c commit --all' to commit changes.
+  Run 'modal commit --all' to commit changes.
 ```
 
 Their public identities are in the working state, ready to commit.
@@ -139,20 +139,24 @@ Here's the heart of it: every commit after this one must be signed by either Ali
 Bob. You still get one bootstrap commit that installs their identities and the
 first model. After that, unsigned updates are refused.
 
-You don't need to know Modality syntax yet. Ask the CLI to suggest a rule:
+You don't need to know Modality syntax yet. Point Modal at your choice of AI
+first — OpenAI, Anthropic, Grok, AWS Bedrock, or a local Ollama model. See
+[AI Commands](/docs/cli/ai-commands) for `modal ai set`. Then ask the CLI to
+suggest a rule:
 
 ```bash
-modal c ai suggest-rule "after this commit either alice or bob must sign"
+modal ai suggest-rule "after this commit either alice or bob must sign"
 ```
 
 ```output
 [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
 ```
 
-Then add that formula to the contract:
+That's example output — yours may differ. The rest of this guide uses the
+authorized formula below so lint and synthesize stay deterministic:
 
 ```bash
-modal c add-rule --name authorized \
+modal add-rule --name authorized \
   '[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)'
 ```
 
@@ -166,7 +170,7 @@ export default rule {
   }
 }
 
-Run 'modal c commit --all' to commit this rule.
+Run 'modal commit --all' to commit this rule.
 ```
 
 The `[]` prefix is why the bootstrap still works. Plain `always(...)` would
@@ -174,7 +178,7 @@ constrain the current step too. `[] always(...)` skips that first commit so
 Alice can install identities and the model, then every later step has to be
 signed.
 
-## 5. Synthesize the Witness Model
+## 5. Synthesize a Witness Model
 
 Before you commit, turn the rule into a witness model — a small state machine
 that shows the rule is possible. For now, review the synthesized candidate
@@ -272,12 +276,15 @@ your default browser.
 commit that installs identities and the first model. After that, only signed
 `POST` and `MODEL` moves are allowed.
 
+You may have noticed something off about the witness model. We'll come back
+to that.
+
 ## 6. Commit and Verify
 
 Alice signs the first real commit: identities, the rule, and the witness model.
 
 ```bash
-modal c commit --all --sign example/alice -m "Initial contract setup"
+modal commit --all --sign example/alice -m "Initial contract setup"
 ```
 
 ```output
@@ -287,12 +294,12 @@ modal c commit --all --sign example/alice -m "Initial contract setup"
    Parent: 436d6c47…
 
 Next steps:
-  - modal contract status  (view status)
-  - modal contract push    (push to chain)
+  - modal status  (view status)
+  - modal push    (push to chain)
 ```
 
 ```bash
-modal c status
+modal status
 ```
 
 ```output
@@ -314,7 +321,7 @@ Contract Status
 ```
 
 ```bash
-modal c log
+modal log
 ```
 
 ```output
@@ -345,7 +352,7 @@ files stay put — a rejected commit does not alter those accepted artifacts.
 Let's prove it. First, a normal signed update from Alice:
 
 ```bash
-modal c commit \
+modal commit \
   --path /notes.text \
   --value "signed update" \
   --sign example/alice \
@@ -359,12 +366,12 @@ modal c commit \
    Parent: 8f1c2a9b…
 
 Next steps:
-  - modal contract status  (view status)
-  - modal contract push    (push to chain)
+  - modal status  (view status)
+  - modal push    (push to chain)
 ```
 
 ```bash
-modal c status
+modal status
 ```
 
 ```output
@@ -373,7 +380,7 @@ modal c status
 ```
 
 ```bash
-modal c log
+modal log
 ```
 
 ```output
@@ -386,7 +393,7 @@ Signers:
 That should go through. Now try the same kind of update without a signature:
 
 ```bash
-modal c commit \
+modal commit \
   --path /unsigned.text \
   --value "unsigned update" \
   -m "Unsigned update"
@@ -403,7 +410,7 @@ That's the rule doing its job from `rules/authorized.modality`. The unsigned
 commit never landed.
 
 ```bash
-modal c status
+modal status
 ```
 
 ```output
@@ -412,7 +419,7 @@ modal c status
 ```
 
 ```bash
-modal c log
+modal log
 ```
 
 ```output
@@ -425,7 +432,7 @@ snuck in.
 Replay the working files and check that Alice's note is still there:
 
 ```bash
-modal c checkout
+modal checkout
 cat state/notes.text
 ```
 
@@ -451,8 +458,119 @@ The accepted `rules/authorized.modality`, `model/default.modality`, and
 `review/authorized.md` files should also be unchanged. That's the contract
 holding its shape.
 
+## 8. Let Bob Replace the Witness
+
+That something off from step 5: Bob can `POST`, but only Alice can `MODEL`.
+The synthesizer found one machine that satisfies the rule, not every move the
+rule allows.
+
+Ask Bob to replace the current witness with itself. The rule should be fine
+with his signature. The witness is what gets in the way:
+
+```bash
+modal commit \
+  --method model \
+  --path /model/default.modality \
+  --value "$(cat model/default.modality)" \
+  --sign example/bob \
+  -m "Bob tries to replace the witness"
+```
+
+```output
+Error: No valid transition for local commit from current states {"q1"}
+Closest candidate transition: candidate from current state q1: q1 --> q1 [+POST +signed_by(/parties/bob.id)]; failed predicates: missing +POST
+Candidate transitions ranked by predicate distance:
+candidate from current state q1: q1 --> q1 [+POST +signed_by(/parties/bob.id)]; failed predicates: missing +POST
+candidate from current state q1: q1 --> q1 [+MODEL +signed_by(/parties/alice.id)]; failed predicates: missing +signed_by(/parties/alice.id)
+```
+
+The closest door Bob has is a `POST` door. Alice's `MODEL` arrow is in the
+list, but it wants Alice's signature. The rule itself does let him. It only
+says later commits must be signed by Alice or Bob:
+
+```
+[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+```
+
+It does not care whether the commit is a `POST` or a `MODEL`. Add Bob's missing
+`MODEL` arrow to `model/default.modality`:
+
+```bash
+cat > model/default.modality <<'EOF'
+model Contract {
+  part flow {
+    q0 --> q1: +POST +MODEL
+    q1 --> q1: +POST +signed_by(/parties/alice.id)
+    q1 --> q1: +POST +signed_by(/parties/bob.id)
+    q1 --> q1: +MODEL +signed_by(/parties/alice.id)
+    q1 --> q1: +MODEL +signed_by(/parties/bob.id)
+  }
+}
+EOF
+```
+
+```bash
+modality model validate model/default.modality --verbose
+```
+
+```output
+📋 Model: Contract
+   Parts: 1
+   Transitions: 5
+
+✅ Contract is valid!
+```
+
+The same witness as a state diagram, now with Bob's `MODEL` move:
+
+```mermaid
+stateDiagram-v2
+    q0 --> q1 : +POST +MODEL
+    q1 --> q1 : "+POST +signed_by(/parties/alice.id)"
+    q1 --> q1 : "+POST +signed_by(/parties/bob.id)"
+    q1 --> q1 : "+MODEL +signed_by(/parties/alice.id)"
+    q1 --> q1 : "+MODEL +signed_by(/parties/bob.id)"
+```
+
+```bash
+modal commit --all --sign example/bob -m "Let Bob replace the witness"
+```
+
+```output
+✅ Commit created successfully!
+   Contract ID: 12D3KooW…
+   Commit ID: a91e4c22…
+   Parent: c3e91d04…
+```
+
+```bash
+modal status
+```
+
+```output
+  Model state: q1
+  Total commits: 4
+```
+
+```bash
+modal log
+```
+
+```output
+Message: Let Bob replace the witness
+Signatures: 1
+Actions:
+  model /model/default.modality
+```
+
+That replacement landed because the candidate model can replay the accepted
+history, still satisfies the rule, and now has a `+MODEL` move Bob can take.
+The old witness was a proof that the rule is possible, not a lock that only
+Alice may change the machine. The rule stayed put. Bob replaced the witness.
+
 ## What's Next?
 
 - [Core Concepts](/docs/concepts) — How models, rules, and predicates fit together
 - [CLI Reference](/docs/cli) — The rest of the commands
+- [AI Commands](/docs/cli/ai-commands) — Point `modal ai suggest-rule` at your choice of provider
 - [Language Reference](/docs/language) — Model and rule syntax in more depth

@@ -22,9 +22,11 @@ pub struct Opts {
 }
 
 pub async fn run(opts: &Opts) -> Result<()> {
+    let source = std::fs::read_to_string(&opts.input)
+        .with_context(|| format!("Failed to read {}", opts.input))?;
     let model = crate::cmds::mermaid::load_named_model(&opts.input, opts.model.as_deref())?;
     let mermaid = modality_lang::generate_mermaid_diagram(&model);
-    let html = render_html(&model.name, &opts.input, &mermaid);
+    let html = render_html(&model.name, &opts.input, &source, &mermaid);
     let path = temp_html_path(&model.name)?;
     std::fs::write(&path, html)
         .with_context(|| format!("Failed to write {}", path.display()))?;
@@ -94,11 +96,12 @@ fn open_in_default_browser(path: &Path) -> Result<()> {
     }
 }
 
-fn render_html(title: &str, source_path: &str, mermaid: &str) -> String {
+fn render_html(title: &str, source_path: &str, modality: &str, mermaid: &str) -> String {
     include_str!("view.html")
         .replace("{{TITLE}}", &html_escape(title))
         .replace("{{SOURCE_PATH}}", &html_escape(source_path))
         .replace("{{MERMAID_JS}}", MERMAID_JS)
+        .replace("{{MODALITY}}", &html_escape(modality))
         .replace("{{MERMAID}}", &html_escape(mermaid))
 }
 
@@ -123,13 +126,17 @@ mod tests {
 
     #[test]
     fn html_includes_renderer_and_witness_labels() {
-        let mermaid = "stateDiagram-v2\n    q0 --> q1 : +POST +MODEL\n    q1 --> q1 : \"+POST +signed_by(/parties/alice.id)\"";
-        let html = render_html("Contract", "model/default.modality", mermaid);
+        let modality = "model Contract {\n  part flow {\n    q0 --> q1: +POST\n  }\n}\n";
+        let mermaid = "stateDiagram-v2\n    q0 --> q1 : +POST\n    q1 --> q1 : \"+POST +signed_by(/parties/alice.id)\"";
+        let html = render_html("Contract", "model/default.modality", modality, mermaid);
         assert!(html.contains(MERMAID_JS));
         assert!(html.contains("Contract"));
         assert!(html.contains("model/default.modality"));
         assert!(html.contains("stateDiagram-v2"));
-        assert!(html.contains("q0 --&gt; q1 : +POST +MODEL"));
+        assert!(html.contains("q0 --&gt; q1 : +POST"));
+        assert!(html.contains("q0 --&gt; q1: +POST"));
+        assert!(!html.contains("+MODEL"));
+        assert!(html.contains("part flow"));
         assert!(html.contains("+signed_by(/parties/alice.id)"));
         assert!(html.contains("mermaid.initialize"));
     }

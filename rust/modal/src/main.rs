@@ -1,5 +1,7 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::error::ErrorKind;
+use clap::{CommandFactory, Parser, Subcommand};
+use std::ffi::OsString;
 
 const VERSION: &str = concat!(
     env!("CARGO_PKG_VERSION"),
@@ -68,36 +70,18 @@ enum Commands {
         command: ContractCommands,
     },
 
+    #[command(about = "AI provider configuration")]
+    Ai {
+        #[command(subcommand)]
+        command: modal_cli_ai::Commands,
+    },
+
     #[command(about = "Contract hub server commands")]
     #[cfg(feature = "full")]
     Hub {
         #[command(subcommand)]
         command: HubCommands,
     },
-
-    #[command(about = "Show status (contract status if in contract directory)")]
-    Status(modal_cli_contract::status::Opts),
-
-    #[command(about = "Pull commits (shortcut for modal contract pull)")]
-    Pull(modal_cli_contract::pull::Opts),
-
-    #[command(about = "Commit changes (shortcut for modal contract commit)")]
-    Commit(modal_cli_contract::commit::Opts),
-
-    #[command(about = "Show uncommitted changes (shortcut for modal contract diff)")]
-    Diff(modal_cli_contract::diff::Opts),
-
-    #[command(about = "Set a state file value (shortcut for modal contract set)")]
-    Set(modal_cli_contract::set::Opts),
-
-    #[command(about = "Repost state from another contract (shortcut for modal contract repost)")]
-    Repost(modal_cli_contract::repost::Opts),
-
-    #[command(name = "add-rule", about = "Add a rule to the contract")]
-    AddRule(modal_cli_contract::add_rule::Opts),
-
-    #[command(about = "Download a packed contract file")]
-    Download(modal_cli_contract::download::Opts),
 
     #[cfg(feature = "full")]
     #[command(about = "Run node shortcuts")]
@@ -387,9 +371,93 @@ enum ChainCommands {
     Heal(modal_cli_chain::heal::Opts),
 }
 
+fn next_subcommand_index(args: &[OsString], start: usize) -> Option<usize> {
+    let mut i = start;
+    while i < args.len() {
+        let arg = args[i].to_string_lossy();
+        if arg == "--" {
+            return (i + 1 < args.len()).then_some(i + 1);
+        }
+        if arg.starts_with('-') {
+            i += 1;
+            continue;
+        }
+        return Some(i);
+    }
+    None
+}
+
+fn first_subcommand_index(args: &[OsString]) -> Option<usize> {
+    next_subcommand_index(args, 1)
+}
+
+fn is_contract_top_level_alias(command: &clap::Command, name: &str) -> bool {
+    if command.find_subcommand(name).is_some() {
+        return false;
+    }
+    // `create` is already a nested verb (`id create`, `node create`, …).
+    // A bare `modal create` stays unclaimed.
+    if name == "create" {
+        return false;
+    }
+    command
+        .find_subcommand("contract")
+        .is_some_and(|contract| contract.find_subcommand(name).is_some())
+}
+
+fn is_contract_nested_alias(command: &clap::Command, group: &str, name: &str) -> bool {
+    let Some(top) = command.find_subcommand(group) else {
+        return false;
+    };
+    if top.find_subcommand(name).is_some() {
+        return false;
+    }
+    command
+        .find_subcommand("contract")
+        .and_then(|contract| contract.find_subcommand(group))
+        .is_some_and(|contract_group| contract_group.find_subcommand(name).is_some())
+}
+
+fn contract_alias_argv(args: &[OsString]) -> Option<Vec<OsString>> {
+    let idx = first_subcommand_index(args)?;
+    let name = args[idx].to_string_lossy();
+    let command = Cli::command();
+    let insert_c = if is_contract_top_level_alias(&command, name.as_ref()) {
+        true
+    } else {
+        let nested_idx = next_subcommand_index(args, idx + 1)?;
+        let nested = args[nested_idx].to_string_lossy();
+        is_contract_nested_alias(&command, name.as_ref(), nested.as_ref())
+    };
+    if !insert_c {
+        return None;
+    }
+    let mut rewritten = args.to_vec();
+    rewritten.insert(idx, OsString::from("c"));
+    Some(rewritten)
+}
+
+fn parse_cli_from<I, T>(args: I) -> Result<Cli, clap::Error>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<OsString> + Clone,
+{
+    let args: Vec<OsString> = args.into_iter().map(Into::into).collect();
+    match Cli::try_parse_from(&args) {
+        Ok(cli) => Ok(cli),
+        Err(err) if err.kind() == ErrorKind::InvalidSubcommand => {
+            match contract_alias_argv(&args) {
+                Some(rewritten) => Cli::try_parse_from(&rewritten),
+                None => Err(err),
+            }
+        }
+        Err(err) => Err(err),
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let cli = parse_cli_from(std::env::args_os()).unwrap_or_else(|err| err.exit());
     match &cli.command {
         Commands::Id { command } => match command {
             IdCommands::Create(opts) => modality::cmds::id::create::run(opts).await?,
@@ -468,6 +536,7 @@ async fn main() -> Result<()> {
             ContractCommands::Ai { command } => modal_cli_contract::ai::run(command).await?,
             ContractCommands::Download(opts) => modal_cli_contract::download::run(opts).await?,
         },
+        Commands::Ai { command } => modal_cli_ai::run(command).await?,
         #[cfg(feature = "full")]
         Commands::Hub { command } => match command {
             HubCommands::Start(opts) => modal_cli_hub::start::run(opts).await?,
@@ -497,26 +566,10 @@ async fn main() -> Result<()> {
             ChainCommands::Validate(opts) => modal_cli_chain::validate::run(opts).await?,
             ChainCommands::Heal(opts) => modal_cli_chain::heal::run(opts).await?,
         },
-        Commands::Pull(opts) => modal_cli_contract::pull::run(opts).await?,
-        Commands::Commit(opts) => modal_cli_contract::commit::run(opts).await?,
-        Commands::Diff(opts) => modal_cli_contract::diff::run(opts).await?,
-        Commands::Set(opts) => modal_cli_contract::set::run(opts).await?,
-        Commands::Repost(opts) => modal_cli_contract::repost::run(opts).await?,
-        Commands::AddRule(opts) => modal_cli_contract::add_rule::run(opts).await?,
-        Commands::Download(opts) => modal_cli_contract::download::run(opts).await?,
         #[cfg(feature = "full")]
         Commands::Killall(opts) => modal_cli_node::local::killall_nodes::run(opts).await?,
         #[cfg(feature = "full")]
         Commands::Upgrade(opts) => modality::cmds::upgrade::run(opts).await?,
-        Commands::Status(opts) => {
-            let dir = std::env::current_dir()?;
-            if modal_common::contract_store::ContractStore::open(&dir).is_ok() {
-                modal_cli_contract::status::run(opts).await?
-            } else {
-                println!("Not in a contract directory.");
-                println!("Run 'modal contract create' to create a new contract.");
-            }
-        }
     }
 
     Ok(())
@@ -541,9 +594,8 @@ mod tests {
         let expected_top_level = [
             "contract",
             "id",
-            "status",
-            "commit",
-            "set",
+            "passfile",
+            "ai",
             #[cfg(feature = "full")]
             "hub",
         ];
@@ -551,6 +603,13 @@ mod tests {
             assert!(
                 names.iter().any(|name| name == expected),
                 "modal --help should include `{expected}`; saw {names:?}"
+            );
+        }
+
+        for implicit_alias in ["status", "commit", "set", "create", "log"] {
+            assert!(
+                !names.iter().any(|name| name == implicit_alias),
+                "modal --help should omit implicit contract alias `{implicit_alias}`; saw {names:?}"
             );
         }
 
@@ -615,6 +674,123 @@ mod tests {
                 Ok(_) => panic!("help invocation should stop parsing with display-help: {args:?}"),
                 Err(err) => assert_eq!(err.kind(), ErrorKind::DisplayHelp, "{args:?}"),
             }
+        }
+    }
+
+    #[test]
+    fn unclaimed_contract_subcommands_are_aliased_at_top_level() {
+        let command = Cli::command();
+        let contract = command
+            .find_subcommand("contract")
+            .expect("modal should expose `contract`");
+
+        let mut aliased = 0usize;
+        for subcommand in contract.get_subcommands() {
+            let name = subcommand.get_name();
+            if !is_contract_top_level_alias(&command, name) {
+                continue;
+            }
+            aliased += 1;
+            match parse_cli_from(["modal", name, "--help"]) {
+                Ok(_) => panic!("help invocation should stop parsing with display-help: {name}"),
+                Err(err) => assert_eq!(err.kind(), ErrorKind::DisplayHelp, "{name}"),
+            }
+        }
+        assert!(
+            aliased > 0,
+            "expected unclaimed contract subcommands to alias at top level"
+        );
+    }
+
+    #[test]
+    fn claimed_top_level_commands_are_not_rewritten_to_contract() {
+        let id_help = match parse_cli_from(["modal", "id", "--help"]) {
+            Ok(_) => panic!("id --help should display top-level identity help"),
+            Err(err) => {
+                assert_eq!(err.kind(), ErrorKind::DisplayHelp);
+                err.to_string()
+            }
+        };
+        assert!(
+            id_help.contains("ID and key"),
+            "modal id --help should describe identity commands: {id_help}"
+        );
+        assert!(
+            !id_help.contains("Get the contract ID"),
+            "modal id --help should not be rewritten to contract id: {id_help}"
+        );
+
+        let ai_help = match parse_cli_from(["modal", "ai", "--help"]) {
+            Ok(_) => panic!("ai --help should display top-level AI provider help"),
+            Err(err) => {
+                assert_eq!(err.kind(), ErrorKind::DisplayHelp);
+                err.to_string()
+            }
+        };
+        assert!(
+            ai_help.contains("AI provider"),
+            "modal ai --help should describe AI provider commands: {ai_help}"
+        );
+        assert!(
+            !ai_help.contains("contract authoring"),
+            "modal ai --help should not be rewritten to contract ai: {ai_help}"
+        );
+    }
+
+    #[test]
+    fn unclaimed_nested_contract_subcommands_are_aliased() {
+        let command = Cli::command();
+        let contract = command
+            .find_subcommand("contract")
+            .expect("modal should expose `contract`");
+
+        let mut aliased = 0usize;
+        for group in contract.get_subcommands() {
+            let group_name = group.get_name();
+            if command.find_subcommand(group_name).is_none() {
+                continue;
+            }
+            for nested in group.get_subcommands() {
+                let nested_name = nested.get_name();
+                if !is_contract_nested_alias(&command, group_name, nested_name) {
+                    continue;
+                }
+                aliased += 1;
+                match parse_cli_from(["modal", group_name, nested_name, "--help"]) {
+                    Ok(_) => panic!(
+                        "help invocation should stop parsing with display-help: {group_name} {nested_name}"
+                    ),
+                    Err(err) => assert_eq!(
+                        err.kind(),
+                        ErrorKind::DisplayHelp,
+                        "{group_name} {nested_name}"
+                    ),
+                }
+            }
+        }
+        assert!(
+            aliased > 0,
+            "expected nested contract subcommands to alias under colliding top-level groups"
+        );
+    }
+
+    #[test]
+    fn unknown_top_level_command_is_not_rewritten() {
+        match parse_cli_from(["modal", "not-a-command"]) {
+            Ok(_) => panic!("unknown command should not parse"),
+            Err(err) => assert_eq!(err.kind(), ErrorKind::InvalidSubcommand),
+        }
+    }
+
+    #[test]
+    fn create_is_not_aliased_at_top_level() {
+        match parse_cli_from(["modal", "create"]) {
+            Ok(_) => panic!("modal create should not alias to contract create"),
+            Err(err) => assert_eq!(err.kind(), ErrorKind::InvalidSubcommand),
+        }
+        match parse_cli_from(["modal", "c", "create", "--help"]) {
+            Ok(_) => panic!("modal c create --help should display help"),
+            Err(err) => assert_eq!(err.kind(), ErrorKind::DisplayHelp),
         }
     }
 

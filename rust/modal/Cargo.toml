@@ -17,6 +17,7 @@ contract-onboarding = [
   "modality/passfile",
   "dep:modal-common",
   "dep:modal-cli-contract",
+  "dep:modal-cli-ai",
   "modal-cli-contract/model-status",
 ]
 full = [
@@ -37,6 +38,7 @@ modality = { path = "../modality", version = "0.1.7", optional = true }
 modal-common = { path = "../modal-common", version = "0.1.7", optional = true }
 modal-cli-node = { path = "../modal-cli-node", version = "0.1.0", optional = true }
 modal-cli-contract = { path = "../modal-cli-contract", version = "0.1.0", optional = true }
+modal-cli-ai = { path = "../modal-cli-ai", version = "0.1.0", optional = true }
 modal-cli-hub = { path = "../modal-cli-hub", version = "0.1.0", optional = true }
 modal-cli-predicate = { path = "../modal-cli-predicate", version = "0.1.0", optional = true }
 modal-cli-program = { path = "../modal-cli-program", version = "0.1.0", optional = true }

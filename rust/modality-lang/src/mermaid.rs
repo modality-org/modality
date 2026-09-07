@@ -488,10 +488,9 @@ mod tests {
         let content = r#"
 model Contract {
   part flow {
-    q0 --> q1: +POST +MODEL
+    q0 --> q1: +POST
     q1 --> q1: +POST +signed_by(/parties/alice.id)
     q1 --> q1: +POST +signed_by(/parties/bob.id)
-    q1 --> q1: +MODEL +signed_by(/parties/alice.id)
   }
 }
 "#;
@@ -499,9 +498,9 @@ model Contract {
         let diagram = generate_mermaid_diagram(&models[0]);
 
         assert!(diagram.contains("stateDiagram-v2"));
-        assert!(diagram.contains("q0 --> q1 : +POST +MODEL"));
+        assert!(diagram.contains("q0 --> q1 : +POST"));
         assert!(diagram.contains("q1 --> q1 : \"+POST +signed_by(/parties/alice.id)\""));
         assert!(diagram.contains("q1 --> q1 : \"+POST +signed_by(/parties/bob.id)\""));
-        assert!(diagram.contains("q1 --> q1 : \"+MODEL +signed_by(/parties/alice.id)\""));
+        assert!(!diagram.contains("+MODEL"));
     }
 } 

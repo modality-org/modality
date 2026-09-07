@@ -50,6 +50,11 @@ pub fn default_named_passfile_dir() -> Result<PathBuf> {
     Ok(modality_dir()?.join("passfiles"))
 }
 
+/// `$MODALITY_HOME/.modality/ai.json` when set, otherwise `~/.modality/ai.json`.
+pub fn default_ai_config_path() -> Result<PathBuf> {
+    Ok(modality_dir()?.join("ai.json"))
+}
+
 /// `$MODALITY_HOME/.modality/ids` when set, otherwise `~/.modality/ids`.
 pub fn default_named_id_dir() -> Result<PathBuf> {
     Ok(modality_dir()?.join("ids"))

@@ -20,7 +20,7 @@ cargo build --release -p modality
 
 The lean onboarding wrapper exposes the contract and identity surfaces needed by
 the first-contract guide: `modal contract`, `modal c`, `modal id`,
-`modal passfile`, `modal status`, `modal pull`, `modal commit`, `modal diff`,
+`modal passfile`, `modal ai`, `modal status`, `modal pull`, `modal commit`, `modal diff`,
 `modal set`, `modal repost`, `modal add-rule`, and `modal download`. It omits the
 runtime-heavy hub, node, network, predicate, program, chain, local, run,
 `killall`, and upgrade surfaces.
@@ -35,6 +35,7 @@ as `modality model lint`, `modality model synthesize`,
 | Command | Alias | Description |
 |---------|-------|-------------|
 | `modal contract` | `modal c` | Contract management (create, commit, push, pull) |
+| `modal ai` | — | AI provider configuration and `modal ai suggest-rule` |
 | `modal id` | `modal identity` | Identity management (create, derive, get) |
 | `modal passfile` | — | Passfile encryption/decryption |
 | `modal hub` | — | Contract hub server and collaboration; full wrapper only |
@@ -72,6 +73,10 @@ modal repost source-contract-id /source/path /local/path
 # Add a rule to the current contract
 modal add-rule --name authorized \
   '[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)'
+
+# Configure an AI provider, then suggest a rule formula
+modal ai set --provider openai
+modal ai suggest-rule "after this commit either alice or bob must sign"
 
 # Download a packed contract file
 modal download http://hub.example.com/contracts/my-contract.pack
@@ -132,3 +137,7 @@ modal predicate test signed_by --data '{"path":"/alice.id","signature":"..."}'
 | `MODAL_NETWORK` | Network (mainnet/testnet) | `mainnet` |
 | `MODAL_HUB_URL` | Default hub URL | — |
 | `MODAL_PASSFILE` | Default passfile path | — |
+| `MODAL_AI_API_KEY` | API key for `modal ai suggest-rule` | — |
+| `OPENAI_API_KEY` | OpenAI API key | — |
+| `ANTHROPIC_API_KEY` | Anthropic API key | — |
+| `XAI_API_KEY` | xAI / Grok API key | — |

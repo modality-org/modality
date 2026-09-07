@@ -15,12 +15,30 @@
     }
     header { margin-bottom: 20px; }
     h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    h2 { font-size: 1rem; margin: 0 0 12px; font-weight: 600; }
     .path { opacity: 0.7; font-size: 0.9rem; }
-    .diagram {
+    .layout {
+      display: grid;
+      gap: 20px;
+    }
+    @media (min-width: 960px) {
+      .layout { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: start; }
+    }
+    .panel {
+      min-width: 0;
+    }
+    .diagram, .code {
       background: #fff;
       border-radius: 8px;
       padding: 24px;
       overflow: auto;
+    }
+    .code {
+      margin: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre;
     }
     .error {
       color: #b00020;
@@ -28,7 +46,7 @@
     }
     @media (prefers-color-scheme: dark) {
       body { background: #111; color: #eee; }
-      .diagram { background: #1b1b1b; }
+      .diagram, .code { background: #1b1b1b; }
     }
   </style>
 </head>
@@ -37,8 +55,17 @@
     <h1>{{TITLE}}</h1>
     <div class="path">{{SOURCE_PATH}}</div>
   </header>
-  <pre id="source" hidden>{{MERMAID}}</pre>
-  <div class="diagram" id="diagram"></div>
+  <div class="layout">
+    <section class="panel">
+      <h2>Diagram</h2>
+      <pre id="source" hidden>{{MERMAID}}</pre>
+      <div class="diagram" id="diagram"></div>
+    </section>
+    <section class="panel">
+      <h2>Modality</h2>
+      <pre class="code"><code>{{MODALITY}}</code></pre>
+    </section>
+  </div>
   <script>
     const source = document.getElementById('source').textContent;
     const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;

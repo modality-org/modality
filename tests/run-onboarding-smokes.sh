@@ -86,6 +86,7 @@ fi
 "$ROOT_DIR/tests/docs/check-installation-doc.sh"
 "$ROOT_DIR/tests/docs/check-cli-index-doc.sh"
 "$ROOT_DIR/tests/docs/check-cli-contract-doc.sh"
+"$ROOT_DIR/tests/docs/check-cli-ai-doc.sh"
 "$ROOT_DIR/tests/docs/check-cli-identity-doc.sh"
 "$ROOT_DIR/tests/docs/check-cli-predicate-doc.sh"
 "$ROOT_DIR/tests/docs/check-cli-network-doc.sh"

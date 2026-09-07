@@ -53,11 +53,12 @@ identifies the wrapper and that the `modal --help` surface matches the selected
 onboarding shape: lean builds must expose the first-contract commands and omit
 full runtime groups, while `MODAL_ONBOARDING_FEATURES=full` expects those
 runtime groups to be present. The first-contract CLI smoke synthesizes the
-governing witness with `--verify`, validates that generated model, and only
-then commits it through `modal`. The same real `modal` binary also runs the
-contract evolution smoke, which verifies an additive rule commit, rejected bad
-witness replacement, accepted V2 witness replacement, and Bob-signed successor
-update.
+governing witness with `--verify`, validates that generated model, commits it
+through `modal`, rejects an unsigned successor, and then lets Bob replace the
+incomplete witness with a signed `MODEL` commit. The same real `modal` binary
+also runs the contract evolution smoke, which verifies an additive rule commit,
+rejected bad witness replacement, accepted V2 witness replacement, and
+Bob-signed successor update.
 The language CLI bundle also runs an ACME RFC 8555 review-benchmark smoke that
 preserves source clauses, extracted action and signature facts, verifier
 status, explicit external assumptions, and known gaps in a review bundle while

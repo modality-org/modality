@@ -4209,6 +4209,7 @@ dependencies = [
  "clap",
  "ed25519-dalek 2.2.0",
  "hex",
+ "modal-cli-ai",
  "modal-cli-chain",
  "modal-cli-contract",
  "modal-cli-hub",
@@ -4221,6 +4222,26 @@ dependencies = [
  "rand 0.8.7",
  "serde_json",
  "sha2 0.10.9",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "modal-cli-ai"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "aws-credential-types",
+ "aws-sigv4",
+ "aws-smithy-runtime-api",
+ "clap",
+ "modal-common",
+ "modality-lang",
+ "percent-encoding",
+ "reqwest",
+ "serde",
+ "serde_json",
  "tempfile",
  "tokio",
 ]
@@ -4259,6 +4280,7 @@ dependencies = [
  "clap",
  "colored",
  "hex",
+ "modal-cli-ai",
  "modal-cli-common",
  "modal-common",
  "modal-node",

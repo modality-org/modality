@@ -30,6 +30,8 @@ required_patterns=(
   "modal c add-rule --name authorized"
   "modal c ai suggest-rule <PROMPT>"
   "modal c ai suggest-rule \"after this commit either alice or bob must sign\""
+  "modal ai set --provider openai|anthropic|grok|bedrock|ollama"
+  "yours may differ"
   "Create a new commit from the contract working directories, a single state path,"
   "\`--path <PATH>\` | State path to write for a single \`POST\`-style commit"
   "\`--value <VALUE>\` | Value for the single-path commit"
@@ -129,7 +131,7 @@ fi
 for source_guard in \
   'prompt: String' \
   '#[command(name = "suggest-rule")]' \
-  'FIRST_CONTRACT_FORMULA'; do
+  'modal_cli_ai::suggest_rule'; do
   if ! grep -Fq -- "$source_guard" "$AI_SOURCE"; then
     echo "contract ai source no longer exposes documented option: $source_guard" >&2
     exit 1

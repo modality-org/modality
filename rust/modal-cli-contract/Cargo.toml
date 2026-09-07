@@ -16,6 +16,7 @@ full = ["p2p", "model-status", "wasm"]
 
 [dependencies]
 modal-cli-common = { path = "../modal-cli-common", version = "0.1.0" }
+modal-cli-ai = { path = "../modal-cli-ai", version = "0.1.0" }
 modal-common = { path = "../modal-common", version = "0.1.7" }
 modality-lang = { path = "../modality-lang", version = "0.1.7", optional = true }
 modal-node = { path = "../modal-node", version = "0.1.7", optional = true }

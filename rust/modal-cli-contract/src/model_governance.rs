@@ -1818,10 +1818,9 @@ model ReplayCurrent {
         let bootstrap_model = r#"
 model FirstContract {
   initial q0
-  q0 --> q1: +POST +MODEL
+  q0 --> q1: +POST
   q1 --> q1: +POST +signed_by(/parties/alice.id)
   q1 --> q1: +POST +signed_by(/parties/bob.id)
-  q1 --> q1: +MODEL +signed_by(/parties/alice.id)
 }
         "#;
         let bootstrap_rule = r#"
@@ -1892,6 +1891,113 @@ export default rule {
                 .contains("missing +signed_by(/parties/bob.id)"),
             "{err}"
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn lets_bob_replace_first_contract_witness_with_signed_alice_or_bob_moves() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let store = ContractStore::init(temp_dir.path(), "contract_id".to_string())?;
+
+        let accepted_model = r#"
+model Contract {
+  part flow {
+    q0 --> q1: +POST
+    q1 --> q1: +POST +signed_by(/parties/alice.id)
+    q1 --> q1: +POST +signed_by(/parties/bob.id)
+  }
+}
+        "#;
+        let bootstrap_rule = r#"
+export default rule {
+  starting_at $PARENT
+  formula {
+    [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+  }
+}
+        "#;
+
+        let mut bootstrap = CommitFile::new();
+        bootstrap.add_action(
+            "post".to_string(),
+            Some("/parties/alice.id".to_string()),
+            Value::String("alice_key".to_string()),
+        );
+        bootstrap.add_action(
+            "post".to_string(),
+            Some("/parties/bob.id".to_string()),
+            Value::String("bob_key".to_string()),
+        );
+        bootstrap.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(accepted_model.to_string()),
+        );
+        bootstrap.add_action(
+            "rule".to_string(),
+            Some("/rules/authorized.modality".to_string()),
+            Value::String(bootstrap_rule.to_string()),
+        );
+        bootstrap.head.signatures = Some(serde_json::json!({
+            "alice_key": "sig"
+        }));
+        store.save_commit("bootstrap", &bootstrap)?;
+        store.set_head("bootstrap")?;
+
+        let mut signed_post = CommitFile::with_parent("bootstrap".to_string());
+        signed_post.add_action(
+            "post".to_string(),
+            Some("/notes.text".to_string()),
+            Value::String("signed update".to_string()),
+        );
+        signed_post.head.signatures = Some(serde_json::json!({
+            "alice_key": "sig"
+        }));
+        store.save_commit("signed-post", &signed_post)?;
+        store.set_head("signed-post")?;
+
+        let mut bob_same_model = CommitFile::with_parent("signed-post".to_string());
+        bob_same_model.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(accepted_model.to_string()),
+        );
+        bob_same_model.head.signatures = Some(serde_json::json!({
+            "bob_key": "sig"
+        }));
+
+        let err = validate_pending_commit(accepted_model, &store, &bob_same_model)
+            .expect_err("current witness should reject Bob's MODEL replacement");
+
+        assert!(err.to_string().contains("current states {\"q1\"}"), "{err}");
+        assert!(err.to_string().contains("missing +POST"), "{err}");
+        assert!(
+            err.to_string()
+                .contains("+POST +signed_by(/parties/bob.id)"),
+            "{err}"
+        );
+
+        let fairer_model = r#"
+model Contract {
+  part flow {
+    q0 --> q1: +POST
+    q1 --> q1: +signed_by(/parties/alice.id)
+    q1 --> q1: +signed_by(/parties/bob.id)
+  }
+}
+        "#;
+        let mut bob_fairer_model = CommitFile::with_parent("signed-post".to_string());
+        bob_fairer_model.add_action(
+            "model".to_string(),
+            Some("/model/default.modality".to_string()),
+            Value::String(fairer_model.to_string()),
+        );
+        bob_fairer_model.head.signatures = Some(serde_json::json!({
+            "bob_key": "sig"
+        }));
+
+        validate_pending_commit(accepted_model, &store, &bob_fairer_model)?;
 
         Ok(())
     }
@@ -2394,7 +2500,7 @@ model Second {
         let model = r#"
 model FirstContract {
   initial q0
-  q0 --> q1: +POST +MODEL
+  q0 --> q1: +POST
   q1 --> q1: +POST +signed_by(/parties/alice.id)
 }
         "#;

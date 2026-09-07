@@ -13,6 +13,9 @@ required_patterns=(
   "\`modal contract\`, \`modal c\`, \`modal id\`"
   "\`modal pull\`, \`modal commit\`, \`modal diff\`"
   "\`modal set\`, \`modal repost\`, \`modal add-rule\`, and \`modal download\`"
+  "\`modal ai\`"
+  "modal ai set --provider openai"
+  "modal ai suggest-rule \"after this commit either alice or bob must sign\""
   "It omits the"
   "runtime-heavy hub, node, network, predicate, program, chain, local, run,"
   "\`killall\`, and upgrade surfaces"
@@ -53,6 +56,8 @@ lean_source_patterns=(
   'Contract {'
   'Id {'
   'Passfile {'
+  'fn contract_alias_argv'
+  'fn parse_cli_from'
   'Status(modal_cli_contract::status::Opts)'
   'Pull(modal_cli_contract::pull::Opts)'
   'Commit(modal_cli_contract::commit::Opts)'
@@ -61,6 +66,7 @@ lean_source_patterns=(
   'Repost(modal_cli_contract::repost::Opts)'
   'AddRule(modal_cli_contract::add_rule::Opts)'
   'modal_cli_contract::ai::Commands'
+  'modal_cli_ai::Commands'
   'Download(modal_cli_contract::download::Opts)'
 )
 

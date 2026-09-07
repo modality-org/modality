@@ -186,13 +186,13 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 println!("     - {}", commit_id);
             }
             println!();
-            println!("  Run 'modal contract push' to sync with remote.");
+            println!("  Run 'modal push' to sync with remote.");
         } else if remote_head.is_some() {
             println!("  ✅ Up-to-date with remote.");
         } else {
             println!("  ℹ️  No remote tracking configured.");
             println!();
-            println!("  Run 'modal contract push --remote <url>' to set up remote.");
+            println!("  Run 'modal push --remote <url>' to set up remote.");
         }
 
         // Show state directory changes
@@ -211,7 +211,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 println!("  - {}", path);
             }
             println!();
-            println!("  Run 'modal c commit --all' to commit changes.");
+            println!("  Run 'modal commit --all' to commit changes.");
         } else if !state_files.is_empty() {
             println!();
             println!("  ✅ state/ matches committed state.");

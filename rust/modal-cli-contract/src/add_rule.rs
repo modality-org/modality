@@ -63,7 +63,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     println!("✅ Rule '{}' added to {}", opts.name, rule_path);
     println!();
     println!("{}", rule_content);
-    println!("Run 'modal c commit --all' to commit this rule.");
+    println!("Run 'modal commit --all' to commit this rule.");
 
     Ok(())
 }

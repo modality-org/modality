@@ -1,9 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-
-/// First-contract authorized formula. Placeholder until suggest-rule calls a model.
-pub const FIRST_CONTRACT_FORMULA: &str =
-    "[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)";
+use std::path::PathBuf;
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
@@ -16,16 +13,31 @@ pub enum Commands {
 pub struct SuggestRuleOpts {
     /// Plain-language description of the rule
     prompt: String,
+
+    /// API key override (otherwise env or saved config)
+    #[clap(long)]
+    api_key: Option<String>,
+
+    /// Contract directory used to include known identity paths
+    #[clap(long)]
+    dir: Option<PathBuf>,
 }
 
 pub async fn run(command: &Commands) -> Result<()> {
     match command {
-        Commands::SuggestRule(opts) => suggest_rule(opts),
+        Commands::SuggestRule(opts) => suggest_rule(opts).await,
     }
 }
 
-fn suggest_rule(_opts: &SuggestRuleOpts) -> Result<()> {
-    println!("{FIRST_CONTRACT_FORMULA}");
+async fn suggest_rule(opts: &SuggestRuleOpts) -> Result<()> {
+    let dir = opts
+        .dir
+        .clone()
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let formula =
+        modal_cli_ai::suggest_rule(&opts.prompt, opts.api_key.as_deref(), Some(dir.as_path()))
+            .await?;
+    println!("{formula}");
     Ok(())
 }
 
@@ -43,10 +55,6 @@ mod tests {
         assert_eq!(
             opts.prompt,
             "after this commit either alice or bob must sign"
-        );
-        assert_eq!(
-            FIRST_CONTRACT_FORMULA,
-            "[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)"
         );
     }
 }

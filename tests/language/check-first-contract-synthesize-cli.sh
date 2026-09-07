@@ -69,10 +69,9 @@ done
 
 required_model_patterns=(
   "model Contract"
-  "q0 --> q1: +POST +MODEL"
+  "q0 --> q1: +POST"
   "q1 --> q1: +POST +signed_by(/parties/alice.id)"
   "q1 --> q1: +POST +signed_by(/parties/bob.id)"
-  "q1 --> q1: +MODEL +signed_by(/parties/alice.id)"
 )
 
 for pattern in "${required_model_patterns[@]}"; do
@@ -82,6 +81,12 @@ for pattern in "${required_model_patterns[@]}"; do
     exit 1
   fi
 done
+
+if grep -Fq "+MODEL" "$MODEL"; then
+  echo "first-contract synthesized witness still includes +MODEL" >&2
+  cat "$MODEL" >&2
+  exit 1
+fi
 
 required_review_patterns=(
   "# Modality Synthesis Review Bundle"
@@ -93,7 +98,7 @@ required_review_patterns=(
   "## Verifier Result"
   "Status: passed (\`--verify\`)"
   "## Witness Model"
-  "q0 --> q1: +POST +MODEL"
+  "q0 --> q1: +POST"
   "q1 --> q1: +POST +signed_by(/parties/alice.id)"
   "q1 --> q1: +POST +signed_by(/parties/bob.id)"
   "## Assumptions"
@@ -113,7 +118,7 @@ done
 required_validation_patterns=(
   "Contract is valid!"
   "All properties are predicates or commit method labels (verifier-observed)."
-  "Transitions: 4"
+  "Transitions: 3"
 )
 
 for pattern in "${required_validation_patterns[@]}"; do
@@ -128,10 +133,9 @@ done
 
 required_mermaid_patterns=(
   "stateDiagram-v2"
-  "q0 --> q1 : +POST +MODEL"
+  "q0 --> q1 : +POST"
   '"+POST +signed_by(/parties/alice.id)"'
   '"+POST +signed_by(/parties/bob.id)"'
-  '"+MODEL +signed_by(/parties/alice.id)"'
 )
 
 for pattern in "${required_mermaid_patterns[@]}"; do
@@ -141,6 +145,12 @@ for pattern in "${required_mermaid_patterns[@]}"; do
     exit 1
   fi
 done
+
+if grep -Fq "+MODEL" "$MERMAID_OUT"; then
+  echo "first-contract synthesized witness mermaid still includes +MODEL" >&2
+  cat "$MERMAID_OUT" >&2
+  exit 1
+fi
 
 "$MODALITY_BIN" model view "$MODEL" --no-open >"$VIEW_OUT" 2>&1
 
@@ -153,6 +163,8 @@ VIEW_HTML="$(sed -n 's/^Wrote //p' "$VIEW_OUT")"
 required_view_patterns=(
   "mermaid.min.js"
   "stateDiagram-v2"
+  "part flow"
+  "q0 --&gt; q1: +POST"
   "+signed_by(/parties/alice.id)"
   "+signed_by(/parties/bob.id)"
 )

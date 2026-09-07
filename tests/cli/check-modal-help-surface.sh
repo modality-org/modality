@@ -36,6 +36,8 @@ COMMIT_HELP="$TMP_DIR/modal-c-commit-help.txt"
 STATUS_HELP="$TMP_DIR/modal-c-status-help.txt"
 LOG_HELP="$TMP_DIR/modal-c-log-help.txt"
 SET_NAMED_ID_HELP="$TMP_DIR/modal-c-set-named-id-help.txt"
+AI_HELP="$TMP_DIR/modal-ai-help.txt"
+SUGGEST_RULE_HELP="$TMP_DIR/modal-c-ai-suggest-rule-help.txt"
 
 "$MODAL_BIN" --version >"$VERSION"
 "$MODAL_BIN" --help >"$HELP"
@@ -48,6 +50,8 @@ SET_NAMED_ID_HELP="$TMP_DIR/modal-c-set-named-id-help.txt"
 "$MODAL_BIN" c status --help >"$STATUS_HELP"
 "$MODAL_BIN" c log --help >"$LOG_HELP"
 "$MODAL_BIN" c set-named-id --help >"$SET_NAMED_ID_HELP"
+"$MODAL_BIN" ai --help >"$AI_HELP"
+"$MODAL_BIN" ai suggest-rule --help >"$SUGGEST_RULE_HELP"
 
 require_command() {
   local command_name="$1"
@@ -81,7 +85,7 @@ require_help_pattern() {
 
 require_help_pattern "^modal[[:space:]]+[0-9]" "$VERSION"
 
-for command_name in contract id passfile status commit set; do
+for command_name in contract id passfile ai; do
   require_command "$command_name" "$HELP"
 done
 
@@ -111,6 +115,12 @@ done
 require_help_pattern "(^|[[:space:]])(-n,?[[:space:]]*)?--limit([[:space:],=<]|$)" "$LOG_HELP"
 
 require_help_pattern "Set a state \\.id file" "$SET_NAMED_ID_HELP"
+
+for command_name in set show unset; do
+  require_command "$command_name" "$AI_HELP"
+done
+
+require_help_pattern "Plain-language description of the rule" "$SUGGEST_RULE_HELP"
 
 case "$MODAL_HELP_SURFACE" in
   lean)

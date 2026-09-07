@@ -42,6 +42,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'cli/index',
         'cli/contract-commands',
+        'cli/ai-commands',
         'cli/identity-commands',
         'cli/node-commands',
         'cli/hub-commands',

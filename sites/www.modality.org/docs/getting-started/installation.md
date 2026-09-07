@@ -108,7 +108,7 @@ modality model --help
 Use `modal` for contract logs, identities, commits, status, and the first-contract
 local flow. Use `modality` for model and rule authoring tasks such as
 `modality model synthesize`, `modality model validate`, `modality model lint`,
-and `modality model mermaid`.
+`modality model mermaid`, and `modality model view`.
 A successful onboarding install should make both command surfaces visible before
 you start the first-contract guide.
 
@@ -342,6 +342,7 @@ command surface, including:
 contract   Contract related commands
 id         ID and key related commands
 passfile   Passfile related commands
+ai         AI provider configuration
 status     Show status
 commit     Commit changes
 set        Set a state file value

@@ -4045,10 +4045,6 @@ fn synthesize_first_contract_authorization_model(
         modality_lang::PropertySign::Plus,
         "POST".to_string(),
     ));
-    bootstrap.add_property(modality_lang::Property::new(
-        modality_lang::PropertySign::Plus,
-        "MODEL".to_string(),
-    ));
     transitions.push(bootstrap);
 
     for signer in &signers {
@@ -4063,17 +4059,6 @@ fn synthesize_first_contract_authorization_model(
         ));
         transitions.push(post);
     }
-
-    let mut model_replacement = modality_lang::Transition::new("q1".to_string(), "q1".to_string());
-    model_replacement.add_property(modality_lang::Property::new(
-        modality_lang::PropertySign::Plus,
-        "MODEL".to_string(),
-    ));
-    model_replacement.add_property(modality_lang::Property::new_predicate_from_call(
-        "signed_by".to_string(),
-        signers[0].clone(),
-    ));
-    transitions.push(model_replacement);
 
     let mut part = modality_lang::Part::new("flow".to_string());
     for transition in transitions {
@@ -38172,7 +38157,7 @@ export default rule {
 
         assert_eq!(model.parts.len(), 1);
         let transitions = &model.parts[0].transitions;
-        assert_eq!(transitions.len(), 4);
+        assert_eq!(transitions.len(), 3);
         assert!(transitions.iter().any(|transition| {
             transition.from == "q0"
                 && transition.to == "q1"
@@ -38180,7 +38165,13 @@ export default rule {
                 && transition
                     .properties
                     .iter()
-                    .any(|prop| prop.name == "MODEL")
+                    .all(|prop| prop.name != "MODEL")
+        }));
+        assert!(transitions.iter().all(|transition| {
+            transition
+                .properties
+                .iter()
+                .all(|prop| prop.name != "MODEL")
         }));
         verify_synthesized_model(&model, &parsed.formulas).unwrap();
     }

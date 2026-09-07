@@ -27,7 +27,10 @@ commits a signed post-bootstrap state update, asserts that status/log now expose
 the third committed entry while the governing model state remains `q1`, and
 attempts an unsigned one, asserting that the governing model rejects the
 unsigned path with the closest candidate transition and missing `signed_by`
-predicate diagnostics.
+predicate diagnostics. It then has Bob try to replace that synthesized witness,
+asserts that the current machine rejects his `MODEL` commit, installs a
+witness with a signed Alice transition and an alternative signed Bob
+transition, and accepts Bob's signed replacement.
 
 To check the installed or source-built help surface before running a flow:
 

@@ -90,7 +90,7 @@ Extract committed state to the working `state/` directory.
 
 ```bash
 modal c status [OPTIONS]
-modal status  # shortcut when in contract directory
+modal status  # alias for modal c status
 ```
 
 Shows:
@@ -162,6 +162,52 @@ modal c set /config/name.text "My Contract"
 # Set boolean
 modal c set /flags/active.bool true
 ```
+
+## Add Rule
+
+```bash
+modal c add-rule --name <NAME> [OPTIONS] <FORMULA>
+```
+
+Write a named rule file under `rules/`. The command creates `rules/` if needed
+and wraps the formula as `export default rule { starting_at $PARENT ... }`.
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--name <NAME>` | Rule name written as `rules/<name>.modality` |
+| `--starting-at <ANCHOR>` | Rule anchor (default: `$PARENT`) |
+| `--dir <DIR>` | Contract directory (defaults to current directory) |
+
+```bash
+modal c add-rule --name authorized \
+  '[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)'
+```
+
+Existing rule files are not overwritten. Run `modal c commit --all` after adding
+a rule.
+
+## AI
+
+Configure a provider first with [`modal ai set`](/docs/cli/ai-commands). Then:
+
+```bash
+modal c ai suggest-rule <PROMPT>
+```
+
+Suggest a Modality rule formula from a plain-language prompt. Use the printed
+formula with `modal c add-rule`. If no provider is configured, the command
+fails with a hint to run `modal ai set --provider openai|anthropic|grok|bedrock|ollama`.
+
+```bash
+modal c ai suggest-rule "after this commit either alice or bob must sign"
+```
+
+```
+[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+```
+
+That printed formula is example output; yours may differ.
 
 ## Set Named ID
 

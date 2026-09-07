@@ -288,8 +288,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
         println!();
         println!("Next steps:");
-        println!("  - modal contract status  (view status)");
-        println!("  - modal contract push    (push to chain)");
+        println!("  - modal status  (view status)");
+        println!("  - modal push    (push to chain)");
     }
 
     Ok(())

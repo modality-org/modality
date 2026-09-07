@@ -342,6 +342,7 @@ command surface, including:
 contract   Contract related commands
 id         ID and key related commands
 passfile   Passfile related commands
+ai         AI provider configuration
 status     Show status
 commit     Commit changes
 set        Set a state file value

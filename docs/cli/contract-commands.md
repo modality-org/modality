@@ -90,7 +90,7 @@ Extract committed state to the working `state/` directory.
 
 ```bash
 modal c status [OPTIONS]
-modal status  # shortcut when in contract directory
+modal status  # alias for modal c status
 ```
 
 Shows:
@@ -189,12 +189,15 @@ a rule.
 
 ## AI
 
+Configure a provider first with [`modal ai set`](/docs/cli/ai-commands). Then:
+
 ```bash
 modal c ai suggest-rule <PROMPT>
 ```
 
 Suggest a Modality rule formula from a plain-language prompt. Use the printed
-formula with `modal c add-rule`.
+formula with `modal c add-rule`. If no provider is configured, the command
+fails with a hint to run `modal ai set --provider openai|anthropic|grok|bedrock|ollama`.
 
 ```bash
 modal c ai suggest-rule "after this commit either alice or bob must sign"
@@ -203,6 +206,8 @@ modal c ai suggest-rule "after this commit either alice or bob must sign"
 ```
 [] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
 ```
+
+That printed formula is example output; yours may differ.
 
 ## Set Named ID
 
