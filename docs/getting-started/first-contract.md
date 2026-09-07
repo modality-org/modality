@@ -455,19 +455,14 @@ holding its shape.
 ## 8. Let Bob Replace the Witness
 
 That something off from step 5: the synthesized witness only lets Alice sign.
-The rule names Alice or Bob. Bob can sign updates, but this machine has no
-arrow for him.
+The rule names Alice or Bob. Bob can sign, but this machine has no arrow for
+him.
 
-Have Bob try a `MODEL` commit of the current witness. The rule should accept
+Have Bob try a signed commit with nothing else in it. The rule should accept
 his signature. The witness is what gets in the way:
 
 ```bash
-modal commit \
-  --method model \
-  --path /model/default.modality \
-  --value "$(cat model/default.modality)" \
-  --sign example/bob \
-  -m "Bob tries to replace the witness"
+modal commit --sign example/bob -m "Bob tries to commit"
 ```
 
 ```output
