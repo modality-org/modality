@@ -83,13 +83,18 @@ modal ai suggest-rule <PROMPT>
 ```
 
 Calls the configured provider and prints one Modality formula for
-`modal add-rule`. If no provider is configured, the command fails with a
-hint to run `modal ai set`.
+`modal add-rule`. Encodings follow the
+[formula cookbook](/docs/language/formula-cookbook). Witness models for
+`modal add-rule` follow the [model cookbook](/docs/language/model-cookbook).
+The Cursor skill `packages/modality-skill/SKILL.md` points at the same files.
+If no provider is configured, the command fails with a hint to run
+`modal ai set`.
 
 With `--provider cursor-agent`, `suggest-rule` runs the Cursor CLI in the
-contract directory (`--dir` or the current directory). The default is
-`--print`: a one-shot formula on stdout. Pass `--interactive` for an Ask-mode
-session so the agent can read `state/`, `rules/`, and `model/`.
+contract directory (`--dir` or the current directory) and adds `docs/language`
+so the agent can read those cookbooks. The default is `--print`: a one-shot
+formula on stdout. Pass `--interactive` for an Ask-mode session so the agent
+can read `state/`, `rules/`, and `model/`.
 
 ```bash
 modal ai suggest-rule "after this commit either alice or bob must sign"

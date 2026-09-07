@@ -11,7 +11,14 @@ pub mod unset;
 use anyhow::Result;
 use clap::Subcommand;
 
+/// Paths agents should read instead of searching `rust/`.
+pub const LANGUAGE_SKILL_HELP: &str = "\
+Rule formulas: docs/language/formula-cookbook.md
+Witness models: docs/language/model-cookbook.md
+Cursor skill: packages/modality-skill/SKILL.md";
+
 #[derive(Debug, Subcommand)]
+#[command(after_help = LANGUAGE_SKILL_HELP)]
 pub enum Commands {
     /// Configure the AI provider used by modal ai suggest-rule
     Set(set::Opts),

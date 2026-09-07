@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 
 use anyhow::Result;
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use serde_json::{json, Value};
 use tempfile::TempDir;
 
@@ -250,6 +250,21 @@ fn api_key_resolution_order() {
             Some("saved-key-value-xxxx".to_string())
         );
     });
+}
+
+#[derive(Parser)]
+#[command(name = "ai")]
+struct AiHelpCli {
+    #[command(subcommand)]
+    command: crate::Commands,
+}
+
+#[test]
+fn modal_ai_help_mentions_language_skill_files() {
+    let help = AiHelpCli::command().render_long_help().to_string();
+    assert!(help.contains("docs/language/formula-cookbook.md"));
+    assert!(help.contains("docs/language/model-cookbook.md"));
+    assert!(help.contains("packages/modality-skill/SKILL.md"));
 }
 
 #[test]
@@ -579,6 +594,8 @@ fn cursor_agent_prompt_embeds_cookbook_when_file_missing() {
         false,
     );
     assert!(prompt.contains("Read formula-cookbook.md first"));
+    assert!(prompt.contains("model-cookbook.md"));
+    assert!(prompt.contains("SKILL.md"));
     assert!(prompt.contains("Do not search rust/, experiments/, or node_modules"));
     assert!(prompt.contains("Formula cookbook:"));
     assert!(prompt.contains(crate::cursor_agent::EMBEDDED_FORMULA_COOKBOOK));
@@ -592,6 +609,8 @@ fn cursor_agent_prompt_embeds_cookbook_when_file_missing() {
 fn cursor_agent_prompt_skips_embed_when_cookbook_on_disk() {
     let prompt = crate::cursor_agent::build_prompt("after this commit", &[], true);
     assert!(prompt.contains("Read formula-cookbook.md first"));
+    assert!(prompt.contains("model-cookbook.md"));
+    assert!(prompt.contains("SKILL.md"));
     assert!(prompt.contains("Do not search rust/, experiments/, or node_modules"));
     assert!(!prompt.contains("Formula cookbook:"));
     assert!(!prompt.contains("Do not invent names such as `+SIGN`"));
@@ -651,11 +670,21 @@ fn cursor_agent_invocation_adds_checkout_docs_when_modality_docs_unset() {
             .find(|pair| pair[0] == "--add-dir")
             .map(|pair| pair[1].clone())
             .expect("add-dir from CARGO_MANIFEST_DIR");
-        let cookbook = std::path::PathBuf::from(&add_dir).join("formula-cookbook.md");
+        let add_dirs: Vec<std::path::PathBuf> = inv
+            .args
+            .windows(2)
+            .filter(|pair| pair[0] == "--add-dir")
+            .map(|pair| std::path::PathBuf::from(&pair[1]))
+            .collect();
         assert!(
-            cookbook.is_file(),
-            "expected checkout cookbook at {}",
-            cookbook.display()
+            add_dirs
+                .iter()
+                .any(|dir| dir.join("formula-cookbook.md").is_file()),
+            "expected checkout cookbook in {add_dirs:?}"
+        );
+        assert!(
+            add_dirs.iter().any(|dir| dir.join("SKILL.md").is_file()),
+            "expected packages/modality-skill in {add_dirs:?}"
         );
     });
 }

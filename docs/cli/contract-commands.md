@@ -196,8 +196,11 @@ modal c ai suggest-rule <PROMPT>
 ```
 
 Suggest a Modality rule formula from a plain-language prompt. Use the printed
-formula with `modal c add-rule`. If no provider is configured, the command
-fails with a hint to run `modal ai set --provider openai|anthropic|grok|bedrock|ollama|cursor-agent`.
+formula with `modal c add-rule`. Encodings follow the
+[formula cookbook](/docs/language/formula-cookbook); witness models follow the
+[model cookbook](/docs/language/model-cookbook). If no provider is configured,
+the command fails with a hint to run
+`modal ai set --provider openai|anthropic|grok|bedrock|ollama|cursor-agent`.
 
 ```bash
 modal c ai suggest-rule "after this commit either alice or bob must sign"

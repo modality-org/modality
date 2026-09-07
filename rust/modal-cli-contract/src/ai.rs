@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Debug, Subcommand)]
+#[command(after_help = modal_cli_ai::LANGUAGE_SKILL_HELP)]
 pub enum Commands {
     /// Suggest a Modality rule from a plain-language prompt
     #[command(name = "suggest-rule")]
@@ -10,6 +11,12 @@ pub enum Commands {
 }
 
 #[derive(Debug, Parser)]
+#[command(
+    about = "Suggest a Modality rule from a plain-language prompt",
+    long_about = "Suggest a Modality rule formula from a plain-language prompt for `modal add-rule`.\n\n\
+Encodings follow docs/language/formula-cookbook.md. Witness models follow docs/language/model-cookbook.md.\n\
+The Cursor skill packages/modality-skill/SKILL.md points at the same files."
+)]
 pub struct SuggestRuleOpts {
     /// Plain-language description of the rule
     prompt: String,
@@ -96,5 +103,14 @@ mod tests {
         let opts = SuggestRuleOpts::parse_from(["suggest-rule", "must sign"]);
         assert!(!opts.interactive);
         assert!(!opts.print);
+    }
+
+    #[test]
+    fn suggest_rule_help_mentions_language_skill_files() {
+        use clap::CommandFactory;
+        let help = SuggestRuleOpts::command().render_long_help().to_string();
+        assert!(help.contains("docs/language/formula-cookbook.md"));
+        assert!(help.contains("docs/language/model-cookbook.md"));
+        assert!(help.contains("packages/modality-skill/SKILL.md"));
     }
 }

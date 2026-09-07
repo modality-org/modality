@@ -116,6 +116,7 @@ modal c set /path value     # Set state value
 modal c commit --all --sign X.passfile  # Commit with signature
 modal c log                 # Show commit history
 modal id create --path X    # Create ed25519 identity
+modal ai suggest-rule "..." # NL → formula (formula cookbook)
 modal hub start             # Start hub server
 modal hub register          # Register with hub
 ```

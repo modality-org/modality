@@ -83,11 +83,9 @@ pub(crate) fn invocation(
     }
     args.push("--workspace".to_string());
     args.push(cwd.to_string_lossy().into_owned());
-    if let Some(cookbook) = resolve_cookbook(contract_dir) {
-        if let Some(language_dir) = cookbook.parent() {
-            args.push("--add-dir".to_string());
-            args.push(language_dir.to_string_lossy().into_owned());
-        }
+    for dir in extra_workspace_dirs(contract_dir) {
+        args.push("--add-dir".to_string());
+        args.push(dir.to_string_lossy().into_owned());
     }
     args.push("--mode".to_string());
     args.push("ask".to_string());
@@ -119,7 +117,7 @@ pub fn build_prompt(
         "You are in a Modality contract directory. Read state/, rules/, and model/ as needed.\n\n",
     );
     out.push_str(
-        "Read formula-cookbook.md first. Do not search rust/, experiments/, or node_modules.\n\n",
+        "Read formula-cookbook.md first (model-cookbook.md for a witness; SKILL.md for contract ops). Do not search rust/, experiments/, or node_modules.\n\n",
     );
     if !cookbook_on_disk {
         out.push_str("Formula cookbook:\n\n");
@@ -138,6 +136,26 @@ pub fn build_prompt(
     }
     out.push_str("\nWhen you have the answer, put the formula alone on the last line.\n");
     out
+}
+
+fn extra_workspace_dirs(contract_dir: Option<&Path>) -> Vec<PathBuf> {
+    let Some(cookbook) = resolve_cookbook(contract_dir) else {
+        return Vec::new();
+    };
+    let Some(language_dir) = cookbook.parent() else {
+        return Vec::new();
+    };
+    let mut dirs = vec![language_dir.to_path_buf()];
+    if let Some(skill) = language_dir
+        .parent()
+        .and_then(|docs| docs.parent())
+        .map(|root| root.join("packages").join("modality-skill"))
+    {
+        if skill.join("SKILL.md").is_file() {
+            dirs.push(skill);
+        }
+    }
+    dirs
 }
 
 pub fn resolve_cookbook(contract_dir: Option<&Path>) -> Option<PathBuf> {
