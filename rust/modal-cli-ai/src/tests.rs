@@ -169,7 +169,7 @@ fn config_round_trip_saves_mode_and_show_redacts_key() {
     with_isolated_home(|home| {
         let config = AiConfig {
             provider: Some(Provider::Openai),
-            model: Some("gpt-4o-mini".to_string()),
+            model: Some("gpt-5.6-luna".to_string()),
             base_url: None,
             region: None,
             api_key: Some(SECRET_KEY.to_string()),
@@ -242,6 +242,20 @@ fn api_key_resolution_order() {
             Some("saved-key-value-xxxx".to_string())
         );
     });
+}
+
+#[test]
+fn suggest_rule_prompt_includes_first_contract_or_signers_example() {
+    let prompt = providers::suggest_rule_system_prompt();
+    assert!(prompt.contains(
+        "[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)"
+    ));
+    assert!(prompt.contains("Do not invent action names"));
+    assert!(prompt.contains("[] φ` constrains successors of the current state"));
+    assert!(
+        !prompt.contains("prefixed with F1:"),
+        "suggest-rule must not send the hub synthesis pattern table"
+    );
 }
 
 #[test]
@@ -362,8 +376,14 @@ fn suggest_rule_includes_known_identity_paths() {
         ))
         .expect("suggest");
         let body = poster.body();
+        let system = body["messages"][0]["content"].as_str().unwrap();
         let user = body["messages"][1]["content"].as_str().unwrap();
+        assert!(system.contains("Do not invent action names"));
+        assert!(!system.contains("prefixed with F1:"));
+        assert!(user.contains(providers::SUGGEST_RULE_FEW_SHOT));
+        assert!(user.contains("Requirement:\n"));
         assert!(user.contains("/parties/alice.id"));
+        assert!(user.ends_with("Formula:\n"));
     });
 }
 

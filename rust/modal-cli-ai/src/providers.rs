@@ -8,18 +8,37 @@ use std::time::{Duration, SystemTime};
 
 use crate::config::{AiConfig, Provider};
 
-pub const SUGGEST_RULE_INSTRUCTIONS: &str = r#"Reply with a single Modality formula only. No markdown, no labels, no explanation.
-The formula is the inner contents of a rule `formula { ... }` block, suitable as the argument to `modal c add-rule`.
-When the request is about commits after the current one, use `[] always(...)`.
-When the request names Alice or Bob, use `/parties/alice.id` and `/parties/bob.id`."#;
+pub const SUGGEST_RULE_INSTRUCTIONS: &str = r#"Reply with a single Modality formula only. No markdown, no labels (no F1:), no explanation.
+The formula is the inner contents of a rule `formula { ... }` block, suitable as the argument to `modal add-rule`.
+These encodings take precedence over the pattern table above.
+
+Skip-current vs from-now:
+- `[] φ` constrains successors of the current state. Use it when the request says "after this commit", "from the next commit", or "later commits".
+- Plain `always(φ)` also constrains the current step. Do not use it for "after this commit".
+
+Global signer requirements (no named action):
+- Do not invent action names such as +SIGN, +COMMIT, or +UPDATE.
+- If the request does not name a specific action, require signatures on every remaining step.
+- `[-signed_by(A)] false` forbids a step that lacks A's signature.
+- `[-signed_by(A) -signed_by(B)] false` forbids a step that lacks both (either A or B may sign).
+- When the request names Alice or Bob, use `/parties/alice.id` and `/parties/bob.id`. Prefer known identity paths from the user message when given.
+
+Examples:
+- "after this commit either alice or bob must sign" → `[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)`
+- "after this commit alice must sign" → `[] always([-signed_by(/parties/alice.id)] false)`"#;
 
 pub fn suggest_rule_system_prompt() -> String {
-    format!(
-        "{}\n\n{}",
-        modality_lang::llm_synthesis::SYSTEM_PROMPT,
-        SUGGEST_RULE_INSTRUCTIONS
-    )
+    SUGGEST_RULE_INSTRUCTIONS.to_string()
 }
+
+pub const SUGGEST_RULE_FEW_SHOT: &str = r#"Examples — copy this encoding for later-commit signer rules. Reply with one formula only.
+
+after this commit either alice or bob must sign
+[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)
+
+after this commit alice must sign
+[] always([-signed_by(/parties/alice.id)] false)
+"#;
 
 pub fn extract_formula(response: &str) -> Result<String> {
     let formulas = modality_lang::llm_synthesis::parse_llm_response(response);

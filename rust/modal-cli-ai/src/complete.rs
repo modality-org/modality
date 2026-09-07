@@ -27,7 +27,9 @@ pub async fn suggest_rule_with(
 }
 
 fn build_user_prompt(prompt: &str, contract_dir: Option<&Path>) -> String {
-    let mut out = prompt.trim().to_string();
+    let mut out = providers::SUGGEST_RULE_FEW_SHOT.to_string();
+    out.push_str("\nRequirement:\n");
+    out.push_str(prompt.trim());
     if let Some(dir) = contract_dir {
         let ids = collect_id_paths(dir);
         if !ids.is_empty() {
@@ -39,6 +41,7 @@ fn build_user_prompt(prompt: &str, contract_dir: Option<&Path>) -> String {
             }
         }
     }
+    out.push_str("\n\nFormula:\n");
     out
 }
 

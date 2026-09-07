@@ -41,7 +41,7 @@ Defaults:
 
 | Provider | Base URL | Model |
 |----------|----------|-------|
-| openai | `https://api.openai.com` | `gpt-4o-mini` |
+| openai | `https://api.openai.com` | `gpt-5.6-luna` |
 | anthropic | `https://api.anthropic.com` | `claude-sonnet-4-20250514` |
 | grok | `https://api.x.ai` | `grok-3` |
 | bedrock | region `us-east-1` | `anthropic.claude-sonnet-4-20250514-v1:0` |

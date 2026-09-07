@@ -11,6 +11,9 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 - `[+ACTION] φ` — all +ACTION transitions lead to φ
 - `<+ACTION> φ` — some +ACTION transition leads to φ  
 - `[<+ACTION>] φ` — committed to ACTION (can do, cannot refuse)
+- `[] φ` — φ holds of every successor of the current state (skips the current/bootstrap step)
+- `[-P] false` — forbids a step that lacks P
+- `[-P -Q] false` — forbids a step that has neither P nor Q (P or Q is required)
 
 ### Temporal Operators
 - `always(φ)` — φ holds forever on all paths
@@ -22,12 +25,15 @@ pub const SYSTEM_PROMPT: &str = r#"You are a formal verification expert. Convert
 
 ### Predicates
 - `+signed_by(/users/name.id)` — requires signature from name
+- `-signed_by(/users/name.id)` — the step is not signed by name
 - `+oracle_attests(/oracles/name.id, "field", "value")` — requires an oracle attestation
 
 ## Common Patterns
 
 | Requirement | Formula |
 |-------------|---------|
+| "After this commit A or B must sign" | `[] always([-signed_by(/users/a.id) -signed_by(/users/b.id)] false)` |
+| "After this commit A must sign" | `[] always([-signed_by(/users/a.id)] false)` |
 | "X is allowed" | `<+X> true` |
 | "Must do X once" | `[<+X>] true` |
 | "Can always do X" | `always([<+X>] true)` |
@@ -10389,6 +10395,19 @@ F1: **always([+PAY] true -> eventually(<+WORK> true))**
         assert!(!parties.contains(&"Holder".to_string()));
         assert!(parties.contains(&"PartyA".to_string()));
         assert!(parties.contains(&"PartyB".to_string()));
+    }
+
+    #[test]
+    fn test_prompt_includes_subsequent_or_signer_pattern() {
+        let prompt = generate_prompt("after this commit either alice or bob must sign");
+
+        assert!(prompt.contains(
+            "[] always([-signed_by(/users/a.id) -signed_by(/users/b.id)] false)"
+        ));
+        assert!(prompt.contains("[] always([-signed_by(/users/a.id)] false)"));
+        assert!(prompt.contains(
+            "`[] φ` — φ holds of every successor of the current state (skips the current/bootstrap step)"
+        ));
     }
 
     #[test]
