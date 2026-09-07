@@ -29,8 +29,8 @@ modal id create --path alice.passfile
 modal id create --path bob.passfile
 
 modal c checkout
-modal c set /users/alice.id $(modal id get --path ./alice.passfile)
-modal c set /users/bob.id $(modal id get --path ./bob.passfile)
+modal c set-named-id /users/alice.id ./alice.passfile
+modal c set-named-id /users/bob.id ./bob.passfile
 ```
 
 ## Step 2: Write the Rule First
@@ -225,8 +225,8 @@ modal id create --path bob.passfile
 
 # Initialize
 modal c checkout
-modal c set /users/alice.id $(modal id get --path ./alice.passfile)
-modal c set /users/bob.id $(modal id get --path ./bob.passfile)
+modal c set-named-id /users/alice.id ./alice.passfile
+modal c set-named-id /users/bob.id ./bob.passfile
 
 # Write rule first
 mkdir -p model rules

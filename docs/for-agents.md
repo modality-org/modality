@@ -72,8 +72,8 @@ modal id create --path seller.passfile
 modal c checkout
 
 # Add identities
-modal c set /users/buyer.id $(modal id get --path ./buyer.passfile)
-modal c set /users/seller.id $(modal id get --path ./seller.passfile)
+modal c set-named-id /users/buyer.id ./buyer.passfile
+modal c set-named-id /users/seller.id ./seller.passfile
 ```
 
 **model/default.modality** — defines allowed transitions:

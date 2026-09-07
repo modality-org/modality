@@ -10,6 +10,7 @@ MULTISIG_TREASURY_TUTORIAL="$ROOT_DIR/docs/tutorials/multisig-treasury.md"
 ORACLE_ESCROW_TUTORIAL="$ROOT_DIR/docs/tutorials/oracle-escrow.md"
 FAQ_DOC="$ROOT_DIR/docs/faq.md"
 HUB_REST_API_DOC="$ROOT_DIR/docs/reference/hub-rest-api.md"
+FOR_AGENTS_DOC="$ROOT_DIR/docs/for-agents.md"
 IETF_METHODOLOGY_DOC="$ROOT_DIR/experiments/ietf-autoformalization/methodology.md"
 ACME_SYNTHESIS_NOTES="$ROOT_DIR/experiments/ietf-autoformalization/rfc8555-acme/synthesis-notes.md"
 MODELS_VS_RULES_DOC="$ROOT_DIR/docs/concepts/models-vs-rules.md"
@@ -868,6 +869,8 @@ dev_for_agents_required_patterns=(
   "Status: archived agent-facing notes."
   "explicit Boolean conditionals such as"
   "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "modal c set-named-id /users/buyer.id ./buyer.passfile"
+  "modal c set-named-id /users/seller.id ./seller.passfile"
   "always(!<+RELEASE> true | <+DELIVER> true)"
   "always(!<+PAY> true | <+DELIVER> true)"
   "<+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"
@@ -882,8 +885,8 @@ for pattern in "${dev_for_agents_required_patterns[@]}"; do
   fi
 done
 
-if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_FOR_AGENTS_DOC"; then
-  echo "developer agents doc should not present formula implication sugar as the teaching path" >&2
+if grep -Eq -- ' true[[:space:]]*->| implies |modal c set /users/.+modal id get' "$DEV_FOR_AGENTS_DOC"; then
+  echo "developer agents doc should not present formula implication sugar or stale raw identity setup as the teaching path" >&2
   exit 1
 fi
 
@@ -892,6 +895,8 @@ dev_modality_for_agents_required_patterns=(
   "avoid formula implication sugar such as \`A -> B\`"
   "explicit Boolean conditionals such as"
   "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "modal c set-named-id /users/alice.id ./alice.passfile"
+  "modal c set-named-id /users/bob.id ./bob.passfile"
   "| \`!P \\| Q\` | If P then Q |"
   "init -> deposited [+DEPOSIT +signed_by(/users/buyer.id)]"
   "deposited -> delivered [+DELIVER +signed_by(/users/seller.id)]"
@@ -908,8 +913,26 @@ for pattern in "${dev_modality_for_agents_required_patterns[@]}"; do
   fi
 done
 
-if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_MODALITY_FOR_AGENTS_DOC"; then
-  echo "developer modality-for-agents doc should not present formula implication sugar as the teaching path" >&2
+if grep -Eq -- ' true[[:space:]]*->| implies |modal c set /users/.+modal id get' "$DEV_MODALITY_FOR_AGENTS_DOC"; then
+  echo "developer modality-for-agents doc should not present formula implication sugar or stale raw identity setup as the teaching path" >&2
+  exit 1
+fi
+
+for_agents_doc_required_patterns=(
+  "modal c set-named-id /users/buyer.id ./buyer.passfile"
+  "modal c set-named-id /users/seller.id ./seller.passfile"
+  "The \`q*\` names are witness nodes, not business states."
+)
+
+for pattern in "${for_agents_doc_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$FOR_AGENTS_DOC"; then
+    echo "public for-agents doc is missing current onboarding text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies |modal c set /users/.+modal id get' "$FOR_AGENTS_DOC"; then
+  echo "public for-agents doc should not present formula implication sugar or stale raw identity setup as the teaching path" >&2
   exit 1
 fi
 
@@ -1001,11 +1024,18 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_MODEL_SYNTHESIS_TUTORIAL"; 
   exit 1
 fi
 
+if grep -Eq -- 'modal c set /users/.+modal id get' "$DEV_MODEL_SYNTHESIS_TUTORIAL"; then
+  echo "developer model synthesis tutorial should not present stale raw identity setup paths" >&2
+  exit 1
+fi
+
 dev_quickstart_required_patterns=(
   "Status: archived quickstart notes."
   "avoid formula implication sugar such as \`A -> B\`"
   "explicit Boolean conditionals such as"
   "\`[+ACTION] true\` as a conditional antecedent"
+  "modal c set-named-id /users/alice.id ./alice.passfile"
+  "modal c set-named-id /users/bob.id ./bob.passfile"
   "idle -> committed [+COMMIT +signed_by(/users/alice.id)]"
   "committed -> committed [+COMMIT +signed_by(/users/bob.id)]"
   "!<+COMMIT> true |"
@@ -1021,8 +1051,8 @@ for pattern in "${dev_quickstart_required_patterns[@]}"; do
   fi
 done
 
-if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_QUICKSTART_DOC"; then
-  echo "developer quickstart doc should not present formula implication sugar as the teaching path" >&2
+if grep -Eq -- ' true[[:space:]]*->| implies |modal c set /users/.+modal id get' "$DEV_QUICKSTART_DOC"; then
+  echo "developer quickstart doc should not present formula implication sugar or stale raw identity setup as the teaching path" >&2
   exit 1
 fi
 
