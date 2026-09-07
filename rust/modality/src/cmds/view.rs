@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const MERMAID_JS: &str = "https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js";
+const MERMAID_JS: &str = "https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.esm.min.mjs";
+const MERMAID_ELK_JS: &str =
+    "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.9/dist/mermaid-layout-elk.esm.min.mjs";
 
 /// Open a Mermaid rendering of a model in the default web browser
 #[derive(Parser, Debug)]
@@ -101,6 +103,7 @@ fn render_html(title: &str, source_path: &str, modality: &str, mermaid: &str) ->
         .replace("{{TITLE}}", &html_escape(title))
         .replace("{{SOURCE_PATH}}", &html_escape(source_path))
         .replace("{{MERMAID_JS}}", MERMAID_JS)
+        .replace("{{MERMAID_ELK_JS}}", MERMAID_ELK_JS)
         .replace("{{MODALITY}}", &html_escape(modality))
         .replace("{{MERMAID}}", &html_escape(mermaid))
 }
@@ -130,6 +133,8 @@ mod tests {
         let mermaid = "stateDiagram-v2\n    q0 --> q1 : +POST\n    q1 --> q1 : \"+POST +signed_by(/parties/alice.id)\"";
         let html = render_html("Contract", "model/default.modality", modality, mermaid);
         assert!(html.contains(MERMAID_JS));
+        assert!(html.contains(MERMAID_ELK_JS));
+        assert!(html.contains("registerLayoutLoaders"));
         assert!(html.contains("Contract"));
         assert!(html.contains("model/default.modality"));
         assert!(html.contains("stateDiagram-v2"));

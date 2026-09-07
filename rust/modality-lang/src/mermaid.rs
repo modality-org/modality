@@ -1,6 +1,8 @@
 #![allow(clippy::collapsible_match)]
 
-use crate::ast::{Model, Property};
+use std::collections::HashMap;
+
+use crate::ast::{Model, Property, Transition};
 
 fn mermaid_edge_label(properties: &[Property]) -> String {
     if properties.is_empty() {
@@ -31,10 +33,42 @@ fn mermaid_escape_label(label: &str) -> String {
     label.replace('\\', "\\\\").replace('"', "#quot;")
 }
 
+fn has_parallel_edges(model: &Model) -> bool {
+    edge_pair_is_duplicated(&model.transitions)
+        || model
+            .parts
+            .iter()
+            .any(|part| edge_pair_is_duplicated(&part.transitions))
+}
+
+fn edge_pair_is_duplicated(transitions: &[Transition]) -> bool {
+    let mut counts = HashMap::new();
+    for transition in transitions {
+        let count = counts
+            .entry((transition.from.as_str(), transition.to.as_str()))
+            .or_insert(0);
+        *count += 1;
+        if *count > 1 {
+            return true;
+        }
+    }
+    false
+}
+
+fn mermaid_start(model: &Model) -> String {
+    let mut diagram = String::new();
+    if has_parallel_edges(model) {
+        // Dagre collapses multiple edges that share the same from/to, including
+        // distinct self-loops. ELK keeps each labeled arrow visible.
+        diagram.push_str("---\nconfig:\n  layout: elk\n---\n");
+    }
+    diagram.push_str("stateDiagram-v2\n");
+    diagram
+}
+
 /// Generate a Mermaid state diagram from a Modality model
 pub fn generate_mermaid_diagram(model: &Model) -> String {
-    let mut diagram = String::new();
-    diagram.push_str("stateDiagram-v2\n");
+    let mut diagram = mermaid_start(model);
     
     // Handle direct transitions (new simple syntax)
     if !model.transitions.is_empty() {
@@ -122,8 +156,7 @@ pub fn generate_mermaid_diagrams(models: &[Model]) -> String {
 
 /// Generate a Mermaid state diagram with custom styling
 pub fn generate_mermaid_diagram_with_styling(model: &Model) -> String {
-    let mut diagram = String::new();
-    diagram.push_str("stateDiagram-v2\n");
+    let mut diagram = mermaid_start(model);
     
     // Add styling
     diagram.push_str("    classDef default fill:#f9f9f9,stroke:#333,stroke-width:2px\n");
@@ -178,8 +211,7 @@ pub fn generate_mermaid_diagram_with_styling(model: &Model) -> String {
 
 /// Generate a Mermaid state diagram with current state highlighting
 pub fn generate_mermaid_diagram_with_state(model: &Model) -> String {
-    let mut diagram = String::new();
-    diagram.push_str("stateDiagram-v2\n");
+    let mut diagram = mermaid_start(model);
     
     // Add styling for current states
     diagram.push_str("    classDef current fill:#e3f2fd,stroke:#1976d2,stroke-width:3px\n");
@@ -274,6 +306,7 @@ mod tests {
         let diagram = generate_mermaid_diagram(&model);
         
         assert!(diagram.contains("stateDiagram-v2"));
+        assert!(!diagram.contains("layout: elk"));
         assert!(diagram.contains("n1"));
         assert!(diagram.contains("n2"));
         assert!(diagram.contains("n1 --> n2"));
@@ -497,6 +530,7 @@ model Contract {
         let models = crate::parse_all_models_content_lalrpop(content).expect("parse first-contract witness");
         let diagram = generate_mermaid_diagram(&models[0]);
 
+        assert!(diagram.contains("layout: elk"));
         assert!(diagram.contains("stateDiagram-v2"));
         assert!(diagram.contains("q0 --> q1\n") || diagram.contains("q0 --> q1"));
         assert!(diagram.contains("q1 --> q1 : \"+signed_by(/parties/alice.id)\""));

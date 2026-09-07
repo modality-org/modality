@@ -12,6 +12,7 @@ members = [
 , "modal-common"
 , "modality"
 , "modality-lang"
+, "modality-synthesizer"
 , "modality-lsp"
 , "modal-rpc"
 , "modal"

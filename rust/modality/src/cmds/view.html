@@ -4,7 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{TITLE}}</title>
-  <script src="{{MERMAID_JS}}"></script>
   <style>
     :root { color-scheme: light dark; }
     body {
@@ -66,7 +65,12 @@
       <pre class="code"><code>{{MODALITY}}</code></pre>
     </section>
   </div>
-  <script>
+  <script type="module">
+    import mermaid from '{{MERMAID_JS}}';
+    import elkLayouts from '{{MERMAID_ELK_JS}}';
+
+    mermaid.registerLayoutLoaders(elkLayouts);
+
     const source = document.getElementById('source').textContent;
     const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     mermaid.initialize({

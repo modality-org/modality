@@ -516,9 +516,14 @@ The same witness as a state diagram, now with a signed Alice move or a signed
 Bob move:
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 stateDiagram-v2
     q0 --> q1
-    q1 --> q1 : "+signed_by(/parties/alice.id) or +signed_by(/parties/bob.id)"
+    q1 --> q1 : "+signed_by(/parties/alice.id)"
+    q1 --> q1 : "+signed_by(/parties/bob.id)"
 ```
 
 ```bash

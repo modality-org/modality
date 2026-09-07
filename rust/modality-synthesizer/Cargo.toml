@@ -1,0 +1,12 @@
+[package]
+name = "modality-synthesizer"
+version = "0.1.7"
+edition = "2021"
+description = "Bounded μ-calculus witness synthesis for Modality formulas"
+license = "MIT"
+repository = "https://github.com/modality-org/modality"
+homepage = "https://www.modality.org"
+
+[dependencies]
+modality-lang = { path = "../modality-lang", version = "0.1.7" }
+serde_json = "1.0"

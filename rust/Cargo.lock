@@ -4722,6 +4722,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "modality-synthesizer"
+version = "0.1.7"
+dependencies = [
+ "modality-lang",
+ "serde_json",
+]
+
+[[package]]
 name = "multer"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

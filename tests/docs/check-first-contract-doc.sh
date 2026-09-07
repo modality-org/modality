@@ -38,6 +38,9 @@ required_patterns=(
   '```mermaid'
   "stateDiagram-v2"
   "The same witness as a state diagram:"
+  "layout: elk"
+  'q1 --> q1 : "+signed_by(/parties/alice.id)"'
+  'q1 --> q1 : "+signed_by(/parties/bob.id)"'
   "something off about the witness model"
   "1 formula(s) lint-clean"
   "Contract is valid!"
@@ -130,7 +133,9 @@ first_contract_smoke_patterns=(
   "synthesized-model-view.out"
   "model view"
   "--no-open"
-  "mermaid.min.js"
+  "mermaid.esm.min.mjs"
+  "registerLayoutLoaders"
+  "mermaid-layout-elk"
   "part flow"
   "All properties are predicates or commit method labels (verifier-observed)."
   "sha256sum --check"
@@ -188,6 +193,11 @@ fi
 
 if grep -Fq "+POST" "$DOC"; then
   echo "first-contract guide should not put +POST on witness transitions" >&2
+  exit 1
+fi
+
+if grep -Fq ' or +signed_by' "$DOC"; then
+  echo "first-contract guide should not put or-combined transition labels in mermaid" >&2
   exit 1
 fi
 

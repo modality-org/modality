@@ -194,7 +194,9 @@ if ! grep -q "^Wrote " "$VIEW_OUT"; then
 fi
 VIEW_HTML="$(sed -n 's/^Wrote //p' "$VIEW_OUT")"
 required_view_patterns=(
-  "mermaid.min.js"
+  "mermaid.esm.min.mjs"
+  "registerLayoutLoaders"
+  "mermaid-layout-elk"
   "stateDiagram-v2"
   "part flow"
   "q0 --&gt; q1"
