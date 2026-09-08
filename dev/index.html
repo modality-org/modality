@@ -157,7 +157,7 @@ modal id create --path bob.passfile
 
 # Initialize and commit
 modal c checkout
-modal c set /parties/alice.id $(modal id get --path ./alice.passfile)
+modal c set-named-id /parties/alice.id ./alice.passfile
 modal c commit --all --sign alice.passfile -m "Initial setup"</code></pre>
             <p><a href="getting-started/" class="cta">Read the full Getting Started guide →</a></p>
         </section>

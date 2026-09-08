@@ -64,6 +64,11 @@ DEV_CLI_README="$ROOT_DIR/dev/cli/README.md"
 DEV_CLI_INDEX_HTML="$ROOT_DIR/dev/cli/index.html"
 CONTRACT_HUB_TUTORIAL="$ROOT_DIR/docs/tutorials/contract-hub.md"
 SITE_CONTRACT_HUB_TUTORIAL="$ROOT_DIR/sites/www.modality.org/docs/tutorials/contract-hub.md"
+MODALITY_SKILL_DOC="$ROOT_DIR/packages/modality-skill/SKILL.md"
+MODALITY_SKILL_PATTERNS_DOC="$ROOT_DIR/packages/modality-skill/references/patterns.md"
+DEV_GETTING_STARTED_HTML="$ROOT_DIR/dev/getting-started/index.html"
+DEV_INDEX_HTML="$ROOT_DIR/dev/index.html"
+DEV_CONTRACT_HUB_HTML="$ROOT_DIR/dev/tutorials/contract-hub.html"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1057,6 +1062,8 @@ dev_getting_started_required_patterns=(
   "avoid formula implication sugar such as \`A -> B\`"
   "explicit Boolean conditionals such as"
   "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "modal c set-named-id /parties/alice.id ./alice.passfile"
+  "modal c set-named-id /parties/bob.id ./bob.passfile"
   "always(!<+RELEASE> true | <+DELIVER> true)"
   "It uses explicit Boolean form for the conditional"
 )
@@ -1068,8 +1075,92 @@ for pattern in "${dev_getting_started_required_patterns[@]}"; do
   fi
 done
 
-if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_GETTING_STARTED_DOC"; then
-  echo "developer getting-started doc should not present formula implication sugar as the teaching path" >&2
+if grep -Eq -- ' true[[:space:]]*->| implies |modal c set /parties/.+modal id get' "$DEV_GETTING_STARTED_DOC"; then
+  echo "developer getting-started doc should not present formula implication sugar or stale raw identity setup as the teaching path" >&2
+  exit 1
+fi
+
+modality_skill_required_patterns=(
+  "modal id create --path buyer.passfile"
+  "modal id create --path seller.passfile"
+  "modal c set-named-id /parties/buyer.id ./buyer.passfile"
+  "modal c set-named-id /parties/seller.id ./seller.passfile"
+)
+
+for pattern in "${modality_skill_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$MODALITY_SKILL_DOC"; then
+    echo "Modality skill doc is missing current identity setup text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- 'modal c set /parties/.+modal id get' "$MODALITY_SKILL_DOC"; then
+  echo "Modality skill doc should not present stale raw identity setup as the teaching path" >&2
+  exit 1
+fi
+
+modality_skill_patterns_required_patterns=(
+  "always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)"
+)
+
+for pattern in "${modality_skill_patterns_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$MODALITY_SKILL_PATTERNS_DOC"; then
+    echo "Modality skill patterns reference is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$MODALITY_SKILL_PATTERNS_DOC"; then
+  echo "Modality skill patterns reference should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+dev_getting_started_html_required_patterns=(
+  "modal c set-named-id /parties/alice.id ./alice.passfile"
+  "modal c set-named-id /parties/bob.id ./bob.passfile"
+)
+
+for pattern in "${dev_getting_started_html_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_GETTING_STARTED_HTML"; then
+    echo "developer getting-started HTML is missing current identity setup text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- 'modal c set /parties/.+modal id get' "$DEV_GETTING_STARTED_HTML"; then
+  echo "developer getting-started HTML should not present stale raw identity setup as the teaching path" >&2
+  exit 1
+fi
+
+dev_index_html_required_patterns=(
+  "modal c set-named-id /parties/alice.id ./alice.passfile"
+)
+
+for pattern in "${dev_index_html_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_INDEX_HTML"; then
+    echo "developer index HTML is missing current identity setup text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- 'modal c set /parties/.+modal id get' "$DEV_INDEX_HTML"; then
+  echo "developer index HTML should not present stale raw identity setup as the teaching path" >&2
+  exit 1
+fi
+
+dev_contract_hub_html_required_patterns=(
+  "modal c set-named-id /parties/bob.id ./bob.passfile"
+)
+
+for pattern in "${dev_contract_hub_html_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_CONTRACT_HUB_HTML"; then
+    echo "developer contract hub HTML is missing current identity setup text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- 'modal c set /parties/.+modal id get' "$DEV_CONTRACT_HUB_HTML"; then
+  echo "developer contract hub HTML should not present stale raw identity setup as the teaching path" >&2
   exit 1
 fi
 

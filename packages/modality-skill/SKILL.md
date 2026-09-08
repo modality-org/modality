@@ -12,8 +12,9 @@ Create and manage cryptographically enforced contracts between agents. No trust 
 ### Create an escrow contract
 
 ```bash
-# Create identity
-modal id create --path my.passfile
+# Create identities
+modal id create --path buyer.passfile
+modal id create --path seller.passfile
 
 # Create contract
 mkdir deal && cd deal
@@ -21,8 +22,8 @@ modal c create
 
 # Set up parties
 modal c checkout
-modal c set /parties/buyer.id $(modal id get --path buyer.passfile)
-modal c set /parties/seller.id $(modal id get --path seller.passfile)
+modal c set-named-id /parties/buyer.id ./buyer.passfile
+modal c set-named-id /parties/seller.id ./seller.passfile
 ```
 
 ### Add model + rules

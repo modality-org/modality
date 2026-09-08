@@ -59,8 +59,8 @@ modal c checkout
 mkdir -p state rules
 
 # Add party identities
-modal c set /parties/alice.id $(modal id get --path ./alice.passfile)
-modal c set /parties/bob.id $(modal id get --path ./bob.passfile)
+modal c set-named-id /parties/alice.id ./alice.passfile
+modal c set-named-id /parties/bob.id ./bob.passfile
 ```
 
 ### 4. Define the Model

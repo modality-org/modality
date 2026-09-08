@@ -91,7 +91,7 @@ rule member_required {
 }
 
 rule membership_unanimous {
-  formula { always (+modifies(/members) implies +all_signed(/members)) }
+  formula { always(!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true) }
 }
 ```
 
