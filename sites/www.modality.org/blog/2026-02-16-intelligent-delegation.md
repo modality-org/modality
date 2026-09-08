@@ -61,13 +61,13 @@ Modality models are machine-checkable specifications of what each party can do. 
 ```modality
 rule payment_guaranteed {
   formula {
-    always (+modifies(/escrow/released) implies +signed_by(/parties/delegator.id))
+    always(!<+modifies(/escrow/released)> true | <+modifies(/escrow/released) +signed_by(/parties/delegator.id)> true)
   }
 }
 
 rule work_before_payment {
   formula {
-    always (+modifies(/escrow/released) implies +submitted)
+    always(!<+modifies(/escrow/released)> true | <+submitted> true)
   }
 }
 ```

@@ -71,6 +71,9 @@ DEV_INDEX_HTML="$ROOT_DIR/dev/index.html"
 DEV_CONTRACT_HUB_HTML="$ROOT_DIR/dev/tutorials/contract-hub.html"
 REPUTATION_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-03-13-reputation-is-not-verification.md"
 PROTECTION_RINGS_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-03-13-protection-rings-for-ai-agents.md"
+INTELLIGENT_DELEGATION_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-02-16-intelligent-delegation.md"
+KARPATHY_LANGUAGES_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-02-16-karpathy-languages-and-the-agent-era.md"
+NINE_SECONDS_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-04-29-nine-seconds.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1487,6 +1490,56 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$PROTECTION_RINGS_BLOG"; then
   echo "protection-rings blog should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+intelligent_delegation_blog_required_patterns=(
+  "always(!<+modifies(/escrow/released)> true | <+modifies(/escrow/released) +signed_by(/parties/delegator.id)> true)"
+  "always(!<+modifies(/escrow/released)> true | <+submitted> true)"
+)
+
+for pattern in "${intelligent_delegation_blog_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$INTELLIGENT_DELEGATION_BLOG"; then
+    echo "intelligent-delegation blog is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$INTELLIGENT_DELEGATION_BLOG"; then
+  echo "intelligent-delegation blog should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+karpathy_languages_blog_required_patterns=(
+  "always(!<+modifies(/funds)> true | <+modifies(/funds) +signed_by(/owner.id)> true)"
+)
+
+for pattern in "${karpathy_languages_blog_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$KARPATHY_LANGUAGES_BLOG"; then
+    echo "Karpathy languages blog is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$KARPATHY_LANGUAGES_BLOG"; then
+  echo "Karpathy languages blog should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+nine_seconds_blog_required_patterns=(
+  "always(!<+modifies(/infrastructure)> true | <+modifies(/infrastructure) +signed_by(/admin.id)> true)"
+  "always(!<+signed_by(/agent.id)> true | <+signed_by(/agent.id) -modifies(/production)> true)"
+)
+
+for pattern in "${nine_seconds_blog_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$NINE_SECONDS_BLOG"; then
+    echo "nine-seconds blog is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$NINE_SECONDS_BLOG"; then
+  echo "nine-seconds blog should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

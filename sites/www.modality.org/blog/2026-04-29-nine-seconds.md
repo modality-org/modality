@@ -74,13 +74,13 @@ model coding_agent_permissions {
 ```modality
 rule no_destructive_without_human {
   formula {
-    always (+modifies(/infrastructure) implies +signed_by(/admin.id))
+    always(!<+modifies(/infrastructure)> true | <+modifies(/infrastructure) +signed_by(/admin.id)> true)
   }
 }
 
 rule production_immutable_to_agent {
   formula {
-    always (+signed_by(/agent.id) implies -modifies(/production))
+    always(!<+signed_by(/agent.id)> true | <+signed_by(/agent.id) -modifies(/production)> true)
   }
 }
 

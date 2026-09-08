@@ -93,7 +93,7 @@ Rules are the human-legible safety layer. Models are the agent-optimized impleme
 // Human writes this (permanent protection)
 rule payment_protection {
   formula {
-    always (+modifies(/funds) implies +signed_by(/owner.id))
+    always(!<+modifies(/funds)> true | <+modifies(/funds) +signed_by(/owner.id)> true)
   }
 }
 ```
