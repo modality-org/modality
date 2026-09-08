@@ -74,6 +74,8 @@ PROTECTION_RINGS_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-03-13-protecti
 INTELLIGENT_DELEGATION_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-02-16-intelligent-delegation.md"
 KARPATHY_LANGUAGES_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-02-16-karpathy-languages-and-the-agent-era.md"
 NINE_SECONDS_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-04-29-nine-seconds.md"
+WHY_AGENTS_NEED_CONTRACTS_THREAD="$ROOT_DIR/content/threads/why-agents-need-contracts.md"
+TRUSTLESS_ESCROW_CONTRACT="$ROOT_DIR/tutorials/trustless-escrow/contracts/escrow.modality"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1540,6 +1542,40 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$NINE_SECONDS_BLOG"; then
   echo "nine-seconds blog should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+why_agents_need_contracts_required_patterns=(
+  "always(!<+modifies(/funds)> true | <+modifies(/funds) +signed_by(/owner.id)> true)"
+)
+
+for pattern in "${why_agents_need_contracts_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$WHY_AGENTS_NEED_CONTRACTS_THREAD"; then
+    echo "why-agents-need-contracts thread is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$WHY_AGENTS_NEED_CONTRACTS_THREAD"; then
+  echo "why-agents-need-contracts thread should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+trustless_escrow_contract_required_patterns=(
+  "always(!<+modifies(/escrow/deposited)> true | <+modifies(/escrow/deposited) +signed_by(/parties/buyer.id)> true)"
+  "always(!<+modifies(/escrow/delivered)> true | <+modifies(/escrow/delivered) +signed_by(/parties/seller.id)> true)"
+  "always(!<+modifies(/escrow/released)> true | <+modifies(/escrow/released) +signed_by(/parties/buyer.id)> true)"
+)
+
+for pattern in "${trustless_escrow_contract_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$TRUSTLESS_ESCROW_CONTRACT"; then
+    echo "trustless escrow contract is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$TRUSTLESS_ESCROW_CONTRACT"; then
+  echo "trustless escrow contract should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

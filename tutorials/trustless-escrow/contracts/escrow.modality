@@ -23,18 +23,18 @@ model Escrow {
 
 rule buyer_must_sign_deposit {
   formula {
-    always (+modifies(/escrow/deposited) implies +signed_by(/parties/buyer.id))
+    always(!<+modifies(/escrow/deposited)> true | <+modifies(/escrow/deposited) +signed_by(/parties/buyer.id)> true)
   }
 }
 
 rule seller_must_sign_delivery {
   formula {
-    always (+modifies(/escrow/delivered) implies +signed_by(/parties/seller.id))
+    always(!<+modifies(/escrow/delivered)> true | <+modifies(/escrow/delivered) +signed_by(/parties/seller.id)> true)
   }
 }
 
 rule buyer_must_sign_release {
   formula {
-    always (+modifies(/escrow/released) implies +signed_by(/parties/buyer.id))
+    always(!<+modifies(/escrow/released)> true | <+modifies(/escrow/released) +signed_by(/parties/buyer.id)> true)
   }
 }

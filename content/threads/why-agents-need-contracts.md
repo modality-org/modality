@@ -80,7 +80,7 @@ The key insight: Rules are permanent. Models can change.
 
 Rules define what MUST be true:
 ```
-always (+modifies(/funds) implies +signed_by(/owner))
+always(!<+modifies(/funds)> true | <+modifies(/funds) +signed_by(/owner.id)> true)
 ```
 
 Once a rule exists, no one can bypass it. Not the other agent. Not even you.
