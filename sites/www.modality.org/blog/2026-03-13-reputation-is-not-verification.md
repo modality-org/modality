@@ -47,7 +47,7 @@ model data_access {
 }
 
 rule requester_cant_touch_config {
-  formula { always (+signed_by(/requester.id) implies -modifies(/config)) }
+  formula { always(!<+signed_by(/requester.id) +modifies(/config)> true) }
 }
 ```
 
@@ -97,7 +97,7 @@ modal c create my-contract
 
 # Add rules that enforce — not suggest
 echo 'rule no_unauthorized_access {
-  formula { always (+modifies(/data) implies +signed_by(/authorized.id)) }
+  formula { always(!<+modifies(/data)> true | <+modifies(/data) +signed_by(/authorized.id)> true) }
 }' > rules/access.modality
 
 # Every commit is now cryptographically checked

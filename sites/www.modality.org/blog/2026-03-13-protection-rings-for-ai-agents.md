@@ -85,7 +85,7 @@ In Modality, the protection ring boundary is encoded as formal rules with crypto
 rule userspace_boundary {
   formula {
     always(
-      +signed_by(/agents/userspace.id) implies -modifies(/kernel)
+      !<+signed_by(/agents/userspace.id) +modifies(/kernel)> true
     )
   }
 }
@@ -97,9 +97,8 @@ Translation: If the userspace agent signed this commit, it **cannot** modify any
 rule kernel_requires_dual_signature {
   formula {
     always(
-      +modifies(/kernel) implies (
-        +signed_by(/agents/kernel.id) & +signed_by(/humans/admin.id)
-      )
+      !<+modifies(/kernel)> true |
+      <+modifies(/kernel) +signed_by(/agents/kernel.id) +signed_by(/humans/admin.id)> true
     )
   }
 }

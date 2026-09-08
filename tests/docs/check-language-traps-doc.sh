@@ -69,6 +69,8 @@ MODALITY_SKILL_PATTERNS_DOC="$ROOT_DIR/packages/modality-skill/references/patter
 DEV_GETTING_STARTED_HTML="$ROOT_DIR/dev/getting-started/index.html"
 DEV_INDEX_HTML="$ROOT_DIR/dev/index.html"
 DEV_CONTRACT_HUB_HTML="$ROOT_DIR/dev/tutorials/contract-hub.html"
+REPUTATION_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-03-13-reputation-is-not-verification.md"
+PROTECTION_RINGS_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-03-13-protection-rings-for-ai-agents.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1450,6 +1452,41 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies |modal c set /users/.+modal id get' "$DEV_ORACLE_ESCROW_HTML"; then
   echo "developer oracle escrow HTML tutorial should not present formula implication sugar or stale raw identity setup as the teaching path" >&2
+  exit 1
+fi
+
+reputation_blog_required_patterns=(
+  "formula { always(!<+signed_by(/requester.id) +modifies(/config)> true) }"
+  "formula { always(!<+modifies(/data)> true | <+modifies(/data) +signed_by(/authorized.id)> true) }"
+)
+
+for pattern in "${reputation_blog_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$REPUTATION_BLOG"; then
+    echo "reputation blog is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$REPUTATION_BLOG"; then
+  echo "reputation blog should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+protection_rings_blog_required_patterns=(
+  "!<+signed_by(/agents/userspace.id) +modifies(/kernel)> true"
+  "!<+modifies(/kernel)> true |"
+  "<+modifies(/kernel) +signed_by(/agents/kernel.id) +signed_by(/humans/admin.id)> true"
+)
+
+for pattern in "${protection_rings_blog_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$PROTECTION_RINGS_BLOG"; then
+    echo "protection-rings blog is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$PROTECTION_RINGS_BLOG"; then
+  echo "protection-rings blog should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
