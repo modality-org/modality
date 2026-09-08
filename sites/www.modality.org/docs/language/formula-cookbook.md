@@ -39,7 +39,7 @@ typical first contract that is `/parties/alice.id` and `/parties/bob.id`.
 | After this commit either Alice or Bob must sign | `[] always([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false)` |
 | After this commit Alice must sign | `[] always([-signed_by(/parties/alice.id)] false)` |
 | After this commit either Alice or Bob must sign in alternating turns | `[] always(([-signed_by(/parties/alice.id) -signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/alice.id)] [-signed_by(/parties/bob.id)] false) & ([+signed_by(/parties/bob.id)] [-signed_by(/parties/alice.id)] false))` |
-| Named action `X` requires Alice's signature | `always([+X] true -> <+signed_by(/parties/alice.id)> true)` |
+| Named action `X` requires Alice's signature | `always(!<+X> true \| <+X +signed_by(/parties/alice.id)> true)` |
 
 Use the named-action row **only** when the user named an action. The
 alternating-turns row still requires a signer on every later step, then forbids
@@ -48,9 +48,12 @@ the same party twice in a row.
 ## Anti-patterns
 
 ```
-always([+SIGN] true -> (<+signed_by(/parties/alice.id)> true + <+signed_by(/parties/bob.id)> true))
+always(!<+SIGN> true | (<+SIGN +signed_by(/parties/alice.id)> true | <+SIGN +signed_by(/parties/bob.id)> true))
 ```
 
-That invents `+SIGN` and does not skip the bootstrap commit.
+That invents `+SIGN`, does not skip the bootstrap commit, and should not be
+used unless the contract actually has a `+SIGN` transition. When a named
+action is real, bind required signature evidence to the same transition label
+with explicit Boolean form.
 
 Do not prefix formulas with `F1:`. Do not wrap them in markdown fences.

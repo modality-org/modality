@@ -15,6 +15,7 @@ IETF_METHODOLOGY_DOC="$ROOT_DIR/experiments/ietf-autoformalization/methodology.m
 ACME_SYNTHESIS_NOTES="$ROOT_DIR/experiments/ietf-autoformalization/rfc8555-acme/synthesis-notes.md"
 MODELS_VS_RULES_DOC="$ROOT_DIR/docs/concepts/models-vs-rules.md"
 MODAL_LOGIC_DOC="$ROOT_DIR/docs/concepts/modal-logic.md"
+FORMULA_COOKBOOK_DOC="$ROOT_DIR/docs/language/formula-cookbook.md"
 MEMBERS_ONLY_EXAMPLE="$ROOT_DIR/examples/members_only.modality"
 TREASURY_MULTISIG_EXAMPLE="$ROOT_DIR/examples/treasury_multisig.modality"
 ORACLE_ESCROW_EXAMPLE="$ROOT_DIR/examples/oracle_escrow.modality"
@@ -281,6 +282,26 @@ done
 
 if grep -Eq -- 'φ[[:space:]]*->[[:space:]]*ψ| true[[:space:]]*->| implies ' "$MODAL_LOGIC_DOC"; then
   echo "modal logic concept doc should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+formula_cookbook_required_patterns=(
+  "Read this before writing or suggesting a Modality rule formula."
+  "always(!<+X> true \\| <+X +signed_by(/parties/alice.id)> true)"
+  "always(!<+SIGN> true | (<+SIGN +signed_by(/parties/alice.id)> true | <+SIGN +signed_by(/parties/bob.id)> true))"
+  "bind required signature evidence to the same transition label"
+  "explicit Boolean form"
+)
+
+for pattern in "${formula_cookbook_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$FORMULA_COOKBOOK_DOC"; then
+    echo "formula cookbook is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$FORMULA_COOKBOOK_DOC"; then
+  echo "formula cookbook should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
