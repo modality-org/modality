@@ -39,9 +39,9 @@ modal c checkout
 mkdir -p state/treasury
 
 # Add keyholder identities
-modal c set /treasury/alice.id $(modal id get --path ./alice.passfile)
-modal c set /treasury/bob.id $(modal id get --path ./bob.passfile)
-modal c set /treasury/carol.id $(modal id get --path ./carol.passfile)
+modal c set-named-id /treasury/alice.id alice.passfile
+modal c set-named-id /treasury/bob.id bob.passfile
+modal c set-named-id /treasury/carol.id carol.passfile
 
 # Create signers list (JSON array of paths)
 echo '{"signers": ["/treasury/alice.id", "/treasury/bob.id", "/treasury/carol.id"]}' > state/treasury/config.json

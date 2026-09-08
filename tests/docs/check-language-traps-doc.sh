@@ -1318,6 +1318,9 @@ dev_multisig_treasury_required_patterns=(
   "sugar such as \`A -> B\`"
   "explicit Boolean conditionals such as"
   "\`[+ACTION] true\` as a conditional antecedent"
+  "modal c set-named-id /treasury/alice.id alice.passfile"
+  "modal c set-named-id /treasury/bob.id bob.passfile"
+  "modal c set-named-id /treasury/carol.id carol.passfile"
   "!<+EXECUTE> true |"
   "<+EXECUTE +signed_by(/treasury/alice.id) +signed_by(/treasury/bob.id)> true"
   "<+EXECUTE +signed_by(/treasury/alice.id) +signed_by(/treasury/carol.id)> true"
@@ -1332,8 +1335,8 @@ for pattern in "${dev_multisig_treasury_required_patterns[@]}"; do
   fi
 done
 
-if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_MULTISIG_TREASURY_TUTORIAL"; then
-  echo "developer multisig treasury tutorial should not present formula implication sugar as the teaching path" >&2
+if grep -Eq -- ' true[[:space:]]*->| implies |modal c set /treasury/.+modal id get' "$DEV_MULTISIG_TREASURY_TUTORIAL"; then
+  echo "developer multisig treasury tutorial should not present formula implication sugar or stale raw identity setup as the teaching path" >&2
   exit 1
 fi
 
@@ -1396,6 +1399,9 @@ dev_multisig_treasury_html_required_patterns=(
   "sugar such as <code>A -&gt; B</code>"
   "explicit Boolean conditionals such as"
   "<code>[+ACTION] true</code> as a conditional"
+  "modal c set-named-id /treasury/alice.id alice.passfile"
+  "modal c set-named-id /treasury/bob.id bob.passfile"
+  "modal c set-named-id /treasury/carol.id carol.passfile"
   "!&lt;+EXECUTE&gt; true |"
   "&lt;+EXECUTE +signed_by(/treasury/alice.id) +signed_by(/treasury/bob.id)&gt; true"
   "&lt;+EXECUTE +signed_by(/treasury/alice.id) +signed_by(/treasury/carol.id)&gt; true"
@@ -1410,8 +1416,8 @@ for pattern in "${dev_multisig_treasury_html_required_patterns[@]}"; do
   fi
 done
 
-if grep -Eq -- ' true[[:space:]]*->| implies ' "$DEV_MULTISIG_TREASURY_HTML"; then
-  echo "developer multisig treasury HTML tutorial should not present formula implication sugar as the teaching path" >&2
+if grep -Eq -- ' true[[:space:]]*->| implies |modal c set /treasury/.+modal id get' "$DEV_MULTISIG_TREASURY_HTML"; then
+  echo "developer multisig treasury HTML tutorial should not present formula implication sugar or stale raw identity setup as the teaching path" >&2
   exit 1
 fi
 
