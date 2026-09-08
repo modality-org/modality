@@ -11,6 +11,7 @@ ORACLE_ESCROW_TUTORIAL="$ROOT_DIR/docs/tutorials/oracle-escrow.md"
 FAQ_DOC="$ROOT_DIR/docs/faq.md"
 HUB_REST_API_DOC="$ROOT_DIR/docs/reference/hub-rest-api.md"
 FOR_AGENTS_DOC="$ROOT_DIR/docs/for-agents.md"
+SITE_FOR_AGENTS_DOC="$ROOT_DIR/sites/www.modality.org/docs/for-agents.md"
 IETF_METHODOLOGY_DOC="$ROOT_DIR/experiments/ietf-autoformalization/methodology.md"
 ACME_SYNTHESIS_NOTES="$ROOT_DIR/experiments/ietf-autoformalization/rfc8555-acme/synthesis-notes.md"
 MODELS_VS_RULES_DOC="$ROOT_DIR/docs/concepts/models-vs-rules.md"
@@ -954,6 +955,18 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies |modal c set /users/.+modal id get' "$FOR_AGENTS_DOC"; then
   echo "public for-agents doc should not present formula implication sugar or stale raw identity setup as the teaching path" >&2
+  exit 1
+fi
+
+for pattern in "${for_agents_doc_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$SITE_FOR_AGENTS_DOC"; then
+    echo "site for-agents doc is missing current onboarding text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies |modal c set /users/.+modal id get' "$SITE_FOR_AGENTS_DOC"; then
+  echo "site for-agents doc should not present formula implication sugar or stale raw identity setup as the teaching path" >&2
   exit 1
 fi
 
