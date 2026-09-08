@@ -277,8 +277,8 @@ modal c create
 modal id create --path alice.passfile
 modal id create --path bob.passfile
 modal c checkout
-modal c set /parties/alice.id $(modal id get --path ./alice.passfile)
-modal c set /parties/bob.id $(modal id get --path ./bob.passfile)
+modal c set-named-id /parties/alice.id ./alice.passfile
+modal c set-named-id /parties/bob.id ./bob.passfile
 modal c commit --all --sign alice.passfile -m "Initial setup"
 ```
 

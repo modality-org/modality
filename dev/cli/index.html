@@ -118,7 +118,8 @@ modal c create</code></pre>
 
         <h3>Set State Values</h3>
 <pre><code>modal c set /path/to/file.txt "content"
-modal c set /data/config.json --file ./local.json</code></pre>
+modal c set /data/config.json --file ./local.json
+modal c set-named-id /parties/alice.id ./alice.passfile</code></pre>
 
         <h3>Commit Changes</h3>
 <pre><code># Commit all changes
@@ -194,8 +195,8 @@ modal c create
 modal id create --path alice.passfile
 modal id create --path bob.passfile
 modal c checkout
-modal c set /parties/alice.id $(modal id get --path ./alice.passfile)
-modal c set /parties/bob.id $(modal id get --path ./bob.passfile)
+modal c set-named-id /parties/alice.id ./alice.passfile
+modal c set-named-id /parties/bob.id ./bob.passfile
 modal c commit --all --sign alice.passfile -m "Initial setup"</code></pre>
 
         <h3>Execute an Action</h3>

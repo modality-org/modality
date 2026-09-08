@@ -85,7 +85,7 @@ modal hub grant con_abc123 --identity bob_id_xyz --role writer
 modal c clone http://localhost:3100/contracts/con_abc123
 
 # Bob adds his changes
-modal c set /parties/bob.id $(modal id get --path ./bob.passfile)
+modal c set-named-id /parties/bob.id ./bob.passfile
 modal c commit --all --sign bob.passfile -m "Bob joins"
 modal c push hub
 ```

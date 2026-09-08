@@ -60,6 +60,10 @@ DEV_ORACLE_ESCROW_TUTORIAL="$ROOT_DIR/dev/tutorials/ORACLE_ESCROW.md"
 DEV_COMBINING_PREDICATES_TUTORIAL="$ROOT_DIR/dev/predicates/tutorials/02-combining-predicates.md"
 DEV_MULTISIG_TREASURY_HTML="$ROOT_DIR/dev/tutorials/multisig-treasury.html"
 DEV_ORACLE_ESCROW_HTML="$ROOT_DIR/dev/tutorials/oracle-escrow.html"
+DEV_CLI_README="$ROOT_DIR/dev/cli/README.md"
+DEV_CLI_INDEX_HTML="$ROOT_DIR/dev/cli/index.html"
+CONTRACT_HUB_TUTORIAL="$ROOT_DIR/docs/tutorials/contract-hub.md"
+SITE_CONTRACT_HUB_TUTORIAL="$ROOT_DIR/sites/www.modality.org/docs/tutorials/contract-hub.md"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -967,6 +971,63 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies |modal c set /users/.+modal id get' "$SITE_FOR_AGENTS_DOC"; then
   echo "site for-agents doc should not present formula implication sugar or stale raw identity setup as the teaching path" >&2
+  exit 1
+fi
+
+dev_cli_required_patterns=(
+  "modal c set-named-id /parties/alice.id ./alice.passfile"
+  "modal c set-named-id /parties/bob.id ./bob.passfile"
+)
+
+for pattern in "${dev_cli_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_CLI_README"; then
+    echo "developer CLI README is missing current identity setup text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- 'modal c set /parties/.+modal id get' "$DEV_CLI_README"; then
+  echo "developer CLI README should not present stale raw identity setup as the teaching path" >&2
+  exit 1
+fi
+
+for pattern in "${dev_cli_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_CLI_INDEX_HTML"; then
+    echo "developer CLI HTML reference is missing current identity setup text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- 'modal c set /parties/.+modal id get' "$DEV_CLI_INDEX_HTML"; then
+  echo "developer CLI HTML reference should not present stale raw identity setup as the teaching path" >&2
+  exit 1
+fi
+
+contract_hub_required_patterns=(
+  "modal c set-named-id /parties/bob.id ./bob.passfile"
+)
+
+for pattern in "${contract_hub_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$CONTRACT_HUB_TUTORIAL"; then
+    echo "contract hub tutorial is missing current identity setup text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- 'modal c set /parties/.+modal id get' "$CONTRACT_HUB_TUTORIAL"; then
+  echo "contract hub tutorial should not present stale raw identity setup as the teaching path" >&2
+  exit 1
+fi
+
+for pattern in "${contract_hub_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$SITE_CONTRACT_HUB_TUTORIAL"; then
+    echo "site contract hub tutorial is missing current identity setup text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- 'modal c set /parties/.+modal id get' "$SITE_CONTRACT_HUB_TUTORIAL"; then
+  echo "site contract hub tutorial should not present stale raw identity setup as the teaching path" >&2
   exit 1
 fi
 
