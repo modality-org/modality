@@ -85,6 +85,7 @@ VSCODE_FORMULA_SYNTAX_EXAMPLE="$ROOT_DIR/common/modality-vscode/examples/formula
 MODALITY_LANG_QUICK_REFERENCE="$ROOT_DIR/rust/modality-lang/docs/QUICK_REFERENCE.md"
 RFC_0001_PAPER="$ROOT_DIR/papers/RFC-0001-MODAL-CONTRACTS.md"
 CONTRACT_HUB_EXAMPLE="$ROOT_DIR/services/contract-hub/example.js"
+CONTRACT_HUB_VALIDATOR_TEST="$ROOT_DIR/services/contract-hub/src/contract-validator.test.js"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1725,5 +1726,19 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$CONTRACT_HUB_EXAMPLE"; then
   echo "contract hub example should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
+
+contract_hub_validator_test_required_patterns=(
+  "rule membership { formula { always ((!+modifies(/members)) | +all_signed(/members)) } }"
+  "rule expiry { formula { always ((!after(/deadlines/expiry.datetime)) | signed_by(/users/buyer.id)) } }"
+  "rule transfer_owner { formula { always ((!+TRANSFER) | signed_by(/owner.id)) } }"
+  "rule delivery { formula { always ((!+RELEASE) | oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")) } }"
+)
+
+for pattern in "${contract_hub_validator_test_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$CONTRACT_HUB_VALIDATOR_TEST"; then
+    echo "contract hub validator parser fixtures are missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
 
 echo "language traps doc check passed"

@@ -610,7 +610,7 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
-      'rule membership { formula { always (+modifies(/members) implies +all_signed(/members)) } }'
+      'rule membership { formula { always ((!+modifies(/members)) | +all_signed(/members)) } }'
     ),
     [
       [{ sign: '-', name: 'modifies', args: ['/members'] }],
@@ -620,7 +620,7 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
-      'rule expiry { formula { always (after(/deadlines/expiry.datetime) -> signed_by(/users/buyer.id)) } }'
+      'rule expiry { formula { always ((!after(/deadlines/expiry.datetime)) | signed_by(/users/buyer.id)) } }'
     ),
     [
       [{ sign: '-', name: 'after', args: ['/deadlines/expiry.datetime'] }],
@@ -640,7 +640,7 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
-      'rule transfer_owner { formula { always ([+TRANSFER] implies signed_by(/owner.id)) } }'
+      'rule transfer_owner { formula { always ((!+TRANSFER) | signed_by(/owner.id)) } }'
     ),
     [
       [{ sign: '-', name: 'TRANSFER', args: [] }],
@@ -650,7 +650,7 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
-      'rule delivery { formula { always ([+RELEASE] implies <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true) } }'
+      'rule delivery { formula { always ((!+RELEASE) | oracle_attests(/oracles/delivery.id, "delivered", "true")) } }'
     ),
     [
       [{ sign: '-', name: 'RELEASE', args: [] }],
