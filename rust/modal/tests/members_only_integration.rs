@@ -358,7 +358,7 @@ fn test_members_only_full_lifecycle() {
     // Rules we'll enforce
     let rules = vec![
         "always (any_signed(/members))".to_string(),
-        "always ([+ADD_MEMBER] implies all_signed(/members))".to_string(),
+        "always (!<+ADD_MEMBER> true | <+ADD_MEMBER +all_signed(/members)> true)".to_string(),
     ];
 
     // Step 1: Add Alice as first member (before rules, so no validation yet)

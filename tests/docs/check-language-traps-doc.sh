@@ -88,6 +88,7 @@ CONTRACT_HUB_EXAMPLE="$ROOT_DIR/services/contract-hub/example.js"
 CONTRACT_HUB_VALIDATOR_TEST="$ROOT_DIR/services/contract-hub/src/contract-validator.test.js"
 RULE_SYNTHESIZE_CLI_SMOKE="$ROOT_DIR/tests/language/check-rule-synthesize-cli.sh"
 RUST_SYNTHESIZE_CMD="$ROOT_DIR/rust/modality/src/cmds/synthesize.rs"
+MEMBERS_ONLY_INTEGRATION_TEST="$ROOT_DIR/rust/modal/tests/members_only_integration.rs"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1799,5 +1800,15 @@ for file in "$RULE_SYNTHESIZE_CLI_SMOKE" "$RUST_SYNTHESIZE_CMD"; do
     exit 1
   fi
 done
+
+if ! grep -Fq 'always (!<+ADD_MEMBER> true | <+ADD_MEMBER +all_signed(/members)> true)' "$MEMBERS_ONLY_INTEGRATION_TEST"; then
+  echo "members-only integration test is missing current same-transition all-members evidence" >&2
+  exit 1
+fi
+
+if grep -Eq -- 'always[[:space:]]*\(\[\+ADD_MEMBER\][[:space:]]*implies|always[[:space:]]*\(\[\+ADD_MEMBER\][[:space:]]*true[[:space:]]*->' "$MEMBERS_ONLY_INTEGRATION_TEST"; then
+  echo "members-only integration test should not use legacy ADD_MEMBER implication fixtures" >&2
+  exit 1
+fi
 
 echo "language traps doc check passed"
