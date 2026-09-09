@@ -37,7 +37,7 @@ UNSAT_OUT="$TMP_DIR/unsatisfied-rule.out"
 cat >"$RULE" <<'EOF'
 rule post_requires_reviewer {
   formula {
-    always([+POST] true -> <+signed_by(/users/reviewer.id)> true)
+    always(!<+POST> true | <+POST +signed_by(/users/reviewer.id)> true)
   }
 }
 EOF

@@ -86,6 +86,8 @@ MODALITY_LANG_QUICK_REFERENCE="$ROOT_DIR/rust/modality-lang/docs/QUICK_REFERENCE
 RFC_0001_PAPER="$ROOT_DIR/papers/RFC-0001-MODAL-CONTRACTS.md"
 CONTRACT_HUB_EXAMPLE="$ROOT_DIR/services/contract-hub/example.js"
 CONTRACT_HUB_VALIDATOR_TEST="$ROOT_DIR/services/contract-hub/src/contract-validator.test.js"
+RULE_SYNTHESIZE_CLI_SMOKE="$ROOT_DIR/tests/language/check-rule-synthesize-cli.sh"
+RUST_SYNTHESIZE_CMD="$ROOT_DIR/rust/modality/src/cmds/synthesize.rs"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1775,5 +1777,27 @@ while IFS= read -r fat_arrow_line; do
     exit 1
   fi
 done < <(grep -nF '=> signed_by' "$CONTRACT_HUB_VALIDATOR_TEST" || true)
+
+synthesis_smoke_required_patterns=(
+  "always(!<+POST> true | <+POST +signed_by(/users/reviewer.id)> true)"
+)
+
+for pattern in "${synthesis_smoke_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$RULE_SYNTHESIZE_CLI_SMOKE"; then
+    echo "rule synthesize CLI smoke is missing current same-transition reviewer evidence: $pattern" >&2
+    exit 1
+  fi
+  if ! grep -Fq "$pattern" "$RUST_SYNTHESIZE_CMD"; then
+    echo "rust synthesize command tests are missing current same-transition reviewer evidence: $pattern" >&2
+    exit 1
+  fi
+done
+
+for file in "$RULE_SYNTHESIZE_CLI_SMOKE" "$RUST_SYNTHESIZE_CMD"; do
+  if grep -Eq -- 'always\(\[\+POST\] true[[:space:]]*->|always\(\[\+POST\] true[[:space:]]*implies' "$file"; then
+    echo "rule synthesis fixtures should not use a vacuous box antecedent with implication sugar: $file" >&2
+    exit 1
+  fi
+done
 
 echo "language traps doc check passed"

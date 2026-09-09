@@ -2637,7 +2637,7 @@ rule authorized {
             r#"
 rule post_requires_reviewer {
   formula {
-    always([+POST] true -> <+signed_by(/users/reviewer.id)> true)
+    always(!<+POST> true | <+POST +signed_by(/users/reviewer.id)> true)
   }
 }
 "#,
