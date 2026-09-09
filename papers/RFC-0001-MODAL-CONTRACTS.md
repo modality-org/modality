@@ -214,13 +214,13 @@ export default rule {
   starting_at $PARENT
   formula {
     always (
-      [+RELEASE] implies <+DELIVER> true
+      !<+RELEASE> true | <+RELEASE +delivered> true
     )
   }
 }
 ```
 
-This rule ensures: **Release can NEVER happen without prior delivery.**
+This rule ensures: **Release can NEVER happen without delivery evidence on the same transition.**
 
 ---
 
@@ -414,7 +414,7 @@ export default rule {
   starting_at $PARENT
   formula {
     always (
-      [+RELEASE] implies <+DELIVER> true
+      !<+RELEASE> true | <+RELEASE +delivered> true
     )
   }
 }

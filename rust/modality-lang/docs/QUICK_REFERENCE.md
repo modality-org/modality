@@ -228,10 +228,8 @@ export default rule {
   starting_at $PARENT
   formula {
     always (
-      [+EXECUTE] implies (
-        <+signed_by(/users/alice.id)> true &
-        <+signed_by(/users/bob.id)> true
-      )
+      !<+EXECUTE> true |
+        <+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true
     )
   }
 }

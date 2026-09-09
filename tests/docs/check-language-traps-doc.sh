@@ -81,6 +81,10 @@ PENTAGON_CONSTRAINTS_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-02-16-pent
 PROTECTION_RINGS_TUTORIAL="$ROOT_DIR/tutorials/protection-rings/README.md"
 PROTECTION_RINGS_CONTRACT="$ROOT_DIR/tutorials/protection-rings/contracts/protection-rings.modality"
 ESCROW_DEMO_JS="$ROOT_DIR/tutorials/escrow/demo.js"
+VSCODE_FORMULA_SYNTAX_EXAMPLE="$ROOT_DIR/common/modality-vscode/examples/formula-syntax.modality"
+MODALITY_LANG_QUICK_REFERENCE="$ROOT_DIR/rust/modality-lang/docs/QUICK_REFERENCE.md"
+RFC_0001_PAPER="$ROOT_DIR/papers/RFC-0001-MODAL-CONTRACTS.md"
+CONTRACT_HUB_EXAMPLE="$ROOT_DIR/services/contract-hub/example.js"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1664,6 +1668,61 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$ESCROW_DEMO_JS"; then
   echo "escrow demo should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+vscode_formula_syntax_required_patterns=(
+  "!request | response"
+  "always(!<+RELEASE> true | <+RELEASE +delivered> true)"
+  "<+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true"
+)
+
+for pattern in "${vscode_formula_syntax_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$VSCODE_FORMULA_SYNTAX_EXAMPLE"; then
+    echo "VS Code formula syntax example is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- 'request[[:space:]]*->[[:space:]]*response| implies ' "$VSCODE_FORMULA_SYNTAX_EXAMPLE"; then
+  echo "VS Code formula syntax example should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+if ! grep -Fq '<+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true' "$MODALITY_LANG_QUICK_REFERENCE"; then
+  echo "modality-lang quick reference is missing same-transition execute signature evidence" >&2
+  exit 1
+fi
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$MODALITY_LANG_QUICK_REFERENCE"; then
+  echo "modality-lang quick reference should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+rfc_0001_paper_required_patterns=(
+  "!<+RELEASE> true | <+RELEASE +delivered> true"
+  "delivery evidence on the same transition"
+)
+
+for pattern in "${rfc_0001_paper_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$RFC_0001_PAPER"; then
+    echo "RFC-0001 paper is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$RFC_0001_PAPER"; then
+  echo "RFC-0001 paper should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+if ! grep -Fq 'always(!<+claim> true | <+claim +signed_by(/users/alice.id)> true)' "$CONTRACT_HUB_EXAMPLE"; then
+  echo "contract hub example is missing same-transition claim signature evidence" >&2
+  exit 1
+fi
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$CONTRACT_HUB_EXAMPLE"; then
+  echo "contract hub example should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

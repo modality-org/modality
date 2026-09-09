@@ -121,29 +121,24 @@ formula NegationWord {
   not error                     // NOT with keyword
 }
 
-formula Implication {
-  request -> response           // IMPLIES with ->
-}
-
-formula ImplicationWord {
-  request implies response      // IMPLIES with keyword
+formula Conditional {
+  !request | response           // Conditional rule in explicit Boolean form
 }
 
 // ============================================================
 // COMBINED EXAMPLES
 // ============================================================
 
-// Escrow safety: release only after delivery
+// Escrow safety: release requires delivery evidence on the same move
 formula EscrowSafety {
-  always([+RELEASE] implies <+DELIVER> true)
+  always(!<+RELEASE> true | <+RELEASE +delivered> true)
 }
 
 // Multi-sig requirement: execute requires both signatures
 formula MultiSig {
   always(
-    [+EXECUTE] implies (
-      [<+signed_by(/users/alice.id)>] true &
-      [<+signed_by(/users/bob.id)>] true
+    !<+EXECUTE> true | (
+      <+EXECUTE +signed_by(/users/alice.id) +signed_by(/users/bob.id)> true
     )
   )
 }
