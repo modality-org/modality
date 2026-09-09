@@ -1732,7 +1732,13 @@ contract_hub_validator_test_required_patterns=(
   "const legacyImplicationBareMembershipRule = 'rule membership { formula { always (modifies(/members) implies all_signed(/members)) } }';"
   "const legacyImplicationOwnerTransferRule = 'rule owner_transfer { formula { always ([+TRANSFER] implies signed_by(/owner.id)) } }';"
   "const legacyImplicationDeliveryRule = 'rule delivery { formula { always ([+RELEASE] implies <+oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true) } }';"
+  "const legacyArrowExpiryRule = 'rule expiry { formula { always (after(/deadlines/expiry.datetime) -> signed_by(/users/buyer.id)) } }';"
+  "const legacyFatArrowExpiryRule = 'rule expiry { formula { always (after(/deadlines/expiry.datetime) => signed_by(/users/buyer.id)) } }';"
   "test('legacy rule predicate extraction supports textual implication'"
+  "test('legacy rule predicate extraction supports arrow implications'"
+  "test('legacy fallback arrow implications constrain model witnesses'"
+  "test('legacy fallback fat-arrow implications constrain model witnesses'"
+  "test('validateContractLogic applies legacy fallback implication rules within a batch'"
   "test('legacy fallback modal multi-argument rules constrain model witnesses'"
   "test('validateContractLogic applies legacy fallback modal predicate rules within a batch'"
   "test('validateContractLogic applies JSON-witnessed legacy fallback modal rules to JSON replacements'"
@@ -1755,5 +1761,19 @@ while IFS= read -r implication_line; do
     exit 1
   fi
 done < <(grep -nF ' implies ' "$CONTRACT_HUB_VALIDATOR_TEST" || true)
+
+while IFS= read -r arrow_line; do
+  if [[ "$arrow_line" != *"const legacyArrow"* ]]; then
+    echo "contract hub validator arrow fixtures must be centralized as legacy compatibility rules: $arrow_line" >&2
+    exit 1
+  fi
+done < <(grep -nF -- '-> signed_by' "$CONTRACT_HUB_VALIDATOR_TEST" || true)
+
+while IFS= read -r fat_arrow_line; do
+  if [[ "$fat_arrow_line" != *"const legacyFatArrow"* ]]; then
+    echo "contract hub validator fat-arrow fixtures must be centralized as legacy compatibility rules: $fat_arrow_line" >&2
+    exit 1
+  fi
+done < <(grep -nF '=> signed_by' "$CONTRACT_HUB_VALIDATOR_TEST" || true)
 
 echo "language traps doc check passed"

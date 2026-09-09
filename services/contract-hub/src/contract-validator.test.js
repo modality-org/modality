@@ -7,6 +7,8 @@ const legacyImplicationMembershipRule = 'rule membership { formula { always (+mo
 const legacyImplicationBareMembershipRule = 'rule membership { formula { always (modifies(/members) implies all_signed(/members)) } }';
 const legacyImplicationOwnerTransferRule = 'rule owner_transfer { formula { always ([+TRANSFER] implies signed_by(/owner.id)) } }';
 const legacyImplicationDeliveryRule = 'rule delivery { formula { always ([+RELEASE] implies <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true) } }';
+const legacyArrowExpiryRule = 'rule expiry { formula { always (after(/deadlines/expiry.datetime) -> signed_by(/users/buyer.id)) } }';
+const legacyFatArrowExpiryRule = 'rule expiry { formula { always (after(/deadlines/expiry.datetime) => signed_by(/users/buyer.id)) } }';
 
 test('MODEL commits load predicate-guarded models that validate POST commits', () => {
   const validator = new ContractValidator();
@@ -635,7 +637,7 @@ test('real formula parser extracts parseable rule predicate clauses', () => {
 
   assert.deepEqual(
     validator.extractRulePredicateClausesWithFormulaParser(
-      'rule expiry { formula { always (after(/deadlines/expiry.datetime) => signed_by(/users/buyer.id)) } }'
+      legacyFatArrowExpiryRule
     ),
     [
       [{ sign: '-', name: 'after', args: ['/deadlines/expiry.datetime'] }],
@@ -2280,11 +2282,11 @@ test('fallback until macro rules constrain model witnesses', () => {
   );
 });
 
-test('rule predicate extraction supports arrow implications', () => {
+test('legacy rule predicate extraction supports arrow implications', () => {
   const validator = new ContractValidator();
 
   assert.deepEqual(
-    validator.extractRulePredicateClauses('rule expiry { formula { always (after(/deadlines/expiry.datetime) -> signed_by(/users/buyer.id)) } }'),
+    validator.extractRulePredicateClauses(legacyArrowExpiryRule),
     [
       [{ sign: '-', name: 'after', args: ['/deadlines/expiry.datetime'] }],
       [{ sign: '+', name: 'signed_by', args: ['/users/buyer.id'] }]
@@ -2292,7 +2294,7 @@ test('rule predicate extraction supports arrow implications', () => {
   );
 
   assert.deepEqual(
-    validator.extractRulePredicateClauses('rule expiry { formula { always (after(/deadlines/expiry.datetime) => signed_by(/users/buyer.id)) } }'),
+    validator.extractRulePredicateClauses(legacyFatArrowExpiryRule),
     [
       [{ sign: '-', name: 'after', args: ['/deadlines/expiry.datetime'] }],
       [{ sign: '+', name: 'signed_by', args: ['/users/buyer.id'] }]
@@ -2300,9 +2302,9 @@ test('rule predicate extraction supports arrow implications', () => {
   );
 });
 
-test('fallback arrow implications constrain model witnesses', () => {
+test('legacy fallback arrow implications constrain model witnesses', () => {
   const validator = new ContractValidator();
-  const ruleContent = 'rule expiry { formula { always (after(/deadlines/expiry.datetime) -> signed_by(/users/buyer.id)) } }';
+  const ruleContent = legacyArrowExpiryRule;
 
   assert.throws(
     () => validator.applyCommit({
@@ -2359,9 +2361,9 @@ test('fallback arrow implications constrain model witnesses', () => {
   );
 });
 
-test('fallback fat arrow implications constrain model witnesses', () => {
+test('legacy fallback fat-arrow implications constrain model witnesses', () => {
   const validator = new ContractValidator();
-  const ruleContent = 'rule expiry { formula { always (after(/deadlines/expiry.datetime) => signed_by(/users/buyer.id)) } }';
+  const ruleContent = legacyFatArrowExpiryRule;
 
   assert.throws(
     () => validator.applyCommit({
@@ -5156,7 +5158,7 @@ test('validateContractLogic applies parser-backed negated nested modal rules wit
   assert.equal(validReplacement.state.model.name, 'no_transfer_with_release_policy_ok');
 });
 
-test('validateContractLogic applies fallback implication rules within a batch', async () => {
+test('validateContractLogic applies legacy fallback implication rules within a batch', async () => {
   const store = {
     pullCommits() {
       return [];
@@ -5166,7 +5168,7 @@ test('validateContractLogic applies fallback implication rules within a batch', 
     data: {
       method: 'RULE',
       path: '/rules/expiry.modality',
-      content: 'rule expiry { formula { always (after(/deadlines/expiry.datetime) -> signed_by(/users/buyer.id)) } }',
+      content: legacyArrowExpiryRule,
       model: `
         model expiry_witness {
           initial active
