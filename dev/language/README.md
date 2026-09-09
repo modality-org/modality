@@ -1,5 +1,7 @@
 # Language Reference
 
+Status: archived language reference. Current onboarding examples avoid formula implication sugar such as `A -> B`, use explicit Boolean conditionals such as `!A | B`, and avoid `[+ACTION] true` as a conditional antecedent because a box over no matching action is vacuously true.
+
 This document covers the complete syntax for Modality's model and rule definitions.
 
 ## File Types
@@ -195,7 +197,7 @@ lfp(X, target | <>X)
 φ & ψ           // Conjunction (and)
 φ | ψ           // Disjunction (or)
 !φ              // Negation (not)
-φ -> ψ          // Implication
+!φ | ψ          // Conditional: prefer explicit Boolean form
 φ <-> ψ         // Bi-implication
 true            // Always true
 false           // Always false
@@ -216,7 +218,7 @@ rule buyer_protection {
   starting_at $PARENT
   formula {
     always(
-      @funded -> (
+      !@funded | (
         eventually(@released) | eventually(@refunded)
       )
     )
@@ -230,7 +232,7 @@ rule seller_guarantee {
   starting_at $PARENT
   formula {
     always(
-      @delivered -> eventually(@released)
+      !@delivered | eventually(@released)
     )
   }
 }
@@ -242,7 +244,7 @@ rule no_double_spend {
   starting_at $PARENT
   formula {
     always(
-      @released -> []!(@refunded)
+      !@released | []!(@refunded)
     )
   }
 }

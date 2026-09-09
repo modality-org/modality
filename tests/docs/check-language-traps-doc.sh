@@ -69,6 +69,7 @@ MODALITY_SKILL_PATTERNS_DOC="$ROOT_DIR/packages/modality-skill/references/patter
 DEV_GETTING_STARTED_HTML="$ROOT_DIR/dev/getting-started/index.html"
 DEV_INDEX_HTML="$ROOT_DIR/dev/index.html"
 DEV_CONTRACT_HUB_HTML="$ROOT_DIR/dev/tutorials/contract-hub.html"
+DEV_LANGUAGE_DOC="$ROOT_DIR/dev/language/README.md"
 REPUTATION_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-03-13-reputation-is-not-verification.md"
 PROTECTION_RINGS_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-03-13-protection-rings-for-ai-agents.md"
 INTELLIGENT_DELEGATION_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-02-16-intelligent-delegation.md"
@@ -1172,6 +1173,29 @@ done
 
 if grep -Eq -- 'modal c set /parties/.+modal id get' "$DEV_CONTRACT_HUB_HTML"; then
   echo "developer contract hub HTML should not present stale raw identity setup as the teaching path" >&2
+  exit 1
+fi
+
+dev_language_required_patterns=(
+  "Status: archived language reference."
+  "avoid formula implication sugar such as \`A -> B\`"
+  "explicit Boolean conditionals such as"
+  "avoid \`[+ACTION] true\` as a conditional antecedent"
+  "!φ | ψ          // Conditional: prefer explicit Boolean form"
+  "!@funded | ("
+  "!@delivered | eventually(@released)"
+  "!@released | []!(@refunded)"
+)
+
+for pattern in "${dev_language_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$DEV_LANGUAGE_DOC"; then
+    echo "developer language reference is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- 'φ[[:space:]]*->[[:space:]]*ψ|@[A-Za-z0-9_]+[[:space:]]*->| true[[:space:]]*->| implies ' "$DEV_LANGUAGE_DOC"; then
+  echo "developer language reference should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
