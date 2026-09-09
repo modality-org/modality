@@ -60,8 +60,8 @@ Here is an example using [Modality](https://modality.org), a verification langua
 model DeploymentContract {
   initial active
 
-  // Standard use: requires authorized operator, cannot change constraints
-  active -> active [+signed_by(/oversight/authorized_operator.id) -modifies(/constraints)]
+  // Standard use: requires authorized operator
+  active -> active [+signed_by(/oversight/authorized_operator.id)]
 
   // Constraint changes: require BOTH provider and deployer to agree
   active -> active [+modifies(/constraints) +all_signed(/parties)]
@@ -69,7 +69,7 @@ model DeploymentContract {
 
 rule human_in_the_loop {
   formula {
-    always (+modifies(/actions/kinetic) implies +signed_by(/oversight/human_commander.id))
+    always (!<+modifies(/actions/kinetic)> true | <+modifies(/actions/kinetic) +signed_by(/oversight/human_commander.id)> true)
   }
 }
 

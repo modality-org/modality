@@ -16,13 +16,13 @@ model protection_rings {
   initial active
 
   // App agent commits freely to app-repo
-  active -> active [+signed_by(/agents/app.id) +modifies(/app-repo) -modifies(/kernel-repo)]
+  active -> active [+signed_by(/agents/app.id) +modifies(/app_repo)]
 
   // Kernel agent commits to kernel-repo with human approval
-  active -> active [+signed_by(/agents/kernel.id) +signed_by(/humans/admin.id) +modifies(/kernel-repo)]
+  active -> active [+signed_by(/agents/kernel.id) +signed_by(/humans/admin.id) +modifies(/kernel_repo)]
 
   // Kernel agent can also commit to app-repo (e.g. exposing new APIs)
-  active -> active [+signed_by(/agents/kernel.id) +signed_by(/humans/admin.id) +modifies(/app-repo)]
+  active -> active [+signed_by(/agents/kernel.id) +signed_by(/humans/admin.id) +modifies(/app_repo)]
 }
 
 // === RULES ===
@@ -33,7 +33,7 @@ model protection_rings {
 rule app_cannot_touch_kernel {
   formula {
     always(
-      +signed_by(/agents/app.id) implies -modifies(/kernel-repo)
+      !<+signed_by(/agents/app.id) +modifies(/kernel_repo)> true
     )
   }
 }
@@ -42,9 +42,8 @@ rule app_cannot_touch_kernel {
 rule kernel_requires_dual_signature {
   formula {
     always(
-      +modifies(/kernel-repo) implies (
-        +signed_by(/agents/kernel.id) & +signed_by(/humans/admin.id)
-      )
+      !<+modifies(/kernel_repo)> true
+      | <+modifies(/kernel_repo) +signed_by(/agents/kernel.id) +signed_by(/humans/admin.id)> true
     )
   }
 }
@@ -53,9 +52,9 @@ rule kernel_requires_dual_signature {
 rule known_signers_only {
   formula {
     always(
-      +signed_by(/agents/app.id)
-      | +signed_by(/agents/kernel.id)
-      | +signed_by(/humans/admin.id)
+      <+signed_by(/agents/app.id)> true
+      | <+signed_by(/agents/kernel.id)> true
+      | <+signed_by(/humans/admin.id)> true
     )
   }
 }

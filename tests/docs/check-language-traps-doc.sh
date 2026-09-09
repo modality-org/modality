@@ -76,6 +76,10 @@ KARPATHY_LANGUAGES_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-02-16-karpat
 NINE_SECONDS_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-04-29-nine-seconds.md"
 WHY_AGENTS_NEED_CONTRACTS_THREAD="$ROOT_DIR/content/threads/why-agents-need-contracts.md"
 TRUSTLESS_ESCROW_CONTRACT="$ROOT_DIR/tutorials/trustless-escrow/contracts/escrow.modality"
+PENTAGON_CONSTRAINTS_BLOG="$ROOT_DIR/sites/www.modality.org/blog/2026-02-16-pentagon-claude-and-verifiable-constraints.md"
+PROTECTION_RINGS_TUTORIAL="$ROOT_DIR/tutorials/protection-rings/README.md"
+PROTECTION_RINGS_CONTRACT="$ROOT_DIR/tutorials/protection-rings/contracts/protection-rings.modality"
+ESCROW_DEMO_JS="$ROOT_DIR/tutorials/escrow/demo.js"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1576,6 +1580,66 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$TRUSTLESS_ESCROW_CONTRACT"; then
   echo "trustless escrow contract should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+pentagon_constraints_blog_required_patterns=(
+  "always (!<+modifies(/actions/kinetic)> true | <+modifies(/actions/kinetic) +signed_by(/oversight/human_commander.id)> true)"
+)
+
+for pattern in "${pentagon_constraints_blog_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$PENTAGON_CONSTRAINTS_BLOG"; then
+    echo "Pentagon constraints blog is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$PENTAGON_CONSTRAINTS_BLOG"; then
+  echo "Pentagon constraints blog should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+protection_rings_required_patterns=(
+  "!<+signed_by(/agents/app.id) +modifies(/kernel_repo)> true"
+  "!<+modifies(/kernel_repo)> true"
+  "<+modifies(/kernel_repo) +signed_by(/agents/kernel.id) +signed_by(/humans/admin.id)> true"
+  "<+signed_by(/agents/app.id)> true"
+  "<+signed_by(/agents/kernel.id)> true"
+  "<+signed_by(/humans/admin.id)> true"
+)
+
+for file in "$PROTECTION_RINGS_TUTORIAL" "$PROTECTION_RINGS_CONTRACT"; do
+  for pattern in "${protection_rings_required_patterns[@]}"; do
+    if ! grep -Fq "$pattern" "$file"; then
+      echo "protection rings example is missing language-trap text: $pattern" >&2
+      exit 1
+    fi
+  done
+
+  if grep -Eq -- ' true[[:space:]]*->| implies ' "$file"; then
+    echo "protection rings example should not present formula implication sugar as the teaching path: $file" >&2
+    exit 1
+  fi
+done
+
+escrow_demo_required_patterns=(
+  "always(!<+DEPOSIT> true | <+DEPOSIT +signed_by(/parties/buyer.id)> true)"
+  "always(!<+DELIVER> true | <+DELIVER +signed_by(/parties/seller.id)> true)"
+  "always(!<+RELEASE> true | <+RELEASE +signed_by(/parties/buyer.id)> true)"
+  "always(!<+DISPUTE> true | <+DISPUTE +signed_by(/parties/buyer.id)> true)"
+  "always(!<+RESOLVE_RELEASE> true | <+RESOLVE_RELEASE +signed_by(/parties/arbiter.id)> true)"
+  "always(!<+RESOLVE_REFUND> true | <+RESOLVE_REFUND +signed_by(/parties/arbiter.id)> true)"
+)
+
+for pattern in "${escrow_demo_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$ESCROW_DEMO_JS"; then
+    echo "escrow demo is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- ' true[[:space:]]*->| implies ' "$ESCROW_DEMO_JS"; then
+  echo "escrow demo should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
