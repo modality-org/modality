@@ -1728,6 +1728,14 @@ if grep -Eq -- ' true[[:space:]]*->| implies ' "$CONTRACT_HUB_EXAMPLE"; then
 fi
 
 contract_hub_validator_test_required_patterns=(
+  "const legacyImplicationMembershipRule = 'rule membership { formula { always (+modifies(/members) implies +all_signed(/members)) } }';"
+  "const legacyImplicationBareMembershipRule = 'rule membership { formula { always (modifies(/members) implies all_signed(/members)) } }';"
+  "const legacyImplicationOwnerTransferRule = 'rule owner_transfer { formula { always ([+TRANSFER] implies signed_by(/owner.id)) } }';"
+  "const legacyImplicationDeliveryRule = 'rule delivery { formula { always ([+RELEASE] implies <+oracle_attests(/oracles/delivery.id, \"delivered\", \"true\")> true) } }';"
+  "test('legacy rule predicate extraction supports textual implication'"
+  "test('legacy fallback modal multi-argument rules constrain model witnesses'"
+  "test('validateContractLogic applies legacy fallback modal predicate rules within a batch'"
+  "test('validateContractLogic applies JSON-witnessed legacy fallback modal rules to JSON replacements'"
   "rule membership { formula { always ((!+modifies(/members)) | +all_signed(/members)) } }"
   "rule expiry { formula { always ((!after(/deadlines/expiry.datetime)) | signed_by(/users/buyer.id)) } }"
   "rule transfer_owner { formula { always ((!+TRANSFER) | signed_by(/owner.id)) } }"
@@ -1740,5 +1748,12 @@ for pattern in "${contract_hub_validator_test_required_patterns[@]}"; do
     exit 1
   fi
 done
+
+while IFS= read -r implication_line; do
+  if [[ "$implication_line" != *"const legacyImplication"* ]]; then
+    echo "contract hub validator implication fixtures must be centralized as legacy compatibility rules: $implication_line" >&2
+    exit 1
+  fi
+done < <(grep -nF ' implies ' "$CONTRACT_HUB_VALIDATOR_TEST" || true)
 
 echo "language traps doc check passed"

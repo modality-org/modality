@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 
 import { ContractValidator, validateContractLogic } from './contract-validator.js';
 
+const legacyImplicationMembershipRule = 'rule membership { formula { always (+modifies(/members) implies +all_signed(/members)) } }';
+const legacyImplicationBareMembershipRule = 'rule membership { formula { always (modifies(/members) implies all_signed(/members)) } }';
+const legacyImplicationOwnerTransferRule = 'rule owner_transfer { formula { always ([+TRANSFER] implies signed_by(/owner.id)) } }';
+const legacyImplicationDeliveryRule = 'rule delivery { formula { always ([+RELEASE] implies <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true) } }';
+
 test('MODEL commits load predicate-guarded models that validate POST commits', () => {
   const validator = new ContractValidator();
 
@@ -1903,11 +1908,11 @@ test('compound rule predicate negation applies De Morgan clauses', () => {
   );
 });
 
-test('rule predicate extraction supports textual implication', () => {
+test('legacy rule predicate extraction supports textual implication', () => {
   const validator = new ContractValidator();
 
   assert.deepEqual(
-    validator.extractRulePredicateClauses('rule membership { formula { always (+modifies(/members) implies +all_signed(/members)) } }'),
+    validator.extractRulePredicateClauses(legacyImplicationMembershipRule),
     [
       [{ sign: '-', name: 'modifies', args: ['/members'] }],
       [{ sign: '+', name: 'all_signed', args: ['/members'] }]
@@ -1918,7 +1923,7 @@ test('rule predicate extraction supports textual implication', () => {
     data: {
       method: 'RULE',
       path: '/rules/membership.modality',
-      content: 'rule membership { formula { always (+modifies(/members) implies +all_signed(/members)) } }',
+      content: legacyImplicationMembershipRule,
       model: `
         model membership_witness {
           initial active
@@ -1940,11 +1945,11 @@ test('rule predicate extraction supports textual implication', () => {
   );
 });
 
-test('rule predicate extraction treats bare predicate calls as positive predicates', () => {
+test('legacy rule predicate extraction treats bare predicate calls as positive predicates', () => {
   const validator = new ContractValidator();
 
   assert.deepEqual(
-    validator.extractRulePredicateClauses('rule membership { formula { always (modifies(/members) implies all_signed(/members)) } }'),
+    validator.extractRulePredicateClauses(legacyImplicationBareMembershipRule),
     [
       [{ sign: '-', name: 'modifies', args: ['/members'] }],
       [{ sign: '+', name: 'all_signed', args: ['/members'] }]
@@ -1960,11 +1965,11 @@ test('rule predicate extraction treats bare predicate calls as positive predicat
   );
 });
 
-test('rule predicate extraction supports modal action implications', () => {
+test('legacy rule predicate extraction supports modal action implications', () => {
   const validator = new ContractValidator();
 
   assert.deepEqual(
-    validator.extractRulePredicateClauses('rule owner_transfer { formula { always ([+TRANSFER] implies signed_by(/owner.id)) } }'),
+    validator.extractRulePredicateClauses(legacyImplicationOwnerTransferRule),
     [
       [{ sign: '-', name: 'TRANSFER', args: [] }],
       [{ sign: '+', name: 'signed_by', args: ['/owner.id'] }]
@@ -2400,11 +2405,11 @@ test('fallback fat arrow implications constrain model witnesses', () => {
   );
 });
 
-test('rule predicate extraction supports modal multi-argument predicates', () => {
+test('legacy rule predicate extraction supports modal multi-argument predicates', () => {
   const validator = new ContractValidator();
 
   assert.deepEqual(
-    validator.extractRulePredicateClauses('rule delivery { formula { always ([+RELEASE] implies <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true) } }'),
+    validator.extractRulePredicateClauses(legacyImplicationDeliveryRule),
     [
       [{ sign: '-', name: 'RELEASE', args: [] }],
       [{ sign: '+', name: 'oracle_attests', args: ['/oracles/delivery.id', '"delivered"', '"true"'] }]
@@ -2412,9 +2417,9 @@ test('rule predicate extraction supports modal multi-argument predicates', () =>
   );
 });
 
-test('fallback modal multi-argument rules constrain model witnesses', () => {
+test('legacy fallback modal multi-argument rules constrain model witnesses', () => {
   const validator = new ContractValidator();
-  const ruleContent = 'rule delivery { formula { always ([+RELEASE] implies <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true) } }';
+  const ruleContent = legacyImplicationDeliveryRule;
 
   assert.throws(
     () => validator.applyCommit({
@@ -5484,7 +5489,7 @@ test('validateContractLogic applies fallback until rules within a batch', async 
   assert.equal(validReplacement.state.model.name, 'until_signed');
 });
 
-test('validateContractLogic applies fallback modal predicate rules within a batch', async () => {
+test('validateContractLogic applies legacy fallback modal predicate rules within a batch', async () => {
   const store = {
     pullCommits() {
       return [];
@@ -5494,7 +5499,7 @@ test('validateContractLogic applies fallback modal predicate rules within a batc
     data: {
       method: 'RULE',
       path: '/rules/delivery.modality',
-      content: 'rule delivery { formula { always ([+RELEASE] implies <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true) } }',
+      content: legacyImplicationDeliveryRule,
       model: `
         model delivery_witness {
           initial active
@@ -5602,7 +5607,7 @@ test('validateContractLogic applies JSON-witnessed fallback temporal rules to JS
   assert.equal(validReplacement.state.model.transitions[0].guard, '+signed_by(/owner.id)');
 });
 
-test('validateContractLogic applies JSON-witnessed fallback modal rules to JSON replacements', async () => {
+test('validateContractLogic applies JSON-witnessed legacy fallback modal rules to JSON replacements', async () => {
   const store = {
     pullCommits() {
       return [];
@@ -5612,7 +5617,7 @@ test('validateContractLogic applies JSON-witnessed fallback modal rules to JSON 
     data: {
       method: 'RULE',
       path: '/rules/delivery.modality',
-      content: 'rule delivery { formula { always ([+RELEASE] implies <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true) } }',
+      content: legacyImplicationDeliveryRule,
       model: {
         systems: [{ possible_current_state_ids: ['active'] }],
         transitions: [
@@ -6838,7 +6843,7 @@ test('existing fallback modal RULE history replays without witness while new RUL
     data: {
       method: 'RULE',
       path: '/rules/delivery.modality',
-      content: 'rule delivery { formula { always ([+RELEASE] implies <+oracle_attests(/oracles/delivery.id, "delivered", "true")> true) } }'
+      content: legacyImplicationDeliveryRule
     }
   };
   const validator = new ContractValidator();
