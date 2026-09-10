@@ -21,6 +21,7 @@ MEMBERS_ONLY_EXAMPLE="$ROOT_DIR/examples/members_only.modality"
 TREASURY_MULTISIG_EXAMPLE="$ROOT_DIR/examples/treasury_multisig.modality"
 ORACLE_ESCROW_EXAMPLE="$ROOT_DIR/examples/oracle_escrow.modality"
 SERVICE_AGREEMENT_EXAMPLE="$ROOT_DIR/examples/service_agreement.modality"
+AGENT_TASK_EXCHANGE_EXAMPLE="$ROOT_DIR/examples/agent_task_exchange.modality"
 HUB_MEMBERS_ONLY_SCENARIO="$ROOT_DIR/examples/hub-scenarios/members-only.md"
 HUB_BANK_DEPOSITS_SCENARIO="$ROOT_DIR/examples/hub-scenarios/bank-deposits.md"
 BANK_DEPOSITS_JS_EXAMPLE="$ROOT_DIR/examples/bank_deposits.js"
@@ -413,6 +414,22 @@ done
 
 if grep -Eq -- 'paid[[:space:]]*->[[:space:]]*completed|accepted[[:space:]]*->[[:space:]]*eventually|completed[[:space:]]*->[[:space:]]*eventually| implies ' "$SERVICE_AGREEMENT_EXAMPLE"; then
   echo "service agreement example should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+agent_task_exchange_example_required_patterns=(
+  "!claimed | eventually(submitted | expired)"
+)
+
+for pattern in "${agent_task_exchange_example_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$AGENT_TASK_EXCHANGE_EXAMPLE"; then
+    echo "agent task exchange example is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- 'claimed[[:space:]]*->[[:space:]]*eventually| implies ' "$AGENT_TASK_EXCHANGE_EXAMPLE"; then
+  echo "agent task exchange example should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 

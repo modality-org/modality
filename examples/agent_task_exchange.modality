@@ -75,7 +75,7 @@ formula RefundOnlyViaDispute {
 
 // FAIRNESS: Executor can always submit after claiming
 formula ExecutorCanSubmit {
-  claimed -> eventually(submitted | expired)
+  !claimed | eventually(submitted | expired)
 }
 
 // LIVENESS: Disputes must resolve
