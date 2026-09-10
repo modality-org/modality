@@ -89,6 +89,7 @@ CONTRACT_HUB_VALIDATOR_TEST="$ROOT_DIR/services/contract-hub/src/contract-valida
 RULE_SYNTHESIZE_CLI_SMOKE="$ROOT_DIR/tests/language/check-rule-synthesize-cli.sh"
 RUST_SYNTHESIZE_CMD="$ROOT_DIR/rust/modality/src/cmds/synthesize.rs"
 MEMBERS_ONLY_INTEGRATION_TEST="$ROOT_DIR/rust/modal/tests/members_only_integration.rs"
+LLM_SYNTHESIS_SRC="$ROOT_DIR/rust/modality-lang/src/llm_synthesis.rs"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1808,6 +1809,25 @@ fi
 
 if grep -Eq -- 'always[[:space:]]*\(\[\+ADD_MEMBER\][[:space:]]*implies|always[[:space:]]*\(\[\+ADD_MEMBER\][[:space:]]*true[[:space:]]*->' "$MEMBERS_ONLY_INTEGRATION_TEST"; then
   echo "members-only integration test should not use legacy ADD_MEMBER implication fixtures" >&2
+  exit 1
+fi
+
+llm_synthesis_required_patterns=(
+  "### Explicit Boolean Conditionals"
+  "Prefer explicit Boolean conditionals such as \`!A | B\` for implications."
+  'always(!<+X> true | <+X +signed_by(/users/a.id)> true)'
+  'always(!<+X> true | <+X +oracle_attests(/oracles/a.id, "delivered", "true")> true)'
+)
+
+for pattern in "${llm_synthesis_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$LLM_SYNTHESIS_SRC"; then
+    echo "LLM synthesis prompt is missing current language-trap guidance: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- 'Prefer `φ[[:space:]]*->[[:space:]]*ψ`|Modal guards in implications|\[\+[A-Z][A-Z0-9_]*\] true[[:space:]]*->|\[<\+[A-Z][A-Z0-9_]*>\] true[[:space:]]*->' "$LLM_SYNTHESIS_SRC"; then
+  echo "LLM synthesis prompt should not teach implication sugar or vacuous box antecedents" >&2
   exit 1
 fi
 
