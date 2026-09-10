@@ -7,13 +7,16 @@
 //! Scenario:
 //! 1. Alice creates a blank contract
 //! 2. Alice adds herself to /members/alice.id
-//! 3. Alice adds a rule: "modifies(/members) implies all_signed(/members)"
+//! 3. Alice adds a rule: "!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true"
 //! 4. Alice adds Bob - succeeds (she's the only member, so all_signed = [alice])
 //! 5. Now to add Carol, BOTH alice and bob must sign (all_signed = [alice, bob])
 //!
 //! The rule never changed. The model evolved because /members grew.
 
 use std::collections::{HashMap, HashSet};
+
+const MEMBERS_RULE: &str =
+    "always (!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)";
 
 /// Simulated commit with multi-signature support
 #[derive(Debug, Clone)]
@@ -96,7 +99,8 @@ impl MemberContract {
     fn apply(&mut self, commit: &Commit) -> Result<(), String> {
         // Check rules
         for rule in &self.rules {
-            if rule.contains("modifies(/members) implies all_signed(/members)")
+            if rule.contains("!<+modifies(/members)> true")
+                && rule.contains("<+modifies(/members) +all_signed(/members)> true")
                 && commit.modifies_path("/members")
                 && !self.all_members_signed(commit)
             {
@@ -151,9 +155,7 @@ fn test_membership_evolution_with_rule_enforcement() {
     assert_eq!(contract.members.len(), 1);
 
     // === Step 2: Alice adds the membership rule ===
-    let commit2 = Commit::new()
-        .with_rule("always (modifies(/members) implies all_signed(/members))")
-        .signed_by(alice_id);
+    let commit2 = Commit::new().with_rule(MEMBERS_RULE).signed_by(alice_id);
 
     let result = contract.apply(&commit2);
     assert!(result.is_ok(), "Alice should add the rule");
@@ -212,7 +214,7 @@ fn test_membership_evolution_with_rule_enforcement() {
     assert!(contract.members.contains_key("carol"));
 
     // === Key Insight ===
-    // The rule "modifies(/members) implies all_signed(/members)" never changed.
+    // The rule "!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true" never changed.
     // But its INTERPRETATION evolved as /members grew:
     //
     // Time     | Members          | all_signed requirement
@@ -230,9 +232,7 @@ fn test_empty_membership_allows_anyone() {
     let mut contract = MemberContract::new();
 
     // Add the rule BEFORE any members exist
-    let commit1 = Commit::new()
-        .with_rule("always (modifies(/members) implies all_signed(/members))")
-        .signed_by("anyone");
+    let commit1 = Commit::new().with_rule(MEMBERS_RULE).signed_by("anyone");
 
     let result = contract.apply(&commit1);
     assert!(result.is_ok());

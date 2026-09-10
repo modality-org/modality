@@ -651,7 +651,7 @@ fn test_membership_growth_model_evolution() {
     assert!(contract.path_exists("/members/carol.pubkey"));
 
     // === Key insight ===
-    // The RULE "always (modifies(/members) implies all_signed(/members))" never changed.
+    // The RULE "always (!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)" never changed.
     // But the MODEL evolved because /members grew:
     //   - After step 1: all_signed = {alice}
     //   - After step 2: all_signed = {alice, bob}

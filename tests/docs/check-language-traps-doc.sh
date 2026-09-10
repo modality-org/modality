@@ -98,6 +98,8 @@ MODALITY_SYNTHESIZER_SRC="$ROOT_DIR/rust/modality-synthesizer/src/lib.rs"
 MODAL_COMMON_CONTRACT_STORE="$ROOT_DIR/rust/modal-common/src/contract_store/mod.rs"
 MODAL_COMMON_ONE_STEP_RULE="$ROOT_DIR/rust/modal-common/src/contract_store/one_step_rule.rs"
 MODAL_COMMON_CONTRACT_STORE_TESTS="$ROOT_DIR/rust/modal-common/src/contract_store/tests.rs"
+MEMBERSHIP_EVOLUTION_TEST="$ROOT_DIR/rust/modality-lang/tests/membership_evolution_test.rs"
+MODALITY_LANG_INTEGRATION_TESTS="$ROOT_DIR/rust/modality-lang/tests/integration_tests.rs"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -477,6 +479,25 @@ done
 
 if grep -Eq -- ' true[[:space:]]*->| implies ' "$BANK_DEPOSITS_JS_EXAMPLE"; then
   echo "bank deposits JS example should not present formula implication sugar as the teaching path" >&2
+  exit 1
+fi
+
+membership_evolution_required_patterns=(
+  "const MEMBERS_RULE: &str ="
+  "always (!<+modifies(/members)> true | <+modifies(/members) +all_signed(/members)> true)"
+  "rule.contains(\"!<+modifies(/members)> true\")"
+  "rule.contains(\"<+modifies(/members) +all_signed(/members)> true\")"
+)
+
+for pattern in "${membership_evolution_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$MEMBERSHIP_EVOLUTION_TEST"; then
+    echo "membership evolution test is missing language-trap text: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Fq 'modifies(/members) implies all_signed(/members)' "$MEMBERSHIP_EVOLUTION_TEST" "$MODALITY_LANG_INTEGRATION_TESTS"; then
+  echo "membership evolution tests should not present formula implication sugar as the teaching path" >&2
   exit 1
 fi
 
