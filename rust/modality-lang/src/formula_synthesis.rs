@@ -94,7 +94,9 @@ fn extract_from_expr(expr: &FormulaExpr, constraints: &mut SynthesisConstraints)
             extract_from_expr(inner, constraints);
         }
 
-        // [+X] implies eventually(<+Y> true) - ordering: Y before X
+        // Explicit Boolean form `!+X | eventually(<+Y> true)`:
+        // ordering witness requires Y before X. The Implies AST arm remains
+        // legacy parser compatibility, not the preferred source spelling.
         FormulaExpr::Implies(lhs, rhs) => {
             let guarded_actions = extract_box_actions(lhs);
             if !guarded_actions.is_empty() {
@@ -1059,7 +1061,7 @@ mod tests {
 
     #[test]
     fn test_ordering_extraction() {
-        // Simulating: [+RELEASE] implies eventually(<+DELIVER> true)
+        // Simulating the legacy AST for `!+RELEASE | eventually(<+DELIVER> true)`.
         let formula = FormulaExpr::Implies(
             Box::new(FormulaExpr::Box(
                 vec![Property::new(PropertySign::Plus, "RELEASE".to_string())],

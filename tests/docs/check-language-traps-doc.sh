@@ -90,6 +90,7 @@ RULE_SYNTHESIZE_CLI_SMOKE="$ROOT_DIR/tests/language/check-rule-synthesize-cli.sh
 RUST_SYNTHESIZE_CMD="$ROOT_DIR/rust/modality/src/cmds/synthesize.rs"
 MEMBERS_ONLY_INTEGRATION_TEST="$ROOT_DIR/rust/modal/tests/members_only_integration.rs"
 LLM_SYNTHESIS_SRC="$ROOT_DIR/rust/modality-lang/src/llm_synthesis.rs"
+FORMULA_SYNTHESIS_SRC="$ROOT_DIR/rust/modality-lang/src/formula_synthesis.rs"
 MODAL_CLI_HUB_CORE="$ROOT_DIR/rust/modal-cli-hub/src/core.rs"
 
 required_patterns=(
@@ -1846,6 +1847,24 @@ done
 
 if grep -Eq -- 'Prefer `φ[[:space:]]*->[[:space:]]*ψ`|Modal guards in implications|\[\+[A-Z][A-Z0-9_]*\] true[[:space:]]*->|\[<\+[A-Z][A-Z0-9_]*>\] true[[:space:]]*->' "$LLM_SYNTHESIS_SRC"; then
   echo "LLM synthesis prompt should not teach implication sugar or vacuous box antecedents" >&2
+  exit 1
+fi
+
+formula_synthesis_required_patterns=(
+  'Explicit Boolean form `!+X | eventually(<+Y> true)`'
+  'legacy parser compatibility, not the preferred source spelling'
+  'legacy AST for `!+RELEASE | eventually(<+DELIVER> true)`'
+)
+
+for pattern in "${formula_synthesis_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$FORMULA_SYNTHESIS_SRC"; then
+    echo "formula synthesis comments are missing current language-trap guidance: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- '\[\+X\][[:space:]]+implies[[:space:]]+eventually|\[\+RELEASE\][[:space:]]+implies[[:space:]]+eventually' "$FORMULA_SYNTHESIS_SRC"; then
+  echo "formula synthesis comments should not present implication sugar as the current ordering pattern" >&2
   exit 1
 fi
 
