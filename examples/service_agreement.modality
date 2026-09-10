@@ -49,7 +49,7 @@ formula PaymentAfterCompletion {
 
 // 5. No payment without completion (stronger: globally)
 formula NoPaymentWithoutWork {
-  always(paid -> completed)
+  always(!paid | completed)
 }
 
 // 6. Dispute freezes until resolution
@@ -65,12 +65,12 @@ formula ArbiterOnlyOnDispute {
 
 // 8. Consumer can always cancel before completion
 formula ConsumerCanCancel {
-  accepted -> eventually(completed | cancelled)
+  !accepted | eventually(completed | cancelled)
 }
 
 // 9. Provider gets paid for completed work (liveness)
 formula ProviderGetsPaid {
-  completed -> eventually(paid | disputed)
+  !completed | eventually(paid | disputed)
 }
 
 // 10. Mutual exclusion of terminal states
