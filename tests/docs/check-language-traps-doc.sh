@@ -93,6 +93,9 @@ LLM_SYNTHESIS_SRC="$ROOT_DIR/rust/modality-lang/src/llm_synthesis.rs"
 FORMULA_SYNTHESIS_SRC="$ROOT_DIR/rust/modality-lang/src/formula_synthesis.rs"
 MODAL_CLI_HUB_CORE="$ROOT_DIR/rust/modal-cli-hub/src/core.rs"
 MODALITY_SYNTHESIZER_SRC="$ROOT_DIR/rust/modality-synthesizer/src/lib.rs"
+MODAL_COMMON_CONTRACT_STORE="$ROOT_DIR/rust/modal-common/src/contract_store/mod.rs"
+MODAL_COMMON_ONE_STEP_RULE="$ROOT_DIR/rust/modal-common/src/contract_store/one_step_rule.rs"
+MODAL_COMMON_CONTRACT_STORE_TESTS="$ROOT_DIR/rust/modal-common/src/contract_store/tests.rs"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1878,5 +1881,31 @@ if grep -Eq -- 'implication_may_be_witnessed_vacuously|always\(\[\+POST\] true[[
   echo "modality-synthesizer should not preserve the old vacuous implication witness fixture" >&2
   exit 1
 fi
+
+modal_common_required_patterns=(
+  "always (!+modifies(/members) | +all_signed(/members))"
+  "Handle legacy implication"
+  "Validate a legacy implication"
+  "Split on the legacy \"implies\" operator."
+)
+
+for pattern in "${modal_common_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$MODAL_COMMON_CONTRACT_STORE"; then
+    echo "modal-common contract store is missing current language-trap framing: $pattern" >&2
+    exit 1
+  fi
+done
+
+if ! grep -Fq 'rule protect_members { formula { always (!+modifies(/members) | +all_signed(/members)) } }' "$MODAL_COMMON_CONTRACT_STORE_TESTS"; then
+  echo "modal-common contract store tests should use explicit Boolean member protection" >&2
+  exit 1
+fi
+
+for file in "$MODAL_COMMON_ONE_STEP_RULE" "$MODAL_COMMON_CONTRACT_STORE_TESTS" "$MODAL_CLI_HUB_CORE"; do
+  if grep -Eq -- 'modifies\(/members\)[[:space:]]+implies[[:space:]]+all_signed\(/members\)|\+modifies\(/members\)[[:space:]]+implies[[:space:]]+\+all_signed\(/members\)' "$file"; then
+    echo "ordinary member-protection comments and fixtures should not teach implication sugar: $file" >&2
+    exit 1
+  fi
+done
 
 echo "language traps doc check passed"

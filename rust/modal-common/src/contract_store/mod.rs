@@ -617,9 +617,9 @@ impl ContractStore {
             None => return Ok(()), // Can't parse, skip (might be a different rule format)
         };
 
-        // Handle temporal operators and implications
+        // Handle temporal operators and legacy implications.
         // "always (+any_signed(/members))" -> evaluate any_signed(/members)
-        // "always (+modifies(/members) implies +all_signed(/members))" -> conditional check
+        // "always (!+modifies(/members) | +all_signed(/members))" -> conditional check
 
         let formula_str = formula_str.trim();
 
@@ -631,7 +631,7 @@ impl ContractStore {
             formula_str.to_string()
         };
 
-        // Handle implication: "A implies B" means "if A then B"
+        // Handle legacy implication: "A implies B" means "if A then B".
         if inner.contains(" implies ") {
             return self.validate_implication(&inner, ctx);
         }
@@ -734,13 +734,13 @@ impl ContractStore {
             .replace("-modifies", "!modifies") // Negative predicate
     }
 
-    /// Validate an implication: "A implies B" means if A is true, B must be true
+    /// Validate a legacy implication: "A implies B" means if A is true, B must be true.
     fn validate_implication(&self, formula: &str, ctx: &one_step_rule::EvalContext) -> Result<()> {
         use crate::contract_store::one_step_rule::{
             evaluate_formula_full, explain_formula_failures, parse_formula,
         };
 
-        // Split on "implies"
+        // Split on the legacy "implies" operator.
         let parts: Vec<&str> = formula.split(" implies ").collect();
         if parts.len() != 2 {
             return Ok(()); // Can't parse, skip

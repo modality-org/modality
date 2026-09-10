@@ -1225,8 +1225,8 @@ impl HubCore {
             }
         }
 
-        // Validate all_signed when modifies(/members) is true
-        // Rule pattern: always (+modifies(/members) implies +all_signed(/members))
+        // Validate all_signed when modifies(/members) is true.
+        // Rule pattern: always (!+modifies(/members) | +all_signed(/members))
         if has_all_signed && has_modifies && modifies_members {
             let all_valid = self.check_all_members_signed(&members, &message_hex, &signatures);
             if !all_valid {

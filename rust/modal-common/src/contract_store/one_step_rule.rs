@@ -853,7 +853,6 @@ mod tests {
         // This is the pattern for: "modifying /members requires all signatures"
         // If modifies(/members) then must have all_signed(/members)
         // Expressed as: !modifies(/members) | all_signed(/members)
-        // Or: modifies(/members) implies all_signed(/members)
 
         let state = serde_json::json!({
             "members/alice.id": "alice_key",

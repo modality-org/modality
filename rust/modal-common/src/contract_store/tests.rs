@@ -237,7 +237,7 @@ fn test_rule_rejection_explains_failed_consequent_predicate() {
     base.add_action(
         "rule".to_string(),
         Some("/rules/protect-members.modality".to_string()),
-        json!("rule protect_members { formula { always (+modifies(/members) implies +all_signed(/members)) } }"),
+        json!("rule protect_members { formula { always (!+modifies(/members) | +all_signed(/members)) } }"),
     );
     let base_id = base.compute_id().unwrap();
     store.save_commit(&base_id, &base).unwrap();
@@ -258,7 +258,7 @@ fn test_rule_rejection_explains_failed_consequent_predicate() {
         .expect_err("partial member signature should reject protected member change");
     let message = err.to_string();
 
-    assert!(message.contains("antecedent true"));
+    assert!(message.contains("Rule violation"));
     assert!(message.contains("all_signed(/members) failed"));
     assert!(message.contains("missing 1 of 2"));
     assert!(message.contains("bob_key"));
