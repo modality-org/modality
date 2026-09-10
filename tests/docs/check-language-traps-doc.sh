@@ -92,6 +92,7 @@ MEMBERS_ONLY_INTEGRATION_TEST="$ROOT_DIR/rust/modal/tests/members_only_integrati
 LLM_SYNTHESIS_SRC="$ROOT_DIR/rust/modality-lang/src/llm_synthesis.rs"
 FORMULA_SYNTHESIS_SRC="$ROOT_DIR/rust/modality-lang/src/formula_synthesis.rs"
 MODAL_CLI_HUB_CORE="$ROOT_DIR/rust/modal-cli-hub/src/core.rs"
+MODALITY_SYNTHESIZER_SRC="$ROOT_DIR/rust/modality-synthesizer/src/lib.rs"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1865,6 +1866,16 @@ done
 
 if grep -Eq -- '\[\+X\][[:space:]]+implies[[:space:]]+eventually|\[\+RELEASE\][[:space:]]+implies[[:space:]]+eventually' "$FORMULA_SYNTHESIS_SRC"; then
   echo "formula synthesis comments should not present implication sugar as the current ordering pattern" >&2
+  exit 1
+fi
+
+if ! grep -Fq 'always(!<+POST> true | <+POST +signed_by(/users/reviewer.id)> true)' "$MODALITY_SYNTHESIZER_SRC"; then
+  echo "modality-synthesizer should keep the POST reviewer witness on the explicit Boolean same-transition form" >&2
+  exit 1
+fi
+
+if grep -Eq -- 'implication_may_be_witnessed_vacuously|always\(\[\+POST\] true[[:space:]]*->|always\(\[\+POST\] true[[:space:]]*implies' "$MODALITY_SYNTHESIZER_SRC"; then
+  echo "modality-synthesizer should not preserve the old vacuous implication witness fixture" >&2
   exit 1
 fi
 

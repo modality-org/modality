@@ -159,14 +159,19 @@ mod tests {
     }
 
     #[test]
-    fn implication_may_be_witnessed_vacuously() {
+    fn boolean_authorization_witness_keeps_action_and_signature_together() {
         let formula =
-            parse_formula("always([+POST] true -> <+signed_by(/users/reviewer.id)> true)");
+            parse_formula("always(!<+POST> true | <+POST +signed_by(/users/reviewer.id)> true)");
         let model = match synthesize(&[formula.clone()], SynthesisOptions::default()) {
             SynthesisResult::Witness(model) => model,
             SynthesisResult::Unsat { reason, .. } => panic!("expected witness: {reason}"),
         };
         assert!(formulas_satisfied(&model, &[formula]));
+        let printed = modality_lang::print_model(&model);
+        assert!(
+            printed.contains("+POST +signed_by(/users/reviewer.id)"),
+            "review witness should expose same-transition reviewer authorization: {printed}"
+        );
     }
 
     #[test]
