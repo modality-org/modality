@@ -90,6 +90,7 @@ RULE_SYNTHESIZE_CLI_SMOKE="$ROOT_DIR/tests/language/check-rule-synthesize-cli.sh
 RUST_SYNTHESIZE_CMD="$ROOT_DIR/rust/modality/src/cmds/synthesize.rs"
 MEMBERS_ONLY_INTEGRATION_TEST="$ROOT_DIR/rust/modal/tests/members_only_integration.rs"
 LLM_SYNTHESIS_SRC="$ROOT_DIR/rust/modality-lang/src/llm_synthesis.rs"
+MODAL_CLI_HUB_CORE="$ROOT_DIR/rust/modal-cli-hub/src/core.rs"
 
 required_patterns=(
   "### Commitment Versus Enabledness"
@@ -1809,6 +1810,23 @@ fi
 
 if grep -Eq -- 'always[[:space:]]*\(\[\+ADD_MEMBER\][[:space:]]*implies|always[[:space:]]*\(\[\+ADD_MEMBER\][[:space:]]*true[[:space:]]*->' "$MEMBERS_ONLY_INTEGRATION_TEST"; then
   echo "members-only integration test should not use legacy ADD_MEMBER implication fixtures" >&2
+  exit 1
+fi
+
+modal_cli_hub_required_patterns=(
+  "always (!<+modifies(/escrow/funds)> true | <+modifies(/escrow/funds) +signed_by(/users/alice.id)> true)"
+  "always (!<+RESOLVE> true | <+RESOLVE +signed_by(/users/arbiter.id)> true)"
+)
+
+for pattern in "${modal_cli_hub_required_patterns[@]}"; do
+  if ! grep -Fq "$pattern" "$MODAL_CLI_HUB_CORE"; then
+    echo "modal-cli-hub extraction fixture is missing current language-trap style: $pattern" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq -- 'modifies\(/escrow/funds\)[[:space:]]+implies|disputed[[:space:]]+implies' "$MODAL_CLI_HUB_CORE"; then
+  echo "modal-cli-hub extraction fixtures should not use ordinary implication-sugar examples" >&2
   exit 1
 fi
 

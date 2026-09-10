@@ -1812,7 +1812,7 @@ For Alice (buyer):
 export default rule {
     starting_at $PARENT
     formula {
-        always (modifies(/escrow/funds) implies signed_by(/users/alice.id))
+        always (!<+modifies(/escrow/funds)> true | <+modifies(/escrow/funds) +signed_by(/users/alice.id)> true)
     }
 }
 
@@ -1828,7 +1828,7 @@ For the arbiter:
 export default rule {
     starting_at $PARENT
     formula {
-        [<+RESOLVE>] (disputed implies signed_by(/users/arbiter.id))
+        always (!<+RESOLVE> true | <+RESOLVE +signed_by(/users/arbiter.id)> true)
     }
 }
 "#;
