@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/getting-started/installation.md"
+TESTS_README="$ROOT_DIR/tests/README.md"
 WORKFLOW="$ROOT_DIR/.github/workflows/onboarding-release-archive.yml"
 
 required_patterns=(
@@ -334,6 +335,21 @@ required_patterns=(
 for pattern in "${required_patterns[@]}"; do
   if ! grep -Fq -- "$pattern" "$DOC"; then
     echo "installation guide is missing onboarding CLI split text: $pattern" >&2
+    exit 1
+  fi
+done
+
+tests_readme_patterns=(
+  "Build both CLIs from the"
+  "same entry point when measuring a fresh first-contract run"
+  "MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh"
+  "If \`CARGO_TARGET_DIR\` points at a temporary target"
+  "smoke looks for both default binaries under that same target directory"
+)
+
+for pattern in "${tests_readme_patterns[@]}"; do
+  if ! grep -Fq -- "$pattern" "$TESTS_README"; then
+    echo "tests README is missing source-build onboarding text: $pattern" >&2
     exit 1
   fi
 done
