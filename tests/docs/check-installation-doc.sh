@@ -345,6 +345,7 @@ tests_readme_patterns=(
   "MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh"
   "If \`CARGO_TARGET_DIR\` points at a temporary target"
   "smoke looks for both default binaries under that same target directory"
+  "CARGO_TARGET_DIR=/path/to/temp-target MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_PROFILE=release MODAL_ONBOARDING_ARCHIVE_CHECK=1 tests/run-onboarding-smokes.sh"
 )
 
 for pattern in "${tests_readme_patterns[@]}"; do

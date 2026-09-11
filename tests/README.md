@@ -182,6 +182,15 @@ publishing a registry package, run:
 MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_ARCHIVE_CHECK=1 tests/run-onboarding-smokes.sh
 ```
 
+For checkpoint evidence that covers the release-profile archive, the
+same-revision language CLI, and the first-contract replay from one fresh source
+build, build both CLIs in release mode while keeping Cargo output in one target
+directory:
+
+```bash
+CARGO_TARGET_DIR=/path/to/temp-target MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_PROFILE=release MODAL_ONBOARDING_ARCHIVE_CHECK=1 tests/run-onboarding-smokes.sh
+```
+
 The archive-readiness probe creates a `modal-<version>-<os>-<arch>-<profile>.tar.gz`
 containing `bin/modal`, `README.txt`, `PROVENANCE.txt`, `EVIDENCE-BUNDLE.txt`,
 and `SHA256SUMS`, unpacks it, verifies the checksum manifest, asserts that the
