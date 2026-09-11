@@ -15,6 +15,8 @@ When no transition matches the pending commit, the explanation should include:
   candidate.
 - Similar transitions from other states when the current state has no candidate
   for the pending action.
+- Similar transitions from other states with fewer failed predicates when the
+  current state has only unrelated candidates.
 
 For the first-contract path, an unsigned steady-state update after bootstrap
 should fail at `q1`. The useful rejection is not just "commit rejected"; it
@@ -45,6 +47,18 @@ non-current transition from q1 to q3 [+POST +signed_by(/parties/alice.id)]; curr
 
 That distinction matters because a transition with no failed predicates can
 still be unavailable from the current witness state.
+
+The same state-mismatch hint should appear when replay is in a state that has
+outgoing transitions, but those transitions are less relevant than a non-current
+match. For example, an attempted `POST` from `q1` should still expose a perfect
+`POST` transition back at `q0` even when `q1` has only an unrelated `FINISH`
+transition:
+
+```text
+Closest candidate transition: candidate from current state q1: q1 to q2 [+FINISH +signed_by(/parties/alice.id)]; failed predicates: missing +FINISH, missing +signed_by(/parties/alice.id)
+Similar transitions from other states with fewer failed predicates:
+non-current transition from q0 to q1 [+POST]; current states: q1; failed predicates: none
+```
 
 ## Predicate Evidence
 
@@ -83,6 +97,9 @@ Focused local model-governance regressions cover the same explanation classes:
 
 - `explains_similar_transitions_when_current_state_has_no_candidates` preserves
   the non-current transition fallback.
+- `explains_closer_similar_transition_when_current_transition_is_unrelated`
+  preserves the state-mismatch hint when the current state has only unrelated
+  outgoing transitions.
 - `explains_signed_by_identity_bootstrap_ordering` preserves bootstrap-order
   evidence for identity paths.
 - `explains_action_modal_rule_failure_with_transition_witness` preserves
@@ -99,6 +116,8 @@ Hub-side `model_validator` regressions cover the shared server path:
   pending action but have different predicate failures.
 - `test_action_rejection_explains_similar_non_current_transitions` preserves
   similar transitions outside the current witness state.
+- `test_action_rejection_surfaces_closer_non_current_transition` preserves the
+  same state-mismatch hint on the shared hub validator path.
 - `test_model_replacement_rule_rejection_explains_formula_failure`,
   `test_model_replacement_rule_rejection_explains_action_modal_witness`, and
   `test_model_replacement_rule_rejection_explains_fixed_point_unfolding`

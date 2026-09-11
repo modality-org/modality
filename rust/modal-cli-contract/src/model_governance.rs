@@ -984,20 +984,8 @@ fn explain_no_valid_transition(
 
     if candidates.is_empty() {
         lines.push("Candidate transitions: none from current states".to_string());
-        let mut similar = all_transitions(model)
-            .into_iter()
-            .filter(|(_, transition)| !current_states.contains(&transition.from))
-            .map(|(part_name, transition)| {
-                explain_non_current_transition(part_name, current_states, transition, facts)
-            })
-            .collect::<Vec<_>>();
+        let similar = ranked_non_current_transitions(model, current_states, facts);
         if !similar.is_empty() {
-            similar.sort_by(|left, right| {
-                left.failures
-                    .len()
-                    .cmp(&right.failures.len())
-                    .then_with(|| left.transition_key.cmp(&right.transition_key))
-            });
             lines.push(
                 "Similar transitions from other states ranked by predicate distance:".to_string(),
             );
@@ -1016,10 +1004,48 @@ fn explain_no_valid_transition(
             candidates[0].summary
         ));
         lines.push("Candidate transitions ranked by predicate distance:".to_string());
+        let current_best_failure_count = candidates[0].failures.len();
         lines.extend(candidates.into_iter().map(|candidate| candidate.summary));
+
+        let closer_similar = ranked_non_current_transitions(model, current_states, facts)
+            .into_iter()
+            .filter(|candidate| candidate.failures.len() < current_best_failure_count)
+            .collect::<Vec<_>>();
+        if !closer_similar.is_empty() {
+            lines.push(
+                "Similar transitions from other states with fewer failed predicates:".to_string(),
+            );
+            lines.extend(
+                closer_similar
+                    .into_iter()
+                    .map(|candidate| candidate.summary),
+            );
+        }
     }
 
     lines.join("; ")
+}
+
+fn ranked_non_current_transitions(
+    model: &Model,
+    current_states: &HashSet<String>,
+    facts: &CommitFacts,
+) -> Vec<CandidateTransitionExplanation> {
+    let mut similar = all_transitions(model)
+        .into_iter()
+        .filter(|(_, transition)| !current_states.contains(&transition.from))
+        .map(|(part_name, transition)| {
+            explain_non_current_transition(part_name, current_states, transition, facts)
+        })
+        .collect::<Vec<_>>();
+
+    similar.sort_by(|left, right| {
+        left.failures
+            .len()
+            .cmp(&right.failures.len())
+            .then_with(|| left.transition_key.cmp(&right.transition_key))
+    });
+    similar
 }
 
 fn candidate_transitions<'a>(
@@ -1710,6 +1736,50 @@ model Stuck {
                     .find("q1 to q3 [+POST +signed_by(/parties/alice.id)]")
                     .unwrap(),
             "nearest similar transition should appear before farther transition: {err}"
+        );
+    }
+
+    #[test]
+    fn explains_closer_similar_transition_when_current_transition_is_unrelated() {
+        let model = parse_content_lalrpop(
+            r#"
+model Stuck {
+  initial q0
+  q0 --> q1: +POST
+  q1 --> q2: +FINISH +signed_by(/parties/alice.id)
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("q1".to_string());
+
+        let mut commit = CommitFile::new();
+        commit.add_action(
+            "post".to_string(),
+            Some("/notes/entry.text".to_string()),
+            Value::String("entry".to_string()),
+        );
+        let facts = CommitFacts::from_commit(&commit, &HashMap::new());
+
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+
+        assert!(err.contains("Closest candidate transition"), "{err}");
+        assert!(
+            err.contains(
+                "candidate from current state q1: q1 -> q2 [+FINISH +signed_by(/parties/alice.id)]; failed predicates: missing +FINISH, missing +signed_by(/parties/alice.id)"
+            ),
+            "{err}"
+        );
+        assert!(
+            err.contains("Similar transitions from other states with fewer failed predicates"),
+            "{err}"
+        );
+        assert!(
+            err.contains(
+                "non-current transition from q0 to q1 [+POST]; current states: q1; failed predicates: none"
+            ),
+            "{err}"
         );
     }
 
