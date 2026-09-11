@@ -143,6 +143,8 @@ proof-fragment text both paths depend on:
   ranked current-state candidate line and deterministic transition key.
 - `summarizes_non_current_transition_with_current_states` preserves the
   non-current fallback line with explicit current states.
+- `ranks_candidate_transitions_by_failures_then_stable_key` preserves the
+  shared ordering helper used by local and hub candidate diagnostics.
 - `formats_state_sets_deterministically` preserves the sorted current-state
   header used by local and hub rejection diagnostics.
 - `renders_recursive_formula_failure_diagnostic` preserves nested formula

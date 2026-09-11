@@ -51,6 +51,7 @@ required_patterns=(
   "does not mention Bob or \`+POST\`"
   "summarizes_candidate_transition_with_stable_key_and_failures"
   "summarizes_non_current_transition_with_current_states"
+  "ranks_candidate_transitions_by_failures_then_stable_key"
   "formats_state_sets_deterministically"
   "renders_recursive_formula_failure_diagnostic"
   "renders_action_modal_transition_witness_diagnostic"
@@ -133,6 +134,7 @@ done
 common_regressions=(
   "summarizes_candidate_transition_with_stable_key_and_failures"
   "summarizes_non_current_transition_with_current_states"
+  "ranks_candidate_transitions_by_failures_then_stable_key"
   "formats_state_sets_deterministically"
   "renders_recursive_formula_failure_diagnostic"
   "renders_action_modal_transition_witness_diagnostic"

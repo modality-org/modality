@@ -11,10 +11,10 @@
 //! - **Replay**: New models must replay history to establish valid state mapping
 
 use modal_common::model_diagnostics::{
-    format_state_set, summarize_candidate_transition, summarize_non_current_transition,
-    ActionModalFailureDiagnostic, ActionModalKind, CandidateTransitionExplanation,
-    FixedPointPolarity, FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome,
-    FormulaFailureDiagnostic,
+    format_state_set, rank_candidate_transitions, summarize_candidate_transition,
+    summarize_non_current_transition, ActionModalFailureDiagnostic, ActionModalKind,
+    CandidateTransitionExplanation, FixedPointPolarity, FixedPointUnfoldingDiagnostic,
+    FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
 };
 use modality_lang::{
     parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Property, PropertySign,
@@ -371,12 +371,7 @@ impl ModelValidator {
                 lines.extend(similar.into_iter().map(|candidate| candidate.summary));
             }
         } else {
-            candidates.sort_by(|left, right| {
-                left.failures
-                    .len()
-                    .cmp(&right.failures.len())
-                    .then_with(|| left.transition_key.cmp(&right.transition_key))
-            });
+            rank_candidate_transitions(&mut candidates);
 
             lines.push(format!(
                 "Closest candidate transition: {}",
@@ -421,12 +416,7 @@ impl ModelValidator {
             })
             .collect::<Vec<_>>();
 
-        similar.sort_by(|left, right| {
-            left.failures
-                .len()
-                .cmp(&right.failures.len())
-                .then_with(|| left.transition_key.cmp(&right.transition_key))
-        });
+        rank_candidate_transitions(&mut similar);
         similar
     }
 

@@ -1,9 +1,9 @@
 use anyhow::Result;
 use modal_common::contract_store::{CommitFile, ContractStore};
 use modal_common::model_diagnostics::{
-    format_state_set, summarize_candidate_transition, summarize_non_current_transition,
-    CandidateTransitionExplanation, FixedPointPolarity, FixedPointUnfoldingDiagnostic,
-    FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
+    format_state_set, rank_candidate_transitions, summarize_candidate_transition,
+    summarize_non_current_transition, CandidateTransitionExplanation, FixedPointPolarity,
+    FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
 };
 use modality_lang::{
     parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Part, Property, PropertySign,
@@ -992,12 +992,7 @@ fn explain_no_valid_transition(
             lines.extend(similar.into_iter().map(|candidate| candidate.summary));
         }
     } else {
-        candidates.sort_by(|left, right| {
-            left.failures
-                .len()
-                .cmp(&right.failures.len())
-                .then_with(|| left.transition_key.cmp(&right.transition_key))
-        });
+        rank_candidate_transitions(&mut candidates);
 
         lines.push(format!(
             "Closest candidate transition: {}",
@@ -1039,12 +1034,7 @@ fn ranked_non_current_transitions(
         })
         .collect::<Vec<_>>();
 
-    similar.sort_by(|left, right| {
-        left.failures
-            .len()
-            .cmp(&right.failures.len())
-            .then_with(|| left.transition_key.cmp(&right.transition_key))
-    });
+    rank_candidate_transitions(&mut similar);
     similar
 }
 

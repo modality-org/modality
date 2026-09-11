@@ -5,6 +5,15 @@ pub struct CandidateTransitionExplanation {
     pub transition_key: String,
 }
 
+pub fn rank_candidate_transitions(candidates: &mut [CandidateTransitionExplanation]) {
+    candidates.sort_by(|left, right| {
+        left.failures
+            .len()
+            .cmp(&right.failures.len())
+            .then_with(|| left.transition_key.cmp(&right.transition_key))
+    });
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum FixedPointPolarity {
     Least,
@@ -317,6 +326,44 @@ mod tests {
         assert_eq!(
             explanation.summary,
             "part ledger non-current transition from draft to posted [+POST +signed_by(/parties/alice.id)]; current states: locked; failed predicates: missing +signed_by(/parties/alice.id)"
+        );
+    }
+
+    #[test]
+    fn ranks_candidate_transitions_by_failures_then_stable_key() {
+        let mut candidates = vec![
+            CandidateTransitionExplanation {
+                failures: vec!["missing +APPROVED".to_string()],
+                summary: "later one-failure candidate".to_string(),
+                transition_key: "q1->q3".to_string(),
+            },
+            CandidateTransitionExplanation {
+                failures: vec![
+                    "missing +APPROVED".to_string(),
+                    "missing +REVIEWED".to_string(),
+                ],
+                summary: "two-failure candidate".to_string(),
+                transition_key: "q1->q2".to_string(),
+            },
+            CandidateTransitionExplanation {
+                failures: vec!["missing +APPROVED".to_string()],
+                summary: "earlier one-failure candidate".to_string(),
+                transition_key: "q1->q0".to_string(),
+            },
+        ];
+
+        rank_candidate_transitions(&mut candidates);
+
+        assert_eq!(
+            candidates
+                .iter()
+                .map(|candidate| candidate.summary.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "earlier one-failure candidate",
+                "later one-failure candidate",
+                "two-failure candidate"
+            ]
         );
     }
 
