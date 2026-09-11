@@ -14,6 +14,54 @@ pub fn rank_candidate_transitions(candidates: &mut [CandidateTransitionExplanati
     });
 }
 
+pub fn render_ranked_transition_diagnostics(
+    mut candidates: Vec<CandidateTransitionExplanation>,
+    mut non_current_transitions: Vec<CandidateTransitionExplanation>,
+) -> Vec<String> {
+    if candidates.is_empty() {
+        let mut lines = vec!["Candidate transitions: none from current states".to_string()];
+        rank_candidate_transitions(&mut non_current_transitions);
+        if !non_current_transitions.is_empty() {
+            lines.push(
+                "Similar transitions from other states ranked by predicate distance:".to_string(),
+            );
+            lines.extend(
+                non_current_transitions
+                    .into_iter()
+                    .map(|candidate| candidate.summary),
+            );
+        }
+        return lines;
+    }
+
+    rank_candidate_transitions(&mut candidates);
+
+    let current_best_failure_count = candidates[0].failures.len();
+    let mut lines = vec![
+        format!("Closest candidate transition: {}", candidates[0].summary),
+        "Candidate transitions ranked by predicate distance:".to_string(),
+    ];
+    lines.extend(candidates.into_iter().map(|candidate| candidate.summary));
+
+    rank_candidate_transitions(&mut non_current_transitions);
+    let closer_similar = non_current_transitions
+        .into_iter()
+        .filter(|candidate| candidate.failures.len() < current_best_failure_count)
+        .collect::<Vec<_>>();
+    if !closer_similar.is_empty() {
+        lines.push(
+            "Similar transitions from other states with fewer failed predicates:".to_string(),
+        );
+        lines.extend(
+            closer_similar
+                .into_iter()
+                .map(|candidate| candidate.summary),
+        );
+    }
+
+    lines
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum FixedPointPolarity {
     Least,
@@ -363,6 +411,61 @@ mod tests {
                 "earlier one-failure candidate",
                 "later one-failure candidate",
                 "two-failure candidate"
+            ]
+        );
+    }
+
+    #[test]
+    fn renders_ranked_transition_diagnostics_without_current_candidates() {
+        let lines = render_ranked_transition_diagnostics(
+            Vec::new(),
+            vec![CandidateTransitionExplanation {
+                failures: vec!["missing +A".to_string()],
+                summary: "non-current one-failure candidate".to_string(),
+                transition_key: "q0->q1".to_string(),
+            }],
+        );
+
+        assert_eq!(
+            lines,
+            [
+                "Candidate transitions: none from current states",
+                "Similar transitions from other states ranked by predicate distance:",
+                "non-current one-failure candidate"
+            ]
+        );
+    }
+
+    #[test]
+    fn renders_only_closer_non_current_transition_diagnostics() {
+        let lines = render_ranked_transition_diagnostics(
+            vec![CandidateTransitionExplanation {
+                failures: vec!["missing +A".to_string(), "missing +B".to_string()],
+                summary: "current two-failure candidate".to_string(),
+                transition_key: "q1:q1->q2".to_string(),
+            }],
+            vec![
+                CandidateTransitionExplanation {
+                    failures: vec!["missing +A".to_string()],
+                    summary: "non-current one-failure candidate".to_string(),
+                    transition_key: "q0->q1".to_string(),
+                },
+                CandidateTransitionExplanation {
+                    failures: vec!["missing +A".to_string(), "missing +B".to_string()],
+                    summary: "non-current two-failure candidate".to_string(),
+                    transition_key: "q2->q3".to_string(),
+                },
+            ],
+        );
+
+        assert_eq!(
+            lines,
+            [
+                "Closest candidate transition: current two-failure candidate",
+                "Candidate transitions ranked by predicate distance:",
+                "current two-failure candidate",
+                "Similar transitions from other states with fewer failed predicates:",
+                "non-current one-failure candidate"
             ]
         );
     }

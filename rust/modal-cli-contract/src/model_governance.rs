@@ -1,7 +1,7 @@
 use anyhow::Result;
 use modal_common::contract_store::{CommitFile, ContractStore};
 use modal_common::model_diagnostics::{
-    format_state_set, rank_candidate_transitions, summarize_candidate_transition,
+    format_state_set, render_ranked_transition_diagnostics, summarize_candidate_transition,
     summarize_non_current_transition, CandidateTransitionExplanation, FixedPointPolarity,
     FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
 };
@@ -975,67 +975,33 @@ fn explain_no_valid_transition(
         format_state_set(current_states)
     )];
 
-    let mut candidates = candidate_transitions(model, current_states)
+    let candidates = candidate_transitions(model, current_states)
         .into_iter()
         .map(|(part_name, current_state, transition)| {
             explain_candidate_transition(part_name, current_state, transition, facts)
         })
         .collect::<Vec<_>>();
 
-    if candidates.is_empty() {
-        lines.push("Candidate transitions: none from current states".to_string());
-        let similar = ranked_non_current_transitions(model, current_states, facts);
-        if !similar.is_empty() {
-            lines.push(
-                "Similar transitions from other states ranked by predicate distance:".to_string(),
-            );
-            lines.extend(similar.into_iter().map(|candidate| candidate.summary));
-        }
-    } else {
-        rank_candidate_transitions(&mut candidates);
-
-        lines.push(format!(
-            "Closest candidate transition: {}",
-            candidates[0].summary
-        ));
-        lines.push("Candidate transitions ranked by predicate distance:".to_string());
-        let current_best_failure_count = candidates[0].failures.len();
-        lines.extend(candidates.into_iter().map(|candidate| candidate.summary));
-
-        let closer_similar = ranked_non_current_transitions(model, current_states, facts)
-            .into_iter()
-            .filter(|candidate| candidate.failures.len() < current_best_failure_count)
-            .collect::<Vec<_>>();
-        if !closer_similar.is_empty() {
-            lines.push(
-                "Similar transitions from other states with fewer failed predicates:".to_string(),
-            );
-            lines.extend(
-                closer_similar
-                    .into_iter()
-                    .map(|candidate| candidate.summary),
-            );
-        }
-    }
+    lines.extend(render_ranked_transition_diagnostics(
+        candidates,
+        non_current_transitions(model, current_states, facts),
+    ));
 
     lines.join("; ")
 }
 
-fn ranked_non_current_transitions(
+fn non_current_transitions(
     model: &Model,
     current_states: &HashSet<String>,
     facts: &CommitFacts,
 ) -> Vec<CandidateTransitionExplanation> {
-    let mut similar = all_transitions(model)
+    all_transitions(model)
         .into_iter()
         .filter(|(_, transition)| !current_states.contains(&transition.from))
         .map(|(part_name, transition)| {
             explain_non_current_transition(part_name, current_states, transition, facts)
         })
-        .collect::<Vec<_>>();
-
-    rank_candidate_transitions(&mut similar);
-    similar
+        .collect::<Vec<_>>()
 }
 
 fn candidate_transitions<'a>(
