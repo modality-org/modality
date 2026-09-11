@@ -5,6 +5,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/cli/ai-commands.md"
 MODAL_MAIN="$ROOT_DIR/rust/modal/src/main.rs"
 AI_LIB="$ROOT_DIR/rust/modal-cli-ai/src/lib.rs"
+AI_CONFIG="$ROOT_DIR/rust/modal-cli-ai/src/config.rs"
+AI_COMPLETE="$ROOT_DIR/rust/modal-cli-ai/src/complete.rs"
+CURSOR_AGENT_SOURCE="$ROOT_DIR/rust/modal-cli-ai/src/cursor_agent.rs"
 SET_SOURCE="$ROOT_DIR/rust/modal-cli-ai/src/set.rs"
 SHOW_SOURCE="$ROOT_DIR/rust/modal-cli-ai/src/show.rs"
 UNSET_SOURCE="$ROOT_DIR/rust/modal-cli-ai/src/unset.rs"
@@ -12,8 +15,9 @@ AI_SOURCE="$ROOT_DIR/rust/modal-cli-contract/src/ai.rs"
 
 required_patterns=(
   "# AI Commands (\`modal ai\`)"
-  "modal ai set --provider openai|anthropic|grok|bedrock|ollama"
+  "modal ai set --provider openai|anthropic|grok|bedrock|ollama|cursor-agent"
   "\`--provider <PROVIDER>\`"
+  "\`cursor-agent\`"
   "\`--model <MODEL>\`"
   "\`--base-url <BASE_URL>\`"
   "\`--region <REGION>\`"
@@ -24,17 +28,30 @@ required_patterns=(
   "modal ai set --provider grok"
   "modal ai set --provider bedrock --region us-east-1"
   "modal ai set --provider ollama"
+  "modal ai set --provider cursor-agent"
   "modal ai show"
   "modal ai unset"
   "modal ai suggest-rule <PROMPT>"
+  "[formula cookbook](/docs/language/formula-cookbook)"
+  "[model cookbook](/docs/language/model-cookbook)"
+  "packages/modality-skill/SKILL.md"
+  "contract directory"
+  "\`--dir\`"
+  "\`--print\`"
+  "\`--interactive\`"
   "modal ai suggest-rule \"after this commit either alice or bob must sign\""
+  "modal ai suggest-rule --interactive \"after this commit either alice or bob must sign\""
   "yours may differ"
   "MODAL_AI_API_KEY"
   "OPENAI_API_KEY"
   "ANTHROPIC_API_KEY"
   "XAI_API_KEY"
+  "CURSOR_API_KEY"
+  "\`MODAL_AI_CURSOR_AGENT\`"
+  "\`agent login\`"
   "Do not"
   "persist AWS secrets in \`ai.json\`"
+  "\`--save-key\` is only for openai, anthropic, and grok"
 )
 
 for pattern in "${required_patterns[@]}"; do
@@ -60,6 +77,19 @@ for source_guard in \
 done
 
 for source_guard in \
+  'pub const PROVIDER_CHOICE_HINT: &str = "openai|anthropic|grok|bedrock|ollama|cursor-agent"' \
+  '#[serde(rename = "cursor-agent")]' \
+  '#[value(name = "cursor-agent")]' \
+  'Provider::CursorAgent => "cursor-agent"' \
+  'Provider::CursorAgent => "auto"' \
+  'Provider::CursorAgent => Some("CURSOR_API_KEY")'; do
+  if ! grep -Fq -- "$source_guard" "$AI_CONFIG"; then
+    echo "modal-cli-ai config no longer exposes documented cursor-agent provider behavior: $source_guard" >&2
+    exit 1
+  fi
+done
+
+for source_guard in \
   'pub provider: Provider' \
   'pub model: Option<String>' \
   'pub base_url: Option<String>' \
@@ -68,6 +98,17 @@ for source_guard in \
   'pub save_key: bool'; do
   if ! grep -Fq -- "$source_guard" "$SET_SOURCE"; then
     echo "modal ai set source no longer exposes documented option: $source_guard" >&2
+    exit 1
+  fi
+done
+
+for source_guard in \
+  'opts.provider == Provider::CursorAgent' \
+  '--save-key is not supported for cursor-agent' \
+  'agent login' \
+  'MODAL_AI_CURSOR_AGENT'; do
+  if ! grep -Fq -- "$source_guard" "$SET_SOURCE"; then
+    echo "modal ai set source no longer exposes documented cursor-agent setup behavior: $source_guard" >&2
     exit 1
   fi
 done
@@ -84,10 +125,46 @@ fi
 
 for source_guard in \
   'prompt: String' \
+  'api_key: Option<String>' \
+  'dir: Option<PathBuf>' \
+  'print: bool' \
+  'interactive: bool' \
   '#[command(name = "suggest-rule")]' \
-  'modal_cli_ai::suggest_rule'; do
+  'modal_cli_ai::suggest_rule_mode' \
+  'SuggestPrintMode::Interactive' \
+  'SuggestPrintMode::Print'; do
   if ! grep -Fq -- "$source_guard" "$AI_SOURCE"; then
     echo "contract ai source no longer exposes documented option: $source_guard" >&2
+    exit 1
+  fi
+done
+
+for source_guard in \
+  'config.provider()? == crate::config::Provider::CursorAgent' \
+  'collect_id_paths' \
+  'Known identity paths in this contract:'; do
+  if ! grep -Fq -- "$source_guard" "$AI_COMPLETE"; then
+    echo "modal-cli-ai completion source no longer passes documented contract context: $source_guard" >&2
+    exit 1
+  fi
+done
+
+for source_guard in \
+  'pub enum SuggestPrintMode' \
+  'Print' \
+  'Interactive' \
+  '"--workspace"' \
+  '"--add-dir"' \
+  '"--mode"' \
+  '"ask"' \
+  '"--api-key"' \
+  '"MODAL_AI_CURSOR_AGENT"' \
+  '"agent", "cursor-agent"' \
+  'Read formula-cookbook.md first' \
+  'Do not search rust/, experiments/, or node_modules.' \
+  'put the formula alone on the last line'; do
+  if ! grep -Fq -- "$source_guard" "$CURSOR_AGENT_SOURCE"; then
+    echo "cursor-agent source no longer matches documented suggest-rule behavior: $source_guard" >&2
     exit 1
   fi
 done

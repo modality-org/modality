@@ -664,12 +664,6 @@ fn cursor_agent_invocation_adds_checkout_docs_when_modality_docs_unset() {
             crate::cursor_agent::SuggestPrintMode::Print,
         )
         .expect("invocation");
-        let add_dir = inv
-            .args
-            .windows(2)
-            .find(|pair| pair[0] == "--add-dir")
-            .map(|pair| pair[1].clone())
-            .expect("add-dir from CARGO_MANIFEST_DIR");
         let add_dirs: Vec<std::path::PathBuf> = inv
             .args
             .windows(2)
