@@ -186,6 +186,25 @@ fn format_diagnostic_list(items: &[String]) -> String {
     }
 }
 
+pub fn format_state_set<I, S>(states: I) -> String
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let mut states = states
+        .into_iter()
+        .map(|state| state.as_ref().to_string())
+        .collect::<Vec<_>>();
+    states.sort();
+
+    let states = states
+        .iter()
+        .map(|state| format!("{state:?}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{{{states}}}")
+}
+
 pub fn summarize_candidate_transition(
     part_name: Option<&str>,
     current_state: &str,
@@ -250,6 +269,17 @@ pub fn summarize_non_current_transition(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn formats_state_sets_deterministically() {
+        let states = vec![
+            "zeta".to_string(),
+            "alpha".to_string(),
+            "middle".to_string(),
+        ];
+
+        assert_eq!(format_state_set(&states), r#"{"alpha", "middle", "zeta"}"#);
+    }
 
     #[test]
     fn summarizes_candidate_transition_with_stable_key_and_failures() {

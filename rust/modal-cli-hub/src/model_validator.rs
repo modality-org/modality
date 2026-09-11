@@ -11,9 +11,10 @@
 //! - **Replay**: New models must replay history to establish valid state mapping
 
 use modal_common::model_diagnostics::{
-    summarize_candidate_transition, summarize_non_current_transition, ActionModalFailureDiagnostic,
-    ActionModalKind, CandidateTransitionExplanation, FixedPointPolarity,
-    FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
+    format_state_set, summarize_candidate_transition, summarize_non_current_transition,
+    ActionModalFailureDiagnostic, ActionModalKind, CandidateTransitionExplanation,
+    FixedPointPolarity, FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome,
+    FormulaFailureDiagnostic,
 };
 use modality_lang::{
     parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Property, PropertySign,
@@ -331,8 +332,9 @@ impl ModelValidator {
 
     fn explain_no_valid_transition(&self, labels: &[String], model: &Model) -> String {
         let mut lines = vec![format!(
-            "No valid transition for action {:?} from current states {:?}",
-            labels, self.current_states
+            "No valid transition for action {:?} from current states {}",
+            labels,
+            format_state_set(&self.current_states)
         )];
 
         let mut candidates = Vec::new();
@@ -1428,6 +1430,29 @@ model TestModel {
         assert!(err.contains(
             "non-current transition from init to active [+START]; current states: active; failed predicates: none"
         ));
+    }
+
+    #[test]
+    fn test_action_rejection_sorts_multi_current_state_header() {
+        let mut validator = ModelValidator::new();
+
+        let model = r#"
+model TestModel {
+    init --> alpha: +START
+    init --> beta: +START
+    alpha --> done: +APPROVE
+    beta --> done: +APPROVE
+}
+        "#;
+
+        validator.apply_model(model, 0).unwrap();
+        validator.apply_action(&["START".to_string()]).unwrap();
+
+        let err = validator
+            .apply_action(&["POST".to_string()])
+            .expect_err("POST should not match either current branch");
+
+        assert!(err.contains(r#"current states {"alpha", "beta"}"#), "{err}");
     }
 
     #[test]

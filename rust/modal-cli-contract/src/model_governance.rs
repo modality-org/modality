@@ -1,7 +1,7 @@
 use anyhow::Result;
 use modal_common::contract_store::{CommitFile, ContractStore};
 use modal_common::model_diagnostics::{
-    summarize_candidate_transition, summarize_non_current_transition,
+    format_state_set, summarize_candidate_transition, summarize_non_current_transition,
     CandidateTransitionExplanation, FixedPointPolarity, FixedPointUnfoldingDiagnostic,
     FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
 };
@@ -971,8 +971,8 @@ fn explain_no_valid_transition(
     facts: &CommitFacts,
 ) -> String {
     let mut lines = vec![format!(
-        "No valid transition for local commit from current states {:?}",
-        current_states
+        "No valid transition for local commit from current states {}",
+        format_state_set(current_states)
     )];
 
     let mut candidates = candidate_transitions(model, current_states)
@@ -1781,6 +1781,35 @@ model Stuck {
             ),
             "{err}"
         );
+    }
+
+    #[test]
+    fn explains_multi_state_rejections_with_sorted_current_states() {
+        let model = parse_content_lalrpop(
+            r#"
+model Branching {
+  initial q0
+  q1 --> q3: +APPROVE
+  q2 --> q4: +APPROVE
+}
+            "#,
+        )
+        .unwrap();
+        let mut current_states = HashSet::new();
+        current_states.insert("q2".to_string());
+        current_states.insert("q1".to_string());
+
+        let mut commit = CommitFile::new();
+        commit.add_action(
+            "post".to_string(),
+            Some("/notes/entry.text".to_string()),
+            Value::String("entry".to_string()),
+        );
+        let facts = CommitFacts::from_commit(&commit, &HashMap::new());
+
+        let err = explain_no_valid_transition(&model, &current_states, &facts);
+
+        assert!(err.contains(r#"current states {"q1", "q2"}"#), "{err}");
     }
 
     #[test]

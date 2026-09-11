@@ -8,7 +8,8 @@ a witness model, but it is not part of commit-time acceptance.
 
 When no transition matches the pending commit, the explanation should include:
 
-- The current governing-model state reached by replaying accepted commits.
+- The current governing-model state reached by replaying accepted commits, with
+  deterministic ordering when replay leaves multiple possible current states.
 - The closest candidate transition from that current state.
 - The predicates that failed on that candidate.
 - Other candidate transitions from the current state, ranked behind the closest
@@ -100,6 +101,8 @@ Focused local model-governance regressions cover the same explanation classes:
 - `explains_closer_similar_transition_when_current_transition_is_unrelated`
   preserves the state-mismatch hint when the current state has only unrelated
   outgoing transitions.
+- `explains_multi_state_rejections_with_sorted_current_states` preserves stable
+  current-state ordering for nondeterministic local replay.
 - `explains_signed_by_identity_bootstrap_ordering` preserves bootstrap-order
   evidence for identity paths.
 - `explains_action_modal_rule_failure_with_transition_witness` preserves
@@ -118,6 +121,8 @@ Hub-side `model_validator` regressions cover the shared server path:
   similar transitions outside the current witness state.
 - `test_action_rejection_surfaces_closer_non_current_transition` preserves the
   same state-mismatch hint on the shared hub validator path.
+- `test_action_rejection_sorts_multi_current_state_header` preserves stable
+  current-state ordering for nondeterministic hub replay.
 - `test_model_replacement_rule_rejection_explains_formula_failure`,
   `test_model_replacement_rule_rejection_explains_action_modal_witness`, and
   `test_model_replacement_rule_rejection_explains_fixed_point_unfolding`
@@ -138,6 +143,8 @@ proof-fragment text both paths depend on:
   ranked current-state candidate line and deterministic transition key.
 - `summarizes_non_current_transition_with_current_states` preserves the
   non-current fallback line with explicit current states.
+- `formats_state_sets_deterministically` preserves the sorted current-state
+  header used by local and hub rejection diagnostics.
 - `renders_recursive_formula_failure_diagnostic` preserves nested formula
   counterexample rendering.
 - `renders_action_modal_transition_witness_diagnostic` preserves labelled
