@@ -5,6 +5,15 @@ pub struct CandidateTransitionExplanation {
     pub transition_key: String,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct TransitionDiagnosticInput {
+    pub failures: Vec<String>,
+    pub from: String,
+    pub part_name: Option<String>,
+    pub properties: String,
+    pub to: String,
+}
+
 pub fn rank_candidate_transitions(candidates: &mut [CandidateTransitionExplanation]) {
     candidates.sort_by(|left, right| {
         left.failures
@@ -60,6 +69,54 @@ pub fn render_ranked_transition_diagnostics(
     }
 
     lines
+}
+
+pub fn render_transition_diagnostics_for_states<I, S>(
+    current_states: I,
+    transitions: Vec<TransitionDiagnosticInput>,
+) -> Vec<String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let current_states = current_states
+        .into_iter()
+        .map(|state| state.as_ref().to_string())
+        .collect::<Vec<_>>();
+    let sorted_current_states = sorted_strings(current_states.iter().map(String::as_str));
+
+    let mut candidates = Vec::new();
+    for current_state in &current_states {
+        for transition in &transitions {
+            if transition.from == *current_state || current_state == "*" {
+                candidates.push(summarize_candidate_transition(
+                    transition.part_name.as_deref(),
+                    current_state,
+                    &transition.from,
+                    &transition.to,
+                    &transition.properties,
+                    transition.failures.clone(),
+                ));
+            }
+        }
+    }
+
+    let non_current_transitions = transitions
+        .into_iter()
+        .filter(|transition| !current_states.contains(&transition.from))
+        .map(|transition| {
+            summarize_non_current_transition(
+                transition.part_name.as_deref(),
+                &sorted_current_states,
+                &transition.from,
+                &transition.to,
+                &transition.properties,
+                transition.failures,
+            )
+        })
+        .collect::<Vec<_>>();
+
+    render_ranked_transition_diagnostics(candidates, non_current_transitions)
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -248,11 +305,7 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    let mut states = states
-        .into_iter()
-        .map(|state| state.as_ref().to_string())
-        .collect::<Vec<_>>();
-    states.sort();
+    let states = sorted_strings(states);
 
     let states = states
         .iter()
@@ -260,6 +313,19 @@ where
         .collect::<Vec<_>>()
         .join(", ");
     format!("{{{states}}}")
+}
+
+fn sorted_strings<I, S>(values: I) -> Vec<String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let mut values = values
+        .into_iter()
+        .map(|value| value.as_ref().to_string())
+        .collect::<Vec<_>>();
+    values.sort();
+    values
 }
 
 pub fn summarize_candidate_transition(
@@ -466,6 +532,48 @@ mod tests {
                 "current two-failure candidate",
                 "Similar transitions from other states with fewer failed predicates:",
                 "non-current one-failure candidate"
+            ]
+        );
+    }
+
+    #[test]
+    fn renders_transition_diagnostics_from_model_inputs() {
+        let lines = render_transition_diagnostics_for_states(
+            ["active"],
+            vec![
+                TransitionDiagnosticInput {
+                    failures: vec!["missing +FINISH".to_string(), "missing +REVIEW".to_string()],
+                    from: "active".to_string(),
+                    part_name: Some("main".to_string()),
+                    properties: "+FINISH +REVIEW".to_string(),
+                    to: "done".to_string(),
+                },
+                TransitionDiagnosticInput {
+                    failures: Vec::new(),
+                    from: "init".to_string(),
+                    part_name: Some("main".to_string()),
+                    properties: "+START".to_string(),
+                    to: "active".to_string(),
+                },
+                TransitionDiagnosticInput {
+                    failures: vec!["missing +ARCHIVE".to_string()],
+                    from: "archived".to_string(),
+                    part_name: None,
+                    properties: "+ARCHIVE".to_string(),
+                    to: "done".to_string(),
+                },
+            ],
+        );
+
+        assert_eq!(
+            lines,
+            vec![
+                "Closest candidate transition: part main candidate from current state active: active -> done [+FINISH +REVIEW]; failed predicates: missing +FINISH, missing +REVIEW",
+                "Candidate transitions ranked by predicate distance:",
+                "part main candidate from current state active: active -> done [+FINISH +REVIEW]; failed predicates: missing +FINISH, missing +REVIEW",
+                "Similar transitions from other states with fewer failed predicates:",
+                "part main non-current transition from init to active [+START]; current states: active; failed predicates: none",
+                "non-current transition from archived to done [+ARCHIVE]; current states: active; failed predicates: missing +ARCHIVE",
             ]
         );
     }

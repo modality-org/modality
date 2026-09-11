@@ -11,10 +11,9 @@
 //! - **Replay**: New models must replay history to establish valid state mapping
 
 use modal_common::model_diagnostics::{
-    format_state_set, render_ranked_transition_diagnostics, summarize_candidate_transition,
-    summarize_non_current_transition, ActionModalFailureDiagnostic, ActionModalKind,
-    CandidateTransitionExplanation, FixedPointPolarity, FixedPointUnfoldingDiagnostic,
-    FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
+    format_state_set, render_transition_diagnostics_for_states, ActionModalFailureDiagnostic,
+    ActionModalKind, FixedPointPolarity, FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome,
+    FormulaFailureDiagnostic, TransitionDiagnosticInput,
 };
 use modality_lang::{
     parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Property, PropertySign,
@@ -337,47 +336,27 @@ impl ModelValidator {
             format_state_set(&self.current_states)
         )];
 
-        let mut candidates = Vec::new();
-        for state in &self.current_states {
-            for part in &model.parts {
-                for transition in &part.transitions {
-                    if &transition.from == state || state == "*" {
-                        candidates.push(self.explain_candidate_transition(
-                            Some(&part.name),
-                            state,
-                            transition,
-                            labels,
-                        ));
-                    }
-                }
-            }
-
-            for transition in &model.transitions {
-                if &transition.from == state || state == "*" {
-                    candidates
-                        .push(self.explain_candidate_transition(None, state, transition, labels));
-                }
-            }
-        }
-
-        lines.extend(render_ranked_transition_diagnostics(
-            candidates,
-            self.non_current_transitions(model, labels),
+        lines.extend(render_transition_diagnostics_for_states(
+            &self.current_states,
+            self.transition_diagnostic_inputs(model, labels),
         ));
 
         lines.join("; ")
     }
 
-    fn non_current_transitions(
+    fn transition_diagnostic_inputs(
         &self,
         model: &Model,
         labels: &[String],
-    ) -> Vec<CandidateTransitionExplanation> {
+    ) -> Vec<TransitionDiagnosticInput> {
         self.all_transitions(model)
             .into_iter()
-            .filter(|(_, transition)| !self.current_states.contains(&transition.from))
-            .map(|(part_name, transition)| {
-                self.explain_non_current_transition(part_name, transition, labels)
+            .map(|(part_name, transition)| TransitionDiagnosticInput {
+                failures: self.transition_predicate_failures(&transition.properties, labels),
+                from: transition.from.clone(),
+                part_name: part_name.map(str::to_string),
+                properties: Self::format_properties(&transition.properties),
+                to: transition.to.clone(),
             })
             .collect::<Vec<_>>()
     }
@@ -396,43 +375,6 @@ impl ModelValidator {
         }
 
         transitions
-    }
-
-    fn explain_candidate_transition(
-        &self,
-        part_name: Option<&str>,
-        current_state: &str,
-        transition: &Transition,
-        labels: &[String],
-    ) -> CandidateTransitionExplanation {
-        let failures = self.transition_predicate_failures(&transition.properties, labels);
-        summarize_candidate_transition(
-            part_name,
-            current_state,
-            &transition.from,
-            &transition.to,
-            &Self::format_properties(&transition.properties),
-            failures,
-        )
-    }
-
-    fn explain_non_current_transition(
-        &self,
-        part_name: Option<&str>,
-        transition: &Transition,
-        labels: &[String],
-    ) -> CandidateTransitionExplanation {
-        let mut current_states = self.current_states.iter().cloned().collect::<Vec<_>>();
-        current_states.sort();
-        let failures = self.transition_predicate_failures(&transition.properties, labels);
-        summarize_non_current_transition(
-            part_name,
-            &current_states,
-            &transition.from,
-            &transition.to,
-            &Self::format_properties(&transition.properties),
-            failures,
-        )
     }
 
     fn format_properties(properties: &[Property]) -> String {

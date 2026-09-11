@@ -1,9 +1,9 @@
 use anyhow::Result;
 use modal_common::contract_store::{CommitFile, ContractStore};
 use modal_common::model_diagnostics::{
-    format_state_set, render_ranked_transition_diagnostics, summarize_candidate_transition,
-    summarize_non_current_transition, CandidateTransitionExplanation, FixedPointPolarity,
+    format_state_set, render_transition_diagnostics_for_states, FixedPointPolarity,
     FixedPointUnfoldingDiagnostic, FixedPointUnfoldingOutcome, FormulaFailureDiagnostic,
+    TransitionDiagnosticInput,
 };
 use modality_lang::{
     parse_content_lalrpop, Formula, FormulaExpr, Model, ModelChecker, Part, Property, PropertySign,
@@ -975,31 +975,26 @@ fn explain_no_valid_transition(
         format_state_set(current_states)
     )];
 
-    let candidates = candidate_transitions(model, current_states)
-        .into_iter()
-        .map(|(part_name, current_state, transition)| {
-            explain_candidate_transition(part_name, current_state, transition, facts)
-        })
-        .collect::<Vec<_>>();
-
-    lines.extend(render_ranked_transition_diagnostics(
-        candidates,
-        non_current_transitions(model, current_states, facts),
+    lines.extend(render_transition_diagnostics_for_states(
+        current_states,
+        transition_diagnostic_inputs(model, facts),
     ));
 
     lines.join("; ")
 }
 
-fn non_current_transitions(
+fn transition_diagnostic_inputs(
     model: &Model,
-    current_states: &HashSet<String>,
     facts: &CommitFacts,
-) -> Vec<CandidateTransitionExplanation> {
+) -> Vec<TransitionDiagnosticInput> {
     all_transitions(model)
         .into_iter()
-        .filter(|(_, transition)| !current_states.contains(&transition.from))
-        .map(|(part_name, transition)| {
-            explain_non_current_transition(part_name, current_states, transition, facts)
+        .map(|(part_name, transition)| TransitionDiagnosticInput {
+            failures: transition_failures(&transition.properties, facts),
+            from: transition.from.clone(),
+            part_name: part_name.map(str::to_string),
+            properties: format_properties(&transition.properties),
+            to: transition.to.clone(),
         })
         .collect::<Vec<_>>()
 }
@@ -1043,42 +1038,6 @@ fn all_transitions(model: &Model) -> Vec<(Option<&str>, &Transition)> {
     }
 
     transitions
-}
-
-fn explain_candidate_transition(
-    part_name: Option<&str>,
-    current_state: &str,
-    transition: &Transition,
-    facts: &CommitFacts,
-) -> CandidateTransitionExplanation {
-    let failures = transition_failures(&transition.properties, facts);
-    summarize_candidate_transition(
-        part_name,
-        current_state,
-        &transition.from,
-        &transition.to,
-        &format_properties(&transition.properties),
-        failures,
-    )
-}
-
-fn explain_non_current_transition(
-    part_name: Option<&str>,
-    current_states: &HashSet<String>,
-    transition: &Transition,
-    facts: &CommitFacts,
-) -> CandidateTransitionExplanation {
-    let mut current_states = current_states.iter().cloned().collect::<Vec<_>>();
-    current_states.sort();
-    let failures = transition_failures(&transition.properties, facts);
-    summarize_non_current_transition(
-        part_name,
-        &current_states,
-        &transition.from,
-        &transition.to,
-        &format_properties(&transition.properties),
-        failures,
-    )
 }
 
 fn transition_failures(properties: &[Property], facts: &CommitFacts) -> Vec<String> {
