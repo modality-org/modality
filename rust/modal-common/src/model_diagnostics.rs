@@ -20,6 +20,7 @@ pub fn rank_candidate_transitions(candidates: &mut [CandidateTransitionExplanati
             .len()
             .cmp(&right.failures.len())
             .then_with(|| left.transition_key.cmp(&right.transition_key))
+            .then_with(|| left.summary.cmp(&right.summary))
     });
 }
 
@@ -484,6 +485,35 @@ mod tests {
                 "earlier one-failure candidate",
                 "later one-failure candidate",
                 "two-failure candidate"
+            ]
+        );
+    }
+
+    #[test]
+    fn ranks_candidate_transitions_by_summary_when_keys_match() {
+        let mut candidates = vec![
+            CandidateTransitionExplanation {
+                failures: vec!["missing +POST".to_string()],
+                summary: "candidate from current state q1: q1 -> q2 [+POST +signed_by(/b.id)]; failed predicates: missing +POST".to_string(),
+                transition_key: "q1:q1->q2".to_string(),
+            },
+            CandidateTransitionExplanation {
+                failures: vec!["missing +POST".to_string()],
+                summary: "candidate from current state q1: q1 -> q2 [+POST +signed_by(/a.id)]; failed predicates: missing +POST".to_string(),
+                transition_key: "q1:q1->q2".to_string(),
+            },
+        ];
+
+        rank_candidate_transitions(&mut candidates);
+
+        assert_eq!(
+            candidates
+                .iter()
+                .map(|candidate| candidate.summary.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "candidate from current state q1: q1 -> q2 [+POST +signed_by(/a.id)]; failed predicates: missing +POST",
+                "candidate from current state q1: q1 -> q2 [+POST +signed_by(/b.id)]; failed predicates: missing +POST"
             ]
         );
     }

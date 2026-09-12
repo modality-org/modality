@@ -146,6 +146,8 @@ proof-fragment text both paths depend on:
   non-current fallback line with explicit current states.
 - `ranks_candidate_transitions_by_failures_then_stable_key` preserves the
   shared ordering helper used by local and hub candidate diagnostics.
+- `ranks_candidate_transitions_by_summary_when_keys_match` preserves stable
+  output when equal-distance transitions share the same source and target.
 - `formats_state_sets_deterministically` preserves the sorted current-state
   header used by local and hub rejection diagnostics.
 - `renders_recursive_formula_failure_diagnostic` preserves nested formula
