@@ -153,6 +153,9 @@ proof-fragment text both paths depend on:
   action-modal transition witnesses.
 - `renders_least_fixed_point_unfolding_diagnostic` preserves fixed-point
   witness-set and unfolding-count rendering.
+- `renders_wildcard_state_transitions_as_current_candidates_only` preserves the
+  wildcard current-state case, where every model transition is current and
+  should not be duplicated as a non-current similar transition.
 
 The no-build doc smoke cross-checks these names against
 `rust/modal-common/src/model_diagnostics.rs` too, so shared formatter drift is

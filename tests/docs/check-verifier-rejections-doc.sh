@@ -56,6 +56,9 @@ required_patterns=(
   "renders_recursive_formula_failure_diagnostic"
   "renders_action_modal_transition_witness_diagnostic"
   "renders_least_fixed_point_unfolding_diagnostic"
+  "renders_wildcard_state_transitions_as_current_candidates_only"
+  "wildcard current-state case"
+  "should not be duplicated as a non-current similar transition"
   "shared formatter drift"
   "Model-Replacement Rule Failures"
   "failed anchor state"
@@ -139,6 +142,7 @@ common_regressions=(
   "renders_recursive_formula_failure_diagnostic"
   "renders_action_modal_transition_witness_diagnostic"
   "renders_least_fixed_point_unfolding_diagnostic"
+  "renders_wildcard_state_transitions_as_current_candidates_only"
 )
 
 for regression in "${common_regressions[@]}"; do
