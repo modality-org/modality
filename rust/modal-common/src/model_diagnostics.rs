@@ -24,13 +24,18 @@ pub fn rank_candidate_transitions(candidates: &mut [CandidateTransitionExplanati
     });
 }
 
+fn rank_and_dedup_candidate_transitions(candidates: &mut Vec<CandidateTransitionExplanation>) {
+    rank_candidate_transitions(candidates);
+    candidates.dedup();
+}
+
 pub fn render_ranked_transition_diagnostics(
     mut candidates: Vec<CandidateTransitionExplanation>,
     mut non_current_transitions: Vec<CandidateTransitionExplanation>,
 ) -> Vec<String> {
     if candidates.is_empty() {
         let mut lines = vec!["Candidate transitions: none from current states".to_string()];
-        rank_candidate_transitions(&mut non_current_transitions);
+        rank_and_dedup_candidate_transitions(&mut non_current_transitions);
         if !non_current_transitions.is_empty() {
             lines.push(
                 "Similar transitions from other states ranked by predicate distance:".to_string(),
@@ -44,7 +49,7 @@ pub fn render_ranked_transition_diagnostics(
         return lines;
     }
 
-    rank_candidate_transitions(&mut candidates);
+    rank_and_dedup_candidate_transitions(&mut candidates);
 
     let current_best_failure_count = candidates[0].failures.len();
     let mut lines = vec![
@@ -53,7 +58,7 @@ pub fn render_ranked_transition_diagnostics(
     ];
     lines.extend(candidates.into_iter().map(|candidate| candidate.summary));
 
-    rank_candidate_transitions(&mut non_current_transitions);
+    rank_and_dedup_candidate_transitions(&mut non_current_transitions);
     let closer_similar = non_current_transitions
         .into_iter()
         .filter(|candidate| candidate.failures.len() < current_best_failure_count)
@@ -519,6 +524,31 @@ mod tests {
             vec![
                 "candidate from current state q1: q1 -> q2 [+POST +signed_by(/a.id)]; failed predicates: missing +POST",
                 "candidate from current state q1: q1 -> q2 [+POST +signed_by(/b.id)]; failed predicates: missing +POST"
+            ]
+        );
+    }
+
+    #[test]
+    fn renders_duplicate_transition_inputs_once() {
+        let duplicate_transition = TransitionDiagnosticInput {
+            failures: vec!["missing +POST".to_string()],
+            from: "active".to_string(),
+            part_name: None,
+            properties: "+POST".to_string(),
+            to: "done".to_string(),
+        };
+
+        let lines = render_transition_diagnostics_for_states(
+            ["active"],
+            vec![duplicate_transition.clone(), duplicate_transition],
+        );
+
+        assert_eq!(
+            lines,
+            vec![
+                "Closest candidate transition: candidate from current state active: active -> done [+POST]; failed predicates: missing +POST",
+                "Candidate transitions ranked by predicate distance:",
+                "candidate from current state active: active -> done [+POST]; failed predicates: missing +POST",
             ]
         );
     }

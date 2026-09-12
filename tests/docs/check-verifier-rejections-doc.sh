@@ -14,6 +14,7 @@ required_patterns=(
   "current governing-model state"
   "deterministic ordering when replay leaves multiple possible current states"
   "Duplicate replay states should not duplicate candidate transition lines"
+  "Duplicate identical transition inputs should not duplicate explanation lines"
   "closest candidate transition"
   "predicates that failed"
   "Similar transitions from other states"
@@ -63,6 +64,7 @@ required_patterns=(
   "renders_wildcard_state_transitions_as_current_candidates_only"
   "renders_mixed_wildcard_and_concrete_current_states_once"
   "renders_duplicate_current_states_once"
+  "renders_duplicate_transition_inputs_once"
   "wildcard current-state case"
   "reports \`*\` alongside a concrete"
   "should not be duplicated as a non-current similar transition"
@@ -160,6 +162,7 @@ common_regressions=(
   "renders_wildcard_state_transitions_as_current_candidates_only"
   "renders_mixed_wildcard_and_concrete_current_states_once"
   "renders_duplicate_current_states_once"
+  "renders_duplicate_transition_inputs_once"
 )
 
 for regression in "${common_regressions[@]}"; do
