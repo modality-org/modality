@@ -88,11 +88,16 @@ where
         .iter()
         .cloned()
         .collect::<std::collections::BTreeSet<_>>();
-    let sorted_current_states = unique_current_states.iter().cloned().collect::<Vec<_>>();
     let wildcard_current_state = current_states.iter().any(|state| state == "*");
+    let candidate_current_states = if wildcard_current_state {
+        vec!["*".to_string()]
+    } else {
+        unique_current_states.iter().cloned().collect::<Vec<_>>()
+    };
+    let sorted_current_states = candidate_current_states.clone();
 
     let mut candidates = Vec::new();
-    for current_state in &unique_current_states {
+    for current_state in &candidate_current_states {
         for transition in &transitions {
             if transition.from == *current_state || current_state == "*" {
                 candidates.push(summarize_candidate_transition(
@@ -673,6 +678,29 @@ mod tests {
                 "Closest candidate transition: candidate from current state active: active -> done [+POST]; failed predicates: missing +POST",
                 "Candidate transitions ranked by predicate distance:",
                 "candidate from current state active: active -> done [+POST]; failed predicates: missing +POST",
+            ]
+        );
+    }
+
+    #[test]
+    fn renders_mixed_wildcard_and_concrete_current_states_once() {
+        let lines = render_transition_diagnostics_for_states(
+            ["*", "draft"],
+            vec![TransitionDiagnosticInput {
+                failures: vec!["missing +POST".to_string()],
+                from: "draft".to_string(),
+                part_name: Some("ledger".to_string()),
+                properties: "+POST".to_string(),
+                to: "posted".to_string(),
+            }],
+        );
+
+        assert_eq!(
+            lines,
+            vec![
+                "Closest candidate transition: part ledger candidate from current state *: draft -> posted [+POST]; failed predicates: missing +POST",
+                "Candidate transitions ranked by predicate distance:",
+                "part ledger candidate from current state *: draft -> posted [+POST]; failed predicates: missing +POST",
             ]
         );
     }

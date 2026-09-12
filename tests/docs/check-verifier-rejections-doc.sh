@@ -61,8 +61,10 @@ required_patterns=(
   "renders_action_modal_transition_witness_diagnostic"
   "renders_least_fixed_point_unfolding_diagnostic"
   "renders_wildcard_state_transitions_as_current_candidates_only"
+  "renders_mixed_wildcard_and_concrete_current_states_once"
   "renders_duplicate_current_states_once"
   "wildcard current-state case"
+  "reports \`*\` alongside a concrete"
   "should not be duplicated as a non-current similar transition"
   "deduped current-state"
   "shared formatter drift"
@@ -156,6 +158,7 @@ common_regressions=(
   "renders_action_modal_transition_witness_diagnostic"
   "renders_least_fixed_point_unfolding_diagnostic"
   "renders_wildcard_state_transitions_as_current_candidates_only"
+  "renders_mixed_wildcard_and_concrete_current_states_once"
   "renders_duplicate_current_states_once"
 )
 

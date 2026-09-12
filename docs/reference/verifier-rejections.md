@@ -162,6 +162,9 @@ proof-fragment text both paths depend on:
 - `renders_wildcard_state_transitions_as_current_candidates_only` preserves the
   wildcard current-state case, where every model transition is current and
   should not be duplicated as a non-current similar transition.
+- `renders_mixed_wildcard_and_concrete_current_states_once` preserves the same
+  wildcard current-state surface when replay reports `*` alongside a concrete
+  state.
 - `renders_duplicate_current_states_once` preserves the deduped current-state
   candidate surface when replay reports the same current state more than once.
 
