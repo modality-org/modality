@@ -37,6 +37,7 @@ required_patterns=(
   "explains_signed_by_identity_bootstrap_ordering"
   "explains_action_modal_rule_failure_with_transition_witness"
   "explains_lfp_rule_failure_with_unfolding_witness_set"
+  "test_apply_action_advances_state"
   "test_action_rejection_explains_candidate_transition_predicates"
   "test_action_rejection_ranks_closest_candidate_by_failed_predicates"
   "test_action_rejection_explains_similar_non_current_transitions"
@@ -122,6 +123,7 @@ for regression in "${local_regressions[@]}"; do
 done
 
 hub_regressions=(
+  "test_apply_action_advances_state"
   "test_action_rejection_explains_candidate_transition_predicates"
   "test_action_rejection_ranks_closest_candidate_by_failed_predicates"
   "test_action_rejection_explains_similar_non_current_transitions"
@@ -138,6 +140,11 @@ for regression in "${hub_regressions[@]}"; do
     exit 1
   fi
 done
+
+if grep -B1 "fn test_apply_action_advances_state" "$HUB_VALIDATOR" | grep -Fq "#[ignore]"; then
+  echo "hub action advancement regression should not be ignored" >&2
+  exit 1
+fi
 
 common_regressions=(
   "summarizes_candidate_transition_with_stable_key_and_failures"

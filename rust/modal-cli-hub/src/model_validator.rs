@@ -1193,7 +1193,6 @@ model TestModel {
     }
 
     #[test]
-    #[ignore] // FIXME: action label matching needs investigation
     fn test_apply_action_advances_state() {
         let mut validator = ModelValidator::new();
 
