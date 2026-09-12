@@ -84,6 +84,7 @@ where
         .map(|state| state.as_ref().to_string())
         .collect::<Vec<_>>();
     let sorted_current_states = sorted_strings(current_states.iter().map(String::as_str));
+    let wildcard_current_state = current_states.iter().any(|state| state == "*");
 
     let mut candidates = Vec::new();
     for current_state in &current_states {
@@ -103,7 +104,7 @@ where
 
     let non_current_transitions = transitions
         .into_iter()
-        .filter(|transition| !current_states.contains(&transition.from))
+        .filter(|transition| !wildcard_current_state && !current_states.contains(&transition.from))
         .map(|transition| {
             summarize_non_current_transition(
                 transition.part_name.as_deref(),
@@ -575,6 +576,45 @@ mod tests {
                 "part main non-current transition from init to active [+START]; current states: active; failed predicates: none",
                 "non-current transition from archived to done [+ARCHIVE]; current states: active; failed predicates: missing +ARCHIVE",
             ]
+        );
+    }
+
+    #[test]
+    fn renders_wildcard_state_transitions_as_current_candidates_only() {
+        let lines = render_transition_diagnostics_for_states(
+            ["*"],
+            vec![
+                TransitionDiagnosticInput {
+                    failures: vec!["missing +POST".to_string()],
+                    from: "draft".to_string(),
+                    part_name: Some("ledger".to_string()),
+                    properties: "+POST".to_string(),
+                    to: "posted".to_string(),
+                },
+                TransitionDiagnosticInput {
+                    failures: Vec::new(),
+                    from: "archived".to_string(),
+                    part_name: None,
+                    properties: "+RESTORE".to_string(),
+                    to: "draft".to_string(),
+                },
+            ],
+        );
+
+        assert_eq!(
+            lines,
+            vec![
+                "Closest candidate transition: candidate from current state *: archived -> draft [+RESTORE]; failed predicates: none",
+                "Candidate transitions ranked by predicate distance:",
+                "candidate from current state *: archived -> draft [+RESTORE]; failed predicates: none",
+                "part ledger candidate from current state *: draft -> posted [+POST]; failed predicates: missing +POST",
+            ]
+        );
+        assert!(
+            lines
+                .iter()
+                .all(|line| !line.contains("Similar transitions from other states")),
+            "wildcard current state should not duplicate candidates as non-current diagnostics"
         );
     }
 
