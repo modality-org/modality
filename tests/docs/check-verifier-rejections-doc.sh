@@ -13,6 +13,7 @@ required_patterns=(
   "explain that rejection from the same model"
   "current governing-model state"
   "deterministic ordering when replay leaves multiple possible current states"
+  "Duplicate replay states should not duplicate candidate transition lines"
   "closest candidate transition"
   "predicates that failed"
   "Similar transitions from other states"
@@ -57,8 +58,10 @@ required_patterns=(
   "renders_action_modal_transition_witness_diagnostic"
   "renders_least_fixed_point_unfolding_diagnostic"
   "renders_wildcard_state_transitions_as_current_candidates_only"
+  "renders_duplicate_current_states_once"
   "wildcard current-state case"
   "should not be duplicated as a non-current similar transition"
+  "deduped current-state"
   "shared formatter drift"
   "Model-Replacement Rule Failures"
   "failed anchor state"
@@ -143,6 +146,7 @@ common_regressions=(
   "renders_action_modal_transition_witness_diagnostic"
   "renders_least_fixed_point_unfolding_diagnostic"
   "renders_wildcard_state_transitions_as_current_candidates_only"
+  "renders_duplicate_current_states_once"
 )
 
 for regression in "${common_regressions[@]}"; do

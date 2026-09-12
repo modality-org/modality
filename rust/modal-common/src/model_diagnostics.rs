@@ -83,11 +83,15 @@ where
         .into_iter()
         .map(|state| state.as_ref().to_string())
         .collect::<Vec<_>>();
-    let sorted_current_states = sorted_strings(current_states.iter().map(String::as_str));
+    let unique_current_states = sorted_strings(current_states.iter().map(String::as_str))
+        .iter()
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>();
+    let sorted_current_states = unique_current_states.iter().cloned().collect::<Vec<_>>();
     let wildcard_current_state = current_states.iter().any(|state| state == "*");
 
     let mut candidates = Vec::new();
-    for current_state in &current_states {
+    for current_state in &unique_current_states {
         for transition in &transitions {
             if transition.from == *current_state || current_state == "*" {
                 candidates.push(summarize_candidate_transition(
@@ -104,7 +108,9 @@ where
 
     let non_current_transitions = transitions
         .into_iter()
-        .filter(|transition| !wildcard_current_state && !current_states.contains(&transition.from))
+        .filter(|transition| {
+            !wildcard_current_state && !unique_current_states.contains(&transition.from)
+        })
         .map(|transition| {
             summarize_non_current_transition(
                 transition.part_name.as_deref(),
@@ -615,6 +621,29 @@ mod tests {
                 .iter()
                 .all(|line| !line.contains("Similar transitions from other states")),
             "wildcard current state should not duplicate candidates as non-current diagnostics"
+        );
+    }
+
+    #[test]
+    fn renders_duplicate_current_states_once() {
+        let lines = render_transition_diagnostics_for_states(
+            ["active", "active"],
+            vec![TransitionDiagnosticInput {
+                failures: vec!["missing +POST".to_string()],
+                from: "active".to_string(),
+                part_name: None,
+                properties: "+POST".to_string(),
+                to: "done".to_string(),
+            }],
+        );
+
+        assert_eq!(
+            lines,
+            vec![
+                "Closest candidate transition: candidate from current state active: active -> done [+POST]; failed predicates: missing +POST",
+                "Candidate transitions ranked by predicate distance:",
+                "candidate from current state active: active -> done [+POST]; failed predicates: missing +POST",
+            ]
         );
     }
 

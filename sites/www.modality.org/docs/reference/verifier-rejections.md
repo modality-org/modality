@@ -10,6 +10,7 @@ When no transition matches the pending commit, the explanation should include:
 
 - The current governing-model state reached by replaying accepted commits, with
   deterministic ordering when replay leaves multiple possible current states.
+  Duplicate replay states should not duplicate candidate transition lines.
 - The closest candidate transition from that current state.
 - The predicates that failed on that candidate.
 - Other candidate transitions from the current state, ranked behind the closest
@@ -156,6 +157,8 @@ proof-fragment text both paths depend on:
 - `renders_wildcard_state_transitions_as_current_candidates_only` preserves the
   wildcard current-state case, where every model transition is current and
   should not be duplicated as a non-current similar transition.
+- `renders_duplicate_current_states_once` preserves the deduped current-state
+  candidate surface when replay reports the same current state more than once.
 
 The no-build doc smoke cross-checks these names against
 `rust/modal-common/src/model_diagnostics.rs` too, so shared formatter drift is
