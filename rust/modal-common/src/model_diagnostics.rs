@@ -346,6 +346,13 @@ where
     values
 }
 
+fn canonical_failures(failures: Vec<String>) -> Vec<String> {
+    let mut failures = failures;
+    failures.sort();
+    failures.dedup();
+    failures
+}
+
 pub fn summarize_candidate_transition(
     part_name: Option<&str>,
     current_state: &str,
@@ -354,6 +361,7 @@ pub fn summarize_candidate_transition(
     properties: &str,
     failures: Vec<String>,
 ) -> CandidateTransitionExplanation {
+    let failures = canonical_failures(failures);
     let part_prefix = part_name
         .map(|name| format!("part {} ", name))
         .unwrap_or_default();
@@ -382,6 +390,7 @@ pub fn summarize_non_current_transition(
     properties: &str,
     failures: Vec<String>,
 ) -> CandidateTransitionExplanation {
+    let failures = canonical_failures(failures);
     let part_prefix = part_name
         .map(|name| format!("part {} ", name))
         .unwrap_or_default();
@@ -549,6 +558,33 @@ mod tests {
                 "Closest candidate transition: candidate from current state active: active -> done [+POST]; failed predicates: missing +POST",
                 "Candidate transitions ranked by predicate distance:",
                 "candidate from current state active: active -> done [+POST]; failed predicates: missing +POST",
+            ]
+        );
+    }
+
+    #[test]
+    fn renders_duplicate_failures_once_in_stable_order() {
+        let lines = render_transition_diagnostics_for_states(
+            ["active"],
+            vec![TransitionDiagnosticInput {
+                failures: vec![
+                    "missing +signed_by(/parties/bob.id)".to_string(),
+                    "missing +POST".to_string(),
+                    "missing +signed_by(/parties/bob.id)".to_string(),
+                ],
+                from: "active".to_string(),
+                part_name: None,
+                properties: "+POST +signed_by(/parties/bob.id)".to_string(),
+                to: "posted".to_string(),
+            }],
+        );
+
+        assert_eq!(
+            lines,
+            vec![
+                "Closest candidate transition: candidate from current state active: active -> posted [+POST +signed_by(/parties/bob.id)]; failed predicates: missing +POST, missing +signed_by(/parties/bob.id)",
+                "Candidate transitions ranked by predicate distance:",
+                "candidate from current state active: active -> posted [+POST +signed_by(/parties/bob.id)]; failed predicates: missing +POST, missing +signed_by(/parties/bob.id)",
             ]
         );
     }
