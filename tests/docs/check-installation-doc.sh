@@ -66,7 +66,10 @@ required_patterns=(
   "post-unpack checks"
   "same-revision language CLI check when artifact smoke replay is enabled"
   "With \`MODAL_ONBOARDING_ARTIFACT_SMOKE=1\`, the download verifier now requires a"
+  "leave it unset for archive-only verification"
   "same-revision \`MODALITY_BIN\`"
+  "rather than silently downgrading the"
+  "requested first-contract smoke to archive-only verification"
   "longer matching hex prefix"
   "checks the unpacked help surface"
   "first-contract CLI smoke against the unpacked \`modal\` binary"
@@ -288,8 +291,9 @@ required_patterns=(
   "MODAL_ONBOARDING_ARTIFACT_SMOKE=1"
   "only when a same-revision"
   "verifier now rejects missing \`MODALITY_BIN\`"
-  "rather than silently downgrading the requested first-contract smoke"
-  "non-executable \`MODALITY_BIN\` is rejected before any replay can pass"
+  "requested first-contract smoke to archive-only verification"
+  "non-executable \`MODALITY_BIN\` is rejected before any"
+  "replay can pass"
   "When an executable \`MODALITY_BIN\` is supplied to the producer smoke"
   "passes the generated artifact directory back through the downloaded-artifact"
   "verifier with \`MODAL_ONBOARDING_ARTIFACT_SMOKE=1\`"
@@ -300,6 +304,7 @@ required_patterns=(
   "producer-side archive smoke uses the same exact-or-prefix revision match"
   "unsupported"
   "smoke flag values now fail"
+  "including an explicit \`0\`"
   "silently downgrading to archive-only"
   "uploaded \`VERIFY-DOWNLOAD.txt\` repeats the expected source revision"
   "exact verifier command"
@@ -475,6 +480,16 @@ fi
 if ! grep -Fq '! revisions_match "$MODAL_ONBOARDING_ARTIFACT_EXPECT_REV" "$provenance_revision"' \
   "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
   echo "release artifact verifier should accept exact-or-prefix expected revision matches" >&2
+  exit 1
+fi
+if ! grep -Fq 'case "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-}" in' \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
+  echo "release artifact verifier should distinguish unset smoke flag from explicit 0" >&2
+  exit 1
+fi
+if ! grep -Fq 'MODAL_ONBOARDING_ARTIFACT_SMOKE=0' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove explicit smoke flag 0 is rejected" >&2
   exit 1
 fi
 

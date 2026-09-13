@@ -248,12 +248,15 @@ valid sections is rejected. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when checking a downloaded
 workflow artifact against one exact source revision. Set
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only with
-`MODALITY_BIN=/path/to/modality`; the verifier then checks that the downloaded
-binary's reported version matches provenance, replays the selected help surface,
-checks the same-revision `modality` CLI, and runs the first-contract smoke. The
-supplied `modality` binary must advertise the same source revision as the
-downloaded archive, and must be executable before replay starts; a longer
-matching hex prefix for the same commit is accepted.
+`MODALITY_BIN=/path/to/modality`; leave the flag unset for archive-only
+verification. An explicit `0` is rejected as an unsupported smoke flag so a
+mistyped replay request cannot be counted as archive-only evidence. When smoke
+replay is enabled, the verifier checks that the downloaded binary's reported
+version matches provenance, replays the selected help surface, checks the
+same-revision `modality` CLI, and runs the first-contract smoke. The supplied
+`modality` binary must advertise the same source revision as the downloaded
+archive, and must be executable before replay starts; a longer matching hex
+prefix for the same commit is accepted.
 The producer-side archive smoke uses the same exact-or-prefix revision match
 before it claims same-revision first-contract replay from a local archive. When
 `MODALITY_BIN` is executable, the producer smoke also runs the generated

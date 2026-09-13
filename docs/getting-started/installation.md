@@ -295,10 +295,11 @@ Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when a downloaded artifact must
 fail unless its internal provenance matches one exact source revision.
 Set `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only when a same-revision
-`MODALITY_BIN` is available; the verifier now rejects missing `MODALITY_BIN`
-rather than silently downgrading the requested first-contract smoke to
-archive-only verification, and the producer smoke now proves that a
-non-executable `MODALITY_BIN` is rejected before any replay can pass.
+`MODALITY_BIN` is available; leave it unset for archive-only verification. The
+verifier now rejects missing `MODALITY_BIN` rather than silently downgrading the
+requested first-contract smoke to archive-only verification, and the producer
+smoke now proves that a non-executable `MODALITY_BIN` is rejected before any
+replay can pass.
 When an executable `MODALITY_BIN` is supplied to the producer smoke, it also
 passes the generated artifact directory back through the downloaded-artifact
 verifier with `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, so the consumer replay path
@@ -308,9 +309,9 @@ accept exact or matching-prefix hex revision markers for the same commit before
 claiming same-revision first-contract replay.
 The producer-side archive smoke uses the same exact-or-prefix revision match as
 the downloaded-artifact verifier.
-Unsupported smoke flag values now fail, too, instead of silently downgrading to archive-only
-verification, so a mistyped replay request cannot look like a successful
-archive-only check.
+Unsupported smoke flag values now fail, too, including an explicit `0`, instead
+of silently downgrading to archive-only verification, so a mistyped replay
+request cannot look like a successful archive-only check.
 The uploaded `VERIFY-DOWNLOAD.txt` repeats the expected source revision and the
 exact two-command verification section, plus the optional `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`
 and `MODALITY_BIN=/path/to/modality` same-revision replay environment, so the artifact

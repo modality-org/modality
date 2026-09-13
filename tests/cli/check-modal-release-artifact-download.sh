@@ -811,8 +811,8 @@ EOF
   exit 1
 fi
 
-case "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-0}" in
-  0|1)
+case "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-}" in
+  ""|1)
     ;;
   *)
     cat >&2 <<EOF
@@ -826,7 +826,7 @@ EOF
     ;;
 esac
 
-if [[ "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-0}" == "1" ]]; then
+if [[ "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-}" == "1" ]]; then
   ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   if [[ -z "${MODALITY_BIN:-}" ]]; then
     cat >&2 <<EOF
