@@ -467,6 +467,17 @@ do
   done
 done
 
+if ! grep -Fq '! revisions_match "$MODAL_ONBOARDING_ARCHIVE_EXPECT_REV" "$source_revision"' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should accept exact-or-prefix expected revision matches" >&2
+  exit 1
+fi
+if ! grep -Fq '! revisions_match "$MODAL_ONBOARDING_ARTIFACT_EXPECT_REV" "$provenance_revision"' \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
+  echo "release artifact verifier should accept exact-or-prefix expected revision matches" >&2
+  exit 1
+fi
+
 required_evidence_manifest_patterns=(
   "post-unpack checks: version, help surface, same-revision language CLI, first-contract smoke when artifact smoke is enabled"
 )

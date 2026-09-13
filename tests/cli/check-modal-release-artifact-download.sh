@@ -432,7 +432,8 @@ actual:   $archive_name
 EOF
   exit 1
 fi
-if [[ -n "${MODAL_ONBOARDING_ARTIFACT_EXPECT_REV:-}" && "$provenance_revision" != "$MODAL_ONBOARDING_ARTIFACT_EXPECT_REV" ]]; then
+if [[ -n "${MODAL_ONBOARDING_ARTIFACT_EXPECT_REV:-}" ]] &&
+  ! revisions_match "$MODAL_ONBOARDING_ARTIFACT_EXPECT_REV" "$provenance_revision"; then
   cat >&2 <<EOF
 release artifact source revision mismatch
 expected: $MODAL_ONBOARDING_ARTIFACT_EXPECT_REV

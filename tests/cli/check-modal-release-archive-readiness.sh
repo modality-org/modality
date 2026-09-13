@@ -142,7 +142,8 @@ lowercase source commit used for this archive.
 EOF
   exit 1
 fi
-if [[ -n "${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" && "$source_revision" != "$MODAL_ONBOARDING_ARCHIVE_EXPECT_REV" ]]; then
+if [[ -n "${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" ]] &&
+  ! revisions_match "$MODAL_ONBOARDING_ARCHIVE_EXPECT_REV" "$source_revision"; then
   cat >&2 <<EOF
 release archive source revision mismatch
 expected: $MODAL_ONBOARDING_ARCHIVE_EXPECT_REV
