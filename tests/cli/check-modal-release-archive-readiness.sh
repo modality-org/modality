@@ -81,6 +81,11 @@ EOF
     exit 1
   fi
 }
+revisions_match() {
+  local expected="$1"
+  local actual="$2"
+  [[ "$expected" == "$actual" || "$actual" == "$expected"* || "$expected" == "$actual"* ]]
+}
 check_archive_slug_field "os" "$os"
 check_archive_slug_field "arch" "$arch"
 case "$HELP_SURFACE" in
@@ -2640,7 +2645,8 @@ actual version:    $modality_version
 EOF
     exit 1
   fi
-  if [[ "${BASH_REMATCH[1]}" != "$source_revision" ]]; then
+  modality_revision="${BASH_REMATCH[1]}"
+  if ! revisions_match "$source_revision" "$modality_revision"; then
     cat >&2 <<EOF
 release archive smoke modality version does not match source revision
 expected revision: $source_revision

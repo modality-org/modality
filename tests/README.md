@@ -254,6 +254,8 @@ checks the same-revision `modality` CLI, and runs the first-contract smoke. The
 supplied `modality` binary must advertise the same source revision as the
 downloaded archive, and must be executable before replay starts; a longer
 matching hex prefix for the same commit is accepted.
+The producer-side archive smoke uses the same exact-or-prefix revision match
+before it claims same-revision first-contract replay from a local archive.
 
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 
