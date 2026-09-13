@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/getting-started/installation.md"
 TESTS_README="$ROOT_DIR/tests/README.md"
+RUN_ONBOARDING="$ROOT_DIR/tests/run-onboarding-smokes.sh"
 WORKFLOW="$ROOT_DIR/.github/workflows/onboarding-release-archive.yml"
 
 required_patterns=(
@@ -343,6 +344,7 @@ tests_readme_patterns=(
   "Build both CLIs from the"
   "same entry point when measuring a fresh first-contract run"
   "MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh"
+  "or claiming same-revision first-contract replay"
   "If \`CARGO_TARGET_DIR\` points at a temporary target"
   "smoke looks for both default binaries under that same target directory"
   "CARGO_TARGET_DIR=/path/to/temp-target MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_PROFILE=release MODAL_ONBOARDING_ARCHIVE_CHECK=1 tests/run-onboarding-smokes.sh"
@@ -351,6 +353,20 @@ tests_readme_patterns=(
 for pattern in "${tests_readme_patterns[@]}"; do
   if ! grep -Fq -- "$pattern" "$TESTS_README"; then
     echo "tests README is missing source-build onboarding text: $pattern" >&2
+    exit 1
+  fi
+done
+
+run_onboarding_patterns=(
+  "without claiming same-revision first-contract replay"
+  "MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_ARCHIVE_CHECK=1 \$0"
+  "Build both release CLIs and smoke the release archive plus first-contract path"
+  "MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_PROFILE=release MODAL_ONBOARDING_ARCHIVE_CHECK=1 \$0"
+)
+
+for pattern in "${run_onboarding_patterns[@]}"; do
+  if ! grep -Fq -- "$pattern" "$RUN_ONBOARDING"; then
+    echo "onboarding smoke help is missing archive replay guidance: $pattern" >&2
     exit 1
   fi
 done

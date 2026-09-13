@@ -187,7 +187,8 @@ Check whether the lean wrapper is ready for crates.io-style packaging:
 Install the lean wrapper from a Git URL into a temporary Cargo root:
   MODAL_ONBOARDING_GIT_INSTALL_CHECK=1 $0
 
-Create and smoke a release-archive-shaped tarball from a built wrapper:
+Create and smoke a release-archive-shaped tarball from a built wrapper
+without claiming same-revision first-contract replay:
   MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_ARCHIVE_CHECK=1 $0
 
 Build both release CLIs and smoke the release archive plus first-contract path:

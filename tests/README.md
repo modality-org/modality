@@ -176,7 +176,8 @@ run the full first-contract contract smoke after the help-surface check. Set
 `MODAL_ONBOARDING_GIT_REV=<commit>` to pin the installed source revision.
 
 To measure release-archive readiness from a built lean wrapper without
-publishing a registry package, run:
+publishing a registry package or claiming same-revision first-contract replay,
+run:
 
 ```bash
 MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_ARCHIVE_CHECK=1 tests/run-onboarding-smokes.sh
