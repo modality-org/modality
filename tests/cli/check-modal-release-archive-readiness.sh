@@ -86,6 +86,24 @@ revisions_match() {
   local actual="$2"
   [[ "$expected" == "$actual" || "$actual" == "$expected"* || "$expected" == "$actual"* ]]
 }
+check_expected_revision() {
+  local name="$1"
+  local value="$2"
+  if [[ -n "$value" && ! "$value" =~ ^[0-9a-f]{7,40}$ ]]; then
+    cat >&2 <<EOF
+release archive expected source revision is not a lowercase hex commit token
+variable: $name
+actual:   $value
+
+Set $name to a full commit hash or an unambiguous Git-style short hash of at
+least seven hexadecimal characters.
+EOF
+    exit 2
+  fi
+}
+check_expected_revision \
+  "MODAL_ONBOARDING_ARCHIVE_EXPECT_REV" \
+  "${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}"
 check_archive_slug_field "os" "$os"
 check_archive_slug_field "arch" "$arch"
 case "$HELP_SURFACE" in
@@ -373,6 +391,23 @@ if ! grep -Fq "release artifact smoke flag has unsupported value" <<<"$negative_
   cat >&2 <<EOF
 release artifact verifier rejected the explicit disabled smoke flag for the wrong reason
 expected: release artifact smoke flag has unsupported value
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+short_expected_revision="${source_revision:0:6}"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="$short_expected_revision" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a too-short expected revision" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact expected source revision is not a lowercase hex commit token" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the too-short expected revision for the wrong reason
+expected: release artifact expected source revision is not a lowercase hex commit token
 actual:
 $negative_output
 EOF
@@ -1907,6 +1942,7 @@ cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.tx
 negative_output="$(
   MODAL_ONBOARDING_ARTIFACT_SMOKE=1 \
   MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+  MODALITY_BIN="$STAGE_DIR/bin/modal" \
     "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
 )" && {
   echo "release artifact verifier accepted an unpacked modal binary with stale version output" >&2

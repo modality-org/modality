@@ -71,6 +71,8 @@ required_patterns=(
   "rather than silently downgrading the"
   "requested first-contract smoke to archive-only verification"
   "longer matching hex prefix"
+  "expected revisions must be full commit hashes or Git-style"
+  "short hashes of at least seven lowercase hexadecimal characters"
   "checks the unpacked help surface"
   "first-contract CLI smoke against the unpacked \`modal\` binary"
   "MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>"
@@ -301,6 +303,8 @@ required_patterns=(
   "positively checked before producer-side first-contract replay is reported"
   "producer-side archive smoke and the downloaded-artifact verifier both"
   "accept exact or matching-prefix hex revision markers for the same commit"
+  "both reject expected revision"
+  "tokens shorter than seven hexadecimal characters"
   "producer-side archive smoke uses the same exact-or-prefix revision match"
   "unsupported"
   "smoke flag values now fail"
@@ -477,9 +481,24 @@ if ! grep -Fq '! revisions_match "$MODAL_ONBOARDING_ARCHIVE_EXPECT_REV" "$source
   echo "release archive producer should accept exact-or-prefix expected revision matches" >&2
   exit 1
 fi
+if ! grep -Fq '[[ -n "$value" && ! "$value" =~ ^[0-9a-f]{7,40}$ ]]' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should reject too-short expected revisions" >&2
+  exit 1
+fi
 if ! grep -Fq '! revisions_match "$MODAL_ONBOARDING_ARTIFACT_EXPECT_REV" "$provenance_revision"' \
   "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
   echo "release artifact verifier should accept exact-or-prefix expected revision matches" >&2
+  exit 1
+fi
+if ! grep -Fq '[[ ! "$MODAL_ONBOARDING_ARTIFACT_EXPECT_REV" =~ ^[0-9a-f]{7,40}$ ]]' \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
+  echo "release artifact verifier should reject too-short expected revisions" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted a too-short expected revision' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove too-short expected revisions are rejected" >&2
   exit 1
 fi
 if ! grep -Fq 'case "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-}" in' \

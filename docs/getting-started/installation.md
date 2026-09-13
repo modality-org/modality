@@ -139,7 +139,8 @@ With `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, the download verifier now requires a
 same-revision `MODALITY_BIN`, checks the unpacked help surface, and runs the
 first-contract CLI smoke against the unpacked `modal` binary. The language CLI
 revision may be the exact provenance revision or a longer matching hex prefix
-for the same commit. Set
+for the same commit; expected revisions must be full commit hashes or Git-style
+short hashes of at least seven lowercase hexadecimal characters. Set
 `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release evidence must fail
 if the built `modal` binary is stale or came from a different source revision.
 The `.github/workflows/onboarding-release-archive.yml` workflow wires this into
@@ -306,7 +307,8 @@ verifier with `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, so the consumer replay path
 is positively checked before producer-side first-contract replay is reported.
 The producer-side archive smoke and the downloaded-artifact verifier both
 accept exact or matching-prefix hex revision markers for the same commit before
-claiming same-revision first-contract replay.
+claiming same-revision first-contract replay, and both reject expected revision
+tokens shorter than seven hexadecimal characters.
 The producer-side archive smoke uses the same exact-or-prefix revision match as
 the downloaded-artifact verifier.
 Unsupported smoke flag values now fail, too, including an explicit `0`, instead

@@ -73,6 +73,17 @@ revisions_match() {
   local actual="$2"
   [[ "$expected" == "$actual" || "$actual" == "$expected"* || "$expected" == "$actual"* ]]
 }
+if [[ -n "${MODAL_ONBOARDING_ARTIFACT_EXPECT_REV:-}" ]] &&
+  [[ ! "$MODAL_ONBOARDING_ARTIFACT_EXPECT_REV" =~ ^[0-9a-f]{7,40}$ ]]; then
+  cat >&2 <<EOF
+release artifact expected source revision is not a lowercase hex commit token
+actual: $MODAL_ONBOARDING_ARTIFACT_EXPECT_REV
+
+Set MODAL_ONBOARDING_ARTIFACT_EXPECT_REV to a full commit hash or an
+unambiguous Git-style short hash of at least seven hexadecimal characters.
+EOF
+  exit 2
+fi
 top_level_entries="$(
   find "$ARTIFACT_DIR" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort
 )"
