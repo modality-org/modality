@@ -299,6 +299,10 @@ Set `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only when a same-revision
 rather than silently downgrading the requested first-contract smoke to
 archive-only verification, and the producer smoke now proves that a
 non-executable `MODALITY_BIN` is rejected before any replay can pass.
+When an executable `MODALITY_BIN` is supplied to the producer smoke, it also
+passes the generated artifact directory back through the downloaded-artifact
+verifier with `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, so the consumer replay path
+is positively checked before producer-side first-contract replay is reported.
 The producer-side archive smoke and the downloaded-artifact verifier both
 accept exact or matching-prefix hex revision markers for the same commit before
 claiming same-revision first-contract replay.

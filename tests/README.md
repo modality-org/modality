@@ -255,7 +255,11 @@ supplied `modality` binary must advertise the same source revision as the
 downloaded archive, and must be executable before replay starts; a longer
 matching hex prefix for the same commit is accepted.
 The producer-side archive smoke uses the same exact-or-prefix revision match
-before it claims same-revision first-contract replay from a local archive.
+before it claims same-revision first-contract replay from a local archive. When
+`MODALITY_BIN` is executable, the producer smoke also runs the generated
+artifact directory through the downloaded-artifact verifier with
+`MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, so the consumer replay path is proved with
+the same language CLI before producer-side replay is reported.
 
 After `cargo build` within `/rust`, you can use this directory to locally try out the `modality` command.
 
