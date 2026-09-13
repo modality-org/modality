@@ -303,8 +303,9 @@ required_patterns=(
   "positively checked before producer-side first-contract replay is reported"
   "producer-side archive smoke and the downloaded-artifact verifier both"
   "accept exact or matching-prefix hex revision markers for the same commit"
-  "both reject expected revision"
-  "tokens shorter than seven hexadecimal characters"
+  "both reject expected or"
+  "same-revision language CLI revision tokens shorter than seven hexadecimal"
+  "characters"
   "producer-side archive smoke uses the same exact-or-prefix revision match"
   "unsupported"
   "smoke flag values now fail"
@@ -499,6 +500,16 @@ fi
 if ! grep -Fq 'release artifact verifier accepted a too-short expected revision' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove too-short expected revisions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq '[[ ! "$modality_revision" =~ ^[0-9a-f]{7,40}$ ]]' \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
+  echo "release artifact verifier should reject too-short smoke modality revisions" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted a modality smoke binary with a too-short revision' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove too-short smoke modality revisions are rejected" >&2
   exit 1
 fi
 if ! grep -Fq 'case "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-}" in' \

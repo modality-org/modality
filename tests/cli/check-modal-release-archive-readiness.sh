@@ -362,6 +362,35 @@ $negative_output
 EOF
   exit 1
 fi
+FAKE_SHORT_REV_MODALITY="$(mktemp)"
+cat >"$FAKE_SHORT_REV_MODALITY" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modality 0.0.0 (@${source_revision:0:6})"
+  exit 0
+fi
+echo "short-revision modality test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_SHORT_REV_MODALITY"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_SMOKE=1 \
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+  MODALITY_BIN="$FAKE_SHORT_REV_MODALITY" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a modality smoke binary with a too-short revision" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact smoke modality version revision is not a lowercase hex commit token" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the too-short modality smoke revision for the wrong reason
+expected: release artifact smoke modality version revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 negative_output="$(
   MODAL_ONBOARDING_ARTIFACT_SMOKE=yes \
   MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \

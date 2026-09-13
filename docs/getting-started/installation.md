@@ -307,8 +307,9 @@ verifier with `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, so the consumer replay path
 is positively checked before producer-side first-contract replay is reported.
 The producer-side archive smoke and the downloaded-artifact verifier both
 accept exact or matching-prefix hex revision markers for the same commit before
-claiming same-revision first-contract replay, and both reject expected revision
-tokens shorter than seven hexadecimal characters.
+claiming same-revision first-contract replay, and both reject expected or
+same-revision language CLI revision tokens shorter than seven hexadecimal
+characters.
 The producer-side archive smoke uses the same exact-or-prefix revision match as
 the downloaded-artifact verifier.
 Unsupported smoke flag values now fail, too, including an explicit `0`, instead

@@ -880,6 +880,17 @@ EOF
     exit 1
   fi
   modality_revision="${BASH_REMATCH[1]}"
+  if [[ ! "$modality_revision" =~ ^[0-9a-f]{7,40}$ ]]; then
+    cat >&2 <<EOF
+release artifact smoke modality version revision is not a lowercase hex commit token
+expected revision: $provenance_revision
+actual version:    $modality_version
+
+Build modality from a Git checkout that reports a full commit hash or an
+unambiguous Git-style short hash of at least seven hexadecimal characters.
+EOF
+    exit 1
+  fi
   if ! revisions_match "$provenance_revision" "$modality_revision"; then
     cat >&2 <<EOF
 release artifact smoke modality version does not match provenance source revision
