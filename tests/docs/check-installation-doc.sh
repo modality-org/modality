@@ -360,8 +360,8 @@ done
 run_onboarding_patterns=(
   "without claiming same-revision first-contract replay"
   "MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_ARCHIVE_CHECK=1 \$0"
-  "Build both release CLIs and smoke the release archive plus first-contract path"
-  "MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_PROFILE=release MODAL_ONBOARDING_ARCHIVE_CHECK=1 \$0"
+  "Build both release CLIs into one target and smoke the release archive plus first-contract path"
+  "CARGO_TARGET_DIR=/path/to/temp-target MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_PROFILE=release MODAL_ONBOARDING_ARCHIVE_CHECK=1 \$0"
 )
 
 for pattern in "${run_onboarding_patterns[@]}"; do
