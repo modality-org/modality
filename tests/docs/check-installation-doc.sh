@@ -197,6 +197,7 @@ required_patterns=(
   "values, so experimental labels cannot be published as replayable installer"
   "provenance"
   "packaged \`modal --version\` output to be one line"
+  "at most one embedded revision marker"
   "extra hand-written version notes as installer metadata"
   "provenance marker must also appear exactly once"
   "hand-merged provenance"
@@ -370,8 +371,9 @@ tests_readme_patterns=(
   "MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh"
   "or claiming same-revision first-contract replay"
   "archive producer also requires the packaged \`modal --version\` output to be"
-  "one line before copying it into archive metadata"
+  "one line with at most one embedded revision marker before copying it into"
   "must also be a single line that identifies the language CLI with the \`modality\`"
+  "carries at most one embedded revision marker"
   "revision notes cannot satisfy the replay check"
   "If \`CARGO_TARGET_DIR\` points at a temporary target"
   "smoke looks for both default binaries under that same target directory"
@@ -502,6 +504,16 @@ if ! grep -Fq '[[ "$version_output" == *$'\''\n'\''* ]]' \
   echo "release archive producer should reject multi-line modal version output" >&2
   exit 1
 fi
+if ! grep -Fq 'release archive modal version has multiple revision markers' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should reject modal version output with multiple revision markers" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive producer accepted modal version output with multiple revision markers' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove extra modal version revision markers are rejected" >&2
+  exit 1
+fi
 if ! grep -Fq '! revisions_match "$MODAL_ONBOARDING_ARTIFACT_EXPECT_REV" "$provenance_revision"' \
   "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
   echo "release artifact verifier should accept exact-or-prefix expected revision matches" >&2
@@ -535,6 +547,21 @@ fi
 if ! grep -Fq 'release artifact verifier accepted a modality smoke binary with multi-line version output' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove multi-line smoke modality versions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact smoke modality version has multiple revision markers' \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
+  echo "release artifact verifier should reject smoke modality versions with multiple revision markers" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted a modality smoke binary with multiple revision markers' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove extra smoke modality revision markers are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact provenance version has multiple revision markers' \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
+  echo "release artifact verifier should reject provenance versions with multiple revision markers" >&2
   exit 1
 fi
 if ! grep -Fq 'case "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-}" in' \

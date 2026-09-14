@@ -62,6 +62,17 @@ $version_output
 EOF
   exit 1
 fi
+version_revision_marker_count="$(
+  grep -Eo '@[^)]+\)' <<<"$version_output" | wc -l || true
+)"
+if [[ "$version_revision_marker_count" -gt 1 ]]; then
+  cat >&2 <<EOF
+release archive modal version has multiple revision markers
+actual version:
+$version_output
+EOF
+  exit 1
+fi
 case "$version_output" in
   modal\ [0-9]*)
     version="${version_output#modal }"
@@ -428,6 +439,35 @@ $negative_output
 EOF
   exit 1
 fi
+FAKE_EXTRA_REV_MODALITY="$(mktemp)"
+cat >"$FAKE_EXTRA_REV_MODALITY" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modality 0.0.0 (@$source_revision) stale (@deadbee)"
+  exit 0
+fi
+echo "extra-revision modality test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_EXTRA_REV_MODALITY"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_SMOKE=1 \
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+  MODALITY_BIN="$FAKE_EXTRA_REV_MODALITY" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a modality smoke binary with multiple revision markers" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact smoke modality version has multiple revision markers" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the extra-revision modality smoke version for the wrong reason
+expected: release artifact smoke modality version has multiple revision markers
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 FAKE_PREFIX_MODALITY="$(mktemp)"
 cat >"$FAKE_PREFIX_MODALITY" <<EOF
 #!/usr/bin/env bash
@@ -503,6 +543,33 @@ if ! grep -Fq "release artifact expected source revision is not a lowercase hex 
   cat >&2 <<EOF
 release artifact verifier rejected the too-short expected revision for the wrong reason
 expected: release artifact expected source revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+FAKE_EXTRA_REV_MODAL="$(mktemp)"
+cat >"$FAKE_EXTRA_REV_MODAL" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modal 0.0.0 (@$source_revision) stale (@deadbee)"
+  exit 0
+fi
+echo "extra-revision modal test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_EXTRA_REV_MODAL"
+negative_output="$(
+  MODAL_BIN="$FAKE_EXTRA_REV_MODAL" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive producer accepted modal version output with multiple revision markers" >&2
+  exit 1
+}
+if ! grep -Fq "release archive modal version has multiple revision markers" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the extra-revision modal version for the wrong reason
+expected: release archive modal version has multiple revision markers
 actual:
 $negative_output
 EOF

@@ -372,6 +372,17 @@ provenance_help_surface="$(read_provenance_field "help surface")"
 provenance_os="$(read_provenance_field "os")"
 provenance_arch="$(read_provenance_field "arch")"
 version_revision_pattern='@([^)]+)\)'
+provenance_version_revision_marker_count="$(
+  grep -Eo '@[^)]+\)' <<<"$provenance_version" | wc -l || true
+)"
+if [[ "$provenance_version_revision_marker_count" -gt 1 ]]; then
+  cat >&2 <<EOF
+release artifact provenance version has multiple revision markers
+version: $provenance_version
+source revision:  $provenance_revision
+EOF
+  exit 1
+fi
 if [[ "$provenance_version" =~ $version_revision_pattern ]]; then
   provenance_version_revision="${BASH_REMATCH[1]}"
   if [[ "$provenance_version_revision" != "$provenance_revision" ]]; then
@@ -895,6 +906,17 @@ EOF
       ;;
   esac
   modality_revision_pattern='@([^)]+)\)'
+  modality_revision_marker_count="$(
+    grep -Eo '@[^)]+\)' <<<"$modality_version" | wc -l || true
+  )"
+  if [[ "$modality_revision_marker_count" -gt 1 ]]; then
+    cat >&2 <<EOF
+release artifact smoke modality version has multiple revision markers
+expected revision: $provenance_revision
+actual version:    $modality_version
+EOF
+    exit 1
+  fi
   if [[ ! "$modality_version" =~ $modality_revision_pattern ]]; then
     cat >&2 <<EOF
 release artifact smoke modality version does not include a source revision

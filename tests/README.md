@@ -259,11 +259,11 @@ archive with a full commit hash or Git-style short hash of at least seven
 lowercase hexadecimal characters, and must be executable before replay starts;
 a longer matching hex prefix for the same commit is accepted. The version output
 must also be a single line that identifies the language CLI with the `modality`
-prefix, so a helper that only prints a matching revision marker or appends extra
-revision notes cannot satisfy the replay check.
+prefix and carries at most one embedded revision marker, so a helper that only
+prints a matching revision marker or appends extra revision notes cannot satisfy the replay check.
 The archive producer also requires the packaged `modal --version` output to be
-one line before copying it into archive metadata, so extra version notes cannot
-become release evidence.
+one line with at most one embedded revision marker before copying it into
+archive metadata, so extra version notes cannot become release evidence.
 The producer-side archive smoke uses the same exact-or-prefix revision match
 before it claims same-revision first-contract replay from a local archive. When
 `MODALITY_BIN` is executable, the producer smoke also runs the generated
