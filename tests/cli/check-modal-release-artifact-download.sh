@@ -441,6 +441,21 @@ case "$provenance_features" in
     exit 1
     ;;
 esac
+case "$provenance_features:$provenance_help_surface" in
+  contract-onboarding:lean|full:full)
+    ;;
+  *)
+    cat >&2 <<EOF
+release artifact help surface does not match feature set
+features: $provenance_features
+help surface: $provenance_help_surface
+
+The replayed help surface must match the wrapper feature set recorded in
+provenance.
+EOF
+    exit 1
+    ;;
+esac
 case "$provenance_version" in
   modal\ *)
     provenance_version_slug="$(

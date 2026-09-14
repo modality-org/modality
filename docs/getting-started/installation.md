@@ -245,6 +245,9 @@ The archive producer also fails before emitting release evidence when the
 advertised help surface or wrapper feature set is not one of the supported
 values, so experimental labels cannot be published as replayable installer
 provenance.
+It also requires the advertised help surface to match the wrapper feature set:
+`contract-onboarding` archives must advertise the lean help surface, and `full`
+archives must advertise the full help surface.
 It also requires the packaged `modal --version` output to be one line with at
 most one embedded revision marker, and that marker must use the supported parenthesized `(...@<commit>)` form,
 before that value is copied into the archive name, README, provenance, evidence

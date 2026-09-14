@@ -237,6 +237,8 @@ archive-safe OS and architecture tokens,
 one of the supported provenance profiles (`debug` or `release`), one of the
 supported provenance feature sets (`contract-onboarding` or `full`), one of the
 supported provenance help surfaces (`lean` or `full`),
+matching feature/help-surface pairs (`contract-onboarding` with `lean`, `full`
+with `full`),
 and the recipe's archive, checksum, exact expected directory
 entries, first-line single title, revision, profile, feature set, help surface,
 and verifier command section, rejecting any extra verification commands. It
@@ -266,6 +268,10 @@ The archive producer also requires the packaged `modal --version` output to be
 one line with at most one embedded revision marker in the same supported form
 before copying it into archive metadata, so extra version notes cannot become
 release evidence.
+The archive producer and downloaded-artifact verifier both fail when the
+advertised help surface does not match the wrapper feature set, so a lean
+contract-onboarding archive cannot be promoted as a full-surface replay bundle
+and a full archive cannot be advertised as lean evidence.
 The producer-side archive smoke uses the same exact-or-prefix revision match
 before it claims same-revision first-contract replay from a local archive, and
 it independently enforces the same single-line `modality` prefix and

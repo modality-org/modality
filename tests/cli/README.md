@@ -142,7 +142,8 @@ hex source revision token, and exactly one value for the required metadata
 fields. The profile must be one of the supported build
 profiles (`debug` or `release`), and the feature set must be one of the
 supported wrapper feature sets (`contract-onboarding` or `full`). Its help
-surface must also be one of the supported surfaces (`lean` or `full`).
+surface must also be one of the supported surfaces (`lean` or `full`) and must
+match the feature set (`contract-onboarding` with `lean`, `full` with `full`).
 If the version string carries an embedded revision marker, that revision must
 match the single source revision recorded by provenance. The replayable
 evidence bundle marker must appear exactly once, and evidence manifest fields

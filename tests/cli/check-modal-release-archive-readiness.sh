@@ -165,6 +165,21 @@ EOF
     exit 1
     ;;
 esac
+case "$FEATURES:$HELP_SURFACE" in
+  contract-onboarding:lean|full:full)
+    ;;
+  *)
+    cat >&2 <<EOF
+release archive help surface does not match feature set
+features: $FEATURES
+help surface: $HELP_SURFACE
+
+Use the lean help surface with contract-onboarding builds and the full help
+surface with full builds before emitting replayable release evidence.
+EOF
+    exit 1
+    ;;
+esac
 version_slug="$(printf '%s' "$version" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//')"
 if [[ -z "$version_slug" ]]; then
   echo "modal version did not produce a usable archive slug: $version_output" >&2
@@ -2032,6 +2047,58 @@ rm -rf "$NEGATIVE_STAGE_DIR"
 NEGATIVE_STAGE_DIR=""
 rm -rf "$NEGATIVE_ARTIFACT_DIR"
 NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+if [[ "$HELP_SURFACE" == "lean" ]]; then
+  mismatched_help_surface="full"
+else
+  mismatched_help_surface="lean"
+fi
+NEGATIVE_STAGE_DIR="$(mktemp -d)"
+mkdir -p "$NEGATIVE_STAGE_DIR/bin"
+cp "$STAGE_DIR/bin/modal" "$NEGATIVE_STAGE_DIR/bin/modal"
+sed "s/^help surface: $HELP_SURFACE\$/help surface: $mismatched_help_surface/" \
+  "$STAGE_DIR/README.txt" >"$NEGATIVE_STAGE_DIR/README.txt"
+sed "s/^help surface: $HELP_SURFACE\$/help surface: $mismatched_help_surface/" \
+  "$STAGE_DIR/PROVENANCE.txt" >"$NEGATIVE_STAGE_DIR/PROVENANCE.txt"
+sed "s/^help surface: $HELP_SURFACE\$/help surface: $mismatched_help_surface/" \
+  "$STAGE_DIR/EVIDENCE-BUNDLE.txt" >"$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+chmod 0755 "$NEGATIVE_STAGE_DIR/bin/modal"
+chmod 0644 \
+  "$NEGATIVE_STAGE_DIR/README.txt" \
+  "$NEGATIVE_STAGE_DIR/PROVENANCE.txt" \
+  "$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+(
+  cd "$NEGATIVE_STAGE_DIR"
+  sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
+  chmod 0644 SHA256SUMS
+  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+)
+(
+  cd "$NEGATIVE_ARTIFACT_DIR"
+  sha256sum "$archive_name" >"$archive_name.sha256"
+)
+sed "s/^  $HELP_SURFACE\$/  $mismatched_help_surface/" \
+  "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" >"$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted mismatched feature/help-surface metadata" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact help surface does not match feature set" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the mismatched feature/help artifact for the wrong reason
+expected: release artifact help surface does not match feature set
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_STAGE_DIR"
+NEGATIVE_STAGE_DIR=""
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
 stale_version_revision="staleabc"
 if [[ "$version_output" =~ $version_revision_pattern ]]; then
   stale_version_output="$(
@@ -2823,6 +2890,24 @@ if ! grep -Fq "release archive feature set is not supported" <<<"$negative_outpu
   cat >&2 <<EOF
 release archive readiness rejected unsupported producer feature set for the wrong reason
 expected: release archive feature set is not supported
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+negative_output="$(
+  MODAL_HELP_SURFACE="full" \
+  MODAL_ONBOARDING_FEATURES="contract-onboarding" \
+  MODAL_ONBOARDING_ARCHIVE_EXPECT_REV="" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive readiness accepted mismatched producer feature/help-surface metadata" >&2
+  exit 1
+}
+if ! grep -Fq "release archive help surface does not match feature set" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive readiness rejected mismatched producer feature/help metadata for the wrong reason
+expected: release archive help surface does not match feature set
 actual:
 $negative_output
 EOF
