@@ -306,6 +306,8 @@ required_patterns=(
   "replay can pass"
   "requires that \`MODALITY_BIN --version\`"
   "return one line that identifies the language CLI with a \`modality\` prefix"
+  "exactly one embedded source revision marker"
+  "helper that omits the revision"
   "appends extra"
   "revision notes cannot anchor first-contract replay evidence"
   "When an executable \`MODALITY_BIN\` is supplied to the producer smoke"
@@ -382,7 +384,8 @@ tests_readme_patterns=(
   "archive producer also requires the packaged \`modal --version\` output to be"
   "one line with at most one embedded revision marker in the same supported form"
   "must also be a single line that identifies the language CLI with the \`modality\`"
-  "carries at most one embedded revision marker"
+  "carries exactly one embedded source revision marker"
+  "helper that omits the revision"
   "parenthesized \`(...@<commit>)\` form"
   "revision notes cannot satisfy the replay check"
   "it independently enforces the same single-line \`modality\` prefix and"
@@ -549,6 +552,16 @@ fi
 if ! grep -Fq 'release archive smoke modality version revision is not a lowercase hex commit token' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should independently reject too-short modality replay revisions" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted a modality smoke binary without a source revision' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove no-revision smoke modality binaries are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact smoke modality version does not include a source revision' \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
+  echo "release artifact verifier should reject smoke modality versions without source revisions" >&2
   exit 1
 fi
 if ! grep -Fq '! revisions_match "$MODAL_ONBOARDING_ARTIFACT_EXPECT_REV" "$provenance_revision"' \

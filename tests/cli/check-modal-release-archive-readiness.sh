@@ -438,6 +438,35 @@ $negative_output
 EOF
   exit 1
 fi
+FAKE_NO_REV_MODALITY="$(mktemp)"
+cat >"$FAKE_NO_REV_MODALITY" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then
+  echo "modality 0.0.0"
+  exit 0
+fi
+echo "no-revision modality test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_NO_REV_MODALITY"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_SMOKE=1 \
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+  MODALITY_BIN="$FAKE_NO_REV_MODALITY" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a modality smoke binary without a source revision" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact smoke modality version does not include a source revision" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the no-revision modality smoke binary for the wrong reason
+expected: release artifact smoke modality version does not include a source revision
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 FAKE_MULTILINE_MODALITY="$(mktemp)"
 cat >"$FAKE_MULTILINE_MODALITY" <<EOF
 #!/usr/bin/env bash

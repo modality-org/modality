@@ -261,9 +261,10 @@ archive with a full commit hash or Git-style short hash of at least seven
 lowercase hexadecimal characters, and must be executable before replay starts;
 a longer matching hex prefix for the same commit is accepted. The version output
 must also be a single line that identifies the language CLI with the `modality`
-prefix and carries at most one embedded revision marker in the supported
-parenthesized `(...@<commit>)` form, so a helper that only prints a matching
-revision marker or appends extra revision notes cannot satisfy the replay check.
+prefix and carries exactly one embedded source revision marker in the supported
+parenthesized `(...@<commit>)` form, so a helper that omits the revision, only
+prints a matching revision marker, or appends extra
+revision notes cannot satisfy the replay check.
 The archive producer also requires the packaged `modal --version` output to be
 one line with at most one embedded revision marker in the same supported form
 before copying it into archive metadata, so extra version notes cannot become
