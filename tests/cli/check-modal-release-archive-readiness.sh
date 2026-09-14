@@ -63,13 +63,26 @@ EOF
   exit 1
 fi
 version_revision_marker_count="$(
-  grep -Eo '@[^)]+\)' <<<"$version_output" | wc -l || true
+  grep -Eo '\([^)]*@[^)]+\)' <<<"$version_output" | wc -l || true
+)"
+version_at_count="$(
+  grep -o '@' <<<"$version_output" | wc -l || true
 )"
 if [[ "$version_revision_marker_count" -gt 1 ]]; then
   cat >&2 <<EOF
 release archive modal version has multiple revision markers
 actual version:
 $version_output
+EOF
+  exit 1
+fi
+if [[ "$version_at_count" -ne "$version_revision_marker_count" ]]; then
+  cat >&2 <<EOF
+release archive modal version has an unsupported revision marker
+actual version:
+$version_output
+
+Use at most one parenthesized source revision marker ending in @<commit>.
 EOF
   exit 1
 fi
@@ -159,7 +172,7 @@ if [[ -z "$version_slug" ]]; then
 fi
 archive_name="modal-${version_slug}-${os}-${arch}-${PROFILE}.tar.gz"
 source_revision="${MODAL_ONBOARDING_ARCHIVE_REV:-}"
-version_revision_pattern='@([^)]+)\)'
+version_revision_pattern='\([^)]*@([^)]+)\)'
 if [[ -z "$source_revision" && "$version_output" =~ $version_revision_pattern ]]; then
   source_revision="${BASH_REMATCH[1]}"
 fi
@@ -466,6 +479,35 @@ expected: release artifact smoke modality version has multiple revision markers
 actual:
 $negative_output
 EOF
+    exit 1
+fi
+FAKE_BARE_REV_MODALITY="$(mktemp)"
+cat >"$FAKE_BARE_REV_MODALITY" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modality 0.0.0 (@$source_revision) stale @deadbee"
+  exit 0
+fi
+echo "bare-revision modality test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_BARE_REV_MODALITY"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_SMOKE=1 \
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+  MODALITY_BIN="$FAKE_BARE_REV_MODALITY" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a modality smoke binary with a bare revision marker" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact smoke modality version has an unsupported revision marker" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the bare-revision modality smoke version for the wrong reason
+expected: release artifact smoke modality version has an unsupported revision marker
+actual:
+$negative_output
+EOF
   exit 1
 fi
 FAKE_PREFIX_MODALITY="$(mktemp)"
@@ -570,6 +612,33 @@ if ! grep -Fq "release archive modal version has multiple revision markers" <<<"
   cat >&2 <<EOF
 release archive producer rejected the extra-revision modal version for the wrong reason
 expected: release archive modal version has multiple revision markers
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+FAKE_BARE_REV_MODAL="$(mktemp)"
+cat >"$FAKE_BARE_REV_MODAL" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modal 0.0.0 (@$source_revision) stale @deadbee"
+  exit 0
+fi
+echo "bare-revision modal test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_BARE_REV_MODAL"
+negative_output="$(
+  MODAL_BIN="$FAKE_BARE_REV_MODAL" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive producer accepted modal version output with a bare revision marker" >&2
+  exit 1
+}
+if ! grep -Fq "release archive modal version has an unsupported revision marker" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the bare-revision modal version for the wrong reason
+expected: release archive modal version has an unsupported revision marker
 actual:
 $negative_output
 EOF
@@ -2024,6 +2093,60 @@ rm -rf "$NEGATIVE_STAGE_DIR"
 NEGATIVE_STAGE_DIR=""
 rm -rf "$NEGATIVE_ARTIFACT_DIR"
 NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+bare_marker_version_output="$version_output stale @deadbee"
+bare_marker_version_slug="$(
+  printf '%s' "${bare_marker_version_output#modal }" |
+    tr '[:upper:]' '[:lower:]' |
+    sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//'
+)"
+bare_marker_archive_name="modal-${bare_marker_version_slug}-${os}-${arch}-${PROFILE}.tar.gz"
+NEGATIVE_STAGE_DIR="$(mktemp -d)"
+mkdir -p "$NEGATIVE_STAGE_DIR/bin"
+cp "$STAGE_DIR/bin/modal" "$NEGATIVE_STAGE_DIR/bin/modal"
+sed "s/^version: .*$/version: $bare_marker_version_output/" \
+  "$STAGE_DIR/README.txt" >"$NEGATIVE_STAGE_DIR/README.txt"
+sed "s/^version: .*$/version: $bare_marker_version_output/" \
+  "$STAGE_DIR/PROVENANCE.txt" >"$NEGATIVE_STAGE_DIR/PROVENANCE.txt"
+sed "s/artifact: $archive_name/artifact: $bare_marker_archive_name/" \
+  "$STAGE_DIR/EVIDENCE-BUNDLE.txt" >"$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+chmod 0755 "$NEGATIVE_STAGE_DIR/bin/modal"
+chmod 0644 \
+  "$NEGATIVE_STAGE_DIR/README.txt" \
+  "$NEGATIVE_STAGE_DIR/PROVENANCE.txt" \
+  "$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+(
+  cd "$NEGATIVE_STAGE_DIR"
+  sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
+  chmod 0644 SHA256SUMS
+  tar -czf "$NEGATIVE_ARTIFACT_DIR/$bare_marker_archive_name" \
+    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+)
+(
+  cd "$NEGATIVE_ARTIFACT_DIR"
+  sha256sum "$bare_marker_archive_name" >"$bare_marker_archive_name.sha256"
+)
+sed "s/$archive_name/$bare_marker_archive_name/g" "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" \
+  >"$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted provenance version metadata with a bare revision marker" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact provenance version has an unsupported revision marker" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the bare-revision version artifact for the wrong reason
+expected: release artifact provenance version has an unsupported revision marker
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_STAGE_DIR"
+NEGATIVE_STAGE_DIR=""
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
 NEGATIVE_STAGE_DIR="$(mktemp -d)"
 mkdir -p "$NEGATIVE_STAGE_DIR/bin"
 cp "$STAGE_DIR/bin/modal" "$NEGATIVE_STAGE_DIR/bin/modal"
@@ -2858,7 +2981,7 @@ MODAL_BIN="$UNPACKED_MODAL" MODAL_HELP_SURFACE="$HELP_SURFACE" \
 
 if [[ -x "${MODALITY_BIN:-}" ]]; then
   modality_version="$("$MODALITY_BIN" --version)"
-  modality_revision_pattern='@([^)]+)\)'
+  modality_revision_pattern='\([^)]*@([^)]+)\)'
   if [[ ! "$modality_version" =~ $modality_revision_pattern ]]; then
     cat >&2 <<EOF
 release archive smoke modality version does not include a source revision

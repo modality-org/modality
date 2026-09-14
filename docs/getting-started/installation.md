@@ -246,9 +246,10 @@ advertised help surface or wrapper feature set is not one of the supported
 values, so experimental labels cannot be published as replayable installer
 provenance.
 It also requires the packaged `modal --version` output to be one line with at
-most one embedded revision marker before that value is copied into the archive
-name, README, provenance, evidence manifest, and verification recipe, so an
-otherwise valid bundle cannot carry extra hand-written version notes as installer metadata.
+most one embedded revision marker, and that marker must use the supported parenthesized `(...@<commit>)` form,
+before that value is copied into the archive name, README, provenance, evidence
+manifest, and verification recipe, so an otherwise valid bundle cannot carry
+extra hand-written version notes as installer metadata.
 The provenance marker must also appear exactly once, so hand-merged provenance
 preambles fail before any field values are trusted.
 If the provenance version string carries an embedded revision marker, that
@@ -306,8 +307,9 @@ requested first-contract smoke to archive-only verification, and the producer
 smoke now proves that a non-executable `MODALITY_BIN` is rejected before any
 replay can pass. Smoke replay also requires that `MODALITY_BIN --version`
 return one line that identifies the language CLI with a `modality` prefix and
-at most one embedded revision marker, so a helper that only prints a matching
-source revision marker or appends extra revision notes cannot anchor first-contract replay evidence.
+at most one embedded revision marker in the supported parenthesized
+`(...@<commit>)` form, so a helper that only prints a matching source revision
+marker or appends extra revision notes cannot anchor first-contract replay evidence.
 When an executable `MODALITY_BIN` is supplied to the producer smoke, it also
 passes the generated artifact directory back through the downloaded-artifact
 verifier with `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, so the consumer replay path

@@ -371,15 +371,28 @@ provenance_features="$(read_provenance_field "features")"
 provenance_help_surface="$(read_provenance_field "help surface")"
 provenance_os="$(read_provenance_field "os")"
 provenance_arch="$(read_provenance_field "arch")"
-version_revision_pattern='@([^)]+)\)'
+version_revision_pattern='\([^)]*@([^)]+)\)'
 provenance_version_revision_marker_count="$(
-  grep -Eo '@[^)]+\)' <<<"$provenance_version" | wc -l || true
+  grep -Eo '\([^)]*@[^)]+\)' <<<"$provenance_version" | wc -l || true
+)"
+provenance_version_at_count="$(
+  grep -o '@' <<<"$provenance_version" | wc -l || true
 )"
 if [[ "$provenance_version_revision_marker_count" -gt 1 ]]; then
   cat >&2 <<EOF
 release artifact provenance version has multiple revision markers
 version: $provenance_version
 source revision:  $provenance_revision
+EOF
+  exit 1
+fi
+if [[ "$provenance_version_at_count" -ne "$provenance_version_revision_marker_count" ]]; then
+  cat >&2 <<EOF
+release artifact provenance version has an unsupported revision marker
+version: $provenance_version
+source revision:  $provenance_revision
+
+Use at most one parenthesized source revision marker ending in @<commit>.
 EOF
   exit 1
 fi
@@ -905,15 +918,28 @@ EOF
       exit 1
       ;;
   esac
-  modality_revision_pattern='@([^)]+)\)'
+  modality_revision_pattern='\([^)]*@([^)]+)\)'
   modality_revision_marker_count="$(
-    grep -Eo '@[^)]+\)' <<<"$modality_version" | wc -l || true
+    grep -Eo '\([^)]*@[^)]+\)' <<<"$modality_version" | wc -l || true
+  )"
+  modality_revision_at_count="$(
+    grep -o '@' <<<"$modality_version" | wc -l || true
   )"
   if [[ "$modality_revision_marker_count" -gt 1 ]]; then
     cat >&2 <<EOF
 release artifact smoke modality version has multiple revision markers
 expected revision: $provenance_revision
 actual version:    $modality_version
+EOF
+    exit 1
+  fi
+  if [[ "$modality_revision_at_count" -ne "$modality_revision_marker_count" ]]; then
+    cat >&2 <<EOF
+release artifact smoke modality version has an unsupported revision marker
+expected revision: $provenance_revision
+actual version:    $modality_version
+
+Use at most one parenthesized source revision marker ending in @<commit>.
 EOF
     exit 1
   fi

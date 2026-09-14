@@ -198,6 +198,7 @@ required_patterns=(
   "provenance"
   "packaged \`modal --version\` output to be one line"
   "at most one embedded revision marker"
+  "supported parenthesized \`(...@<commit>)\` form"
   "extra hand-written version notes as installer metadata"
   "provenance marker must also appear exactly once"
   "hand-merged provenance"
@@ -371,9 +372,10 @@ tests_readme_patterns=(
   "MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh"
   "or claiming same-revision first-contract replay"
   "archive producer also requires the packaged \`modal --version\` output to be"
-  "one line with at most one embedded revision marker before copying it into"
+  "one line with at most one embedded revision marker in the same supported form"
   "must also be a single line that identifies the language CLI with the \`modality\`"
   "carries at most one embedded revision marker"
+  "parenthesized \`(...@<commit>)\` form"
   "revision notes cannot satisfy the replay check"
   "If \`CARGO_TARGET_DIR\` points at a temporary target"
   "smoke looks for both default binaries under that same target directory"
@@ -509,9 +511,19 @@ if ! grep -Fq 'release archive modal version has multiple revision markers' \
   echo "release archive producer should reject modal version output with multiple revision markers" >&2
   exit 1
 fi
+if ! grep -Fq 'release archive modal version has an unsupported revision marker' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should reject modal version output with unsupported revision markers" >&2
+  exit 1
+fi
 if ! grep -Fq 'release archive producer accepted modal version output with multiple revision markers' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove extra modal version revision markers are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive producer accepted modal version output with a bare revision marker' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove bare modal version revision markers are rejected" >&2
   exit 1
 fi
 if ! grep -Fq '! revisions_match "$MODAL_ONBOARDING_ARTIFACT_EXPECT_REV" "$provenance_revision"' \
@@ -554,9 +566,29 @@ if ! grep -Fq 'release artifact smoke modality version has multiple revision mar
   echo "release artifact verifier should reject smoke modality versions with multiple revision markers" >&2
   exit 1
 fi
+if ! grep -Fq 'release artifact smoke modality version has an unsupported revision marker' \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
+  echo "release artifact verifier should reject smoke modality versions with unsupported revision markers" >&2
+  exit 1
+fi
 if ! grep -Fq 'release artifact verifier accepted a modality smoke binary with multiple revision markers' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove extra smoke modality revision markers are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted a modality smoke binary with a bare revision marker' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove bare smoke modality revision markers are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact provenance version has an unsupported revision marker' \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
+  echo "release artifact verifier should reject provenance versions with unsupported revision markers" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted provenance version metadata with a bare revision marker' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove bare provenance version revision markers are rejected" >&2
   exit 1
 fi
 if ! grep -Fq 'release artifact provenance version has multiple revision markers' \
