@@ -300,7 +300,9 @@ Set `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only when a same-revision
 verifier now rejects missing `MODALITY_BIN` rather than silently downgrading the
 requested first-contract smoke to archive-only verification, and the producer
 smoke now proves that a non-executable `MODALITY_BIN` is rejected before any
-replay can pass.
+replay can pass. Smoke replay also requires that `MODALITY_BIN --version`
+identify the language CLI with a `modality` prefix, so a helper that only prints
+a matching source revision marker cannot anchor first-contract replay evidence.
 When an executable `MODALITY_BIN` is supplied to the producer smoke, it also
 passes the generated artifact directory back through the downloaded-artifact
 verifier with `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, so the consumer replay path
