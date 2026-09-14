@@ -267,7 +267,9 @@ one line with at most one embedded revision marker in the same supported form
 before copying it into archive metadata, so extra version notes cannot become
 release evidence.
 The producer-side archive smoke uses the same exact-or-prefix revision match
-before it claims same-revision first-contract replay from a local archive. When
+before it claims same-revision first-contract replay from a local archive, and
+it independently enforces the same single-line `modality` prefix and
+supported-marker shape before its local first-contract replay. When
 `MODALITY_BIN` is executable, the producer smoke also runs the generated
 artifact directory through the downloaded-artifact verifier with
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, so the consumer replay path is proved with

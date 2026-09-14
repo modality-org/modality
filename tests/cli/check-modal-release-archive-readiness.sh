@@ -2981,7 +2981,55 @@ MODAL_BIN="$UNPACKED_MODAL" MODAL_HELP_SURFACE="$HELP_SURFACE" \
 
 if [[ -x "${MODALITY_BIN:-}" ]]; then
   modality_version="$("$MODALITY_BIN" --version)"
+  if [[ "$modality_version" == *$'\n'* ]]; then
+    cat >&2 <<EOF
+release archive smoke modality version is not a single line
+expected revision: $source_revision
+actual version:
+$modality_version
+EOF
+    exit 1
+  fi
+  case "$modality_version" in
+    modality\ *)
+      ;;
+    *)
+      cat >&2 <<EOF
+release archive smoke modality binary reported an unexpected version prefix
+expected prefix: modality
+actual version:  $modality_version
+
+Set MODALITY_BIN=/path/to/modality built from the same source revision to run
+the first-contract smoke against the unpacked modal binary.
+EOF
+      exit 1
+      ;;
+  esac
   modality_revision_pattern='\([^)]*@([^)]+)\)'
+  modality_revision_marker_count="$(
+    grep -Eo '\([^)]*@[^)]+\)' <<<"$modality_version" | wc -l || true
+  )"
+  modality_revision_at_count="$(
+    grep -o '@' <<<"$modality_version" | wc -l || true
+  )"
+  if [[ "$modality_revision_marker_count" -gt 1 ]]; then
+    cat >&2 <<EOF
+release archive smoke modality version has multiple revision markers
+expected revision: $source_revision
+actual version:    $modality_version
+EOF
+    exit 1
+  fi
+  if [[ "$modality_revision_at_count" -ne "$modality_revision_marker_count" ]]; then
+    cat >&2 <<EOF
+release archive smoke modality version has an unsupported revision marker
+expected revision: $source_revision
+actual version:    $modality_version
+
+Use at most one parenthesized source revision marker ending in @<commit>.
+EOF
+    exit 1
+  fi
   if [[ ! "$modality_version" =~ $modality_revision_pattern ]]; then
     cat >&2 <<EOF
 release archive smoke modality version does not include a source revision
@@ -2991,6 +3039,17 @@ EOF
     exit 1
   fi
   modality_revision="${BASH_REMATCH[1]}"
+  if [[ ! "$modality_revision" =~ ^[0-9a-f]{7,40}$ ]]; then
+    cat >&2 <<EOF
+release archive smoke modality version revision is not a lowercase hex commit token
+expected revision: $source_revision
+actual version:    $modality_version
+
+Build modality from a Git checkout that reports a full commit hash or an
+unambiguous Git-style short hash of at least seven hexadecimal characters.
+EOF
+    exit 1
+  fi
   if ! revisions_match "$source_revision" "$modality_revision"; then
     cat >&2 <<EOF
 release archive smoke modality version does not match source revision
