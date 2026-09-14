@@ -297,8 +297,9 @@ required_patterns=(
   "non-executable \`MODALITY_BIN\` is rejected before any"
   "replay can pass"
   "requires that \`MODALITY_BIN --version\`"
-  "identify the language CLI with a \`modality\` prefix"
-  "matching source revision marker cannot anchor first-contract replay evidence"
+  "return one line that identifies the language CLI with a \`modality\` prefix"
+  "appends extra"
+  "revision notes cannot anchor first-contract replay evidence"
   "When an executable \`MODALITY_BIN\` is supplied to the producer smoke"
   "passes the generated artifact directory back through the downloaded-artifact"
   "verifier with \`MODAL_ONBOARDING_ARTIFACT_SMOKE=1\`"
@@ -366,6 +367,8 @@ tests_readme_patterns=(
   "same entry point when measuring a fresh first-contract run"
   "MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh"
   "or claiming same-revision first-contract replay"
+  "must also be a single line that identifies the language CLI with the \`modality\`"
+  "revision notes cannot satisfy the replay check"
   "If \`CARGO_TARGET_DIR\` points at a temporary target"
   "smoke looks for both default binaries under that same target directory"
   "CARGO_TARGET_DIR=/path/to/temp-target MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_PROFILE=release MODAL_ONBOARDING_ARCHIVE_CHECK=1 tests/run-onboarding-smokes.sh"
@@ -513,6 +516,16 @@ fi
 if ! grep -Fq 'release artifact verifier accepted a modality smoke binary with a too-short revision' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove too-short smoke modality revisions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact smoke modality version is not a single line' \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
+  echo "release artifact verifier should reject multi-line smoke modality versions" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted a modality smoke binary with multi-line version output' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove multi-line smoke modality versions are rejected" >&2
   exit 1
 fi
 if ! grep -Fq 'case "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-}" in' \

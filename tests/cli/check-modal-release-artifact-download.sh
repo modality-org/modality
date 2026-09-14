@@ -870,6 +870,15 @@ EOF
   MODAL_BIN="$unpack_dir/bin/modal" MODAL_HELP_SURFACE="$provenance_help_surface" \
     "$ROOT_DIR/tests/cli/check-modal-help-surface.sh"
   modality_version="$("$MODALITY_BIN" --version)"
+  if [[ "$modality_version" == *$'\n'* ]]; then
+    cat >&2 <<EOF
+release artifact smoke modality version is not a single line
+expected revision: $provenance_revision
+actual version:
+$modality_version
+EOF
+    exit 1
+  fi
   case "$modality_version" in
     modality\ *)
       ;;

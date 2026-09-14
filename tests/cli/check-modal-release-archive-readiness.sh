@@ -391,6 +391,35 @@ $negative_output
 EOF
   exit 1
 fi
+FAKE_MULTILINE_MODALITY="$(mktemp)"
+cat >"$FAKE_MULTILINE_MODALITY" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  printf 'modality 0.0.0 (@$source_revision)\\nstale extra revision note\\n'
+  exit 0
+fi
+echo "multiline modality test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_MULTILINE_MODALITY"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_SMOKE=1 \
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+  MODALITY_BIN="$FAKE_MULTILINE_MODALITY" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a modality smoke binary with multi-line version output" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact smoke modality version is not a single line" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the multi-line modality smoke version for the wrong reason
+expected: release artifact smoke modality version is not a single line
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 FAKE_PREFIX_MODALITY="$(mktemp)"
 cat >"$FAKE_PREFIX_MODALITY" <<EOF
 #!/usr/bin/env bash

@@ -258,8 +258,9 @@ same-revision `modality` CLI, and runs the first-contract smoke. The supplied
 archive with a full commit hash or Git-style short hash of at least seven
 lowercase hexadecimal characters, and must be executable before replay starts;
 a longer matching hex prefix for the same commit is accepted. The version output
-must also identify the language CLI with the `modality` prefix, so a helper that
-only prints a matching revision marker cannot satisfy the replay check.
+must also be a single line that identifies the language CLI with the `modality`
+prefix, so a helper that only prints a matching revision marker or appends extra
+revision notes cannot satisfy the replay check.
 The producer-side archive smoke uses the same exact-or-prefix revision match
 before it claims same-revision first-contract replay from a local archive. When
 `MODALITY_BIN` is executable, the producer smoke also runs the generated
