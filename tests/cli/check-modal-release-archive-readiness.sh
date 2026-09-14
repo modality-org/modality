@@ -54,6 +54,14 @@ EOF
 fi
 
 version_output="$("$MODAL_BIN" --version)"
+if [[ "$version_output" == *$'\n'* ]]; then
+  cat >&2 <<EOF
+release archive modal version is not a single line
+actual version:
+$version_output
+EOF
+  exit 1
+fi
 case "$version_output" in
   modal\ [0-9]*)
     version="${version_output#modal }"

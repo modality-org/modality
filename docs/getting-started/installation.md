@@ -245,6 +245,10 @@ The archive producer also fails before emitting release evidence when the
 advertised help surface or wrapper feature set is not one of the supported
 values, so experimental labels cannot be published as replayable installer
 provenance.
+It also requires the packaged `modal --version` output to be one line before
+that value is copied into the archive name, README, provenance, evidence
+manifest, and verification recipe, so an otherwise valid bundle cannot carry
+extra hand-written version notes as installer metadata.
 The provenance marker must also appear exactly once, so hand-merged provenance
 preambles fail before any field values are trusted.
 If the provenance version string carries an embedded revision marker, that

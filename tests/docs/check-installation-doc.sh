@@ -196,6 +196,8 @@ required_patterns=(
   "advertised help surface or wrapper feature set is not one of the supported"
   "values, so experimental labels cannot be published as replayable installer"
   "provenance"
+  "packaged \`modal --version\` output to be one line"
+  "extra hand-written version notes as installer metadata"
   "provenance marker must also appear exactly once"
   "hand-merged provenance"
   "preambles fail"
@@ -367,6 +369,8 @@ tests_readme_patterns=(
   "same entry point when measuring a fresh first-contract run"
   "MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh"
   "or claiming same-revision first-contract replay"
+  "archive producer also requires the packaged \`modal --version\` output to be"
+  "one line before copying it into archive metadata"
   "must also be a single line that identifies the language CLI with the \`modality\`"
   "revision notes cannot satisfy the replay check"
   "If \`CARGO_TARGET_DIR\` points at a temporary target"
@@ -491,6 +495,11 @@ fi
 if ! grep -Fq '[[ -n "$value" && ! "$value" =~ ^[0-9a-f]{7,40}$ ]]' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should reject too-short expected revisions" >&2
+  exit 1
+fi
+if ! grep -Fq '[[ "$version_output" == *$'\''\n'\''* ]]' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should reject multi-line modal version output" >&2
   exit 1
 fi
 if ! grep -Fq '! revisions_match "$MODAL_ONBOARDING_ARTIFACT_EXPECT_REV" "$provenance_revision"' \
