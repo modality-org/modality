@@ -273,7 +273,11 @@ before copying it into archive metadata, so extra version notes cannot become
 release evidence. When present, that embedded marker must also be a full commit
 hash or Git-style short hash of at least seven lowercase hexadecimal characters
 that matches the selected source revision, so stale version provenance cannot
-be packaged as release evidence.
+be packaged as release evidence. The producer derives that selected source
+revision from the source checkout before falling back to embedded version
+metadata, so a stale `modal --version` marker cannot become self-consistent
+archive provenance just because `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV` was not
+set.
 The archive producer and downloaded-artifact verifier both fail when the
 advertised help surface does not match the wrapper feature set, so a lean
 contract-onboarding archive cannot be promoted as a full-surface replay bundle

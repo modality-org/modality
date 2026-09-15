@@ -262,7 +262,11 @@ manifest, and verification recipe. When present, the embedded marker must be a
 full commit hash or Git-style short hash of at least seven lowercase
 hexadecimal characters that matches the selected source revision, so an
 otherwise valid bundle cannot carry extra hand-written version notes or stale
-version provenance as installer metadata.
+version provenance as installer metadata. The producer derives that selected
+source revision from the source checkout before falling back to embedded
+version metadata, so a stale `modal --version` marker cannot become
+self-consistent archive provenance just because no expected revision was
+supplied.
 The provenance marker must also appear exactly once, so hand-merged provenance
 preambles fail before any field values are trusted.
 If the provenance version string carries an embedded revision marker, that

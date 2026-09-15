@@ -404,7 +404,7 @@ EOF
 fi
 if [[ "$provenance_version" =~ $version_revision_pattern ]]; then
   provenance_version_revision="${BASH_REMATCH[1]}"
-  if [[ "$provenance_version_revision" != "$provenance_revision" ]]; then
+  if ! revisions_match "$provenance_revision" "$provenance_version_revision"; then
     cat >&2 <<EOF
 release artifact provenance version revision does not match source revision
 version revision: $provenance_version_revision

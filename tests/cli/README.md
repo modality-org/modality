@@ -181,6 +181,11 @@ prefix for the same commit, and must be executable before replay starts; an
 explicitly set but non-executable `MODALITY_BIN` is an error rather than
 archive-only evidence.
 
+The archive producer selects the source checkout revision before falling back
+to any embedded `modal --version` revision marker, and its negative corpus
+proves that a stale implicit marker is rejected even when
+`MODAL_ONBOARDING_ARCHIVE_EXPECT_REV` is unset.
+
 To test another binary:
 
 ```bash

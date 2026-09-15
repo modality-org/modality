@@ -198,12 +198,12 @@ if [[ -z "$version_slug" ]]; then
 fi
 archive_name="modal-${version_slug}-${os}-${arch}-${PROFILE}.tar.gz"
 source_revision="${MODAL_ONBOARDING_ARCHIVE_REV:-}"
+if [[ -z "$source_revision" ]] && git -C "$ROOT_DIR" rev-parse --verify HEAD >/dev/null 2>&1; then
+  source_revision="$(git -C "$ROOT_DIR" rev-parse HEAD)"
+fi
 version_revision_pattern='\([^)]*@([^)]+)\)'
 if [[ -z "$source_revision" && "$version_output" =~ $version_revision_pattern ]]; then
   source_revision="${BASH_REMATCH[1]}"
-fi
-if [[ -z "$source_revision" ]] && git -C "$ROOT_DIR" rev-parse --verify HEAD >/dev/null 2>&1; then
-  source_revision="$(git -C "$ROOT_DIR" rev-parse HEAD)"
 fi
 if [[ -z "$source_revision" ]]; then
   source_revision="unknown"
@@ -892,6 +892,34 @@ if ! grep -Fq "release artifact download directory has unexpected top-level entr
   cat >&2 <<EOF
 release artifact verifier rejected the malformed directory for the wrong reason
 expected: release artifact download directory has unexpected top-level entries
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+FAKE_IMPLICIT_STALE_REV_MODAL="$(mktemp)"
+cat >"$FAKE_IMPLICIT_STALE_REV_MODAL" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then
+  echo "modal 0.0.0 (@deadbee)"
+  exit 0
+fi
+echo "implicit-stale-revision modal test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_IMPLICIT_STALE_REV_MODAL"
+negative_output="$(
+  MODAL_BIN="$FAKE_IMPLICIT_STALE_REV_MODAL" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive producer accepted modal version output with a stale implicit revision marker" >&2
+  exit 1
+}
+if ! grep -Fq "release archive modal version revision does not match source revision" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the stale implicit modal version revision for the wrong reason
+expected: release archive modal version revision does not match source revision
 actual:
 $negative_output
 EOF
