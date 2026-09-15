@@ -278,6 +278,9 @@ The archive producer and downloaded-artifact verifier both fail when the
 advertised help surface does not match the wrapper feature set, so a lean
 contract-onboarding archive cannot be promoted as a full-surface replay bundle
 and a full archive cannot be advertised as lean evidence.
+The producer-side archive smoke also proves that a regular but non-executable
+`MODAL_BIN` fails before archive metadata is emitted, so producer evidence
+cannot be based on a wrapper path that only looks like a file.
 The producer-side archive smoke uses the same exact-or-prefix revision match
 before it claims same-revision first-contract replay from a local archive,
 treats an explicitly set but non-executable `MODALITY_BIN` as an error instead

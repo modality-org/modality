@@ -251,6 +251,9 @@ provenance.
 It also requires the advertised help surface to match the wrapper feature set:
 `contract-onboarding` archives must advertise the lean help surface, and `full`
 archives must advertise the full help surface.
+The producer-side archive smoke also proves that a regular but non-executable
+`MODAL_BIN` fails before any version metadata can be copied into release
+evidence, matching the symlinked-binary guard for the packaged wrapper.
 It also requires the packaged `modal --version` output to be one line with
 at most one embedded revision marker, and that marker must use the
 supported parenthesized `(...@<commit>)` form,

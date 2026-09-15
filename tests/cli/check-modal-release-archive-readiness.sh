@@ -710,6 +710,33 @@ $negative_output
 EOF
   exit 1
 fi
+NONEXEC_MODAL="$(mktemp)"
+cat >"$NONEXEC_MODAL" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modal 0.0.0 (@$source_revision)"
+  exit 0
+fi
+echo "non-executable modal test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0644 "$NONEXEC_MODAL"
+negative_output="$(
+  MODAL_BIN="$NONEXEC_MODAL" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive producer accepted a non-executable modal binary" >&2
+  exit 1
+}
+if ! grep -Fq "release archive readiness check needs a built modal binary" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the non-executable modal binary for the wrong reason
+expected: release archive readiness check needs a built modal binary
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 SYMLINK_MODAL_TARGET="$(mktemp)"
 SYMLINK_MODAL="$(mktemp -u)"
 cat >"$SYMLINK_MODAL_TARGET" <<EOF

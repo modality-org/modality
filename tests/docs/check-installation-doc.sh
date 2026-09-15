@@ -209,6 +209,9 @@ required_patterns=(
   "\`contract-onboarding\` archives must advertise the lean help surface"
   "\`full\`"
   "archives must advertise the full help surface"
+  "producer-side archive smoke also proves that a regular but non-executable"
+  "\`MODAL_BIN\` fails before any version metadata can be copied into release"
+  "matching the symlinked-binary guard for the packaged wrapper"
   "packaged \`modal --version\` output to be one line"
   "at most one embedded revision marker"
   "supported parenthesized \`(...@<commit>)\` form"
@@ -717,6 +720,11 @@ fi
 if ! grep -Fq 'MODAL_ONBOARDING_ARTIFACT_SMOKE=0' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove explicit smoke flag 0 is rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive producer accepted a non-executable modal binary' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove non-executable modal binaries are rejected" >&2
   exit 1
 fi
 
