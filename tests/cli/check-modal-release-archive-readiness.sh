@@ -230,6 +230,28 @@ MODAL_ONBOARDING_ARCHIVE_EXPECT_REV for a smoke-only archive shape check.
 EOF
   exit 1
 fi
+if [[ "$version_output" =~ $version_revision_pattern ]]; then
+  version_revision="${BASH_REMATCH[1]}"
+  if [[ ! "$version_revision" =~ ^[0-9a-f]{7,40}$ ]]; then
+    cat >&2 <<EOF
+release archive modal version revision is not a lowercase hex commit token
+version: $version_output
+source revision: $source_revision
+
+Build modal from a Git checkout that reports a full commit hash or an
+unambiguous Git-style short hash of at least seven hexadecimal characters.
+EOF
+    exit 1
+  fi
+  if ! revisions_match "$source_revision" "$version_revision"; then
+    cat >&2 <<EOF
+release archive modal version revision does not match source revision
+version: $version_output
+source revision: $source_revision
+EOF
+    exit 1
+  fi
+fi
 
 if [[ -n "${MODAL_ONBOARDING_ARCHIVE_DIR:-}" ]]; then
   ARCHIVE_DIR="$MODAL_ONBOARDING_ARCHIVE_DIR"
@@ -766,6 +788,62 @@ if ! grep -Fq "release archive modal version has an unsupported revision marker"
   cat >&2 <<EOF
 release archive producer rejected the bare-revision modal version for the wrong reason
 expected: release archive modal version has an unsupported revision marker
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+FAKE_SHORT_REV_MODAL="$(mktemp)"
+cat >"$FAKE_SHORT_REV_MODAL" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modal 0.0.0 (@${source_revision:0:6})"
+  exit 0
+fi
+echo "short-revision modal test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_SHORT_REV_MODAL"
+negative_output="$(
+  MODAL_BIN="$FAKE_SHORT_REV_MODAL" \
+  MODAL_ONBOARDING_ARCHIVE_REV="$source_revision" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive producer accepted modal version output with a too-short revision" >&2
+  exit 1
+}
+if ! grep -Fq "release archive modal version revision is not a lowercase hex commit token" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the too-short modal version revision for the wrong reason
+expected: release archive modal version revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+FAKE_STALE_REV_MODAL="$(mktemp)"
+cat >"$FAKE_STALE_REV_MODAL" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then
+  echo "modal 0.0.0 (@deadbee)"
+  exit 0
+fi
+echo "stale-revision modal test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_STALE_REV_MODAL"
+negative_output="$(
+  MODAL_BIN="$FAKE_STALE_REV_MODAL" \
+  MODAL_ONBOARDING_ARCHIVE_REV="$source_revision" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive producer accepted modal version output with a stale revision marker" >&2
+  exit 1
+}
+if ! grep -Fq "release archive modal version revision does not match source revision" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the stale modal version revision for the wrong reason
+expected: release archive modal version revision does not match source revision
 actual:
 $negative_output
 EOF

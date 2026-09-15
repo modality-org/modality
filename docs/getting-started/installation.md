@@ -255,8 +255,11 @@ It also requires the packaged `modal --version` output to be one line with
 at most one embedded revision marker, and that marker must use the
 supported parenthesized `(...@<commit>)` form,
 before that value is copied into the archive name, README, provenance, evidence
-manifest, and verification recipe, so an otherwise valid bundle cannot carry
-extra hand-written version notes as installer metadata.
+manifest, and verification recipe. When present, the embedded marker must be a
+full commit hash or Git-style short hash of at least seven lowercase
+hexadecimal characters that matches the selected source revision, so an
+otherwise valid bundle cannot carry extra hand-written version notes or stale
+version provenance as installer metadata.
 The provenance marker must also appear exactly once, so hand-merged provenance
 preambles fail before any field values are trusted.
 If the provenance version string carries an embedded revision marker, that

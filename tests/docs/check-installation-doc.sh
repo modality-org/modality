@@ -212,7 +212,11 @@ required_patterns=(
   "packaged \`modal --version\` output to be one line"
   "at most one embedded revision marker"
   "supported parenthesized \`(...@<commit>)\` form"
-  "extra hand-written version notes as installer metadata"
+  "embedded marker must be a"
+  "full commit hash or Git-style short hash"
+  "matches the selected source revision"
+  "version provenance as installer metadata"
+  "extra hand-written version notes"
   "provenance marker must also appear exactly once"
   "hand-merged provenance"
   "preambles fail"
@@ -573,6 +577,26 @@ fi
 if ! grep -Fq 'release archive producer accepted modal version output with a bare revision marker' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove bare modal version revision markers are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive producer accepted modal version output with a too-short revision' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove too-short modal version revisions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive modal version revision is not a lowercase hex commit token' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should reject non-Git-token modal version revisions" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive producer accepted modal version output with a stale revision marker' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove stale modal version revisions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive modal version revision does not match source revision' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should reject stale modal version revisions before metadata emission" >&2
   exit 1
 fi
 if ! grep -Fq 'release archive smoke modality binary reported an unexpected version prefix' \

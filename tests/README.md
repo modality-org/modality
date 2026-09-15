@@ -270,7 +270,10 @@ revision notes cannot satisfy the replay check.
 The archive producer also requires the packaged `modal --version` output to be
 one line with at most one embedded revision marker in the same supported form
 before copying it into archive metadata, so extra version notes cannot become
-release evidence.
+release evidence. When present, that embedded marker must also be a full commit
+hash or Git-style short hash of at least seven lowercase hexadecimal characters
+that matches the selected source revision, so stale version provenance cannot
+be packaged as release evidence.
 The archive producer and downloaded-artifact verifier both fail when the
 advertised help surface does not match the wrapper feature set, so a lean
 contract-onboarding archive cannot be promoted as a full-surface replay bundle
