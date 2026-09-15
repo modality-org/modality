@@ -276,7 +276,9 @@ contract-onboarding archive cannot be promoted as a full-surface replay bundle
 and a full archive cannot be advertised as lean evidence.
 The producer-side archive smoke uses the same exact-or-prefix revision match
 before it claims same-revision first-contract replay from a local archive,
-proves that symlinked `MODALITY_BIN` paths are rejected before replay, and it
+treats an explicitly set but non-executable `MODALITY_BIN` as an error instead
+of archive-only evidence, proves that symlinked `MODALITY_BIN` paths are
+rejected before replay, and it
 independently enforces the same single-line `modality` prefix and
 supported-marker shape before its local first-contract replay. When a regular
 non-symlink executable `MODALITY_BIN` is available, the producer smoke also runs

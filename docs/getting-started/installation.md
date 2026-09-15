@@ -308,9 +308,11 @@ fail unless its internal provenance matches one exact source revision.
 Set `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only when a same-revision regular
 non-symlink `MODALITY_BIN` is available; leave it unset for archive-only verification. The
 verifier now rejects missing `MODALITY_BIN` rather than silently downgrading the
-requested first-contract smoke to archive-only verification, and the producer
-smoke now proves that a non-executable or symlinked `MODALITY_BIN` is rejected
-before any replay can pass. Smoke replay also requires that `MODALITY_BIN --version`
+requested first-contract smoke to archive-only verification. The producer
+smoke now treats an explicitly set but non-executable `MODALITY_BIN` as an
+error instead of archive-only evidence, and proves that a non-executable or
+symlinked `MODALITY_BIN` is rejected before any replay can pass. Smoke replay
+also requires that `MODALITY_BIN --version`
 return one line that identifies the language CLI with a `modality` prefix and
 exactly one embedded source revision marker in the supported parenthesized
 `(...@<commit>)` form, so a helper that omits the revision, only prints a

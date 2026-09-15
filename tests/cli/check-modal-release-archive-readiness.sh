@@ -333,6 +333,17 @@ EOF
 chmod 0644 "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt"
 MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
   "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" >/dev/null
+if [[ -n "${MODALITY_BIN:-}" && ! -x "$MODALITY_BIN" ]]; then
+  cat >&2 <<EOF
+release archive smoke replay needs an executable MODALITY_BIN
+actual: $MODALITY_BIN
+
+Unset MODALITY_BIN for archive-only verification, or set it to
+/path/to/modality built from the same source revision to run the first-contract
+smoke against the unpacked modal binary.
+EOF
+  exit 2
+fi
 if [[ -x "${MODALITY_BIN:-}" ]]; then
   MODAL_ONBOARDING_ARTIFACT_SMOKE=1 \
   MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
