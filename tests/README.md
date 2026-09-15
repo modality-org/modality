@@ -196,7 +196,7 @@ The archive-readiness probe creates a `modal-<version>-<os>-<arch>-<profile>.tar
 containing `bin/`, `bin/modal`, `README.txt`, `PROVENANCE.txt`,
 `EVIDENCE-BUNDLE.txt`, and `SHA256SUMS`, unpacks it, verifies the checksum
 manifest, asserts that the archive contains exactly those six entries in the
-emitted order, asserts that
+emitted order before producer release evidence can pass, asserts that
 the manifest covers exactly `bin/modal`, `README.txt`, `PROVENANCE.txt`, and
 `EVIDENCE-BUNDLE.txt`, checks that provenance records the source revision,
 archive-safe platform tokens, profile, feature set, and help surface, checks

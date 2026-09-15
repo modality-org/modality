@@ -47,6 +47,8 @@ required_patterns=(
   "\`PROVENANCE.txt\` plus \`EVIDENCE-BUNDLE.txt\`"
   "The provenance file records the"
   "source revision, version,"
+  "producer self-check compares the archive member list in emitted"
+  "order before release evidence can pass"
   "profile, features, platform, and expected help"
   "surface"
   "requires the packaged \`MODAL_BIN\` to be a regular"
@@ -392,6 +394,7 @@ tests_readme_patterns=(
   "same entry point when measuring a fresh first-contract run"
   "MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh"
   "or claiming same-revision first-contract replay"
+  "emitted order before producer release evidence can pass"
   "only with a regular non-symlink"
   "\`MODALITY_BIN=/path/to/modality\`"
   "archive producer also requires the packaged \`modal --version\` output to be"
@@ -442,6 +445,10 @@ for source_doc in "$ROOT_DIR/tests/README.md" "$ROOT_DIR/tests/cli/README.md"; d
   fi
   if ! grep -Fq "final three-line trailer" "$source_doc"; then
     echo "test onboarding docs are missing the canonical three-line smoke trailer wording: $source_doc" >&2
+    exit 1
+  fi
+  if ! grep -Fq "emitted order before producer release evidence can pass" "$source_doc"; then
+    echo "test onboarding docs are missing producer archive-order evidence wording: $source_doc" >&2
     exit 1
   fi
 done
@@ -546,6 +553,16 @@ fi
 if ! grep -Fq 'release archive modal version has an unsupported revision marker' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should reject modal version output with unsupported revision markers" >&2
+  exit 1
+fi
+if ! grep -Fq 'archive_listing="$(tar -tzf "$ARCHIVE_PATH")"' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should compare archive member order without sorting" >&2
+  exit 1
+fi
+if grep -Fq 'archive_listing="$(tar -tzf "$ARCHIVE_PATH" | sort)"' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should not sort archive members before comparing emitted order" >&2
   exit 1
 fi
 if ! grep -Fq 'release archive producer accepted modal version output with multiple revision markers' \

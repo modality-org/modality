@@ -87,8 +87,9 @@ MODAL_BIN=/path/to/modal tests/cli/check-modal-release-archive-readiness.sh
 
 The archive-readiness check creates a temporary
 `modal-<version>-<os>-<arch>-<profile>.tar.gz`, verifies that it contains
-`bin/modal`, `README.txt`, `PROVENANCE.txt`, `EVIDENCE-BUNDLE.txt`, and
-`SHA256SUMS` in the emitted order, unpacks it, verifies the checksum manifest,
+`bin/`, `bin/modal`, `README.txt`, `PROVENANCE.txt`, `EVIDENCE-BUNDLE.txt`, and
+`SHA256SUMS` in the emitted order before producer release evidence can pass,
+unpacks it, verifies the checksum manifest,
 checks the provenance source revision, archive-safe platform tokens, profile,
 feature set, and help surface, checks the evidence manifest declares the
 replayable bundle, exact artifact, version, source revision, profile, feature

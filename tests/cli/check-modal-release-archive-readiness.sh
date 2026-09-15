@@ -3070,15 +3070,15 @@ EOF
   exit 1
 fi
 
-archive_listing="$(tar -tzf "$ARCHIVE_PATH" | sort)"
+archive_listing="$(tar -tzf "$ARCHIVE_PATH")"
 expected_archive_listing="$(
   printf '%s\n' \
     "bin/" \
-    "EVIDENCE-BUNDLE.txt" \
-    "PROVENANCE.txt" \
+    "bin/modal" \
     "README.txt" \
-    "SHA256SUMS" \
-    "bin/modal" | sort
+    "PROVENANCE.txt" \
+    "EVIDENCE-BUNDLE.txt" \
+    "SHA256SUMS"
 )"
 if [[ "$archive_listing" != "$expected_archive_listing" ]]; then
   cat >&2 <<EOF
