@@ -203,7 +203,8 @@ archive-safe platform tokens, profile, feature set, and help surface, checks
 that the evidence manifest names the replayable bundle, exact artifact, version,
 source revision, profile, feature set, help surface, and post-unpack checks,
 including the same-revision language CLI check when artifact smoke replay is
-enabled, then
+enabled, requires the packaged `MODAL_BIN` to be a regular non-symlink
+executable, then
 checks that the unpacked binary reports the same version, checks the selected
 help surface, and runs the first-contract CLI smoke when `MODALITY_BIN` points
 at a built language CLI. Set `MODAL_ONBOARDING_ARCHIVE_DIR=/path/to/dir` when

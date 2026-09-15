@@ -40,6 +40,17 @@ if [[ -z "${MODAL_BIN:-}" ]]; then
   esac
 fi
 
+if [[ ! -f "$MODAL_BIN" || -L "$MODAL_BIN" ]]; then
+  cat >&2 <<EOF
+release archive readiness check needs a regular non-symlink modal binary
+actual: $MODAL_BIN
+
+Build modal from the source checkout under test, or pass a regular binary:
+  MODAL_BIN=/path/to/modal $0
+EOF
+  exit 2
+fi
+
 if [[ ! -x "$MODAL_BIN" ]]; then
   cat >&2 <<EOF
 release archive readiness check needs a built modal binary at $MODAL_BIN
@@ -672,6 +683,35 @@ if ! grep -Fq "release artifact expected source revision is not a lowercase hex 
   cat >&2 <<EOF
 release artifact verifier rejected the too-short expected revision for the wrong reason
 expected: release artifact expected source revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+SYMLINK_MODAL_TARGET="$(mktemp)"
+SYMLINK_MODAL="$(mktemp -u)"
+cat >"$SYMLINK_MODAL_TARGET" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modal 0.0.0 (@$source_revision)"
+  exit 0
+fi
+echo "symlinked modal test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$SYMLINK_MODAL_TARGET"
+ln -s "$SYMLINK_MODAL_TARGET" "$SYMLINK_MODAL"
+negative_output="$(
+  MODAL_BIN="$SYMLINK_MODAL" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive producer accepted a symlinked modal binary" >&2
+  exit 1
+}
+if ! grep -Fq "release archive readiness check needs a regular non-symlink modal binary" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the symlinked modal binary for the wrong reason
+expected: release archive readiness check needs a regular non-symlink modal binary
 actual:
 $negative_output
 EOF

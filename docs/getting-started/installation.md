@@ -128,7 +128,8 @@ exactly those six entries in the emitted order,
 and checks that the manifest covers exactly `bin/modal`, `README.txt`, and
 `PROVENANCE.txt` plus `EVIDENCE-BUNDLE.txt`. The provenance file records the
 source revision, version, profile, features, platform, and expected help
-surface. The archive producer now fails before emitting release evidence when
+surface. The archive producer requires the packaged `MODAL_BIN` to be a regular
+non-symlink executable. The archive producer now fails before emitting release evidence when
 the source revision is not a lowercase hex commit token, so `unknown` or
 hand-written revision notes cannot become the advertised archive provenance.
 The evidence manifest names the replayable evidence bundle, artifact,

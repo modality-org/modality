@@ -49,6 +49,8 @@ required_patterns=(
   "source revision, version,"
   "profile, features, platform, and expected help"
   "surface"
+  "requires the packaged \`MODAL_BIN\` to be a regular"
+  "non-symlink executable"
   "archive producer now fails before emitting release evidence"
   "source revision is not a lowercase hex commit token"
   "unknown"
