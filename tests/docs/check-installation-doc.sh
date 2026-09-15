@@ -300,9 +300,10 @@ required_patterns=(
   "unless its internal provenance matches one exact source revision"
   "MODAL_ONBOARDING_ARTIFACT_SMOKE=1"
   "only when a same-revision"
+  "non-symlink \`MODALITY_BIN\`"
   "verifier now rejects missing \`MODALITY_BIN\`"
   "requested first-contract smoke to archive-only verification"
-  "non-executable \`MODALITY_BIN\` is rejected before any"
+  "non-executable or symlinked \`MODALITY_BIN\` is rejected"
   "replay can pass"
   "requires that \`MODALITY_BIN --version\`"
   "return one line that identifies the language CLI with a \`modality\` prefix"
@@ -310,7 +311,7 @@ required_patterns=(
   "helper that omits the revision"
   "appends extra"
   "revision notes cannot anchor first-contract replay evidence"
-  "When an executable \`MODALITY_BIN\` is supplied to the producer smoke"
+  "When a regular non-symlink executable \`MODALITY_BIN\` is supplied to the producer smoke"
   "passes the generated artifact directory back through the downloaded-artifact"
   "verifier with \`MODAL_ONBOARDING_ARTIFACT_SMOKE=1\`"
   "consumer replay path"
@@ -381,6 +382,8 @@ tests_readme_patterns=(
   "same entry point when measuring a fresh first-contract run"
   "MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh"
   "or claiming same-revision first-contract replay"
+  "only with a regular non-symlink"
+  "\`MODALITY_BIN=/path/to/modality\`"
   "archive producer also requires the packaged \`modal --version\` output to be"
   "one line with at most one embedded revision marker in the same supported form"
   "must also be a single line that identifies the language CLI with the \`modality\`"
@@ -388,7 +391,10 @@ tests_readme_patterns=(
   "helper that omits the revision"
   "parenthesized \`(...@<commit>)\` form"
   "revision notes cannot satisfy the replay check"
-  "it independently enforces the same single-line \`modality\` prefix and"
+  "symlinked \`MODALITY_BIN\` paths are rejected before replay"
+  "When a regular"
+  "non-symlink executable \`MODALITY_BIN\` is available"
+  "independently enforces the same single-line \`modality\` prefix and"
   "supported-marker shape before its local first-contract replay"
   "If \`CARGO_TARGET_DIR\` points at a temporary target"
   "smoke looks for both default binaries under that same target directory"
@@ -542,6 +548,21 @@ fi
 if ! grep -Fq 'release archive smoke modality binary reported an unexpected version prefix' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should independently reject non-modality replay binaries" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact smoke replay needs a regular non-symlink MODALITY_BIN' \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
+  echo "release artifact verifier should reject symlinked smoke modality binaries" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive smoke replay needs a regular non-symlink MODALITY_BIN' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should reject symlinked smoke modality binaries before local replay" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted smoke replay with symlinked MODALITY_BIN' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove symlinked smoke modality binaries are rejected" >&2
   exit 1
 fi
 if ! grep -Fq 'release archive smoke modality version has multiple revision markers' \

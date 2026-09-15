@@ -304,18 +304,18 @@ fails even when each section still carries the expected value.
 Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when a downloaded artifact must
 fail unless its internal provenance matches one exact source revision.
-Set `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only when a same-revision
-`MODALITY_BIN` is available; leave it unset for archive-only verification. The
+Set `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only when a same-revision regular
+non-symlink `MODALITY_BIN` is available; leave it unset for archive-only verification. The
 verifier now rejects missing `MODALITY_BIN` rather than silently downgrading the
 requested first-contract smoke to archive-only verification, and the producer
-smoke now proves that a non-executable `MODALITY_BIN` is rejected before any
-replay can pass. Smoke replay also requires that `MODALITY_BIN --version`
+smoke now proves that a non-executable or symlinked `MODALITY_BIN` is rejected
+before any replay can pass. Smoke replay also requires that `MODALITY_BIN --version`
 return one line that identifies the language CLI with a `modality` prefix and
 exactly one embedded source revision marker in the supported parenthesized
 `(...@<commit>)` form, so a helper that omits the revision, only prints a
 matching source revision marker, or appends extra
 revision notes cannot anchor first-contract replay evidence.
-When an executable `MODALITY_BIN` is supplied to the producer smoke, it also
+When a regular non-symlink executable `MODALITY_BIN` is supplied to the producer smoke, it also
 passes the generated artifact directory back through the downloaded-artifact
 verifier with `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, so the consumer replay path
 is positively checked before producer-side first-contract replay is reported.

@@ -380,6 +380,37 @@ $negative_output
 EOF
   exit 1
 fi
+SYMLINK_MODALITY_TARGET="$(mktemp)"
+SYMLINK_MODALITY="$(mktemp -u)"
+cat >"$SYMLINK_MODALITY_TARGET" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modality 0.0.0 (@$source_revision)"
+  exit 0
+fi
+echo "symlinked modality test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$SYMLINK_MODALITY_TARGET"
+ln -s "$SYMLINK_MODALITY_TARGET" "$SYMLINK_MODALITY"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_SMOKE=1 \
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+  MODALITY_BIN="$SYMLINK_MODALITY" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted smoke replay with symlinked MODALITY_BIN" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact smoke replay needs a regular non-symlink MODALITY_BIN" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the symlinked smoke modality binary for the wrong reason
+expected: release artifact smoke replay needs a regular non-symlink MODALITY_BIN
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 FAKE_STALE_MODALITY="$(mktemp)"
 cat >"$FAKE_STALE_MODALITY" <<'EOF'
 #!/usr/bin/env bash
@@ -3094,6 +3125,16 @@ MODAL_BIN="$UNPACKED_MODAL" MODAL_HELP_SURFACE="$HELP_SURFACE" \
   "$ROOT_DIR/tests/cli/check-modal-help-surface.sh"
 
 if [[ -x "${MODALITY_BIN:-}" ]]; then
+  if [[ ! -f "$MODALITY_BIN" || -L "$MODALITY_BIN" ]]; then
+    cat >&2 <<EOF
+release archive smoke replay needs a regular non-symlink MODALITY_BIN
+actual: $MODALITY_BIN
+
+Set MODALITY_BIN=/path/to/modality built from the same source revision to run
+the first-contract smoke against the unpacked modal binary.
+EOF
+    exit 2
+  fi
   modality_version="$("$MODALITY_BIN" --version)"
   if [[ "$modality_version" == *$'\n'* ]]; then
     cat >&2 <<EOF

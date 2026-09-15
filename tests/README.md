@@ -249,7 +249,7 @@ checks the full recipe against the canonical emitted text so extra prose between
 valid sections is rejected. Set
 `MODAL_ONBOARDING_ARTIFACT_EXPECT_REV=<commit>` when checking a downloaded
 workflow artifact against one exact source revision. Set
-`MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only with
+`MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only with a regular non-symlink
 `MODALITY_BIN=/path/to/modality`; leave the flag unset for archive-only
 verification. An explicit `0` is rejected as an unsupported smoke flag so a
 mistyped replay request cannot be counted as archive-only evidence. When smoke
@@ -258,7 +258,7 @@ version matches provenance, replays the selected help surface, checks the
 same-revision `modality` CLI, and runs the first-contract smoke. The supplied
 `modality` binary must advertise the same source revision as the downloaded
 archive with a full commit hash or Git-style short hash of at least seven
-lowercase hexadecimal characters, and must be executable before replay starts;
+lowercase hexadecimal characters, and must be a regular non-symlink executable before replay starts;
 a longer matching hex prefix for the same commit is accepted. The version output
 must also be a single line that identifies the language CLI with the `modality`
 prefix and carries exactly one embedded source revision marker in the supported
@@ -274,11 +274,12 @@ advertised help surface does not match the wrapper feature set, so a lean
 contract-onboarding archive cannot be promoted as a full-surface replay bundle
 and a full archive cannot be advertised as lean evidence.
 The producer-side archive smoke uses the same exact-or-prefix revision match
-before it claims same-revision first-contract replay from a local archive, and
-it independently enforces the same single-line `modality` prefix and
-supported-marker shape before its local first-contract replay. When
-`MODALITY_BIN` is executable, the producer smoke also runs the generated
-artifact directory through the downloaded-artifact verifier with
+before it claims same-revision first-contract replay from a local archive,
+proves that symlinked `MODALITY_BIN` paths are rejected before replay, and it
+independently enforces the same single-line `modality` prefix and
+supported-marker shape before its local first-contract replay. When a regular
+non-symlink executable `MODALITY_BIN` is available, the producer smoke also runs
+the generated artifact directory through the downloaded-artifact verifier with
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, so the consumer replay path is proved with
 the same language CLI before producer-side replay is reported.
 

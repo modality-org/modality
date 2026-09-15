@@ -887,6 +887,16 @@ the first-contract smoke against the unpacked modal binary.
 EOF
     exit 2
   fi
+  if [[ ! -f "$MODALITY_BIN" || -L "$MODALITY_BIN" ]]; then
+    cat >&2 <<EOF
+release artifact smoke replay needs a regular non-symlink MODALITY_BIN
+actual: $MODALITY_BIN
+
+Set MODALITY_BIN=/path/to/modality built from the same source revision to run
+the first-contract smoke against the unpacked modal binary.
+EOF
+    exit 2
+  fi
   if [[ ! -x "$MODALITY_BIN" ]]; then
     cat >&2 <<EOF
 release artifact smoke replay needs an executable MODALITY_BIN
