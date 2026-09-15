@@ -121,10 +121,10 @@ Set `MODAL_ONBOARDING_GIT_REV=<commit>` to pin the exact Git revision under
 test for release checklists or CI evidence.
 Release-archive-shaped binary bundles are measured by
 `tests/cli/check-modal-release-archive-readiness.sh`, which creates a
-`modal-<version>-<os>-<arch>-<profile>.tar.gz` containing `bin/modal` and
-`README.txt` plus `PROVENANCE.txt`, `EVIDENCE-BUNDLE.txt`, and `SHA256SUMS`,
+`modal-<version>-<os>-<arch>-<profile>.tar.gz` containing `bin/`, `bin/modal`,
+and `README.txt` plus `PROVENANCE.txt`, `EVIDENCE-BUNDLE.txt`, and `SHA256SUMS`,
 unpacks it, verifies the checksum manifest, checks that the archive contains
-exactly those five entries in the emitted order,
+exactly those six entries in the emitted order,
 and checks that the manifest covers exactly `bin/modal`, `README.txt`, and
 `PROVENANCE.txt` plus `EVIDENCE-BUNDLE.txt`. The provenance file records the
 source revision, version, profile, features, platform, and expected help
@@ -213,8 +213,9 @@ requires the detached checksum sidecar to be one canonical SHA-256 line naming
 exactly that one archive,
 then rechecks the exact archive members in the emitted order, internal checksum
 manifest entries in the emitted order, executable `bin/modal`,
-regular non-symlink unpacked files with expected payload modes (`bin/modal` as
-`0755`; text and checksum files as `0644`), provenance metadata, source revision,
+regular non-symlink unpacked files with expected payload modes (`bin/` and `bin/modal` as
+`0755`; text and checksum files as `0644`) plus a
+regular non-symlink `bin/` directory with mode `0755`, provenance metadata, source revision,
 single provenance marker, replayable evidence bundle marker, and the recipe's
 archive, checksum, revision, and verifier command.
 The producer smoke also mutates the downloaded archive, checksum sidecar, and

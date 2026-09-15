@@ -193,9 +193,10 @@ CARGO_TARGET_DIR=/path/to/temp-target MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDI
 ```
 
 The archive-readiness probe creates a `modal-<version>-<os>-<arch>-<profile>.tar.gz`
-containing `bin/modal`, `README.txt`, `PROVENANCE.txt`, `EVIDENCE-BUNDLE.txt`,
-and `SHA256SUMS`, unpacks it, verifies the checksum manifest, asserts that the
-archive contains exactly those five entries in the emitted order, asserts that
+containing `bin/`, `bin/modal`, `README.txt`, `PROVENANCE.txt`,
+`EVIDENCE-BUNDLE.txt`, and `SHA256SUMS`, unpacks it, verifies the checksum
+manifest, asserts that the archive contains exactly those six entries in the
+emitted order, asserts that
 the manifest covers exactly `bin/modal`, `README.txt`, `PROVENANCE.txt`, and
 `EVIDENCE-BUNDLE.txt`, checks that provenance records the source revision,
 archive-safe platform tokens, profile, feature set, and help surface, checks
@@ -223,10 +224,10 @@ top-level artifact entries, regular non-symlink top-level files with canonical
 the source revision when present, the exact one-entry detached checksum sidecar
 with a canonical SHA-256 line, internal archive members in the emitted order,
 internal checksum manifest entries in the
-emitted order, regular non-symlink unpacked files, executable `bin/modal`,
+emitted order, a regular non-symlink `bin/` directory, regular non-symlink unpacked files, executable `bin/modal`,
 provenance metadata, source revision, the
-expected unpacked payload modes (`bin/modal` as `0755`; text and checksum files
-as `0644`), exactly one README artifact marker, README version, revision,
+expected unpacked payload modes (`bin/` and `bin/modal` as `0755`; text and
+checksum files as `0644`), exactly one README artifact marker, README version, revision,
 profile, feature-set, and help-surface metadata matching provenance, the single
 provenance marker, top-level directory/symlink and mode negative cases for the
 archive, checksum sidecar, and recipe, a stale README version negative case, the single replayable

@@ -161,6 +161,7 @@ check_top_level_mode "$recipe_path" "644"
 archive_listing="$(tar -tzf "$archive_path")"
 expected_archive_listing="$(
   printf '%s\n' \
+    "bin/" \
     "bin/modal" \
     "README.txt" \
     "PROVENANCE.txt" \
@@ -219,6 +220,10 @@ $checksum_entries_ordered
 EOF
   exit 1
 fi
+if [[ ! -d "$unpack_dir/bin" || -L "$unpack_dir/bin" ]]; then
+  echo "release artifact unpacked bin entry must be a regular non-symlink directory" >&2
+  exit 1
+fi
 for required_unpacked_path in \
   "$unpack_dir/bin/modal" \
   "$unpack_dir/README.txt" \
@@ -247,6 +252,7 @@ EOF
     exit 1
   fi
 }
+check_unpacked_mode "bin" "755"
 check_unpacked_mode "bin/modal" "755"
 check_unpacked_mode "README.txt" "644"
 check_unpacked_mode "PROVENANCE.txt" "644"

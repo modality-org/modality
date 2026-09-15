@@ -249,6 +249,7 @@ trap cleanup EXIT
 
 mkdir -p "$STAGE_DIR/bin"
 cp "$MODAL_BIN" "$STAGE_DIR/bin/modal"
+chmod 0755 "$STAGE_DIR/bin"
 chmod 0755 "$STAGE_DIR/bin/modal"
 cat >"$STAGE_DIR/README.txt" <<EOF
 modal release archive smoke artifact
@@ -289,8 +290,8 @@ chmod 0644 "$STAGE_DIR/README.txt" "$STAGE_DIR/PROVENANCE.txt" "$STAGE_DIR/EVIDE
 )
 
 ARCHIVE_PATH="$ARCHIVE_DIR/$archive_name"
-tar -C "$STAGE_DIR" -czf "$ARCHIVE_PATH" \
-  bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+tar --no-recursion -C "$STAGE_DIR" -czf "$ARCHIVE_PATH" \
+  bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 (
   cd "$ARCHIVE_DIR"
   sha256sum "$archive_name" >"$archive_name.sha256"
@@ -965,8 +966,8 @@ cp "$STAGE_DIR/EVIDENCE-BUNDLE.txt" "$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
 (
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1006,8 +1007,8 @@ chmod 0644 "$NEGATIVE_STAGE_DIR/PROVENANCE.txt" "$NEGATIVE_STAGE_DIR/EVIDENCE-BU
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1040,6 +1041,7 @@ cp "$STAGE_DIR/bin/modal" "$NEGATIVE_STAGE_DIR/bin/modal"
 cp "$STAGE_DIR/README.txt" "$NEGATIVE_STAGE_DIR/README.txt"
 cp "$STAGE_DIR/PROVENANCE.txt" "$NEGATIVE_STAGE_DIR/PROVENANCE.txt"
 cp "$STAGE_DIR/EVIDENCE-BUNDLE.txt" "$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+chmod 0700 "$NEGATIVE_STAGE_DIR/bin"
 chmod 0755 "$NEGATIVE_STAGE_DIR/bin/modal"
 chmod 0644 \
   "$NEGATIVE_STAGE_DIR/README.txt" \
@@ -1049,8 +1051,51 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    README.txt bin/modal PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+)
+(
+  cd "$NEGATIVE_ARTIFACT_DIR"
+  sha256sum "$archive_name" >"$archive_name.sha256"
+)
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted an unpacked bin directory with the wrong mode" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact unpacked entry has unexpected mode: bin" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the bad-mode bin directory for the wrong reason
+expected: release artifact unpacked entry has unexpected mode: bin
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_STAGE_DIR"
+NEGATIVE_STAGE_DIR=""
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+NEGATIVE_STAGE_DIR="$(mktemp -d)"
+mkdir -p "$NEGATIVE_STAGE_DIR/bin"
+cp "$STAGE_DIR/bin/modal" "$NEGATIVE_STAGE_DIR/bin/modal"
+cp "$STAGE_DIR/README.txt" "$NEGATIVE_STAGE_DIR/README.txt"
+cp "$STAGE_DIR/PROVENANCE.txt" "$NEGATIVE_STAGE_DIR/PROVENANCE.txt"
+cp "$STAGE_DIR/EVIDENCE-BUNDLE.txt" "$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+chmod 0755 "$NEGATIVE_STAGE_DIR/bin/modal"
+chmod 0644 \
+  "$NEGATIVE_STAGE_DIR/README.txt" \
+  "$NEGATIVE_STAGE_DIR/PROVENANCE.txt" \
+  "$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+(
+  cd "$NEGATIVE_STAGE_DIR"
+  sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
+  chmod 0644 SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    README.txt bin bin/modal PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1092,8 +1137,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum README.txt bin/modal PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1181,8 +1226,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$wrong_archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$wrong_archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1272,8 +1317,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1317,8 +1362,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1361,8 +1406,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1404,8 +1449,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1448,8 +1493,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1492,8 +1537,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1536,8 +1581,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1582,8 +1627,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1628,8 +1673,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1672,8 +1717,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1715,8 +1760,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1759,8 +1804,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1803,8 +1848,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1847,8 +1892,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1893,8 +1938,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1939,8 +1984,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -1986,8 +2031,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$unsupported_profile_archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$unsupported_profile_archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -2033,8 +2078,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -2079,8 +2124,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -2130,8 +2175,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -2191,8 +2236,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$stale_version_archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$stale_version_archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -2245,8 +2290,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$bare_marker_archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$bare_marker_archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -2292,8 +2337,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -2343,8 +2388,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -2392,8 +2437,8 @@ chmod 0644 \
   cd "$NEGATIVE_STAGE_DIR"
   sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
   chmod 0644 SHA256SUMS
-  tar -czf "$NEGATIVE_ARTIFACT_DIR/$unsupported_arch_archive_name" \
-    bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$unsupported_arch_archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
 )
 (
   cd "$NEGATIVE_ARTIFACT_DIR"
@@ -2977,6 +3022,7 @@ fi
 archive_listing="$(tar -tzf "$ARCHIVE_PATH" | sort)"
 expected_archive_listing="$(
   printf '%s\n' \
+    "bin/" \
     "EVIDENCE-BUNDLE.txt" \
     "PROVENANCE.txt" \
     "README.txt" \
@@ -2995,6 +3041,10 @@ EOF
 fi
 if ! grep -Fxq "README.txt" <<<"$archive_listing"; then
   echo "release archive is missing README.txt" >&2
+  exit 1
+fi
+if ! grep -Fxq "bin/" <<<"$archive_listing"; then
+  echo "release archive is missing bin/ directory" >&2
   exit 1
 fi
 if ! grep -Fxq "bin/modal" <<<"$archive_listing"; then
@@ -3032,6 +3082,10 @@ $checksum_entries
 EOF
   exit 1
 fi
+if [[ ! -d "$UNPACK_DIR/bin" || -L "$UNPACK_DIR/bin" ]]; then
+  echo "release archive unpacked bin entry must be a regular non-symlink directory" >&2
+  exit 1
+fi
 for required_unpacked_path in \
   "$UNPACK_DIR/bin/modal" \
   "$UNPACK_DIR/README.txt" \
@@ -3060,6 +3114,7 @@ EOF
     exit 1
   fi
 }
+check_unpacked_mode "bin" "755"
 check_unpacked_mode "bin/modal" "755"
 check_unpacked_mode "README.txt" "644"
 check_unpacked_mode "PROVENANCE.txt" "644"
