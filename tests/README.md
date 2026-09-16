@@ -270,20 +270,20 @@ parenthesized `(...@<commit>)` form, so a helper that omits the revision, only
 prints a matching revision marker, or appends extra
 revision notes cannot satisfy the replay check.
 The archive producer also requires the packaged `modal --version` output to
-emit exactly one line with at most one embedded revision marker in the same supported form
-before copying it into archive metadata, so extra version notes cannot become
-release evidence. When present, that embedded marker must also be a full commit
-hash or Git-style short hash of at least seven lowercase hexadecimal characters
-that matches the selected source revision, so stale version provenance cannot
-be packaged as release evidence. The producer derives that selected source
-revision from the source checkout before falling back to embedded version
-metadata, so a stale `modal --version` marker cannot become self-consistent
-archive provenance just because `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV` was not
-set.
+emit exactly one line with at most one embedded revision marker in the same
+supported form and no other parenthesized version notes before copying it into
+archive metadata, so extra version notes cannot become release evidence. When
+present, that embedded marker must also be a full commit hash or Git-style
+short hash of at least seven lowercase hexadecimal characters that matches the
+selected source revision, so stale version provenance cannot be packaged as
+release evidence. The producer derives that selected source revision from the
+source checkout before falling back to embedded version metadata, so a stale
+`modal --version` marker cannot become self-consistent archive provenance just
+because `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV` was not set.
 The downloaded-artifact verifier applies the same Git-token shape check to any
-embedded revision marker in provenance version metadata before accepting a
-matching-prefix revision, so hand-edited markers cannot extend a valid source
-revision with non-hex suffixes.
+embedded revision marker in provenance version metadata, and rejects other
+parenthesized version notes, before accepting a matching-prefix revision, so
+hand-edited markers cannot extend a valid source revision with non-hex suffixes.
 The archive producer and downloaded-artifact verifier both fail when the
 advertised help surface does not match the wrapper feature set, so a lean
 contract-onboarding archive cannot be promoted as a full-surface replay bundle

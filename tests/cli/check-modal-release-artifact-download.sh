@@ -397,6 +397,9 @@ version_revision_pattern='\([^)]*@([^)]+)\)'
 provenance_version_revision_marker_count="$(
   grep -Eo '\([^)]*@[^)]+\)' <<<"$provenance_version" | wc -l || true
 )"
+provenance_version_parenthesized_group_count="$(
+  grep -Eo '\([^)]*\)' <<<"$provenance_version" | wc -l || true
+)"
 provenance_version_at_count="$(
   grep -o '@' <<<"$provenance_version" | wc -l || true
 )"
@@ -405,6 +408,16 @@ if [[ "$provenance_version_revision_marker_count" -gt 1 ]]; then
 release artifact provenance version has multiple revision markers
 version: $provenance_version
 source revision:  $provenance_revision
+EOF
+  exit 1
+fi
+if [[ "$provenance_version_parenthesized_group_count" -ne "$provenance_version_revision_marker_count" ]]; then
+  cat >&2 <<EOF
+release artifact provenance version has unsupported parenthesized metadata
+version: $provenance_version
+source revision:  $provenance_revision
+
+Use only the supported parenthesized source revision marker ending in @<commit>.
 EOF
   exit 1
 fi
@@ -990,6 +1003,9 @@ EOF
   modality_revision_marker_count="$(
     grep -Eo '\([^)]*@[^)]+\)' <<<"$modality_version" | wc -l || true
   )"
+  modality_parenthesized_group_count="$(
+    grep -Eo '\([^)]*\)' <<<"$modality_version" | wc -l || true
+  )"
   modality_revision_at_count="$(
     grep -o '@' <<<"$modality_version" | wc -l || true
   )"
@@ -998,6 +1014,16 @@ EOF
 release artifact smoke modality version has multiple revision markers
 expected revision: $provenance_revision
 actual version:    $modality_version
+EOF
+    exit 1
+  fi
+  if [[ "$modality_parenthesized_group_count" -ne "$modality_revision_marker_count" ]]; then
+    cat >&2 <<EOF
+release artifact smoke modality version has unsupported parenthesized metadata
+expected revision: $provenance_revision
+actual version:    $modality_version
+
+Use only the supported parenthesized source revision marker ending in @<commit>.
 EOF
     exit 1
   fi

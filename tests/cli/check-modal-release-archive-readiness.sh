@@ -95,6 +95,9 @@ version_output="${captured_output_lines[0]}"
 version_revision_marker_count="$(
   grep -Eo '\([^)]*@[^)]+\)' <<<"$version_output" | wc -l || true
 )"
+version_parenthesized_group_count="$(
+  grep -Eo '\([^)]*\)' <<<"$version_output" | wc -l || true
+)"
 version_at_count="$(
   grep -o '@' <<<"$version_output" | wc -l || true
 )"
@@ -103,6 +106,16 @@ if [[ "$version_revision_marker_count" -gt 1 ]]; then
 release archive modal version has multiple revision markers
 actual version:
 $version_output
+EOF
+  exit 1
+fi
+if [[ "$version_parenthesized_group_count" -ne "$version_revision_marker_count" ]]; then
+  cat >&2 <<EOF
+release archive modal version has unsupported parenthesized metadata
+actual version:
+$version_output
+
+Use only the supported parenthesized source revision marker ending in @<commit>.
 EOF
   exit 1
 fi
@@ -649,6 +662,35 @@ $negative_output
 EOF
   exit 1
 fi
+FAKE_PAREN_NOTE_MODALITY="$(mktemp)"
+cat >"$FAKE_PAREN_NOTE_MODALITY" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modality 0.0.0 (local build) (@$source_revision)"
+  exit 0
+fi
+echo "parenthesized-note modality test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_PAREN_NOTE_MODALITY"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_SMOKE=1 \
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+  MODALITY_BIN="$FAKE_PAREN_NOTE_MODALITY" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a modality smoke binary with non-revision parenthesized metadata" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact smoke modality version has unsupported parenthesized metadata" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the parenthesized-note modality smoke version for the wrong reason
+expected: release artifact smoke modality version has unsupported parenthesized metadata
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 FAKE_PREFIX_MODALITY="$(mktemp)"
 cat >"$FAKE_PREFIX_MODALITY" <<EOF
 #!/usr/bin/env bash
@@ -861,6 +903,33 @@ if ! grep -Fq "release archive modal version has an unsupported revision marker"
   cat >&2 <<EOF
 release archive producer rejected the bare-revision modal version for the wrong reason
 expected: release archive modal version has an unsupported revision marker
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+FAKE_PAREN_NOTE_MODAL="$(mktemp)"
+cat >"$FAKE_PAREN_NOTE_MODAL" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modal 0.0.0 (local build) (@$source_revision)"
+  exit 0
+fi
+echo "parenthesized-note modal test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_PAREN_NOTE_MODAL"
+negative_output="$(
+  MODAL_BIN="$FAKE_PAREN_NOTE_MODAL" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive producer accepted modal version output with non-revision parenthesized metadata" >&2
+  exit 1
+}
+if ! grep -Fq "release archive modal version has unsupported parenthesized metadata" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the parenthesized-note modal version for the wrong reason
+expected: release archive modal version has unsupported parenthesized metadata
 actual:
 $negative_output
 EOF
@@ -2645,6 +2714,60 @@ if ! grep -Fq "release artifact provenance version has an unsupported revision m
   cat >&2 <<EOF
 release artifact verifier rejected the bare-revision version artifact for the wrong reason
 expected: release artifact provenance version has an unsupported revision marker
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_STAGE_DIR"
+NEGATIVE_STAGE_DIR=""
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+paren_note_version_output="$version_output (local build)"
+paren_note_version_slug="$(
+  printf '%s' "${paren_note_version_output#modal }" |
+    tr '[:upper:]' '[:lower:]' |
+    sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//'
+)"
+paren_note_archive_name="modal-${paren_note_version_slug}-${os}-${arch}-${PROFILE}.tar.gz"
+NEGATIVE_STAGE_DIR="$(mktemp -d)"
+mkdir -p "$NEGATIVE_STAGE_DIR/bin"
+cp "$STAGE_DIR/bin/modal" "$NEGATIVE_STAGE_DIR/bin/modal"
+sed "s/^version: .*$/version: $paren_note_version_output/" \
+  "$STAGE_DIR/README.txt" >"$NEGATIVE_STAGE_DIR/README.txt"
+sed "s/^version: .*$/version: $paren_note_version_output/" \
+  "$STAGE_DIR/PROVENANCE.txt" >"$NEGATIVE_STAGE_DIR/PROVENANCE.txt"
+sed "s/artifact: $archive_name/artifact: $paren_note_archive_name/" \
+  "$STAGE_DIR/EVIDENCE-BUNDLE.txt" >"$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+chmod 0755 "$NEGATIVE_STAGE_DIR/bin/modal"
+chmod 0644 \
+  "$NEGATIVE_STAGE_DIR/README.txt" \
+  "$NEGATIVE_STAGE_DIR/PROVENANCE.txt" \
+  "$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+(
+  cd "$NEGATIVE_STAGE_DIR"
+  sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
+  chmod 0644 SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$paren_note_archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+)
+(
+  cd "$NEGATIVE_ARTIFACT_DIR"
+  sha256sum "$paren_note_archive_name" >"$paren_note_archive_name.sha256"
+)
+sed "s/$archive_name/$paren_note_archive_name/g" "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" \
+  >"$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted provenance version metadata with non-revision parenthesized notes" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact provenance version has unsupported parenthesized metadata" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the parenthesized-note version artifact for the wrong reason
+expected: release artifact provenance version has unsupported parenthesized metadata
 actual:
 $negative_output
 EOF
