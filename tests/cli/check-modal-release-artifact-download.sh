@@ -922,6 +922,15 @@ EOF
     exit 2
   fi
   unpacked_version="$("$unpack_dir/bin/modal" --version)"
+  if [[ "$unpacked_version" == *$'\n'* ]]; then
+    cat >&2 <<EOF
+release artifact unpacked modal version is not a single line
+expected: $provenance_version
+actual:
+$unpacked_version
+EOF
+    exit 1
+  fi
   if [[ "$unpacked_version" != "$provenance_version" ]]; then
     cat >&2 <<EOF
 release artifact unpacked modal version does not match provenance

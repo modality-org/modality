@@ -178,11 +178,12 @@ must fail unless its provenance names one exact source revision. Set
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only with
 `MODALITY_BIN=/path/to/modality`; the verifier then runs the version,
 help-surface, same-revision language CLI, and first-contract checks against the
-downloaded binary. The supplied `modality` binary must advertise the same source
-revision as the downloaded archive, either exactly or as a matching longer hex
-prefix for the same commit, and must be executable before replay starts; an
-explicitly set but non-executable `MODALITY_BIN` is an error rather than
-archive-only evidence.
+downloaded binary. The downloaded binary's version output must be a single line
+and match provenance before help-surface or first-contract replay is trusted.
+The supplied `modality` binary must advertise the same source revision as the
+downloaded archive, either exactly or as a matching longer hex prefix for the
+same commit, and must be executable before replay starts; an explicitly set but
+non-executable `MODALITY_BIN` is an error rather than archive-only evidence.
 
 The archive producer selects the source checkout revision before falling back
 to any embedded `modal --version` revision marker, and its negative corpus

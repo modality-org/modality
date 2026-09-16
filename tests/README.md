@@ -257,8 +257,9 @@ workflow artifact against one exact source revision. Set
 verification. An explicit `0` is rejected as an unsupported smoke flag so a
 mistyped replay request cannot be counted as archive-only evidence. When smoke
 replay is enabled, the verifier checks that the downloaded binary's reported
-version matches provenance, replays the selected help surface, checks the
-same-revision `modality` CLI, and runs the first-contract smoke. The supplied
+version is a single line and matches provenance, replays the selected help
+surface, checks the same-revision `modality` CLI, and runs the first-contract
+smoke. The supplied
 `modality` binary must advertise the same source revision as the downloaded
 archive with a full commit hash or Git-style short hash of at least seven
 lowercase hexadecimal characters, and must be a regular non-symlink executable before replay starts;

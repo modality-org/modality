@@ -110,6 +110,8 @@ required_patterns=(
   "Modality archive identity"
   "optional \`MODAL_ONBOARDING_ARTIFACT_SMOKE=1\` replay command"
   "checks the downloaded binary's version"
+  "downloaded \`bin/modal --version\` output to be one line"
+  "matches provenance before help-surface or first-contract replay is trusted"
   "\`MODALITY_BIN=/path/to/modality\` was built from the same source revision"
   "same-revision language CLI"
   "same source revision"
@@ -333,6 +335,8 @@ required_patterns=(
   "symlinked \`MODALITY_BIN\` is rejected"
   "replay can pass"
   "requires that \`MODALITY_BIN --version\`"
+  "downloaded \`bin/modal --version\` output to be one line"
+  "matches provenance before help-surface or first-contract replay is trusted"
   "return one line that identifies the language CLI with a \`modality\` prefix"
   "exactly one embedded source revision marker"
   "helper that omits the revision"
@@ -416,6 +420,7 @@ tests_readme_patterns=(
   "archive producer also requires the packaged \`modal --version\` output to be"
   "one line with at most one embedded revision marker in the same supported form"
   "must also be a single line that identifies the language CLI with the \`modality\`"
+  "version is a single line and matches provenance"
   "carries exactly one embedded source revision marker"
   "helper that omits the revision"
   "parenthesized \`(...@<commit>)\` form"
@@ -472,6 +477,15 @@ for source_doc in "$ROOT_DIR/tests/README.md" "$ROOT_DIR/tests/cli/README.md"; d
     exit 1
   fi
 done
+
+if ! grep -Fq "downloaded binary's version output must be a single line" "$ROOT_DIR/tests/cli/README.md"; then
+  echo "CLI tests README is missing downloaded binary single-line version wording" >&2
+  exit 1
+fi
+if ! grep -Fq "and match provenance before help-surface or first-contract replay is trusted" "$ROOT_DIR/tests/cli/README.md"; then
+  echo "CLI tests README is missing downloaded binary provenance-match wording" >&2
+  exit 1
+fi
 
 required_workflow_patterns=(
   "Verify pinned Rust dependency graph"

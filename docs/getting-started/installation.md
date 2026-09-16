@@ -327,7 +327,9 @@ requested first-contract smoke to archive-only verification. The producer
 smoke now treats an explicitly set but non-executable `MODALITY_BIN` as an
 error instead of archive-only evidence, and proves that a non-executable or
 symlinked `MODALITY_BIN` is rejected before any replay can pass. Smoke replay
-also requires that `MODALITY_BIN --version`
+also requires the downloaded `bin/modal --version` output to be one line that
+matches provenance before help-surface or first-contract replay is trusted, and
+requires that `MODALITY_BIN --version`
 return one line that identifies the language CLI with a `modality` prefix and
 exactly one embedded source revision marker in the supported parenthesized
 `(...@<commit>)` form, so a helper that omits the revision, only prints a
