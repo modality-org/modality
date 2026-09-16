@@ -77,8 +77,11 @@ capture_command_output_lines() {
   local output_path
   local status
   output_path="$(mktemp)"
-  if ! "$@" >"$output_path"; then
-    status=$?
+  status=0
+  "$@" >"$output_path" || status=$?
+  if [[ "$status" -ne 0 ]]; then
+    printf 'command failed while capturing output (status %s): %s\n' \
+      "$status" "$*" >&2
     cat "$output_path" >&2 || true
     rm -f "$output_path"
     return "$status"

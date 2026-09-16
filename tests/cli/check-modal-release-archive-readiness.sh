@@ -68,8 +68,11 @@ capture_command_output_lines() {
   local output_path
   local status
   output_path="$(mktemp)"
-  if ! "$@" >"$output_path"; then
-    status=$?
+  status=0
+  "$@" >"$output_path" || status=$?
+  if [[ "$status" -ne 0 ]]; then
+    printf 'command failed while capturing output (status %s): %s\n' \
+      "$status" "$*" >&2
     cat "$output_path" >&2 || true
     rm -f "$output_path"
     return "$status"
@@ -706,6 +709,35 @@ $negative_output
 EOF
   exit 1
 fi
+FAKE_FAILING_VERSION_MODALITY="$(mktemp)"
+cat >"$FAKE_FAILING_VERSION_MODALITY" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modality 0.0.0 (@$source_revision)"
+  exit 42
+fi
+echo "failing-version modality test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_FAILING_VERSION_MODALITY"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_SMOKE=1 \
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+  MODALITY_BIN="$FAKE_FAILING_VERSION_MODALITY" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted modality smoke version output from a failing command" >&2
+  exit 1
+}
+if ! grep -Fq "command failed while capturing output (status 42):" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the failing modality smoke version command for the wrong reason
+expected: command failed while capturing output (status 42):
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 FAKE_MULTILINE_MODALITY="$(mktemp)"
 cat >"$FAKE_MULTILINE_MODALITY" <<EOF
 #!/usr/bin/env bash
@@ -1009,6 +1041,33 @@ if ! grep -Fq "release archive modal version is not a single line" <<<"$negative
   cat >&2 <<EOF
 release archive producer rejected the trailing-blank modal version for the wrong reason
 expected: release archive modal version is not a single line
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+FAKE_FAILING_VERSION_MODAL="$(mktemp)"
+cat >"$FAKE_FAILING_VERSION_MODAL" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modal 0.0.0 (@$source_revision)"
+  exit 42
+fi
+echo "failing-version modal test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_FAILING_VERSION_MODAL"
+negative_output="$(
+  MODAL_BIN="$FAKE_FAILING_VERSION_MODAL" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive producer accepted modal version output from a failing command" >&2
+  exit 1
+}
+if ! grep -Fq "command failed while capturing output (status 42):" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the failing modal version command for the wrong reason
+expected: command failed while capturing output (status 42):
 actual:
 $negative_output
 EOF

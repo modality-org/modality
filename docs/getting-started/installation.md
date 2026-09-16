@@ -333,12 +333,13 @@ error instead of archive-only evidence, and proves that a non-executable or
 symlinked `MODALITY_BIN` is rejected before any replay can pass. Smoke replay
 also requires the downloaded `bin/modal --version` output to be one line that
 matches provenance before help-surface or first-contract replay is trusted, and
-requires that `MODALITY_BIN --version`
-return one line that identifies the language CLI with a `modality` prefix and
+requires that `MODALITY_BIN --version` return successfully with one line that
+identifies the language CLI with a `modality` prefix and
 exactly one embedded source revision marker in the supported parenthesized
 `(...@<commit>)` form with no other parenthesized version notes and with the
 marker as the final version metadata, so a helper that omits the revision, only
-prints a matching source revision marker, or appends extra revision notes
+prints a matching source revision marker, exits after printing a plausible
+version, or appends extra revision notes
 cannot anchor first-contract replay evidence.
 When a regular non-symlink executable `MODALITY_BIN` is supplied to the producer smoke, it also
 passes the generated artifact directory back through the downloaded-artifact
