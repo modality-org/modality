@@ -218,6 +218,8 @@ required_patterns=(
   "embedded marker must be a"
   "full commit hash or Git-style short hash"
   "matches the selected source revision"
+  "If the provenance version string carries an embedded revision marker, that"
+  "marker must also be a full commit hash or Git-style short hash"
   "producer derives"
   "source revision from the source checkout"
   "before falling back to embedded"
@@ -229,7 +231,7 @@ required_patterns=(
   "hand-merged provenance"
   "preambles fail"
   "embedded revision marker"
-  "must match the single source revision"
+  "matches the single source revision"
   "stale version metadata still fails"
   "help surface recorded in provenance must also be one of the supported"
   "surfaces"
@@ -715,6 +717,16 @@ fi
 if ! grep -Fq 'release artifact provenance version has multiple revision markers' \
   "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
   echo "release artifact verifier should reject provenance versions with multiple revision markers" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact provenance version revision is not a lowercase hex commit token' \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
+  echo "release artifact verifier should reject malformed provenance version revision tokens" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted provenance version metadata with a malformed revision token' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove malformed provenance version revision tokens are rejected" >&2
   exit 1
 fi
 if ! grep -Fq 'case "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-}" in' \

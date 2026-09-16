@@ -147,8 +147,10 @@ supported wrapper feature sets (`contract-onboarding` or `full`). Its help
 surface must also be one of the supported surfaces (`lean` or `full`) and must
 match the feature set (`contract-onboarding` with `lean`, `full` with `full`).
 If the version string carries an embedded revision marker, that revision must
-match the single source revision recorded by provenance. The replayable
-evidence bundle marker must appear exactly once, and evidence manifest fields
+also be a full commit hash or Git-style short hash of at least seven lowercase
+hexadecimal characters that matches the single source revision recorded by
+provenance. The replayable evidence bundle marker must appear exactly once, and
+evidence manifest fields
 for the artifact, version, source revision, profile, feature set, help surface,
 binary, provenance file, checksum manifest, and post-unpack checks must also be
 single-valued. The recipe artifact section must be present and single-valued.

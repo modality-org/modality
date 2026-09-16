@@ -270,9 +270,10 @@ supplied.
 The provenance marker must also appear exactly once, so hand-merged provenance
 preambles fail before any field values are trusted.
 If the provenance version string carries an embedded revision marker, that
-revision must match the single source revision recorded by provenance, so a
-consistently renamed bundle with stale version metadata still fails before the
-binary is trusted.
+marker must also be a full commit hash or Git-style short hash of at least
+seven lowercase hexadecimal characters that matches the single source revision
+recorded by provenance, so a consistently renamed bundle with malformed or
+stale version metadata still fails before the binary is trusted.
 The help surface recorded in provenance must also be one of the supported
 surfaces (`lean` or `full`), and optional smoke replay checks that the unpacked
 binary reports the exact version named by provenance before checking that exact

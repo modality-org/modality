@@ -278,6 +278,10 @@ revision from the source checkout before falling back to embedded version
 metadata, so a stale `modal --version` marker cannot become self-consistent
 archive provenance just because `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV` was not
 set.
+The downloaded-artifact verifier applies the same Git-token shape check to any
+embedded revision marker in provenance version metadata before accepting a
+matching-prefix revision, so hand-edited markers cannot extend a valid source
+revision with non-hex suffixes.
 The archive producer and downloaded-artifact verifier both fail when the
 advertised help surface does not match the wrapper feature set, so a lean
 contract-onboarding archive cannot be promoted as a full-surface replay bundle
