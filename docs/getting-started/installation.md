@@ -260,13 +260,14 @@ It also requires the packaged `modal --version` output to emit exactly one
 line, including no trailing blank version lines, with at most one embedded
 revision marker, and that marker must use the
 supported parenthesized `(...@<commit>)` form, with no other parenthesized
-version notes, before that value is copied into the archive name, README,
-provenance, evidence manifest, and verification recipe. When present, the
-embedded marker must be a full commit hash or Git-style short hash of at least
-seven lowercase hexadecimal characters that matches the selected source
-revision, so an otherwise valid bundle cannot carry extra hand-written version
-notes or stale version provenance as installer metadata. The producer derives
-that selected source revision from the source checkout before falling back to
+version notes, and with the marker as the final version metadata, before that
+value is copied into the archive name, README, provenance, evidence manifest,
+and verification recipe. When present, the embedded marker must be a full
+commit hash or Git-style short hash of at least seven lowercase hexadecimal
+characters that matches the selected source revision, so an otherwise valid
+bundle cannot carry extra hand-written version notes, trailing version text, or
+stale version provenance as installer metadata. The producer derives that
+selected source revision from the source checkout before falling back to
 embedded version metadata, so a stale `modal --version` marker cannot become
 self-consistent archive provenance just because no expected revision was
 supplied.
@@ -275,9 +276,10 @@ preambles fail before any field values are trusted.
 If the provenance version string carries an embedded revision marker, that
 marker must also be the only parenthesized version metadata and must be a full
 commit hash or Git-style short hash of at least seven lowercase hexadecimal
-characters that matches the single source revision recorded by provenance, so a
-consistently renamed bundle with malformed, annotated, or stale version
-metadata still fails before the binary is trusted.
+characters that matches the single source revision recorded by provenance, and
+it must be the final version metadata, so a consistently renamed bundle with
+malformed, annotated, trailing, or stale version metadata still fails before
+the binary is trusted.
 The help surface recorded in provenance must also be one of the supported
 surfaces (`lean` or `full`), and optional smoke replay checks that the unpacked
 binary reports exactly one version line matching provenance before checking
@@ -334,9 +336,10 @@ matches provenance before help-surface or first-contract replay is trusted, and
 requires that `MODALITY_BIN --version`
 return one line that identifies the language CLI with a `modality` prefix and
 exactly one embedded source revision marker in the supported parenthesized
-`(...@<commit>)` form with no other parenthesized version notes, so a helper
-that omits the revision, only prints a matching source revision marker, or appends extra
-revision notes cannot anchor first-contract replay evidence.
+`(...@<commit>)` form with no other parenthesized version notes and with the
+marker as the final version metadata, so a helper that omits the revision, only
+prints a matching source revision marker, or appends extra revision notes
+cannot anchor first-contract replay evidence.
 When a regular non-symlink executable `MODALITY_BIN` is supplied to the producer smoke, it also
 passes the generated artifact directory back through the downloaded-artifact
 verifier with `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, so the consumer replay path
@@ -347,9 +350,9 @@ claiming same-revision first-contract replay, and both reject expected or
 same-revision language CLI revision tokens shorter than seven hexadecimal
 characters. The producer-side archive smoke now also independently enforces
 the same single-line `modality` prefix and supported-marker shape with no other
-parenthesized version notes before its local first-contract replay, so producer
-evidence does not rely only on the consumer verifier call for language-CLI
-identity.
+parenthesized version notes or trailing marker text before its local
+first-contract replay, so producer evidence does not rely only on the consumer
+verifier call for language-CLI identity.
 The producer-side archive smoke uses the same exact-or-prefix revision match as
 the downloaded-artifact verifier.
 Unsupported smoke flag values now fail, too, including an explicit `0`, instead

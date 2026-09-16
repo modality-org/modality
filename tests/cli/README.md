@@ -150,8 +150,10 @@ match the feature set (`contract-onboarding` with `lean`, `full` with `full`).
 If the version string carries an embedded revision marker, that revision must
 also be the only parenthesized version metadata and must be a full commit hash
 or Git-style short hash of at least seven lowercase hexadecimal characters that
-matches the single source revision recorded by provenance. The replayable
-evidence bundle marker must appear exactly once, and
+matches the single source revision recorded by provenance. The marker must also
+be the final version metadata, so trailing notes after the marker fail before
+installer evidence is accepted. The replayable evidence bundle marker must
+appear exactly once, and
 evidence manifest fields
 for the artifact, version, source revision, profile, feature set, help surface,
 binary, provenance file, checksum manifest, and post-unpack checks must also be
@@ -185,10 +187,11 @@ help-surface or first-contract replay is trusted.
 The supplied `modality` binary must advertise the same source revision as the
 downloaded archive, either exactly or as a matching longer hex prefix for the
 same commit, use the supported parenthesized `(...@<commit>)` marker without
-other parenthesized version notes, and must be executable before replay starts;
-an explicitly set but non-executable `MODALITY_BIN` is an error rather than
-archive-only evidence. The producer-side archive smoke applies the same
-language-CLI version-shape check before local first-contract replay.
+other parenthesized version notes or trailing marker text, and must be
+executable before replay starts; an explicitly set but non-executable
+`MODALITY_BIN` is an error rather than archive-only evidence. The producer-side
+archive smoke applies the same language-CLI version-shape check before local
+first-contract replay.
 
 The archive producer selects the source checkout revision before falling back
 to any embedded `modal --version` revision marker, and its negative corpus

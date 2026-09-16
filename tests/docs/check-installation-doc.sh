@@ -221,11 +221,13 @@ required_patterns=(
   "supported parenthesized \`(...@<commit>)\` form"
   "with no other parenthesized"
   "version notes"
+  "marker as the final version metadata"
+  "trailing version text"
   "embedded marker must be a"
-  "full commit hash or Git-style short hash"
+  "commit hash or Git-style short hash"
   "matches the selected source"
   "only parenthesized version metadata"
-  "malformed, annotated, or stale version"
+  "malformed, annotated, trailing, or stale version"
   "If the provenance version string carries an embedded revision marker, that"
   "marker must also be the only parenthesized version metadata"
   "producer derives"
@@ -347,7 +349,8 @@ required_patterns=(
   "exactly one embedded source revision marker"
   "that omits the revision"
   "appends extra"
-  "revision notes cannot anchor first-contract replay evidence"
+  "cannot anchor first-contract replay evidence"
+  "trailing marker text"
   "When a regular non-symlink executable \`MODALITY_BIN\` is supplied to the producer smoke"
   "passes the generated artifact directory back through the downloaded-artifact"
   "verifier with \`MODAL_ONBOARDING_ARTIFACT_SMOKE=1\`"
@@ -360,9 +363,9 @@ required_patterns=(
   "characters"
   "producer-side archive smoke now also independently enforces"
   "same single-line \`modality\` prefix and supported-marker shape with no other"
-  "parenthesized version notes before its local first-contract replay"
+  "parenthesized version notes or trailing"
   "producer"
-  "evidence does not rely only on the consumer verifier call for language-CLI"
+  "evidence does not rely only"
   "identity"
   "producer-side archive smoke uses the same exact-or-prefix revision match"
   "unsupported"
@@ -434,15 +437,15 @@ tests_readme_patterns=(
   "carries exactly one embedded source revision marker"
   "that omits the revision"
   "parenthesized \`(...@<commit>)\` form"
-  "revision notes cannot satisfy the replay check"
+  "marker cannot satisfy the replay check"
   "treats an explicitly set but non-executable \`MODALITY_BIN\` as an error"
   "of archive-only evidence"
   "symlinked \`MODALITY_BIN\` paths are"
   "rejected before replay"
-  "When a regular non-symlink executable"
+  "regular non-symlink executable"
   "\`MODALITY_BIN\` is available"
   "independently enforces the same single-line \`modality\` prefix and"
-  "supported-marker shape with no other parenthesized version notes before its"
+  "supported-marker shape with no other parenthesized version notes or trailing"
   "local first-contract replay"
   "If \`CARGO_TARGET_DIR\` points at a temporary target"
   "smoke looks for both default binaries under that same target directory"
@@ -609,6 +612,11 @@ if ! grep -Fq 'release archive modal version has an unsupported revision marker'
   echo "release archive producer should reject modal version output with unsupported revision markers" >&2
   exit 1
 fi
+if ! grep -Fq 'release archive modal version revision marker is not final metadata' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should reject modal version output with trailing metadata after the revision marker" >&2
+  exit 1
+fi
 if ! grep -Fq 'archive_listing="$(tar -tzf "$ARCHIVE_PATH")"' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should compare archive member order without sorting" >&2
@@ -627,6 +635,11 @@ fi
 if ! grep -Fq 'release archive producer accepted modal version output with a bare revision marker' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove bare modal version revision markers are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive producer accepted modal version output with trailing metadata after the revision marker' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove trailing modal version metadata is rejected" >&2
   exit 1
 fi
 if ! grep -Fq 'release archive producer accepted modal version output with a too-short revision' \
@@ -694,6 +707,11 @@ if ! grep -Fq 'release archive smoke modality version has unsupported parenthesi
   echo "release archive producer should independently reject parenthesized-note smoke modality versions" >&2
   exit 1
 fi
+if ! grep -Fq 'release archive smoke modality version revision marker is not final metadata' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should independently reject trailing smoke modality version metadata" >&2
+  exit 1
+fi
 if ! grep -Fq 'release archive smoke modality version revision is not a lowercase hex commit token' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should independently reject too-short modality replay revisions" >&2
@@ -759,6 +777,11 @@ if ! grep -Fq 'release artifact smoke modality version has an unsupported revisi
   echo "release artifact verifier should reject smoke modality versions with unsupported revision markers" >&2
   exit 1
 fi
+if ! grep -Fq 'release artifact smoke modality version revision marker is not final metadata' \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
+  echo "release artifact verifier should reject smoke modality versions with trailing metadata after the revision marker" >&2
+  exit 1
+fi
 if ! grep -Fq 'release artifact verifier accepted a modality smoke binary with multiple revision markers' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove extra smoke modality revision markers are rejected" >&2
@@ -769,14 +792,29 @@ if ! grep -Fq 'release artifact verifier accepted a modality smoke binary with a
   echo "release archive producer should prove bare smoke modality revision markers are rejected" >&2
   exit 1
 fi
+if ! grep -Fq 'release artifact verifier accepted a modality smoke binary with trailing metadata after the revision marker' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove trailing smoke modality metadata is rejected" >&2
+  exit 1
+fi
 if ! grep -Fq 'release artifact provenance version has an unsupported revision marker' \
   "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
   echo "release artifact verifier should reject provenance versions with unsupported revision markers" >&2
   exit 1
 fi
+if ! grep -Fq 'release artifact provenance version revision marker is not final metadata' \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
+  echo "release artifact verifier should reject provenance versions with trailing metadata after the revision marker" >&2
+  exit 1
+fi
 if ! grep -Fq 'release artifact verifier accepted provenance version metadata with a bare revision marker' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove bare provenance version revision markers are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted provenance version metadata with trailing text after the revision marker' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove trailing provenance version metadata is rejected" >&2
   exit 1
 fi
 if ! grep -Fq 'release artifact provenance version has multiple revision markers' \

@@ -95,6 +95,7 @@ version_output="${captured_output_lines[0]}"
 version_revision_marker_count="$(
   grep -Eo '\([^)]*@[^)]+\)' <<<"$version_output" | wc -l || true
 )"
+final_revision_marker_pattern='\([^)]*@[^)]+\)$'
 version_parenthesized_group_count="$(
   grep -Eo '\([^)]*\)' <<<"$version_output" | wc -l || true
 )"
@@ -126,6 +127,17 @@ actual version:
 $version_output
 
 Use at most one parenthesized source revision marker ending in @<commit>.
+EOF
+  exit 1
+fi
+if [[ "$version_revision_marker_count" -eq 1 &&
+  ! "$version_output" =~ $final_revision_marker_pattern ]]; then
+  cat >&2 <<EOF
+release archive modal version revision marker is not final metadata
+actual version:
+$version_output
+
+End the version line with the supported parenthesized source revision marker.
 EOF
   exit 1
 fi
@@ -188,6 +200,7 @@ EOF
   modality_revision_marker_count="$(
     grep -Eo '\([^)]*@[^)]+\)' <<<"$modality_version" | wc -l || true
   )"
+  local final_revision_marker_pattern='\([^)]*@[^)]+\)$'
   modality_parenthesized_group_count="$(
     grep -Eo '\([^)]*\)' <<<"$modality_version" | wc -l || true
   )"
@@ -219,6 +232,17 @@ expected revision: $source_revision
 actual version:    $modality_version
 
 Use at most one parenthesized source revision marker ending in @<commit>.
+EOF
+    return 1
+  fi
+  if [[ "$modality_revision_marker_count" -eq 1 &&
+    ! "$modality_version" =~ $final_revision_marker_pattern ]]; then
+    cat >&2 <<EOF
+release archive smoke modality version revision marker is not final metadata
+expected revision: $source_revision
+actual version:    $modality_version
+
+End the version line with the supported parenthesized source revision marker.
 EOF
     return 1
   fi
@@ -798,6 +822,35 @@ $negative_output
 EOF
   exit 1
 fi
+FAKE_TRAILING_NOTE_MODALITY="$(mktemp)"
+cat >"$FAKE_TRAILING_NOTE_MODALITY" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modality 0.0.0 (@$source_revision) stale trailing note"
+  exit 0
+fi
+echo "trailing-note modality test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_TRAILING_NOTE_MODALITY"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_SMOKE=1 \
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+  MODALITY_BIN="$FAKE_TRAILING_NOTE_MODALITY" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a modality smoke binary with trailing metadata after the revision marker" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact smoke modality version revision marker is not final metadata" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the trailing-note modality smoke version for the wrong reason
+expected: release artifact smoke modality version revision marker is not final metadata
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 FAKE_PREFIX_MODALITY="$(mktemp)"
 cat >"$FAKE_PREFIX_MODALITY" <<EOF
 #!/usr/bin/env bash
@@ -1037,6 +1090,33 @@ if ! grep -Fq "release archive modal version has unsupported parenthesized metad
   cat >&2 <<EOF
 release archive producer rejected the parenthesized-note modal version for the wrong reason
 expected: release archive modal version has unsupported parenthesized metadata
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+FAKE_TRAILING_NOTE_MODAL="$(mktemp)"
+cat >"$FAKE_TRAILING_NOTE_MODAL" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modal 0.0.0 (@$source_revision) stale trailing note"
+  exit 0
+fi
+echo "trailing-note modal test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_TRAILING_NOTE_MODAL"
+negative_output="$(
+  MODAL_BIN="$FAKE_TRAILING_NOTE_MODAL" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive producer accepted modal version output with trailing metadata after the revision marker" >&2
+  exit 1
+}
+if ! grep -Fq "release archive modal version revision marker is not final metadata" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the trailing-note modal version for the wrong reason
+expected: release archive modal version revision marker is not final metadata
 actual:
 $negative_output
 EOF
@@ -2875,6 +2955,60 @@ if ! grep -Fq "release artifact provenance version has unsupported parenthesized
   cat >&2 <<EOF
 release artifact verifier rejected the parenthesized-note version artifact for the wrong reason
 expected: release artifact provenance version has unsupported parenthesized metadata
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_STAGE_DIR"
+NEGATIVE_STAGE_DIR=""
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+trailing_note_version_output="$version_output stale trailing note"
+trailing_note_version_slug="$(
+  printf '%s' "${trailing_note_version_output#modal }" |
+    tr '[:upper:]' '[:lower:]' |
+    sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//'
+)"
+trailing_note_archive_name="modal-${trailing_note_version_slug}-${os}-${arch}-${PROFILE}.tar.gz"
+NEGATIVE_STAGE_DIR="$(mktemp -d)"
+mkdir -p "$NEGATIVE_STAGE_DIR/bin"
+cp "$STAGE_DIR/bin/modal" "$NEGATIVE_STAGE_DIR/bin/modal"
+sed "s/^version: .*$/version: $trailing_note_version_output/" \
+  "$STAGE_DIR/README.txt" >"$NEGATIVE_STAGE_DIR/README.txt"
+sed "s/^version: .*$/version: $trailing_note_version_output/" \
+  "$STAGE_DIR/PROVENANCE.txt" >"$NEGATIVE_STAGE_DIR/PROVENANCE.txt"
+sed "s/artifact: $archive_name/artifact: $trailing_note_archive_name/" \
+  "$STAGE_DIR/EVIDENCE-BUNDLE.txt" >"$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+chmod 0755 "$NEGATIVE_STAGE_DIR/bin/modal"
+chmod 0644 \
+  "$NEGATIVE_STAGE_DIR/README.txt" \
+  "$NEGATIVE_STAGE_DIR/PROVENANCE.txt" \
+  "$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+(
+  cd "$NEGATIVE_STAGE_DIR"
+  sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
+  chmod 0644 SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$trailing_note_archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+)
+(
+  cd "$NEGATIVE_ARTIFACT_DIR"
+  sha256sum "$trailing_note_archive_name" >"$trailing_note_archive_name.sha256"
+)
+sed "s/$archive_name/$trailing_note_archive_name/g" "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" \
+  >"$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted provenance version metadata with trailing text after the revision marker" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact provenance version revision marker is not final metadata" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the trailing-note version artifact for the wrong reason
+expected: release artifact provenance version revision marker is not final metadata
 actual:
 $negative_output
 EOF

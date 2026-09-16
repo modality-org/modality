@@ -267,23 +267,25 @@ a longer matching hex prefix for the same commit is accepted. The version output
 must also be a single line that identifies the language CLI with the `modality`
 prefix and carries exactly one embedded source revision marker in the supported
 parenthesized `(...@<commit>)` form, so a helper that omits the revision, only
-prints a matching revision marker, or appends extra
-revision notes cannot satisfy the replay check.
+prints a matching revision marker, or appends extra revision notes after the
+marker cannot satisfy the replay check.
 The archive producer also requires the packaged `modal --version` output to
 emit exactly one line with at most one embedded revision marker in the same
-supported form and no other parenthesized version notes before copying it into
-archive metadata, so extra version notes cannot become release evidence. When
-present, that embedded marker must also be a full commit hash or Git-style
-short hash of at least seven lowercase hexadecimal characters that matches the
-selected source revision, so stale version provenance cannot be packaged as
-release evidence. The producer derives that selected source revision from the
-source checkout before falling back to embedded version metadata, so a stale
-`modal --version` marker cannot become self-consistent archive provenance just
-because `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV` was not set.
+supported form, no other parenthesized version notes, and no trailing marker
+text before copying it into archive metadata, so extra version notes cannot
+become release evidence. When present, that embedded marker must also be a full
+commit hash or Git-style short hash of at least seven lowercase hexadecimal
+characters that matches the selected source revision, so stale version
+provenance cannot be packaged as release evidence. The producer derives that
+selected source revision from the source checkout before falling back to
+embedded version metadata, so a stale `modal --version` marker cannot become
+self-consistent archive provenance just because `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV`
+was not set.
 The downloaded-artifact verifier applies the same Git-token shape check to any
 embedded revision marker in provenance version metadata, and rejects other
-parenthesized version notes, before accepting a matching-prefix revision, so
-hand-edited markers cannot extend a valid source revision with non-hex suffixes.
+parenthesized version notes or trailing marker text, before accepting a
+matching-prefix revision, so hand-edited markers cannot extend a valid source
+revision with non-hex suffixes.
 The archive producer and downloaded-artifact verifier both fail when the
 advertised help surface does not match the wrapper feature set, so a lean
 contract-onboarding archive cannot be promoted as a full-surface replay bundle
@@ -297,8 +299,9 @@ treats an explicitly set but non-executable `MODALITY_BIN` as an error instead
 of archive-only evidence, proves that symlinked `MODALITY_BIN` paths are
 rejected before replay, and it
 independently enforces the same single-line `modality` prefix and
-supported-marker shape with no other parenthesized version notes before its
-local first-contract replay. When a regular non-symlink executable
+supported-marker shape with no other parenthesized version notes or trailing
+marker text before its local first-contract replay. When a regular
+non-symlink executable
 `MODALITY_BIN` is available, the producer smoke also runs
 the generated artifact directory through the downloaded-artifact verifier with
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, so the consumer replay path is proved with

@@ -394,6 +394,7 @@ provenance_help_surface="$(read_provenance_field "help surface")"
 provenance_os="$(read_provenance_field "os")"
 provenance_arch="$(read_provenance_field "arch")"
 version_revision_pattern='\([^)]*@([^)]+)\)'
+final_revision_marker_pattern='\([^)]*@[^)]+\)$'
 provenance_version_revision_marker_count="$(
   grep -Eo '\([^)]*@[^)]+\)' <<<"$provenance_version" | wc -l || true
 )"
@@ -428,6 +429,17 @@ version: $provenance_version
 source revision:  $provenance_revision
 
 Use at most one parenthesized source revision marker ending in @<commit>.
+EOF
+  exit 1
+fi
+if [[ "$provenance_version_revision_marker_count" -eq 1 &&
+  ! "$provenance_version" =~ $final_revision_marker_pattern ]]; then
+  cat >&2 <<EOF
+release artifact provenance version revision marker is not final metadata
+version: $provenance_version
+source revision:  $provenance_revision
+
+End the version line with the supported parenthesized source revision marker.
 EOF
   exit 1
 fi
@@ -1000,6 +1012,7 @@ EOF
       ;;
   esac
   modality_revision_pattern='\([^)]*@([^)]+)\)'
+  final_revision_marker_pattern='\([^)]*@[^)]+\)$'
   modality_revision_marker_count="$(
     grep -Eo '\([^)]*@[^)]+\)' <<<"$modality_version" | wc -l || true
   )"
@@ -1034,6 +1047,17 @@ expected revision: $provenance_revision
 actual version:    $modality_version
 
 Use at most one parenthesized source revision marker ending in @<commit>.
+EOF
+    exit 1
+  fi
+  if [[ "$modality_revision_marker_count" -eq 1 &&
+    ! "$modality_version" =~ $final_revision_marker_pattern ]]; then
+    cat >&2 <<EOF
+release artifact smoke modality version revision marker is not final metadata
+expected revision: $provenance_revision
+actual version:    $modality_version
+
+End the version line with the supported parenthesized source revision marker.
 EOF
     exit 1
   fi
