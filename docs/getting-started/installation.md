@@ -256,8 +256,9 @@ archives must advertise the full help surface.
 The producer-side archive smoke also proves that a regular but non-executable
 `MODAL_BIN` fails before any version metadata can be copied into release
 evidence, matching the symlinked-binary guard for the packaged wrapper.
-It also requires the packaged `modal --version` output to be one line with
-at most one embedded revision marker, and that marker must use the
+It also requires the packaged `modal --version` output to emit exactly one
+line, including no trailing blank version lines, with at most one embedded
+revision marker, and that marker must use the
 supported parenthesized `(...@<commit>)` form,
 before that value is copied into the archive name, README, provenance, evidence
 manifest, and verification recipe. When present, the embedded marker must be a
@@ -278,8 +279,8 @@ recorded by provenance, so a consistently renamed bundle with malformed or
 stale version metadata still fails before the binary is trusted.
 The help surface recorded in provenance must also be one of the supported
 surfaces (`lean` or `full`), and optional smoke replay checks that the unpacked
-binary reports the exact version named by provenance before checking that exact
-help surface instead of assuming a default. A consistently edited README,
+binary reports exactly one version line matching provenance before checking
+that exact help surface instead of assuming a default. A consistently edited README,
 provenance file, and recipe that invent a new surface still fails before the
 binary is trusted.
 The README artifact marker must appear exactly once, and the README must repeat

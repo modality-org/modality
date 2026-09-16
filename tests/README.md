@@ -257,9 +257,9 @@ workflow artifact against one exact source revision. Set
 verification. An explicit `0` is rejected as an unsupported smoke flag so a
 mistyped replay request cannot be counted as archive-only evidence. When smoke
 replay is enabled, the verifier checks that the downloaded binary's reported
-version is a single line and matches provenance, replays the selected help
-surface, checks the same-revision `modality` CLI, and runs the first-contract
-smoke. The supplied
+version emits exactly one line, including no trailing blank version lines, and
+matches provenance, replays the selected help surface, checks the same-revision
+`modality` CLI, and runs the first-contract smoke. The supplied
 `modality` binary must advertise the same source revision as the downloaded
 archive with a full commit hash or Git-style short hash of at least seven
 lowercase hexadecimal characters, and must be a regular non-symlink executable before replay starts;
@@ -269,8 +269,8 @@ prefix and carries exactly one embedded source revision marker in the supported
 parenthesized `(...@<commit>)` form, so a helper that omits the revision, only
 prints a matching revision marker, or appends extra
 revision notes cannot satisfy the replay check.
-The archive producer also requires the packaged `modal --version` output to be
-one line with at most one embedded revision marker in the same supported form
+The archive producer also requires the packaged `modal --version` output to
+emit exactly one line with at most one embedded revision marker in the same supported form
 before copying it into archive metadata, so extra version notes cannot become
 release evidence. When present, that embedded marker must also be a full commit
 hash or Git-style short hash of at least seven lowercase hexadecimal characters

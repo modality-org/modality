@@ -214,8 +214,10 @@ required_patterns=(
   "producer-side archive smoke also proves that a regular but non-executable"
   "\`MODAL_BIN\` fails before any version metadata can be copied into release"
   "matching the symlinked-binary guard for the packaged wrapper"
-  "packaged \`modal --version\` output to be one line"
-  "at most one embedded revision marker"
+  "packaged \`modal --version\` output to emit exactly one"
+  "including no trailing blank version lines"
+  "with at most one embedded"
+  "revision marker"
   "supported parenthesized \`(...@<commit>)\` form"
   "embedded marker must be a"
   "full commit hash or Git-style short hash"
@@ -239,8 +241,8 @@ required_patterns=(
   "surfaces"
   "\`lean\` or \`full\`"
   "optional smoke replay checks that the unpacked"
-  "binary reports the exact version named by provenance"
-  "before checking that exact"
+  "binary reports exactly one version line matching provenance"
+  "before checking"
   "help surface instead of assuming a default"
   "A consistently edited README,"
   "provenance file, and recipe that invent a new surface"
@@ -417,10 +419,11 @@ tests_readme_patterns=(
   "symlinked unpacked \`bin/\` directory"
   "only with a regular non-symlink"
   "\`MODALITY_BIN=/path/to/modality\`"
-  "archive producer also requires the packaged \`modal --version\` output to be"
-  "one line with at most one embedded revision marker in the same supported form"
+  "archive producer also requires the packaged \`modal --version\` output to"
+  "emit exactly one line with at most one embedded revision marker in the same supported form"
   "must also be a single line that identifies the language CLI with the \`modality\`"
-  "version is a single line and matches provenance"
+  "version emits exactly one line"
+  "including no trailing blank version lines"
   "carries exactly one embedded source revision marker"
   "helper that omits the revision"
   "parenthesized \`(...@<commit>)\` form"
@@ -478,11 +481,15 @@ for source_doc in "$ROOT_DIR/tests/README.md" "$ROOT_DIR/tests/cli/README.md"; d
   fi
 done
 
-if ! grep -Fq "downloaded binary's version output must be a single line" "$ROOT_DIR/tests/cli/README.md"; then
-  echo "CLI tests README is missing downloaded binary single-line version wording" >&2
+if ! grep -Fq "downloaded binary's version output must emit exactly one" "$ROOT_DIR/tests/cli/README.md"; then
+  echo "CLI tests README is missing downloaded binary exact-line version wording" >&2
   exit 1
 fi
-if ! grep -Fq "and match provenance before help-surface or first-contract replay is trusted" "$ROOT_DIR/tests/cli/README.md"; then
+if ! grep -Fq "trailing blank version lines" "$ROOT_DIR/tests/cli/README.md"; then
+  echo "CLI tests README is missing trailing-blank version wording" >&2
+  exit 1
+fi
+if ! grep -Fq "match provenance before" "$ROOT_DIR/tests/cli/README.md"; then
   echo "CLI tests README is missing downloaded binary provenance-match wording" >&2
   exit 1
 fi
@@ -574,9 +581,14 @@ if ! grep -Fq '[[ -n "$value" && ! "$value" =~ ^[0-9a-f]{7,40}$ ]]' \
   echo "release archive producer should reject too-short expected revisions" >&2
   exit 1
 fi
-if ! grep -Fq '[[ "$version_output" == *$'\''\n'\''* ]]' \
+if ! grep -Fq 'capture_command_output_lines "$MODAL_BIN" --version' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
-  echo "release archive producer should reject multi-line modal version output" >&2
+  echo "release archive producer should capture exact modal version lines" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive producer accepted modal version output with a trailing blank line' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove trailing-blank modal versions are rejected" >&2
   exit 1
 fi
 if ! grep -Fq 'release archive modal version has multiple revision markers' \
@@ -712,6 +724,11 @@ fi
 if ! grep -Fq 'release artifact verifier accepted a modality smoke binary with multi-line version output' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove multi-line smoke modality versions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted an unpacked modal binary with a trailing blank version line' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove trailing-blank unpacked modal versions are rejected" >&2
   exit 1
 fi
 if ! grep -Fq 'release artifact smoke modality version has multiple revision markers' \

@@ -73,6 +73,22 @@ revisions_match() {
   local actual="$2"
   [[ "$expected" == "$actual" || "$actual" == "$expected"* || "$expected" == "$actual"* ]]
 }
+capture_command_output_lines() {
+  local output_path
+  local status
+  output_path="$(mktemp)"
+  if ! "$@" >"$output_path"; then
+    status=$?
+    cat "$output_path" >&2 || true
+    rm -f "$output_path"
+    return "$status"
+  fi
+  mapfile -t captured_output_lines <"$output_path"
+  rm -f "$output_path"
+}
+captured_output_as_text() {
+  printf '%s\n' "${captured_output_lines[@]}"
+}
 if [[ -n "${MODAL_ONBOARDING_ARTIFACT_EXPECT_REV:-}" ]] &&
   [[ ! "$MODAL_ONBOARDING_ARTIFACT_EXPECT_REV" =~ ^[0-9a-f]{7,40}$ ]]; then
   cat >&2 <<EOF
@@ -921,8 +937,9 @@ the first-contract smoke against the unpacked modal binary.
 EOF
     exit 2
   fi
-  unpacked_version="$("$unpack_dir/bin/modal" --version)"
-  if [[ "$unpacked_version" == *$'\n'* ]]; then
+  capture_command_output_lines "$unpack_dir/bin/modal" --version
+  if [[ "${#captured_output_lines[@]}" -ne 1 ]]; then
+    unpacked_version="$(captured_output_as_text)"
     cat >&2 <<EOF
 release artifact unpacked modal version is not a single line
 expected: $provenance_version
@@ -931,6 +948,7 @@ $unpacked_version
 EOF
     exit 1
   fi
+  unpacked_version="${captured_output_lines[0]}"
   if [[ "$unpacked_version" != "$provenance_version" ]]; then
     cat >&2 <<EOF
 release artifact unpacked modal version does not match provenance
@@ -941,8 +959,9 @@ EOF
   fi
   MODAL_BIN="$unpack_dir/bin/modal" MODAL_HELP_SURFACE="$provenance_help_surface" \
     "$ROOT_DIR/tests/cli/check-modal-help-surface.sh"
-  modality_version="$("$MODALITY_BIN" --version)"
-  if [[ "$modality_version" == *$'\n'* ]]; then
+  capture_command_output_lines "$MODALITY_BIN" --version
+  if [[ "${#captured_output_lines[@]}" -ne 1 ]]; then
+    modality_version="$(captured_output_as_text)"
     cat >&2 <<EOF
 release artifact smoke modality version is not a single line
 expected revision: $provenance_revision
@@ -951,6 +970,7 @@ $modality_version
 EOF
     exit 1
   fi
+  modality_version="${captured_output_lines[0]}"
   case "$modality_version" in
     modality\ *)
       ;;

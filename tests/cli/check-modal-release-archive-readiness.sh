@@ -64,8 +64,26 @@ EOF
   exit 2
 fi
 
-version_output="$("$MODAL_BIN" --version)"
-if [[ "$version_output" == *$'\n'* ]]; then
+capture_command_output_lines() {
+  local output_path
+  local status
+  output_path="$(mktemp)"
+  if ! "$@" >"$output_path"; then
+    status=$?
+    cat "$output_path" >&2 || true
+    rm -f "$output_path"
+    return "$status"
+  fi
+  mapfile -t captured_output_lines <"$output_path"
+  rm -f "$output_path"
+}
+captured_output_as_text() {
+  printf '%s\n' "${captured_output_lines[@]}"
+}
+
+capture_command_output_lines "$MODAL_BIN" --version
+if [[ "${#captured_output_lines[@]}" -ne 1 ]]; then
+  version_output="$(captured_output_as_text)"
   cat >&2 <<EOF
 release archive modal version is not a single line
 actual version:
@@ -73,6 +91,7 @@ $version_output
 EOF
   exit 1
 fi
+version_output="${captured_output_lines[0]}"
 version_revision_marker_count="$(
   grep -Eo '\([^)]*@[^)]+\)' <<<"$version_output" | wc -l || true
 )"
@@ -761,6 +780,33 @@ if ! grep -Fq "release archive readiness check needs a regular non-symlink modal
   cat >&2 <<EOF
 release archive producer rejected the symlinked modal binary for the wrong reason
 expected: release archive readiness check needs a regular non-symlink modal binary
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+FAKE_TRAILING_BLANK_MODAL="$(mktemp)"
+cat >"$FAKE_TRAILING_BLANK_MODAL" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  printf '%s\\n\\n' "modal 0.0.0 (@$source_revision)"
+  exit 0
+fi
+echo "trailing-blank modal test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_TRAILING_BLANK_MODAL"
+negative_output="$(
+  MODAL_BIN="$FAKE_TRAILING_BLANK_MODAL" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive producer accepted modal version output with a trailing blank line" >&2
+  exit 1
+}
+if ! grep -Fq "release archive modal version is not a single line" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the trailing-blank modal version for the wrong reason
+expected: release archive modal version is not a single line
 actual:
 $negative_output
 EOF
@@ -2760,6 +2806,59 @@ rm -rf "$NEGATIVE_STAGE_DIR"
 NEGATIVE_STAGE_DIR=""
 rm -rf "$NEGATIVE_ARTIFACT_DIR"
 NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+NEGATIVE_STAGE_DIR="$(mktemp -d)"
+mkdir -p "$NEGATIVE_STAGE_DIR/bin"
+cat >"$NEGATIVE_STAGE_DIR/bin/modal" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  printf '%s\\n\\n' "$version_output"
+  exit 0
+fi
+echo "trailing-blank modal test double" >&2
+exit 1
+EOF
+cp "$STAGE_DIR/README.txt" "$NEGATIVE_STAGE_DIR/README.txt"
+cp "$STAGE_DIR/PROVENANCE.txt" "$NEGATIVE_STAGE_DIR/PROVENANCE.txt"
+cp "$STAGE_DIR/EVIDENCE-BUNDLE.txt" "$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+chmod 0755 "$NEGATIVE_STAGE_DIR/bin/modal"
+chmod 0644 \
+  "$NEGATIVE_STAGE_DIR/README.txt" \
+  "$NEGATIVE_STAGE_DIR/PROVENANCE.txt" \
+  "$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+(
+  cd "$NEGATIVE_STAGE_DIR"
+  sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
+  chmod 0644 SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+)
+(
+  cd "$NEGATIVE_ARTIFACT_DIR"
+  sha256sum "$archive_name" >"$archive_name.sha256"
+)
+cp "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" "$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_SMOKE=1 \
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+  MODALITY_BIN="$STAGE_DIR/bin/modal" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted an unpacked modal binary with a trailing blank version line" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact unpacked modal version is not a single line" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the trailing-blank unpacked modal version for the wrong reason
+expected: release artifact unpacked modal version is not a single line
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_STAGE_DIR"
+NEGATIVE_STAGE_DIR=""
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
 unsupported_arch="${arch}+stale"
 unsupported_arch_archive_name="modal-${version_slug}-${os}-${unsupported_arch}-${PROFILE}.tar.gz"
 NEGATIVE_STAGE_DIR="$(mktemp -d)"
@@ -3512,7 +3611,18 @@ if [[ ! -x "$UNPACKED_MODAL" ]]; then
   exit 1
 fi
 
-unpacked_version="$("$UNPACKED_MODAL" --version)"
+capture_command_output_lines "$UNPACKED_MODAL" --version
+if [[ "${#captured_output_lines[@]}" -ne 1 ]]; then
+  unpacked_version="$(captured_output_as_text)"
+  cat >&2 <<EOF
+release archive unpacked modal version is not a single line
+expected: $version_output
+actual:
+$unpacked_version
+EOF
+  exit 1
+fi
+unpacked_version="${captured_output_lines[0]}"
 if [[ "$unpacked_version" != "$version_output" ]]; then
   echo "unpacked modal version changed: $unpacked_version (expected $version_output)" >&2
   exit 1
@@ -3532,8 +3642,9 @@ the first-contract smoke against the unpacked modal binary.
 EOF
     exit 2
   fi
-  modality_version="$("$MODALITY_BIN" --version)"
-  if [[ "$modality_version" == *$'\n'* ]]; then
+  capture_command_output_lines "$MODALITY_BIN" --version
+  if [[ "${#captured_output_lines[@]}" -ne 1 ]]; then
+    modality_version="$(captured_output_as_text)"
     cat >&2 <<EOF
 release archive smoke modality version is not a single line
 expected revision: $source_revision
@@ -3542,6 +3653,7 @@ $modality_version
 EOF
     exit 1
   fi
+  modality_version="${captured_output_lines[0]}"
   case "$modality_version" in
     modality\ *)
       ;;

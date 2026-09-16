@@ -178,8 +178,9 @@ must fail unless its provenance names one exact source revision. Set
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1` only with
 `MODALITY_BIN=/path/to/modality`; the verifier then runs the version,
 help-surface, same-revision language CLI, and first-contract checks against the
-downloaded binary. The downloaded binary's version output must be a single line
-and match provenance before help-surface or first-contract replay is trusted.
+downloaded binary. The downloaded binary's version output must emit exactly one
+line, including no trailing blank version lines, and match provenance before
+help-surface or first-contract replay is trusted.
 The supplied `modality` binary must advertise the same source revision as the
 downloaded archive, either exactly or as a matching longer hex prefix for the
 same commit, and must be executable before replay starts; an explicitly set but
