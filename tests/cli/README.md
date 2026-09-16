@@ -184,8 +184,11 @@ line, including no trailing blank version lines, and match provenance before
 help-surface or first-contract replay is trusted.
 The supplied `modality` binary must advertise the same source revision as the
 downloaded archive, either exactly or as a matching longer hex prefix for the
-same commit, and must be executable before replay starts; an explicitly set but
-non-executable `MODALITY_BIN` is an error rather than archive-only evidence.
+same commit, use the supported parenthesized `(...@<commit>)` marker without
+other parenthesized version notes, and must be executable before replay starts;
+an explicitly set but non-executable `MODALITY_BIN` is an error rather than
+archive-only evidence. The producer-side archive smoke applies the same
+language-CLI version-shape check before local first-contract replay.
 
 The archive producer selects the source checkout revision before falling back
 to any embedded `modal --version` revision marker, and its negative corpus

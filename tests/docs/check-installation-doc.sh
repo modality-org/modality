@@ -359,9 +359,11 @@ required_patterns=(
   "same-revision language CLI revision tokens shorter than seven hexadecimal"
   "characters"
   "producer-side archive smoke now also independently enforces"
-  "same single-line \`modality\` prefix and supported-marker shape"
-  "producer evidence does not rely only on the"
-  "consumer verifier call for language-CLI identity"
+  "same single-line \`modality\` prefix and supported-marker shape with no other"
+  "parenthesized version notes before its local first-contract replay"
+  "producer"
+  "evidence does not rely only on the consumer verifier call for language-CLI"
+  "identity"
   "producer-side archive smoke uses the same exact-or-prefix revision match"
   "unsupported"
   "smoke flag values now fail"
@@ -437,10 +439,11 @@ tests_readme_patterns=(
   "of archive-only evidence"
   "symlinked \`MODALITY_BIN\` paths are"
   "rejected before replay"
-  "When a regular"
-  "non-symlink executable \`MODALITY_BIN\` is available"
+  "When a regular non-symlink executable"
+  "\`MODALITY_BIN\` is available"
   "independently enforces the same single-line \`modality\` prefix and"
-  "supported-marker shape before its local first-contract replay"
+  "supported-marker shape with no other parenthesized version notes before its"
+  "local first-contract replay"
   "If \`CARGO_TARGET_DIR\` points at a temporary target"
   "smoke looks for both default binaries under that same target directory"
   "CARGO_TARGET_DIR=/path/to/temp-target MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 MODAL_ONBOARDING_PROFILE=release MODAL_ONBOARDING_ARCHIVE_CHECK=1 tests/run-onboarding-smokes.sh"
@@ -679,6 +682,16 @@ fi
 if ! grep -Fq 'release archive smoke modality version has multiple revision markers' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should independently reject modality replay binaries with extra revision markers" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive producer accepted modality smoke version output with non-revision parenthesized metadata' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove parenthesized-note smoke modality versions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive smoke modality version has unsupported parenthesized metadata' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should independently reject parenthesized-note smoke modality versions" >&2
   exit 1
 fi
 if ! grep -Fq 'release archive smoke modality version revision is not a lowercase hex commit token' \

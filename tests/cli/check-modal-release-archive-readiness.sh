@@ -161,6 +161,96 @@ revisions_match() {
   local actual="$2"
   [[ "$expected" == "$actual" || "$actual" == "$expected"* || "$expected" == "$actual"* ]]
 }
+check_smoke_modality_version_output() {
+  local modality_version="$1"
+  local source_revision="$2"
+  local modality_revision_pattern='\([^)]*@([^)]+)\)'
+  local modality_revision_marker_count
+  local modality_parenthesized_group_count
+  local modality_revision_at_count
+  local modality_revision
+
+  case "$modality_version" in
+    modality\ *)
+      ;;
+    *)
+      cat >&2 <<EOF
+release archive smoke modality binary reported an unexpected version prefix
+expected prefix: modality
+actual version:  $modality_version
+
+Set MODALITY_BIN=/path/to/modality built from the same source revision to run
+the first-contract smoke against the unpacked modal binary.
+EOF
+      return 1
+      ;;
+  esac
+  modality_revision_marker_count="$(
+    grep -Eo '\([^)]*@[^)]+\)' <<<"$modality_version" | wc -l || true
+  )"
+  modality_parenthesized_group_count="$(
+    grep -Eo '\([^)]*\)' <<<"$modality_version" | wc -l || true
+  )"
+  modality_revision_at_count="$(
+    grep -o '@' <<<"$modality_version" | wc -l || true
+  )"
+  if [[ "$modality_revision_marker_count" -gt 1 ]]; then
+    cat >&2 <<EOF
+release archive smoke modality version has multiple revision markers
+expected revision: $source_revision
+actual version:    $modality_version
+EOF
+    return 1
+  fi
+  if [[ "$modality_parenthesized_group_count" -ne "$modality_revision_marker_count" ]]; then
+    cat >&2 <<EOF
+release archive smoke modality version has unsupported parenthesized metadata
+expected revision: $source_revision
+actual version:    $modality_version
+
+Use only the supported parenthesized source revision marker ending in @<commit>.
+EOF
+    return 1
+  fi
+  if [[ "$modality_revision_at_count" -ne "$modality_revision_marker_count" ]]; then
+    cat >&2 <<EOF
+release archive smoke modality version has an unsupported revision marker
+expected revision: $source_revision
+actual version:    $modality_version
+
+Use at most one parenthesized source revision marker ending in @<commit>.
+EOF
+    return 1
+  fi
+  if [[ ! "$modality_version" =~ $modality_revision_pattern ]]; then
+    cat >&2 <<EOF
+release archive smoke modality version does not include a source revision
+expected revision: $source_revision
+actual version:    $modality_version
+EOF
+    return 1
+  fi
+  modality_revision="${BASH_REMATCH[1]}"
+  if [[ ! "$modality_revision" =~ ^[0-9a-f]{7,40}$ ]]; then
+    cat >&2 <<EOF
+release archive smoke modality version revision is not a lowercase hex commit token
+expected revision: $source_revision
+actual version:    $modality_version
+
+Build modality from a Git checkout that reports a full commit hash or an
+unambiguous Git-style short hash of at least seven hexadecimal characters.
+EOF
+    return 1
+  fi
+  if ! revisions_match "$source_revision" "$modality_revision"; then
+    cat >&2 <<EOF
+release archive smoke modality version does not match source revision
+expected revision: $source_revision
+actual version:    $modality_version
+EOF
+    return 1
+  fi
+}
 check_expected_revision() {
   local name="$1"
   local value="$2"
@@ -283,6 +373,23 @@ source revision: $source_revision
 EOF
     exit 1
   fi
+fi
+negative_output="$(
+  check_smoke_modality_version_output \
+    "modality 0.0.0 (local build) (@$source_revision)" \
+    "$source_revision" 2>&1
+)" && {
+  echo "release archive producer accepted modality smoke version output with non-revision parenthesized metadata" >&2
+  exit 1
+}
+if ! grep -Fq "release archive smoke modality version has unsupported parenthesized metadata" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the parenthesized-note modality smoke version for the wrong reason
+expected: release archive smoke modality version has unsupported parenthesized metadata
+actual:
+$negative_output
+EOF
+  exit 1
 fi
 
 if [[ -n "${MODAL_ONBOARDING_ARCHIVE_DIR:-}" ]]; then
@@ -3777,74 +3884,7 @@ EOF
     exit 1
   fi
   modality_version="${captured_output_lines[0]}"
-  case "$modality_version" in
-    modality\ *)
-      ;;
-    *)
-      cat >&2 <<EOF
-release archive smoke modality binary reported an unexpected version prefix
-expected prefix: modality
-actual version:  $modality_version
-
-Set MODALITY_BIN=/path/to/modality built from the same source revision to run
-the first-contract smoke against the unpacked modal binary.
-EOF
-      exit 1
-      ;;
-  esac
-  modality_revision_pattern='\([^)]*@([^)]+)\)'
-  modality_revision_marker_count="$(
-    grep -Eo '\([^)]*@[^)]+\)' <<<"$modality_version" | wc -l || true
-  )"
-  modality_revision_at_count="$(
-    grep -o '@' <<<"$modality_version" | wc -l || true
-  )"
-  if [[ "$modality_revision_marker_count" -gt 1 ]]; then
-    cat >&2 <<EOF
-release archive smoke modality version has multiple revision markers
-expected revision: $source_revision
-actual version:    $modality_version
-EOF
-    exit 1
-  fi
-  if [[ "$modality_revision_at_count" -ne "$modality_revision_marker_count" ]]; then
-    cat >&2 <<EOF
-release archive smoke modality version has an unsupported revision marker
-expected revision: $source_revision
-actual version:    $modality_version
-
-Use at most one parenthesized source revision marker ending in @<commit>.
-EOF
-    exit 1
-  fi
-  if [[ ! "$modality_version" =~ $modality_revision_pattern ]]; then
-    cat >&2 <<EOF
-release archive smoke modality version does not include a source revision
-expected revision: $source_revision
-actual version:    $modality_version
-EOF
-    exit 1
-  fi
-  modality_revision="${BASH_REMATCH[1]}"
-  if [[ ! "$modality_revision" =~ ^[0-9a-f]{7,40}$ ]]; then
-    cat >&2 <<EOF
-release archive smoke modality version revision is not a lowercase hex commit token
-expected revision: $source_revision
-actual version:    $modality_version
-
-Build modality from a Git checkout that reports a full commit hash or an
-unambiguous Git-style short hash of at least seven hexadecimal characters.
-EOF
-    exit 1
-  fi
-  if ! revisions_match "$source_revision" "$modality_revision"; then
-    cat >&2 <<EOF
-release archive smoke modality version does not match source revision
-expected revision: $source_revision
-actual version:    $modality_version
-EOF
-    exit 1
-  fi
+  check_smoke_modality_version_output "$modality_version" "$source_revision"
   MODAL_BIN="$UNPACKED_MODAL" MODALITY_BIN="$MODALITY_BIN" \
     "$ROOT_DIR/tests/cli/run-first-contract-cli-smoke.sh"
 else

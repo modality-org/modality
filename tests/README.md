@@ -297,8 +297,9 @@ treats an explicitly set but non-executable `MODALITY_BIN` as an error instead
 of archive-only evidence, proves that symlinked `MODALITY_BIN` paths are
 rejected before replay, and it
 independently enforces the same single-line `modality` prefix and
-supported-marker shape before its local first-contract replay. When a regular
-non-symlink executable `MODALITY_BIN` is available, the producer smoke also runs
+supported-marker shape with no other parenthesized version notes before its
+local first-contract replay. When a regular non-symlink executable
+`MODALITY_BIN` is available, the producer smoke also runs
 the generated artifact directory through the downloaded-artifact verifier with
 `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, so the consumer replay path is proved with
 the same language CLI before producer-side replay is reported.
