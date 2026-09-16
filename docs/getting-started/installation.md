@@ -224,6 +224,8 @@ The producer smoke also mutates the downloaded archive, checksum sidecar, and
 recipe into directories, symlinks, or non-canonical modes, and renames the
 checksum sidecar without renaming the archive, so top-level payload checks and
 sidecar pairing checks stay covered by executable negative evidence.
+It also proves that a symlinked unpacked `bin/` directory is rejected before
+installer evidence can pass.
 The archive filename must match the version, OS, architecture, and profile
 recorded in provenance, so a consistently renamed tarball, sidecar, and recipe
 still fails before the binary is trusted.

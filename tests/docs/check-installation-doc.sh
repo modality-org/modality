@@ -285,6 +285,7 @@ required_patterns=(
   "producer smoke also mutates the downloaded archive, checksum sidecar, and"
   "recipe into directories, symlinks, or non-canonical modes"
   "top-level payload checks"
+  "symlinked unpacked \`bin/\` directory is rejected"
   "executable negative evidence"
   "archive filename must match the version"
   "OS, architecture, and profile"
@@ -409,6 +410,7 @@ tests_readme_patterns=(
   "MODALITY_ONBOARDING_BUILD=1 MODAL_ONBOARDING_BUILD=1 tests/run-onboarding-smokes.sh"
   "or claiming same-revision first-contract replay"
   "emitted order before producer release evidence can pass"
+  "symlinked unpacked \`bin/\` directory"
   "only with a regular non-symlink"
   "\`MODALITY_BIN=/path/to/modality\`"
   "archive producer also requires the packaged \`modal --version\` output to be"
@@ -463,6 +465,10 @@ for source_doc in "$ROOT_DIR/tests/README.md" "$ROOT_DIR/tests/cli/README.md"; d
   fi
   if ! grep -Fq "emitted order before producer release evidence can pass" "$source_doc"; then
     echo "test onboarding docs are missing producer archive-order evidence wording: $source_doc" >&2
+    exit 1
+  fi
+  if ! grep -Fq "symlinked unpacked \`bin/\`" "$source_doc"; then
+    echo "test onboarding docs are missing symlinked bin directory evidence wording: $source_doc" >&2
     exit 1
   fi
 done
@@ -627,6 +633,16 @@ fi
 if ! grep -Fq 'release artifact verifier accepted smoke replay with symlinked MODALITY_BIN' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove symlinked smoke modality binaries are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted a symlinked unpacked bin directory' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove symlinked unpacked bin directories are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact unpacked bin entry must be a regular non-symlink directory' \
+  "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
+  echo "release artifact verifier should reject symlinked unpacked bin directories" >&2
   exit 1
 fi
 if ! grep -Fq 'release archive smoke modality version has multiple revision markers' \
