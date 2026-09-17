@@ -230,6 +230,8 @@ required_patterns=(
   "embedded marker must be a"
   "commit hash or Git-style short hash"
   "matches the selected source"
+  "producer-side smoke"
+  "uppercase revision markers fail"
   "only parenthesized version metadata"
   "malformed, annotated, trailing, or stale version"
   "If the provenance version string carries an embedded revision marker, that"
@@ -247,6 +249,7 @@ required_patterns=(
   "embedded revision marker"
   "matches the single source revision"
   "metadata still fails"
+  "negative evidence for uppercase revision markers"
   "help surface recorded in provenance must also be one of the supported"
   "surfaces"
   "\`lean\` or \`full\`"
@@ -355,6 +358,7 @@ required_patterns=(
   "that omits the revision"
   "exits after printing a plausible"
   "appends extra"
+  "advertises an uppercase revision marker"
   "cannot anchor first-contract replay evidence"
   "trailing marker text"
   "When a regular non-symlink executable \`MODALITY_BIN\` is supplied to the producer smoke"
@@ -367,6 +371,7 @@ required_patterns=(
   "both reject expected or"
   "same-revision language CLI revision tokens shorter than seven hexadecimal"
   "characters"
+  "uppercase revision markers are rejected"
   "producer-side archive smoke now also independently enforces"
   "same single-line \`modality\` prefix and supported-marker shape with no other"
   "parenthesized version notes or trailing"
@@ -374,6 +379,7 @@ required_patterns=(
   "evidence does not rely only"
   "identity"
   "producer-side archive smoke uses the same exact-or-prefix revision match"
+  "uppercase revision markers are rejected"
   "unsupported"
   "smoke flag values now fail"
   "including an explicit \`0\`"
@@ -442,10 +448,13 @@ tests_readme_patterns=(
   "must also be a single line that identifies the language CLI with the \`modality\`"
   "version emits exactly one line"
   "including no trailing blank version lines"
+  "uppercase revision markers are rejected"
   "carries exactly one embedded source revision marker"
   "that omits the revision"
   "parenthesized \`(...@<commit>)\` form"
   "marker cannot satisfy the replay check"
+  "uppercase markers have"
+  "producer-side negative coverage"
   "treats an explicitly set but non-executable \`MODALITY_BIN\` as an error"
   "of archive-only evidence"
   "symlinked \`MODALITY_BIN\` paths are"
@@ -655,6 +664,11 @@ if ! grep -Fq 'release archive producer accepted modal version output with a too
   echo "release archive producer should prove too-short modal version revisions are rejected" >&2
   exit 1
 fi
+if ! grep -Fq 'release archive producer accepted modal version output with an uppercase revision marker' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove uppercase modal version revisions are rejected" >&2
+  exit 1
+fi
 if ! grep -Fq 'release archive modal version revision is not a lowercase hex commit token' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should reject non-Git-token modal version revisions" >&2
@@ -760,6 +774,11 @@ if ! grep -Fq 'release artifact verifier accepted a modality smoke binary with a
   echo "release archive producer should prove too-short smoke modality revisions are rejected" >&2
   exit 1
 fi
+if ! grep -Fq 'release artifact verifier accepted a modality smoke binary with an uppercase revision' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove uppercase smoke modality revisions are rejected" >&2
+  exit 1
+fi
 if ! grep -Fq 'release artifact smoke modality version is not a single line' \
   "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh"; then
   echo "release artifact verifier should reject multi-line smoke modality versions" >&2
@@ -838,6 +857,11 @@ fi
 if ! grep -Fq 'release artifact verifier accepted provenance version metadata with a malformed revision token' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove malformed provenance version revision tokens are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted provenance version metadata with an uppercase revision token' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove uppercase provenance version revisions are rejected" >&2
   exit 1
 fi
 if ! grep -Fq 'case "${MODAL_ONBOARDING_ARTIFACT_SMOKE:-}" in' \

@@ -680,6 +680,36 @@ $negative_output
 EOF
   exit 1
 fi
+upper_revision_marker="$(printf '%s' "${source_revision:0:7}" | tr '[:lower:]' '[:upper:]')"
+FAKE_UPPER_REV_MODALITY="$(mktemp)"
+cat >"$FAKE_UPPER_REV_MODALITY" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modality 0.0.0 (@$upper_revision_marker)"
+  exit 0
+fi
+echo "uppercase-revision modality test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_UPPER_REV_MODALITY"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_SMOKE=1 \
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+  MODALITY_BIN="$FAKE_UPPER_REV_MODALITY" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a modality smoke binary with an uppercase revision" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact smoke modality version revision is not a lowercase hex commit token" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the uppercase modality smoke revision for the wrong reason
+expected: release artifact smoke modality version revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 FAKE_NO_REV_MODALITY="$(mktemp)"
 cat >"$FAKE_NO_REV_MODALITY" <<'EOF'
 #!/usr/bin/env bash
@@ -1203,6 +1233,35 @@ negative_output="$(
 if ! grep -Fq "release archive modal version revision is not a lowercase hex commit token" <<<"$negative_output"; then
   cat >&2 <<EOF
 release archive producer rejected the too-short modal version revision for the wrong reason
+expected: release archive modal version revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+upper_revision_marker="$(printf '%s' "${source_revision:0:7}" | tr '[:lower:]' '[:upper:]')"
+FAKE_UPPER_REV_MODAL="$(mktemp)"
+cat >"$FAKE_UPPER_REV_MODAL" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modal 0.0.0 (@$upper_revision_marker)"
+  exit 0
+fi
+echo "uppercase-revision modal test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_UPPER_REV_MODAL"
+negative_output="$(
+  MODAL_BIN="$FAKE_UPPER_REV_MODAL" \
+  MODAL_ONBOARDING_ARCHIVE_REV="$source_revision" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive producer accepted modal version output with an uppercase revision marker" >&2
+  exit 1
+}
+if ! grep -Fq "release archive modal version revision is not a lowercase hex commit token" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the uppercase modal version revision for the wrong reason
 expected: release archive modal version revision is not a lowercase hex commit token
 actual:
 $negative_output
@@ -2844,6 +2903,67 @@ negative_output="$(
 if ! grep -Fq "release artifact provenance version revision is not a lowercase hex commit token" <<<"$negative_output"; then
   cat >&2 <<EOF
 release artifact verifier rejected the malformed-version artifact for the wrong reason
+expected: release artifact provenance version revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+rm -rf "$NEGATIVE_STAGE_DIR"
+NEGATIVE_STAGE_DIR=""
+rm -rf "$NEGATIVE_ARTIFACT_DIR"
+NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+upper_version_revision="$(printf '%s' "${source_revision:0:7}" | tr '[:lower:]' '[:upper:]')"
+if [[ "$version_output" =~ $version_revision_pattern ]]; then
+  upper_version_output="$(
+    printf '%s' "$version_output" | sed -E "s/@[^)]*\\)/@$upper_version_revision)/"
+  )"
+else
+  upper_version_output="$version_output (source@$upper_version_revision)"
+fi
+upper_version_slug="$(
+  printf '%s' "${upper_version_output#modal }" |
+    tr '[:upper:]' '[:lower:]' |
+    sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//'
+)"
+upper_version_archive_name="modal-${upper_version_slug}-${os}-${arch}-${PROFILE}.tar.gz"
+NEGATIVE_STAGE_DIR="$(mktemp -d)"
+mkdir -p "$NEGATIVE_STAGE_DIR/bin"
+cp "$STAGE_DIR/bin/modal" "$NEGATIVE_STAGE_DIR/bin/modal"
+sed "s/^version: .*$/version: $upper_version_output/" \
+  "$STAGE_DIR/README.txt" >"$NEGATIVE_STAGE_DIR/README.txt"
+sed "s/^version: .*$/version: $upper_version_output/" \
+  "$STAGE_DIR/PROVENANCE.txt" >"$NEGATIVE_STAGE_DIR/PROVENANCE.txt"
+sed "s/artifact: $archive_name/artifact: $upper_version_archive_name/" \
+  "$STAGE_DIR/EVIDENCE-BUNDLE.txt" >"$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+chmod 0755 "$NEGATIVE_STAGE_DIR/bin/modal"
+chmod 0644 \
+  "$NEGATIVE_STAGE_DIR/README.txt" \
+  "$NEGATIVE_STAGE_DIR/PROVENANCE.txt" \
+  "$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+(
+  cd "$NEGATIVE_STAGE_DIR"
+  sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
+  chmod 0644 SHA256SUMS
+  tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$upper_version_archive_name" \
+    bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+)
+(
+  cd "$NEGATIVE_ARTIFACT_DIR"
+  sha256sum "$upper_version_archive_name" >"$upper_version_archive_name.sha256"
+)
+sed "s/$archive_name/$upper_version_archive_name/g" "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" \
+  >"$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted provenance version metadata with an uppercase revision token" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact provenance version revision is not a lowercase hex commit token" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the uppercase-version artifact for the wrong reason
 expected: release artifact provenance version revision is not a lowercase hex commit token
 actual:
 $negative_output

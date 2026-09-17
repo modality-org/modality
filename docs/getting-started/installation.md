@@ -266,9 +266,11 @@ version notes, and with the marker as the final version metadata, before that
 value is copied into the archive name, README, provenance, evidence manifest,
 and verification recipe. When present, the embedded marker must be a full
 commit hash or Git-style short hash of at least seven lowercase hexadecimal
-characters that matches the selected source revision, so an otherwise valid
-bundle cannot carry extra hand-written version notes, trailing version text, or
-stale version provenance as installer metadata. The producer derives that
+characters that matches the selected source revision; the producer-side smoke
+also proves uppercase revision markers fail before release evidence is emitted,
+and those uppercase revision markers are rejected as non-canonical tokens,
+so an otherwise valid bundle cannot carry extra hand-written version notes,
+trailing version text, or stale version provenance as installer metadata. The producer derives that
 selected source revision from the source checkout before falling back to
 embedded version metadata, so a stale `modal --version` marker cannot become
 self-consistent archive provenance just because no expected revision was
@@ -279,9 +281,10 @@ If the provenance version string carries an embedded revision marker, that
 marker must also be the only parenthesized version metadata and must be a full
 commit hash or Git-style short hash of at least seven lowercase hexadecimal
 characters that matches the single source revision recorded by provenance, and
-it must be the final version metadata, so a consistently renamed bundle with
-malformed, annotated, trailing, or stale version metadata still fails before
-the binary is trusted.
+it must be the final version metadata. The downloaded-artifact verifier has
+negative evidence for uppercase revision markers in this provenance version
+field, so malformed, annotated, trailing, or stale version metadata still fails
+before the binary is trusted.
 The help surface recorded in provenance must also be one of the supported
 surfaces (`lean` or `full`), and optional smoke replay checks that the unpacked
 binary reports exactly one version line matching provenance before checking
@@ -341,8 +344,8 @@ exactly one embedded source revision marker in the supported parenthesized
 `(...@<commit>)` form with no other parenthesized version notes and with the
 marker as the final version metadata, so a helper that omits the revision, only
 prints a matching source revision marker, exits after printing a plausible
-version, or appends extra revision notes
-cannot anchor first-contract replay evidence.
+version, advertises an uppercase revision marker, or appends extra revision
+notes cannot anchor first-contract replay evidence.
 When a regular non-symlink executable `MODALITY_BIN` is supplied to the producer smoke, it also
 passes the generated artifact directory back through the downloaded-artifact
 verifier with `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, so the consumer replay path

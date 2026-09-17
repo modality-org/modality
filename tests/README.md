@@ -265,7 +265,8 @@ matches provenance, replays the selected help surface, checks the same-revision
 `modality` binary must return a successful version command and advertise the
 same source revision as the downloaded archive with a full commit hash or
 Git-style short hash of at least seven lowercase hexadecimal characters, and
-must be a regular non-symlink executable before replay starts; a longer
+uppercase revision markers are rejected before replay starts. It must be a
+regular non-symlink executable before replay starts; a longer
 matching hex prefix for the same commit is accepted. The version output
 must also be a single line that identifies the language CLI with the `modality`
 prefix and carries exactly one embedded source revision marker in the supported
@@ -279,7 +280,8 @@ notes, and no trailing marker text before copying it into archive metadata, so e
 become release evidence. When present, that embedded marker must also be a full
 commit hash or Git-style short hash of at least seven lowercase hexadecimal
 characters that matches the selected source revision, so stale version
-provenance cannot be packaged as release evidence. The producer derives that
+provenance cannot be packaged as release evidence; uppercase markers have
+producer-side negative coverage too. The producer derives that
 selected source revision from the source checkout before falling back to
 embedded version metadata, so a stale `modal --version` marker cannot become
 self-consistent archive provenance just because `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV`
@@ -288,7 +290,7 @@ The downloaded-artifact verifier applies the same Git-token shape check to any
 embedded revision marker in provenance version metadata, and rejects other
 parenthesized version notes or trailing marker text, before accepting a
 matching-prefix revision, so hand-edited markers cannot extend a valid source
-revision with non-hex suffixes.
+revision with non-hex suffixes or uppercase marker text.
 The archive producer and downloaded-artifact verifier both fail when the
 advertised help surface does not match the wrapper feature set, so a lean
 contract-onboarding archive cannot be promoted as a full-surface replay bundle
