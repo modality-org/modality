@@ -418,6 +418,57 @@ $negative_output
 EOF
   exit 1
 fi
+negative_output="$(
+  check_smoke_modality_version_output \
+    "modality 0.0.0 (@$source_revision) stale (@deadbee)" \
+    "$source_revision" 2>&1
+)" && {
+  echo "release archive producer accepted modality smoke version output with multiple revision markers" >&2
+  exit 1
+}
+if ! grep -Fq "release archive smoke modality version has multiple revision markers" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the multiple-marker modality smoke version for the wrong reason
+expected: release archive smoke modality version has multiple revision markers
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+negative_output="$(
+  check_smoke_modality_version_output \
+    "modality 0.0.0 (@$source_revision) stale @deadbee" \
+    "$source_revision" 2>&1
+)" && {
+  echo "release archive producer accepted modality smoke version output with a bare revision marker" >&2
+  exit 1
+}
+if ! grep -Fq "release archive smoke modality version has an unsupported revision marker" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the bare-marker modality smoke version for the wrong reason
+expected: release archive smoke modality version has an unsupported revision marker
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+negative_output="$(
+  check_smoke_modality_version_output \
+    "modality 0.0.0 (@$source_revision) stale trailing note" \
+    "$source_revision" 2>&1
+)" && {
+  echo "release archive producer accepted modality smoke version output with trailing metadata after the revision marker" >&2
+  exit 1
+}
+if ! grep -Fq "release archive smoke modality version revision marker is not final metadata" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the trailing-note modality smoke version for the wrong reason
+expected: release archive smoke modality version revision marker is not final metadata
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 
 if [[ -n "${MODAL_ONBOARDING_ARCHIVE_DIR:-}" ]]; then
   ARCHIVE_DIR="$MODAL_ONBOARDING_ARCHIVE_DIR"

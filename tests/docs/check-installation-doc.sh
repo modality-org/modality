@@ -374,7 +374,8 @@ required_patterns=(
   "uppercase revision markers are rejected"
   "producer-side archive smoke now also independently enforces"
   "same single-line \`modality\` prefix and supported-marker shape with no other"
-  "parenthesized version notes or trailing"
+  "parenthesized version notes, duplicate revision markers, bare \`@...\` markers,"
+  "or trailing marker text before its local"
   "producer"
   "evidence does not rely only"
   "identity"
@@ -462,7 +463,8 @@ tests_readme_patterns=(
   "regular non-symlink executable"
   "\`MODALITY_BIN\` is available"
   "independently enforces the same single-line \`modality\` prefix and"
-  "supported-marker shape with no other parenthesized version notes or trailing"
+  "supported-marker shape with no other parenthesized version notes, duplicate"
+  "revision markers, bare \`@...\` markers, or trailing marker text"
   "local first-contract replay"
   "If \`CARGO_TARGET_DIR\` points at a temporary target"
   "smoke looks for both default binaries under that same target directory"
@@ -505,6 +507,10 @@ for source_doc in "$ROOT_DIR/tests/README.md" "$ROOT_DIR/tests/cli/README.md"; d
   fi
   if ! grep -Fq "symlinked unpacked \`bin/\`" "$source_doc"; then
     echo "test onboarding docs are missing symlinked bin directory evidence wording: $source_doc" >&2
+    exit 1
+  fi
+  if ! grep -Fq "bare \`@...\` markers" "$source_doc"; then
+    echo "test onboarding docs are missing bare language-CLI marker evidence wording: $source_doc" >&2
     exit 1
   fi
 done

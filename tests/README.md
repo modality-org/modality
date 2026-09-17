@@ -306,8 +306,9 @@ treats an explicitly set but non-executable `MODALITY_BIN` as an error instead
 of archive-only evidence, proves that symlinked `MODALITY_BIN` paths are
 rejected before replay, and it
 independently enforces the same single-line `modality` prefix and
-supported-marker shape with no other parenthesized version notes or trailing
-marker text before its local first-contract replay. When a regular
+supported-marker shape with no other parenthesized version notes, duplicate
+revision markers, bare `@...` markers, or trailing marker text before local first-contract replay.
+When a regular
 non-symlink executable
 `MODALITY_BIN` is available, the producer smoke also runs
 the generated artifact directory through the downloaded-artifact verifier with

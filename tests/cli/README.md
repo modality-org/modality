@@ -197,7 +197,8 @@ other parenthesized version notes or trailing marker text, reject uppercase
 revision markers, and must be executable before replay starts; an explicitly set but non-executable
 `MODALITY_BIN` is an error rather than archive-only evidence. The producer-side
 archive smoke applies the same language-CLI version-shape check before local
-first-contract replay.
+first-contract replay, including direct producer-side negatives for duplicate
+revision markers, bare `@...` markers, and trailing marker text.
 
 The archive producer selects the source checkout revision before falling back
 to any embedded `modal --version` revision marker, and its negative corpus

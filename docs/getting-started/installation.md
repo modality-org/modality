@@ -356,9 +356,10 @@ claiming same-revision first-contract replay, and both reject expected or
 same-revision language CLI revision tokens shorter than seven hexadecimal
 characters. The producer-side archive smoke now also independently enforces
 the same single-line `modality` prefix and supported-marker shape with no other
-parenthesized version notes or trailing marker text before its local
-first-contract replay, so producer evidence does not rely only on the consumer
-verifier call for language-CLI identity.
+parenthesized version notes, duplicate revision markers, bare `@...` markers,
+or trailing marker text before its local first-contract replay, so producer
+evidence does not rely only on the consumer verifier call for language-CLI
+identity.
 The producer-side archive smoke uses the same exact-or-prefix revision match as
 the downloaded-artifact verifier.
 Unsupported smoke flag values now fail, too, including an explicit `0`, instead
