@@ -4094,6 +4094,22 @@ EOF
   exit 1
 fi
 negative_output="$(
+  MODAL_ONBOARDING_ARCHIVE_EXPECT_REV="$short_expected_revision" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive readiness accepted a too-short producer expected revision" >&2
+  exit 1
+}
+if ! grep -Fq "release archive expected source revision is not a lowercase hex commit token" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive readiness rejected too-short producer expected revision for the wrong reason
+expected: release archive expected source revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+negative_output="$(
   MODAL_ONBOARDING_ARCHIVE_EXPECT_REV="$long_expected_revision" \
     "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
 )" && {
