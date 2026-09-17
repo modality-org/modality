@@ -106,7 +106,8 @@ expected help surface, detached checksum check, and exact download-verifier
 command for artifact consumers in the canonical emitted order. Set
 `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release
 evidence must fail if the built `modal` binary is stale or came from a
-different source revision.
+different source revision. The producer and downloaded-artifact verifier both
+reject uppercase expected revision tokens before replay evidence can pass.
 
 To verify a downloaded GitHub Actions artifact before unpacking or trusting it:
 
@@ -199,6 +200,8 @@ revision markers, and must be executable before replay starts; an explicitly set
 archive smoke applies the same language-CLI version-shape check before local
 first-contract replay, including direct producer-side negatives for duplicate
 revision markers, bare `@...` markers, and trailing marker text.
+The producer and downloaded-artifact verifier also reject uppercase expected
+revision tokens before replay evidence can pass.
 
 The archive producer selects the source checkout revision before falling back
 to any embedded `modal --version` revision marker, and its negative corpus
