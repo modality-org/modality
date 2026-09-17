@@ -237,6 +237,8 @@ evidence bundle marker, exactly one provenance source revision, exactly one
 value for the required provenance metadata fields,
 lowercase hex source revision token,
 archive-safe OS and architecture tokens,
+producer and downloaded-artifact negative cases for unsafe OS and architecture
+provenance,
 one of the supported provenance profiles (`debug` or `release`), one of the
 supported provenance feature sets (`contract-onboarding` or `full`), one of the
 supported provenance help surfaces (`lean` or `full`),

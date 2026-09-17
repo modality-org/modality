@@ -238,10 +238,11 @@ before the binary is trusted.
 The source revision must also be a lowercase hex commit token, so `unknown` or
 hand-edited revision notes fail even when the checksums and replay recipe are
 rebuilt consistently around them.
-The archive producer also fails before emitting release evidence when the OS or
-architecture provenance is not an archive-safe lowercase platform token, so
-unsafe platform metadata cannot be advertised and then left for the downloaded
-artifact verifier to catch later.
+The archive producer and downloaded-artifact verifier both now prove that OS
+and architecture provenance fail when either value is not an archive-safe
+lowercase platform token, with producer and downloaded-artifact negative cases for unsafe OS and architecture
+provenance, so unsafe platform metadata cannot be advertised and
+then left for the other side of the handoff to catch later.
 The archive producer also fails before emitting release evidence when the build
 profile is not one of the supported values (`debug` or `release`), so ad-hoc
 profile labels cannot become installer provenance even when `MODAL_BIN` points

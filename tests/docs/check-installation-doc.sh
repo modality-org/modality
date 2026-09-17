@@ -184,6 +184,8 @@ required_patterns=(
   "help surface, OS, and architecture"
   "OS and architecture values must stay"
   "archive-safe lowercase platform tokens"
+  "producer and downloaded-artifact"
+  "negative cases for unsafe OS and architecture"
   "profile must be one of the"
   "supported build profiles"
   "\`debug\` or \`release\`"
@@ -196,8 +198,9 @@ required_patterns=(
   "unknown"
   "hand-edited revision notes fail"
   "archive producer also fails before emitting release evidence"
-  "OS or"
-  "architecture provenance is not an archive-safe lowercase platform token"
+  "both now prove that OS"
+  "and architecture provenance fail"
+  "when either value is not an archive-safe"
   "unsafe platform metadata cannot be advertised"
   "build"
   "profile is not one of the supported values"
@@ -849,6 +852,26 @@ fi
 if ! grep -Fq 'release archive producer accepted a non-executable modal binary' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove non-executable modal binaries are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted unsupported provenance OS metadata' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove unsafe downloaded-artifact OS provenance is rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted unsupported provenance architecture metadata' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove unsafe downloaded-artifact architecture provenance is rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'MODAL_ONBOARDING_ARCHIVE_OS="${os}+stale"' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove unsafe producer OS provenance is rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'MODAL_ONBOARDING_ARCHIVE_ARCH="${arch}+stale"' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove unsafe producer architecture provenance is rejected" >&2
   exit 1
 fi
 

@@ -139,7 +139,8 @@ matches the downloaded tarball.
 The archive filename must also match the version, OS, architecture, and profile
 recorded in provenance, so a consistently renamed tarball, sidecar, and recipe
 fails before the binary is trusted. OS and architecture values must stay
-archive-safe lowercase platform tokens. The
+archive-safe lowercase platform tokens, with producer and downloaded-artifact
+negative cases for both fields. The
 provenance file must keep exactly one marker line, name exactly one lowercase
 hex source revision token, and exactly one value for the required metadata
 fields. The profile must be one of the supported build
