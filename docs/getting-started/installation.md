@@ -143,8 +143,8 @@ first-contract CLI smoke against the unpacked `modal` binary. The language CLI
 revision may be the exact provenance revision or a longer matching hex prefix
 for the same commit; expected revisions must be full commit hashes or Git-style
 short hashes of at least seven lowercase hexadecimal characters. The producer
-and downloaded-artifact verifier both reject uppercase expected revision tokens
-before replay evidence can pass. Set
+and downloaded-artifact verifier both reject uppercase or overlong expected
+revision tokens before replay evidence can pass. Set
 `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release evidence must fail
 if the built `modal` binary is stale or came from a different source revision.
 The `.github/workflows/onboarding-release-archive.yml` workflow wires this into
@@ -356,8 +356,8 @@ The producer-side archive smoke and the downloaded-artifact verifier both
 accept exact or matching-prefix hex revision markers for the same commit before
 claiming same-revision first-contract replay, and both reject expected or
 same-revision language CLI revision tokens shorter than seven hexadecimal
-characters. They also reject uppercase expected revision tokens before producer
-or downloaded-artifact replay evidence can pass. The producer-side archive
+characters. They also reject uppercase or overlong expected revision tokens
+before producer or downloaded-artifact replay evidence can pass. The producer-side archive
 smoke now also independently enforces
 the same single-line `modality` prefix and supported-marker shape with no other
 parenthesized version notes, duplicate revision markers, bare `@...` markers,

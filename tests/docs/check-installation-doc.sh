@@ -80,7 +80,8 @@ required_patterns=(
   "expected revisions must be full commit hashes or Git-style"
   "short hashes of at least seven lowercase hexadecimal characters"
   "producer"
-  "downloaded-artifact verifier both reject uppercase expected revision tokens"
+  "downloaded-artifact verifier both reject uppercase or overlong expected"
+  "revision tokens"
   "before replay evidence can pass"
   "checks the unpacked help surface"
   "first-contract CLI smoke against the unpacked \`modal\` binary"
@@ -375,8 +376,8 @@ required_patterns=(
   "both reject expected or"
   "same-revision language CLI revision tokens shorter than seven hexadecimal"
   "characters"
-  "They also reject uppercase expected revision tokens before producer"
-  "or downloaded-artifact replay evidence can pass"
+  "They also reject uppercase or overlong expected revision tokens"
+  "before producer or downloaded-artifact replay evidence can pass"
   "uppercase revision markers are rejected"
   "smoke now also independently enforces"
   "same single-line \`modality\` prefix and supported-marker shape with no other"
@@ -781,6 +782,16 @@ fi
 if ! grep -Fq 'release artifact verifier accepted a too-short expected revision' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove too-short expected revisions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted an overlong expected revision' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove overlong artifact expected revisions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive readiness accepted an overlong producer expected revision' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove overlong producer expected revisions are rejected" >&2
   exit 1
 fi
 if ! grep -Fq '[[ ! "$modality_revision" =~ ^[0-9a-f]{7,40}$ ]]' \
