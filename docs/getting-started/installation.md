@@ -253,7 +253,8 @@ values, so experimental labels cannot be published as replayable installer
 provenance.
 It also requires the advertised help surface to match the wrapper feature set:
 `contract-onboarding` archives must advertise the lean help surface, and `full`
-archives must advertise the full help surface.
+archives must advertise the full help surface. The producer-side archive smoke
+proves both mismatch directions before release evidence is emitted.
 The producer-side archive smoke also proves that a regular but non-executable
 `MODAL_BIN` fails before any version metadata can be copied into release
 evidence, matching the symlinked-binary guard for the packaged wrapper.

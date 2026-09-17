@@ -3947,6 +3947,24 @@ $negative_output
 EOF
   exit 1
 fi
+negative_output="$(
+  MODAL_HELP_SURFACE="lean" \
+  MODAL_ONBOARDING_FEATURES="full" \
+  MODAL_ONBOARDING_ARCHIVE_EXPECT_REV="" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive readiness accepted inverse mismatched producer feature/help-surface metadata" >&2
+  exit 1
+}
+if ! grep -Fq "release archive help surface does not match feature set" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive readiness rejected inverse mismatched producer feature/help metadata for the wrong reason
+expected: release archive help surface does not match feature set
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 
 archive_listing="$(tar -tzf "$ARCHIVE_PATH")"
 expected_archive_listing="$(

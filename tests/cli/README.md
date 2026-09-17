@@ -148,6 +148,8 @@ profiles (`debug` or `release`), and the feature set must be one of the
 supported wrapper feature sets (`contract-onboarding` or `full`). Its help
 surface must also be one of the supported surfaces (`lean` or `full`) and must
 match the feature set (`contract-onboarding` with `lean`, `full` with `full`).
+The producer-side archive smoke proves both feature/help mismatch directions
+before release evidence is emitted.
 The packaged `modal --version` command must return successfully before its
 output can be copied into release evidence. If the version string carries an
 embedded revision marker, that revision must also be the only parenthesized

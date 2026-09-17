@@ -214,6 +214,7 @@ required_patterns=(
   "\`contract-onboarding\` archives must advertise the lean help surface"
   "\`full\`"
   "archives must advertise the full help surface"
+  "proves both mismatch directions before release evidence is emitted"
   "producer-side archive smoke also proves that a regular but non-executable"
   "\`MODAL_BIN\` fails before any version metadata can be copied into release"
   "matching the symlinked-binary guard for the packaged wrapper"
