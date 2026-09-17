@@ -274,9 +274,10 @@ parenthesized `(...@<commit>)` form, so a helper that omits the revision, only
 prints a matching revision marker, or appends extra revision notes after the
 marker cannot satisfy the replay check.
 The archive producer also requires the packaged `modal --version` output to
-return successfully and emit exactly one line with at most one embedded
-revision marker in the same supported form, no other parenthesized version
-notes, and no trailing marker text before copying it into archive metadata, so extra version notes cannot
+return successfully, identify the `modal` wrapper, and emit exactly one line
+with at most one embedded revision marker in the same supported form, no other
+parenthesized version notes, and no trailing marker text before copying it into
+archive metadata, so extra version notes cannot
 become release evidence. When present, that embedded marker must also be a full
 commit hash or Git-style short hash of at least seven lowercase hexadecimal
 characters that matches the selected source revision, so stale version

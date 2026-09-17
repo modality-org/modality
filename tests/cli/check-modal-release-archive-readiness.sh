@@ -1154,6 +1154,33 @@ $negative_output
 EOF
   exit 1
 fi
+FAKE_WRONG_PREFIX_MODAL="$(mktemp)"
+cat >"$FAKE_WRONG_PREFIX_MODAL" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modality 0.0.0 (@$source_revision)"
+  exit 0
+fi
+echo "wrong-prefix modal test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_WRONG_PREFIX_MODAL"
+negative_output="$(
+  MODAL_BIN="$FAKE_WRONG_PREFIX_MODAL" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive producer accepted modal version output with a non-modal prefix" >&2
+  exit 1
+}
+if ! grep -Fq "modal reported unexpected version output:" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the wrong-prefix modal version for the wrong reason
+expected: modal reported unexpected version output:
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 FAKE_EXTRA_REV_MODAL="$(mktemp)"
 cat >"$FAKE_EXTRA_REV_MODAL" <<EOF
 #!/usr/bin/env bash

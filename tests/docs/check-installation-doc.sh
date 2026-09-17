@@ -218,7 +218,8 @@ required_patterns=(
   "producer-side archive smoke also proves that a regular but non-executable"
   "\`MODAL_BIN\` fails before any version metadata can be copied into release"
   "matching the symlinked-binary guard for the packaged wrapper"
-  "packaged \`modal --version\` output to emit exactly one"
+  "packaged \`modal --version\` output to identify the \`modal\`"
+  "wrapper and emit exactly one"
   "including no trailing blank version lines"
   "with at most one embedded"
   "revision marker"
@@ -442,7 +443,7 @@ tests_readme_patterns=(
   "only with a regular non-symlink"
   "\`MODALITY_BIN=/path/to/modality\`"
   "archive producer also requires the packaged \`modal --version\` output to"
-  "return successfully and emit exactly one line"
+  "return successfully, identify the \`modal\` wrapper, and emit exactly one line"
   "with at most one embedded"
   "revision marker in the same supported form"
   "no other parenthesized version notes"
@@ -653,6 +654,11 @@ fi
 if ! grep -Fq 'release archive producer accepted modal version output with multiple revision markers' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove extra modal version revision markers are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive producer accepted modal version output with a non-modal prefix' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove non-modal wrapper identities are rejected" >&2
   exit 1
 fi
 if ! grep -Fq 'release archive producer accepted modal version output with a bare revision marker' \

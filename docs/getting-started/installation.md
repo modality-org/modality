@@ -258,9 +258,9 @@ proves both mismatch directions before release evidence is emitted.
 The producer-side archive smoke also proves that a regular but non-executable
 `MODAL_BIN` fails before any version metadata can be copied into release
 evidence, matching the symlinked-binary guard for the packaged wrapper.
-It also requires the packaged `modal --version` output to emit exactly one
-line, including no trailing blank version lines, with at most one embedded
-revision marker, and that marker must use the
+It also requires the packaged `modal --version` output to identify the `modal`
+wrapper and emit exactly one line, including no trailing blank version lines,
+with at most one embedded revision marker, and that marker must use the
 supported parenthesized `(...@<commit>)` form, with no other parenthesized
 version notes, and with the marker as the final version metadata, before that
 value is copied into the archive name, README, provenance, evidence manifest,
