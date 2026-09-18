@@ -1078,6 +1078,23 @@ $negative_output
 EOF
   exit 1
 fi
+nonhex_expected_revision="${source_revision:0:6}g"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="$nonhex_expected_revision" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a non-hex expected revision" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact expected source revision is not a lowercase hex commit token" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the non-hex expected revision for the wrong reason
+expected: release artifact expected source revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 NONEXEC_MODAL="$(mktemp)"
 cat >"$NONEXEC_MODAL" <<EOF
 #!/usr/bin/env bash
@@ -4135,6 +4152,22 @@ negative_output="$(
 if ! grep -Fq "release archive expected source revision is not a lowercase hex commit token" <<<"$negative_output"; then
   cat >&2 <<EOF
 release archive readiness rejected uppercase producer expected revision for the wrong reason
+expected: release archive expected source revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+negative_output="$(
+  MODAL_ONBOARDING_ARCHIVE_EXPECT_REV="$nonhex_expected_revision" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive readiness accepted a non-hex producer expected revision" >&2
+  exit 1
+}
+if ! grep -Fq "release archive expected source revision is not a lowercase hex commit token" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive readiness rejected non-hex producer expected revision for the wrong reason
 expected: release archive expected source revision is not a lowercase hex commit token
 actual:
 $negative_output
