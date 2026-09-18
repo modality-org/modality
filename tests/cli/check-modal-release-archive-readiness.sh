@@ -472,6 +472,24 @@ $negative_output
 EOF
   exit 1
 fi
+overlong_smoke_revision_marker="${source_revision}a"
+negative_output="$(
+  check_smoke_modality_version_output \
+    "modality 0.0.0 (@$overlong_smoke_revision_marker)" \
+    "$source_revision" 2>&1
+)" && {
+  echo "release archive producer accepted modality smoke version output with an overlong revision marker" >&2
+  exit 1
+}
+if ! grep -Fq "release archive smoke modality version revision is not a lowercase hex commit token" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the overlong modality smoke version for the wrong reason
+expected: release archive smoke modality version revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 
 if [[ -n "${MODAL_ONBOARDING_ARCHIVE_DIR:-}" ]]; then
   ARCHIVE_DIR="$MODAL_ONBOARDING_ARCHIVE_DIR"

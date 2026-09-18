@@ -201,7 +201,8 @@ uppercase, non-hex, or overlong revision markers, and must be executable before 
 non-executable `MODALITY_BIN` is an error rather than archive-only evidence. The producer-side
 archive smoke applies the same language-CLI version-shape check before local
 first-contract replay, including direct producer-side negatives for duplicate
-revision markers, bare `@...` markers, and trailing marker text.
+revision markers, bare `@...` markers, trailing marker text, and overlong
+revision markers.
 The producer also rejects too-short, uppercase, non-hex, or overlong explicit
 source revision overrides before archive evidence can pass. The producer and
 downloaded-artifact verifier also reject unknown, too-short, uppercase, non-hex,

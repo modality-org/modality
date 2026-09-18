@@ -377,6 +377,8 @@ identity.
 The producer-side archive smoke uses the same exact-or-prefix revision match as
 the downloaded-artifact verifier, including rejection of too-short, uppercase,
 non-hex, and overlong same-revision language CLI markers before local replay.
+It now proves the overlong language-CLI marker directly on the producer path,
+before local first-contract replay evidence can be reported.
 Unsupported smoke flag values now fail, too, including an explicit `0`, instead
 of silently downgrading to archive-only verification, so a mistyped replay
 request cannot look like a successful archive-only check.

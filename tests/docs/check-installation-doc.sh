@@ -785,6 +785,11 @@ if ! grep -Fq 'release archive smoke modality version revision is not a lowercas
   echo "release archive producer should independently reject too-short modality replay revisions" >&2
   exit 1
 fi
+if ! grep -Fq 'release archive producer accepted modality smoke version output with an overlong revision marker' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove overlong local smoke modality revisions are rejected" >&2
+  exit 1
+fi
 if ! grep -Fq 'release artifact verifier accepted a modality smoke binary without a source revision' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove no-revision smoke modality binaries are rejected" >&2
