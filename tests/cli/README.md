@@ -208,8 +208,9 @@ overlong expected revision tokens before replay evidence can pass.
 
 The archive producer selects the source checkout revision before falling back
 to any embedded `modal --version` revision marker, and its negative corpus
-proves that a stale implicit marker is rejected even when
-`MODAL_ONBOARDING_ARCHIVE_EXPECT_REV` is unset.
+proves that non-hex explicit markers and stale implicit markers are rejected
+before release evidence can pass, even when
+`MODAL_ONBOARDING_ARCHIVE_EXPECT_REV` is unset for the implicit case.
 
 To test another binary:
 

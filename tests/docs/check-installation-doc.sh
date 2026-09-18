@@ -699,6 +699,11 @@ if ! grep -Fq 'release archive producer accepted modal version output with an up
   echo "release archive producer should prove uppercase modal version revisions are rejected" >&2
   exit 1
 fi
+if ! grep -Fq 'release archive producer accepted modal version output with a non-hex revision marker' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove non-hex modal version revisions are rejected" >&2
+  exit 1
+fi
 if ! grep -Fq 'release archive modal version revision is not a lowercase hex commit token' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should reject non-Git-token modal version revisions" >&2

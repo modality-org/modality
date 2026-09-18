@@ -273,7 +273,8 @@ and verification recipe. When present, the embedded marker must be a full
 commit hash or Git-style short hash of at least seven lowercase hexadecimal
 characters that matches the selected source revision; the producer-side smoke
 also proves uppercase revision markers fail before release evidence is emitted,
-and those uppercase revision markers are rejected as non-canonical tokens,
+and those uppercase revision markers are rejected as non-canonical tokens.
+It now proves non-hex revision markers fail there too,
 so an otherwise valid bundle cannot carry extra hand-written version notes,
 trailing version text, or stale version provenance as installer metadata. The producer derives that
 selected source revision from the source checkout before falling back to
