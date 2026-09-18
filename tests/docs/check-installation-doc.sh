@@ -83,7 +83,7 @@ required_patterns=(
   "also rejects too-short, uppercase, non-hex, or overlong explicit source revision"
   "overrides before archive evidence can pass"
   "producer"
-  "verifier both reject too-short, uppercase, non-hex, or overlong expected"
+  "verifier both reject unknown, too-short, uppercase, non-hex, or overlong expected"
   "revision tokens"
   "before replay evidence can pass"
   "checks the unpacked help surface"
@@ -380,7 +380,8 @@ required_patterns=(
   "same-revision language CLI revision tokens shorter than seven hexadecimal"
   "characters"
   "They also reject too-short, uppercase, non-hex, or overlong explicit"
-  "producer source revisions and expected revision tokens"
+  "producer source revisions and unknown, too-short, uppercase, non-hex, or"
+  "overlong expected revision tokens"
   "downloaded-artifact replay evidence can pass"
   "uppercase revision markers are rejected"
   "smoke now also independently enforces"
@@ -477,7 +478,8 @@ tests_readme_patterns=(
   "supported-marker shape with no other parenthesized version notes, duplicate"
   "revision markers, bare \`@...\` markers, or trailing marker text"
   "rejects too-short, uppercase, non-hex, or overlong explicit producer"
-  "source revisions and expected revision tokens"
+  "source revisions and unknown, too-short, uppercase, non-hex, or overlong"
+  "expected revision tokens"
   "downloaded-artifact replay evidence can pass"
   "local first-contract replay"
   "If \`CARGO_TARGET_DIR\` points at a temporary target"
@@ -822,6 +824,16 @@ fi
 if ! grep -Fq 'release archive readiness accepted a non-hex producer expected revision' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove non-hex producer expected revisions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted an unknown expected revision' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove unknown artifact expected revisions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive readiness accepted an unknown producer expected revision' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove unknown producer expected revisions are rejected" >&2
   exit 1
 fi
 if ! grep -Fq 'release archive readiness accepted a too-short producer source revision' \

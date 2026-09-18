@@ -146,7 +146,7 @@ for the same commit; expected revisions must be full commit hashes or Git-style
 short hashes of at least seven lowercase hexadecimal characters. The producer
 also rejects too-short, uppercase, non-hex, or overlong explicit source revision
 overrides before archive evidence can pass. The producer and downloaded-artifact
-verifier both reject too-short, uppercase, non-hex, or overlong expected
+verifier both reject unknown, too-short, uppercase, non-hex, or overlong expected
 revision tokens before replay evidence can pass. Set
 `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release evidence must fail
 if the built `modal` binary is stale or came from a different source revision.
@@ -361,7 +361,8 @@ accept exact or matching-prefix hex revision markers for the same commit before
 claiming same-revision first-contract replay, and both reject expected or
 same-revision language CLI revision tokens shorter than seven hexadecimal
 characters. They also reject too-short, uppercase, non-hex, or overlong explicit
-producer source revisions and expected revision tokens before producer or
+producer source revisions and unknown, too-short, uppercase, non-hex, or
+overlong expected revision tokens before producer or
 downloaded-artifact replay evidence can pass. The producer-side archive
 smoke now also independently enforces
 the same single-line `modality` prefix and supported-marker shape with no other

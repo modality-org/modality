@@ -107,7 +107,7 @@ command for artifact consumers in the canonical emitted order. Set
 `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release
 evidence must fail if the built `modal` binary is stale or came from a
 different source revision. The producer and downloaded-artifact verifier both
-reject too-short, uppercase, non-hex, or overlong expected revision tokens
+reject unknown, too-short, uppercase, non-hex, or overlong expected revision tokens
 before replay evidence can pass.
 
 To verify a downloaded GitHub Actions artifact before unpacking or trusting it:
@@ -203,8 +203,8 @@ first-contract replay, including direct producer-side negatives for duplicate
 revision markers, bare `@...` markers, and trailing marker text.
 The producer also rejects too-short, uppercase, non-hex, or overlong explicit
 source revision overrides before archive evidence can pass. The producer and
-downloaded-artifact verifier also reject too-short, uppercase, non-hex, or
-overlong expected revision tokens before replay evidence can pass.
+downloaded-artifact verifier also reject unknown, too-short, uppercase, non-hex,
+or overlong expected revision tokens before replay evidence can pass.
 
 The archive producer selects the source checkout revision before falling back
 to any embedded `modal --version` revision marker, and its negative corpus
