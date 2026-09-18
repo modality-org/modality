@@ -269,9 +269,9 @@ matches provenance, replays the selected help surface, checks the same-revision
 `modality` binary must return a successful version command and advertise the
 same source revision as the downloaded archive with a full commit hash or
 Git-style short hash of at least seven lowercase hexadecimal characters, and
-uppercase and non-hex revision markers are rejected before replay starts. It
-must be a regular non-symlink executable before replay starts; a longer
-matching hex prefix for the same commit is accepted. The version output
+too-short, uppercase, non-hex, and overlong revision markers are rejected
+before replay starts. It must be a regular non-symlink executable before
+replay starts; a longer matching hex prefix for the same commit is accepted. The version output
 must also be a single line that identifies the language CLI with the `modality`
 prefix and carries exactly one embedded source revision marker in the supported
 parenthesized `(...@<commit>)` form, so a helper that omits the revision, only

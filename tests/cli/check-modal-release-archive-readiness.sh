@@ -734,6 +734,36 @@ $negative_output
 EOF
   exit 1
 fi
+overlong_revision_marker="${source_revision}a"
+FAKE_OVERLONG_REV_MODALITY="$(mktemp)"
+cat >"$FAKE_OVERLONG_REV_MODALITY" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modality 0.0.0 (@$overlong_revision_marker)"
+  exit 0
+fi
+echo "overlong-revision modality test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_OVERLONG_REV_MODALITY"
+negative_output="$(
+  MODAL_ONBOARDING_ARTIFACT_SMOKE=1 \
+  MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+  MODALITY_BIN="$FAKE_OVERLONG_REV_MODALITY" \
+    "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$ARCHIVE_DIR" 2>&1
+)" && {
+  echo "release artifact verifier accepted a modality smoke binary with an overlong revision" >&2
+  exit 1
+}
+if ! grep -Fq "release artifact smoke modality version revision is not a lowercase hex commit token" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release artifact verifier rejected the overlong modality smoke revision for the wrong reason
+expected: release artifact smoke modality version revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 upper_revision_marker="$(printf '%s' "${source_revision:0:7}" | tr '[:lower:]' '[:upper:]')"
 FAKE_UPPER_REV_MODALITY="$(mktemp)"
 cat >"$FAKE_UPPER_REV_MODALITY" <<EOF
