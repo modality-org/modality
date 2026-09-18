@@ -220,6 +220,9 @@ The producer also rejects too-short, uppercase, non-hex, or overlong explicit
 source revision overrides before archive evidence can pass. The producer and
 downloaded-artifact verifier both reject unknown, too-short, uppercase, non-hex,
 or overlong expected revision tokens before replay evidence can pass.
+Packaged `modal --version` revision markers also reject too-short, uppercase,
+non-hex, and overlong tokens before wrapper version metadata can become release
+evidence.
 The archive check also runs the downloaded-artifact verifier against the
 generated archive directory, which simulates the GitHub Actions artifact
 consumer path by requiring exactly one `modal-*.tar.gz`, its matching detached

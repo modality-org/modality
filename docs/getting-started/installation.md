@@ -134,6 +134,9 @@ non-symlink executable. The archive producer now fails before emitting release e
 the source revision is not a lowercase hex commit token, so `unknown`,
 too-short, uppercase, non-hex, overlong, or other hand-written revision notes
 cannot become the advertised archive provenance.
+Packaged `modal --version` revision markers follow the same boundary:
+too-short, uppercase, non-hex, and overlong tokens fail before wrapper version
+metadata can become release evidence.
 The evidence manifest names the replayable evidence bundle, artifact,
 version, source revision, profile, feature set, exact help surface, binary,
 provenance file, checksum file, and post-unpack checks, including the

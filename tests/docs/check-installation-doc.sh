@@ -58,6 +58,9 @@ required_patterns=(
   "unknown"
   "too-short, uppercase, non-hex, overlong, or other hand-written revision notes"
   "cannot become the advertised archive provenance"
+  "Packaged \`modal --version\` revision markers follow the same boundary"
+  "too-short, uppercase, non-hex, and overlong tokens fail before wrapper version"
+  "metadata can become release evidence"
   "evidence manifest names the replayable evidence bundle"
   "artifact,"
   "version,"
@@ -705,6 +708,11 @@ fi
 if ! grep -Fq 'release archive producer accepted modal version output with a non-hex revision marker' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove non-hex modal version revisions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive producer accepted modal version output with an overlong revision marker' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove overlong modal version revisions are rejected" >&2
   exit 1
 fi
 if ! grep -Fq 'release archive modal version revision is not a lowercase hex commit token' \

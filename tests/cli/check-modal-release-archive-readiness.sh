@@ -1505,6 +1505,35 @@ $negative_output
 EOF
   exit 1
 fi
+overlong_revision_marker="${source_revision}a"
+FAKE_OVERLONG_REV_MODAL="$(mktemp)"
+cat >"$FAKE_OVERLONG_REV_MODAL" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "modal 0.0.0 (@$overlong_revision_marker)"
+  exit 0
+fi
+echo "overlong-revision modal test binary should only be asked for --version" >&2
+exit 1
+EOF
+chmod 0755 "$FAKE_OVERLONG_REV_MODAL"
+negative_output="$(
+  MODAL_BIN="$FAKE_OVERLONG_REV_MODAL" \
+  MODAL_ONBOARDING_ARCHIVE_REV="$source_revision" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive producer accepted modal version output with an overlong revision marker" >&2
+  exit 1
+}
+if ! grep -Fq "release archive modal version revision is not a lowercase hex commit token" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive producer rejected the overlong modal version revision for the wrong reason
+expected: release archive modal version revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
 FAKE_STALE_REV_MODAL="$(mktemp)"
 cat >"$FAKE_STALE_REV_MODAL" <<'EOF'
 #!/usr/bin/env bash
