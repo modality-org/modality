@@ -216,8 +216,10 @@ checksum check, and exact download-verifier command section for the artifact
 consumer. Set
 `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release evidence must fail
 if the built `modal` binary is stale or came from a different source revision.
-The producer and downloaded-artifact verifier both reject too-short, uppercase,
-non-hex, or overlong expected revision tokens before replay evidence can pass.
+The producer also rejects too-short, uppercase, non-hex, or overlong explicit
+source revision overrides before archive evidence can pass. The producer and
+downloaded-artifact verifier both reject too-short, uppercase, non-hex, or
+overlong expected revision tokens before replay evidence can pass.
 The archive check also runs the downloaded-artifact verifier against the
 generated archive directory, which simulates the GitHub Actions artifact
 consumer path by requiring exactly one `modal-*.tar.gz`, its matching detached
@@ -311,8 +313,9 @@ rejected before replay, and it
 independently enforces the same single-line `modality` prefix and
 supported-marker shape with no other parenthesized version notes, duplicate
 revision markers, bare `@...` markers, or trailing marker text before local first-contract replay.
-It also rejects too-short, uppercase, non-hex, or overlong expected revision
-tokens before producer or downloaded-artifact replay evidence can pass.
+It also rejects too-short, uppercase, non-hex, or overlong explicit producer
+source revisions and expected revision tokens before producer or
+downloaded-artifact replay evidence can pass.
 When a regular
 non-symlink executable
 `MODALITY_BIN` is available, the producer smoke also runs

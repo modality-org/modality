@@ -201,8 +201,10 @@ revision markers, and must be executable before replay starts; an explicitly set
 archive smoke applies the same language-CLI version-shape check before local
 first-contract replay, including direct producer-side negatives for duplicate
 revision markers, bare `@...` markers, and trailing marker text.
-The producer and downloaded-artifact verifier also reject too-short, uppercase,
-non-hex, or overlong expected revision tokens before replay evidence can pass.
+The producer also rejects too-short, uppercase, non-hex, or overlong explicit
+source revision overrides before archive evidence can pass. The producer and
+downloaded-artifact verifier also reject too-short, uppercase, non-hex, or
+overlong expected revision tokens before replay evidence can pass.
 
 The archive producer selects the source checkout revision before falling back
 to any embedded `modal --version` revision marker, and its negative corpus

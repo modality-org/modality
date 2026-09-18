@@ -56,7 +56,8 @@ required_patterns=(
   "archive producer now fails before emitting release evidence"
   "source revision is not a lowercase hex commit token"
   "unknown"
-  "hand-written revision notes cannot become the advertised archive provenance"
+  "too-short, uppercase, non-hex, overlong, or other hand-written revision notes"
+  "cannot become the advertised archive provenance"
   "evidence manifest names the replayable evidence bundle"
   "artifact,"
   "version,"
@@ -79,8 +80,10 @@ required_patterns=(
   "longer matching hex prefix"
   "expected revisions must be full commit hashes or Git-style"
   "short hashes of at least seven lowercase hexadecimal characters"
+  "also rejects too-short, uppercase, non-hex, or overlong explicit source revision"
+  "overrides before archive evidence can pass"
   "producer"
-  "downloaded-artifact verifier both reject too-short, uppercase, non-hex, or"
+  "verifier both reject too-short, uppercase, non-hex, or overlong expected"
   "revision tokens"
   "before replay evidence can pass"
   "checks the unpacked help surface"
@@ -376,8 +379,9 @@ required_patterns=(
   "both reject expected or"
   "same-revision language CLI revision tokens shorter than seven hexadecimal"
   "characters"
-  "They also reject too-short, uppercase, non-hex, or overlong expected"
-  "before producer or downloaded-artifact replay evidence can pass"
+  "They also reject too-short, uppercase, non-hex, or overlong explicit"
+  "producer source revisions and expected revision tokens"
+  "downloaded-artifact replay evidence can pass"
   "uppercase revision markers are rejected"
   "smoke now also independently enforces"
   "same single-line \`modality\` prefix and supported-marker shape with no other"
@@ -472,7 +476,8 @@ tests_readme_patterns=(
   "independently enforces the same single-line \`modality\` prefix and"
   "supported-marker shape with no other parenthesized version notes, duplicate"
   "revision markers, bare \`@...\` markers, or trailing marker text"
-  "rejects too-short, uppercase, non-hex, or overlong expected revision"
+  "rejects too-short, uppercase, non-hex, or overlong explicit producer"
+  "source revisions and expected revision tokens"
   "downloaded-artifact replay evidence can pass"
   "local first-contract replay"
   "If \`CARGO_TARGET_DIR\` points at a temporary target"
@@ -622,6 +627,11 @@ fi
 if ! grep -Fq '[[ -n "$value" && ! "$value" =~ ^[0-9a-f]{7,40}$ ]]' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should reject too-short expected revisions" >&2
+  exit 1
+fi
+if ! grep -Fq '"MODAL_ONBOARDING_ARCHIVE_REV"' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should validate explicit source revision overrides" >&2
   exit 1
 fi
 if ! grep -Fq 'capture_command_output_lines "$MODAL_BIN" --version' \
@@ -807,6 +817,26 @@ fi
 if ! grep -Fq 'release archive readiness accepted a non-hex producer expected revision' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove non-hex producer expected revisions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive readiness accepted a too-short producer source revision' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove too-short source revisions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive readiness accepted an overlong producer source revision' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove overlong source revisions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive readiness accepted an uppercase producer source revision' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove uppercase source revisions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release archive readiness accepted a non-hex producer source revision' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove non-hex source revisions are rejected" >&2
   exit 1
 fi
 if ! grep -Fq '[[ ! "$modality_revision" =~ ^[0-9a-f]{7,40}$ ]]' \

@@ -131,8 +131,9 @@ source revision, version, profile, features, platform, and expected help
 surface. The producer self-check compares the archive member list in emitted
 order before release evidence can pass. The archive producer requires the packaged `MODAL_BIN` to be a regular
 non-symlink executable. The archive producer now fails before emitting release evidence when
-the source revision is not a lowercase hex commit token, so `unknown` or
-hand-written revision notes cannot become the advertised archive provenance.
+the source revision is not a lowercase hex commit token, so `unknown`,
+too-short, uppercase, non-hex, overlong, or other hand-written revision notes
+cannot become the advertised archive provenance.
 The evidence manifest names the replayable evidence bundle, artifact,
 version, source revision, profile, feature set, exact help surface, binary,
 provenance file, checksum file, and post-unpack checks, including the
@@ -143,8 +144,10 @@ first-contract CLI smoke against the unpacked `modal` binary. The language CLI
 revision may be the exact provenance revision or a longer matching hex prefix
 for the same commit; expected revisions must be full commit hashes or Git-style
 short hashes of at least seven lowercase hexadecimal characters. The producer
-and downloaded-artifact verifier both reject too-short, uppercase, non-hex, or
-overlong expected revision tokens before replay evidence can pass. Set
+also rejects too-short, uppercase, non-hex, or overlong explicit source revision
+overrides before archive evidence can pass. The producer and downloaded-artifact
+verifier both reject too-short, uppercase, non-hex, or overlong expected
+revision tokens before replay evidence can pass. Set
 `MODAL_ONBOARDING_ARCHIVE_EXPECT_REV=<commit>` when release evidence must fail
 if the built `modal` binary is stale or came from a different source revision.
 The `.github/workflows/onboarding-release-archive.yml` workflow wires this into
@@ -356,8 +359,9 @@ The producer-side archive smoke and the downloaded-artifact verifier both
 accept exact or matching-prefix hex revision markers for the same commit before
 claiming same-revision first-contract replay, and both reject expected or
 same-revision language CLI revision tokens shorter than seven hexadecimal
-characters. They also reject too-short, uppercase, non-hex, or overlong expected
-revision tokens before producer or downloaded-artifact replay evidence can pass. The producer-side archive
+characters. They also reject too-short, uppercase, non-hex, or overlong explicit
+producer source revisions and expected revision tokens before producer or
+downloaded-artifact replay evidence can pass. The producer-side archive
 smoke now also independently enforces
 the same single-line `modality` prefix and supported-marker shape with no other
 parenthesized version notes, duplicate revision markers, bare `@...` markers,

@@ -296,6 +296,9 @@ EOF
 check_expected_revision \
   "MODAL_ONBOARDING_ARCHIVE_EXPECT_REV" \
   "${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}"
+check_expected_revision \
+  "MODAL_ONBOARDING_ARCHIVE_REV" \
+  "${MODAL_ONBOARDING_ARCHIVE_REV:-}"
 check_archive_slug_field "os" "$os"
 check_archive_slug_field "arch" "$arch"
 case "$HELP_SURFACE" in
@@ -4101,10 +4104,78 @@ negative_output="$(
   echo "release archive readiness accepted an unsupported producer source revision" >&2
   exit 1
 }
-if ! grep -Fq "release archive source revision is not an archive-safe commit token" <<<"$negative_output"; then
+if ! grep -Fq "release archive expected source revision is not a lowercase hex commit token" <<<"$negative_output"; then
   cat >&2 <<EOF
 release archive readiness rejected unsupported producer source revision for the wrong reason
-expected: release archive source revision is not an archive-safe commit token
+expected: release archive expected source revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+negative_output="$(
+  MODAL_ONBOARDING_ARCHIVE_REV="$short_expected_revision" \
+  MODAL_ONBOARDING_ARCHIVE_EXPECT_REV="" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive readiness accepted a too-short producer source revision" >&2
+  exit 1
+}
+if ! grep -Fq "release archive expected source revision is not a lowercase hex commit token" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive readiness rejected too-short producer source revision for the wrong reason
+expected: release archive expected source revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+negative_output="$(
+  MODAL_ONBOARDING_ARCHIVE_REV="$long_expected_revision" \
+  MODAL_ONBOARDING_ARCHIVE_EXPECT_REV="" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive readiness accepted an overlong producer source revision" >&2
+  exit 1
+}
+if ! grep -Fq "release archive expected source revision is not a lowercase hex commit token" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive readiness rejected overlong producer source revision for the wrong reason
+expected: release archive expected source revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+negative_output="$(
+  MODAL_ONBOARDING_ARCHIVE_REV="$upper_expected_revision" \
+  MODAL_ONBOARDING_ARCHIVE_EXPECT_REV="" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive readiness accepted an uppercase producer source revision" >&2
+  exit 1
+}
+if ! grep -Fq "release archive expected source revision is not a lowercase hex commit token" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive readiness rejected uppercase producer source revision for the wrong reason
+expected: release archive expected source revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+  exit 1
+fi
+negative_output="$(
+  MODAL_ONBOARDING_ARCHIVE_REV="$nonhex_expected_revision" \
+  MODAL_ONBOARDING_ARCHIVE_EXPECT_REV="" \
+    "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh" 2>&1
+)" && {
+  echo "release archive readiness accepted a non-hex producer source revision" >&2
+  exit 1
+}
+if ! grep -Fq "release archive expected source revision is not a lowercase hex commit token" <<<"$negative_output"; then
+  cat >&2 <<EOF
+release archive readiness rejected non-hex producer source revision for the wrong reason
+expected: release archive expected source revision is not a lowercase hex commit token
 actual:
 $negative_output
 EOF
