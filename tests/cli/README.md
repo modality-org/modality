@@ -196,8 +196,8 @@ The supplied `modality` binary must advertise the same source revision as the
 downloaded archive, either exactly or as a matching longer hex prefix for the
 same commit, use the supported parenthesized `(...@<commit>)` marker without
 other parenthesized version notes or trailing marker text, reject uppercase
-revision markers, and must be executable before replay starts; an explicitly set but non-executable
-`MODALITY_BIN` is an error rather than archive-only evidence. The producer-side
+or non-hex revision markers, and must be executable before replay starts; an explicitly set but
+non-executable `MODALITY_BIN` is an error rather than archive-only evidence. The producer-side
 archive smoke applies the same language-CLI version-shape check before local
 first-contract replay, including direct producer-side negatives for duplicate
 revision markers, bare `@...` markers, and trailing marker text.

@@ -350,8 +350,8 @@ exactly one embedded source revision marker in the supported parenthesized
 `(...@<commit>)` form with no other parenthesized version notes and with the
 marker as the final version metadata, so a helper that omits the revision, only
 prints a matching source revision marker, exits after printing a plausible
-version, advertises an uppercase revision marker, or appends extra revision
-notes cannot anchor first-contract replay evidence.
+version, advertises an uppercase or non-hex revision marker, or appends extra
+revision notes cannot anchor first-contract replay evidence.
 When a regular non-symlink executable `MODALITY_BIN` is supplied to the producer smoke, it also
 passes the generated artifact directory back through the downloaded-artifact
 verifier with `MODAL_ONBOARDING_ARTIFACT_SMOKE=1`, so the consumer replay path

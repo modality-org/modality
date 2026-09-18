@@ -366,7 +366,7 @@ required_patterns=(
   "that omits the revision"
   "exits after printing a plausible"
   "appends extra"
-  "advertises an uppercase revision marker"
+  "advertises an uppercase or non-hex revision marker"
   "cannot anchor first-contract replay evidence"
   "trailing marker text"
   "When a regular non-symlink executable \`MODALITY_BIN\` is supplied to the producer smoke"
@@ -383,7 +383,7 @@ required_patterns=(
   "producer source revisions and unknown, too-short, uppercase, non-hex, or"
   "overlong expected revision tokens"
   "downloaded-artifact replay evidence can pass"
-  "uppercase revision markers are rejected"
+  "advertises an uppercase or non-hex revision marker"
   "smoke now also independently enforces"
   "same single-line \`modality\` prefix and supported-marker shape with no other"
   "parenthesized version notes, duplicate revision markers, bare \`@...\` markers,"
@@ -392,7 +392,7 @@ required_patterns=(
   "evidence does not rely only"
   "identity"
   "producer-side archive smoke uses the same exact-or-prefix revision match"
-  "uppercase revision markers are rejected"
+  "advertises an uppercase or non-hex revision marker"
   "unsupported"
   "smoke flag values now fail"
   "including an explicit \`0\`"
@@ -461,7 +461,7 @@ tests_readme_patterns=(
   "must also be a single line that identifies the language CLI with the \`modality\`"
   "version emits exactly one line"
   "including no trailing blank version lines"
-  "uppercase revision markers are rejected"
+  "uppercase and non-hex revision markers are rejected"
   "carries exactly one embedded source revision marker"
   "that omits the revision"
   "parenthesized \`(...@<commit>)\` form"
@@ -869,6 +869,11 @@ fi
 if ! grep -Fq 'release artifact verifier accepted a modality smoke binary with an uppercase revision' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove uppercase smoke modality revisions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted a modality smoke binary with a non-hex revision' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove non-hex smoke modality revisions are rejected" >&2
   exit 1
 fi
 if ! grep -Fq 'release artifact smoke modality version is not a single line' \
