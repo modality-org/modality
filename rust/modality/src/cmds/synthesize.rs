@@ -2110,6 +2110,9 @@ fn format_failed_rule_review_bundle(
     let facts = FormulaFactSummary::from_formulas(&parsed_input.formulas);
     facts.write_markdown(&mut output);
 
+    output.push_str("## Source Facts\n\n");
+    write_source_facts(&mut output, review_source);
+
     output.push_str("## Source Assumptions\n\n");
     write_source_assumptions(&mut output, review_source);
 
@@ -2273,6 +2276,9 @@ fn format_synthesis_review_bundle(
     output.push_str("## Source Clause Trace\n\n");
     write_source_clause_trace(&mut output, review_source, extracted_formulas.len());
 
+    output.push_str("## Source Facts\n\n");
+    write_source_facts(&mut output, review_source);
+
     output.push_str("## Source Assumptions\n\n");
     write_source_assumptions(&mut output, review_source);
 
@@ -2382,6 +2388,25 @@ fn write_source_clause_trace(
     output.push('\n');
 }
 
+fn write_source_facts(output: &mut String, review_source: Option<&ReviewSource>) {
+    let facts = review_source
+        .map(|source| extract_source_facts(&source.content))
+        .unwrap_or_default();
+
+    if facts.is_empty() {
+        output.push_str("- No structured `Source fact:` lines found in the original source.\n\n");
+        return;
+    }
+
+    output.push_str(
+        "- These reviewer-supplied facts are preserved for contract review; they are not inferred by synthesis.\n\n",
+    );
+    for fact in facts {
+        output.push_str(&format!("- `{}`\n", fact));
+    }
+    output.push('\n');
+}
+
 fn write_source_assumptions(output: &mut String, review_source: Option<&ReviewSource>) {
     let assumptions = review_source
         .map(|source| extract_source_assumptions(&source.content))
@@ -2441,6 +2466,19 @@ fn write_review_checklist(
     });
     output.push_str("- Assumptions section present: yes\n");
     output.push_str("- Known gaps section present: yes\n\n");
+}
+
+fn extract_source_facts(source: &str) -> Vec<String> {
+    source
+        .lines()
+        .filter_map(|line| {
+            line.trim()
+                .strip_prefix("Source fact:")
+                .map(str::trim)
+                .filter(|fact| !fact.is_empty())
+                .map(ToOwned::to_owned)
+        })
+        .collect()
 }
 
 fn extract_source_assumptions(source: &str) -> Vec<String> {
@@ -2685,7 +2723,7 @@ rule post_requires_reviewer {
         .unwrap();
         std::fs::write(
             &source_path,
-            "F1: Every accepted post move must have reviewer signature evidence attached.\nExternal assumption: signature verification and path identity evidence come from commit data.\n",
+            "F1: Every accepted post move must have reviewer signature evidence attached.\nSource fact: +sets(/posts/{post_id}/body)\nExternal assumption: signature verification and path identity evidence come from commit data.\n",
         )
         .unwrap();
 
@@ -2705,12 +2743,16 @@ rule post_requires_reviewer {
 
         assert!(bundle.contains("# Modality Synthesis Review Bundle"));
         assert!(bundle.contains("## Original Source"));
-        assert!(bundle.contains("Every accepted post move must have reviewer signature evidence attached."));
+        assert!(bundle
+            .contains("Every accepted post move must have reviewer signature evidence attached."));
         assert!(bundle.contains("post_requires_reviewer"));
         assert!(bundle.contains("`+POST`"));
         assert!(bundle.contains("`+signed_by(/users/reviewer.id)`"));
+        assert!(bundle.contains("## Source Facts"));
+        assert!(bundle.contains("`+sets(/posts/{post_id}/body)`"));
         assert!(bundle.contains("## Source Assumptions"));
-        assert!(bundle.contains("signature verification and path identity evidence come from commit data."));
+        assert!(bundle
+            .contains("signature verification and path identity evidence come from commit data."));
         assert!(bundle.contains("- Verifier result: passed"));
         assert!(bundle.contains("## Witness Model"));
         assert!(bundle.contains("model Contract"));
@@ -2748,11 +2790,20 @@ rule impossible_contract {
         std::fs::remove_file(&rule_path).ok();
         std::fs::remove_file(&bundle_path).ok();
 
-        assert!(err.to_string().contains("No satisfying witness found by bounded"));
+        assert!(err
+            .to_string()
+            .contains("No satisfying witness found by bounded"));
         assert!(bundle.contains("Verifier result: failed"), "{bundle}");
+        assert!(bundle.contains("## Source Facts"), "{bundle}");
+        assert!(
+            bundle.contains("No structured `Source fact:` lines found in the original source."),
+            "bundle was:\n{bundle}"
+        );
         assert!(bundle.contains("## Source Assumptions"), "{bundle}");
         assert!(
-            bundle.contains("No structured `External assumption:` lines found in the original source."),
+            bundle.contains(
+                "No structured `External assumption:` lines found in the original source."
+            ),
             "bundle was:\n{bundle}"
         );
         assert!(

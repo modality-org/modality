@@ -109,12 +109,16 @@ required_review_patterns=(
   "# Modality Synthesis Review Bundle"
   "## Original Source"
   "RFC 8555 section 7.4"
+  "Source fact: +sets(/orders/{order}/csr)"
   "submitting a CSR to the order finalize URL"
   "RFC 8555 section 7.1.4"
+  "Source fact: +sets(/orders/{order}/status)"
   "server's newOrder resource"
   "RFC 8555 section 7.1.5"
+  "Source fact: +sets(/authorizations/{authorization}/status)"
   "marks authorization valid after successful challenge validation"
   "RFC 8555 section 8"
+  "Source fact: +sets(/orders/{order}/certificate)"
   "exposes it at the certificate URL"
   "External assumption: ACME account-key authentication"
   "CSR cryptographic soundness"
@@ -138,6 +142,12 @@ required_review_patterns=(
   "F2 source clause: RFC 8555 section 7.1.4"
   "F3 source clause: RFC 8555 section 7.1.5"
   "F4 source clause: RFC 8555 section 8"
+  "## Source Facts"
+  "These reviewer-supplied facts are preserved for contract review; they are not inferred by synthesis."
+  '`+sets(/orders/{order}/csr)`'
+  '`+sets(/orders/{order}/status)`'
+  '`+sets(/authorizations/{authorization}/status)`'
+  '`+sets(/orders/{order}/certificate)`'
   "## Source Assumptions"
   "These reviewer-supplied assumptions are preserved for contract review; they are not proven by synthesis."
   "ACME account-key authentication, CSR cryptographic soundness, CA policy, WebPKI trust, and DNS or HTTP domain-control validation are checked outside this Modality witness."

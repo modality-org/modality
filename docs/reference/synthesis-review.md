@@ -21,6 +21,9 @@ committing the result:
 - Which rule file was used?
 - Which reviewer-authored source clause, prompt, or protocol text was preserved?
 - Which action labels and predicate calls were extracted by the parser?
+- Does the Source Facts section preserve any reviewer-supplied `Source fact:`
+  lines such as concrete `+sets(...)` path-write expectations without treating
+  them as automatically inferred facts?
 - Does the Review Checklist say source capture, clause trace, parser-backed
   formulas, verifier result, assumptions, and known gaps are present?
 - Does the Source Assumptions section preserve any reviewer-supplied
@@ -57,6 +60,12 @@ next to the extracted formula. This trace is preserved for review; it is not
 natural-language extraction. The Review Checklist should repeat that boundary
 with `Prompt-to-facts trace: not automatic`.
 
+Structured lines such as `Source fact: +sets(/posts/{post_id}/body)` should
+appear in the Source Facts section. Use these for reviewer-supplied protocol
+or path-write facts that should remain visible next to the parser-backed formula
+summary. They are preserved for review, but synthesis does not infer or prove
+them.
+
 Structured lines such as `External assumption: signature verification and path identity evidence come from commit data.` should appear in the Source Assumptions section. Treat those lines as explicit review boundaries: synthesis preserves them, but does not prove them.
 
 ## No-Witness Bundle
@@ -64,6 +73,8 @@ Structured lines such as `External assumption: signature verification and path i
 If `--verify` rejects the synthesized candidate, the CLI should say that no satisfying witness was found by bounded μ-calculus search. With `--review-bundle`, it should still write a failed bundle containing:
 
 - The rule file and parser-backed extracted facts.
+- Any `Source fact:` lines supplied with the original source, or an explicit
+  note that none were supplied.
 - Any `External assumption:` lines supplied with the original source, or an
   explicit note that none were supplied.
 - A Review Checklist with `Verifier result: failed`.

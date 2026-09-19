@@ -44,6 +44,7 @@ EOF
 
 cat >"$SOURCE" <<'EOF'
 F1: Every accepted post move must have reviewer signature evidence attached.
+Source fact: +sets(/posts/{post_id}/body)
 External assumption: signature verification and path identity evidence come from commit data.
 EOF
 
@@ -97,6 +98,9 @@ required_review_patterns=(
   '`+signed_by(/users/reviewer.id)`'
   "## Source Clause Trace"
   "F1 source clause: Every accepted post move must have reviewer signature evidence attached."
+  "## Source Facts"
+  "These reviewer-supplied facts are preserved for contract review; they are not inferred by synthesis."
+  '`+sets(/posts/{post_id}/body)`'
   "## Source Assumptions"
   "These reviewer-supplied assumptions are preserved for contract review; they are not proven by synthesis."
   "signature verification and path identity evidence come from commit data."
@@ -174,6 +178,8 @@ required_unsat_review_patterns=(
   "## Rule File"
   "impossible_contract"
   "## Extracted Facts"
+  "## Source Facts"
+  "No structured \`Source fact:\` lines found in the original source."
   "## Review Checklist"
   "Original source captured: no"
   "Source-clause trace present: no"
