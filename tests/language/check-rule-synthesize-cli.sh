@@ -99,8 +99,8 @@ required_review_patterns=(
   "## Source Clause Trace"
   "F1 source clause: Every accepted post move must have reviewer signature evidence attached."
   "## Source Facts"
-  "These reviewer-supplied facts are preserved with source line numbers for contract review; they are not inferred by synthesis."
-  'Line 2: `+sets(/posts/{post_id}/body)`'
+  "These reviewer-supplied facts are preserved with source line numbers and source-fact shape labels for contract review; they are not inferred by synthesis."
+  'Line 2 [path-write template]: `+sets(/posts/{post_id}/body)`'
   "## Source Assumptions"
   "These reviewer-supplied assumptions are preserved with source line numbers for contract review; they are not proven by synthesis."
   "Line 3: signature verification and path identity evidence come from commit data."

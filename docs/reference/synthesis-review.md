@@ -23,7 +23,8 @@ committing the result:
 - Which action labels and predicate calls were extracted by the parser?
 - Does the Source Facts section preserve any reviewer-supplied `Source fact:`
   lines such as concrete `+sets(...)` path-write expectations without treating
-  them as automatically inferred facts, with source line numbers for traceability?
+  them as automatically inferred facts, with source line numbers and shape labels
+  such as `path-write template` for traceability?
 - Does the Review Checklist say source capture, clause trace, parser-backed
   formulas, verifier result, assumptions, and known gaps are present?
 - Does the Source Assumptions section preserve any reviewer-supplied
@@ -64,8 +65,9 @@ with `Prompt-to-facts trace: not automatic`.
 Structured lines such as `Source fact: +sets(/posts/{post_id}/body)` should
 appear in the Source Facts section. Use these for reviewer-supplied protocol
 or path-write facts that should remain visible next to the parser-backed formula
-summary. They are preserved with source line numbers for review, but synthesis
-does not infer or prove them.
+summary. They are preserved with source line numbers and source-fact shape
+labels such as `path-write template` for review, but synthesis does not infer
+or prove them.
 
 Structured lines such as `External assumption: signature verification and path identity evidence come from commit data.` should appear in the Source Assumptions section. Treat those lines as explicit review boundaries: synthesis preserves them, but does not prove them.
 
@@ -76,7 +78,7 @@ If `--verify` rejects the synthesized candidate, the CLI should say that no sati
 - The rule file and parser-backed extracted facts.
 - Any `Source fact:` lines supplied with the original source, or an explicit
   note that none were supplied. Supplied facts should include their source line
-  numbers.
+  numbers and source-fact shape labels.
 - Any `External assumption:` lines supplied with the original source, or an
   explicit note that none were supplied. Supplied assumptions should include
   their source line numbers.

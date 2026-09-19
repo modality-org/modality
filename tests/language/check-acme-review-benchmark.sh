@@ -143,11 +143,11 @@ required_review_patterns=(
   "F3 source clause: RFC 8555 section 7.1.5"
   "F4 source clause: RFC 8555 section 8"
   "## Source Facts"
-  "These reviewer-supplied facts are preserved with source line numbers for contract review; they are not inferred by synthesis."
-  'Line 2: `+sets(/orders/{order}/csr)`'
-  'Line 4: `+sets(/orders/{order}/status)`'
-  'Line 6: `+sets(/authorizations/{authorization}/status)`'
-  'Line 8: `+sets(/orders/{order}/certificate)`'
+  "These reviewer-supplied facts are preserved with source line numbers and source-fact shape labels for contract review; they are not inferred by synthesis."
+  'Line 2 [path-write template]: `+sets(/orders/{order}/csr)`'
+  'Line 4 [path-write template]: `+sets(/orders/{order}/status)`'
+  'Line 6 [path-write template]: `+sets(/authorizations/{authorization}/status)`'
+  'Line 8 [path-write template]: `+sets(/orders/{order}/certificate)`'
   "## Source Assumptions"
   "These reviewer-supplied assumptions are preserved with source line numbers for contract review; they are not proven by synthesis."
   "Line 9: ACME account-key authentication, CSR cryptographic soundness, CA policy, WebPKI trust, and DNS or HTTP domain-control validation are checked outside this Modality witness."

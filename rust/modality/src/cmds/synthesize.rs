@@ -2399,10 +2399,15 @@ fn write_source_facts(output: &mut String, review_source: Option<&ReviewSource>)
     }
 
     output.push_str(
-        "- These reviewer-supplied facts are preserved with source line numbers for contract review; they are not inferred by synthesis.\n\n",
+        "- These reviewer-supplied facts are preserved with source line numbers and source-fact shape labels for contract review; they are not inferred by synthesis.\n\n",
     );
     for fact in facts {
-        output.push_str(&format!("- Line {}: `{}`\n", fact.line, fact.value));
+        output.push_str(&format!(
+            "- Line {} [{}]: `{}`\n",
+            fact.line,
+            source_fact_shape_label(&fact.value),
+            fact.value
+        ));
     }
     output.push('\n');
 }
@@ -2508,6 +2513,102 @@ fn extract_source_assumptions_with_lines(source: &str) -> Vec<SourceReviewLine> 
                 })
         })
         .collect()
+}
+
+fn source_fact_shape_label(fact: &str) -> &'static str {
+    let fact = fact.trim();
+    let Some(sign) = fact.chars().next() else {
+        return "reviewer text";
+    };
+    if sign != '+' && sign != '-' {
+        return "reviewer text";
+    }
+
+    let rest = fact[sign.len_utf8()..].trim_start();
+    let name_len = rest
+        .chars()
+        .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
+        .map(char::len_utf8)
+        .sum::<usize>();
+    if name_len == 0 {
+        return "reviewer text";
+    }
+
+    let name = &rest[..name_len];
+    let after_name = rest[name_len..].trim_start();
+    if after_name.is_empty() {
+        return "action label";
+    }
+
+    if !after_name.starts_with('(') || !after_name.ends_with(')') {
+        return "reviewer text";
+    }
+
+    let args = after_name[1..after_name.len() - 1].trim();
+    if args.is_empty() || !has_balanced_source_fact_args(args) {
+        return "reviewer text";
+    }
+
+    if name == "sets" || name == "posts_to" || name == "post_to" {
+        if args
+            .split(',')
+            .next()
+            .map(|first_arg| is_source_fact_path_template(first_arg.trim()))
+            .unwrap_or(false)
+        {
+            return "path-write template";
+        }
+    }
+
+    "predicate call"
+}
+
+fn has_balanced_source_fact_args(args: &str) -> bool {
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+
+    for ch in args.chars() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' => in_string = true,
+            '(' => depth += 1,
+            ')' => {
+                let Some(next_depth) = depth.checked_sub(1) else {
+                    return false;
+                };
+                depth = next_depth;
+            }
+            _ => {}
+        }
+    }
+
+    !in_string && depth == 0
+}
+
+fn is_source_fact_path_template(value: &str) -> bool {
+    let value = value.trim_matches('"');
+    value.starts_with('/')
+        && value.len() > 1
+        && value.chars().skip(1).all(|ch| {
+            ch == '_'
+                || ch == '.'
+                || ch == '/'
+                || ch == '-'
+                || ch == '{'
+                || ch == '}'
+                || ch.is_ascii_alphanumeric()
+        })
 }
 
 fn extract_source_clause_trace(source: &str, formula_count: usize) -> Vec<Option<String>> {
@@ -2639,6 +2740,23 @@ mod tests {
     }
 
     #[test]
+    fn source_fact_shape_labels_structured_review_lines() {
+        assert_eq!(
+            source_fact_shape_label("+sets(/posts/{post_id}/body)"),
+            "path-write template"
+        );
+        assert_eq!(
+            source_fact_shape_label("+signed_by(/users/reviewer.id)"),
+            "predicate call"
+        );
+        assert_eq!(source_fact_shape_label("+POST"), "action label");
+        assert_eq!(
+            source_fact_shape_label("reviewer note: preserve this boundary"),
+            "reviewer text"
+        );
+    }
+
+    #[test]
     fn parse_formula_strings_uses_modality_parser() {
         let formulas = vec![
             "always([<+APPROVE>] true)".to_string(),
@@ -2765,7 +2883,7 @@ rule post_requires_reviewer {
         assert!(bundle.contains("`+POST`"));
         assert!(bundle.contains("`+signed_by(/users/reviewer.id)`"));
         assert!(bundle.contains("## Source Facts"));
-        assert!(bundle.contains("Line 2: `+sets(/posts/{post_id}/body)`"));
+        assert!(bundle.contains("Line 2 [path-write template]: `+sets(/posts/{post_id}/body)`"));
         assert!(bundle.contains("## Source Assumptions"));
         assert!(bundle.contains(
             "Line 3: signature verification and path identity evidence come from commit data."
