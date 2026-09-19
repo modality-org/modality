@@ -53,6 +53,9 @@ required_patterns=(
   "wrong-state \`POST\` fixture"
   "current-state candidates"
   "perfect state-mismatched \`+POST\` transition"
+  "wrong-action \`POST\` fixture"
+  'current-state `+state_exists(/ready.flag) +signed_by(/parties/alice.id)`'
+  "Similar transitions from other states with fewer failed predicates:"
   "Reports diagnostics in current-state, closest-candidate, ranked-section, then"
   "missing-predicate order"
   "does not mention Bob or \`+POST\`"
@@ -111,6 +114,9 @@ first_contract_smoke_patterns=(
   "Candidate transitions: none from current states"
   "Similar transitions from other states ranked by predicate distance:"
   "wrong-state post diagnostics are not in current-state, no-current, similar-transition order"
+  "expected wrong-action post to fail with a closer non-current transition"
+  "Similar transitions from other states with fewer failed predicates:"
+  "wrong-action post diagnostics are not in current-state, current-candidate, similar-transition order"
 )
 
 for pattern in "${first_contract_smoke_patterns[@]}"; do

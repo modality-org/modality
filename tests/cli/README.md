@@ -32,7 +32,8 @@ witness, asserts that the current machine rejects it with the same
 current-state, closest-candidate, ranked-candidate diagnostic shape, exercises
 a wrong-state `POST` fixture whose accepted witness has no current-state
 candidate and must therefore show ranked similar transitions from other states,
-installs a
+exercises a wrong-action `POST` fixture whose current state has only an
+unrelated transition while a closer non-current `+POST` exists, installs a
 witness with a signed Alice transition and an alternative signed Bob
 transition, and accepts Bob's signed replacement.
 

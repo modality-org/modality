@@ -102,6 +102,14 @@ current-state candidates and then rank the similar non-current transitions,
 including the perfect state-mismatched `+POST` transition before the
 Alice-signed `+POST` transition with missing signature evidence.
 
+It also carries a wrong-action `POST` fixture for the related case where the
+current state does have an outgoing transition, but that transition is less
+relevant than a non-current `+POST` path. The rejected commit must first name
+the current-state `+state_exists(/ready.flag) +signed_by(/parties/alice.id)`
+candidate and its failed predicates, then include the better non-current `+POST`
+transition under
+`Similar transitions from other states with fewer failed predicates:`.
+
 The contract evolution smoke preserves the same shape after model replacement,
 including `missing +signed_by(/parties/bob.id)` once the accepted replacement
 model has installed a Bob-authorized transition.

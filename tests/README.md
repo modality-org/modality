@@ -57,8 +57,10 @@ governing witness with `--verify`, validates that generated model, commits it
 through `modal`, rejects unsigned and wrong-signer successors with
 current-state, closest-candidate, ranked-candidate diagnostics, rejects a
 wrong-state `POST` fixture with no current-state candidates plus ranked similar
-non-current transitions, and then lets Bob replace the incomplete witness with
-a signed `MODEL` commit. The same real `modal` binary
+non-current transitions, rejects a wrong-action `POST` fixture whose current
+state has only an unrelated transition while a closer non-current `+POST`
+exists, and then lets Bob replace the incomplete witness with a signed `MODEL`
+commit. The same real `modal` binary
 also runs the contract evolution smoke, which verifies an additive rule commit,
 rejected bad witness replacement, accepted V2 witness replacement, and
 Bob-signed successor update.

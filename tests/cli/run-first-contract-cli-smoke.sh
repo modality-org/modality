@@ -42,6 +42,7 @@ trap cleanup EXIT
 
 CONTRACT_DIR="$TMP_DIR/first-contract"
 NO_CURRENT_DIR="$TMP_DIR/no-current-transition"
+UNRELATED_CURRENT_DIR="$TMP_DIR/unrelated-current-transition"
 ALICE_PASSFILE="$TMP_DIR/alice.mod_passfile"
 BOB_PASSFILE="$TMP_DIR/bob.mod_passfile"
 export MODALITY_HOME="$TMP_DIR/modality-home"
@@ -364,6 +365,57 @@ no_current_diagnostic_order="$(tr '\n' ' ' <"$TMP_DIR/no-current-post.err")"
 if [[ "$no_current_diagnostic_order" != *'current states {"q1"}'*'Candidate transitions: none from current states'*'Similar transitions from other states ranked by predicate distance:'*'failed predicates: none'*'missing +signed_by(/parties/alice.id)'* ]]; then
   echo "wrong-state post diagnostics are not in current-state, no-current, similar-transition order" >&2
   cat "$TMP_DIR/no-current-post.err" >&2
+  exit 1
+fi
+
+"$MODAL_BIN" contract create --dir "$UNRELATED_CURRENT_DIR" --output json >/dev/null
+"$MODAL_BIN" checkout --dir "$UNRELATED_CURRENT_DIR" >/dev/null
+mkdir -p "$UNRELATED_CURRENT_DIR/model"
+cat >"$UNRELATED_CURRENT_DIR/model/default.modality" <<'EOF'
+model Contract {
+  part flow {
+    q0 --> q1
+    q0 --> q2: +POST
+    q1 --> q3: +state_exists(/ready.flag) +signed_by(/parties/alice.id)
+  }
+}
+EOF
+
+"$MODALITY_BIN" model validate "$UNRELATED_CURRENT_DIR/model/default.modality" \
+  --verbose >"$TMP_DIR/unrelated-current-model-validate.out" 2>&1
+grep -q "Contract is valid!" "$TMP_DIR/unrelated-current-model-validate.out"
+
+"$MODAL_BIN" commit \
+  --all \
+  --dir "$UNRELATED_CURRENT_DIR" \
+  --output json \
+  --message "Install unrelated-current witness" >/dev/null
+
+if "$MODAL_BIN" commit \
+  --path /notes.text \
+  --value "post while current predicate is unrelated" \
+  --dir "$UNRELATED_CURRENT_DIR" \
+  --output json \
+  --message "Post with unrelated current transition" \
+  >"$TMP_DIR/unrelated-current-post.json" 2>"$TMP_DIR/unrelated-current-post.err"; then
+  echo "expected wrong-action post to fail with a closer non-current transition" >&2
+  cat "$TMP_DIR/unrelated-current-post.json" >&2
+  exit 1
+fi
+
+grep -q 'current states {"q1"}' "$TMP_DIR/unrelated-current-post.err"
+grep -Eq "Closest candidate transition: (part flow )?candidate from current state q1: q1 (to|-+>) q3 \\[\\+state_exists\\(/ready.flag\\) \\+signed_by\\(/parties/alice.id\\)\\]; failed predicates: missing \\+signed_by\\(/parties/alice.id\\), missing \\+state_exists\\(/ready.flag\\)" \
+  "$TMP_DIR/unrelated-current-post.err"
+grep -q "Candidate transitions ranked by predicate distance:" \
+  "$TMP_DIR/unrelated-current-post.err"
+grep -q "Similar transitions from other states with fewer failed predicates:" \
+  "$TMP_DIR/unrelated-current-post.err"
+grep -Eq "(part flow )?non-current transition from q0 (to|-+>) q2 \\[\\+POST\\]; current states: q1; failed predicates: none" \
+  "$TMP_DIR/unrelated-current-post.err"
+unrelated_current_diagnostic_order="$(tr '\n' ' ' <"$TMP_DIR/unrelated-current-post.err")"
+if [[ "$unrelated_current_diagnostic_order" != *'current states {"q1"}'*'Closest candidate transition:'*'Candidate transitions ranked by predicate distance:'*'Similar transitions from other states with fewer failed predicates:'*'failed predicates: none'* ]]; then
+  echo "wrong-action post diagnostics are not in current-state, current-candidate, similar-transition order" >&2
+  cat "$TMP_DIR/unrelated-current-post.err" >&2
   exit 1
 fi
 
