@@ -29,7 +29,10 @@ attempts an unsigned one, asserting that the governing model rejects the
 unsigned path with the closest candidate transition and missing `signed_by`
 predicate diagnostics. It then has Bob try a signed empty commit against that synthesized Alice-only
 witness, asserts that the current machine rejects it with the same
-current-state, closest-candidate, ranked-candidate diagnostic shape, installs a
+current-state, closest-candidate, ranked-candidate diagnostic shape, exercises
+a wrong-state `POST` fixture whose accepted witness has no current-state
+candidate and must therefore show ranked similar transitions from other states,
+installs a
 witness with a signed Alice transition and an alternative signed Bob
 transition, and accepts Bob's signed replacement.
 

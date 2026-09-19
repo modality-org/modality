@@ -95,6 +95,13 @@ post-bootstrap update:
 - Asserts the unsigned Alice-only rejection does not mention Bob or `+POST`,
   because that would imply broader authority than the current witness grants.
 
+The same smoke also carries a wrong-state `POST` fixture. It accepts a
+bootstrap transition into `q1`, then attempts a `POST` when all `POST`
+transitions leave `q0`. The rejected commit must report that there are no
+current-state candidates and then rank the similar non-current transitions,
+including the perfect state-mismatched `+POST` transition before the
+Alice-signed `+POST` transition with missing signature evidence.
+
 The contract evolution smoke preserves the same shape after model replacement,
 including `missing +signed_by(/parties/bob.id)` once the accepted replacement
 model has installed a Bob-authorized transition.

@@ -41,6 +41,7 @@ cleanup() {
 trap cleanup EXIT
 
 CONTRACT_DIR="$TMP_DIR/first-contract"
+NO_CURRENT_DIR="$TMP_DIR/no-current-transition"
 ALICE_PASSFILE="$TMP_DIR/alice.mod_passfile"
 BOB_PASSFILE="$TMP_DIR/bob.mod_passfile"
 export MODALITY_HOME="$TMP_DIR/modality-home"
@@ -312,6 +313,57 @@ bob_diagnostic_order="$(tr '\n' ' ' <"$TMP_DIR/bob-empty-commit.err")"
 if [[ "$bob_diagnostic_order" != *'current states {"q1"}'*'Closest candidate transition:'*'Candidate transitions ranked by predicate distance:'*'missing +signed_by(/parties/alice.id)'* ]]; then
   echo "Bob's rejected signed-commit diagnostics are not in current-state, closest, ranked order" >&2
   cat "$TMP_DIR/bob-empty-commit.err" >&2
+  exit 1
+fi
+
+"$MODAL_BIN" contract create --dir "$NO_CURRENT_DIR" --output json >/dev/null
+"$MODAL_BIN" checkout --dir "$NO_CURRENT_DIR" >/dev/null
+mkdir -p "$NO_CURRENT_DIR/model"
+cat >"$NO_CURRENT_DIR/model/default.modality" <<'EOF'
+model Contract {
+  part flow {
+    q0 --> q1
+    q0 --> q2: +POST
+    q0 --> q3: +POST +signed_by(/parties/alice.id)
+  }
+}
+EOF
+
+"$MODALITY_BIN" model validate "$NO_CURRENT_DIR/model/default.modality" \
+  --verbose >"$TMP_DIR/no-current-model-validate.out" 2>&1
+grep -q "Contract is valid!" "$TMP_DIR/no-current-model-validate.out"
+
+"$MODAL_BIN" commit \
+  --all \
+  --dir "$NO_CURRENT_DIR" \
+  --output json \
+  --message "Install state-mismatch witness" >/dev/null
+
+if "$MODAL_BIN" commit \
+  --path /notes.text \
+  --value "post from the wrong state" \
+  --dir "$NO_CURRENT_DIR" \
+  --output json \
+  --message "Wrong-state post" \
+  >"$TMP_DIR/no-current-post.json" 2>"$TMP_DIR/no-current-post.err"; then
+  echo "expected wrong-state post to fail with no current transition candidates" >&2
+  cat "$TMP_DIR/no-current-post.json" >&2
+  exit 1
+fi
+
+grep -q 'current states {"q1"}' "$TMP_DIR/no-current-post.err"
+grep -q "Candidate transitions: none from current states" \
+  "$TMP_DIR/no-current-post.err"
+grep -q "Similar transitions from other states ranked by predicate distance:" \
+  "$TMP_DIR/no-current-post.err"
+grep -Eq "(part flow )?non-current transition from q0 (to|-+>) q2 \\[\\+POST\\]; current states: q1; failed predicates: none" \
+  "$TMP_DIR/no-current-post.err"
+grep -Eq "(part flow )?non-current transition from q0 (to|-+>) q3 \\[\\+POST \\+signed_by\\(/parties/alice.id\\)\\]; current states: q1; failed predicates: missing \\+signed_by\\(/parties/alice.id\\)" \
+  "$TMP_DIR/no-current-post.err"
+no_current_diagnostic_order="$(tr '\n' ' ' <"$TMP_DIR/no-current-post.err")"
+if [[ "$no_current_diagnostic_order" != *'current states {"q1"}'*'Candidate transitions: none from current states'*'Similar transitions from other states ranked by predicate distance:'*'failed predicates: none'*'missing +signed_by(/parties/alice.id)'* ]]; then
+  echo "wrong-state post diagnostics are not in current-state, no-current, similar-transition order" >&2
+  cat "$TMP_DIR/no-current-post.err" >&2
   exit 1
 fi
 

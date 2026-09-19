@@ -50,6 +50,9 @@ required_patterns=(
   "test_model_replacement_rule_rejection_explains_fixed_point_unfolding"
   'Shared `modal-common::model_diagnostics` formatter regressions'
   "The no-build doc smoke cross-checks the first-contract smoke"
+  "wrong-state \`POST\` fixture"
+  "current-state candidates"
+  "perfect state-mismatched \`+POST\` transition"
   "Reports diagnostics in current-state, closest-candidate, ranked-section, then"
   "missing-predicate order"
   "does not mention Bob or \`+POST\`"
@@ -104,6 +107,10 @@ first_contract_smoke_patterns=(
   "unsigned rejection diagnostics are not in current-state, closest, ranked order"
   "rejected unsigned commit changed replayed contract state"
   "rejected unsigned commit was appended to the contract log"
+  "expected wrong-state post to fail with no current transition candidates"
+  "Candidate transitions: none from current states"
+  "Similar transitions from other states ranked by predicate distance:"
+  "wrong-state post diagnostics are not in current-state, no-current, similar-transition order"
 )
 
 for pattern in "${first_contract_smoke_patterns[@]}"; do

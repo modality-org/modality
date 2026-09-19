@@ -55,8 +55,10 @@ full runtime groups, while `MODAL_ONBOARDING_FEATURES=full` expects those
 runtime groups to be present. The first-contract CLI smoke synthesizes the
 governing witness with `--verify`, validates that generated model, commits it
 through `modal`, rejects unsigned and wrong-signer successors with
-current-state, closest-candidate, ranked-candidate diagnostics, and then lets
-Bob replace the incomplete witness with a signed `MODEL` commit. The same real `modal` binary
+current-state, closest-candidate, ranked-candidate diagnostics, rejects a
+wrong-state `POST` fixture with no current-state candidates plus ranked similar
+non-current transitions, and then lets Bob replace the incomplete witness with
+a signed `MODEL` commit. The same real `modal` binary
 also runs the contract evolution smoke, which verifies an additive rule commit,
 rejected bad witness replacement, accepted V2 witness replacement, and
 Bob-signed successor update.
