@@ -28,7 +28,8 @@ the third committed entry while the governing model state remains `q1`, and
 attempts an unsigned one, asserting that the governing model rejects the
 unsigned path with the closest candidate transition and missing `signed_by`
 predicate diagnostics. It then has Bob try a signed empty commit against that synthesized Alice-only
-witness, asserts that the current machine rejects it, installs a
+witness, asserts that the current machine rejects it with the same
+current-state, closest-candidate, ranked-candidate diagnostic shape, installs a
 witness with a signed Alice transition and an alternative signed Bob
 transition, and accepts Bob's signed replacement.
 

@@ -294,6 +294,8 @@ if "$MODAL_BIN" commit \
 fi
 
 grep -q 'current states {"q1"}' "$TMP_DIR/bob-empty-commit.err"
+grep -Eq "Closest candidate transition: (part flow )?candidate from current state q1: q1 -+> q1 \[\\+signed_by\\(/parties/alice.id\\)\]; failed predicates: missing \\+signed_by\\(/parties/alice.id\\)" "$TMP_DIR/bob-empty-commit.err"
+grep -q "Candidate transitions ranked by predicate distance:" "$TMP_DIR/bob-empty-commit.err"
 grep -q "missing +signed_by(/parties/alice.id)" "$TMP_DIR/bob-empty-commit.err"
 grep -q "+signed_by(/parties/alice.id)" "$TMP_DIR/bob-empty-commit.err"
 if grep -q "+POST" "$TMP_DIR/bob-empty-commit.err"; then
@@ -303,6 +305,12 @@ if grep -q "+POST" "$TMP_DIR/bob-empty-commit.err"; then
 fi
 if grep -q "+MODEL" "$TMP_DIR/bob-empty-commit.err"; then
   echo "Bob's rejected empty commit still mentions +MODEL" >&2
+  cat "$TMP_DIR/bob-empty-commit.err" >&2
+  exit 1
+fi
+bob_diagnostic_order="$(tr '\n' ' ' <"$TMP_DIR/bob-empty-commit.err")"
+if [[ "$bob_diagnostic_order" != *'current states {"q1"}'*'Closest candidate transition:'*'Candidate transitions ranked by predicate distance:'*'missing +signed_by(/parties/alice.id)'* ]]; then
+  echo "Bob's rejected signed-commit diagnostics are not in current-state, closest, ranked order" >&2
   cat "$TMP_DIR/bob-empty-commit.err" >&2
   exit 1
 fi
