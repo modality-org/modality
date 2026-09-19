@@ -97,6 +97,9 @@ required_review_patterns=(
   '`+signed_by(/users/reviewer.id)`'
   "## Source Clause Trace"
   "F1 source clause: Every accepted post move must have reviewer signature evidence attached."
+  "## Source Assumptions"
+  "These reviewer-supplied assumptions are preserved for contract review; they are not proven by synthesis."
+  "signature verification and path identity evidence come from commit data."
   "## Review Checklist"
   "Original source captured: yes"
   "Source-clause trace present: yes"
@@ -181,6 +184,8 @@ required_unsat_review_patterns=(
   "Status: failed (\`--verify\`)"
   "no satisfying witness was found by bounded μ-calculus search"
   "## Candidate Witness Model"
+  "## Source Assumptions"
+  "No structured \`External assumption:\` lines found in the original source."
   "## Assumptions"
   "## Known Gaps"
   "bounded explicit-state μ-calculus search"

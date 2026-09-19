@@ -23,6 +23,8 @@ committing the result:
 - Which action labels and predicate calls were extracted by the parser?
 - Does the Review Checklist say source capture, clause trace, parser-backed
   formulas, verifier result, assumptions, and known gaps are present?
+- Does the Source Assumptions section preserve any reviewer-supplied
+  `External assumption:` lines as out-of-proof evidence boundaries?
 - Does the Review Checklist say `Prompt-to-facts trace: not automatic` so the
   reviewer knows preserved source clauses still need human comparison against
   parser-backed formulas?
@@ -55,11 +57,15 @@ next to the extracted formula. This trace is preserved for review; it is not
 natural-language extraction. The Review Checklist should repeat that boundary
 with `Prompt-to-facts trace: not automatic`.
 
+Structured lines such as `External assumption: signature verification and path identity evidence come from commit data.` should appear in the Source Assumptions section. Treat those lines as explicit review boundaries: synthesis preserves them, but does not prove them.
+
 ## No-Witness Bundle
 
 If `--verify` rejects the synthesized candidate, the CLI should say that no satisfying witness was found by bounded μ-calculus search. With `--review-bundle`, it should still write a failed bundle containing:
 
 - The rule file and parser-backed extracted facts.
+- Any `External assumption:` lines supplied with the original source, or an
+  explicit note that none were supplied.
 - A Review Checklist with `Verifier result: failed`.
 - The verifier error.
 - The candidate witness model that failed verification.

@@ -2110,6 +2110,9 @@ fn format_failed_rule_review_bundle(
     let facts = FormulaFactSummary::from_formulas(&parsed_input.formulas);
     facts.write_markdown(&mut output);
 
+    output.push_str("## Source Assumptions\n\n");
+    write_source_assumptions(&mut output, review_source);
+
     output.push_str("## Review Checklist\n\n");
     write_review_checklist(
         &mut output,
@@ -2270,6 +2273,9 @@ fn format_synthesis_review_bundle(
     output.push_str("## Source Clause Trace\n\n");
     write_source_clause_trace(&mut output, review_source, extracted_formulas.len());
 
+    output.push_str("## Source Assumptions\n\n");
+    write_source_assumptions(&mut output, review_source);
+
     output.push_str("## Review Checklist\n\n");
     write_review_checklist(
         &mut output,
@@ -2376,6 +2382,27 @@ fn write_source_clause_trace(
     output.push('\n');
 }
 
+fn write_source_assumptions(output: &mut String, review_source: Option<&ReviewSource>) {
+    let assumptions = review_source
+        .map(|source| extract_source_assumptions(&source.content))
+        .unwrap_or_default();
+
+    if assumptions.is_empty() {
+        output.push_str(
+            "- No structured `External assumption:` lines found in the original source.\n\n",
+        );
+        return;
+    }
+
+    output.push_str(
+        "- These reviewer-supplied assumptions are preserved for contract review; they are not proven by synthesis.\n\n",
+    );
+    for assumption in assumptions {
+        output.push_str(&format!("- {}\n", assumption));
+    }
+    output.push('\n');
+}
+
 fn write_review_checklist(
     output: &mut String,
     review_source: Option<&ReviewSource>,
@@ -2414,6 +2441,19 @@ fn write_review_checklist(
     });
     output.push_str("- Assumptions section present: yes\n");
     output.push_str("- Known gaps section present: yes\n\n");
+}
+
+fn extract_source_assumptions(source: &str) -> Vec<String> {
+    source
+        .lines()
+        .filter_map(|line| {
+            line.trim()
+                .strip_prefix("External assumption:")
+                .map(str::trim)
+                .filter(|assumption| !assumption.is_empty())
+                .map(ToOwned::to_owned)
+        })
+        .collect()
 }
 
 fn extract_source_clause_trace(source: &str, formula_count: usize) -> Vec<Option<String>> {
@@ -2645,7 +2685,7 @@ rule post_requires_reviewer {
         .unwrap();
         std::fs::write(
             &source_path,
-            "F1: Every accepted post move must have reviewer signature evidence attached.\n",
+            "F1: Every accepted post move must have reviewer signature evidence attached.\nExternal assumption: signature verification and path identity evidence come from commit data.\n",
         )
         .unwrap();
 
@@ -2669,6 +2709,8 @@ rule post_requires_reviewer {
         assert!(bundle.contains("post_requires_reviewer"));
         assert!(bundle.contains("`+POST`"));
         assert!(bundle.contains("`+signed_by(/users/reviewer.id)`"));
+        assert!(bundle.contains("## Source Assumptions"));
+        assert!(bundle.contains("signature verification and path identity evidence come from commit data."));
         assert!(bundle.contains("- Verifier result: passed"));
         assert!(bundle.contains("## Witness Model"));
         assert!(bundle.contains("model Contract"));
@@ -2708,6 +2750,11 @@ rule impossible_contract {
 
         assert!(err.to_string().contains("No satisfying witness found by bounded"));
         assert!(bundle.contains("Verifier result: failed"), "{bundle}");
+        assert!(bundle.contains("## Source Assumptions"), "{bundle}");
+        assert!(
+            bundle.contains("No structured `External assumption:` lines found in the original source."),
+            "bundle was:\n{bundle}"
+        );
         assert!(
             bundle.contains("bounded μ-calculus search"),
             "bundle was:\n{bundle}"
