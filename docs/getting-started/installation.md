@@ -292,8 +292,10 @@ commit hash or Git-style short hash of at least seven lowercase hexadecimal
 characters that matches the single source revision recorded by provenance, and
 it must be the final version metadata. The downloaded-artifact verifier has
 negative evidence for uppercase revision markers in this provenance version
-field, so malformed, annotated, trailing, or stale version metadata still fails
-before the binary is trusted.
+field plus too-short, non-hex, and overlong revision markers, so malformed,
+annotated, trailing, or stale version metadata still fails before the binary is
+trusted. In other words, malformed, annotated, trailing, or stale version
+metadata still cannot anchor downloaded-artifact evidence.
 The help surface recorded in provenance must also be one of the supported
 surfaces (`lean` or `full`), and optional smoke replay checks that the unpacked
 binary reports exactly one version line matching provenance before checking

@@ -301,7 +301,10 @@ The downloaded-artifact verifier applies the same Git-token shape check to any
 embedded revision marker in provenance version metadata, and rejects other
 parenthesized version notes or trailing marker text, before accepting a
 matching-prefix revision, so hand-edited markers cannot extend a valid source
-revision with non-hex suffixes or uppercase marker text.
+revision with too-short, non-hex, overlong, or uppercase marker text.
+Downloaded-artifact provenance version markers now prove the same Git-token
+boundary for too-short, uppercase, non-hex, and overlong marker text before
+installer evidence is accepted.
 The archive producer and downloaded-artifact verifier both fail when the
 advertised help surface does not match the wrapper feature set, so a lean
 contract-onboarding archive cannot be promoted as a full-surface replay bundle

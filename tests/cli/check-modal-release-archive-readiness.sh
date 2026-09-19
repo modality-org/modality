@@ -3135,8 +3135,84 @@ fi
 rm -rf "$NEGATIVE_STAGE_DIR"
 NEGATIVE_STAGE_DIR=""
 rm -rf "$NEGATIVE_ARTIFACT_DIR"
+check_negative_provenance_version_revision() {
+  local revision="$1"
+  local accepted_message="$2"
+  local wrong_reason_label="$3"
+  local negative_version_output
+  local negative_version_slug
+  local negative_archive_name
+  if [[ "$version_output" =~ $version_revision_pattern ]]; then
+    negative_version_output="$(
+      printf '%s' "$version_output" | sed -E "s/@[^)]*\\)/@$revision)/"
+    )"
+  else
+    negative_version_output="$version_output (source@$revision)"
+  fi
+  negative_version_slug="$(
+    printf '%s' "${negative_version_output#modal }" |
+      tr '[:upper:]' '[:lower:]' |
+      sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//'
+  )"
+  negative_archive_name="modal-${negative_version_slug}-${os}-${arch}-${PROFILE}.tar.gz"
+  NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
+  NEGATIVE_STAGE_DIR="$(mktemp -d)"
+  mkdir -p "$NEGATIVE_STAGE_DIR/bin"
+  cp "$STAGE_DIR/bin/modal" "$NEGATIVE_STAGE_DIR/bin/modal"
+  sed "s/^version: .*$/version: $negative_version_output/" \
+    "$STAGE_DIR/README.txt" >"$NEGATIVE_STAGE_DIR/README.txt"
+  sed "s/^version: .*$/version: $negative_version_output/" \
+    "$STAGE_DIR/PROVENANCE.txt" >"$NEGATIVE_STAGE_DIR/PROVENANCE.txt"
+  sed "s/artifact: $archive_name/artifact: $negative_archive_name/" \
+    "$STAGE_DIR/EVIDENCE-BUNDLE.txt" >"$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+  chmod 0755 "$NEGATIVE_STAGE_DIR/bin/modal"
+  chmod 0644 \
+    "$NEGATIVE_STAGE_DIR/README.txt" \
+    "$NEGATIVE_STAGE_DIR/PROVENANCE.txt" \
+    "$NEGATIVE_STAGE_DIR/EVIDENCE-BUNDLE.txt"
+  (
+    cd "$NEGATIVE_STAGE_DIR"
+    sha256sum bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt >SHA256SUMS
+    chmod 0644 SHA256SUMS
+    tar --no-recursion -czf "$NEGATIVE_ARTIFACT_DIR/$negative_archive_name" \
+      bin bin/modal README.txt PROVENANCE.txt EVIDENCE-BUNDLE.txt SHA256SUMS
+  )
+  (
+    cd "$NEGATIVE_ARTIFACT_DIR"
+    sha256sum "$negative_archive_name" >"$negative_archive_name.sha256"
+  )
+  sed "s/$archive_name/$negative_archive_name/g" "$ARCHIVE_DIR/VERIFY-DOWNLOAD.txt" \
+    >"$NEGATIVE_ARTIFACT_DIR/VERIFY-DOWNLOAD.txt"
+  negative_output="$(
+    MODAL_ONBOARDING_ARTIFACT_EXPECT_REV="${MODAL_ONBOARDING_ARCHIVE_EXPECT_REV:-}" \
+      "$ROOT_DIR/tests/cli/check-modal-release-artifact-download.sh" "$NEGATIVE_ARTIFACT_DIR" 2>&1
+  )" && {
+    echo "$accepted_message" >&2
+    exit 1
+  }
+  if ! grep -Fq "release artifact provenance version revision is not a lowercase hex commit token" <<<"$negative_output"; then
+    cat >&2 <<EOF
+release artifact verifier rejected the $wrong_reason_label for the wrong reason
+expected: release artifact provenance version revision is not a lowercase hex commit token
+actual:
+$negative_output
+EOF
+    exit 1
+  fi
+  rm -rf "$NEGATIVE_STAGE_DIR"
+  NEGATIVE_STAGE_DIR=""
+  rm -rf "$NEGATIVE_ARTIFACT_DIR"
+}
+check_negative_provenance_version_revision \
+  "${source_revision:0:6}" \
+  "release artifact verifier accepted provenance version metadata with a too-short revision token" \
+  "too-short-version artifact"
+check_negative_provenance_version_revision \
+  "${source_revision}a" \
+  "release artifact verifier accepted provenance version metadata with an overlong revision token" \
+  "overlong-version artifact"
 NEGATIVE_ARTIFACT_DIR="$(mktemp -d)"
-bad_shape_version_revision="${source_revision}x"
+bad_shape_version_revision="${source_revision:0:6}g"
 if [[ "$version_output" =~ $version_revision_pattern ]]; then
   bad_shape_version_output="$(
     printf '%s' "$version_output" | sed -E "s/@[^)]*\\)/@$bad_shape_version_revision)/"

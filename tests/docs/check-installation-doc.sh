@@ -246,6 +246,7 @@ required_patterns=(
   "only parenthesized version metadata"
   "malformed, annotated, trailing, or stale version"
   "If the provenance version string carries an embedded revision marker, that"
+  "field plus too-short, non-hex, and overlong revision markers"
   "marker must also be the only parenthesized version metadata"
   "producer derives"
   "source revision from the source checkout"
@@ -466,6 +467,8 @@ tests_readme_patterns=(
   "version emits exactly one line"
   "including no trailing blank version lines"
   "too-short, uppercase, non-hex, and overlong revision markers are rejected"
+  "Downloaded-artifact provenance version markers now prove the same Git-token"
+  "boundary for too-short, uppercase, non-hex, and overlong marker text"
   "carries exactly one embedded source revision marker"
   "that omits the revision"
   "parenthesized \`(...@<commit>)\` form"
@@ -973,6 +976,16 @@ fi
 if ! grep -Fq 'release artifact verifier accepted provenance version metadata with a malformed revision token' \
   "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
   echo "release archive producer should prove malformed provenance version revision tokens are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted provenance version metadata with a too-short revision token' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove too-short provenance version revisions are rejected" >&2
+  exit 1
+fi
+if ! grep -Fq 'release artifact verifier accepted provenance version metadata with an overlong revision token' \
+  "$ROOT_DIR/tests/cli/check-modal-release-archive-readiness.sh"; then
+  echo "release archive producer should prove overlong provenance version revisions are rejected" >&2
   exit 1
 fi
 if ! grep -Fq 'release artifact verifier accepted provenance version metadata with an uppercase revision token' \

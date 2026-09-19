@@ -207,6 +207,9 @@ The producer also rejects too-short, uppercase, non-hex, or overlong explicit
 source revision overrides before archive evidence can pass. The producer and
 downloaded-artifact verifier also reject unknown, too-short, uppercase, non-hex,
 or overlong expected revision tokens before replay evidence can pass.
+Downloaded-artifact provenance version markers now prove the same Git-token
+boundary for too-short, uppercase, non-hex, and overlong marker text before
+installer evidence is accepted.
 
 The archive producer selects the source checkout revision before falling back
 to any embedded `modal --version` revision marker, and its negative corpus
