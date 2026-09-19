@@ -2390,7 +2390,7 @@ fn write_source_clause_trace(
 
 fn write_source_facts(output: &mut String, review_source: Option<&ReviewSource>) {
     let facts = review_source
-        .map(|source| extract_source_facts(&source.content))
+        .map(|source| extract_source_facts_with_lines(&source.content))
         .unwrap_or_default();
 
     if facts.is_empty() {
@@ -2399,17 +2399,17 @@ fn write_source_facts(output: &mut String, review_source: Option<&ReviewSource>)
     }
 
     output.push_str(
-        "- These reviewer-supplied facts are preserved for contract review; they are not inferred by synthesis.\n\n",
+        "- These reviewer-supplied facts are preserved with source line numbers for contract review; they are not inferred by synthesis.\n\n",
     );
     for fact in facts {
-        output.push_str(&format!("- `{}`\n", fact));
+        output.push_str(&format!("- Line {}: `{}`\n", fact.line, fact.value));
     }
     output.push('\n');
 }
 
 fn write_source_assumptions(output: &mut String, review_source: Option<&ReviewSource>) {
     let assumptions = review_source
-        .map(|source| extract_source_assumptions(&source.content))
+        .map(|source| extract_source_assumptions_with_lines(&source.content))
         .unwrap_or_default();
 
     if assumptions.is_empty() {
@@ -2420,10 +2420,13 @@ fn write_source_assumptions(output: &mut String, review_source: Option<&ReviewSo
     }
 
     output.push_str(
-        "- These reviewer-supplied assumptions are preserved for contract review; they are not proven by synthesis.\n\n",
+        "- These reviewer-supplied assumptions are preserved with source line numbers for contract review; they are not proven by synthesis.\n\n",
     );
     for assumption in assumptions {
-        output.push_str(&format!("- {}\n", assumption));
+        output.push_str(&format!(
+            "- Line {}: {}\n",
+            assumption.line, assumption.value
+        ));
     }
     output.push('\n');
 }
@@ -2468,28 +2471,41 @@ fn write_review_checklist(
     output.push_str("- Known gaps section present: yes\n\n");
 }
 
-fn extract_source_facts(source: &str) -> Vec<String> {
+struct SourceReviewLine {
+    line: usize,
+    value: String,
+}
+
+fn extract_source_facts_with_lines(source: &str) -> Vec<SourceReviewLine> {
     source
         .lines()
-        .filter_map(|line| {
+        .enumerate()
+        .filter_map(|(index, line)| {
             line.trim()
                 .strip_prefix("Source fact:")
                 .map(str::trim)
                 .filter(|fact| !fact.is_empty())
-                .map(ToOwned::to_owned)
+                .map(|fact| SourceReviewLine {
+                    line: index + 1,
+                    value: fact.to_owned(),
+                })
         })
         .collect()
 }
 
-fn extract_source_assumptions(source: &str) -> Vec<String> {
+fn extract_source_assumptions_with_lines(source: &str) -> Vec<SourceReviewLine> {
     source
         .lines()
-        .filter_map(|line| {
+        .enumerate()
+        .filter_map(|(index, line)| {
             line.trim()
                 .strip_prefix("External assumption:")
                 .map(str::trim)
                 .filter(|assumption| !assumption.is_empty())
-                .map(ToOwned::to_owned)
+                .map(|assumption| SourceReviewLine {
+                    line: index + 1,
+                    value: assumption.to_owned(),
+                })
         })
         .collect()
 }
@@ -2749,10 +2765,11 @@ rule post_requires_reviewer {
         assert!(bundle.contains("`+POST`"));
         assert!(bundle.contains("`+signed_by(/users/reviewer.id)`"));
         assert!(bundle.contains("## Source Facts"));
-        assert!(bundle.contains("`+sets(/posts/{post_id}/body)`"));
+        assert!(bundle.contains("Line 2: `+sets(/posts/{post_id}/body)`"));
         assert!(bundle.contains("## Source Assumptions"));
-        assert!(bundle
-            .contains("signature verification and path identity evidence come from commit data."));
+        assert!(bundle.contains(
+            "Line 3: signature verification and path identity evidence come from commit data."
+        ));
         assert!(bundle.contains("- Verifier result: passed"));
         assert!(bundle.contains("## Witness Model"));
         assert!(bundle.contains("model Contract"));
