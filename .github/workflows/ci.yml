@@ -31,6 +31,8 @@ jobs:
       
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.94.1
 
       - name: Cache cargo registry
         uses: actions/cache@v5
@@ -70,6 +72,8 @@ jobs:
       
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.94.1
 
       - name: Free runner disk space
         run: |
@@ -117,6 +121,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: 1.94.1
           components: clippy
           
       - name: Cache cargo registry
@@ -159,6 +164,8 @@ jobs:
       
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.94.1
         
       - name: Cache cargo registry
         uses: actions/cache@v5
