@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/cli/contract-commands.md"
-MODAL_MAIN="$ROOT_DIR/rust/modal/src/main.rs"
+MODAL_MAIN="$ROOT_DIR/rust/modality/src/cli.rs"
 COMMIT_SOURCE="$ROOT_DIR/rust/modality-cli-contract/src/commit.rs"
 ADD_RULE_SOURCE="$ROOT_DIR/rust/modality-cli-contract/src/add_rule.rs"
 AI_SOURCE="$ROOT_DIR/rust/modality-cli-contract/src/ai.rs"

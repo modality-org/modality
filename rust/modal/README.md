@@ -1,6 +1,7 @@
 # Modal
 
-Modal CLI utility for Modality.
+`modal` is a binary alias of the `modality` CLI. It uses the same command
+tree and feature flags; the process name stays `modal`.
 
 ## Installation
 
@@ -8,13 +9,14 @@ Modal CLI utility for Modality.
 cargo install --path .
 ```
 
-## Usage
+Lean onboarding surface:
 
 ```bash
-modal help
+cargo build --release -p modal --no-default-features --features contract-onboarding
 ```
 
-## Commands
+Full network surface (default):
 
-- `help` - Display help information
-
+```bash
+cargo build --release -p modal
+```

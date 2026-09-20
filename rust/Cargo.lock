@@ -4205,11 +4205,19 @@ dependencies = [
 name = "modal"
 version = "0.1.0"
 dependencies = [
+ "modality",
+]
+
+[[package]]
+name = "modality"
+version = "0.1.7"
+dependencies = [
  "anyhow",
  "clap",
  "ed25519-dalek 2.2.0",
  "hex",
- "modality",
+ "libp2p",
+ "log",
  "modality-cli-ai",
  "modality-cli-chain",
  "modality-cli-contract",
@@ -4219,31 +4227,18 @@ dependencies = [
  "modality-cli-predicate",
  "modality-cli-program",
  "modality-common",
- "rand 0.8.7",
- "serde_json",
- "sha2 0.10.9",
- "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "modality"
-version = "0.1.7"
-dependencies = [
- "anyhow",
- "clap",
- "libp2p",
- "log",
- "modality-common",
  "modality-datastore",
  "modality-lang",
  "modality-node",
  "modality-synthesizer",
+ "rand 0.8.7",
  "reqwest",
  "rpassword",
  "self-replace",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
  "tokio",
 ]
 

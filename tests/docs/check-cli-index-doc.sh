@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/cli/index.md"
-MODAL_MAIN="$ROOT_DIR/rust/modal/src/main.rs"
+MODAL_MAIN="$ROOT_DIR/rust/modality/src/cli.rs"
 
 required_patterns=(
   "# CLI Reference"
@@ -87,7 +87,7 @@ full_source_patterns=(
   'Program {'
   'Chain {'
   'Killall(modality_cli_node::local::killall_nodes::Opts)'
-  'Upgrade(modality::cmds::upgrade::Opts)'
+  'Upgrade(crate::cmds::upgrade::Opts)'
 )
 
 for pattern in "${full_source_patterns[@]}"; do

@@ -2,7 +2,7 @@
 name = "modal"
 version = "0.1.0"
 edition = "2021"
-description = "Modal CLI utility"
+description = "Alias for the modality CLI"
 license = "MIT"
 documentation = "https://docs.rs/modal"
 repository = "https://github.com/modality-org/modality"
@@ -11,47 +11,8 @@ readme = "../README.md"
 
 [features]
 default = ["full"]
-contract-onboarding = [
-  "dep:modality",
-  "modality/identity",
-  "modality/passfile",
-  "dep:modality-common",
-  "dep:modality-cli-contract",
-  "dep:modality-cli-ai",
-  "modality-cli-contract/model-status",
-]
-full = [
-  "contract-onboarding",
-  "modality/upgrade",
-  "modality-cli-contract/full",
-  "dep:modality-cli-chain",
-  "dep:modality-cli-hub",
-  "dep:modality-cli-net",
-  "dep:modality-cli-node",
-  "dep:modality-cli-predicate",
-  "dep:modality-cli-program",
-  "modality-cli-program/full",
-]
+contract-onboarding = ["modality/contract-onboarding"]
+full = ["modality/full"]
 
 [dependencies]
-modality = { path = "../modality", version = "0.1.7", optional = true }
-modality-common = { path = "../modality-common", version = "0.1.7", optional = true }
-modality-cli-node = { path = "../modality-cli-node", version = "0.1.0", optional = true }
-modality-cli-contract = { path = "../modality-cli-contract", version = "0.1.0", optional = true }
-modality-cli-ai = { path = "../modality-cli-ai", version = "0.1.0", optional = true }
-modality-cli-hub = { path = "../modality-cli-hub", version = "0.1.0", optional = true }
-modality-cli-predicate = { path = "../modality-cli-predicate", version = "0.1.0", optional = true }
-modality-cli-program = { path = "../modality-cli-program", version = "0.1.0", optional = true }
-modality-cli-chain = { path = "../modality-cli-chain", version = "0.1.0", optional = true }
-modality-cli-net = { path = "../modality-cli-net", version = "0.1.0", optional = true }
-anyhow = "1.0"
-clap = { version = "4.1.11", features = ["cargo", "derive", "env"] }
-tokio = { version = "1.42.0", features = ["rt-multi-thread", "macros"] }
-
-[dev-dependencies]
-tempfile = "3.10"
-ed25519-dalek = { version = "2.1", features = ["rand_core"] }
-rand = "0.8"
-sha2 = "0.10"
-hex = "0.4"
-serde_json = "1.0"
+modality = { path = "../modality", version = "0.1.7", default-features = false }

@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOC="$ROOT_DIR/docs/cli/ai-commands.md"
-MODAL_MAIN="$ROOT_DIR/rust/modal/src/main.rs"
+MODAL_MAIN="$ROOT_DIR/rust/modality/src/cli.rs"
 AI_LIB="$ROOT_DIR/rust/modality-cli-ai/src/lib.rs"
 AI_CONFIG="$ROOT_DIR/rust/modality-cli-ai/src/config.rs"
 AI_COMPLETE="$ROOT_DIR/rust/modality-cli-ai/src/complete.rs"
