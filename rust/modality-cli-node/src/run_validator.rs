@@ -3,7 +3,7 @@
 use anyhow::Result;
 use clap::Parser;
 
-use super::runner::{CommonNodeOpts, run_validator};
+use super::runner::{run_validator, CommonNodeOpts};
 
 #[derive(Debug, Parser)]
 #[command(about = "Run a validator node (observes mining, does not mine)")]

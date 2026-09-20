@@ -1,4 +1,4 @@
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -8,55 +8,55 @@ pub struct Opts {
     /// Path to node configuration file
     #[clap(long)]
     pub config: Option<PathBuf>,
-    
+
     /// Node directory containing config.json
     #[clap(long)]
     pub dir: Option<PathBuf>,
-    
+
     /// Set listener addresses (comma-separated, e.g. "/ip4/0.0.0.0/tcp/4040/ws,/ip4/127.0.0.1/tcp/5050/ws")
     #[clap(long)]
     pub set_listeners: Option<String>,
-    
+
     /// Add listener address (e.g. "/ip4/127.0.0.1/tcp/5050/ws")
     #[clap(long)]
     pub add_listener: Option<String>,
-    
+
     /// Remove listener address (e.g. "/ip4/0.0.0.0/tcp/4040/ws")
     #[clap(long)]
     pub remove_listener: Option<String>,
-    
+
     /// Set bootstrapper addresses (comma-separated multiaddrs)
     #[clap(long)]
     pub set_bootstrappers: Option<String>,
-    
+
     /// Add bootstrapper address
     #[clap(long)]
     pub add_bootstrapper: Option<String>,
-    
+
     /// Remove bootstrapper address
     #[clap(long)]
     pub remove_bootstrapper: Option<String>,
-    
+
     /// Replace IP address in listeners and bootstrappers (e.g. "0.0.0.0=127.0.0.1")
     #[clap(long)]
     pub replace_ip: Option<String>,
-    
+
     /// Enable autoupgrade
     #[clap(long)]
     pub enable_autoupgrade: bool,
-    
+
     /// Disable autoupgrade
     #[clap(long)]
     pub disable_autoupgrade: bool,
-    
+
     /// Merge settings from a JSON file into the config
     #[clap(long)]
     pub merge_in: Option<PathBuf>,
-    
+
     /// Show what would be merged without actually modifying the config (use with --merge-in)
     #[clap(long)]
     pub dry_run: bool,
-    
+
     /// Show current configuration
     #[clap(long)]
     pub show: bool,
@@ -68,7 +68,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     } else {
         opts.dir.clone()
     };
-    
+
     // Determine config file path
     let config_path = if let Some(ref path) = opts.config {
         path.clone()
@@ -77,24 +77,24 @@ pub async fn run(opts: &Opts) -> Result<()> {
     } else {
         std::env::current_dir()?.join("config.json")
     };
-    
+
     // Check if config file exists
     if !config_path.exists() {
         anyhow::bail!("Config file not found: {}", config_path.display());
     }
-    
+
     // Load current config as JSON
     let config_content = std::fs::read_to_string(&config_path)
         .with_context(|| format!("Failed to read config from {}", config_path.display()))?;
-    
+
     let mut config: serde_json::Value = serde_json::from_str(&config_content)
         .with_context(|| format!("Failed to parse config from {}", config_path.display()))?;
-    
+
     // If just showing config
     if opts.show {
         println!("📋 Current Configuration: {}", config_path.display());
         println!();
-        
+
         if let Some(listeners) = config.get("listeners") {
             println!("Listeners:");
             if let Some(arr) = listeners.as_array() {
@@ -105,9 +105,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
         } else {
             println!("Listeners: (not set)");
         }
-        
+
         println!();
-        
+
         if let Some(bootstrappers) = config.get("bootstrappers") {
             println!("Bootstrappers:");
             if let Some(arr) = bootstrappers.as_array() {
@@ -118,57 +118,59 @@ pub async fn run(opts: &Opts) -> Result<()> {
         } else {
             println!("Bootstrappers: (not set)");
         }
-        
+
         println!();
-        
+
         if let Some(autoupgrade) = config.get("autoupgrade_enabled") {
-            println!("Autoupgrade: {}", 
-                if autoupgrade.as_bool().unwrap_or(false) { "✓ Enabled" } else { "✗ Disabled" }
+            println!(
+                "Autoupgrade: {}",
+                if autoupgrade.as_bool().unwrap_or(false) {
+                    "✓ Enabled"
+                } else {
+                    "✗ Disabled"
+                }
             );
         } else {
             println!("Autoupgrade: (not set)");
         }
-        
+
         return Ok(());
     }
-    
+
     let mut modified = false;
-    
+
     // Handle merge_in first (before other modifications)
     if let Some(ref merge_file) = opts.merge_in {
         if !merge_file.exists() {
             anyhow::bail!("Merge file not found: {}", merge_file.display());
         }
-        
+
         // Load merge file
         let merge_content = std::fs::read_to_string(merge_file)
             .with_context(|| format!("Failed to read merge file from {}", merge_file.display()))?;
-        
+
         let merge_data: serde_json::Value = serde_json::from_str(&merge_content)
             .with_context(|| format!("Failed to parse merge file from {}", merge_file.display()))?;
-        
+
         println!("📋 Merging settings from: {}", merge_file.display());
         println!();
-        
+
         // Ensure merge_data is an object
-        let merge_obj = merge_data.as_object()
+        let merge_obj = merge_data
+            .as_object()
             .context("Merge file must contain a JSON object")?;
-        
+
         // Track changes
         let mut changes = Vec::new();
-        
+
         // Merge settings
         if let Some(config_obj) = config.as_object_mut() {
             for (key, value) in merge_obj {
                 let old_value = config_obj.get(key);
-                
+
                 if old_value != Some(value) {
-                    changes.push((
-                        key.clone(),
-                        old_value.cloned(),
-                        value.clone()
-                    ));
-                    
+                    changes.push((key.clone(), old_value.cloned(), value.clone()));
+
                     if !opts.dry_run {
                         config_obj.insert(key.clone(), value.clone());
                         modified = true;
@@ -178,12 +180,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
         } else {
             anyhow::bail!("Config file must contain a JSON object");
         }
-        
+
         // Display changes
         if !changes.is_empty() {
             for (key, old_value, new_value) in &changes {
                 print!("  • {}: ", key);
-                
+
                 if let Some(old) = old_value {
                     let old_str = format_value_preview(old);
                     let new_str = format_value_preview(new_value);
@@ -193,7 +195,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
                     println!("(not set) → {}", new_str);
                 }
             }
-            
+
             println!();
             if opts.dry_run {
                 println!("🔍 {} setting(s) would be updated (dry run)", changes.len());
@@ -208,9 +210,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
             }
         }
     }
-    
+
     let mut modified = modified;
-    
+
     // Handle set_listeners
     if let Some(ref listeners_str) = opts.set_listeners {
         let listeners: Vec<String> = listeners_str
@@ -218,18 +220,19 @@ pub async fn run(opts: &Opts) -> Result<()> {
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect();
-        
+
         config["listeners"] = serde_json::json!(listeners);
         modified = true;
         println!("✓ Set {} listener(s)", listeners.len());
     }
-    
+
     // Handle add_listener
     if let Some(ref listener) = opts.add_listener {
-        let listeners = config.get_mut("listeners")
+        let listeners = config
+            .get_mut("listeners")
             .and_then(|v| v.as_array_mut())
             .context("listeners field is not an array")?;
-        
+
         let listener_value = serde_json::Value::String(listener.clone());
         if !listeners.contains(&listener_value) {
             listeners.push(listener_value);
@@ -239,13 +242,14 @@ pub async fn run(opts: &Opts) -> Result<()> {
             println!("⚠️  Listener already exists: {}", listener);
         }
     }
-    
+
     // Handle remove_listener
     if let Some(ref listener) = opts.remove_listener {
-        let listeners = config.get_mut("listeners")
+        let listeners = config
+            .get_mut("listeners")
             .and_then(|v| v.as_array_mut())
             .context("listeners field is not an array")?;
-        
+
         let listener_value = serde_json::Value::String(listener.clone());
         if let Some(pos) = listeners.iter().position(|x| x == &listener_value) {
             listeners.remove(pos);
@@ -255,7 +259,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             println!("⚠️  Listener not found: {}", listener);
         }
     }
-    
+
     // Handle set_bootstrappers
     if let Some(ref bootstrappers_str) = opts.set_bootstrappers {
         let bootstrappers: Vec<String> = bootstrappers_str
@@ -263,18 +267,19 @@ pub async fn run(opts: &Opts) -> Result<()> {
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect();
-        
+
         config["bootstrappers"] = serde_json::json!(bootstrappers);
         modified = true;
         println!("✓ Set {} bootstrapper(s)", bootstrappers.len());
     }
-    
+
     // Handle add_bootstrapper
     if let Some(ref bootstrapper) = opts.add_bootstrapper {
-        let bootstrappers = config.get_mut("bootstrappers")
+        let bootstrappers = config
+            .get_mut("bootstrappers")
             .and_then(|v| v.as_array_mut())
             .context("bootstrappers field is not an array")?;
-        
+
         let bootstrapper_value = serde_json::Value::String(bootstrapper.clone());
         if !bootstrappers.contains(&bootstrapper_value) {
             bootstrappers.push(bootstrapper_value);
@@ -284,13 +289,14 @@ pub async fn run(opts: &Opts) -> Result<()> {
             println!("⚠️  Bootstrapper already exists: {}", bootstrapper);
         }
     }
-    
+
     // Handle remove_bootstrapper
     if let Some(ref bootstrapper) = opts.remove_bootstrapper {
-        let bootstrappers = config.get_mut("bootstrappers")
+        let bootstrappers = config
+            .get_mut("bootstrappers")
             .and_then(|v| v.as_array_mut())
             .context("bootstrappers field is not an array")?;
-        
+
         let bootstrapper_value = serde_json::Value::String(bootstrapper.clone());
         if let Some(pos) = bootstrappers.iter().position(|x| x == &bootstrapper_value) {
             bootstrappers.remove(pos);
@@ -300,17 +306,19 @@ pub async fn run(opts: &Opts) -> Result<()> {
             println!("⚠️  Bootstrapper not found: {}", bootstrapper);
         }
     }
-    
+
     // Handle replace_ip
     if let Some(ref replace_str) = opts.replace_ip {
         let parts: Vec<&str> = replace_str.split('=').collect();
         if parts.len() != 2 {
-            anyhow::bail!("Invalid replace_ip format. Expected: OLD_IP=NEW_IP (e.g. 0.0.0.0=127.0.0.1)");
+            anyhow::bail!(
+                "Invalid replace_ip format. Expected: OLD_IP=NEW_IP (e.g. 0.0.0.0=127.0.0.1)"
+            );
         }
-        
+
         let old_ip = parts[0].trim();
         let new_ip = parts[1].trim();
-        
+
         // Replace in listeners
         if let Some(listeners) = config.get_mut("listeners").and_then(|v| v.as_array_mut()) {
             for listener in listeners.iter_mut() {
@@ -323,9 +331,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 }
             }
         }
-        
+
         // Replace in bootstrappers
-        if let Some(bootstrappers) = config.get_mut("bootstrappers").and_then(|v| v.as_array_mut()) {
+        if let Some(bootstrappers) = config
+            .get_mut("bootstrappers")
+            .and_then(|v| v.as_array_mut())
+        {
             for bootstrapper in bootstrappers.iter_mut() {
                 if let Some(s) = bootstrapper.as_str() {
                     let new_value = s.replace(old_ip, new_ip);
@@ -336,42 +347,45 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 }
             }
         }
-        
+
         if modified {
-            println!("✓ Replaced {} with {} in listeners and bootstrappers", old_ip, new_ip);
+            println!(
+                "✓ Replaced {} with {} in listeners and bootstrappers",
+                old_ip, new_ip
+            );
         } else {
             println!("⚠️  No occurrences of {} found", old_ip);
         }
     }
-    
+
     // Handle enable_autoupgrade
     if opts.enable_autoupgrade {
         config["autoupgrade_enabled"] = serde_json::json!(true);
         modified = true;
         println!("✓ Enabled autoupgrade");
     }
-    
+
     // Handle disable_autoupgrade
     if opts.disable_autoupgrade {
         config["autoupgrade_enabled"] = serde_json::json!(false);
         modified = true;
         println!("✓ Disabled autoupgrade");
     }
-    
+
     // Save config if modified
     if modified {
-        let new_content = serde_json::to_string_pretty(&config)
-            .context("Failed to serialize config")?;
-        
+        let new_content =
+            serde_json::to_string_pretty(&config).context("Failed to serialize config")?;
+
         std::fs::write(&config_path, new_content)
             .with_context(|| format!("Failed to write config to {}", config_path.display()))?;
-        
+
         println!();
         println!("✅ Configuration saved to: {}", config_path.display());
     } else {
         println!("⚠️  No changes made to configuration");
     }
-    
+
     Ok(())
 }
 
@@ -407,4 +421,3 @@ fn format_value_preview(value: &serde_json::Value) -> String {
         serde_json::Value::Null => "null".to_string(),
     }
 }
-

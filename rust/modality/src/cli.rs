@@ -579,29 +579,35 @@ pub async fn run() -> Result<()> {
         Commands::Node { opts, command } => match command {
             None => modality_cli_node::launcher::run(opts).await?,
             Some(command) => match command {
-            NodeCommands::Address(opts) => modality_cli_node::address::run(opts).await?,
-            NodeCommands::Create(opts) => modality_cli_node::create::run(opts).await?,
-            NodeCommands::Info(opts) => modality_cli_node::info::run(opts).await?,
-            NodeCommands::Inspect(opts) => modality_cli_node::inspect::run(opts).await?,
-            NodeCommands::Compare(opts) => modality_cli_node::compare::run(opts).await?,
-            NodeCommands::Config(opts) => modality_cli_node::config::run(opts).await?,
-            NodeCommands::Start(opts) => modality_cli_node::start::run(opts).await?,
-            NodeCommands::Stop(opts) => modality_cli_node::stop::run(opts).await?,
-            NodeCommands::Restart(opts) => modality_cli_node::restart::run(opts).await?,
-            NodeCommands::Kill(opts) => modality_cli_node::kill::run(opts).await?,
-            NodeCommands::Pid(opts) => modality_cli_node::pid::run(opts).await?,
-            NodeCommands::Logs(opts) => modality_cli_node::logs::run(opts).await?,
-            NodeCommands::Run(opts) => modality_cli_node::run::run(opts).await?,
-            NodeCommands::RunMiner(opts) => modality_cli_node::run_miner::run(opts).await?,
-            NodeCommands::RunHybrid(opts) => modality_cli_node::run_hybrid::run(opts).await?,
-            NodeCommands::RunValidator(opts) => modality_cli_node::run_validator::run(opts).await?,
-            NodeCommands::RunObserver(opts) => modality_cli_node::run_observer::run(opts).await?,
-            NodeCommands::RunNoop(opts) => modality_cli_node::run_noop::run(opts).await?,
-            NodeCommands::Ping(opts) => modality_cli_node::ping::run(opts).await?,
-            NodeCommands::Sync(opts) => modality_cli_node::sync::run(opts).await?,
-            NodeCommands::Clear(opts) => modality_cli_node::clear::run(opts).await?,
-            NodeCommands::ClearStorage(opts) => modality_cli_node::clear_storage::run(opts).await?,
-            NodeCommands::Stats(opts) => modality_cli_node::stats::run(opts).await?,
+                NodeCommands::Address(opts) => modality_cli_node::address::run(opts).await?,
+                NodeCommands::Create(opts) => modality_cli_node::create::run(opts).await?,
+                NodeCommands::Info(opts) => modality_cli_node::info::run(opts).await?,
+                NodeCommands::Inspect(opts) => modality_cli_node::inspect::run(opts).await?,
+                NodeCommands::Compare(opts) => modality_cli_node::compare::run(opts).await?,
+                NodeCommands::Config(opts) => modality_cli_node::config::run(opts).await?,
+                NodeCommands::Start(opts) => modality_cli_node::start::run(opts).await?,
+                NodeCommands::Stop(opts) => modality_cli_node::stop::run(opts).await?,
+                NodeCommands::Restart(opts) => modality_cli_node::restart::run(opts).await?,
+                NodeCommands::Kill(opts) => modality_cli_node::kill::run(opts).await?,
+                NodeCommands::Pid(opts) => modality_cli_node::pid::run(opts).await?,
+                NodeCommands::Logs(opts) => modality_cli_node::logs::run(opts).await?,
+                NodeCommands::Run(opts) => modality_cli_node::run::run(opts).await?,
+                NodeCommands::RunMiner(opts) => modality_cli_node::run_miner::run(opts).await?,
+                NodeCommands::RunHybrid(opts) => modality_cli_node::run_hybrid::run(opts).await?,
+                NodeCommands::RunValidator(opts) => {
+                    modality_cli_node::run_validator::run(opts).await?
+                }
+                NodeCommands::RunObserver(opts) => {
+                    modality_cli_node::run_observer::run(opts).await?
+                }
+                NodeCommands::RunNoop(opts) => modality_cli_node::run_noop::run(opts).await?,
+                NodeCommands::Ping(opts) => modality_cli_node::ping::run(opts).await?,
+                NodeCommands::Sync(opts) => modality_cli_node::sync::run(opts).await?,
+                NodeCommands::Clear(opts) => modality_cli_node::clear::run(opts).await?,
+                NodeCommands::ClearStorage(opts) => {
+                    modality_cli_node::clear_storage::run(opts).await?
+                }
+                NodeCommands::Stats(opts) => modality_cli_node::stats::run(opts).await?,
             },
         },
         #[cfg(feature = "full")]
@@ -742,14 +748,8 @@ mod tests {
     #[test]
     fn node_run_hybrid_still_takes_dir_on_subcommand() {
         use clap::Parser;
-        let cli = Cli::try_parse_from([
-            "modality",
-            "node",
-            "run-hybrid",
-            "--dir",
-            "./tmp/node1",
-        ])
-        .unwrap();
+        let cli = Cli::try_parse_from(["modality", "node", "run-hybrid", "--dir", "./tmp/node1"])
+            .unwrap();
         match cli.command {
             Commands::Node {
                 command: Some(NodeCommands::RunHybrid(opts)),

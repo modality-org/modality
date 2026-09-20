@@ -3,7 +3,7 @@
 use anyhow::Result;
 use clap::Parser;
 
-use super::runner::{CommonNodeOpts, run_observer};
+use super::runner::{run_observer, CommonNodeOpts};
 
 #[derive(Debug, Parser)]
 #[command(about = "Run an observer node (observes mining, does not mine)")]

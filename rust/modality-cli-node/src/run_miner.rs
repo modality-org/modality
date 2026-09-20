@@ -3,7 +3,7 @@
 use anyhow::Result;
 use clap::Parser;
 
-use super::runner::{CommonNodeOpts, run_miner};
+use super::runner::{run_miner, CommonNodeOpts};
 
 #[derive(Debug, Parser)]
 #[command(about = "Run a mining node")]

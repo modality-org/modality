@@ -46,10 +46,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         );
     }
 
-    let dir = opts
-        .dir
-        .clone()
-        .unwrap_or(std::env::current_dir()?);
+    let dir = opts.dir.clone().unwrap_or(std::env::current_dir()?);
     let menu = build_menu(&dir, opts.config.as_ref())?;
     let Some(action) = pick_action(menu).await? else {
         return Ok(());
@@ -183,7 +180,9 @@ async fn dispatch(opts: &Opts, dir: &PathBuf, action: PickedAction) -> Result<()
     match action {
         PickedAction::RunFromConfig => runner::run_server(&common).await,
         PickedAction::Run(role) => runner::run_node(&common, role, true).await,
-        PickedAction::Create => super::create::run(&super::create::Opts::for_dir(dir.clone())).await,
+        PickedAction::Create => {
+            super::create::run(&super::create::Opts::for_dir(dir.clone())).await
+        }
         PickedAction::Start => {
             super::start::run(&super::start::Opts {
                 config: opts.config.clone(),

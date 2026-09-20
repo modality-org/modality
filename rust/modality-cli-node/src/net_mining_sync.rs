@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use modality_node::actions;
-use modality_node::node::Node;
 use modality_node::config::Config;
+use modality_node::node::Node;
 
 #[derive(Debug, Parser)]
 #[command(about = "Sync miner blocks from a specified node")]
@@ -59,9 +59,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
             ("/data/miner_block/canonical".to_string(), None)
         }
         "epoch" => {
-            let epoch = opts.epoch.ok_or_else(|| {
-                anyhow::anyhow!("--epoch is required for epoch mode")
-            })?;
+            let epoch = opts
+                .epoch
+                .ok_or_else(|| anyhow::anyhow!("--epoch is required for epoch mode"))?;
             log::info!("Syncing blocks from epoch {} from {}", epoch, target);
             (
                 "/data/miner_block/epoch".to_string(),
@@ -69,12 +69,12 @@ pub async fn run(opts: &Opts) -> Result<()> {
             )
         }
         "range" => {
-            let from = opts.from_index.ok_or_else(|| {
-                anyhow::anyhow!("--from-index is required for range mode")
-            })?;
-            let to = opts.to_index.ok_or_else(|| {
-                anyhow::anyhow!("--to-index is required for range mode")
-            })?;
+            let from = opts
+                .from_index
+                .ok_or_else(|| anyhow::anyhow!("--from-index is required for range mode"))?;
+            let to = opts
+                .to_index
+                .ok_or_else(|| anyhow::anyhow!("--to-index is required for range mode"))?;
             log::info!("Syncing blocks {}-{} from {}", from, to, target);
             (
                 "/data/miner_block/range".to_string(),
@@ -85,19 +85,17 @@ pub async fn run(opts: &Opts) -> Result<()> {
             )
         }
         _ => {
-            anyhow::bail!("Invalid mode: {}. Use 'all', 'epoch', or 'range'", opts.mode);
+            anyhow::bail!(
+                "Invalid mode: {}. Use 'all', 'epoch', or 'range'",
+                opts.mode
+            );
         }
     };
 
     // Sync blocks (with optional persistence)
     let data_str = data.map(|d| d.to_string()).unwrap_or_default();
-    let sync_result = actions::sync_blocks::run(
-        &mut node,
-        target,
-        path,
-        data_str,
-        opts.persist,
-    ).await?;
+    let sync_result =
+        actions::sync_blocks::run(&mut node, target, path, data_str, opts.persist).await?;
 
     if !sync_result.response.ok {
         anyhow::bail!("Sync failed: {:?}", sync_result.response.errors);
@@ -127,8 +125,14 @@ pub async fn run(opts: &Opts) -> Result<()> {
     Ok(())
 }
 
-fn print_summary(data: &serde_json::Value, mode: &str, duration: std::time::Duration, persisted_count: Option<usize>) -> Result<()> {
-    let blocks = data.get("blocks")
+fn print_summary(
+    data: &serde_json::Value,
+    mode: &str,
+    duration: std::time::Duration,
+    persisted_count: Option<usize>,
+) -> Result<()> {
+    let blocks = data
+        .get("blocks")
         .and_then(|b| b.as_array())
         .ok_or_else(|| anyhow::anyhow!("No blocks in response"))?;
 
@@ -170,8 +174,14 @@ fn print_summary(data: &serde_json::Value, mode: &str, duration: std::time::Dura
     let first_block = &blocks[0];
     let last_block = &blocks[count - 1];
 
-    let first_index = first_block.get("index").and_then(|i| i.as_u64()).unwrap_or(0);
-    let last_index = last_block.get("index").and_then(|i| i.as_u64()).unwrap_or(0);
+    let first_index = first_block
+        .get("index")
+        .and_then(|i| i.as_u64())
+        .unwrap_or(0);
+    let last_index = last_block
+        .get("index")
+        .and_then(|i| i.as_u64())
+        .unwrap_or(0);
 
     println!("   First block: {}", first_index);
     println!("   Last block: {}", last_index);
@@ -183,15 +193,27 @@ fn print_summary(data: &serde_json::Value, mode: &str, duration: std::time::Dura
     for i in 0..show_count {
         let block = &blocks[i];
         let index = block.get("index").and_then(|idx| idx.as_u64()).unwrap_or(0);
-        let hash = block.get("hash").and_then(|h| h.as_str()).unwrap_or("unknown");
+        let hash = block
+            .get("hash")
+            .and_then(|h| h.as_str())
+            .unwrap_or("unknown");
         let epoch = block.get("epoch").and_then(|e| e.as_u64()).unwrap_or(0);
-        let peer_id = block.get("nominated_peer_id").and_then(|p| p.as_str()).unwrap_or("unknown");
+        let peer_id = block
+            .get("nominated_peer_id")
+            .and_then(|p| p.as_str())
+            .unwrap_or("unknown");
 
         let hash_display = if hash.len() > 16 { &hash[..16] } else { hash };
-        let peer_display = if peer_id.len() > 20 { &peer_id[..20] } else { peer_id };
+        let peer_display = if peer_id.len() > 20 {
+            &peer_id[..20]
+        } else {
+            peer_id
+        };
 
-        println!("   - Block {:3}: epoch={}, peer={}, hash={}", 
-            index, epoch, peer_display, hash_display);
+        println!(
+            "   - Block {:3}: epoch={}, peer={}, hash={}",
+            index, epoch, peer_display, hash_display
+        );
     }
 
     if count > show_count {
@@ -202,5 +224,3 @@ fn print_summary(data: &serde_json::Value, mode: &str, duration: std::time::Dura
 
     Ok(())
 }
-
-

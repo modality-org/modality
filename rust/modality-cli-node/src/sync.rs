@@ -3,10 +3,10 @@ use clap::Parser;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use modality_node::config_resolution::load_config_with_node_dir;
-use modality_node::node::Node;
 #[allow(unused_imports)]
 use modality_datastore::{models::miner::MinerBlock, Model};
+use modality_node::config_resolution::load_config_with_node_dir;
+use modality_node::node::Node;
 use modality_node::{Multiaddr, PeerId};
 
 #[derive(Debug, Parser)]
@@ -40,20 +40,20 @@ pub async fn run(opts: &Opts) -> Result<()> {
     } else {
         opts.dir.clone()
     };
-    
+
     let config = load_config_with_node_dir(opts.config.clone(), dir)?;
     let mut node = Node::from_config(config.clone()).await?;
-    
+
     println!("╭─────────────────────────────────────────────────────────────╮");
     println!("│  Modal Node Sync                                            │");
     println!("╰─────────────────────────────────────────────────────────────╯");
     println!();
     println!("🆔  Node: {}", node.peerid);
     println!();
-    
+
     // Setup node
     node.setup(&config).await?;
-    
+
     // Get current local chain state
     let local_chain_info = {
         let ds = node.datastore_manager.lock().await;
@@ -62,58 +62,66 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let count = canonical_blocks.len();
         (height, count)
     };
-    
+
     println!("📊  Local Chain State");
     println!("    Height: {}", local_chain_info.0);
     println!("    Total Blocks: {}", local_chain_info.1);
     println!();
-    
+
     // Check if we have any bootstrappers/peers
     if node.bootstrappers.is_empty() {
         println!("⚠️   No bootstrapper nodes configured");
         println!("    Please configure bootstrappers in your node config to sync from peers");
         return Ok(());
     }
-    
-    println!("🌐  Attempting to sync from {} peer(s)", node.bootstrappers.len().min(opts.max_peers));
-    println!("    Stop at: {} blocks before chain tip", opts.block_height_minus);
+
+    println!(
+        "🌐  Attempting to sync from {} peer(s)",
+        node.bootstrappers.len().min(opts.max_peers)
+    );
+    println!(
+        "    Stop at: {} blocks before chain tip",
+        opts.block_height_minus
+    );
     println!();
-    
+
     let start_time = Instant::now();
     let mut synced_from_any_peer = false;
     let mut highest_peer_height = 0u64;
     let mut peers_attempted = 0;
-    
+
     // Clone bootstrappers to avoid borrow issues
     let bootstrappers = node.bootstrappers.clone();
-    
+
     // Try to sync from each bootstrapper
     for bootstrapper in bootstrappers.iter().take(opts.max_peers) {
         if peers_attempted >= opts.max_peers {
             break;
         }
         peers_attempted += 1;
-        
+
         let addr_str = bootstrapper.to_string();
-        println!("🔄  Peer {}/{}: {}", peers_attempted, opts.max_peers, addr_str);
-        
+        println!(
+            "🔄  Peer {}/{}: {}",
+            peers_attempted, opts.max_peers, addr_str
+        );
+
         // Extract peer ID from multiaddr
         use modality_node::Protocol;
-        let peer_id = bootstrapper.iter()
-            .find_map(|proto| {
-                if let Protocol::P2p(id) = proto {
-                    Some(id)
-                } else {
-                    None
-                }
-            });
-        
+        let peer_id = bootstrapper.iter().find_map(|proto| {
+            if let Protocol::P2p(id) = proto {
+                Some(id)
+            } else {
+                None
+            }
+        });
+
         let Some(peer_id) = peer_id else {
             println!("    ❌ Invalid peer address (no peer ID)");
             println!();
             continue;
         };
-        
+
         // Request chain info from peer
         match sync_from_peer(
             &mut node,
@@ -121,9 +129,14 @@ pub async fn run(opts: &Opts) -> Result<()> {
             bootstrapper.clone(),
             opts.block_height_minus,
             opts.timeout_secs,
-        ).await {
+        )
+        .await
+        {
             Ok(sync_result) => {
-                println!("    ✅ Synced {} blocks from this peer", sync_result.blocks_synced);
+                println!(
+                    "    ✅ Synced {} blocks from this peer",
+                    sync_result.blocks_synced
+                );
                 if let Some(peer_height) = sync_result.peer_height {
                     println!("    📏 Peer chain height: {}", peer_height);
                     highest_peer_height = highest_peer_height.max(peer_height);
@@ -140,9 +153,9 @@ pub async fn run(opts: &Opts) -> Result<()> {
             }
         }
     }
-    
+
     let duration = start_time.elapsed();
-    
+
     // Get final chain state
     let final_chain_info = {
         let ds = node.datastore_manager.lock().await;
@@ -151,7 +164,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let count = canonical_blocks.len();
         (height, count)
     };
-    
+
     println!("╭─────────────────────────────────────────────────────────────╮");
     println!("│  Sync Summary                                               │");
     println!("╰─────────────────────────────────────────────────────────────╯");
@@ -160,26 +173,41 @@ pub async fn run(opts: &Opts) -> Result<()> {
     println!("👥  Peers Attempted: {}", peers_attempted);
     println!();
     println!("📊  Chain State:");
-    println!("    Before: {} blocks (height {})", local_chain_info.1, local_chain_info.0);
-    println!("    After:  {} blocks (height {})", final_chain_info.1, final_chain_info.0);
-    println!("    Added:  {} blocks", final_chain_info.1.saturating_sub(local_chain_info.1));
+    println!(
+        "    Before: {} blocks (height {})",
+        local_chain_info.1, local_chain_info.0
+    );
+    println!(
+        "    After:  {} blocks (height {})",
+        final_chain_info.1, final_chain_info.0
+    );
+    println!(
+        "    Added:  {} blocks",
+        final_chain_info.1.saturating_sub(local_chain_info.1)
+    );
     println!();
-    
+
     if highest_peer_height > 0 {
         let distance_from_tip = highest_peer_height.saturating_sub(final_chain_info.0);
         println!("🎯  Sync Status:");
         println!("    Highest Known Height: {}", highest_peer_height);
         println!("    Current Height: {}", final_chain_info.0);
         println!("    Distance from Tip: {} blocks", distance_from_tip);
-        
+
         if distance_from_tip <= opts.block_height_minus {
-            println!("    ✅ Within target range (--block-height-minus {})", opts.block_height_minus);
+            println!(
+                "    ✅ Within target range (--block-height-minus {})",
+                opts.block_height_minus
+            );
         } else {
-            println!("    ⚠️  Still {} blocks behind target", distance_from_tip.saturating_sub(opts.block_height_minus));
+            println!(
+                "    ⚠️  Still {} blocks behind target",
+                distance_from_tip.saturating_sub(opts.block_height_minus)
+            );
         }
         println!();
     }
-    
+
     if synced_from_any_peer {
         println!("✅  Sync completed successfully!");
     } else if peers_attempted == 0 {
@@ -187,7 +215,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     } else {
         println!("⚠️   Could not sync from any peers");
     }
-    
+
     Ok(())
 }
 
@@ -206,20 +234,26 @@ async fn sync_from_peer(
     // Connect to peer with timeout
     let connect_result = tokio::time::timeout(
         std::time::Duration::from_secs(timeout_secs / 2),
-        node.connect_to_peer_multiaddr(peer_addr.clone())
-    ).await;
-    
+        node.connect_to_peer_multiaddr(peer_addr.clone()),
+    )
+    .await;
+
     if connect_result.is_err() {
         anyhow::bail!("Connection timeout");
     }
     connect_result??;
-    
+
     // Get peer's chain info first
     let chain_info_response = tokio::time::timeout(
         std::time::Duration::from_secs(timeout_secs / 2),
-        node.send_request(peer_id, "/data/miner_block/chain_info".to_string(), "{}".to_string())
-    ).await;
-    
+        node.send_request(
+            peer_id,
+            "/data/miner_block/chain_info".to_string(),
+            "{}".to_string(),
+        ),
+    )
+    .await;
+
     let chain_info = match chain_info_response {
         Ok(Ok(response)) => response,
         Ok(Err(e)) => {
@@ -231,28 +265,29 @@ async fn sync_from_peer(
             anyhow::bail!("Chain info request timeout");
         }
     };
-    
+
     // Extract peer's chain height
-    let peer_height = chain_info.data
+    let peer_height = chain_info
+        .data
         .as_ref()
         .and_then(|d| d.get("chain_height"))
         .and_then(|h| h.as_u64());
-    
+
     let Some(peer_height) = peer_height else {
         let _ = node.disconnect_from_peer_id(peer_id).await;
         anyhow::bail!("Could not determine peer chain height");
     };
-    
+
     // Calculate sync target (peer_height - block_height_minus)
     let target_height = peer_height.saturating_sub(block_height_minus);
-    
+
     // Get our current height
     let our_height = {
         let ds = node.datastore_manager.lock().await;
         let canonical_blocks = MinerBlock::find_all_canonical_multi(&ds).await?;
         canonical_blocks.last().map(|b| b.index).unwrap_or(0)
     };
-    
+
     // If we're already at or past the target, no need to sync
     if our_height >= target_height {
         let _ = node.disconnect_from_peer_id(peer_id).await;
@@ -261,11 +296,11 @@ async fn sync_from_peer(
             peer_height: Some(peer_height),
         });
     }
-    
+
     // Request blocks from our_height + 1 to target_height
     let from_index = our_height + 1;
     let to_index = target_height;
-    
+
     let sync_response = tokio::time::timeout(
         std::time::Duration::from_secs(timeout_secs),
         node.send_request(
@@ -274,10 +309,12 @@ async fn sync_from_peer(
             serde_json::json!({
                 "from_index": from_index,
                 "to_index": to_index,
-            }).to_string()
-        )
-    ).await;
-    
+            })
+            .to_string(),
+        ),
+    )
+    .await;
+
     let response = match sync_response {
         Ok(Ok(response)) => response,
         Ok(Err(e)) => {
@@ -289,13 +326,13 @@ async fn sync_from_peer(
             anyhow::bail!("Sync request timeout");
         }
     };
-    
+
     // Persist blocks
     let blocks_synced = if let Some(ref data) = response.data {
         if let Some(blocks) = data.get("blocks").and_then(|b| b.as_array()) {
             let mut persisted = 0;
             let ds = node.datastore_manager.lock().await;
-            
+
             for block_value in blocks {
                 if let Ok(block) = serde_json::from_value::<MinerBlock>(block_value.clone()) {
                     // Save as canonical
@@ -311,13 +348,12 @@ async fn sync_from_peer(
     } else {
         0
     };
-    
+
     // Disconnect from peer
     let _ = node.disconnect_from_peer_id(peer_id).await;
-    
+
     Ok(SyncResult {
         blocks_synced,
         peer_height: Some(peer_height),
     })
 }
-

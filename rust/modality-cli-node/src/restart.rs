@@ -2,10 +2,10 @@
 //!
 //! This command stops a running node and starts it again.
 
-use anyhow::{Result, Context, bail};
+use anyhow::{bail, Context, Result};
 use clap::Parser;
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use modality_node::config_resolution::load_config_with_node_dir;
@@ -44,7 +44,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let node_dir = if let Some(ref d) = dir {
         d.clone()
     } else if let Some(ref cfg_path) = opts.config {
-        cfg_path.parent()
+        cfg_path
+            .parent()
             .context("Cannot determine node directory from config path")?
             .to_path_buf()
     } else {
@@ -57,10 +58,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Stop the node if it's running
     if pid_file.exists() {
         // Read PID from file
-        let pid_str = fs::read_to_string(&pid_file)
-            .context("Failed to read PID file")?;
-        let pid: i32 = pid_str.trim().parse()
-            .context("Invalid PID in PID file")?;
+        let pid_str = fs::read_to_string(&pid_file).context("Failed to read PID file")?;
+        let pid: i32 = pid_str.trim().parse().context("Invalid PID in PID file")?;
 
         println!("Stopping node (PID: {})...", pid);
 
@@ -111,8 +110,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
 
         // Remove PID file
-        fs::remove_file(&pid_file)
-            .context("Failed to remove PID file")?;
+        fs::remove_file(&pid_file).context("Failed to remove PID file")?;
     } else {
         println!("No running node found, starting fresh...");
     }
@@ -130,8 +128,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     };
 
     // Get the path to the current executable
-    let current_exe = std::env::current_exe()
-        .context("Failed to get current executable path")?;
+    let current_exe = std::env::current_exe().context("Failed to get current executable path")?;
 
     // Build the command based on node type
     let run_command = match node_type.as_str() {
@@ -203,4 +200,3 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     Ok(())
 }
-

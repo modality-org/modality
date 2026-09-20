@@ -13,9 +13,7 @@ use modality_node::status_snapshot::{NodeStatus, NodeStatusSource};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{
-    Block, Borders, Cell, Gauge, Paragraph, Row, Table, Tabs, Wrap,
-};
+use ratatui::widgets::{Block, Borders, Cell, Gauge, Paragraph, Row, Table, Tabs, Wrap};
 use ratatui::{Frame, Terminal};
 use std::io::stdout;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -223,7 +221,10 @@ fn draw_header(frame: &mut Frame, area: Rect, status: Option<&NodeStatus>) {
     };
 
     let line = Line::from(vec![
-        Span::styled(" modality ", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " modality ",
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        ),
         Span::styled(role, Style::default().fg(GREEN)),
         Span::raw("  "),
         Span::styled(network, Style::default().fg(MUTED)),
@@ -276,16 +277,12 @@ fn draw_overview(frame: &mut Frame, area: Rect, status: Option<&NodeStatus>) {
         .split(area);
 
     let gauge = Gauge::default()
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(format!(
-                    " epoch {}  ({}/{} blocks) ",
-                    s.current_epoch,
-                    s.chain_tip % s.blocks_per_epoch,
-                    s.blocks_per_epoch
-                )),
-        )
+        .block(Block::default().borders(Borders::ALL).title(format!(
+            " epoch {}  ({}/{} blocks) ",
+            s.current_epoch,
+            s.chain_tip % s.blocks_per_epoch,
+            s.blocks_per_epoch
+        )))
         .gauge_style(Style::default().fg(ACCENT).bg(Color::Rgb(26, 26, 26)))
         .ratio(s.epoch_progress().clamp(0.0, 1.0));
     frame.render_widget(gauge, chunks[0]);
@@ -296,7 +293,11 @@ fn draw_overview(frame: &mut Frame, area: Rect, status: Option<&NodeStatus>) {
         kv("Network", &s.network_name),
         kv(
             "Hybrid",
-            if s.hybrid_consensus { "on (N−2 sequencers)" } else { "off" },
+            if s.hybrid_consensus {
+                "on (N−2 sequencers)"
+            } else {
+                "off"
+            },
         ),
         kv("Connected peers", &s.connected_peers.to_string()),
         kv("Canonical blocks", &s.total_miner_blocks.to_string()),
@@ -322,7 +323,11 @@ fn draw_overview(frame: &mut Frame, area: Rect, status: Option<&NodeStatus>) {
         )));
         for peer in s.peers.iter().take(8) {
             let role = peer.role.as_deref().unwrap_or("—");
-            lines.push(Line::from(format!("  {}  {}", short_id(&peer.peer_id), role)));
+            lines.push(Line::from(format!(
+                "  {}  {}",
+                short_id(&peer.peer_id),
+                role
+            )));
         }
     }
 
@@ -384,7 +389,11 @@ fn draw_mining(frame: &mut Frame, area: Rect, status: Option<&NodeStatus>) {
         ],
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title(" recent blocks "))
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" recent blocks "),
+    )
     .row_highlight_style(Style::default());
     frame.render_widget(table, chunks[1]);
 }
@@ -397,7 +406,11 @@ fn draw_sequencing(frame: &mut Frame, area: Rect, status: Option<&NodeStatus>) {
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(4), Constraint::Percentage(50), Constraint::Min(4)])
+        .constraints([
+            Constraint::Length(4),
+            Constraint::Percentage(50),
+            Constraint::Min(4),
+        ])
         .split(area);
 
     let intro = if s.hybrid_consensus {
@@ -489,11 +502,20 @@ fn draw_logs(frame: &mut Frame, area: Rect, logs: &[String]) {
 
 fn draw_footer(frame: &mut Frame, area: Rect) {
     let line = Line::from(vec![
-        Span::styled(" q ", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " q ",
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        ),
         Span::styled("quit  ", Style::default().fg(MUTED)),
-        Span::styled(" tab/←→ ", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " tab/←→ ",
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        ),
         Span::styled("tabs  ", Style::default().fg(MUTED)),
-        Span::styled(" 1–4 ", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " 1–4 ",
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        ),
         Span::styled("jump  ", Style::default().fg(MUTED)),
         Span::styled(" --no-tui ", Style::default().fg(ACCENT)),
         Span::styled("plain logs", Style::default().fg(MUTED)),

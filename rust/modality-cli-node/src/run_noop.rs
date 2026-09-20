@@ -3,7 +3,7 @@
 use anyhow::Result;
 use clap::Parser;
 
-use super::runner::{CommonNodeOpts, run_noop};
+use super::runner::{run_noop, CommonNodeOpts};
 
 #[derive(Debug, Parser)]
 #[command(about = "Run a noop node (only autoupgrade, no network operations)")]

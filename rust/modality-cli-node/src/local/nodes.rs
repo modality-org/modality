@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
 
 #[cfg(target_family = "unix")]
 use nix::sys::signal::kill;
@@ -39,23 +39,23 @@ pub struct NodeInfo {
 
 pub async fn run(opts: &Opts) -> Result<()> {
     let mut nodes = discover_running_nodes()?;
-    
+
     // Apply directory filter if specified
     if let Some(dir) = &opts.dir {
         nodes = filter_nodes_by_directory(nodes, dir)?;
     }
-    
+
     // Apply network filter if specified
     let filter = if opts.devnet {
         Some("devnet*".to_string())
     } else {
         opts.network.clone()
     };
-    
+
     if let Some(filter) = &filter {
         nodes = filter_nodes_by_network(nodes, filter);
     }
-    
+
     if nodes.is_empty() {
         if opts.dir.is_some() {
             println!("No running modal nodes found in the specified directory.");
@@ -66,20 +66,20 @@ pub async fn run(opts: &Opts) -> Result<()> {
         }
         return Ok(());
     }
-    
+
     // Print header
     println!("Running Modal Nodes:");
     println!("{}", "=".repeat(80));
     println!();
-    
+
     let node_count = nodes.len();
     for node in nodes {
         print_node_info(&node, opts.verbose)?;
         println!();
     }
-    
+
     println!("Found {} running node(s)", node_count);
-    
+
     Ok(())
 }
 
@@ -88,7 +88,8 @@ pub fn discover_running_nodes() -> Result<Vec<NodeInfo>> {
 }
 
 pub fn filter_nodes_by_network(nodes: Vec<NodeInfo>, filter: &str) -> Vec<NodeInfo> {
-    nodes.into_iter()
+    nodes
+        .into_iter()
         .filter(|node| {
             if let Some(network_config) = &node.network_config {
                 matches_network_filter(network_config, filter)
@@ -105,7 +106,7 @@ fn matches_network_filter(network_config: &str, filter: &str) -> bool {
     let network_name = network_config
         .strip_prefix("modality-networks://")
         .unwrap_or(network_config);
-    
+
     // Support simple wildcard matching
     if filter.ends_with('*') {
         let prefix = filter.trim_end_matches('*');
@@ -117,7 +118,7 @@ fn matches_network_filter(network_config: &str, filter: &str) -> bool {
 
 fn find_running_nodes() -> Result<Vec<NodeInfo>> {
     let mut nodes = Vec::new();
-    
+
     #[cfg(target_family = "unix")]
     {
         // Find all modal processes
@@ -125,11 +126,11 @@ fn find_running_nodes() -> Result<Vec<NodeInfo>> {
             .arg("-f")
             .arg("modal.*run")
             .output();
-        
+
         if let Ok(output) = output {
             if output.status.success() {
                 let pids_str = String::from_utf8_lossy(&output.stdout);
-                
+
                 for pid_str in pids_str.lines() {
                     if let Ok(pid) = pid_str.trim().parse::<u32>() {
                         if let Some(node_info) = get_node_info_from_pid(pid) {
@@ -139,7 +140,7 @@ fn find_running_nodes() -> Result<Vec<NodeInfo>> {
                 }
             }
         }
-        
+
         // Also check for PID files in common locations
         let search_paths = vec![
             std::env::current_dir().ok(),
@@ -148,12 +149,12 @@ fn find_running_nodes() -> Result<Vec<NodeInfo>> {
             Some(PathBuf::from("../tmp")),
             Some(PathBuf::from("../../tmp")),
         ];
-        
+
         let mut seen_pids = std::collections::HashSet::new();
         for node in &nodes {
             seen_pids.insert(node.pid);
         }
-        
+
         for base_path in search_paths.into_iter().flatten() {
             if let Ok(entries) = fs::read_dir(&base_path) {
                 for entry in entries.flatten() {
@@ -165,7 +166,8 @@ fn find_running_nodes() -> Result<Vec<NodeInfo>> {
                                 if let Ok(pid) = pid_str.trim().parse::<u32>() {
                                     // Check if process is actually running
                                     if is_process_running(pid) && !seen_pids.contains(&pid) {
-                                        if let Some(node_info) = get_node_info_from_dir(&path, pid) {
+                                        if let Some(node_info) = get_node_info_from_dir(&path, pid)
+                                        {
                                             seen_pids.insert(pid);
                                             nodes.push(node_info);
                                         }
@@ -178,14 +180,14 @@ fn find_running_nodes() -> Result<Vec<NodeInfo>> {
             }
         }
     }
-    
+
     #[cfg(not(target_family = "unix"))]
     {
         // On non-Unix systems, just look for PID files
         // This is a simplified version - could be enhanced with Windows-specific tools
         println!("Note: Process discovery limited on non-Unix systems");
     }
-    
+
     Ok(nodes)
 }
 
@@ -203,34 +205,34 @@ fn is_process_running(_pid: u32) -> bool {
 fn get_node_info_from_pid(pid: u32) -> Option<NodeInfo> {
     // Try to find the working directory of the process
     let cwd_link = format!("/proc/{}/cwd", pid);
-    
+
     if let Ok(cwd) = fs::read_link(&cwd_link) {
         return get_node_info_from_dir(&cwd, pid);
     }
-    
+
     // If /proc is not available (macOS), try using lsof
     let output = std::process::Command::new("lsof")
         .arg("-p")
         .arg(pid.to_string())
         .arg("-Fn")
         .output();
-    
+
     if let Ok(output) = output {
         if output.status.success() {
             let output_str = String::from_utf8_lossy(&output.stdout);
-            
+
             // Look for node.pid or config.json files in the lsof output
             for line in output_str.lines() {
                 if let Some(path_str) = line.strip_prefix('n') {
                     let path = PathBuf::from(path_str);
-                    
+
                     // Check if this is a node.pid file
                     if path.file_name().and_then(|n| n.to_str()) == Some("node.pid") {
                         if let Some(dir) = path.parent() {
                             return get_node_info_from_dir(dir, pid);
                         }
                     }
-                    
+
                     // Check if this is a config.json in a node directory
                     if path.file_name().and_then(|n| n.to_str()) == Some("config.json") {
                         if let Some(dir) = path.parent() {
@@ -245,7 +247,7 @@ fn get_node_info_from_pid(pid: u32) -> Option<NodeInfo> {
             }
         }
     }
-    
+
     None
 }
 
@@ -256,39 +258,42 @@ fn get_node_info_from_pid(_pid: u32) -> Option<NodeInfo> {
 
 fn get_node_info_from_dir(dir: &std::path::Path, pid: u32) -> Option<NodeInfo> {
     let config_path = dir.join("config.json");
-    
+
     if !config_path.exists() {
         return None;
     }
-    
+
     // Try to read the config
     let config_result = fs::read_to_string(&config_path)
         .ok()
         .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok());
-    
+
     let (peer_id, listeners, network_config) = if let Some(config) = config_result {
-        let peer_id = config.get("id")
+        let peer_id = config
+            .get("id")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
-        
-        let listeners = config.get("listeners")
+
+        let listeners = config
+            .get("listeners")
             .and_then(|v| v.as_array())
             .map(|arr| {
                 arr.iter()
                     .filter_map(|v| v.as_str().map(|s| s.to_string()))
                     .collect()
             });
-        
+
         // Extract network_config_path
-        let network_config = config.get("network_config_path")
+        let network_config = config
+            .get("network_config_path")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
-        
+
         (peer_id, listeners, network_config)
     } else {
         (None, None, None)
     };
-    
+
     Some(NodeInfo {
         pid,
         dir: dir.to_path_buf(),
@@ -300,7 +305,7 @@ fn get_node_info_from_dir(dir: &std::path::Path, pid: u32) -> Option<NodeInfo> {
 
 fn print_node_info(node: &NodeInfo, verbose: bool) -> Result<()> {
     println!("PID: {}", node.pid);
-    
+
     if verbose {
         println!("Directory: {}", node.dir.display());
     } else {
@@ -315,15 +320,15 @@ fn print_node_info(node: &NodeInfo, verbose: bool) -> Result<()> {
             println!("Directory: {}", node.dir.display());
         }
     }
-    
+
     if let Some(peer_id) = &node.peer_id {
         println!("Peer ID: {}", peer_id);
     }
-    
+
     if let Some(network_config) = &node.network_config {
         println!("Network: {}", network_config);
     }
-    
+
     if let Some(listeners) = &node.listeners {
         if !listeners.is_empty() {
             println!("Listening addresses:");
@@ -337,7 +342,7 @@ fn print_node_info(node: &NodeInfo, verbose: bool) -> Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -345,8 +350,9 @@ fn print_node_info(node: &NodeInfo, verbose: bool) -> Result<()> {
 pub fn filter_nodes_by_directory(nodes: Vec<NodeInfo>, dir: &PathBuf) -> Result<Vec<NodeInfo>> {
     // Canonicalize the directory path to handle relative paths and symlinks
     let canonical_dir = fs::canonicalize(dir)?;
-    
-    let filtered = nodes.into_iter()
+
+    let filtered = nodes
+        .into_iter()
         .filter(|node| {
             // Try to canonicalize the node's directory
             if let Ok(canonical_node_dir) = fs::canonicalize(&node.dir) {
@@ -357,6 +363,6 @@ pub fn filter_nodes_by_directory(nodes: Vec<NodeInfo>, dir: &PathBuf) -> Result<
             }
         })
         .collect();
-    
+
     Ok(filtered)
 }

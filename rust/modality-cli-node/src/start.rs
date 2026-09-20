@@ -2,7 +2,7 @@
 //!
 //! This command spawns a node process in the background and returns immediately.
 
-use anyhow::{Result, Context, bail};
+use anyhow::{bail, Context, Result};
 use clap::Parser;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -40,7 +40,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let node_dir = if let Some(ref d) = dir {
         d.clone()
     } else if let Some(ref cfg_path) = opts.config {
-        cfg_path.parent()
+        cfg_path
+            .parent()
             .context("Cannot determine node directory from config path")?
             .to_path_buf()
     } else {
@@ -56,10 +57,16 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
             let nix_pid = Pid::from_raw(pid as i32);
             if signal::kill(nix_pid, None).is_ok() {
-                bail!("Node is already running with PID {}. Use 'modal node stop' first.", pid);
+                bail!(
+                    "Node is already running with PID {}. Use 'modal node stop' first.",
+                    pid
+                );
             }
             // Stale PID file, we can proceed
-            println!("⚠️  Found stale PID file (process {} not running), will be overwritten", pid);
+            println!(
+                "⚠️  Found stale PID file (process {} not running), will be overwritten",
+                pid
+            );
         }
 
         #[cfg(not(unix))]
@@ -81,8 +88,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     };
 
     // Get the path to the current executable
-    let current_exe = std::env::current_exe()
-        .context("Failed to get current executable path")?;
+    let current_exe = std::env::current_exe().context("Failed to get current executable path")?;
 
     // Build the command based on node type
     let run_command = match node_type.as_str() {
@@ -134,7 +140,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("✓ Node started with PID: {}", pid);
         println!("  Directory: {}", node_dir.display());
         println!("  Type: {}", node_type);
-        println!("\nUse 'modal node stop --dir {}' to stop the node", node_dir.display());
+        println!(
+            "\nUse 'modal node stop --dir {}' to stop the node",
+            node_dir.display()
+        );
     }
 
     #[cfg(not(unix))]
@@ -151,9 +160,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("✓ Node started with PID: {}", pid);
         println!("  Directory: {}", node_dir.display());
         println!("  Type: {}", node_type);
-        println!("\nUse 'modal node stop --dir {}' to stop the node", node_dir.display());
+        println!(
+            "\nUse 'modal node stop --dir {}' to stop the node",
+            node_dir.display()
+        );
     }
 
     Ok(())
 }
-

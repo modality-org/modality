@@ -3,7 +3,7 @@
 use anyhow::Result;
 use clap::Parser;
 
-use super::runner::{CommonNodeOpts, run_server};
+use super::runner::{run_server, CommonNodeOpts};
 
 #[derive(Debug, Parser)]
 #[command(about = "Run a Modality Network node")]

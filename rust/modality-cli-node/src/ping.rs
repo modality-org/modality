@@ -2,12 +2,12 @@ use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
 
-use std::time::Instant;
 use modality_node::actions;
-use modality_node::node::Node;
 use modality_node::config_resolution::load_config_with_node_dir;
 use modality_node::logging;
+use modality_node::node::Node;
 use rand::Rng;
+use std::time::Instant;
 
 #[derive(Debug, Parser)]
 #[command(about = "Ping a Modality Network node")]
@@ -31,16 +31,16 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Initialize console logging for ping output
     // Use None for log_level to allow RUST_LOG env var to control verbosity
     logging::init_logging(None, Some(false), None)?;
-    
+
     // If neither config nor dir is provided, default to current directory
     let dir = if opts.config.is_none() && opts.dir.is_none() {
         Some(std::env::current_dir()?)
     } else {
         opts.dir.clone()
     };
-    
+
     let config = load_config_with_node_dir(opts.config.clone(), dir)?;
-    
+
     let times_to_ping = opts.times;
     let mut node = Node::from_config(config.clone()).await?;
     log::info!("Pinging from node: {:?}", node.peerid);
@@ -52,13 +52,14 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let random_hex = generate_random_hex_string();
 
     log::info!("Pinging {} {} time(s)...", target, times_to_ping);
-    
+
     for i in 0..times_to_ping {
         let path = String::from("/ping");
         let data = serde_json::json!({
             "random": random_hex
-        }).to_string();
-        
+        })
+        .to_string();
+
         let ping_start = Instant::now();
         match actions::request::run(&mut node, target.clone(), path, data).await {
             Ok(_) => {
@@ -71,7 +72,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
             }
         }
     }
-    
+
     let duration = start.elapsed();
     log::info!("");
     log::info!("--- Ping Statistics ---");
@@ -91,4 +92,3 @@ fn generate_random_hex_string() -> String {
         .map(|b| format!("{:02x}", b))
         .collect::<String>()
 }
-

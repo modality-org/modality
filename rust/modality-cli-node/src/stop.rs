@@ -2,10 +2,10 @@
 //!
 //! This command stops a node that was started with 'modal node start'.
 
-use anyhow::{Result, Context, bail};
+use anyhow::{bail, Context, Result};
 use clap::Parser;
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
 
 use modality_node::config_resolution::load_config_with_node_dir;
 
@@ -39,7 +39,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let node_dir = if let Some(ref d) = dir {
         d.clone()
     } else if let Some(ref cfg_path) = opts.config {
-        cfg_path.parent()
+        cfg_path
+            .parent()
             .context("Cannot determine node directory from config path")?
             .to_path_buf()
     } else {
@@ -50,14 +51,15 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let pid_file = node_dir.join("node.pid");
 
     if !pid_file.exists() {
-        bail!("No PID file found at {}. Is the node running?", pid_file.display());
+        bail!(
+            "No PID file found at {}. Is the node running?",
+            pid_file.display()
+        );
     }
 
     // Read PID from file
-    let pid_str = fs::read_to_string(&pid_file)
-        .context("Failed to read PID file")?;
-    let pid: i32 = pid_str.trim().parse()
-        .context("Invalid PID in PID file")?;
+    let pid_str = fs::read_to_string(&pid_file).context("Failed to read PID file")?;
+    let pid: i32 = pid_str.trim().parse().context("Invalid PID in PID file")?;
 
     println!("Found node process with PID: {}", pid);
 
@@ -79,9 +81,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
                     Signal::SIGTERM
                 };
 
-                println!("Sending {} to process {}...",
+                println!(
+                    "Sending {} to process {}...",
                     if opts.force { "SIGKILL" } else { "SIGTERM" },
-                    pid);
+                    pid
+                );
 
                 signal::kill(nix_pid, signal_to_send)
                     .context("Failed to send signal to process")?;
@@ -112,10 +116,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
     }
 
     // Remove PID file
-    fs::remove_file(&pid_file)
-        .context("Failed to remove PID file")?;
+    fs::remove_file(&pid_file).context("Failed to remove PID file")?;
     println!("✓ PID file removed");
 
     Ok(())
 }
-

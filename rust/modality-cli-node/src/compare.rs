@@ -1,11 +1,11 @@
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 use clap::Parser;
-use std::path::PathBuf;
+use modality_datastore::models::miner::MinerBlock;
+use modality_datastore::DatastoreManager;
 use modality_node::config_resolution::load_config_with_node_dir;
 use modality_node::node::Node;
-use modality_datastore::DatastoreManager;
-use modality_datastore::models::miner::MinerBlock;
-use modality_node::{PeerId, Multiaddr, Protocol};
+use modality_node::{Multiaddr, PeerId, Protocol};
+use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 #[command(about = "Compare local chain with a remote peer's chain")]
@@ -13,19 +13,19 @@ pub struct Opts {
     /// Peer ID to compare with (can be a peer ID or multiaddr)
     #[clap(name = "PEER")]
     pub peer: String,
-    
+
     /// Path to node configuration file
     #[clap(long)]
     pub config: Option<PathBuf>,
-    
+
     /// Node directory containing config.json
     #[clap(long)]
     pub dir: Option<PathBuf>,
-    
+
     /// Timeout in seconds for network requests
     #[clap(long, default_value = "30")]
     pub timeout_secs: u64,
-    
+
     /// Find exact fork point using binary search (slower but precise)
     #[clap(long)]
     pub precise: bool,
@@ -37,20 +37,22 @@ pub async fn run(opts: &Opts) -> Result<()> {
     } else {
         opts.dir.clone()
     };
-    
+
     let config = load_config_with_node_dir(opts.config.clone(), dir)?;
-    
+
     // Open local datastore
-    let data_dir = config.data_dir.as_ref()
+    let data_dir = config
+        .data_dir
+        .as_ref()
         .or(config.storage_path.as_ref())
         .context("No data_dir or storage_path in config")?;
     let datastore_manager = DatastoreManager::open(data_dir)?;
-    
+
     // Get local chain info
     let local_blocks = MinerBlock::find_all_canonical_multi(&datastore_manager).await?;
     let local_orphans = MinerBlock::find_all_orphaned_multi(&datastore_manager).await?;
     let local_chain_length = local_blocks.len() as u64;
-    
+
     // Calculate local cumulative difficulty
     let mut local_cumulative_difficulty: u128 = 0;
     for block in &local_blocks {
@@ -58,17 +60,17 @@ pub async fn run(opts: &Opts) -> Result<()> {
             local_cumulative_difficulty += diff;
         }
     }
-    
+
     // Parse peer address (could be peer ID or multiaddr)
     let (peer_id, peer_addr) = parse_peer_address(&opts.peer, &config)?;
-    
+
     println!("🔍 Comparing chains with peer {}", peer_id);
     println!();
-    
+
     // Create Node instance for network communication
     let mut node = Node::from_config(config.clone()).await?;
     node.setup(&config).await?;
-    
+
     // Compare with peer
     let comparison = compare_with_peer(
         &mut node,
@@ -76,9 +78,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
         peer_addr,
         &local_blocks,
         opts.timeout_secs,
-        opts.precise
-    ).await?;
-    
+        opts.precise,
+    )
+    .await?;
+
     // Display comparison results
     println!("📊 Chain Comparison");
     println!("==================");
@@ -92,61 +95,75 @@ pub async fn run(opts: &Opts) -> Result<()> {
         println!("  Tip Index: {}", tip.index);
     }
     println!();
-    
+
     println!("Remote Chain:");
     println!("  Length: {} blocks", comparison.remote_chain_length);
-    println!("  Cumulative Difficulty: {}", comparison.remote_cumulative_difficulty);
+    println!(
+        "  Cumulative Difficulty: {}",
+        comparison.remote_cumulative_difficulty
+    );
     if let Some(hash) = &comparison.remote_tip_hash {
         println!("  Tip Hash: {}", hash);
     }
     println!();
-    
+
     if let Some(common_ancestor) = comparison.common_ancestor_index {
         // Use precise fork point if available, otherwise use common ancestor
         let display_ancestor = comparison.precise_fork_point.unwrap_or(common_ancestor);
-        
+
         println!("✓ Common Ancestor: Block {}", display_ancestor);
-        
+
         // Show the hash at common ancestor
         if let Some(ancestor_block) = local_blocks.iter().find(|b| b.index == display_ancestor) {
             println!("  Hash: {}", ancestor_block.hash);
         }
-        
+
         // Calculate divergence based on actual fork point
         let fork_point = comparison.precise_fork_point.unwrap_or(common_ancestor);
         let local_diverged_blocks = local_chain_length.saturating_sub(fork_point + 1);
-        let remote_diverged_blocks = comparison.remote_chain_length.saturating_sub(fork_point + 1);
-        
+        let remote_diverged_blocks = comparison
+            .remote_chain_length
+            .saturating_sub(fork_point + 1);
+
         if local_diverged_blocks > 0 || remote_diverged_blocks > 0 {
             println!();
             println!("⚠️  FORK DETECTED");
-            
+
             if comparison.precise_fork_point.is_some() {
                 println!("  📍 Exact fork point: Block {}", fork_point + 1);
             } else {
-                println!("  📍 Fork point: ~Block {} (approximate, use --precise for exact)", fork_point + 1);
+                println!(
+                    "  📍 Fork point: ~Block {} (approximate, use --precise for exact)",
+                    fork_point + 1
+                );
             }
-            
-            println!("  Local diverged: {} blocks (from {} to {})", 
+
+            println!(
+                "  Local diverged: {} blocks (from {} to {})",
                 local_diverged_blocks,
                 fork_point + 1,
                 local_chain_length - 1
             );
-            println!("  Remote diverged: {} blocks (from {} to {})",
+            println!(
+                "  Remote diverged: {} blocks (from {} to {})",
                 remote_diverged_blocks,
                 fork_point + 1,
                 comparison.remote_chain_length - 1
             );
-            
+
             // Show which chain is ahead
             if local_cumulative_difficulty > comparison.remote_cumulative_difficulty {
                 println!();
-                println!("✓ Local chain is heavier (ahead by {} difficulty)",
-                    local_cumulative_difficulty - comparison.remote_cumulative_difficulty);
+                println!(
+                    "✓ Local chain is heavier (ahead by {} difficulty)",
+                    local_cumulative_difficulty - comparison.remote_cumulative_difficulty
+                );
             } else if comparison.remote_cumulative_difficulty > local_cumulative_difficulty {
                 println!();
-                println!("⚠️  Remote chain is heavier (ahead by {} difficulty)",
-                    comparison.remote_cumulative_difficulty - local_cumulative_difficulty);
+                println!(
+                    "⚠️  Remote chain is heavier (ahead by {} difficulty)",
+                    comparison.remote_cumulative_difficulty - local_cumulative_difficulty
+                );
                 println!("   Consider syncing to adopt the heavier chain:");
                 println!("   modal node sync");
             } else {
@@ -159,7 +176,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
     } else {
         println!("❌ No common ancestor found - chains completely diverged from genesis");
     }
-    
+
     Ok(())
 }
 
@@ -178,7 +195,8 @@ fn parse_peer_address(
     // Try parsing as multiaddr first
     if let Ok(addr) = peer_str.parse::<Multiaddr>() {
         // Extract peer ID from multiaddr
-        let peer_id = addr.iter()
+        let peer_id = addr
+            .iter()
             .find_map(|proto| {
                 if let Protocol::P2p(id) = proto {
                     Some(id)
@@ -189,30 +207,29 @@ fn parse_peer_address(
             .context("Multiaddr does not contain a peer ID")?;
         return Ok((peer_id, addr));
     }
-    
+
     // Try parsing as peer ID
     if let Ok(peer_id) = peer_str.parse::<PeerId>() {
         // Look for this peer in bootstrappers
         if let Some(ref bootstrappers) = config.bootstrappers {
             for addr in bootstrappers {
-                let addr_peer_id = addr.iter()
-                    .find_map(|proto| {
-                        if let Protocol::P2p(id) = proto {
-                            Some(id)
-                        } else {
-                            None
-                        }
-                    });
-                
+                let addr_peer_id = addr.iter().find_map(|proto| {
+                    if let Protocol::P2p(id) = proto {
+                        Some(id)
+                    } else {
+                        None
+                    }
+                });
+
                 if addr_peer_id == Some(peer_id) {
                     return Ok((peer_id, addr.clone()));
                 }
             }
         }
-        
+
         anyhow::bail!("Peer ID not found in bootstrappers. Please provide a full multiaddr.");
     }
-    
+
     anyhow::bail!("Invalid peer address. Please provide either:\n  - A full multiaddr (e.g. /ip4/1.2.3.4/tcp/4040/ws/p2p/12D3...)\n  - A peer ID found in your config's bootstrappers")
 }
 
@@ -227,12 +244,13 @@ async fn compare_with_peer(
     // Connect to peer
     println!("🔗 Connecting to peer...");
     println!("   Address: {}", peer_addr);
-    
+
     let connect_result = tokio::time::timeout(
         std::time::Duration::from_secs(timeout_secs / 2),
-        node.connect_to_peer_multiaddr(peer_addr.clone())
-    ).await;
-    
+        node.connect_to_peer_multiaddr(peer_addr.clone()),
+    )
+    .await;
+
     match &connect_result {
         Err(_) => {
             anyhow::bail!("Connection timeout after {} seconds\n   \n   Troubleshooting:\n   - Check that the peer is online and reachable\n   - Verify the multiaddr is correct\n   - Ensure firewall rules allow connections", timeout_secs / 2);
@@ -245,14 +263,19 @@ async fn compare_with_peer(
             println!();
         }
     }
-    
+
     // Get peer's chain info
     println!("📡 Requesting chain info...");
     let chain_info_response = tokio::time::timeout(
         std::time::Duration::from_secs(timeout_secs / 2),
-        node.send_request(peer_id, "/data/miner_block/chain_info".to_string(), "{}".to_string())
-    ).await;
-    
+        node.send_request(
+            peer_id,
+            "/data/miner_block/chain_info".to_string(),
+            "{}".to_string(),
+        ),
+    )
+    .await;
+
     let chain_info = match chain_info_response {
         Ok(Ok(response)) => response,
         Ok(Err(e)) => {
@@ -264,33 +287,36 @@ async fn compare_with_peer(
             anyhow::bail!("Chain info request timeout");
         }
     };
-    
+
     // Extract remote chain info
-    let remote_chain_length = chain_info.data
+    let remote_chain_length = chain_info
+        .data
         .as_ref()
         .and_then(|d| d.get("chain_height"))
         .and_then(|h| h.as_u64())
         .context("Could not determine peer chain height")?;
-    
-    let remote_cumulative_difficulty = chain_info.data
+
+    let remote_cumulative_difficulty = chain_info
+        .data
         .as_ref()
         .and_then(|d| d.get("cumulative_difficulty"))
         .and_then(|h| h.as_str())
         .and_then(|s| s.parse::<u128>().ok())
         .context("Could not determine peer cumulative difficulty")?;
-    
-    let remote_tip_hash = chain_info.data
+
+    let remote_tip_hash = chain_info
+        .data
         .as_ref()
         .and_then(|d| d.get("tip_hash"))
         .and_then(|h| h.as_str())
         .map(|s| s.to_string());
-    
+
     // Build checkpoints for find_ancestor query
     println!("🔎 Finding common ancestor...");
     let local_chain_length = local_blocks.len() as u64;
     let mut checkpoints = Vec::new();
     let mut step = 0;
-    
+
     // Exponential backoff: [tip, tip-1, tip-2, tip-4, tip-8, ...]
     loop {
         let index = if step == 0 {
@@ -300,20 +326,24 @@ async fn compare_with_peer(
         } else {
             local_chain_length.saturating_sub(1 << step)
         };
-        
-        if index >= local_chain_length { break; }
-        
+
+        if index >= local_chain_length {
+            break;
+        }
+
         if let Some(block) = local_blocks.iter().find(|b| b.index == index) {
             checkpoints.push(serde_json::json!({
                 "index": block.index,
                 "hash": block.hash
             }));
         }
-        
-        if index == 0 { break; }
+
+        if index == 0 {
+            break;
+        }
         step += 1;
     }
-    
+
     // Send find_ancestor request
     let ancestor_response = tokio::time::timeout(
         std::time::Duration::from_secs(timeout_secs),
@@ -322,10 +352,12 @@ async fn compare_with_peer(
             "/data/miner_block/find_ancestor".to_string(),
             serde_json::json!({
                 "check_points": checkpoints
-            }).to_string()
-        )
-    ).await;
-    
+            })
+            .to_string(),
+        ),
+    )
+    .await;
+
     let ancestor = match ancestor_response {
         Ok(Ok(response)) => response,
         Ok(Err(e)) => {
@@ -337,31 +369,34 @@ async fn compare_with_peer(
             anyhow::bail!("Find ancestor request timeout");
         }
     };
-    
-    let common_ancestor_index = ancestor.data
+
+    let common_ancestor_index = ancestor
+        .data
         .as_ref()
         .and_then(|d| d.get("highest_match"))
         .and_then(|h| h.as_u64());
-    
+
     // If precise mode is enabled, do binary search to find exact fork point
     let precise_fork_point = if precise && common_ancestor_index.is_some() {
         let common_ancestor = common_ancestor_index.unwrap();
-        
+
         // Find the next checkpoint after common ancestor to narrow search range
         let search_end = local_chain_length.min(remote_chain_length);
-        
+
         // Only do binary search if there's a gap to search
         if search_end > common_ancestor + 1 {
             println!("🔎 Performing precise binary search for exact fork point...");
-            
+
             match binary_search_fork_point(
                 node,
                 peer_id,
                 local_blocks,
                 common_ancestor,
                 search_end,
-                timeout_secs
-            ).await {
+                timeout_secs,
+            )
+            .await
+            {
                 Ok(fork_point) => {
                     println!("   Found exact fork at block {}", fork_point + 1);
                     Some(fork_point)
@@ -379,10 +414,10 @@ async fn compare_with_peer(
     } else {
         None
     };
-    
+
     // Disconnect from peer
     let _ = node.disconnect_from_peer_id(peer_id).await;
-    
+
     Ok(ChainComparison {
         remote_chain_length,
         remote_cumulative_difficulty,
@@ -397,23 +432,24 @@ async fn binary_search_fork_point(
     node: &mut Node,
     peer_id: PeerId,
     local_blocks: &[MinerBlock],
-    start: u64,  // Known common block
-    end: u64,    // Known different block (or search limit)
+    start: u64, // Known common block
+    end: u64,   // Known different block (or search limit)
     timeout_secs: u64,
 ) -> Result<u64> {
     let mut left = start;
     let mut right = end;
     let mut last_common = start;
-    
+
     while left < right - 1 {
         let mid = (left + right) / 2;
-        
+
         // Get local block hash at mid
-        let local_hash = local_blocks.iter()
+        let local_hash = local_blocks
+            .iter()
             .find(|b| b.index == mid)
             .map(|b| b.hash.clone())
             .context(format!("Local block {} not found", mid))?;
-        
+
         // Query remote peer for block at mid
         let response = tokio::time::timeout(
             std::time::Duration::from_secs(timeout_secs),
@@ -422,18 +458,19 @@ async fn binary_search_fork_point(
                 "/data/miner_block/get".to_string(),
                 serde_json::json!({
                     "index": mid
-                }).to_string()
-            )
-        ).await;
-        
+                })
+                .to_string(),
+            ),
+        )
+        .await;
+
         let remote_hash = match response {
-            Ok(Ok(resp)) => {
-                resp.data
-                    .as_ref()
-                    .and_then(|d| d.get("hash"))
-                    .and_then(|h| h.as_str())
-                    .map(|s| s.to_string())
-            }
+            Ok(Ok(resp)) => resp
+                .data
+                .as_ref()
+                .and_then(|d| d.get("hash"))
+                .and_then(|h| h.as_str())
+                .map(|s| s.to_string()),
             Ok(Err(e)) => {
                 anyhow::bail!("Request failed at block {}: {}", mid, e);
             }
@@ -441,11 +478,11 @@ async fn binary_search_fork_point(
                 anyhow::bail!("Timeout at block {}", mid);
             }
         };
-        
+
         let Some(remote_hash) = remote_hash else {
             anyhow::bail!("Remote block {} not found or invalid response", mid);
         };
-        
+
         if local_hash == remote_hash {
             // This block matches, fork is after this point
             last_common = mid;
@@ -457,7 +494,6 @@ async fn binary_search_fork_point(
             println!("   Block {} ❌ (different)", mid);
         }
     }
-    
+
     Ok(last_common)
 }
-

@@ -4,8 +4,10 @@ use serde_json::json;
 use std::path::PathBuf;
 
 use modality_common::keypair::Keypair;
-use modality_node::autoupgrade::{DEFAULT_AUTOUPGRADE_BASE_URL, DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS};
 use modality_networks::networks;
+use modality_node::autoupgrade::{
+    DEFAULT_AUTOUPGRADE_BASE_URL, DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS,
+};
 
 #[derive(Debug, Parser)]
 #[command(about = "Create a new node directory with config.json and node.modal_passfile")]
@@ -152,11 +154,11 @@ impl Opts {
 
 pub async fn run(opts: &Opts) -> Result<()> {
     // Handle --from-template by loading passfile and config from modality-networks
-    let (template_passfile_content, template_config_content, template_network) = if let Some(template) = &opts.from_template {
-        println!("📦 Loading template: {}", template);
-        
-        let tmpl = modality_networks::templates::get(template)
-            .ok_or_else(|| {
+    let (template_passfile_content, template_config_content, template_network) =
+        if let Some(template) = &opts.from_template {
+            println!("📦 Loading template: {}", template);
+
+            let tmpl = modality_networks::templates::get(template).ok_or_else(|| {
                 let available = modality_networks::templates::list().join(", ");
                 anyhow::anyhow!(
                     "Template '{}' not found. Available templates: {}",
@@ -164,18 +166,24 @@ pub async fn run(opts: &Opts) -> Result<()> {
                     available
                 )
             })?;
-        
-        println!("✅ Loaded template: {}", template);
-        
-        // Extract network name from template path (e.g., "devnet3/node1" -> "devnet3")
-        let network_name = template.split('/').next()
-            .ok_or_else(|| anyhow::anyhow!("Invalid template format: {}", template))?;
-        
-        (Some(tmpl.passfile.to_string()), Some(tmpl.config.to_string()), Some(network_name.to_string()))
-    } else {
-        (None, None, None)
-    };
-    
+
+            println!("✅ Loaded template: {}", template);
+
+            // Extract network name from template path (e.g., "devnet3/node1" -> "devnet3")
+            let network_name = template
+                .split('/')
+                .next()
+                .ok_or_else(|| anyhow::anyhow!("Invalid template format: {}", template))?;
+
+            (
+                Some(tmpl.passfile.to_string()),
+                Some(tmpl.config.to_string()),
+                Some(network_name.to_string()),
+            )
+        } else {
+            (None, None, None)
+        };
+
     // Determine the node directory
     let node_dir = if let Some(dir) = &opts.dir {
         dir.clone()
@@ -183,7 +191,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
         // Use current directory if no --dir provided
         let current_dir = std::env::current_dir()?;
         let config_path = current_dir.join("config.json");
-        
+
         // Check if config.json already exists in current directory
         if config_path.exists() {
             return Err(anyhow::anyhow!(
@@ -192,7 +200,7 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 current_dir.display()
             ));
         }
-        
+
         current_dir
     };
 
@@ -215,108 +223,111 @@ pub async fn run(opts: &Opts) -> Result<()> {
     let existing_passfile = passfile_path.exists();
 
     // Load existing keypair or generate a new one
-    let (keypair, mnemonic_phrase, derivation_path, loaded_from_existing) = if let Some(passfile_content) = &template_passfile_content {
-        // Load from template passfile content
-        println!("📂 Loading identity from template...");
-        
-        let kp = Keypair::from_json_string(passfile_content)
-            .context("Failed to load keypair from template")?;
-        
-        println!("✅ Loaded identity: {}", kp.as_public_address());
-        
-        // When loading from template, we need to SAVE the passfile (not loaded from existing file)
-        (kp, None, None, false)
-    } else if let Some(from_passfile) = &opts.from_passfile {
-        // Import from specified passfile
-        println!("📂 Importing passfile from {}...", from_passfile.display());
-        
-        let kp = Keypair::from_json_file(
-            from_passfile.to_str().ok_or_else(|| {
+    let (keypair, mnemonic_phrase, derivation_path, loaded_from_existing) =
+        if let Some(passfile_content) = &template_passfile_content {
+            // Load from template passfile content
+            println!("📂 Loading identity from template...");
+
+            let kp = Keypair::from_json_string(passfile_content)
+                .context("Failed to load keypair from template")?;
+
+            println!("✅ Loaded identity: {}", kp.as_public_address());
+
+            // When loading from template, we need to SAVE the passfile (not loaded from existing file)
+            (kp, None, None, false)
+        } else if let Some(from_passfile) = &opts.from_passfile {
+            // Import from specified passfile
+            println!("📂 Importing passfile from {}...", from_passfile.display());
+
+            let kp = Keypair::from_json_file(from_passfile.to_str().ok_or_else(|| {
                 anyhow::anyhow!("Invalid passfile path: contains non-Unicode characters")
-            })?
-        )
-        .with_context(|| format!("Failed to load keypair from {}", from_passfile.display()))?;
-        
-        println!("✅ Loaded identity: {}", kp.as_public_address());
-        
-        // When loading from imported passfile, we don't generate new mnemonic info
-        (kp, None, None, true)
-    } else if existing_passfile {
-        // Load existing passfile
-        println!("📂 Found existing node.modal_passfile, loading identity...");
-        let passfile_str = passfile_path.to_str().ok_or_else(|| {
-            anyhow::anyhow!("Invalid passfile path: contains non-Unicode characters")
-        })?;
-        
-        let kp = Keypair::from_json_file(passfile_str)
-            .with_context(|| format!("Failed to load keypair from {}", passfile_path.display()))?;
-        
-        println!("✅ Loaded identity: {}", kp.as_public_address());
-        
-        // When loading from existing passfile, we don't generate new mnemonic info
-        (kp, None, None, true)
-    } else if opts.use_mnemonic {
-        let (mnemonic, is_new) = if let Some(phrase) = &opts.mnemonic_phrase {
-            // Import from existing mnemonic
-            (phrase.clone(), false)
-        } else {
-            // Generate new mnemonic
-            let (_, phrase) = Keypair::generate_with_mnemonic(
-                opts.mnemonic_words,
+            })?)
+            .with_context(|| format!("Failed to load keypair from {}", from_passfile.display()))?;
+
+            println!("✅ Loaded identity: {}", kp.as_public_address());
+
+            // When loading from imported passfile, we don't generate new mnemonic info
+            (kp, None, None, true)
+        } else if existing_passfile {
+            // Load existing passfile
+            println!("📂 Found existing node.modal_passfile, loading identity...");
+            let passfile_str = passfile_path.to_str().ok_or_else(|| {
+                anyhow::anyhow!("Invalid passfile path: contains non-Unicode characters")
+            })?;
+
+            let kp = Keypair::from_json_file(passfile_str).with_context(|| {
+                format!("Failed to load keypair from {}", passfile_path.display())
+            })?;
+
+            println!("✅ Loaded identity: {}", kp.as_public_address());
+
+            // When loading from existing passfile, we don't generate new mnemonic info
+            (kp, None, None, true)
+        } else if opts.use_mnemonic {
+            let (mnemonic, is_new) = if let Some(phrase) = &opts.mnemonic_phrase {
+                // Import from existing mnemonic
+                (phrase.clone(), false)
+            } else {
+                // Generate new mnemonic
+                let (_, phrase) = Keypair::generate_with_mnemonic(
+                    opts.mnemonic_words,
+                    opts.account,
+                    opts.change,
+                    opts.index,
+                    opts.passphrase.as_deref(),
+                )
+                .map_err(|e| {
+                    eprintln!("Failed to generate keypair from mnemonic: {}", e);
+                    e
+                })?;
+
+                (phrase, true)
+            };
+
+            if is_new {
+                println!("\n🔐 Generated BIP39 Mnemonic Seed Phrase:");
+                println!("   {}", mnemonic);
+                println!("\n⚠️  IMPORTANT: Write down this seed phrase and store it securely!");
+                println!("   You can recover your keypair from this seed phrase.");
+                println!("   Never share it with anyone!\n");
+            }
+
+            let path = format!(
+                "m/44'/177017'/{}'/{}'/{}'",
+                opts.account, opts.change, opts.index
+            );
+
+            let kp = Keypair::from_mnemonic(
+                &mnemonic,
                 opts.account,
                 opts.change,
                 opts.index,
                 opts.passphrase.as_deref(),
             )
             .map_err(|e| {
-                eprintln!("Failed to generate keypair from mnemonic: {}", e);
+                eprintln!("Failed to derive keypair from mnemonic: {}", e);
                 e
             })?;
-            
-            (phrase, true)
-        };
 
-        if is_new {
-            println!("\n🔐 Generated BIP39 Mnemonic Seed Phrase:");
-            println!("   {}", mnemonic);
-            println!("\n⚠️  IMPORTANT: Write down this seed phrase and store it securely!");
-            println!("   You can recover your keypair from this seed phrase.");
-            println!("   Never share it with anyone!\n");
-        }
+            let mnemonic_to_store = if opts.no_store_mnemonic {
+                None
+            } else {
+                Some(mnemonic)
+            };
 
-        let path = format!(
-            "m/44'/177017'/{}'/{}'/{}'",
-            opts.account, opts.change, opts.index
-        );
-        
-        let kp = Keypair::from_mnemonic(
-            &mnemonic,
-            opts.account,
-            opts.change,
-            opts.index,
-            opts.passphrase.as_deref(),
-        )
-        .map_err(|e| {
-            eprintln!("Failed to derive keypair from mnemonic: {}", e);
-            e
-        })?;
-
-        let mnemonic_to_store = if opts.no_store_mnemonic {
-            None
+            (kp, mnemonic_to_store, Some(path), false)
         } else {
-            Some(mnemonic)
+            let kp = Keypair::generate().map_err(|e| {
+                eprintln!("Failed to generate keypair: {}", e);
+                e
+            })?;
+            (kp, None, None, false)
         };
 
-        (kp, mnemonic_to_store, Some(path), false)
-    } else {
-        let kp = Keypair::generate().map_err(|e| {
-            eprintln!("Failed to generate keypair: {}", e);
-            e
-        })?;
-        (kp, None, None, false)
-    };
-
-    let peer_id = opts.node_id.clone().unwrap_or_else(|| keypair.as_public_address());
+    let peer_id = opts
+        .node_id
+        .clone()
+        .unwrap_or_else(|| keypair.as_public_address());
 
     // Validate that --network and --testnet are not both specified
     if opts.testnet && opts.network.is_some() {
@@ -328,8 +339,8 @@ pub async fn run(opts: &Opts) -> Result<()> {
     // Resolve network configuration
     let (network_bootstrappers, autoupgrade_config) = if opts.testnet {
         // Testnet mode: use testnet network config and enable autoupgrade
-        let testnet = networks::by_name("testnet")
-            .context("Testnet network configuration not found")?;
+        let testnet =
+            networks::by_name("testnet").context("Testnet network configuration not found")?;
         let bootstrappers = testnet.bootstrappers.clone();
 
         let autoupgrade = Some((
@@ -345,8 +356,11 @@ pub async fn run(opts: &Opts) -> Result<()> {
         let network_config_path = std::env::current_exe()?
             .parent()
             .ok_or_else(|| anyhow::anyhow!("Cannot determine binary directory"))?
-            .join(format!("../../../fixtures/network-configs/{}/config.json", network));
-        
+            .join(format!(
+                "../../../fixtures/network-configs/{}/config.json",
+                network
+            ));
+
         // Check if the file exists before trying to canonicalize it
         if !network_config_path.exists() {
             return Err(anyhow::anyhow!(
@@ -355,28 +369,46 @@ pub async fn run(opts: &Opts) -> Result<()> {
                 network
             ));
         }
-        
+
         let network_config_path = network_config_path.canonicalize()?;
-        let config_content = std::fs::read_to_string(&network_config_path)
-            .with_context(|| format!("Failed to read {} network config at {}", network, network_config_path.display()))?;
+        let config_content = std::fs::read_to_string(&network_config_path).with_context(|| {
+            format!(
+                "Failed to read {} network config at {}",
+                network,
+                network_config_path.display()
+            )
+        })?;
         let network_config: serde_json::Value = serde_json::from_str(&config_content)?;
-        
+
         let bootstrappers = network_config["bootstrappers"]
             .as_array()
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
             .unwrap_or_default();
-        
+
         // Enable autoupgrade if --enable-autoupgrade is specified
         let autoupgrade = if opts.enable_autoupgrade {
-            let base_url = opts.autoupgrade_base_url.clone()
+            let base_url = opts
+                .autoupgrade_base_url
+                .clone()
                 .unwrap_or_else(|| DEFAULT_AUTOUPGRADE_BASE_URL.to_string());
-            let branch = opts.autoupgrade_branch.clone()
+            let branch = opts
+                .autoupgrade_branch
+                .clone()
                 .unwrap_or_else(|| network.clone());
-            Some((base_url, branch, opts.autoupgrade_check_interval_secs.unwrap_or(DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS)))
+            Some((
+                base_url,
+                branch,
+                opts.autoupgrade_check_interval_secs
+                    .unwrap_or(DEFAULT_AUTOUPGRADE_CHECK_INTERVAL_SECS),
+            ))
         } else {
             None
         };
-        
+
         (bootstrappers, autoupgrade)
     } else {
         // No network preset, use manual bootstrappers if provided
@@ -399,18 +431,22 @@ pub async fn run(opts: &Opts) -> Result<()> {
 
     // Create config.json
     let config_path = node_dir.join("config.json");
-    
+
     // Load base config from template, --from-config, or use defaults
     let mut config: serde_json::Value = if let Some(config_content) = &template_config_content {
         println!("📂 Loading configuration from template...");
-        serde_json::from_str(config_content)
-            .context("Failed to parse config from template")?
+        serde_json::from_str(config_content).context("Failed to parse config from template")?
     } else if let Some(from_config_path) = &opts.from_config {
-        println!("📂 Importing configuration from {}...", from_config_path.display());
-        let config_content = std::fs::read_to_string(from_config_path)
-            .with_context(|| format!("Failed to read config from {}", from_config_path.display()))?;
-        serde_json::from_str(&config_content)
-            .with_context(|| format!("Failed to parse config from {}", from_config_path.display()))?
+        println!(
+            "📂 Importing configuration from {}...",
+            from_config_path.display()
+        );
+        let config_content = std::fs::read_to_string(from_config_path).with_context(|| {
+            format!("Failed to read config from {}", from_config_path.display())
+        })?;
+        serde_json::from_str(&config_content).with_context(|| {
+            format!("Failed to parse config from {}", from_config_path.display())
+        })?
     } else {
         // Start with default config
         json!({
@@ -427,13 +463,13 @@ pub async fn run(opts: &Opts) -> Result<()> {
             "bootstrappers": vec![] as Vec<String>
         })
     };
-    
+
     // Override/merge with command line options
     if let Some(obj) = config.as_object_mut() {
         // Always update the ID to match the keypair
         obj.insert("id".to_string(), json!(peer_id));
         obj.insert("passfile_path".to_string(), json!("./node.modal_passfile"));
-        
+
         // Only override data_dir if explicitly provided (not default)
         // The default is "./data" from clap, but we don't want to override template configs with it
         // Check if data_dir was actually provided by user (not just the default)
@@ -442,39 +478,57 @@ pub async fn run(opts: &Opts) -> Result<()> {
         if template_config_content.is_none() && !opts.data_dir.is_empty() {
             obj.insert("data_dir".to_string(), json!(opts.data_dir));
         }
-        
+
         // Override with CLI options if provided
         if opts.logs_enabled.is_some() {
-            obj.insert("logs_enabled".to_string(), json!(opts.logs_enabled.unwrap()));
+            obj.insert(
+                "logs_enabled".to_string(),
+                json!(opts.logs_enabled.unwrap()),
+            );
         }
         if !opts.log_level.is_empty() && opts.log_level != "info" {
             obj.insert("log_level".to_string(), json!(opts.log_level));
         }
         if opts.bootup_enabled.is_some() {
-            obj.insert("bootup_enabled".to_string(), json!(opts.bootup_enabled.unwrap()));
+            obj.insert(
+                "bootup_enabled".to_string(),
+                json!(opts.bootup_enabled.unwrap()),
+            );
         }
         if opts.bootup_minimum_genesis_timestamp.is_some() {
-            obj.insert("bootup_minimum_genesis_timestamp".to_string(), json!(opts.bootup_minimum_genesis_timestamp));
+            obj.insert(
+                "bootup_minimum_genesis_timestamp".to_string(),
+                json!(opts.bootup_minimum_genesis_timestamp),
+            );
         }
         if opts.bootup_prune_old_genesis_blocks.is_some() {
-            obj.insert("bootup_prune_old_genesis_blocks".to_string(), json!(opts.bootup_prune_old_genesis_blocks.unwrap()));
+            obj.insert(
+                "bootup_prune_old_genesis_blocks".to_string(),
+                json!(opts.bootup_prune_old_genesis_blocks.unwrap()),
+            );
         }
-        
+
         // Preserve network_config_path and other fields from template - don't override them unless specified
         // This ensures template configs keep all their fields like network_config_path, listeners, etc.
-        
+
         // If using a template, inject network_config_path based on the network name
         // This allows templates to work with embedded network configs from modality-networks
         if let Some(network_name) = &template_network {
             // Verify the network exists in modality-networks
             if modality_networks::networks::by_name(network_name).is_some() {
                 // Use a special marker that the node will recognize to load from embedded configs
-                obj.insert("network_config_path".to_string(), json!(format!("modality-networks://{}", network_name)));
-                println!("📋 Network config: {} (from modality-networks)", network_name);
+                obj.insert(
+                    "network_config_path".to_string(),
+                    json!(format!("modality-networks://{}", network_name)),
+                );
+                println!(
+                    "📋 Network config: {} (from modality-networks)",
+                    network_name
+                );
             }
         }
     }
-    
+
     // Parse bootstrappers - merge network and manual bootstrappers
     let mut bootstrappers = network_bootstrappers;
     if let Some(bootstrappers_str) = &opts.bootstrappers {
@@ -482,10 +536,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
             bootstrappers_str
                 .split(',')
                 .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
+                .filter(|s| !s.is_empty()),
         );
     }
-    
+
     // Update bootstrappers if any were specified
     if !bootstrappers.is_empty() {
         if let Some(obj) = config.as_object_mut() {
@@ -499,7 +553,10 @@ pub async fn run(opts: &Opts) -> Result<()> {
             obj.insert("autoupgrade_enabled".to_string(), json!(true));
             obj.insert("autoupgrade_base_url".to_string(), json!(base_url));
             obj.insert("autoupgrade_branch".to_string(), json!(branch));
-            obj.insert("autoupgrade_check_interval_secs".to_string(), json!(*check_interval));
+            obj.insert(
+                "autoupgrade_check_interval_secs".to_string(),
+                json!(*check_interval),
+            );
         }
     }
 
@@ -526,28 +583,44 @@ pub async fn run(opts: &Opts) -> Result<()> {
     println!("🔐 Passfile: {}", passfile_path.display());
     println!("💾 Data directory: {}", data_dir.display());
     println!("📝 Logs directory: {}", logs_dir.display());
-    println!("📊 Logging: {} (level: {})", 
-        if opts.logs_enabled.unwrap_or(true) { "enabled" } else { "disabled" }, 
-        opts.log_level);
-    println!("🚀 Bootup tasks: {} (prune old genesis: {})", 
-        if opts.bootup_enabled.unwrap_or(true) { "enabled" } else { "disabled" },
-        if opts.bootup_prune_old_genesis_blocks.unwrap_or(false) { "enabled" } else { "disabled" });
-    
+    println!(
+        "📊 Logging: {} (level: {})",
+        if opts.logs_enabled.unwrap_or(true) {
+            "enabled"
+        } else {
+            "disabled"
+        },
+        opts.log_level
+    );
+    println!(
+        "🚀 Bootup tasks: {} (prune old genesis: {})",
+        if opts.bootup_enabled.unwrap_or(true) {
+            "enabled"
+        } else {
+            "disabled"
+        },
+        if opts.bootup_prune_old_genesis_blocks.unwrap_or(false) {
+            "enabled"
+        } else {
+            "disabled"
+        }
+    );
+
     if let Some(timestamp) = opts.bootup_minimum_genesis_timestamp {
         println!("📅 Minimum genesis timestamp: {}", timestamp);
     }
-    
+
     if !bootstrappers.is_empty() {
         println!("🌐 Bootstrappers: {}", bootstrappers.join(", "));
     }
-    
+
     if let Some((base_url, branch, interval)) = &autoupgrade_config {
         println!("🔄 Autoupgrade: enabled");
         println!("   Base URL: {}", base_url);
         println!("   Branch: {}", branch);
         println!("   Check interval: {}s", interval);
     }
-    
+
     println!("\n🚀 You can now run your node with:");
     println!("   modality node run --dir {}", node_dir.display());
     println!("\n🚨🚨🚨  IMPORTANT: Keep your passfile secure and never share it! 🚨🚨🚨");

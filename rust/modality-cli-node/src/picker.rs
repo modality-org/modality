@@ -251,8 +251,6 @@ fn draw_footer(frame: &mut Frame, area: Rect) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn digit_index_maps_to_items() {
         assert_eq!('1'.to_digit(10).unwrap(), 1);

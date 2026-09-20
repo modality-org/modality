@@ -144,7 +144,9 @@ pub async fn run_node(opts: &CommonNodeOpts, role: NodeRole, manage_pid: bool) -
 
     let tui_task = if use_tui {
         let source = node.status_source();
-        Some(tokio::spawn(async move { tui::run(source, log_ring).await }))
+        Some(tokio::spawn(
+            async move { tui::run(source, log_ring).await },
+        ))
     } else {
         None
     };
